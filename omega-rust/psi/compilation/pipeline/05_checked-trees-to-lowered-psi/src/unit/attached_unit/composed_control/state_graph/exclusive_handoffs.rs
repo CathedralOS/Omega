@@ -49,13 +49,13 @@ pub(super) fn promote_shared_handoffs(
     aliased: &[std::collections::BTreeMap<u32, u32>],
 ) -> Result<Vec<BTreeSet<u32>>, LoweringError> {
     let mut promoted = vec![BTreeSet::new(); plan.states.len()];
-    let entry_reentered = plan.states.first().is_some_and(|entry| {
+    let entry_reentered = plan.states.first().is_some_and(|_| {
         plan.states
             .iter()
             .zip(live)
             .filter_map(|(state, live)| live.then_some(state))
             .flat_map(successors)
-            .any(|successor| successor.target_state == entry.state)
+            .any(|successor| plan.successor_position(successor) == Some(0))
     });
     let is_aliased = |position: usize, index: u32| {
         aliased
@@ -114,7 +114,6 @@ pub(super) fn promote_shared_handoffs(
             .iter()
             .copied()
             .filter(|&(position, index)| {
-                let target = plan.states[position].state;
                 let target_type =
                     &plan.states[position].structural_parameters[index as usize].type_identity;
                 let mut incoming = plan
@@ -125,7 +124,7 @@ pub(super) fn promote_shared_handoffs(
                     .flat_map(|(source, state)| {
                         successors(state)
                             .into_iter()
-                            .filter(move |edge| edge.target_state == target)
+                            .filter(move |edge| plan.successor_position(edge) == Some(position))
                             .map(move |edge| (source, edge))
                     })
                     .peekable();

@@ -1,0 +1,17 @@
+// Expected exit: 0
+// A copied descriptor retains its backing after the original descriptor is reseated.
+data Cell { value: u64; }
+machine require_positive(value: u64) requires value > 0; {}
+machine main() crashes Trap {
+    let first: Cell = Cell { value: 7 };
+    let second: Cell = Cell { value: 8 };
+    let mut selected: &Cell = &first;
+    let copied: &Cell = selected;
+    selected = &second;
+    require_positive(copied.value);
+    transition copied.value == 7 && selected.value == 8 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

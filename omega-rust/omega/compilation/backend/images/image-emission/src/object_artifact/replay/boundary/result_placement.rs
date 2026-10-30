@@ -1,5 +1,7 @@
 //! Final native result-placement replay for admitted boundary realizations.
 
+#[cfg(test)]
+use crate::object_artifact::test_support::structural_declaration;
 use calling_conventions::{MachineRegister, ValueLocation, ValueShape};
 use machine_code::BoundaryResultRecord;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
@@ -101,16 +103,10 @@ pub(crate) fn hosted_read_byte_declaration_is_valid(
 pub(crate) fn test_byte_read_declaration(
     id: semantic_vocabulary::StructuralTypeId,
 ) -> terminal_psi::StructuralTypeDeclaration {
-    terminal_psi::StructuralTypeDeclaration {
-        quotient_carrier: None,
-        owns_linear_claim: false,
-        no_code_affine_cleanup: false,
-        copyable: false,
-        descriptor_cleanup: false,
-        scalar_restriction: None,
+    structural_declaration(
         id,
-        identity: terminal_psi::TerminalIdentityIndex(1),
-        shape: terminal_psi::StructuralTypeShape::Sum {
+        terminal_psi::TerminalIdentityIndex(1),
+        terminal_psi::StructuralTypeShape::Sum {
             cases: vec![
                 terminal_psi::StructuralCaseDeclaration {
                     id: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
@@ -137,7 +133,7 @@ pub(crate) fn test_byte_read_declaration(
                 },
             ],
         },
-    }
+    )
 }
 
 #[cfg(test)]

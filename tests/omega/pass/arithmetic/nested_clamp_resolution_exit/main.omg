@@ -1,0 +1,36 @@
+// Expected exit: 0
+// Nested selected calls retain their branch result and the original scalar bits.
+machine clamp(value: u64, lower: u64, upper: u64) -> u64
+requires lower <= upper
+ensures result >= lower && result <= upper &&
+    ((value < lower && result == lower) ||
+     (value > upper && result == upper) ||
+     (value >= lower && value <= upper && result == value))
+{
+    transition {
+        value < lower -> (lower)
+        value > upper -> (upper)
+        _ -> (value)
+    }
+}
+data Input [copy] { value: u64; neighbour: u64; }
+machine scaled(input: &Input) -> u64 {
+    let first: u64 = clamp(input.value, 1, 1000);
+    let product: u64 in Wrapping = (first as u64 in Wrapping) * 10;
+    clamp(product as u64, 0, 100)
+}
+machine main() crashes Trap {
+    let low: Input = Input { value: 0, neighbour: 73 };
+    let middle: Input = Input { value: 5, neighbour: 79 };
+    let high: Input = Input { value: 1001, neighbour: 83 };
+    let first: u64 = scaled(&low);
+    let second: u64 = scaled(&middle);
+    let third: u64 = scaled(&high);
+    transition first == 10 && second == 50 && third == 100 &&
+        low.neighbour == 73 && middle.neighbour == 79 && high.neighbour == 83 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

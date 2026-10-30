@@ -18,7 +18,6 @@ mod specialization_rows;
 
 pub(crate) use adapter_conformance::exact_checked_adapter_invocations;
 pub use adapter_conformance::{exact_checked_adapter, selected_requirement_checked_adapter};
-pub(crate) use requirement_identities::exact_satisfied_requirement_identity;
 pub use requirement_identities::{same_semantic_name, satisfies_plan_name};
 pub(crate) use specialization_rows::derive_leaf_requirement_specializations;
 pub use specialization_rows::project_checked_provider_instances;

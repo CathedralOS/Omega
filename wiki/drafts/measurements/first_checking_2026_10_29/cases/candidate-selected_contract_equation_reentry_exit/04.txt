@@ -1,0 +1,26 @@
+No accepted lock baseline: reviewing the complete candidate graph.
+windows_x86_64: checked 1 source packages.
+New package source: selected_contract_equation_reentry [d73dd92e06b8]: no prior revision to compare.
+Standalone candidate source: selected_contract_equation_reentry [d73dd92e06b8]: 2 changed entries.
+Source-code output (separate from editable capability review): \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\first-checking\cases\candidate-selected_contract_equation_reentry_exit\input\build\package-manager\source-diff.txt
+
+Published build.omg and omega.lock for 1 packages across 1 targets.
+review: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\first-checking\cases\candidate-selected_contract_equation_reentry_exit\input\build\package-manager\review-windows_x86_64.txt
+omega_review_timings note=review_pass discovery occurrences=1 compiled=1 carried=0 frontier_reused=0 preliminary_checks=0 preliminary_micros=0 settled_checks=1 settled_micros=1125102
+omega_review_timings stage=package selected_contract_equation_reentry purpose=Product micros=1351958
+omega_review_timings stage=review_pass discovery root=selected_contract_equation_reentry micros=1352041
+omega_review_timings stage=candidate_compilation micros=1352046
+omega_review_timings run_micros=1352046
+omega_review_timings stage=policy_change_comparison micros=62
+omega_review_timings run_micros=62
+omega_review_timings stage=review_document_rendering micros=14
+omega_review_timings run_micros=14
+omega_review_timings stage=policy_decision_resolution micros=0
+omega_review_timings stage=review_document_recovery micros=20
+omega_review_timings run_micros=20
+omega_review_timings stage=source_patch_rendering micros=58
+omega_review_timings run_micros=58
+omega_review_timings stage=policy_change_comparison micros=52
+omega_review_timings run_micros=52
+omega_review_timings stage=source_custody_verification micros=7
+omega_review_timings run_micros=7

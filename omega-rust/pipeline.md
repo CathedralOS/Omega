@@ -120,6 +120,14 @@ realization never starts another Psi production. Product constant applications
 and their checked conditions cross this boundary in canonical Terminal Psi.
 Selected realization completes them without copying or rewriting checked source;
 selected providers cannot inject completion roles into checked source.
+Psi retains each const argument's complete expression, lexical owner and result
+carrier. Type and body copying carry that relationship through exact occurrence
+maps; substituted array fields refer to the same retained extent. Preparation
+creates ordinary evaluation entries from closed expression inputs, including
+closed expressions inside generic owners, without dropping the template's
+checking obligations. Canonical publication consumes those entries, never the
+first nested helper as a substitute for the complete expression. Selected
+execution still owes provider admission, completion and every recorded bound.
 Accepted package roles enter source preparation before checking instead.
 Psi owns their declaration admission and confined nomination before matching
 retained checks. Realization only rejoins the resulting source declarations to
@@ -438,6 +446,15 @@ diagnostics; native source failures remain deferred, and receiving permission,
 trust admission and actual native demand stay at their existing boundaries.
 This consolidates the source preparation owner, not the intended future
 Terminal-only provider selection.
+Installation-reach preparation reads the selected provider's exact retained
+requirement and realization rows, including inherited and dormant declarations.
+It projects checked bounds and dependency identities once; source-free
+`provider-selection` owns fixed-point substitution across the complete selected
+closure. A missing source realization is not an empty service row, and a pending
+competing publisher cannot become a unique fallback. No typed declaration search
+or provider-name reconstruction occurs during substitution. Existing selected
+fact attachment validates the bound; independent package review still compares
+the resolved row with its own checked-source projection.
 Accepted-service preparation likewise retains the exact nominal owner, complete
 target-side schema and ordered requirement identities once at checked-provider
 binding. Resolved semantic bindings carry that record, not a source-arena symbol.
@@ -837,6 +854,20 @@ Checked qualification evidence names its source declaration and exact boundary
 requirement, not a selected provider's receipt number. Provider grant binding
 borrows that evidence and returns selected plans and grants separately; it never
 rewrites or clones checked Psi to stamp target-specific authority into facts.
+Psi prepares each authorized contract issuer's export identity once before
+sharing the checking baseline with flow workers. Admitted fact occurrences carry
+that stable issuer handle; the inventory alone creates no obligation. Omega's
+source-free grant policy consumes those occurrences, including uncalled bodies at
+the Check stop, and preserves declaring-owner preference and ambiguous-grant
+refusal without rescanning typed traits or signatures.
+
+Psi retains checked operator declaration eligibility separately from closed
+application body candidates. Open or dormant declarations do not root bodies or
+establish executable coverage. Omega admission and checked dispatch join selected
+plans to that inventory through one source-free choice operation, preserving
+provider/package identity, effective target context, scope and application
+coordinates. Neither consumer rediscovers specialization or source satisfaction;
+the exact application's existing body span supplies its executable alternatives.
 
 `omega/compilation/driver/` owns only compilation orchestration.
 [`omega/compilation/native-production/`](omega/compilation/native-production/README.md)

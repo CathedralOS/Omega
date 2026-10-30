@@ -1,0 +1,752 @@
+{
+  "fixed_base": "cc8cfba731183650be1c668d696e2dd362f1671e",
+  "producers": {
+    "baseline": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\baseline\\producer\\omega.exe",
+      "sha256": "1671ed38ce66a1a542079953bed31d4cfd354b42f895d0c4237c41de60c34e30",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "3"
+      },
+      "source_revision": "cc8cfba731183650be1c668d696e2dd362f1671e"
+    },
+    "candidate": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\candidate\\producer\\omega.exe",
+      "sha256": "808ee3ff1725341e2612c5279e9072741a53c2c2201208f695772ee61c46b4e8",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "3"
+      },
+      "source_revision": "19554817237e17c4a003286d916842aaa23a24b4"
+    }
+  },
+  "decision": "retained integrated application-owned native queue for publication",
+  "cohorts": {
+    "multi": {
+      "length": {
+        "baseline": {
+          "n": 8,
+          "median_wall_ms": 1160.6365999978152,
+          "range_wall_ms": [
+            1051.3314999989234,
+            1456.8560999978217
+          ],
+          "median_root_cpu_ms": 1132.8125,
+          "median_private_commit_bytes": 216190976.0
+        },
+        "candidate": {
+          "n": 8,
+          "median_wall_ms": 1090.1790999996592,
+          "range_wall_ms": [
+            1005.1498000029824,
+            1210.8506000004127
+          ],
+          "median_root_cpu_ms": 1062.5,
+          "median_private_commit_bytes": 249860096.0
+        },
+        "median_reduction": 0.06070590915217444,
+        "block_reductions": [
+          0.21471316692662623,
+          0.04923864375873499,
+          0.11500197071588758,
+          -0.10046187533015627
+        ]
+      },
+      "dispatch": {
+        "baseline": {
+          "n": 8,
+          "median_wall_ms": 1117.2146500030067,
+          "range_wall_ms": [
+            1044.3956999952206,
+            1297.417099995073
+          ],
+          "median_root_cpu_ms": 1101.5625,
+          "median_private_commit_bytes": 214280192.0
+        },
+        "candidate": {
+          "n": 8,
+          "median_wall_ms": 1145.2482500026235,
+          "range_wall_ms": [
+            1058.360499999253,
+            1529.0880000029574
+          ],
+          "median_root_cpu_ms": 1187.5,
+          "median_private_commit_bytes": 244574208.0
+        },
+        "median_reduction": -0.025092402788972956,
+        "block_reductions": [
+          0.007929989104187962,
+          -0.12453686720390467,
+          -0.10867327276901118,
+          -0.06564552048477656
+        ]
+      },
+      "stack32": {
+        "baseline": {
+          "n": 8,
+          "median_wall_ms": 2682.89310000182,
+          "range_wall_ms": [
+            2348.1957000039984,
+            2977.784300004714
+          ],
+          "median_root_cpu_ms": 2664.0625,
+          "median_private_commit_bytes": 418758656.0
+        },
+        "candidate": {
+          "n": 8,
+          "median_wall_ms": 1749.154000000999,
+          "range_wall_ms": [
+            1660.1709999958985,
+            2198.90330000635
+          ],
+          "median_root_cpu_ms": 2796.875,
+          "median_private_commit_bytes": 531326976.0
+        },
+        "median_reduction": 0.3480344036071312,
+        "block_reductions": [
+          0.3775326042428677,
+          0.27542456036336305,
+          0.27282694295267995,
+          0.3468056554336596
+        ]
+      }
+    },
+    "single": {
+      "length": {
+        "baseline": {
+          "n": 8,
+          "median_wall_ms": 759.6162999980152,
+          "range_wall_ms": [
+            706.1604000045918,
+            894.001799999387
+          ],
+          "median_root_cpu_ms": 734.375,
+          "median_private_commit_bytes": 212146176.0
+        },
+        "candidate": {
+          "n": 8,
+          "median_wall_ms": 758.2749000030162,
+          "range_wall_ms": [
+            707.9755000013392,
+            782.808500000101
+          ],
+          "median_root_cpu_ms": 742.1875,
+          "median_private_commit_bytes": 212195328.0
+        },
+        "median_reduction": 0.001765891536295916,
+        "block_reductions": [
+          0.09018495729558151,
+          -0.03153313333534613,
+          -0.008135704580378489,
+          0.008929794913542843
+        ]
+      },
+      "dispatch": {
+        "baseline": {
+          "n": 8,
+          "median_wall_ms": 745.5305499970564,
+          "range_wall_ms": [
+            697.1331000022474,
+            870.9395000041695
+          ],
+          "median_root_cpu_ms": 718.75,
+          "median_private_commit_bytes": 212117504.0
+        },
+        "candidate": {
+          "n": 8,
+          "median_wall_ms": 756.3791499997023,
+          "range_wall_ms": [
+            740.6723000021884,
+            779.8015000007581
+          ],
+          "median_root_cpu_ms": 750.0,
+          "median_private_commit_bytes": 212215808.0
+        },
+        "median_reduction": -0.014551516370038486,
+        "block_reductions": [
+          -0.05676715520968667,
+          -0.025968015803661704,
+          0.06413853151303006,
+          0.03570507854584515
+        ]
+      },
+      "stack32": {
+        "baseline": {
+          "n": 8,
+          "median_wall_ms": 1319.0207500010729,
+          "range_wall_ms": [
+            1270.6074000016088,
+            1383.039499996812
+          ],
+          "median_root_cpu_ms": 1296.875,
+          "median_private_commit_bytes": 253085696.0
+        },
+        "candidate": {
+          "n": 8,
+          "median_wall_ms": 1359.269349999522,
+          "range_wall_ms": [
+            1264.1036999993958,
+            1516.8204000001424
+          ],
+          "median_root_cpu_ms": 1335.9375,
+          "median_private_commit_bytes": 253235200.0
+        },
+        "median_reduction": -0.0305140006314657,
+        "block_reductions": [
+          -0.025236370473628478,
+          -0.12022402076190919,
+          -0.022425344427946303,
+          0.016339435216169984
+        ]
+      }
+    }
+  },
+  "quality": {
+    "focused_tests_passed": 51,
+    "unselected_tests": 6,
+    "native_terminal_and_authored_reject_observations": 18,
+    "malformed_controls": 6,
+    "lookup_controls": 5,
+    "partial_target_control": {
+      "producers": {
+        "baseline": {
+          "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\baseline\\producer\\omega.exe",
+          "sha256": "1671ed38ce66a1a542079953bed31d4cfd354b42f895d0c4237c41de60c34e30",
+          "profile": {
+            "schema": "omega-compiler-build-profile-v1",
+            "opt_level": "3"
+          },
+          "source_revision": "cc8cfba731183650be1c668d696e2dd362f1671e"
+        },
+        "candidate": {
+          "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\candidate\\producer\\omega.exe",
+          "sha256": "808ee3ff1725341e2612c5279e9072741a53c2c2201208f695772ee61c46b4e8",
+          "profile": {
+            "schema": "omega-compiler-build-profile-v1",
+            "opt_level": "3"
+          },
+          "source_revision": "19554817237e17c4a003286d916842aaa23a24b4"
+        }
+      },
+      "observations": [
+        {
+          "exit": 1,
+          "wall_ms": 3678.1248999977834,
+          "root_cpu": {
+            "kernel_ms": 1781.25,
+            "user_ms": 3828.125
+          },
+          "host_busy_cpu_ms": 35656.25,
+          "peak_job_private_commit_bytes": 1127739392,
+          "log": "build\\native-queue-landing\\capture-2\\partial-target-control\\logs\\baseline.log",
+          "flavor": "baseline",
+          "native": {
+            "exit": 0,
+            "wall_ms": 77.58759999705944,
+            "root_cpu": {
+              "kernel_ms": 62.5,
+              "user_ms": 15.625
+            },
+            "host_busy_cpu_ms": 1062.5,
+            "peak_job_private_commit_bytes": 925696,
+            "log": "build\\native-queue-landing\\capture-2\\partial-target-control\\logs\\baseline-native.log"
+          },
+          "artifacts": {
+            "linux_arm64": {
+              "path": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\capture-2\\partial-target-control\\baseline\\linux_arm64\\omega-program",
+              "sha256": "f1de546d748b41fd12d029ffafb2ace175db41f6643510ac6be171d6330991fa"
+            },
+            "linux_x86_64": {
+              "path": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\capture-2\\partial-target-control\\baseline\\linux_x86_64\\omega-program",
+              "sha256": "44670015e3738551c4c563dd8522c57cd98f93ec729ce81f4e90e37a493a4e62"
+            },
+            "windows_x86_64": {
+              "path": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\capture-2\\partial-target-control\\baseline\\windows_x86_64\\omega-program.exe",
+              "sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca"
+            }
+          }
+        },
+        {
+          "exit": 1,
+          "wall_ms": 3460.9152999983053,
+          "root_cpu": {
+            "kernel_ms": 1656.25,
+            "user_ms": 4484.375
+          },
+          "host_busy_cpu_ms": 45765.625,
+          "peak_job_private_commit_bytes": 1177931776,
+          "log": "build\\native-queue-landing\\capture-2\\partial-target-control\\logs\\candidate.log",
+          "flavor": "candidate",
+          "native": {
+            "exit": 0,
+            "wall_ms": 103.9500000042608,
+            "root_cpu": {
+              "kernel_ms": 62.5,
+              "user_ms": 0.0
+            },
+            "host_busy_cpu_ms": 1062.5,
+            "peak_job_private_commit_bytes": 925696,
+            "log": "build\\native-queue-landing\\capture-2\\partial-target-control\\logs\\candidate-native.log"
+          },
+          "artifacts": {
+            "linux_arm64": {
+              "path": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\capture-2\\partial-target-control\\candidate\\linux_arm64\\omega-program",
+              "sha256": "f1de546d748b41fd12d029ffafb2ace175db41f6643510ac6be171d6330991fa"
+            },
+            "linux_x86_64": {
+              "path": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\capture-2\\partial-target-control\\candidate\\linux_x86_64\\omega-program",
+              "sha256": "44670015e3738551c4c563dd8522c57cd98f93ec729ce81f4e90e37a493a4e62"
+            },
+            "windows_x86_64": {
+              "path": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\capture-2\\partial-target-control\\candidate\\windows_x86_64\\omega-program.exe",
+              "sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca"
+            }
+          }
+        }
+      ],
+      "refused_target": "macos_arm64",
+      "complete": true
+    },
+    "native_scalar_controls": {
+      "baseline": {
+        "producer": {
+          "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\baseline\\producer\\omega.exe",
+          "sha256": "1671ed38ce66a1a542079953bed31d4cfd354b42f895d0c4237c41de60c34e30",
+          "profile": {
+            "schema": "omega-compiler-build-profile-v1",
+            "opt_level": "3"
+          },
+          "source_revision": "cc8cfba731183650be1c668d696e2dd362f1671e"
+        },
+        "observations": [
+          {
+            "exit": 0,
+            "wall_ms": 2037.425099995744,
+            "root_cpu": {
+              "kernel_ms": 1390.625,
+              "user_ms": 1890.625
+            },
+            "host_busy_cpu_ms": 13218.75,
+            "peak_job_private_commit_bytes": 969785344,
+            "log": "build\\native-queue-landing\\scalar-baseline\\logs\\native-condition-positive.log",
+            "subject": "native-condition",
+            "kind": "positive",
+            "artifacts": {
+              "linux_arm64": {
+                "path": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\scalar-baseline\\native-condition-positive\\linux_arm64\\omega-program",
+                "sha256": "140f10ee9045c84b31003115d8f3bcdc7162d33eb2a17d736dad250c1545e14e",
+                "bytes": 8192
+              },
+              "linux_x86_64": {
+                "path": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\scalar-baseline\\native-condition-positive\\linux_x86_64\\omega-program",
+                "sha256": "8bf4799daf5a17a2751b01f3ab3f7c7303d4d049038a237110062db04292b650",
+                "bytes": 8192
+              },
+              "macos_arm64": {
+                "path": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\scalar-baseline\\native-condition-positive\\macos_arm64\\omega-program",
+                "sha256": "01704346ddb1bd6522d400e33403a7ed7887bff9a571a5e1ef0a348b16246db6",
+                "bytes": 16640
+              },
+              "windows_x86_64": {
+                "path": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\scalar-baseline\\native-condition-positive\\windows_x86_64\\omega-program.exe",
+                "sha256": "2e0826f95ad7d13fd942d3eb9b9e9236ad7d3142e96cec80f29cd752e317cd5a",
+                "bytes": 1024
+              }
+            },
+            "native": {
+              "exit": 0,
+              "wall_ms": 61.71149999863701,
+              "root_cpu": {
+                "kernel_ms": 31.25,
+                "user_ms": 15.625
+              },
+              "host_busy_cpu_ms": 390.625,
+              "peak_job_private_commit_bytes": 921600,
+              "log": "build\\native-queue-landing\\scalar-baseline\\logs\\native-condition-positive-native.log"
+            }
+          },
+          {
+            "exit": 1,
+            "wall_ms": 1966.5432000037981,
+            "root_cpu": {
+              "kernel_ms": 890.625,
+              "user_ms": 2125.0
+            },
+            "host_busy_cpu_ms": 10828.125,
+            "peak_job_private_commit_bytes": 964648960,
+            "log": "build\\native-queue-landing\\scalar-baseline\\logs\\native-condition-negative.log",
+            "subject": "native-condition",
+            "kind": "negative",
+            "artifacts": {}
+          }
+        ],
+        "source_manifest": {
+          "tests\\omega\\pass\\layouts\\portable_layout_constant_composition_exit\\build.omg": "bdac43a127a388cd78d6b1c2851e3f90be3aaff602082f44c395447b3793dd3a",
+          "tests\\omega\\pass\\layouts\\portable_layout_constant_composition_exit\\main.omg": "4f89c22b46b623b085ea04537ed74c372bba36aaaa811d28dc4bdb2010c188b3",
+          "tests\\omega\\fail\\layouts\\portable_layout_constant_composition\\build.omg": "bdac43a127a388cd78d6b1c2851e3f90be3aaff602082f44c395447b3793dd3a",
+          "tests\\omega\\fail\\layouts\\portable_layout_constant_composition\\expected.txt": "7354e67299708c99b0c3d3c24059c0c965c13536e5cd8f984067e041905dc5ed",
+          "tests\\omega\\fail\\layouts\\portable_layout_constant_composition\\expected_failed_scalar_accounting.txt": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+          "tests\\omega\\fail\\layouts\\portable_layout_constant_composition\\main.omg": "802df07ec4077923119a7e1046efd65923197bd9f26afdd7564ae9e629582506"
+        },
+        "complete": true
+      },
+      "candidate": {
+        "producer": {
+          "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\candidate\\producer\\omega.exe",
+          "sha256": "808ee3ff1725341e2612c5279e9072741a53c2c2201208f695772ee61c46b4e8",
+          "profile": {
+            "schema": "omega-compiler-build-profile-v1",
+            "opt_level": "3"
+          },
+          "source_revision": "19554817237e17c4a003286d916842aaa23a24b4"
+        },
+        "observations": [
+          {
+            "exit": 0,
+            "wall_ms": 3286.804999996093,
+            "root_cpu": {
+              "kernel_ms": 1250.0,
+              "user_ms": 2968.75
+            },
+            "host_busy_cpu_ms": 40875.0,
+            "peak_job_private_commit_bytes": 1021353984,
+            "log": "build\\native-queue-landing\\capture-2\\scalar-candidate\\logs\\native-condition-positive.log",
+            "subject": "native-condition",
+            "kind": "positive",
+            "artifacts": {
+              "linux_arm64": {
+                "path": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\capture-2\\scalar-candidate\\native-condition-positive\\linux_arm64\\omega-program",
+                "sha256": "140f10ee9045c84b31003115d8f3bcdc7162d33eb2a17d736dad250c1545e14e",
+                "bytes": 8192
+              },
+              "linux_x86_64": {
+                "path": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\capture-2\\scalar-candidate\\native-condition-positive\\linux_x86_64\\omega-program",
+                "sha256": "8bf4799daf5a17a2751b01f3ab3f7c7303d4d049038a237110062db04292b650",
+                "bytes": 8192
+              },
+              "macos_arm64": {
+                "path": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\capture-2\\scalar-candidate\\native-condition-positive\\macos_arm64\\omega-program",
+                "sha256": "01704346ddb1bd6522d400e33403a7ed7887bff9a571a5e1ef0a348b16246db6",
+                "bytes": 16640
+              },
+              "windows_x86_64": {
+                "path": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\capture-2\\scalar-candidate\\native-condition-positive\\windows_x86_64\\omega-program.exe",
+                "sha256": "2e0826f95ad7d13fd942d3eb9b9e9236ad7d3142e96cec80f29cd752e317cd5a",
+                "bytes": 1024
+              }
+            },
+            "native": {
+              "exit": 0,
+              "wall_ms": 87.91699999710545,
+              "root_cpu": {
+                "kernel_ms": 46.875,
+                "user_ms": 31.25
+              },
+              "host_busy_cpu_ms": 2625.0,
+              "peak_job_private_commit_bytes": 929792,
+              "log": "build\\native-queue-landing\\capture-2\\scalar-candidate\\logs\\native-condition-positive-native.log"
+            }
+          },
+          {
+            "exit": 1,
+            "wall_ms": 3166.5640999999596,
+            "root_cpu": {
+              "kernel_ms": 1531.25,
+              "user_ms": 2812.5
+            },
+            "host_busy_cpu_ms": 38796.875,
+            "peak_job_private_commit_bytes": 884408320,
+            "log": "build\\native-queue-landing\\capture-2\\scalar-candidate\\logs\\native-condition-negative.log",
+            "subject": "native-condition",
+            "kind": "negative",
+            "artifacts": {}
+          }
+        ],
+        "source_manifest": {
+          "tests\\omega\\pass\\layouts\\portable_layout_constant_composition_exit\\build.omg": "bdac43a127a388cd78d6b1c2851e3f90be3aaff602082f44c395447b3793dd3a",
+          "tests\\omega\\pass\\layouts\\portable_layout_constant_composition_exit\\main.omg": "4f89c22b46b623b085ea04537ed74c372bba36aaaa811d28dc4bdb2010c188b3",
+          "tests\\omega\\fail\\layouts\\portable_layout_constant_composition\\build.omg": "bdac43a127a388cd78d6b1c2851e3f90be3aaff602082f44c395447b3793dd3a",
+          "tests\\omega\\fail\\layouts\\portable_layout_constant_composition\\expected.txt": "7354e67299708c99b0c3d3c24059c0c965c13536e5cd8f984067e041905dc5ed",
+          "tests\\omega\\fail\\layouts\\portable_layout_constant_composition\\expected_failed_scalar_accounting.txt": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+          "tests\\omega\\fail\\layouts\\portable_layout_constant_composition\\main.omg": "802df07ec4077923119a7e1046efd65923197bd9f26afdd7564ae9e629582506"
+        },
+        "complete": true
+      }
+    },
+    "initial_chain": [
+      {
+        "step": "build",
+        "command": [
+          "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\wiki\\drafts\\measurements\\target_native_queue_landing_2026_10_29\\build.py",
+          "candidate"
+        ],
+        "exit": 0
+      },
+      {
+        "step": "unit",
+        "command": [
+          "mbx",
+          "nextest",
+          "run",
+          "--release",
+          "--locked",
+          "-p",
+          "compiler",
+          "-p",
+          "omega-build",
+          "--lib",
+          "--target-dir",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\parallelism-target",
+          "-E",
+          "test(native_completion::queue::tests) | test(scoped_worker_keeps_nested_compilation_on_its_large_stack) | test(product_boundary) | test(build_boundary)"
+        ],
+        "exit": 0
+      },
+      {
+        "step": "clippy",
+        "command": [
+          "mbx",
+          "clippy",
+          "--release",
+          "--locked",
+          "-p",
+          "compiler",
+          "-p",
+          "omega-build",
+          "--lib",
+          "--target-dir",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\parallelism-target"
+        ],
+        "exit": 0
+      },
+      {
+        "step": "qualification-start",
+        "command": [
+          "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+          "tools/qualification.py",
+          "start",
+          "--state",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.json",
+          "--base",
+          "cc8cfba731183650be1c668d696e2dd362f1671e",
+          "--config",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-config.json"
+        ],
+        "exit": 0
+      },
+      {
+        "step": "qualification-run",
+        "command": [
+          "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+          "tools/qualification.py",
+          "run",
+          "--state",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.json",
+          "--revision",
+          "0",
+          "--check",
+          "native-queue-e2e"
+        ],
+        "exit": 1
+      }
+    ]
+  },
+  "exclusions": [],
+  "no_full_corpus_or_foreign_runtime": true,
+  "baseline_supplemental_issue": "target_layout_derived_constant invalid rejects exact [-1,-1] bound but its expected exact-arithmetic prefix is absent on fixed baseline; retained failed preparation, not counted as passed",
+  "measurement_counts": {
+    "compiles": 114,
+    "pinned_images": 294
+  },
+  "independently_checked_headers": [
+    {
+      "flavor": "baseline",
+      "subject": "length",
+      "targets": {
+        "linux_arm64": {
+          "sha256": "c16870e1e4317f6c217fc92385bad63bf794211c13d3a158f9caf4fa77c30bbc",
+          "bytes": 8192,
+          "machine": 183
+        },
+        "linux_x86_64": {
+          "sha256": "a9012cbbabe2eb42259a610d34bf844e222bd59232a94e98dc88d0742a155caa",
+          "bytes": 8192,
+          "machine": 62
+        },
+        "macos_arm64": {
+          "sha256": "5d788e9c6402af224382881d739210eec931f1ff680f648389051c9126511017",
+          "bytes": 16640,
+          "machine": 16777228
+        },
+        "windows_x86_64": {
+          "sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+          "bytes": 1536,
+          "machine": 34404
+        }
+      }
+    },
+    {
+      "flavor": "baseline",
+      "subject": "dispatch",
+      "targets": {
+        "linux_arm64": {
+          "sha256": "0a6293d85ddb29525d024254ffb9ace2eb399ad1bc3a858bc7f4a8adff12dd74",
+          "bytes": 8200,
+          "machine": 183
+        },
+        "linux_x86_64": {
+          "sha256": "7aca424a3c7b9528382ad1e984050a237cdc0fe613a0a79b1e4a9ce269ff5f3e",
+          "bytes": 8200,
+          "machine": 62
+        },
+        "macos_arm64": {
+          "sha256": "ea143e054dc49b59ef7b131bef3a5cde4bb8cba002b3b6808f915e656883bb5b",
+          "bytes": 49472,
+          "machine": 16777228
+        },
+        "windows_x86_64": {
+          "sha256": "6ca84bb18317495c4914a0d3c9d83838289fae8fc3f89017439d5c650c797c3a",
+          "bytes": 2560,
+          "machine": 34404
+        }
+      }
+    },
+    {
+      "flavor": "baseline",
+      "subject": "stack32",
+      "targets": {
+        "linux_arm64": {
+          "sha256": "f1de546d748b41fd12d029ffafb2ace175db41f6643510ac6be171d6330991fa",
+          "bytes": 28672,
+          "machine": 183
+        },
+        "linux_x86_64": {
+          "sha256": "44670015e3738551c4c563dd8522c57cd98f93ec729ce81f4e90e37a493a4e62",
+          "bytes": 86016,
+          "machine": 62
+        },
+        "macos_arm64": {
+          "sha256": "e705c2cc324fea55826cb95205728fe49aafa5428d25ec374e3bdf8a3dc32ca0",
+          "bytes": 33056,
+          "machine": 16777228
+        },
+        "windows_x86_64": {
+          "sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+          "bytes": 81408,
+          "machine": 34404
+        }
+      }
+    },
+    {
+      "flavor": "candidate",
+      "subject": "length",
+      "targets": {
+        "linux_arm64": {
+          "sha256": "c16870e1e4317f6c217fc92385bad63bf794211c13d3a158f9caf4fa77c30bbc",
+          "bytes": 8192,
+          "machine": 183
+        },
+        "linux_x86_64": {
+          "sha256": "a9012cbbabe2eb42259a610d34bf844e222bd59232a94e98dc88d0742a155caa",
+          "bytes": 8192,
+          "machine": 62
+        },
+        "macos_arm64": {
+          "sha256": "5d788e9c6402af224382881d739210eec931f1ff680f648389051c9126511017",
+          "bytes": 16640,
+          "machine": 16777228
+        },
+        "windows_x86_64": {
+          "sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+          "bytes": 1536,
+          "machine": 34404
+        }
+      }
+    },
+    {
+      "flavor": "candidate",
+      "subject": "dispatch",
+      "targets": {
+        "linux_arm64": {
+          "sha256": "0a6293d85ddb29525d024254ffb9ace2eb399ad1bc3a858bc7f4a8adff12dd74",
+          "bytes": 8200,
+          "machine": 183
+        },
+        "linux_x86_64": {
+          "sha256": "7aca424a3c7b9528382ad1e984050a237cdc0fe613a0a79b1e4a9ce269ff5f3e",
+          "bytes": 8200,
+          "machine": 62
+        },
+        "macos_arm64": {
+          "sha256": "ea143e054dc49b59ef7b131bef3a5cde4bb8cba002b3b6808f915e656883bb5b",
+          "bytes": 49472,
+          "machine": 16777228
+        },
+        "windows_x86_64": {
+          "sha256": "6ca84bb18317495c4914a0d3c9d83838289fae8fc3f89017439d5c650c797c3a",
+          "bytes": 2560,
+          "machine": 34404
+        }
+      }
+    },
+    {
+      "flavor": "candidate",
+      "subject": "stack32",
+      "targets": {
+        "linux_arm64": {
+          "sha256": "f1de546d748b41fd12d029ffafb2ace175db41f6643510ac6be171d6330991fa",
+          "bytes": 28672,
+          "machine": 183
+        },
+        "linux_x86_64": {
+          "sha256": "44670015e3738551c4c563dd8522c57cd98f93ec729ce81f4e90e37a493a4e62",
+          "bytes": 86016,
+          "machine": 62
+        },
+        "macos_arm64": {
+          "sha256": "e705c2cc324fea55826cb95205728fe49aafa5428d25ec374e3bdf8a3dc32ca0",
+          "bytes": 33056,
+          "machine": 16777228
+        },
+        "windows_x86_64": {
+          "sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+          "bytes": 81408,
+          "machine": 34404
+        }
+      }
+    }
+  ],
+  "qualification": {
+    "revision": 6,
+    "base": "cc8cfba731183650be1c668d696e2dd362f1671e",
+    "qualification_revision": "19554817237e17c4a003286d916842aaa23a24b4",
+    "source_ref": "refs/qualification/f41512dd8219c074299a8d8d/19554817237e17c4a003286d916842aaa23a24b4",
+    "runs": [
+      {
+        "id": "acc41cdda3004a42aba906598915db15",
+        "check": "native-queue-e2e",
+        "revision": "19554817237e17c4a003286d916842aaa23a24b4",
+        "exit": 1,
+        "invalidations": [],
+        "receipt": {
+          "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.records\\acc41cdda3004a42aba906598915db15.json",
+          "sha256": "bd234b419526383c63e8e7d163eda3f060f8578aa9567fb0200bc89da07409c2"
+        }
+      },
+      {
+        "id": "4a09f45165ab47dbb8405dd34a6e9ae4",
+        "check": "native-queue-e2e",
+        "revision": "b37316dc86fbaee49ca0ae34cfd28460d13a1502",
+        "exit": 0,
+        "invalidations": [],
+        "receipt": {
+          "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.records\\4a09f45165ab47dbb8405dd34a6e9ae4.json",
+          "sha256": "a2f5bd1ae3a5ebf3641d5779538f23b07b63926e4a2276057c0f7d2d288cb107"
+        }
+      }
+    ]
+  },
+  "nonaccepted_first_capture": "Preserved initial native launch timeout;32 bounded same-byte replays all exited0. Cause unresolved; failed/incomplete cohort is not pooled with the fresh complete capture.",
+  "bound_output_manifest_files": 443
+}

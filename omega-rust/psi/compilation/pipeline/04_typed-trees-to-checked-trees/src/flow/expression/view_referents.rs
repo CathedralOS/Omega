@@ -641,10 +641,23 @@ impl Execution<'_, '_, '_> {
         // A produced unknown result is authoritative, just as an unresolved
         // saved descriptor is. No initializer supplies a replacement address.
         *referents = Some(HandleSpan::empty());
+        let Some((_, state)) = validation::find_state(self.program, call.target_symbol) else {
+            return;
+        };
+        let Some(indices) = self.captured_argument_indices(
+            self.program.state_parameters(state),
+            inputs
+                .iter()
+                .skip(usize::from(call.receiver.is_valid()))
+                .map(|(_, value)| value),
+        ) else {
+            return;
+        };
         let Some(sources) = super::super::reference_places::call_result_leaf_sources(
             self.program,
             call,
             self.context.call_frames,
+            &indices,
         ) else {
             return;
         };

@@ -143,25 +143,12 @@ pub(crate) fn plan_elf_dynamic_table_section_descriptor(
     ValidatedElfDynamicTableSectionDescriptorPlan,
     Box<ElfDynamicTableSectionDescriptorPlanningError>,
 > {
-    checked::plan_candidate(
-        payload,
-        derive_contents,
-        |payload, contents| {
-            non_authoritative_descriptor_compatibility_fingerprint(&payload, &contents)
-        },
-        |payload, contents, fingerprint| Candidate {
-            payload: payload,
-            contents: contents,
-            non_authoritative_descriptor_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.payload,
-        |payload, diagnostic| {
-            Box::new(ElfDynamicTableSectionDescriptorPlanningError {
-                payload: payload,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: payload,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_descriptor_compatibility_fingerprint,
+        error: ElfDynamicTableSectionDescriptorPlanningError,
     )
 }
 

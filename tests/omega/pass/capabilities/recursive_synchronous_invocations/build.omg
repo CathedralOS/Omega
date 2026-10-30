@@ -1,0 +1,19 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "filesystem_invocation_cycle");
+    Build::select_provider<First, FirstSelected>(builder, windows_x86_64);
+    Build::select_provider<Second, SecondSelected>(builder, windows_x86_64);
+    Build::select_provider<Third, ThirdSelected>(builder, windows_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::select_provider<First, FirstSelected>(builder, linux_x86_64);
+    Build::select_provider<Second, SecondSelected>(builder, linux_x86_64);
+    Build::select_provider<Third, ThirdSelected>(builder, linux_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::select_provider<First, FirstSelected>(builder, macos_arm64);
+    Build::select_provider<Second, SecondSelected>(builder, macos_arm64);
+    Build::select_provider<Third, ThirdSelected>(builder, macos_arm64);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::select_provider<First, FirstSelected>(builder, linux_arm64);
+    Build::select_provider<Second, SecondSelected>(builder, linux_arm64);
+    Build::select_provider<Third, ThirdSelected>(builder, linux_arm64);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+}

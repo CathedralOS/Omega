@@ -416,6 +416,58 @@ pub(crate) fn validate_candidate<C, T>(
     Ok(validated(candidate))
 }
 
+/// State one stage's planning envelope once: derive the stage's retained
+/// contents, stamp the candidate's non-authoritative compatibility
+/// fingerprint, validate that stamp, and wrap any refusal in the stage's own
+/// planning error with the consumed carrier still in custody.
+///
+/// `$plan` is the upstream carrier the stage consumed and names the `Candidate`
+/// field that carries it; `$contents` names the field holding what the stage
+/// derived; `$fingerprint` names both the candidate's fingerprint field and the
+/// stage's own fingerprint rule; `$error` is the planning error that retains the
+/// consumed carrier beside the diagnostic. A stage whose candidate publishes no
+/// fingerprint omits `fingerprint:`.
+macro_rules! plan_stage {
+    (
+        plan: $plan:ident,
+        derive: $derive:expr,
+        contents: $contents:ident,
+        fingerprint: $fingerprint:ident,
+        error: $error:ident $(,)?
+    ) => {
+        checked::plan_candidate(
+            $plan,
+            $derive,
+            |$plan, $contents| $fingerprint(&$plan, &$contents),
+            |$plan, $contents, fingerprint| Candidate {
+                $plan,
+                $contents,
+                $fingerprint: fingerprint,
+            },
+            validate_candidate,
+            |candidate| candidate.$plan,
+            |$plan, diagnostic| Box::new($error { $plan, diagnostic }),
+        )
+    };
+    (
+        plan: $plan:ident,
+        derive: $derive:expr,
+        contents: $contents:ident,
+        error: $error:ident $(,)?
+    ) => {
+        checked::plan_candidate(
+            $plan,
+            $derive,
+            |_, _| 0,
+            |$plan, $contents, _fingerprint| Candidate { $plan, $contents },
+            validate_candidate,
+            |candidate| candidate.$plan,
+            |$plan, diagnostic| Box::new($error { $plan, diagnostic }),
+        )
+    };
+}
+pub(crate) use plan_stage;
+
 /// Shared planning scaffold: derive contents (wrapping a derive failure into
 /// the caller's planning error), compute the compatibility fingerprint, build
 /// the candidate, validate it, and re-wrap a validation rejection the same

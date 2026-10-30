@@ -1,0 +1,7 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "checked_operator_declaration_without_application");
+    Build::select_provider<Policy::identity, Selected>(builder, windows_x86_64);
+    Build::select_provider<Policy::identity, Selected>(builder, linux_x86_64);
+    Build::select_provider<Policy::identity, Selected>(builder, linux_arm64);
+    Build::select_provider<Policy::identity, Selected>(builder, macos_arm64);
+}

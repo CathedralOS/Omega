@@ -1,0 +1,6 @@
+{
+  "base": "862b393e6d0d0d16d298e62dbdf7fbe138a91fc7",
+  "semantic_base": "456c5e984452a45d977295e254b3ca9ae3cc7750",
+  "patch_sha256": "8cfb70fae23249567d15024321da3b8e5c969fba78909d9dce04a65ea3648ade",
+  "probe": "reuses scans_joins bookkeeping; adds narrow COW/filter spans and empty-scope calibration; no semantic changes"
+}

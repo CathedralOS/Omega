@@ -592,6 +592,111 @@ fn terminal_cohorts_retain_admitted_products() {
 }
 
 #[test]
+fn installation_reach_settlement_consumes_prepared_rows() {
+    let projection = include_str!(
+        "../../realization/provider-planning/src/provider_planning/installation_reach.rs"
+    );
+    assert!(projection.contains("provider.row_requirements"));
+    assert!(projection.contains("provider.row_realizations"));
+    assert!(projection.contains("provider_selection::resolve_installation_reach(rows)"));
+    for forbidden in [
+        "typed.machines()",
+        "typed.traits()",
+        "attached_data_path",
+        "named_provider_row",
+        "substitute_nested_installation_reaches",
+    ] {
+        assert!(
+            !projection.contains(forbidden),
+            "reach projection reconstructs {forbidden}"
+        );
+    }
+    let settlement = include_str!("../../realization/provider-selection/src/installation_reach.rs");
+    for forbidden in [
+        "checked_trees",
+        "TypedTrees",
+        "SymbolHandle",
+        "provider_planning",
+    ] {
+        assert!(
+            !settlement.contains(forbidden),
+            "reach settlement reopens {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn checked_operator_choice_consumes_retained_candidates() {
+    let admission = include_str!(
+        "../../realization/provider-planning/src/provider_planning/operator_provider_evidence.rs"
+    );
+    let dispatch = include_str!(
+        "../../realization/selected-dispatch/src/selected_dispatch/operator_adapter.rs"
+    );
+    for consumer in [admission, dispatch] {
+        assert!(consumer.contains("selected_checked_operator_body"));
+        for forbidden in [
+            "specialized_provider_machines",
+            "machine_specializations",
+            "machine_trait_conformances",
+            "resolve_satisfied_checked_operator",
+            "resolve_specialized_checked_operator",
+        ] {
+            assert!(
+                !consumer.contains(forbidden),
+                "operator body choice reconstructs {forbidden}"
+            );
+        }
+    }
+    assert!(admission.contains("boundary_declarations"));
+    assert!(admission.contains("boundary_body_candidates"));
+    assert!(admission.contains(".span(application.body_candidates)"));
+    let policy = include_str!("../../realization/provider-selection/src/checked_bodies.rs");
+    for forbidden in [
+        "checked_trees",
+        "TypedTrees",
+        "SymbolHandle",
+        "provider_planning",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "checked-body policy reopens {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn qualification_grants_consume_prepared_issuer_evidence() {
+    let binding = include_str!("../../realization/provider-planning/src/provider_planning.rs");
+    assert!(binding.contains(".admitted_qualification_issuers()"));
+    let policy = include_str!("../../realization/provider-selection/src/qualification_grants.rs");
+    for forbidden in [
+        "checked_trees",
+        "TypedTrees",
+        "SymbolHandle",
+        "provider_planning",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "grant policy reopens {forbidden}"
+        );
+    }
+    let preparation = include_str!(
+        "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/semantic/facts.rs"
+    );
+    let issuers = preparation
+        .find("qualification_evidence::prepare_issuers(")
+        .unwrap();
+    let occurrences = preparation
+        .find("append_contract_semantic_facts(program")
+        .unwrap();
+    assert!(
+        issuers < occurrences,
+        "issuer identities must precede occurrence production"
+    );
+}
+
+#[test]
 fn native_provider_handoff_borrows_closed_source_associations() {
     let projection = include_str!("../../products/src/checked_compilation/terminal.rs");
     assert!(projection.contains(".native_provider_sources"));

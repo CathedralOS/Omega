@@ -1,0 +1,111 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\graph-phase-cpu\\omega.exe",
+    "--timings",
+    "--target",
+    "windows_x86_64",
+    "--build-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\gpc-2-2-lazy\\native",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 18.019368399996893,
+  "cpu_seconds": 24.359375,
+  "kernel_seconds": 2.234375,
+  "user_seconds": 22.125,
+  "exit_code": 0,
+  "system_before": {
+    "idle": 1582490.296875,
+    "kernel": 1758387.65625,
+    "user": 387020.984375
+  },
+  "system_after": {
+    "idle": 1582828.8125,
+    "kernel": 1758784.953125,
+    "user": 387200.203125
+  },
+  "system_cpu_capacity_seconds": 576.515625,
+  "system_busy_seconds": 238.0,
+  "external_busy_seconds": 213.640625,
+  "external_busy_capacity_percent": 37.05721332357644,
+  "observer": "endpoints only",
+  "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+  "runtime_wall_seconds": 0.08499069999379572,
+  "producer": "graph-phase-cpu",
+  "compiler_sha256": "babdabe9df24eec6d812f31e2c8324e45d58ce63d514984714fa2f4da801a6dd",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "07d093dce4fd258ce0b6ce72510d9839e50ee4cfda3a8ddd543807cf9d9a66c5",
+  "cache_mode": "fresh private cache",
+  "checking_seconds": 6.409895000000001,
+  "lowering_seconds": 3.4721379999999997,
+  "graph_mode": "lazy",
+  "graph_counts": {
+    "ready": [],
+    "builds": []
+  },
+  "counts_enabled": false,
+  "warm_cache_from": null,
+  "comparison": false,
+  "cpu_partition": {
+    "before_lowering_cpu": 18.6875,
+    "lowering_cpu": 3.4375,
+    "after_lowering_cpu": 2.234375,
+    "checking_cpu": 13.046875,
+    "other_before_lowering_cpu": 5.640625
+  },
+  "cpu_windows": [
+    {
+      "stage": "Stage 05",
+      "thread": "ThreadId(3)",
+      "start_ns": 13400,
+      "end_ns": 116283400,
+      "start_cpu_ticks": 3125000,
+      "end_cpu_ticks": 5156250,
+      "kernel_ticks": 781250,
+      "user_ticks": 1250000,
+      "cpu_seconds": 0.203125,
+      "wall_seconds": 0.11627
+    },
+    {
+      "stage": "Stage 05",
+      "thread": "ThreadId(100)",
+      "start_ns": 183522000,
+      "end_ns": 290136700,
+      "start_cpu_ticks": 5781250,
+      "end_cpu_ticks": 11718750,
+      "kernel_ticks": 2343750,
+      "user_ticks": 3593750,
+      "cpu_seconds": 0.59375,
+      "wall_seconds": 0.1066147
+    },
+    {
+      "stage": "Stage 05",
+      "thread": "ThreadId(103)",
+      "start_ns": 4757773300,
+      "end_ns": 11051445400,
+      "start_cpu_ticks": 55625000,
+      "end_cpu_ticks": 178125000,
+      "kernel_ticks": 8125000,
+      "user_ticks": 114375000,
+      "cpu_seconds": 12.25,
+      "wall_seconds": 6.2936721
+    },
+    {
+      "stage": "terminal-production/lowering",
+      "thread": "ThreadId(103)",
+      "start_ns": 11923697900,
+      "end_ns": 15395860100,
+      "start_cpu_ticks": 186875000,
+      "end_cpu_ticks": 221250000,
+      "kernel_ticks": 468750,
+      "user_ticks": 33906250,
+      "cpu_seconds": 3.4375,
+      "wall_seconds": 3.4721622
+    }
+  ],
+  "block": 2,
+  "position": 2,
+  "order": "ELLE"
+}

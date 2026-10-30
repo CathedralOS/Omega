@@ -1,0 +1,8 @@
+No accepted lock baseline: reviewing the complete candidate graph.
+windows_x86_64: checked 1 source packages.
+New package source: selected_contract_equation_reentry [f3f8b4d43b03]: no prior revision to compare.
+Standalone candidate source: selected_contract_equation_reentry [f3f8b4d43b03]: 2 changed entries.
+Source-code output (separate from editable capability review): \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\operand-order-overflow\cases\candidate-selected_contract_equation_reentry_exit\input\build\package-manager\source-diff.txt
+
+Published build.omg and omega.lock for 1 packages across 1 targets.
+review: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\operand-order-overflow\cases\candidate-selected_contract_equation_reentry_exit\input\build\package-manager\review-windows_x86_64.txt

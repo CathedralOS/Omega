@@ -248,21 +248,10 @@ impl Resolver<'_> {
             operand.statement_index,
             operand.expression,
         );
-        // An ordinary read of a stored descriptor retains that occurrence's
-        // own loan, even when its value graph remembers an older construction.
-        // Replacing this with only the construction's suppliers would lose the
-        // descriptor's identity in the live-loan interference judgment.
-        if !matches!(
-            self.program.expression_table.expression(operand.expression),
-            ExpressionNode::Borrow(_)
-        ) && let Some(source) = &coordinate
-            && source.root.as_symbol().is_some()
-        {
-            return self.stored(capture, operand, source, path, ancestors, forwarded_inputs);
-        }
         // Literal formation authenticates image scope in the completed value
         // inventory. Consume that positive evidence for any producer instead
         // of inferring image backing from missing suppliers or source syntax.
+        // A stored image descriptor has no activation-relative loan to find.
         if let Some(profiles) = validation::completed_storage::captured_retention_profiles_at_path(
             self.program,
             control,
@@ -277,6 +266,18 @@ impl Resolver<'_> {
                 places: Vec::new(),
                 immutable_image: true,
             });
+        }
+        // Other stored descriptors retain that occurrence's own loan, even
+        // when their value graph remembers an older construction. Replacing
+        // this with only the construction's suppliers would lose descriptor
+        // identity in the live-loan interference judgment.
+        if !matches!(
+            self.program.expression_table.expression(operand.expression),
+            ExpressionNode::Borrow(_)
+        ) && let Some(source) = &coordinate
+            && source.root.as_symbol().is_some()
+        {
+            return self.stored(capture, operand, source, path, ancestors, forwarded_inputs);
         }
         // A saved subject is the producer's retained value, not another read
         // of its authored initializer. Missing saved custody has no backing.
@@ -492,18 +493,30 @@ impl Resolver<'_> {
             return false;
         }
         let retained = control.operand_retentions.get(profile);
-        if retained.alternatives.is_empty() {
-            return retained.immutable_image;
-        }
-        let Some(alternatives) = control.operand_retentions.span(retained.alternatives) else {
-            return false;
-        };
         ancestors.push(profile);
-        let image = !alternatives.is_empty()
-            && retained
-                .alternatives
-                .handles()
-                .all(|alternative| self.immutable_image_profile(alternative, ancestors));
+        // Call-result lifetime profiles keep the actual descriptor separately
+        // from their declared input dependencies. Follow that positive body
+        // correspondence; neither empty roots nor missing geometry imply image
+        // storage, and every alternative must establish the same property.
+        let image = if !retained.alternatives.is_empty() {
+            control
+                .operand_retentions
+                .span(retained.alternatives)
+                .is_some_and(|alternatives| {
+                    !alternatives.is_empty()
+                        && retained
+                            .alternatives
+                            .handles()
+                            .all(|alternative| self.immutable_image_profile(alternative, ancestors))
+                })
+        } else if control.operands.is_valid(retained.descriptor) {
+            self.immutable_image_profile(
+                control.operands.get(retained.descriptor).retention,
+                ancestors,
+            )
+        } else {
+            retained.immutable_image
+        };
         ancestors.pop();
         image
     }

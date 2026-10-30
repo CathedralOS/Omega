@@ -296,6 +296,7 @@ fn result_declaration(
 #[cfg(test)]
 mod tests {
     use super::cleanup_actions_match;
+    use crate::object_artifact::test_support::structural_declaration;
     use abstract_operations::{
         AbstractBoundaryResult, AbstractFunction, AbstractFunctionResult, AbstractOperation,
         AbstractResult,
@@ -347,16 +348,10 @@ mod tests {
             },
             structural: Some(legalized_operations::LegalizedStructuralContract {
                 result: None,
-                structural_types: vec![terminal_psi::StructuralTypeDeclaration {
-                    quotient_carrier: None,
-                    owns_linear_claim: false,
-                    no_code_affine_cleanup: false,
-                    copyable: false,
-                    descriptor_cleanup: false,
-                    scalar_restriction: None,
-                    id: structural_type,
-                    identity: terminal_psi::TerminalIdentityIndex(1),
-                    shape: StructuralTypeShape::Sum {
+                structural_types: vec![structural_declaration(
+                    structural_type,
+                    terminal_psi::TerminalIdentityIndex(1),
+                    StructuralTypeShape::Sum {
                         cases: vec![
                             terminal_psi::StructuralCaseDeclaration {
                                 id: StructuralCaseId::new(1).unwrap(),
@@ -378,7 +373,7 @@ mod tests {
                             },
                         ],
                     },
-                }]
+                )]
                 .into(),
                 parameters: vec![],
                 structural_places: vec![],

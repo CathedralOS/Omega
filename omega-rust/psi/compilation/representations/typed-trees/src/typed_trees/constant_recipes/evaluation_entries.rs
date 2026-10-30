@@ -39,9 +39,8 @@ impl TypedTrees {
             });
         }
         self.constant_recipes.iter().find_map(|(_, recipe)| {
-            let super::RetainedConstantPosition::ContractExpression(source_expression) =
-                recipe.position
-            else {
+            let source_expression = recipe.position.expression();
+            if !source_expression.is_valid() {
                 return None;
             };
             self.constant_expression_contexts
@@ -80,7 +79,7 @@ impl TypedTrees {
             }
         }
         for (_, recipe) in self.constant_recipes.iter() {
-            if recipe.position != super::RetainedConstantPosition::ContractExpression(expression) {
+            if recipe.position.expression() != expression {
                 continue;
             }
             for context in self

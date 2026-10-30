@@ -1,0 +1,778 @@
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs
+index 118aa389c02..41427a30787 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs
+@@ -35,6 +35,7 @@ struct Residence {
+ /// Ordinary reference slots and byte/element view slots share one inventory;
+ /// an address to the carrier itself must remain an observation of its home.
+ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError> {
++    let mut probe = crate::reconciliation_probe::Probe::new("residences", module.machines.len());
+     let copyable_types =
+         super::affine_cleanup::copyable_descriptor_type_ids(&module.structural_types);
+     if copyable_types.is_empty() {
+@@ -48,6 +49,11 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+     if machine_residences.iter().all(Vec::is_empty) {
+         return Ok(());
+     }
++    probe.count(
++        "candidate_residences",
++        machine_residences.iter().map(Vec::len).sum(),
++    );
++    let graph_started = probe.clock();
+     let graph = terminal_semantics::descriptor_results::terminal_borrowed_storage_graph(module);
+     let rules = module
+         .machines
+@@ -63,6 +69,8 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+         .collect::<Vec<_>>();
+     let mut analysis =
+         DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
++    probe.elapsed("graph_preparation_ns", graph_started);
++    probe.count("analysis_constructions", 1);
+     for ((machine, residences), rules) in module
+         .machines
+         .iter_mut()
+@@ -75,10 +83,16 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+         let Some(mut rules) = rules else {
+             continue;
+         };
+-        let Some(flow) = analysis.residence_flow(machine.id, &mut rules) else {
++        probe.count("candidate_machines", 1);
++        let flow_started = probe.clock();
++        let flow = analysis.residence_flow(machine.id, &mut rules);
++        probe.elapsed("residence_flow_ns", flow_started);
++        probe.count("residence_flow_queries", 1);
++        let Some(flow) = flow else {
+             // Incomplete return/effect coverage is not a dead-lifetime proof.
+             continue;
+         };
++        let normal_started = probe.clock();
+         let normal = NormalEdges::new(
+             machine,
+             &module.structural_types,
+@@ -86,11 +100,15 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+             flow,
+             residences.len(),
+         )?;
++        probe.elapsed("normal_edges_ns", normal_started);
++        let solve_started = probe.clock();
+         let mut motions = Vec::<Motion>::new();
+         loop {
++            probe.count("fixed_point_rounds", 1);
+             let scheduled = normal.scheduled_flow(&motions);
+             let mut additions = Vec::new();
+             for residence in &residences {
++                probe.count("residence_plan_queries", 1);
+                 if let Some(motion) =
+                     plan_residence(machine, &normal, &scheduled, &rules, residence, &motions)?
+                 {
+@@ -111,10 +129,12 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+                 break;
+             }
+             for motion in additions {
++                probe.count("motion_updates", 1);
+                 motions.retain(|previous| previous.place != motion.place);
+                 motions.push(motion);
+             }
+         }
++        probe.elapsed("planning_ns", solve_started);
+         normal.install(machine, &residences, &motions);
+     }
+     Ok(())
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs
+index 7d5d3ec78c0..11f3fb56b75 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs
+@@ -20,11 +20,13 @@ use semantic_vocabulary::StructuralPlaceKind;
+ use terminal_psi::{StructuralPlaceDeclaration, TerminalModule};
+ 
+ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule) {
++    let mut probe = crate::reconciliation_probe::Probe::new("places", module.machines.len());
+     for machine in &mut module.machines {
+         let mut declared: Option<BTreeSet<_>> = None;
+         let mut additions = Vec::new();
+         for block in &machine.blocks {
+             for operation in &block.operations {
++                probe.count("operations_scanned", 1);
+                 if !matches!(
+                     operation.kind,
+                     terminal_psi::structural_leaf_copy_pair_pattern!()
+@@ -34,6 +36,7 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
+                 let Some(result) = operation.result.structural() else {
+                     continue;
+                 };
++                probe.count("leaf_copy_results", 1);
+                 let declared = declared.get_or_insert_with(|| {
+                     machine
+                         .structural_places
+@@ -53,8 +56,10 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
+                 });
+             }
+         }
++        probe.count("declarations_added", additions.len());
+         machine.structural_places.extend(additions);
+         if !machine.structural_places.is_sorted_by_key(|place| place.id) {
++            probe.count("place_rosters_sorted", 1);
+             machine.structural_places.sort_by_key(|place| place.id);
+         }
+     }
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs
+index 80a49bf885b..7000c16e876 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs
+@@ -53,6 +53,7 @@
+ pub(crate) use optimization::digest_encoder;
+ mod machine_lowering;
+ mod program_roots;
++mod reconciliation_probe;
+ pub use program_roots::TerminalProgramRoots;
+ 
+ // The plan families `machine_dispatch` selects between, in their dependency
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
+index 36057700012..4979ac5a122 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
+@@ -22,9 +22,11 @@ use terminal_psi::{OperationKind, OperationResult, TerminalModule};
+ use terminal_semantics::descriptor_results::{self as descriptors, PayloadMembershipContract};
+ 
+ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
++    let mut probe = crate::reconciliation_probe::Probe::new("memberships", module.machines.len());
+     if module.structural_domains.is_empty() {
+         return Ok(());
+     }
++    let discovery_started = probe.clock();
+     let memberships = membership_reachability::MembershipReachability::new(
+         &module.structural_types,
+         module
+@@ -51,40 +53,58 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+     if !candidate_machines.iter().any(|&has| has) {
+         return Ok(());
+     }
++    probe.count(
++        "candidate_machines",
++        candidate_machines.iter().filter(|&&has| has).count(),
++    );
++    probe.elapsed("discovery_ns", discovery_started);
++    let graph_started = probe.clock();
+     let types = module.structural_types.clone();
+     let graph = descriptors::terminal_graph(module);
+     let mut analysis = descriptors::DescriptorAnalysis::new(&types, &graph);
++    probe.elapsed("graph_preparation_ns", graph_started);
++    probe.count("analysis_constructions", 1);
+     for (machine_index, has_candidate) in candidate_machines.into_iter().enumerate() {
+         if !has_candidate {
+             continue;
+         }
+         loop {
++            probe.count("fixed_point_rounds", 1);
+             let mut copies = Vec::new();
+             let reference_memberships = terminal_semantics::ReferenceResultMemberships::new(module);
++            probe.count("reference_context_constructions", 1);
+             {
+                 let machine = &module.machines[machine_index];
++                let history_started = probe.clock();
+                 let mut history = descriptors::PayloadMembershipHistory::new(
+                     &types,
+                     &module.structural_domains,
+                     &graph,
+                     machine,
+                 );
++                probe.elapsed("history_creation_ns", history_started);
+                 for (block_index, block) in machine.blocks.iter().enumerate() {
+                     for (ordinal, operation) in block.operations.iter().enumerate() {
++                        probe.count("operations_scanned", 1);
+                         let Some(result) = operation.result.structural() else {
+                             continue;
+                         };
+                         if !memberships.may_contain(result.structural_type) {
+                             continue;
+                         }
++                        probe.count("eligible_operations", 1);
+                         let position = (
+                             block.id,
+                             u32::try_from(ordinal).map_err(|_| {
+                                 LoweringError::Unsupported("membership operation ordinal overflow")
+                             })?,
+                         );
+-                        if let Ok(projected_qualifications) =
+-                            reference_memberships.for_operation(machine, operation)
++                        let reference_started = probe.clock();
++                        let reference_result =
++                            reference_memberships.for_operation(machine, operation);
++                        probe.elapsed("reference_queries_ns", reference_started);
++                        probe.count("reference_queries", 1);
++                        if let Ok(projected_qualifications) = reference_result
+                             && !projected_qualifications.is_empty()
+                         {
+                             copies.push((
+@@ -99,17 +119,21 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                                 },
+                             ));
+                         }
+-                        if let Some(contract) = view_memberships::retained(
++                        let view_started = probe.clock();
++                        let view_contract = view_memberships::retained(
+                             module,
+                             machine,
+                             operation,
+                             position,
+                             &mut analysis,
+                             &memberships,
+-                        ) {
++                        );
++                        probe.elapsed("view_queries_ns", view_started);
++                        if let Some(contract) = view_contract {
+                             copies.push((block_index, ordinal, contract));
+                         }
+-                        if let Some(contract) = operand_memberships::retained(
++                        let operand_started = probe.clock();
++                        let operand_contract = operand_memberships::retained(
+                             module,
+                             machine,
+                             operation,
+@@ -117,12 +141,17 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                             &mut analysis,
+                             &mut history,
+                             &memberships,
+-                        ) {
++                        );
++                        probe.elapsed("operand_queries_ns", operand_started);
++                        if let Some(contract) = operand_contract {
+                             copies.push((block_index, ordinal, contract));
+                         }
+                         // Every value transfer observes its source at this operation,
+                         // including copies emitted directly by control-flow edges.
+                         // Declaration-time metadata alone can miss preceding stores.
++                        let trace_sharing = std::env::var_os("OMEGA_UNCHANGED_FACT_COUNTS").is_some();
++                        if trace_sharing { eprintln!("SHARE_SOURCE_BEGIN\t{:?}", std::thread::current().id()); }
++                        let source_started = probe.clock();
+                         let selected_source = match &operation.kind {
+                             OperationKind::MoveStructuralValue { source } => {
+                                 Some((source.place, source.path.as_slice()))
+@@ -161,33 +190,46 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                                 ));
+                             }
+                         }
++                        probe.elapsed("source_contract_queries_ns", source_started);
++                        if trace_sharing { eprintln!("SHARE_SOURCE_END\t{:?}", std::thread::current().id()); }
+                         let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
+                         else {
+                             continue;
+                         };
+-                        let Some(root) = descriptors::terminal_payload_contract(machine, *source)
+-                        else {
++                        let root_started = probe.clock();
++                        let root = descriptors::terminal_payload_contract(machine, *source);
++                        probe.elapsed("leaf_root_lookup_ns", root_started);
++                        let Some(root) = root else {
+                             continue;
+                         };
+-                        let Some(query) = descriptors::descriptor_contents_query(
++                        let query_started = probe.clock();
++                        let query = descriptors::descriptor_contents_query(
+                             &types,
+                             *source,
+                             root.carrier,
+                             path,
+                             None,
+-                        ) else {
++                        );
++                        probe.elapsed("leaf_query_formation_ns", query_started);
++                        let Some(query) = query else {
+                             continue;
+                         };
+-                        let Some(targets) = analysis.payload_targets(machine.id, position, &query)
+-                        else {
++                        probe.count("payload_target_queries", 1);
++                        let targets_started = probe.clock();
++                        let targets = analysis.payload_targets(machine.id, position, &query);
++                        probe.elapsed("payload_target_queries_ns", targets_started);
++                        let Some(targets) = targets else {
+                             continue;
+                         };
+-                        let Some(contract) = descriptors::payload_memberships(
++                        let memberships_started = probe.clock();
++                        let contract = descriptors::payload_memberships(
+                             &types,
+                             &module.structural_domains,
+                             targets,
+                             |place| descriptors::terminal_payload_contract(machine, place),
+-                        ) else {
++                        );
++                        probe.elapsed("payload_contract_queries_ns", memberships_started);
++                        let Some(contract) = contract else {
+                             continue;
+                         };
+                         if contract.carrier == result.structural_type
+@@ -198,9 +240,16 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                         }
+                     }
+                 }
++                let drop_started = probe.clock();
++                drop(history);
++                probe.elapsed("history_drop_ns", drop_started);
+             }
++            let reference_drop_started = probe.clock();
+             drop(reference_memberships);
++            probe.elapsed("reference_context_drop_ns", reference_drop_started);
++            let merge_started = probe.clock();
+             let mut changed = false;
++            probe.count("proposed_updates", copies.len());
+             let machine = &mut module.machines[machine_index];
+             for (block, operation, contract) in copies {
+                 let OperationResult::Structural(result) =
+@@ -214,11 +263,25 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                     contract.projected_qualifications,
+                 );
+             }
++            probe.elapsed("merge_ns", merge_started);
+             if !changed {
+                 break;
+             }
++            probe.count("changing_rounds", 1);
+         }
+     }
++    let drop_started = probe.clock();
++    drop(analysis);
++    probe.elapsed("analysis_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(graph);
++    probe.elapsed("graph_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(types);
++    probe.elapsed("types_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(memberships);
++    probe.elapsed("reachability_drop_ns", drop_started);
+     Ok(())
+ }
+ 
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+index 44565c76071..065ac165634 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+@@ -1034,14 +1034,33 @@ fn payload_contract_at_cut(
+                             bindings,
+                             parameters,
+                         );
++                        static COUNT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
++                        if *COUNT.get_or_init(|| {
++                            std::env::var_os("OMEGA_UNCHANGED_FACT_COUNTS").is_some()
++                        }) {
++                            let incoming = incoming_requirements
++                                .iter()
++                                .map(|row| Arc::as_ptr(row) as usize)
++                                .collect::<std::collections::BTreeSet<_>>();
++                            let reused = rebound
++                                .iter()
++                                .filter(|row| incoming.contains(&(Arc::as_ptr(row) as usize)))
++                                .count();
++                            eprintln!(
++                                "SHARE_ROWS\t{:?}\t{}\t{}\t{}",
++                                std::thread::current().id(),
++                                incoming_requirements.len(),
++                                rebound.len(),
++                                reused
++                            );
++                        }
+                         // Rebinding can return the complete incoming theory
+                         // unchanged. Appending it would detach and deep-clone
+                         // a snapshot only to deduplicate it immediately below.
+-                        // Still compute every substitution: even an empty map
+-                        // can normalize a proposition into a genuinely new row.
++                        // The transform retains its normalization path even
++                        // without substitutions, sharing only unchanged trees.
+                         if !contains_rebound_premises(&arrival.scalar_requirements, &rebound) {
+-                            Arc::make_mut(&mut arrival.scalar_requirements)
+-                                .extend(rebound.into_iter().map(Arc::new));
++                            Arc::make_mut(&mut arrival.scalar_requirements).extend(rebound);
+                         }
+                         canonicalize_snapshot(&mut arrival.scalar_requirements);
+                     }
+@@ -1143,17 +1162,17 @@ fn payload_contract_at_cut(
+ /// binary-search path. Equal duplicates reuse one retained row; no input moves.
+ fn contains_rebound_premises(
+     retained: &[Arc<semantic_vocabulary::Proposition>],
+-    rebound: &[semantic_vocabulary::Proposition],
++    rebound: &[Arc<semantic_vocabulary::Proposition>],
+ ) -> bool {
+     if rebound.windows(2).any(|pair| pair[0] > pair[1]) {
+         return rebound.iter().all(|premise| {
+             retained
+-                .binary_search_by(|stored| stored.as_ref().cmp(premise))
++                .binary_search_by(|stored| stored.as_ref().cmp(premise.as_ref()))
+                 .is_ok()
+         });
+     }
+     let mut remaining = retained.iter().map(Arc::as_ref).peekable();
+-    rebound.iter().all(|premise| {
++    rebound.iter().map(Arc::as_ref).all(|premise| {
+         while remaining
+             .peek()
+             .is_some_and(|candidate| *candidate < premise)
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs
+index f836d799185..f46aab05699 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs
+@@ -4,8 +4,8 @@
+ //! Call adapters supply exact typed formal/result bindings from the current
+ //! checked signature, never implementation-private facts or receiving domains.
+ use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
+-use std::borrow::Borrow;
+ use std::collections::BTreeMap;
++use std::sync::Arc;
+ 
+ pub(super) fn scalar_conjuncts(propositions: &[Proposition]) -> Vec<Proposition> {
+     let mut pending = propositions.iter().rev().collect::<Vec<_>>();
+@@ -22,11 +22,11 @@ pub(super) fn scalar_conjuncts(propositions: &[Proposition]) -> Vec<Proposition>
+ 
+ /// Rebind facts simultaneously. A retired incoming value may only survive as
+ /// the new formal receiving it; numeric SSA reuse never equates two iterations.
+-pub(super) fn arrival_requirements<Requirement: Borrow<Proposition>>(
+-    requirements: &[Requirement],
++pub(super) fn arrival_requirements(
++    requirements: &[Arc<Proposition>],
+     bindings: &[(ValueId, ScalarTerm)],
+     parameters: &[ValueId],
+-) -> Vec<Proposition> {
++) -> Vec<Arc<Proposition>> {
+     let mut substitutions = BTreeMap::new();
+     for (parameter, actual) in bindings {
+         if let ScalarTerm::Value { id, scalar_type } = actual {
+@@ -38,25 +38,38 @@ pub(super) fn arrival_requirements<Requirement: Borrow<Proposition>>(
+     let surviving = |value| !parameters.contains(&value) || substitutions.contains_key(&value);
+     let mut result = requirements
+         .iter()
+-        .map(Borrow::<Proposition>::borrow)
+-        .filter(|premise| !premise.any_value_id(|value| !surviving(value)))
+-        .map(|premise| crate::substitution::substitute_proposition_values(premise, &substitutions))
++        .filter_map(|premise| {
++            let mut affected = false;
++            if premise.any_value_id(|value| {
++                let substituted = substitutions.contains_key(&value);
++                affected |= substituted;
++                parameters.contains(&value) && !substituted
++            }) {
++                None
++            } else if !affected && !crate::substitution::value_substitution_may_normalize(premise) {
++                Some(premise.clone())
++            } else {
++                Some(Arc::new(
++                    crate::substitution::substitute_proposition_values(premise, &substitutions),
++                ))
++            }
++        })
+         .collect::<Vec<_>>();
+     for (parameter, actual) in bindings {
+         if actual.any_value_id(|value| !surviving(value)) {
+             continue;
+         }
+         let value = crate::substitution::substitute_scalar_term_values(actual, &substitutions);
+-        result.push(Proposition::Equal(
++        result.push(Arc::new(Proposition::Equal(
+             ScalarTerm::value(*parameter, value.scalar_type()),
+             value,
+-        ));
++        )));
+         // Non-rebound names still denote the same captured incoming value.
+         if !actual.any_value_id(|value| parameters.contains(&value)) {
+-            result.push(Proposition::Equal(
++            result.push(Arc::new(Proposition::Equal(
+                 ScalarTerm::value(*parameter, actual.scalar_type()),
+                 actual.clone(),
+-            ));
++            )));
+         }
+     }
+     result
+@@ -325,3 +338,156 @@ pub fn case_payload_scalar_types(
+         })
+         .collect()
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use semantic_vocabulary::{
++        IeeeFloatComparisonKind, IeeeFloatFormat, IntegerMathTerm, IntegerSign, IntegerType,
++        IntegerValue, ScalarType,
++    };
++
++    fn original_arrival(
++        requirements: &[Arc<Proposition>],
++        bindings: &[(ValueId, ScalarTerm)],
++        parameters: &[ValueId],
++    ) -> Vec<Proposition> {
++        let mut substitutions = BTreeMap::new();
++        for (parameter, actual) in bindings {
++            if let ScalarTerm::Value { id, scalar_type } = actual {
++                substitutions
++                    .entry(*id)
++                    .or_insert_with(|| ScalarTerm::value(*parameter, *scalar_type));
++            }
++        }
++        let surviving = |value| !parameters.contains(&value) || substitutions.contains_key(&value);
++        let mut result = requirements
++            .iter()
++            .filter(|premise| !premise.any_value_id(|value| !surviving(value)))
++            .map(|premise| {
++                crate::substitution::substitute_proposition_values(premise, &substitutions)
++            })
++            .collect::<Vec<_>>();
++        for (parameter, actual) in bindings {
++            if actual.any_value_id(|value| !surviving(value)) {
++                continue;
++            }
++            let value = crate::substitution::substitute_scalar_term_values(actual, &substitutions);
++            result.push(Proposition::Equal(
++                ScalarTerm::value(*parameter, value.scalar_type()),
++                value,
++            ));
++            if !actual.any_value_id(|value| parameters.contains(&value)) {
++                result.push(Proposition::Equal(
++                    ScalarTerm::value(*parameter, actual.scalar_type()),
++                    actual.clone(),
++                ));
++            }
++        }
++        result
++    }
++
++    #[test]
++    fn payload_rebinding_shares_only_exact_original_results() {
++        let identity = |value| ValueId::new(value).unwrap();
++        let boolean = |value| ScalarTerm::value(identity(value), ScalarType::Boolean);
++        let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
++        let integer_value = ScalarTerm::value(identity(1), ScalarType::Integer(integer));
++        let float = |value| {
++            ScalarTerm::value(
++                identity(value),
++                ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
++            )
++        };
++        let condition = Proposition::Equal(boolean(1), ScalarTerm::Boolean(true));
++        let math = Proposition::IntegerMathEqual(
++            IntegerMathTerm::Embed(Box::new(integer_value.clone())),
++            IntegerMathTerm::Embed(Box::new(ScalarTerm::Integer {
++                scalar_type: integer,
++                value: IntegerValue::Unsigned(7),
++            })),
++        );
++        let ieee = Proposition::ScalarIeeeFloatComparison {
++            kind: IeeeFloatComparisonKind::Equal,
++            format: IeeeFloatFormat::Binary64,
++            left: float(2),
++            right: float(1),
++        };
++        let requirements = vec![
++            Proposition::Truth,
++            Proposition::Falsehood,
++            condition.clone(),
++            Proposition::LessOrEqual(integer_value.clone(), integer_value),
++            math.clone(),
++            ieee.clone(),
++            Proposition::ScalarIeeeFloatComparison {
++                kind: IeeeFloatComparisonKind::LessThan,
++                format: IeeeFloatFormat::Binary64,
++                left: float(2),
++                right: float(1),
++            },
++            Proposition::Conjunction(vec![condition.clone(), math.clone()]),
++            Proposition::Disjunction(vec![condition.clone(), ieee.clone()]),
++            Proposition::Implication {
++                premise: Box::new(condition.clone()),
++                conclusion: Box::new(ieee.clone()),
++            },
++            Proposition::Equal(
++                ScalarTerm::BooleanNot {
++                    operand: Box::new(boolean(3)),
++                },
++                boolean(2),
++            ),
++        ]
++        .into_iter()
++        .map(Arc::new)
++        .collect::<Vec<_>>();
++        assert_ne!(
++            crate::substitution::substitute_proposition_values(&math, &BTreeMap::new()),
++            math
++        );
++        assert_ne!(
++            crate::substitution::substitute_proposition_values(&ieee, &BTreeMap::new()),
++            ieee
++        );
++        let binding_sets = vec![
++            vec![],
++            vec![(identity(2), boolean(1))],
++            vec![(identity(1), boolean(1))],
++            vec![(identity(2), boolean(1)), (identity(3), boolean(1))],
++            vec![(identity(1), boolean(2)), (identity(2), boolean(1))],
++            vec![(
++                identity(2),
++                ScalarTerm::BooleanNot {
++                    operand: Box::new(boolean(1)),
++                },
++            )],
++            vec![(identity(3), float(1))],
++        ];
++        for bindings in &binding_sets {
++            for retired_mask in 0..8 {
++                let parameters = (1..=3)
++                    .filter(|value| retired_mask & (1 << (value - 1)) != 0)
++                    .map(identity)
++                    .collect::<Vec<_>>();
++                let actual = arrival_requirements(&requirements, bindings, &parameters);
++                let expected = original_arrival(&requirements, bindings, &parameters);
++                assert_eq!(
++                    actual.iter().map(Arc::as_ref).collect::<Vec<_>>(),
++                    expected.iter().collect::<Vec<_>>()
++                );
++            }
++        }
++        let untouched = vec![Arc::new(condition)];
++        assert!(Arc::ptr_eq(
++            &arrival_requirements(&untouched, &[], &[])[0],
++            &untouched[0]
++        ));
++        for normalizing in [math, ieee] {
++            let input = vec![Arc::new(normalizing)];
++            let result = arrival_requirements(&input, &[], &[]);
++            assert!(!Arc::ptr_eq(&input[0], &result[0]));
++        }
++        assert!(arrival_requirements(&[], &[], &[]).is_empty());
++    }
++}
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs
+index a12de57da1e..85833e85482 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs
+@@ -10,6 +10,40 @@ use semantic_vocabulary::{
+     IntegerMathTerm, PlaceId, Proposition, ScalarTerm, ValueId,
+ };
+ 
++/// Scalar terms rebuild without normalization. Mathematical embeddings and
++/// symmetric IEEE propositions can normalize even when no value is replaced.
++pub(super) fn value_substitution_may_normalize(proposition: &Proposition) -> bool {
++    match proposition {
++        Proposition::IntegerMathEqual(..)
++        | Proposition::IntegerMathLessThan(..)
++        | Proposition::IntegerMathLessOrEqual(..) => true,
++        Proposition::ScalarIeeeFloatComparison {
++            kind, left, right, ..
++        } => kind.is_symmetric() && left > right,
++        Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
++            parts.iter().any(value_substitution_may_normalize)
++        }
++        Proposition::Implication {
++            premise,
++            conclusion,
++        } => {
++            value_substitution_may_normalize(premise)
++                || value_substitution_may_normalize(conclusion)
++        }
++        Proposition::Truth
++        | Proposition::Falsehood
++        | Proposition::Atom(_)
++        | Proposition::Equal(..)
++        | Proposition::LessThan(..)
++        | Proposition::LessOrEqual(..)
++        | Proposition::IeeeFloatComparison { .. }
++        | Proposition::ByteSequenceEqual { .. }
++        | Proposition::StructuralIdentity { .. }
++        | Proposition::StructuralCaseMembership { .. }
++        | Proposition::ContentConservation(_) => false,
++    }
++}
++
+ pub fn substitute_proposition_values(
+     proposition: &Proposition,
+     substitutions: &BTreeMap<ValueId, ScalarTerm>,
+--- /dev/null
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/reconciliation_probe.rs
+@@ -0,0 +1,87 @@
++//! Temporary, read-only attribution for the Dungeon reconciliation experiment.
++//! Local counters avoid a lock per operation; detailed counts are a separate run.
++
++use std::collections::BTreeMap;
++use std::sync::OnceLock;
++use std::time::Instant;
++
++pub(crate) struct Probe {
++    operation: &'static str,
++    machines: usize,
++    started: Option<Instant>,
++    counting: bool,
++    values: BTreeMap<&'static str, u64>,
++}
++
++impl Probe {
++    pub(crate) fn new(operation: &'static str, machines: usize) -> Self {
++        static MODE: OnceLock<String> = OnceLock::new();
++        let mode = MODE.get_or_init(|| std::env::var("OMEGA_RECONCILE_PROBE").unwrap_or_default());
++        Self {
++            operation,
++            machines,
++            started: matches!(mode.as_str(), "timing" | "counts").then(Instant::now),
++            counting: mode == "counts",
++            values: BTreeMap::new(),
++        }
++    }
++
++    pub(crate) fn count(&mut self, name: &'static str, amount: usize) {
++        if self.counting {
++            *self.values.entry(name).or_default() += amount as u64;
++        }
++    }
++
++    pub(crate) fn clock(&self) -> Option<Instant> {
++        self.started.map(|_| Instant::now())
++    }
++
++    pub(crate) fn elapsed(&mut self, name: &'static str, started: Option<Instant>) {
++        if let Some(started) = started {
++            *self.values.entry(name).or_default() +=
++                u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
++        }
++    }
++}
++
++impl Drop for Probe {
++    fn drop(&mut self) {
++        let Some(started) = self.started else {
++            return;
++        };
++        let elapsed = started.elapsed().as_nanos();
++        let values = self
++            .values
++            .iter()
++            .map(|(name, value)| format!("\t{name}={value}"))
++            .collect::<String>();
++        eprintln!(
++            "RECONCILE\t{}\t{}\t{}{}",
++            self.operation, self.machines, elapsed, values
++        );
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn counts_are_local_and_disabled_without_counting() {
++        let mut probe = Probe {
++            operation: "calibration",
++            machines: 0,
++            started: None,
++            counting: false,
++            values: BTreeMap::new(),
++        };
++        probe.count("visits", 2);
++        assert!(probe.values.is_empty());
++        probe.counting = true;
++        probe.count("visits", 2);
++        probe.count("visits", 3);
++        assert_eq!(probe.values["visits"], 5);
++        probe.elapsed("time_ns", None);
++        assert!(!probe.values.contains_key("time_ns"));
++    }
++}

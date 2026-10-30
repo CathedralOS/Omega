@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "same_spelling_other");
+    Build::depend_as(builder, "api", Source::Path { location: "../api" });
+}

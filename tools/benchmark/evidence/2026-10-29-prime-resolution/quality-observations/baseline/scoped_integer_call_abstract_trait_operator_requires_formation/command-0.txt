@@ -1,0 +1,7 @@
+package candidate checking failed: checked compilation failed for package `quality` with 3 diagnostic(s)
+  error: cannot form specification operator `==` in trait `ReplacementArithmetic` state `restricted` requires contract: no exact selected meaning
+    in package `quality`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-82ed7b6bbc7e1dc73912fd664aa2e9a7f8ba44f3db5c8145ae00767411e9f0a0\source\main.omg:6:27
+  error: cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
+    in package `quality`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-82ed7b6bbc7e1dc73912fd664aa2e9a7f8ba44f3db5c8145ae00767411e9f0a0\source\main.omg:12:9
+  error: cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
+    in package `quality`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-82ed7b6bbc7e1dc73912fd664aa2e9a7f8ba44f3db5c8145ae00767411e9f0a0\source\main.omg:12:9

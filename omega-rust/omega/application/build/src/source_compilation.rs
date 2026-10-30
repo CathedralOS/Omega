@@ -19,14 +19,15 @@ pub fn compile_sources(
             crate::build_execution::execute_build(prepared.execution(), queries.as_mut());
         let products = compiler.complete_compilation(prepared, returned)?;
         let mut outcomes = Vec::with_capacity(products.len());
-        for product in products {
-            let result = product
-                .result
-                .and_then(crate::complete_product)
-                .and_then(compiler::CompilationOutput::into_report);
+        let products = products
+            .into_iter()
+            .map(|product| (product.target, product.result))
+            .collect();
+        for (target, product) in crate::native_completion::complete_products(products) {
+            let result = product.and_then(compiler::CompilationOutput::into_report);
             outcomes.push(match result {
-                Ok(report) => compiler::CompileTargetOutcome::new(product.target, Ok(report)),
-                Err(error) => error.into_target_outcome(product.target),
+                Ok(report) => compiler::CompileTargetOutcome::new(target, Ok(report)),
+                Err(error) => error.into_target_outcome(target),
             });
         }
         Ok(compiler::CompileOutcomes::new(outcomes))

@@ -338,9 +338,43 @@ impl StructuralJudge<'_> {
         };
         let place =
             crate::value_custody::places::canonical_place_from_expression(program, expression);
+        // A descriptor home is not its referent. Resolve the completed read's
+        // exact backing before asking which entry contract admitted it. This
+        // is the ordinary origin join, including aliases introduced by matches;
+        // recasts, ambiguous origins and retired entry storage donate nothing.
+        let entry_place = place.as_ref().and_then(|place| {
+            let root = place.root.as_symbol()?;
+            let declared = crate::declaration_type_reference(program, root)?;
+            if crate::reference_shell(program, declared).is_none() {
+                return Some(place.clone());
+            }
+            let (machine, state) = self.runtime_declaration_scope()?;
+            let backing = self.frame_resolver()?.storage_read_backing_at_expression(
+                machine,
+                state,
+                expression,
+                root,
+                &place.segments,
+            )?;
+            let [source] = backing.sources.as_slice() else {
+                return None;
+            };
+            if source.invocation_output.is_some()
+                || source.collection_coarse
+                || !source.recasts.is_empty()
+                || source.representation.is_some()
+                || self.storage_binding_invalidated(source.root)
+            {
+                return None;
+            }
+            Some(crate::CanonicalPlace {
+                root: facts::PlaceRoot::Symbol(source.root),
+                segments: source.segments.clone(),
+            })
+        });
         if self.declaration_state.is_valid()
             && !self.storage_observation_invalidated(expression)
-            && let Some(place) = &place
+            && let Some(place) = &entry_place
             && let facts::PlaceRoot::Symbol(root) = place.root
             && let Some((_, state)) = self.runtime_declaration_scope()
             && let Some(parameter) = program
@@ -352,13 +386,32 @@ impl StructuralJudge<'_> {
                 parameter.type_reference,
                 &place.segments,
             )
-            && crate::field_domains::owned_nominal_data_definition(program, projected_type)
-                .is_some()
+            && crate::field_domains::readable_nominal_definition(program, projected_type).is_some()
             && same_application(projected_type)
-            && let Some(captured) = self.captured_place_projection(
-                place,
-                language_semantics::content::ContentPlaceVersion::Entry,
-            )
+            && let Some(captured) = self
+                .captured_place_projection(
+                    place,
+                    language_semantics::content::ContentPlaceVersion::Entry,
+                )
+                .or_else(|| {
+                    // Invocation admission establishes a readable formal's referent
+                    // domain too, without making the reference an owned value.
+                    // Only this unchanged entry place may donate it. Mask nested
+                    // descriptors so entry admission cannot invent their contents.
+                    let shell = crate::reference_shell(program, parameter.type_reference)?;
+                    shell.access.is_readable().then_some(())?;
+                    let value = super::super::structural_terms::owned_projection_observation(
+                        program,
+                        shell.referee,
+                        StructuralTerm::Variable(parameter.name.to_string()),
+                    );
+                    super::super::observed_projections::project_observed_value(
+                        program,
+                        shell.referee,
+                        value,
+                        &place.segments,
+                    )
+                })
             && captured.observation_identity_key().as_ref() == Some(&identity)
         {
             return true;

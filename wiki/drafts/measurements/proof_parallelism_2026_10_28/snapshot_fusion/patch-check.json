@@ -1,0 +1,20 @@
+[
+  {
+    "patch": "candidate.patch",
+    "base": "918d31d10acb687b5d81bb827f8e7f3e6e78b146",
+    "isolated_index": true,
+    "exit_code": 0
+  },
+  {
+    "patch": "timing.patch",
+    "base": "918d31d10acb687b5d81bb827f8e7f3e6e78b146",
+    "isolated_index": true,
+    "exit_code": 0
+  },
+  {
+    "patch": "counts.patch",
+    "base": "918d31d10acb687b5d81bb827f8e7f3e6e78b146",
+    "isolated_index": true,
+    "exit_code": 0
+  }
+]
