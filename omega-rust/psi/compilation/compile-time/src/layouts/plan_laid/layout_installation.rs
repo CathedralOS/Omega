@@ -116,6 +116,17 @@ pub(crate) fn compute_plan_laid_layouts_in(
         {
             let policy_is_closed =
                 typed_trees::domain::index_argument_is_closed(typed, storage.policy);
+            let policy_declaration = typed.type_reference_table.type_symbol(storage.policy);
+            if !policy_is_closed
+                && policy_declaration.is_valid()
+                && typed.symbols.get(policy_declaration).kind
+                    == symbols::SymbolKind::ConformanceParameter
+            {
+                // An abstract implementation parameter names no selected body.
+                // Its field telescope remains usable, but physical consumers
+                // still owe geometry after an exact implementation is supplied.
+                continue;
+            }
             let targets = if policy_is_closed {
                 applicable_targets(typed, domain, storage)
             } else {
