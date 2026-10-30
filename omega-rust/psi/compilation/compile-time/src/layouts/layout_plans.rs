@@ -290,7 +290,10 @@ fn closed_trait_argument_identity(
         .collect::<Vec<_>>();
     typed_trees::type_identity::portable_applied_index_identity(
         typed,
-        IndexIdentityArgument::TypeReference(argument),
+        // This authenticated formal selects implementation code. Read its
+        // carrier/code role, just as the active static operand does; a named
+        // value-index identity would describe a different kind of operand.
+        IndexIdentityArgument::TypeArgument(argument),
         owner,
         &[AppliedTypeIdentityScope {
             declaration: declaration.symbol,
