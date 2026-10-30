@@ -774,8 +774,10 @@ impl Builder<'_, '_> {
                     } else {
                         None
                     };
-                if !call.machine_arguments.is_empty()
-                    || call.quotient_operation.is_some()
+                // Static operands are retained by the admitted application,
+                // not evaluated as extra scalar operands. Boundary and body
+                // calls keep the same ordinary computation/occurrence owner.
+                if call.quotient_operation.is_some()
                     || call.private_layout_operation.is_some()
                     || call.layout_query.is_some()
                 {
