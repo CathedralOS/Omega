@@ -16,6 +16,9 @@ class DashboardTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.addCleanup(self.temporary.cleanup)
+        dates = patch.object(dashboard, "execution_revision_dates", return_value={})
+        dates.start()
+        self.addCleanup(dates.stop)
 
     def record(self, filename, *, target="windows_x86_64", started="2026-10-29T10:00:00Z", results=None):
         record = {"started": started, "target": target, "revision": "abc",
@@ -118,9 +121,9 @@ class DashboardTests(unittest.TestCase):
         import corpus_records
         native = corpus_records.parse("pass/g/a rejected 1ms @aaaaaaa\npass/g/b built 1ms exit:0 @ccccccc\n")
         both = corpus_records.parse("pass/g/a built 1ms exit:0 @bbbbbbb\npass/g/b rejected 1ms @ccccccc\npass/g/c built 1ms exit:0\n")
-        dates = {"aaaaaaa": dashboard.instant("2026-10-30T00:00:00Z"),
-                 "bbbbbbb": dashboard.instant("2026-10-29T00:00:00Z"),
-                 "ccccccc": dashboard.instant("2026-10-28T00:00:00Z")}
+        dates = {"a" * 40: dashboard.instant("2026-10-30T00:00:00Z"),
+                 "b" * 40: dashboard.instant("2026-10-29T00:00:00Z"),
+                 "c" * 40: dashboard.instant("2026-10-28T00:00:00Z")}
         rows = dashboard.merge_execution_records(self.root, [
             ("corpus_native_host.txt", native), ("corpus_both_host.txt", both)], dates)
         self.assertEqual({r["fixture"]:r["status"] for r in rows},

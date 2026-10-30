@@ -122,6 +122,11 @@ def collect_facts(repository, records):
     return facts
 
 
+def execution_revision_dates(repository):
+    return {revision: instant(date) for revision, date in
+            (line.split(" ", 1) for line in git(repository, "log", "--exclude=refs/coordination/*", "--all", "--format=%H %cI").splitlines())}
+
+
 def merge_execution_records(repository, sources, dates):
     """One observation per fixture; file updates never restamp carried rows."""
     latest = {}
@@ -129,12 +134,10 @@ def merge_execution_records(repository, sources, dates):
         for row in records:
             stamp = (row.get("recorded_at") or "").removesuffix("+wt")
             if stamp not in dates:
-                dates[stamp] = datetime.min.replace(tzinfo=timezone.utc)
-                if re.fullmatch(r"[0-9a-f]{7,40}", stamp):
-                    try:
-                        dates[stamp] = instant(git(repository, "show", "-s", "--format=%cI", stamp))
-                    except (OSError, ValueError):
-                        pass
+                matches = [date for revision, date in dates.items()
+                           if len(revision) == 40 and revision.startswith(stamp)] \
+                    if re.fullmatch(r"[0-9a-f]{7,40}", stamp) else []
+                dates[stamp] = matches[0] if len(matches) == 1 else datetime.min.replace(tzinfo=timezone.utc)
             priority = (dates[stamp], "corpus_both_" in path)
             previous = latest.get(row["fixture"])
             if previous is None or priority > previous[0]:
@@ -144,7 +147,7 @@ def merge_execution_records(repository, sources, dates):
 
 def collect_native(repository, warnings):
     hosts = []
-    dates = {}
+    dates = execution_revision_dates(repository)
     for target in TARGETS:
         relative = f"tests/omega/corpus_native_{target}.txt"
         paths = [f"tests/omega/corpus_{mode}_{target}.txt" for mode in ("native", "both")
@@ -221,7 +224,7 @@ def native_history(repository, relative, warnings=None):
     """Last committed golden per recorded day; never invent observations in gaps."""
     paths = [relative] if isinstance(relative, str) else relative
     history = []
-    dates = {}
+    dates = execution_revision_dates(repository)
     anchor = instant(git(repository, "show", "-s", "--format=%cI", "HEAD"))
     since = (anchor - timedelta(days=30)).isoformat()
     commits = git(repository, "log", f"--since={since}", "--format=%H %cI", "--", *paths)
