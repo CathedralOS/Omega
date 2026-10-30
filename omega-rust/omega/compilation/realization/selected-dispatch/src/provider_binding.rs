@@ -105,16 +105,22 @@ pub fn prepare_selected_execution(
         settlement.authored_root_grants,
     )?;
     let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
+    // Close the existing exact source association once. Native ABI publication
+    // is not needed to count calling declarations and must not add early errors.
+    let calling_requirements = external_providers.callbacks.calling_requirements(
+        settlement
+            .boundary_calling_plan_realizations
+            .iter()
+            .filter(|realization| realization.boundary_arguments.is_empty())
+            .map(|realization| (realization.boundary_trait, realization.requirement_machine)),
+    );
     let callback_roots = provider_planning::callback_roots::prepare(
         &program,
         &selected_provider_plan_facts,
-        settlement.boundary_calling_plan_realizations,
+        &external_providers.callbacks.declarations,
+        &calling_requirements,
     )?;
-    let callback_roots = psi_terminal_production::PreparedTerminalRoots::prepare(
-        &program,
-        settlement.exact_toolchain_sources,
-        callback_roots,
-    );
+    let callback_roots = external_providers.selected_callback_roots(callback_roots);
     let service_declarations = Arc::new(
         provider_planning::service_declarations::ServiceDeclarations::prepare(
             provider_planning::ProviderPlanningContext::new(
