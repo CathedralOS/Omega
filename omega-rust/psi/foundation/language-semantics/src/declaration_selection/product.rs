@@ -318,17 +318,6 @@ pub struct ExecutedProductSelection {
     pub composition: Option<CompositionMode>,
 }
 
-/// One reached package-local native intent. The locator is an owned checked
-/// semantic snapshot, not provider evidence or host execution authority. The
-/// Product join still resolves the exact requirement under this occurrence.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutedNativeBinding {
-    pub request: std::sync::Arc<ProductDeclarationRequest>,
-    pub target: super::ProductTarget,
-    pub locator: semantic_vocabulary::NativeBindingLocator,
-    pub selecting_machine: source::SourceSpan,
-}
-
 /// Inert designated operands retained under their authored lexical scope.
 /// They are not executable arguments or authority to publish a product.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]

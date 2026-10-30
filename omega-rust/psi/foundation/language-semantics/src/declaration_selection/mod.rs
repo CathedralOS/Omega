@@ -23,7 +23,8 @@ pub mod product_operands;
 pub use build_selection_origin::BuildSelectionOrigin;
 mod product_target;
 pub use product::{
-    BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,
+    BuildSelectionRequest, CapturedNativeDeclaration, CapturedNativeIntent, CompositionMode,
+    NativeBindingFormation, NativeBindingProducer, DescribedProductEntry, DescribedProductProvider,
     DescribedProductSchema, EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection,
     ExecutedEnumExclusion, ExecutedProductSelection, ExecutedRootBinding,
     ProductDeclarationOperand, ProductDeclarationRequest, ProductOperandRole,
