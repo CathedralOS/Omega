@@ -160,6 +160,13 @@ pub(super) fn emit_state(
                 scalar_type: call.result_type.scalar_type,
             });
             let operation = operations.allocate();
+            let frontier = environment.suspension_source_frontier(
+                call.source_coordinate,
+                evaluation,
+                &values,
+                calls,
+                operations,
+            )?;
             operations.record_source_call(
                 call.source_coordinate,
                 Some(checked_trees::NominalMachineUseSite::Expression(
@@ -167,7 +174,7 @@ pub(super) fn emit_state(
                 )),
                 operation,
                 call.slot,
-                &lowered_psi::LoweredSourceFrontierBindings::default(),
+                &frontier,
             )?;
             let mut span = super::BlockEmissionSpan {
                 current_claims: evaluation.current_claims.clone(),
@@ -224,11 +231,26 @@ pub(super) fn emit_state(
                     .map(|value| value.value_type())
                     .collect::<Vec<_>>(),
             )?;
+            let coordinate = match binding {
+                LoweredScalarBinding::DirectCall(call) => Some(call.source_coordinate),
+                LoweredScalarBinding::BoundaryCall(call) => Some(call.source_coordinate),
+                LoweredScalarBinding::DynamicCall(call) => Some(call.source_coordinate),
+                _ => None,
+            };
+            let frontier = coordinate
+                .map(|coordinate| {
+                    environment.suspension_source_frontier(
+                        coordinate, evaluation, &values, calls, operations,
+                    )
+                })
+                .transpose()?
+                .unwrap_or_default();
             let id = emit_scalar_binding(
                 identities,
                 checked,
                 binding,
                 &values,
+                &frontier,
                 caller_erased_formals,
                 next_value,
                 operations,

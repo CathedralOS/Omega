@@ -1,8 +1,10 @@
-//! Prepare the checked source correspondence for callback-root policy.
+//! Join selected provider evidence to canonical callback-use declarations.
 //!
 //! This is the remaining source adapter, not ABI placement. Empty use rosters
 //! do no instance work; otherwise the whole selected instance projection must
 //! succeed before per-use declaration or calling-plan errors are considered.
+//! Psi has already frozen classification, exact requirement coordinates and
+//! body identities; this adapter never reconstructs them from checked uses.
 
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
@@ -13,9 +15,10 @@ use provider_selection::{CallbackRootCandidate, SelectedCallbackRow};
 pub fn prepare(
     program: &CheckedTrees,
     selected_providers: &effects::SelectedProviderPlanFacts,
-    realizations: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
-) -> Result<Vec<symbols::SymbolHandle>, Vec<Diagnostic>> {
-    if program.facts.nominal_machine_uses.uses.is_empty() {
+    declarations: &terminal_psi::CallbackDeclarationRoster,
+    calling_requirements: &[terminal_psi::CallbackRequirementId],
+) -> Result<Vec<terminal_psi::CallbackUseId>, Vec<Diagnostic>> {
+    if declarations.uses.is_empty() {
         return Ok(Vec::new());
     }
     // This existing projection admits every selected checked adapter, not only
@@ -27,24 +30,20 @@ pub fn prepare(
     )?;
     let context =
         crate::ProviderPlanningContext::new(&program.typed, source::DependencyScope::Product);
-    let candidates = program.facts.nominal_machine_uses.uses.iter().map(|usage| {
-        let declaration = program.callback_declaration(usage);
+    let candidates = declarations.uses.iter().map(|(usage_id, usage)| {
+        let declaration = declarations.declaration(usage);
         let provider = match &declaration.registration {
             Ok(CallbackRegistrationDeclaration::External(identity)) => {
                 prepare_selected_row(context, &selected_instances, identity)
             }
             _ => None,
         };
-        let calling_plan_matches = realizations
+        let calling_plan_matches = calling_requirements
             .iter()
-            .filter(|realization| {
-                realization.boundary_trait == usage.satisfaction_trait
-                    && realization.requirement_machine == usage.satisfaction_requirement
-                    && realization.boundary_arguments.is_empty()
-            })
+            .filter(|requirement| **requirement == usage.requirement)
             .count();
         CallbackRootCandidate {
-            owner: usage.selected_machine,
+            owner: usage_id,
             declaration,
             provider,
             calling_plan_matches,

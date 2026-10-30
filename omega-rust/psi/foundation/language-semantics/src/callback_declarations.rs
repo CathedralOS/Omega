@@ -5,6 +5,7 @@
 //! selects a provider nor grants native placement.
 
 /// An ordinary checked invocation, or an exact callable needing provider selection.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CallbackRegistrationDeclaration {
     CheckedSource,
     External(String),

@@ -151,14 +151,9 @@ pub(in crate::flow) fn narrow_pinned_selectors(
     }
     let stable_value_target = crate::flow::compose_captured_view_segments(&mut target_segments)
         .is_some()
-        && target_segments.iter().all(|segment| {
-            matches!(
-                segment,
-                facts::PlaceSegment::Field { .. }
-                    | facts::PlaceSegment::Case { .. }
-                    | facts::PlaceSegment::FixedIndex { .. }
-            )
-        });
+        && target_segments
+            .iter()
+            .all(|segment| crate::flow::fixed_selection_segment(segment));
     if stable_value_target
         && target_segments
             != semantic

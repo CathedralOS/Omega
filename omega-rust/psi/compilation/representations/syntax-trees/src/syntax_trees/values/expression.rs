@@ -439,6 +439,10 @@ pub struct TableMembershipExpression {
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct TableMemberExpression {
     pub receiver: ExpressionHandle,
+    /// Authored `.` through the member token, including intervening trivia.
+    /// Source reconstruction can remove this suffix without consuming grouping
+    /// around its receiver. Synthetic projections have no authored suffix.
+    pub access_source_span: SourceSpan,
     pub member: Identifier,
     /// `Some(variant)` when this access reads a CASE-PAYLOAD field bound by a
     /// destructure pattern (`Tx::Transfer { amount }` rewrites the arm's `amount`

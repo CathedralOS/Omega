@@ -966,21 +966,27 @@ borrows the existing selected plan/provenance rather than creating a second
 candidate cache. Early/reference instance projection shares Psi's closed-leaf
 roster but remains separate from ordinary Product preparation.
 Callback-root selection likewise belongs to source-free `provider-selection`:
-Psi supplies each original nominal use's registration classification and checked
-entry facts. The source adapter prepares exact selected-row body evidence and
-calling-plan associations, retaining the whole selected-instance validation
-before per-use policy. Registration failures suppress only that occurrence's
-plan diagnostics; inactive declarations still owe their calling-plan obligations.
-Occurrence order and duplicate roots survive without exported indices.
-Psi closes the selected callback roots into one canonical declaration table
-before selected execution returns. The application companion carries exact
-declarations, not callback source symbols. Composition rejoins each complete
+Psi freezes the complete final checked nominal-use roster once in the existing
+prepared declaration product. Canonical arena rows retain registration
+classification, exact requirement/body declarations, separate published/actual
+and refinement contracts, and checked entry-resource report axes. Dormant and
+symbolic uses remain present; unavailable declaration projection stays deferred.
+Calling declarations close through the product's authenticated owner/member
+correspondence, preserving exact empty-argument matching and duplicate counts
+without ABI publication. The source adapter still prepares selected-row body
+evidence and whole-selected-instance validation before per-use policy, but does
+not reconstruct use classifications or selected signatures. Registration failures
+suppress only that occurrence's plan diagnostics. Selected roots borrow the same
+identity table in occurrence order. The application carries exact declarations,
+not callback source symbols. Composition rejoins each complete
 owner/signature/contract/specialization to exactly one unoptimized body, lazily
 after the semantic entry and before the physical adapter. Unavailable declarations
 remain deferred so checking-only products need no emitted callback body. Diagnostic
 names and spans remain payload; Psi still projects ordinary callee/provider names
 and root-specific caller chains. This transient companion changes no portable
-schema and does not replace dormant source-use admission with emitted reachability.
+schema and does not replace dormant admission with emitted reachability. These
+producer-owned records are not independently admitted decoded evidence; complete
+portable dormant-use and checked-instance publication remain unfinished.
 The surrounding selected-execution coordinator still consumes this source
 preparation and service declarations; shared checked-instance/adapter projection
 and the complete source-to-Terminal facade migration remain unfinished.

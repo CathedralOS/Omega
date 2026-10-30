@@ -122,12 +122,7 @@ impl Builder<'_, '_> {
         leaf_type: typed_trees::types::TypeReferenceHandle,
         primitive_type: typed_trees::types::PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
-        let coordinate = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            row,
-        )?;
+        let coordinate = self.canonical_place(row)?;
         let facts::PlaceRoot::Symbol(symbol) = coordinate.root else {
             return None;
         };
@@ -194,12 +189,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: typed_trees::types::PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
-        let reference = validation::expression_type_reference_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )?;
+        let reference = self.expression_type(expression)?;
         let observation = self.scalar_observation_type(reference)?;
         if observation.primitive_type != expected {
             return None;
@@ -224,16 +214,13 @@ impl Builder<'_, '_> {
             return arena::HandleSpan::empty();
         }
         let receiver = self.structural_values.nodes.get(receiver_value);
-        if !validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            receiver.expression,
-        )
-        .is_some_and(|place| {
-            place.root == facts::PlaceRoot::Expression(receiver.expression)
-                && place.segments.is_empty()
-        }) {
+        if !self
+            .canonical_place(receiver.expression)
+            .is_some_and(|place| {
+                place.root == facts::PlaceRoot::Expression(receiver.expression)
+                    && place.segments.is_empty()
+            })
+        {
             return arena::HandleSpan::empty();
         }
         if !validation::reference_shell(self.program, receiver.type_reference)
@@ -281,24 +268,15 @@ impl Builder<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<ScalarObservation> {
-        if validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )
-        .is_some_and(|place| place.root.as_symbol().is_some())
+        if self
+            .canonical_place(expression)
+            .is_some_and(|place| place.root.as_symbol().is_some())
         {
             // Established storage already has the ordinary named/projected
             // observation route. It must not be copied into another home.
             return None;
         }
-        let reference = validation::expression_type_reference_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )?;
+        let reference = self.expression_type(expression)?;
         let observation = self.scalar_observation_type(reference)?;
         // This entrance is specifically a computed reference read. Direct
         // primitive captured values use the same typed observation above.
@@ -407,12 +385,7 @@ impl Builder<'_, '_> {
                     ExpressionNode::Indexed(indexed) => indexed.collection,
                     _ => break,
                 };
-                let Some(place) = validation::canonical_place_from_expression_in_state(
-                    self.program,
-                    self.state,
-                    self.statement_index,
-                    receiver,
-                ) else {
+                let Some(place) = self.canonical_place(receiver) else {
                     continue;
                 };
                 if !crate::flow::canonical_places_agree(self.program, &place, &source_place) {

@@ -290,11 +290,7 @@ pub(crate) fn check_machine_termination(
             (!row.diagnostic.is_empty()).then(|| Diagnostic::error(row.diagnostic.clone()))
         }))
         .collect::<Vec<_>>();
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::checks::finish(diagnostics)
 }
 
 /// The early indexed logical profile establishes proof placement and absence
@@ -320,11 +316,7 @@ pub(crate) fn check_indexed_logical_totality(
             machine_name(program, machine.symbol),
         )))
     }).collect::<Vec<_>>();
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::checks::finish(diagnostics)
 }
 
 /// Progress inference consumes the already admitted exact body's local

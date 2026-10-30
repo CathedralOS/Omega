@@ -2,7 +2,7 @@
 
 [provider_binding.rs](src/provider_binding.rs) prepares one complete selected
 execution from the shared checked program and Build inputs: provider grants,
-callback placements, declaration catalogs, selected review, accepted host roles
+callback roots, declaration catalogs, selected review, accepted host roles
 and complete direct-call leaves. Source checking has already
 admitted representation properties and captured source review records. Psi
 derives and checks every authored generic operator candidate and finite boundary
@@ -32,8 +32,15 @@ portable demands in the source-free native proposal join. The compiler supplies 
 consumes the result; it does not implement these decisions.
 Callback roots use [source preparation](../provider-planning/src/callback_roots.rs)
 followed by [source-free selection](../provider-selection/src/callback_roots.rs).
-Psi classifies the original nominal declarations; preparation retains whole-set
-checked-instance admission and exact selected-row/calling-plan correspondence.
+Psi freezes the complete final nominal-use roster once in its existing prepared
+declaration product, including dormant/symbolic uses, exact requirement and body
+declarations, separate published/actual/refinement contracts and entry-resource
+reports. Target preparation borrows that inventory and closes calling declarations
+through its authenticated owner/member correspondence; it preserves empty-argument
+matching and duplicate counts without publishing an ABI merely to count plans.
+Preparation retains whole-set checked-instance admission and exact selected-row
+evidence. Selected roots borrow the same canonical table instead of querying
+source signatures again.
 Selection owns entry/cardinality diagnostics and which roots survive, preserving
 dormant uses and duplicate occurrence order. This is not native ABI placement or
 a claim that checked-instance preparation is already Terminal-only.

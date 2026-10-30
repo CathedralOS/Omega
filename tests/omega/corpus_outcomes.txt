@@ -39012,3 +39012,6 @@ run/variant_record_normalization_repeats rejected 12132ms check-target:linux_x86
 	call to `reject` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `read` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+pass/wire/runtime_wire_decode_predicate_capture_exit checked 8163ms check-target:macos_arm64 @00d9206f6621
+fail/dependent/data_where_field_free_conjunct_unestablished rejected 322ms expected @00d9206f6621
+	machine `entry_start` state `entry` statement 2: reading `pending.<whole value>` crosses an open default-domain invariant window before data `Guarded` is established: the zeroed representation is not yet a `Guarded` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)

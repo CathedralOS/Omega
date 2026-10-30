@@ -330,6 +330,7 @@ fn run(sample: Sample) {
         let observation = terminal_runtime::execute(TerminalRuntimeRequest {
             entry: None,
             native_provider: None,
+            filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
             x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64")
                 .expect("host flags capture"),
             memory_ordering:

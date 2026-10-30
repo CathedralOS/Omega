@@ -4,13 +4,13 @@
 //! not observed or cleared. ISA-local scratch/control is not source control flow.
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, StructuralAccess, VirtualRegisterId,
-    memory,
+    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind, SelectedMemoryAccessRole,
+    StructuralAccess, VirtualRegisterId, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::byte_views;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::obligation_provenance;
 use crate::selection::construction::scalar_graph::structural::operation_provenance;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
@@ -260,12 +260,7 @@ pub(super) fn replace(
             .copy_bytes
             .ok_or_else(|| invalid())?,
         &[source_pointer, destination_pointer, count, cursor, byte],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![*length],
-            obligations: vec![*obligation],
-            ..Default::default()
-        },
+        obligation_provenance(row, &[*length], &[*obligation]),
     )?;
     memory(
         builder,
@@ -357,12 +352,7 @@ pub(super) fn replace_byte(
         payload,
         index_register,
         address,
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![*index, *length],
-            obligations: vec![*obligation],
-            ..Default::default()
-        },
+        obligation_provenance(row, &[*index, *length], &[*obligation]),
     )?;
     memory(
         builder,

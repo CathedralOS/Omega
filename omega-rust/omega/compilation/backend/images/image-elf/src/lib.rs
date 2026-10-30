@@ -503,30 +503,7 @@ pub(crate) mod test_support {
         symbol_handle: image::FinalImageSymbolHandle,
         target: TargetProfile,
     ) -> crate::ValidatedElfIndexedSectionPayloadPlan {
-        use image::{FinalImageRelocation, FinalImageSection};
-        use object_file::RelocationKind;
-        let (offset, kind) = match target {
-            TargetProfile::LinuxX64 => {
-                image.memory.text[0] = 0xe8;
-                (1, RelocationKind::X86_64Relative32)
-            }
-            TargetProfile::LinuxArm64 => {
-                image.memory.text[0..4].copy_from_slice(&[0, 0, 0, 0x94]);
-                (0, RelocationKind::Aarch64Branch26)
-            }
-            _ => unreachable!(),
-        };
-        image
-            .relocation_table
-            .relocations
-            .insert(FinalImageRelocation {
-                section: FinalImageSection::Text,
-                offset,
-                byte_width: 4,
-                symbol_handle,
-                addend: 0,
-                kind,
-            });
+        insert_text_call_relocations(&mut image, target, [(0, symbol_handle)]);
         let linkage = resolved_linkage(image, target);
         let templates = crate::plan_elf_procedure_linkage_templates(linkage).unwrap();
         let descriptors = crate::plan_elf_procedure_linkage_section_descriptors(templates).unwrap();

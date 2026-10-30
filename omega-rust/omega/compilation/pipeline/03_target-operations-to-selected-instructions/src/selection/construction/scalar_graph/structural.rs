@@ -526,6 +526,23 @@ pub(super) fn operation_provenance(
         ..Default::default()
     }
 }
+
+/// Provenance for an instruction that discharges obligations the row already
+/// names. Fuel stays off: only the row's one fuel-settling instruction states
+/// the settlement, so every other emission records just its values and the
+/// obligations it carries.
+pub(super) fn obligation_provenance(
+    row: &LegalizedScalarInstruction,
+    values: &[ValueId],
+    obligations: &[ObligationId],
+) -> SelectedInstructionProvenance {
+    SelectedInstructionProvenance {
+        operations: vec![row.operation],
+        values: values.to_vec(),
+        obligations: obligations.to_vec(),
+        ..Default::default()
+    }
+}
 /// Zero an established structural result before its tag and payloads publish:
 /// one zero register fills the whole extent through descending-width stores.
 pub(super) fn zeroed_slot(

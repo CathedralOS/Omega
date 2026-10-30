@@ -42,6 +42,18 @@ impl std::ops::Deref for PreparedExternalProviderDeclarations {
 }
 
 impl PreparedExternalProviderDeclarations {
+    /// Retain the already-projected exact bodies selected by Omega policy.
+    /// The identity owner and diagnostic associations come from this product,
+    /// never from another table or a second source-signature projection.
+    pub fn selected_callback_roots(
+        &self,
+        selected: impl IntoIterator<Item = terminal_psi::CallbackUseId>,
+    ) -> crate::PreparedTerminalRoots {
+        self.declarations
+            .callbacks
+            .selected_roots(Arc::clone(&self.declarations.identities), selected)
+    }
+
     /// Project complete declaration eligibility independently of portable demand.
     /// Unavailable evidence remains deferred until selected policy requires it.
     pub fn boundary_provider_review(

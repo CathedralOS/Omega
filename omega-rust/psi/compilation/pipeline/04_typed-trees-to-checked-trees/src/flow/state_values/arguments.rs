@@ -133,14 +133,11 @@ pub(in crate::flow) fn capture_argument(
     ) else {
         return ScalarValue::Unknown;
     };
-    if !place.segments.iter().all(|segment| {
-        matches!(
-            segment,
-            facts::PlaceSegment::Field { .. }
-                | facts::PlaceSegment::Case { .. }
-                | facts::PlaceSegment::FixedIndex { .. }
-        )
-    }) {
+    if !place
+        .segments
+        .iter()
+        .all(|segment| crate::flow::fixed_selection_segment(segment))
+    {
         return ScalarValue::Unknown;
     }
     context

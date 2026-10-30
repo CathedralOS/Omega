@@ -3,12 +3,13 @@ use std::fmt::Write;
 
 use source::SourceMap;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use syntax_trees::types::TypeReferenceNode;
 
+use super::CodecNames;
 use super::analysis::{
-    DomainPredicate, MemberShape, ScalarKind, SliceElement, StoreFacts, StorePredicate,
-    WireMemberShape, const_literal_capacity, scalar_kind_of_type, slice_element_of_type,
-    store_type_facts, value_field_facts, varint_bytes,
+    DomainPredicate, MemberShape, RecordShape, ScalarKind, SliceElement, StoreFacts,
+    StorePredicate, WireMemberShape, const_literal_capacity, scalar_kind_of_type,
+    slice_element_of_type, store_type_facts, value_field_facts, varint_bytes,
 };
 
 // Each emission helper declares an ordinary nested machine with explicit
@@ -17,13 +18,14 @@ use super::analysis::{
 
 struct MachineEmitter<'a> {
     text: &'a mut String,
+    names: &'a CodecNames,
     /// Shared parameter declarations (`value: &V, out: &mut B, written: &mut
     /// u64, at: u64` for encode; the decode list adds `bad: u64`).
     declarations: String,
     /// Shared argument list (`(value, out, written, at)`).
     call: String,
     /// The byte-source length expression bounds are proved against.
-    limit: &'static str,
+    limit: String,
 }
 
 impl MachineEmitter<'_> {
@@ -65,22 +67,23 @@ impl MachineEmitter<'_> {
     /// -> overflow }`; `put` writes `out[at] = byte` behind the proved guard
     /// and continues with `at + 1`.
     fn enc_byte(&mut self, name: &str, byte: u8, next: &str) {
+        let prefix = self.names.prefix.as_str();
         let put = format!("{name}_put");
         self.machine(
             name,
             "",
             "",
             &format!(
-                "        transition at < {} {{\n            true -> {put}{}\n            _ -> encode_overflow{}\n        }}\n",
+                "        transition {prefix}at < {} {{\n            true -> {put}{}\n            _ -> {prefix}encode_overflow{}\n        }}\n",
                 self.limit, self.call, self.call
             ),
         );
         self.machine(
             &put,
             "",
-            &format!("at < {}", self.limit),
+            &format!("{prefix}at < {}", self.limit),
             &format!(
-                "        out[at] = {byte};\n        transition {{ _ -> {next}(value, out, written, at + 1) }}\n"
+                "        {prefix}out[{prefix}at] = {byte};\n        transition {{ _ -> {next}({prefix}value, {prefix}out, {prefix}written, {prefix}at + 1) }}\n"
             ),
         );
     }
@@ -130,63 +133,65 @@ impl MachineEmitter<'_> {
     /// Canonical LEB128 emission of u64 `bits`, entering with `bits` already a
     /// state parameter (`name` is the loop state).
     fn enc_varint_loop(&mut self, name: &str, next: &str) {
+        let prefix = self.names.prefix.as_str();
         let last = format!("{name}_last");
         let put = format!("{name}_put");
         let more = format!("{name}_more");
         let put_more = format!("{name}_put_more");
         self.machine(
             name,
-            "bits: u64",
+            &format!("{prefix}bits: u64"),
             "",
             &format!(
-                "        transition bits < 128 {{\n            true -> {last}(value, out, written, at, bits)\n            _ -> {more}(value, out, written, at, bits)\n        }}\n"
+                "        transition {prefix}bits < 128 {{\n            true -> {last}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}bits)\n            _ -> {more}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}bits)\n        }}\n"
             ),
         );
         self.machine(
             &last,
-            "bits: u64",
+            &format!("{prefix}bits: u64"),
             "",
             &format!(
-                "        let byte: u8 = bits as u8;\n        transition at < {} {{\n            true -> {put}(value, out, written, at, byte)\n            _ -> encode_overflow{}\n        }}\n",
+                "        let {prefix}byte: u8 = {prefix}bits as u8;\n        transition {prefix}at < {} {{\n            true -> {put}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}byte)\n            _ -> {prefix}encode_overflow{}\n        }}\n",
                 self.limit, self.call
             ),
         );
         self.machine(
             &put,
-            "byte: u8",
-            &format!("at < {}", self.limit),
+            &format!("{prefix}byte: u8"),
+            &format!("{prefix}at < {}", self.limit),
             &format!(
-                "        out[at] = byte;\n        transition {{ _ -> {next}(value, out, written, at + 1) }}\n"
+                "        {prefix}out[{prefix}at] = {prefix}byte;\n        transition {{ _ -> {next}({prefix}value, {prefix}out, {prefix}written, {prefix}at + 1) }}\n"
             ),
         );
         self.machine(
             &more,
-            "bits: u64",
+            &format!("{prefix}bits: u64"),
             "",
             &format!(
-                "        let byte: u8 = ((bits & 127) | 128) as u8;\n        transition at < {} {{\n            true -> {put_more}(value, out, written, at, byte, bits)\n            _ -> encode_overflow{}\n        }}\n",
+                "        let {prefix}byte: u8 = (({prefix}bits & 127) | 128) as u8;\n        transition {prefix}at < {} {{\n            true -> {put_more}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}byte, {prefix}bits)\n            _ -> {prefix}encode_overflow{}\n        }}\n",
                 self.limit, self.call
             ),
         );
         self.machine(
             &put_more,
-            "byte: u8, bits: u64",
-            &format!("at < {}", self.limit),
+            &format!("{prefix}byte: u8, {prefix}bits: u64"),
+            &format!("{prefix}at < {}", self.limit),
             &format!(
-                "        out[at] = byte;\n        transition {{ _ -> {name}(value, out, written, at + 1, bits >> 7) }}\n"
+                "        {prefix}out[{prefix}at] = {prefix}byte;\n        transition {{ _ -> {name}({prefix}value, {prefix}out, {prefix}written, {prefix}at + 1, {prefix}bits >> 7) }}\n"
             ),
         );
     }
 
     /// Bind the scalar payload to `bits`, then enter the varint loop.
     fn enc_varint(&mut self, name: &str, binding: &str, next: &str) {
+        let prefix = self.names.prefix.as_str();
         let loop_state = format!("{name}_loop");
         self.machine(
             name,
             "",
             "",
             &format!(
-                "{binding}        transition {{ _ -> {loop_state}(value, out, written, at, bits) }}\n"
+                "{binding}        transition {{ _ -> {loop_state}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}bits) }}\n"
             ),
         );
         self.enc_varint_loop(&loop_state, next);
@@ -199,21 +204,22 @@ impl MachineEmitter<'_> {
     /// obligation the checker cannot discharge inductively, so the domain
     /// names its totality instead of a bound.
     fn enc_measure(&mut self, name: &str, binding: &str, next: &str) {
+        let prefix = self.names.prefix.as_str();
         let loop_state = format!("{name}_loop");
         self.machine(
             name,
-            "acc: u64 in Wrapping",
+            &format!("{prefix}accumulator: u64 in Wrapping"),
             "",
             &format!(
-                "{binding}        transition {{ _ -> {loop_state}(value, out, written, at, acc, bits) }}\n"
+                "{binding}        transition {{ _ -> {loop_state}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}accumulator, {prefix}bits) }}\n"
             ),
         );
         self.machine(
             &loop_state,
-            "acc: u64 in Wrapping, bits: u64",
+            &format!("{prefix}accumulator: u64 in Wrapping, {prefix}bits: u64"),
             "",
             &format!(
-                "        transition bits < 128 {{\n            true -> {next}(value, out, written, at, acc + 1)\n            _ -> {loop_state}(value, out, written, at, acc + 1, bits >> 7)\n        }}\n"
+                "        transition {prefix}bits < 128 {{\n            true -> {next}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}accumulator + 1)\n            _ -> {loop_state}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}accumulator + 1, {prefix}bits >> 7)\n        }}\n"
             ),
         );
     }
@@ -223,6 +229,7 @@ impl MachineEmitter<'_> {
     /// established by a guard in its immediate caller, so the element-read
     /// and store bounds are re-tested in the state right before the call.
     fn enc_slice_bytes(&mut self, name: &str, field: &str, next: &str) {
+        let prefix = self.names.prefix.as_str();
         let walk = format!("{name}_walk");
         let bound = format!("{name}_bound");
         let put = format!("{name}_put");
@@ -235,32 +242,32 @@ impl MachineEmitter<'_> {
             "",
             "",
             &format!(
-                "        let view: &[u8] = value.{field};\n        transition {{ _ -> {walk}(value, out, written, at, 0, view) }}\n"
+                "        let {prefix}view: &[u8] = {prefix}value.{field};\n        transition {{ _ -> {walk}({prefix}value, {prefix}out, {prefix}written, {prefix}at, 0, {prefix}view) }}\n"
             ),
         );
         self.machine(
             &walk,
-            "i: u64, view: &[u8]",
+            &format!("{prefix}index: u64, {prefix}view: &[u8]"),
             "",
             &format!(
-                "        transition i < view.len {{\n            true -> {bound}(value, out, written, at, i, view)\n            _ -> {next}(value, out, written, at)\n        }}\n"
+                "        transition {prefix}index < {prefix}view.len {{\n            true -> {bound}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}view)\n            _ -> {next}({prefix}value, {prefix}out, {prefix}written, {prefix}at)\n        }}\n"
             ),
         );
         self.machine(
             &bound,
-            "i: u64, view: &[u8]",
+            &format!("{prefix}index: u64, {prefix}view: &[u8]"),
             "",
             &format!(
-                "        transition at < {} && i < view.len {{\n            true -> {put}(value, out, written, at, i, view)\n            _ -> encode_overflow{}\n        }}\n",
+                "        transition {prefix}at < {} && {prefix}index < {prefix}view.len {{\n            true -> {put}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}view)\n            _ -> {prefix}encode_overflow{}\n        }}\n",
                 self.limit, self.call
             ),
         );
         self.machine(
             &put,
-            "i: u64, view: &[u8]",
-            &format!("at < {} && i < view.len", self.limit),
+            &format!("{prefix}index: u64, {prefix}view: &[u8]"),
+            &format!("{prefix}at < {} && {prefix}index < {prefix}view.len", self.limit),
             &format!(
-                "        out[at] = view[i];\n        transition {{ _ -> {walk}(value, out, written, at + 1, i + 1, view) }}\n"
+                "        {prefix}out[{prefix}at] = {prefix}view[{prefix}index];\n        transition {{ _ -> {walk}({prefix}value, {prefix}out, {prefix}written, {prefix}at + 1, {prefix}index + 1, {prefix}view) }}\n"
             ),
         );
     }
@@ -271,10 +278,11 @@ impl MachineEmitter<'_> {
     /// measured extent; the view's `.len` is re-read at each loop head so
     /// the index evidence stays the same name the element reads use.
     fn enc_packed_slice(&mut self, name: &str, field: &str, element: ScalarKind, next: &str) {
+        let prefix = self.names.prefix.as_str();
         self.enc_packed(
             name,
-            &format!("value.{field}.len"),
-            &format!("value.{field}"),
+            &format!("{prefix}value.{field}.len"),
+            &format!("{prefix}value.{field}"),
             None,
             element,
             next,
@@ -294,6 +302,7 @@ impl MachineEmitter<'_> {
         element: ScalarKind,
         next: &str,
     ) {
+        let prefix = self.names.prefix.as_str();
         // `requires` predicates only admit parameter operands, never a
         // member-path read like `value.readings.len` or
         // `value.samples.length`. `FixedVec` seeds a `slen` local; slices
@@ -306,20 +315,20 @@ impl MachineEmitter<'_> {
         let (index_guard, loop_guard, index_requires, carry, carry_arg, items_expr) =
             match bound_expr {
                 Some(bound) => (
-                    format!("i < slen && i < {bound}"),
-                    "i < slen".to_string(),
-                    format!("i < slen && i < {bound}"),
-                    ", slen: u64".to_string(),
-                    ", slen".to_string(),
+                    format!("{prefix}index < {prefix}element_count && {prefix}index < {bound}"),
+                    format!("{prefix}index < {prefix}element_count"),
+                    format!("{prefix}index < {prefix}element_count && {prefix}index < {bound}"),
+                    format!(", {prefix}element_count: u64"),
+                    format!(", {prefix}element_count"),
                     member_expr.to_string(),
                 ),
                 None => (
-                    "i < view.len".to_string(),
-                    "i < view.len".to_string(),
-                    "i < view.len".to_string(),
-                    format!(", view: &[{}]", element.name()),
-                    ", view".to_string(),
-                    "view".to_string(),
+                    format!("{prefix}index < {prefix}view.len"),
+                    format!("{prefix}index < {prefix}view.len"),
+                    format!("{prefix}index < {prefix}view.len"),
+                    format!(", {prefix}view: &[{}]", element.name()),
+                    format!(", {prefix}view"),
+                    format!("{prefix}view"),
                 ),
             };
         let measure_entry = format!("{name}_measure");
@@ -334,7 +343,8 @@ impl MachineEmitter<'_> {
         let emit_last_put = format!("{name}_emit_last_put");
         let emit_more = format!("{name}_emit_more");
         let emit_more_put = format!("{name}_emit_more_put");
-        let bits_binding = |i: &str| element.encode_bits_binding(&format!("{items_expr}[{i}]"));
+        let bits_binding =
+            |i: &str| element.encode_bits_binding(&format!("{items_expr}[{i}]"), prefix);
         // `FixedVec` seeds `slen` (`value.samples.length` is a member path
         // no predicate admits); slices seed `view` from the member itself —
         // `i < view.len` is parameter-rooted everywhere it rides. The bound
@@ -347,52 +357,57 @@ impl MachineEmitter<'_> {
                 "",
                 "",
                 &format!(
-                    "        let slen: u64 = {len_expr};\n        transition {{ _ -> {seed}(value, out, written, at, slen) }}\n"
+                    "        let {prefix}element_count: u64 = {len_expr};\n        transition {{ _ -> {seed}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}element_count) }}\n"
                 ),
             );
-            self.hop(&seed, "slen: u64", &measure_entry, ", 0, 0, slen");
+            self.hop(
+                &seed,
+                &format!("{prefix}element_count: u64"),
+                &measure_entry,
+                &format!(", 0, 0, {prefix}element_count"),
+            );
         } else {
             self.machine(
                 name,
                 "",
                 "",
                 &format!(
-                    "        let view: &[{}] = {member_expr};\n        transition {{ _ -> {measure_entry}(value, out, written, at, 0, 0, view) }}\n",
+                    "        let {prefix}view: &[{}] = {member_expr};\n        transition {{ _ -> {measure_entry}({prefix}value, {prefix}out, {prefix}written, {prefix}at, 0, 0, {prefix}view) }}\n",
                     element.name()
                 ),
             );
         }
         self.machine(
             &measure_entry,
-            &format!("i: u64, acc: u64 in Wrapping{carry}"),
+            &format!("{prefix}index: u64, {prefix}accumulator: u64 in Wrapping{carry}"),
             "",
             &format!(
-                "        transition {index_guard} {{\n            true -> {measure_elem}(value, out, written, at, i, acc{carry_arg})\n            _ -> {length}(value, out, written, at, i, acc)\n        }}\n"
+                "        transition {index_guard} {{\n            true -> {measure_elem}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}accumulator{carry_arg})\n            _ -> {length}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}accumulator)\n        }}\n"
             ),
         );
         self.machine(
             &measure_elem,
-            &format!("i: u64, acc: u64 in Wrapping{carry}"),
+            &format!("{prefix}index: u64, {prefix}accumulator: u64 in Wrapping{carry}"),
             &index_requires,
             &format!(
-                "{}        transition {{ _ -> {measure_varint}(value, out, written, at, i, acc, bits{carry_arg}) }}\n",
-                bits_binding("i")
+                "{}        transition {{ _ -> {measure_varint}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}accumulator, {prefix}bits{carry_arg}) }}\n",
+                bits_binding(&format!("{prefix}index"))
             ),
         );
         self.machine(
             &measure_varint,
-            &format!("i: u64, acc: u64 in Wrapping, bits: u64{carry}"),
+            &format!("{prefix}index: u64, {prefix}accumulator: u64 in Wrapping, {prefix}bits: u64{carry}"),
             &loop_guard,
             &format!(
-                "        transition bits < 128 && {loop_guard} {{\n            true -> {measure_entry}(value, out, written, at, i + 1, acc + 1{carry_arg})\n            _ -> {measure_varint}(value, out, written, at, i, acc + 1, bits >> 7{carry_arg})\n        }}\n"
+                "        transition {prefix}bits < 128 && {loop_guard} {{\n            true -> {measure_entry}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index + 1, {prefix}accumulator + 1{carry_arg})\n            _ -> {measure_varint}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}accumulator + 1, {prefix}bits >> 7{carry_arg})\n        }}\n"
             ),
         );
         self.machine(
             &length,
-            "i: u64, acc: u64 in Wrapping",
+            &format!("{prefix}index: u64, {prefix}accumulator: u64 in Wrapping"),
             "",
             &format!(
-                "        let bits: u64 = acc as u64;\n        transition {{ _ -> {length}_loop(value, out, written, at, i, bits) }}\n"
+                "        let {prefix}bits: u64 = {prefix}accumulator as u64;\n        transition {{ _ -> {length}_loop({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}bits) }}\n"
             ),
         );
         // The byte-length varint: the canonical last/more loop with `i`
@@ -405,44 +420,44 @@ impl MachineEmitter<'_> {
             let loop_name = format!("{length}_loop");
             self.machine(
                 &loop_name,
-                "i: u64, bits: u64",
+                &format!("{prefix}index: u64, {prefix}bits: u64"),
                 "",
                 &format!(
-                    "        transition bits < 128 {{\n            true -> {last}(value, out, written, at, i, bits)\n            _ -> {more}(value, out, written, at, i, bits)\n        }}\n"
+                    "        transition {prefix}bits < 128 {{\n            true -> {last}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}bits)\n            _ -> {more}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}bits)\n        }}\n"
                 ),
             );
             self.machine(
                 &last,
-                "i: u64, bits: u64",
+                &format!("{prefix}index: u64, {prefix}bits: u64"),
                 "",
                 &format!(
-                    "        let byte: u8 = bits as u8;\n        transition at < {} {{\n            true -> {put}(value, out, written, at, i, byte)\n            _ -> encode_overflow{}\n        }}\n",
+                    "        let {prefix}byte: u8 = {prefix}bits as u8;\n        transition {prefix}at < {} {{\n            true -> {put}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}byte)\n            _ -> {prefix}encode_overflow{}\n        }}\n",
                     self.limit, self.call
                 ),
             );
             self.machine(
                 &put,
-                "i: u64, byte: u8",
-                &format!("at < {}", self.limit),
+                &format!("{prefix}index: u64, {prefix}byte: u8"),
+                &format!("{prefix}at < {}", self.limit),
                 &format!(
-                    "        out[at] = byte;\n        transition {{ _ -> {emit_entry_target}(value, out, written, at + 1, 0) }}\n"
+                    "        {prefix}out[{prefix}at] = {prefix}byte;\n        transition {{ _ -> {emit_entry_target}({prefix}value, {prefix}out, {prefix}written, {prefix}at + 1, 0) }}\n"
                 ),
             );
             self.machine(
                 &more,
-                "i: u64, bits: u64",
+                &format!("{prefix}index: u64, {prefix}bits: u64"),
                 "",
                 &format!(
-                    "        let byte: u8 = ((bits & 127) | 128) as u8;\n        transition at < {} {{\n            true -> {put_more}(value, out, written, at, i, byte, bits)\n            _ -> encode_overflow{}\n        }}\n",
+                    "        let {prefix}byte: u8 = (({prefix}bits & 127) | 128) as u8;\n        transition {prefix}at < {} {{\n            true -> {put_more}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}byte, {prefix}bits)\n            _ -> {prefix}encode_overflow{}\n        }}\n",
                     self.limit, self.call
                 ),
             );
             self.machine(
                 &put_more,
-                "i: u64, byte: u8, bits: u64",
-                &format!("at < {}", self.limit),
+                &format!("{prefix}index: u64, {prefix}byte: u8, {prefix}bits: u64"),
+                &format!("{prefix}at < {}", self.limit),
                 &format!(
-                    "        out[at] = byte;\n        transition {{ _ -> {loop_name}(value, out, written, at + 1, i, bits >> 7) }}\n"
+                    "        {prefix}out[{prefix}at] = {prefix}byte;\n        transition {{ _ -> {loop_name}({prefix}value, {prefix}out, {prefix}written, {prefix}at + 1, {prefix}index, {prefix}bits >> 7) }}\n"
                 ),
             );
         }
@@ -452,80 +467,80 @@ impl MachineEmitter<'_> {
         if bound_expr.is_some() {
             self.machine(
                 &emit_entry_target,
-                "i: u64",
+                &format!("{prefix}index: u64"),
                 "",
                 &format!(
-                    "        let slen: u64 = {len_expr};\n        transition {{ _ -> {emit_entry}(value, out, written, at, i, slen) }}\n"
+                    "        let {prefix}element_count: u64 = {len_expr};\n        transition {{ _ -> {emit_entry}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}element_count) }}\n"
                 ),
             );
         } else {
             self.machine(
                 &emit_entry_target,
-                "i: u64",
+                &format!("{prefix}index: u64"),
                 "",
                 &format!(
-                    "        let view: &[{}] = {member_expr};\n        transition {{ _ -> {emit_entry}(value, out, written, at, i, view) }}\n",
+                    "        let {prefix}view: &[{}] = {member_expr};\n        transition {{ _ -> {emit_entry}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}view) }}\n",
                     element.name()
                 ),
             );
         }
         self.machine(
             &emit_entry,
-            &format!("i: u64{carry}"),
+            &format!("{prefix}index: u64{carry}"),
             "",
             &format!(
-                "        transition {index_guard} {{\n            true -> {emit_elem}(value, out, written, at, i{carry_arg})\n            _ -> {next}(value, out, written, at)\n        }}\n"
+                "        transition {index_guard} {{\n            true -> {emit_elem}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index{carry_arg})\n            _ -> {next}({prefix}value, {prefix}out, {prefix}written, {prefix}at)\n        }}\n"
             ),
         );
         self.machine(
             &emit_elem,
-            &format!("i: u64{carry}"),
+            &format!("{prefix}index: u64{carry}"),
             &index_requires,
             &format!(
-                "{}        transition {{ _ -> {emit_varint}(value, out, written, at, i, bits{carry_arg}) }}\n",
-                bits_binding("i")
+                "{}        transition {{ _ -> {emit_varint}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}bits{carry_arg}) }}\n",
+                bits_binding(&format!("{prefix}index"))
             ),
         );
         self.machine(
             &emit_varint,
-            &format!("i: u64, bits: u64{carry}"),
+            &format!("{prefix}index: u64, {prefix}bits: u64{carry}"),
             &loop_guard,
             &format!(
-                "        transition bits < 128 {{\n            true -> {emit_last}(value, out, written, at, i, bits{carry_arg})\n            _ -> {emit_more}(value, out, written, at, i, bits{carry_arg})\n        }}\n"
+                "        transition {prefix}bits < 128 {{\n            true -> {emit_last}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}bits{carry_arg})\n            _ -> {emit_more}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}bits{carry_arg})\n        }}\n"
             ),
         );
         self.machine(
             &emit_last,
-            &format!("i: u64, bits: u64{carry}"),
+            &format!("{prefix}index: u64, {prefix}bits: u64{carry}"),
             &loop_guard,
             &format!(
-                "        let byte: u8 = bits as u8;\n        transition at < {} && {loop_guard} {{\n            true -> {emit_last_put}(value, out, written, at, i, byte{carry_arg})\n            _ -> encode_overflow{}\n        }}\n",
+                "        let {prefix}byte: u8 = {prefix}bits as u8;\n        transition {prefix}at < {} && {loop_guard} {{\n            true -> {emit_last_put}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}byte{carry_arg})\n            _ -> {prefix}encode_overflow{}\n        }}\n",
                 self.limit, self.call
             ),
         );
         self.machine(
             &emit_last_put,
-            &format!("i: u64, byte: u8{carry}"),
-            &format!("at < {} && {loop_guard}", self.limit),
+            &format!("{prefix}index: u64, {prefix}byte: u8{carry}"),
+            &format!("{prefix}at < {} && {loop_guard}", self.limit),
             &format!(
-                "        out[at] = byte;\n        transition {{ _ -> {emit_entry}(value, out, written, at + 1, i + 1{carry_arg}) }}\n"
+                "        {prefix}out[{prefix}at] = {prefix}byte;\n        transition {{ _ -> {emit_entry}({prefix}value, {prefix}out, {prefix}written, {prefix}at + 1, {prefix}index + 1{carry_arg}) }}\n"
             ),
         );
         self.machine(
             &emit_more,
-            &format!("i: u64, bits: u64{carry}"),
+            &format!("{prefix}index: u64, {prefix}bits: u64{carry}"),
             &loop_guard,
             &format!(
-                "        let byte: u8 = ((bits & 127) | 128) as u8;\n        transition at < {} && {loop_guard} {{\n            true -> {emit_more_put}(value, out, written, at, i, byte, bits{carry_arg})\n            _ -> encode_overflow{}\n        }}\n",
+                "        let {prefix}byte: u8 = (({prefix}bits & 127) | 128) as u8;\n        transition {prefix}at < {} && {loop_guard} {{\n            true -> {emit_more_put}({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}index, {prefix}byte, {prefix}bits{carry_arg})\n            _ -> {prefix}encode_overflow{}\n        }}\n",
                 self.limit, self.call
             ),
         );
         self.machine(
             &emit_more_put,
-            &format!("i: u64, byte: u8, bits: u64{carry}"),
-            &format!("at < {} && {loop_guard}", self.limit),
+            &format!("{prefix}index: u64, {prefix}byte: u8, {prefix}bits: u64{carry}"),
+            &format!("{prefix}at < {} && {loop_guard}", self.limit),
             &format!(
-                "        out[at] = byte;\n        transition {{ _ -> {emit_varint}(value, out, written, at + 1, i, bits >> 7{carry_arg}) }}\n"
+                "        {prefix}out[{prefix}at] = {prefix}byte;\n        transition {{ _ -> {emit_varint}({prefix}value, {prefix}out, {prefix}written, {prefix}at + 1, {prefix}index, {prefix}bits >> 7{carry_arg}) }}\n"
             ),
         );
     }
@@ -536,6 +551,7 @@ impl MachineEmitter<'_> {
     /// sequence with no era. `member_facts` admits scalar-only sub-members,
     /// so a bool content is the branch byte and everything else a varint.
     fn enc_nested(&mut self, name: &str, field: &str, sub_members: &[WireMemberShape], next: &str) {
+        let prefix = self.names.prefix.as_str();
         let measure_stage = format!("{name}_measure");
         let length = format!("{name}_length");
         let mut static_bytes: u64 = 0;
@@ -570,7 +586,7 @@ impl MachineEmitter<'_> {
             };
             self.enc_measure(
                 &label,
-                &kind.encode_bits_binding(&format!("value.{field}.{}", sub.name)),
+                &kind.encode_bits_binding(&format!("{prefix}value.{field}.{}", sub.name), prefix),
                 &measure_next,
             );
         }
@@ -584,10 +600,10 @@ impl MachineEmitter<'_> {
         };
         self.machine(
             &length,
-            "acc: u64 in Wrapping",
+            &format!("{prefix}accumulator: u64 in Wrapping"),
             "",
             &format!(
-                "        let bits: u64 = acc as u64;\n        transition {{ _ -> {length}_loop(value, out, written, at, bits) }}\n"
+                "        let {prefix}bits: u64 = {prefix}accumulator as u64;\n        transition {{ _ -> {length}_loop({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}bits) }}\n"
             ),
         );
         self.enc_varint_loop(&format!("{length}_loop"), &first_sub);
@@ -604,11 +620,18 @@ impl MachineEmitter<'_> {
                 continue;
             };
             if *kind == ScalarKind::Bool {
-                self.enc_bool_member(&content, &format!("value.{field}.{}", sub.name), &after_sub);
+                self.enc_bool_member(
+                    &content,
+                    &format!("{prefix}value.{field}.{}", sub.name),
+                    &after_sub,
+                );
             } else {
                 self.enc_varint(
                     &content,
-                    &kind.encode_bits_binding(&format!("value.{field}.{}", sub.name)),
+                    &kind.encode_bits_binding(
+                        &format!("{prefix}value.{field}.{}", sub.name),
+                        prefix,
+                    ),
                     &after_sub,
                 );
             }
@@ -621,6 +644,7 @@ impl MachineEmitter<'_> {
     /// consuming; a mismatch consumes and flags. `carry`/`carry_arg` thread
     /// extra state (the repeated-body `end`) through every state.
     fn dec_byte(&mut self, name: &str, byte: u8, next: &str, carry: &str, carry_arg: &str) {
+        let prefix = self.names.prefix.as_str();
         let check = format!("{name}_check");
         let oob = format!("{name}_oob");
         let inner = self.call.trim_start_matches('(').trim_end_matches(')');
@@ -629,16 +653,16 @@ impl MachineEmitter<'_> {
             carry,
             "",
             &format!(
-                "        transition at < {} {{\n            true -> {check}({inner}{carry_arg})\n            _ -> {oob}({inner}{carry_arg})\n        }}\n",
+                "        transition {prefix}at < {} {{\n            true -> {check}({inner}{carry_arg})\n            _ -> {oob}({inner}{carry_arg})\n        }}\n",
                 self.limit
             ),
         );
         self.machine(
             &check,
             carry,
-            &format!("at < {}", self.limit),
+            &format!("{prefix}at < {}", self.limit),
             &format!(
-                "        transition buffer[at] == {byte} {{\n            true -> {next}(value, buffer, read, verdict, at + 1, bad{carry_arg})\n            _ -> {next}(value, buffer, read, verdict, at + 1, bad + 1{carry_arg})\n        }}\n"
+                "        transition {prefix}buffer[{prefix}at] == {byte} {{\n            true -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at + 1, {prefix}bad{carry_arg})\n            _ -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at + 1, {prefix}bad + 1{carry_arg})\n        }}\n"
             ),
         );
         self.machine(
@@ -646,7 +670,7 @@ impl MachineEmitter<'_> {
             carry,
             "",
             &format!(
-                "        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg}) }}\n"
+                "        transition {{ _ -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1{carry_arg}) }}\n"
             ),
         );
     }
@@ -658,24 +682,29 @@ impl MachineEmitter<'_> {
     /// `name` is the entry (it only ever receives `carry` extras); `next`
     /// receives `carry` then the accumulated `raw`.
     fn dec_varint(&mut self, name: &str, next: &str, carry: &str, carry_arg: &str) {
+        let prefix = self.names.prefix.as_str();
         let start = format!("{name}_start");
         let read = format!("{name}_read");
         let byte = format!("{name}_byte");
         let terminal = format!("{name}_terminal");
         let terminal_check = format!("{name}_terminal_check");
         let continue_state = format!("{name}_continue");
-        let acc_shift = join_extras("acc: u64 in Wrapping, shift: u64 in Wrapping", carry, "");
-        let full = join_extras(
-            "acc: u64 in Wrapping, shift: u64 in Wrapping",
+        let acc_shift = join_extras(
+            &format!("{prefix}accumulator: u64 in Wrapping, {prefix}shift: u64 in Wrapping"),
             carry,
-            ", payload: u64 in Wrapping",
+            "",
+        );
+        let full = join_extras(
+            &format!("{prefix}accumulator: u64 in Wrapping, {prefix}shift: u64 in Wrapping"),
+            carry,
+            &format!(", {prefix}payload: u64 in Wrapping"),
         );
         self.machine(
             name,
             carry,
             "",
             &format!(
-                "        transition {{ _ -> {start}(value, buffer, read, verdict, at, bad, 0 as u64 in Wrapping, 0 as u64 in Wrapping{carry_arg}) }}\n"
+                "        transition {{ _ -> {start}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, 0 as u64 in Wrapping, 0 as u64 in Wrapping{carry_arg}) }}\n"
             ),
         );
         self.machine(
@@ -683,7 +712,7 @@ impl MachineEmitter<'_> {
             &acc_shift,
             "",
             &format!(
-                "        transition shift > 63 {{\n            true -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg}, acc as u64)\n            _ -> {read}(value, buffer, read, verdict, at, bad, acc, shift{carry_arg})\n        }}\n"
+                "        transition {prefix}shift > 63 {{\n            true -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1{carry_arg}, {prefix}accumulator as u64)\n            _ -> {read}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}accumulator, {prefix}shift{carry_arg})\n        }}\n"
             ),
         );
         self.machine(
@@ -691,16 +720,16 @@ impl MachineEmitter<'_> {
             &acc_shift,
             "",
             &format!(
-                "        transition at < {} {{\n            true -> {byte}(value, buffer, read, verdict, at, bad, acc, shift{carry_arg})\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg}, acc as u64)\n        }}\n",
+                "        transition {prefix}at < {} {{\n            true -> {byte}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}accumulator, {prefix}shift{carry_arg})\n            _ -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1{carry_arg}, {prefix}accumulator as u64)\n        }}\n",
                 self.limit
             ),
         );
         self.machine(
             &byte,
             &acc_shift,
-            &format!("at < {}", self.limit),
+            &format!("{prefix}at < {}", self.limit),
             &format!(
-                "        let byte: u8 = buffer[at];\n        let payload: u64 in Wrapping = (byte & 127) as u64 in Wrapping;\n        let acc2: u64 in Wrapping = acc | (payload << shift);\n        transition byte < 128 {{\n            true -> {terminal}(value, buffer, read, verdict, at + 1, bad, acc2, shift{carry_arg}, payload)\n            _ -> {continue_state}(value, buffer, read, verdict, at + 1, bad, acc2, shift{carry_arg}, payload)\n        }}\n"
+                "        let {prefix}byte: u8 = {prefix}buffer[{prefix}at];\n        let {prefix}payload: u64 in Wrapping = ({prefix}byte & 127) as u64 in Wrapping;\n        let {prefix}next_accumulator: u64 in Wrapping = {prefix}accumulator | ({prefix}payload << {prefix}shift);\n        transition {prefix}byte < 128 {{\n            true -> {terminal}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at + 1, {prefix}bad, {prefix}next_accumulator, {prefix}shift{carry_arg}, {prefix}payload)\n            _ -> {continue_state}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at + 1, {prefix}bad, {prefix}next_accumulator, {prefix}shift{carry_arg}, {prefix}payload)\n        }}\n"
             ),
         );
         self.machine(
@@ -708,7 +737,7 @@ impl MachineEmitter<'_> {
             &full,
             "",
             &format!(
-                "        transition payload == 0 && shift > 0 {{\n            true -> {terminal_check}(value, buffer, read, verdict, at, bad + 1, acc, shift{carry_arg}, payload)\n            _ -> {terminal_check}(value, buffer, read, verdict, at, bad, acc, shift{carry_arg}, payload)\n        }}\n"
+                "        transition {prefix}payload == 0 && {prefix}shift > 0 {{\n            true -> {terminal_check}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1, {prefix}accumulator, {prefix}shift{carry_arg}, {prefix}payload)\n            _ -> {terminal_check}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}accumulator, {prefix}shift{carry_arg}, {prefix}payload)\n        }}\n"
             ),
         );
         self.machine(
@@ -716,7 +745,7 @@ impl MachineEmitter<'_> {
             &full,
             "",
             &format!(
-                "        transition shift == 63 && payload > 1 {{\n            true -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg}, acc as u64)\n            _ -> {next}(value, buffer, read, verdict, at, bad{carry_arg}, acc as u64)\n        }}\n"
+                "        transition {prefix}shift == 63 && {prefix}payload > 1 {{\n            true -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1{carry_arg}, {prefix}accumulator as u64)\n            _ -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad{carry_arg}, {prefix}accumulator as u64)\n        }}\n"
             ),
         );
         self.machine(
@@ -724,17 +753,16 @@ impl MachineEmitter<'_> {
             &full,
             "",
             &format!(
-                "        transition shift == 63 && payload > 1 {{\n            true -> {start}(value, buffer, read, verdict, at, bad + 1, acc, shift + 7{carry_arg})\n            _ -> {start}(value, buffer, read, verdict, at, bad, acc, shift + 7{carry_arg})\n        }}\n"
+                "        transition {prefix}shift == 63 && {prefix}payload > 1 {{\n            true -> {start}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1, {prefix}accumulator, {prefix}shift + 7{carry_arg})\n            _ -> {start}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}accumulator, {prefix}shift + 7{carry_arg})\n        }}\n"
             ),
         );
     }
 
-    /// Scalar store behind the declared range guard and any value-field
-    /// constraint facts; a failure flags `bad` and skips the store, matching
-    /// `wire_scalar_in_range`. Signed members unzigzag to `wide: i64` before
-    /// the guard, which doubles as the store state's `requires` so the
-    /// bounded assignment discharges. `carry`/`carry_arg` thread extra state
-    /// (a length-prefixed body's `end`) through both states.
+    /// Primitive landing and owner validity are distinct obligations. First
+    /// prove the decoded wide value fits its carrier, then form that exact
+    /// typed candidate and evaluate every retained predicate. The write helper
+    /// receives the same candidate and guard as ordinary source contracts;
+    /// failure forwards the unchanged valid destination with sticky `bad`.
     fn dec_scalar_store(
         &mut self,
         name: &str,
@@ -745,57 +773,73 @@ impl MachineEmitter<'_> {
         carry: &str,
         carry_arg: &str,
     ) {
+        let prefix = self.names.prefix.as_str();
+        let landing = format!("{name}_candidate");
         let store = format!("{name}_write");
-        let operand = if kind.decodes_signed() { "wide" } else { "raw" };
-        let entry_extras = carried_operand(carry, "raw: u64");
-        let mut guard: Vec<String> = kind.decode_range_guard(operand).into_iter().collect();
-        guard.extend(facts.iter().map(|fact| fact.instantiate(operand)));
-        let requires = guard.join(" && ");
-        let entry = if guard.is_empty() {
-            format!(
-                "        transition {{ _ -> {store}(value, buffer, read, verdict, at, bad{carry_arg}, {operand}) }}\n"
-            )
+        let operand = if kind.decodes_signed() {
+            &format!("{prefix}wide")
+        } else {
+            &format!("{prefix}raw")
+        };
+        let wide_type = if kind.decodes_signed() { "i64" } else { "u64" };
+        let fit = kind.decode_range_guard(operand).unwrap_or_default();
+        let arguments = format!(
+            "{prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad{carry_arg}"
+        );
+        let failure = format!(
+            "{next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1{carry_arg})"
+        );
+        let entry = if fit.is_empty() {
+            format!("        transition {{ _ -> {landing}({arguments}, {operand}) }}\n")
         } else {
             format!(
-                "        transition {requires} {{\n            true -> {store}(value, buffer, read, verdict, at, bad{carry_arg}, {operand})\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg})\n        }}\n"
+                "        transition {fit} {{\n            true -> {landing}({arguments}, {operand})\n            _ -> {failure}\n        }}\n"
             )
         };
-        match kind {
-            ScalarKind::I32 | ScalarKind::I64 => {
-                self.machine(
-                    name,
-                    &entry_extras,
-                    "",
-                    &format!("{}{entry}", ScalarKind::decode_signed_binding()),
-                );
-                self.machine(
-                    &store,
-                    &carried_operand(carry, "wide: i64"),
-                    &requires,
-                    &format!(
-                        "        value.{field} = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad{carry_arg}) }}\n",
-                        kind.decode_store_expression("wide")
-                    ),
-                );
-            }
-            ScalarKind::U32 | ScalarKind::Bool | ScalarKind::U64 => {
-                self.machine(name, &entry_extras, "", &entry);
-                self.machine(
-                    &store,
-                    &carried_operand(carry, "raw: u64"),
-                    &requires,
-                    &format!(
-                        "        value.{field} = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad{carry_arg}) }}\n",
-                        kind.decode_store_expression("raw")
-                    ),
-                );
-            }
-        }
+        let signed_binding = if kind.decodes_signed() {
+            ScalarKind::decode_signed_binding(prefix)
+        } else {
+            String::new()
+        };
+        self.machine(
+            name,
+            &carried_operand(carry, &format!("{prefix}raw: u64")),
+            "",
+            &format!("{signed_binding}{entry}"),
+        );
+
+        let requires = facts
+            .iter()
+            .map(|fact| format!("({})", fact.instantiate(&format!("{prefix}candidate"))))
+            .collect::<Vec<_>>()
+            .join(" && ");
+        let admission = if requires.is_empty() {
+            format!("        transition {{ _ -> {store}({arguments}, {prefix}candidate) }}\n")
+        } else {
+            format!(
+                "        transition {requires} {{\n            true -> {store}({arguments}, {prefix}candidate)\n            _ -> {failure}\n        }}\n"
+            )
+        };
+        self.machine(
+            &landing,
+            &carried_operand(carry, &format!("{operand}: {wide_type}")),
+            &fit,
+            &format!(
+                "        let {prefix}candidate: {} = {};\n{admission}",
+                kind.name(),
+                kind.decode_store_expression(operand)
+            ),
+        );
+        self.machine(
+            &store,
+            &carried_operand(carry, &format!("{prefix}candidate: {}", kind.name())),
+            &requires,
+            &format!("        {prefix}value.{field} = {prefix}candidate;\n        transition {{ _ -> {next}({arguments}) }}\n"),
+        );
     }
 
-    /// Element store for a packed fixed array: `value.f[index] = decoded`
-    /// behind the element's range guard, threading `end` before `raw` (the
-    /// varint continuation order).
+    /// Fixed-index stores use the same typed admission and commit operation.
+    /// Only the destination projection and carried framing cursor differ.
     fn dec_element_store(
         &mut self,
         name: &str,
@@ -805,49 +849,16 @@ impl MachineEmitter<'_> {
         next: &str,
         facts: &[StorePredicate],
     ) {
-        let store = format!("{name}_write");
-        let entry_extras = "end: u64, raw: u64";
-        let operand = if kind.decodes_signed() { "wide" } else { "raw" };
-        let mut guard: Vec<String> = kind.decode_range_guard(operand).into_iter().collect();
-        guard.extend(facts.iter().map(|fact| fact.instantiate(operand)));
-        let requires = guard.join(" && ");
-        let entry = if guard.is_empty() {
-            format!(
-                "        transition {{ _ -> {store}(value, buffer, read, verdict, at, bad, end, {operand}) }}\n"
-            )
-        } else {
-            format!(
-                "        transition {requires} {{\n            true -> {store}(value, buffer, read, verdict, at, bad, end, {operand})\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1, end)\n        }}\n"
-            )
-        };
-        if kind.decodes_signed() {
-            self.machine(
-                name,
-                entry_extras,
-                "",
-                &format!("{}{entry}", ScalarKind::decode_signed_binding()),
-            );
-            self.machine(
-                &store,
-                &format!("end: u64, {operand}: i64"),
-                &requires,
-                &format!(
-                    "        value.{field}[{index}] = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad, end) }}\n",
-                    kind.decode_store_expression("wide")
-                ),
-            );
-        } else {
-            self.machine(name, entry_extras, "", &entry);
-            self.machine(
-                &store,
-                "end: u64, raw: u64",
-                &requires,
-                &format!(
-                    "        value.{field}[{index}] = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad, end) }}\n",
-                    kind.decode_store_expression("raw")
-                ),
-            );
-        }
+        let prefix = self.names.prefix.as_str();
+        self.dec_scalar_store(
+            name,
+            &format!("{field}[{index}]"),
+            kind,
+            next,
+            facts,
+            &format!("{prefix}end: u64"),
+            &format!(", {prefix}end"),
+        );
     }
 
     /// The `end`-window derivation shared by every length-delimited member: a
@@ -868,34 +879,36 @@ impl MachineEmitter<'_> {
         next: &str,
         skip: &str,
     ) {
+        let prefix = self.names.prefix.as_str();
         self.machine(
             open,
-            "raw: u64",
+            &format!("{prefix}raw: u64"),
             "",
             &format!(
-                "        transition at <= {} {{\n            true -> {open_in}(value, buffer, read, verdict, at, bad, raw)\n            _ -> {skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n",
+                "        transition {prefix}at <= {} {{\n            true -> {open_in}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}raw)\n            _ -> {skip}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1, 0)\n        }}\n",
                 self.limit
             ),
         );
         self.machine(
             open_in,
-            "raw: u64",
-            &format!("at <= {}", self.limit),
+            &format!("{prefix}raw: u64"),
+            &format!("{prefix}at <= {}", self.limit),
             &format!(
-                "        let room: u64 = buffer.len - at;\n        transition raw <= room && room <= buffer.len {{\n            true -> {slack}(value, buffer, read, verdict, at, bad, raw, room)\n            _ -> {skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
+                "        let {prefix}room: u64 = {prefix}buffer.len - {prefix}at;\n        transition {prefix}raw <= {prefix}room && {prefix}room <= {prefix}buffer.len {{\n            true -> {slack}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}raw, {prefix}room)\n            _ -> {skip}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1, 0)\n        }}\n"
             ),
         );
         self.machine(
             slack,
-            "raw: u64, room: u64",
-            &format!("raw <= room && room <= {}", self.limit),
+            &format!("{prefix}raw: u64, {prefix}room: u64"),
+            &format!("{prefix}raw <= {prefix}room && {prefix}room <= {}", self.limit),
             &format!(
-                "        let slack: u64 = room - raw;\n        transition slack <= room && slack <= buffer.len && room <= buffer.len {{\n            true -> {next}(value, buffer, read, verdict, at, bad, slack, room)\n            _ -> {skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
+                "        let {prefix}slack: u64 = {prefix}room - {prefix}raw;\n        transition {prefix}slack <= {prefix}room && {prefix}slack <= {prefix}buffer.len && {prefix}room <= {prefix}buffer.len {{\n            true -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}slack, {prefix}room)\n            _ -> {skip}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1, 0)\n        }}\n"
             ),
         );
     }
 
     fn dec_open_window(&mut self, name: &str, first: &str) {
+        let prefix = self.names.prefix.as_str();
         let open = format!("{name}_open");
         let open_in = format!("{name}_open_in");
         let slack_state = format!("{name}_slack");
@@ -904,10 +917,10 @@ impl MachineEmitter<'_> {
         self.window_open_states(&open, &open_in, &slack_state, &end_state, first);
         self.machine(
             &end_state,
-            "slack: u64, room: u64",
-            &format!("slack <= room && slack <= {} && room <= {}", self.limit, self.limit),
+            &format!("{prefix}slack: u64, {prefix}room: u64"),
+            &format!("{prefix}slack <= {prefix}room && {prefix}slack <= {} && {prefix}room <= {}", self.limit, self.limit),
             &format!(
-                "        let end: u64 = buffer.len - slack;\n        transition {{ _ -> {first}(value, buffer, read, verdict, at, bad, end) }}\n"
+                "        let {prefix}end: u64 = {prefix}buffer.len - {prefix}slack;\n        transition {{ _ -> {first}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}end) }}\n"
             ),
         );
     }
@@ -915,12 +928,13 @@ impl MachineEmitter<'_> {
     /// The close of every `end` window: the cursor must land exactly on the
     /// bound or `bad` increments on the way to `next`.
     fn dec_close_window(&mut self, name: &str, next: &str) {
+        let prefix = self.names.prefix.as_str();
         self.machine(
             &format!("{name}_close"),
-            "end: u64",
+            &format!("{prefix}end: u64"),
             "",
             &format!(
-                "        transition at == end {{\n            true -> {next}(value, buffer, read, verdict, at, bad)\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1)\n        }}\n"
+                "        transition {prefix}at == {prefix}end {{\n            true -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad)\n            _ -> {next}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1)\n        }}\n"
             ),
         );
     }
@@ -939,6 +953,7 @@ impl MachineEmitter<'_> {
         next: &str,
         facts: &[StorePredicate],
     ) {
+        let prefix = self.names.prefix.as_str();
         let close = format!("{name}_close");
         let first = format!("{name}_element_0");
         self.dec_open_window(name, &first);
@@ -950,13 +965,18 @@ impl MachineEmitter<'_> {
             let after_element = format!("{name}_element_{}", index + 1);
             self.machine(
                 &element_state,
-                "end: u64",
+                &format!("{prefix}end: u64"),
                 "",
                 &format!(
-                    "        transition at < end {{\n            true -> {read}(value, buffer, read, verdict, at, bad, end)\n            _ -> {length_state}(value, buffer, read, verdict, at, bad, end)\n        }}\n"
+                    "        transition {prefix}at < {prefix}end {{\n            true -> {read}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}end)\n            _ -> {length_state}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}end)\n        }}\n"
                 ),
             );
-            self.dec_varint(&read, &store, "end: u64", ", end");
+            self.dec_varint(
+                &read,
+                &store,
+                &format!("{prefix}end: u64"),
+                &format!(", {prefix}end"),
+            );
             self.dec_element_store(
                 &store,
                 &format!("{field}.items"),
@@ -974,10 +994,10 @@ impl MachineEmitter<'_> {
             };
             self.machine(
                 &length_state,
-                "end: u64",
+                &format!("{prefix}end: u64"),
                 "",
                 &format!(
-                    "        value.{field}.length = {index};\n        transition {{ _ -> {close}(value, buffer, read, verdict, at, bad, end) }}\n"
+                    "        {prefix}value.{field}.length = {index};\n        transition {{ _ -> {close}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}end) }}\n"
                 ),
             );
         }
@@ -996,6 +1016,7 @@ impl MachineEmitter<'_> {
         sub_facts: &[Vec<StorePredicate>],
         next: &str,
     ) {
+        let prefix = self.names.prefix.as_str();
         let close = format!("{name}_close");
         let first = format!("{name}_subtag_0_0");
         self.dec_open_window(name, &first);
@@ -1007,15 +1028,20 @@ impl MachineEmitter<'_> {
                 &tag_bytes,
                 |index| format!("{name}_subtag_{sub_index}_{index}"),
                 &content,
-                "end: u64",
-                ", end",
+                &format!("{prefix}end: u64"),
+                &format!(", {prefix}end"),
             );
             let after_sub = if sub_index + 1 == sub_members.len() {
                 close.clone()
             } else {
                 format!("{name}_subtag_{}_0", sub_index + 1)
             };
-            self.dec_varint(&content, &store, "end: u64", ", end");
+            self.dec_varint(
+                &content,
+                &store,
+                &format!("{prefix}end: u64"),
+                &format!(", {prefix}end"),
+            );
             let MemberShape::Scalar(kind) = &sub.shape else {
                 continue;
             };
@@ -1025,8 +1051,8 @@ impl MachineEmitter<'_> {
                 *kind,
                 &after_sub,
                 &sub_facts[sub_index],
-                "end: u64",
-                ", end",
+                &format!("{prefix}end: u64"),
+                &format!(", {prefix}end"),
             );
         }
         self.dec_close_window(name, next);
@@ -1051,12 +1077,12 @@ impl ScalarKind {
     /// widen exactly before a total same-width storage view reads their bits;
     /// zigzag's shift and sign mask are explicit modular u64 operations.
     /// Every scalar storage shape uses this binding, including measurement.
-    fn encode_bits_binding(self, member: &str) -> String {
+    fn encode_bits_binding(self, member: &str, prefix: &str) -> String {
         match self {
-            Self::U32 | Self::Bool => format!("        let bits: u64 = {member} as u64;\n"),
-            Self::U64 => format!("        let bits: u64 = {member};\n"),
+            Self::U32 | Self::Bool => format!("        let {prefix}bits: u64 = {member} as u64;\n"),
+            Self::U64 => format!("        let {prefix}bits: u64 = {member};\n"),
             Self::I32 | Self::I64 => format!(
-                "        let number: i64 = {member} as i64;\n        let representation: &u64 = &number as &u64;\n        let raw: u64 in Wrapping = representation as u64 in Wrapping;\n        let zero: u64 in Wrapping = 0;\n        let sign_mask: u64 in Wrapping = zero - (raw >> 63);\n        let bits: u64 = ((raw << 1) ^ sign_mask) as u64;\n"
+                "        let {prefix}number: i64 = {member} as i64;\n        let {prefix}representation: &u64 = &{prefix}number as &u64;\n        let {prefix}raw: u64 in Wrapping = {prefix}representation as u64 in Wrapping;\n        let {prefix}zero: u64 in Wrapping = 0;\n        let {prefix}sign_mask: u64 in Wrapping = {prefix}zero - ({prefix}raw >> 63);\n        let {prefix}bits: u64 = (({prefix}raw << 1) ^ {prefix}sign_mask) as u64;\n"
             ),
         }
     }
@@ -1064,8 +1090,10 @@ impl ScalarKind {
     /// Inverse zigzag reads the shifted payload through the total i64 view,
     /// then complements it for an odd payload. These are representation and
     /// bit operations; no numeric cast changes a denoted signed value.
-    fn decode_signed_binding() -> &'static str {
-        "        let half: u64 = raw >> 1;\n        let representation: &i64 = &half as &i64;\n        let signed_half: i64 = representation;\n        let low: i64 = (raw & 1) as i64;\n        let mask: i64 = 0 - low;\n        let wide: i64 = signed_half ^ mask;\n"
+    fn decode_signed_binding(prefix: &str) -> String {
+        format!(
+            "        let {prefix}half: u64 = {prefix}raw >> 1;\n        let {prefix}representation: &i64 = &{prefix}half as &i64;\n        let {prefix}signed_half: i64 = {prefix}representation;\n        let {prefix}low: i64 = ({prefix}raw & 1) as i64;\n        let {prefix}mask: i64 = 0 - {prefix}low;\n        let {prefix}wide: i64 = {prefix}signed_half ^ {prefix}mask;\n"
+        )
     }
 
     fn decodes_signed(self) -> bool {
@@ -1109,17 +1137,36 @@ fn signature_value_type(signature: &[String]) -> &str {
 /// `None` marks mismatched storage. Unavailable predicates stay as per-member
 /// errors so encoding can use the shape while decoding declines before emission.
 fn member_facts(
+    names: &CodecNames,
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
     domains: &HashMap<String, Vec<DomainPredicate>>,
-    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    records: &HashMap<String, RecordShape>,
     schemas: &[(String, Vec<WireMemberShape>)],
     value_type: &str,
     members: &[WireMemberShape],
 ) -> Option<Vec<StoreFacts>> {
-    let value_fields = data_fields.get(value_type)?;
+    let prefix = names.prefix.as_str();
+    let record = records.get(value_type)?;
+    let value_fields = &record.fields;
     let mut all = Vec::with_capacity(members.len());
     for member in members {
+        // Element stores replace a leaf, not the array or vector containing
+        // it. A predicate consuming that entire aggregate needs a prospective
+        // aggregate; RecordShape refuses to reuse its old value as evidence.
+        let projection = match member.shape {
+            MemberShape::FixedScalarArray { .. } | MemberShape::FixedVec { .. } => {
+                format!("{}[index]", member.name)
+            }
+            _ => member.name.clone(),
+        };
+        let owner_facts = record.store_facts(&projection, "", &format!("{prefix}value"));
+        let extend_owner = |facts: StoreFacts| {
+            facts.and_then(|mut facts| {
+                facts.extend(owner_facts?);
+                Ok(facts)
+            })
+        };
         // A view's storage shape and its destination predicates are independent
         // obligations: matching &[E] cannot establish a qualified byte domain.
         if let MemberShape::BorrowedSlice { element } = &member.shape {
@@ -1159,7 +1206,7 @@ fn member_facts(
             if slice_element_of_type(syntax_trees, *element_type) != Some(*element) {
                 return None;
             }
-            all.push(facts);
+            all.push(extend_owner(facts));
             continue;
         }
         // A `FixedVec<E, N>` member's value field must spell the same
@@ -1197,7 +1244,7 @@ fn member_facts(
                 *element,
                 None,
             )?;
-            all.push(facts);
+            all.push(extend_owner(facts));
             continue;
         }
         // A nested-message member's value field names the value mirror of
@@ -1212,7 +1259,8 @@ fn member_facts(
                 .type_references
                 .type_reference(field_handle)
                 .as_named()?;
-            let nested_fields = data_fields.get(value_name.as_str(syntax_trees))?;
+            let nested_record = records.get(value_name.as_str(syntax_trees))?;
+            let nested_fields = &nested_record.fields;
             let (_, sub_members) = schemas
                 .iter()
                 .find(|(name, _)| name.as_str() == schema.as_str())?;
@@ -1231,7 +1279,20 @@ fn member_facts(
                 )?;
                 // Nested guards are emitted per field, but failure to resolve
                 // any predicate must decline decoding before text is emitted.
-                requirements = requirements.and(facts.map(|_| Vec::new()));
+                let predicates = facts.and_then(|mut facts| {
+                    facts.extend(nested_record.store_facts(
+                        &sub.name,
+                        &format!("{}.", member.name),
+                        &format!("{prefix}value"),
+                    )?);
+                    facts.extend(record.store_facts(
+                        &format!("{}.{}", member.name, sub.name),
+                        "",
+                        &format!("{prefix}value"),
+                    )?);
+                    Ok(facts)
+                });
+                requirements = requirements.and(predicates.map(|_| Vec::new()));
             }
             all.push(requirements);
             continue;
@@ -1251,7 +1312,7 @@ fn member_facts(
             expected,
             array_length,
         )?;
-        all.push(facts);
+        all.push(extend_owner(facts));
     }
     Some(all)
 }
@@ -1262,39 +1323,60 @@ fn member_facts(
 /// for the store guards.
 #[allow(clippy::too_many_arguments)]
 fn nested_sub_facts(
+    names: &CodecNames,
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
     domains: &HashMap<String, Vec<DomainPredicate>>,
-    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    records: &HashMap<String, RecordShape>,
     value_type: &str,
     member_name: &str,
     schemas: &[(String, Vec<WireMemberShape>)],
     schema: &str,
 ) -> Option<Vec<Vec<StorePredicate>>> {
-    let field_handle = data_fields.get(value_type)?.get(member_name).copied()?;
+    let prefix = names.prefix.as_str();
+    let record = records.get(value_type)?;
+    let field_handle = record.fields.get(member_name).copied()?;
     let value_name = syntax_trees
         .tables
         .type_references
         .type_reference(field_handle)
         .as_named()?;
-    let nested_fields = data_fields.get(value_name.as_str(syntax_trees))?;
+    let nested_record = records.get(value_name.as_str(syntax_trees))?;
+    let nested_fields = &nested_record.fields;
     let (_, sub_members) = schemas.iter().find(|(name, _)| name.as_str() == schema)?;
     let mut all = Vec::with_capacity(sub_members.len());
     for sub in sub_members {
         let MemberShape::Scalar(kind) = &sub.shape else {
             return None;
         };
-        all.push(
-            value_field_facts(
-                syntax_trees,
-                sources,
-                domains,
-                nested_fields.get(sub.name.as_str()).copied(),
-                *kind,
-                None,
-            )?
-            .ok()?,
+        let mut facts = value_field_facts(
+            syntax_trees,
+            sources,
+            domains,
+            nested_fields.get(sub.name.as_str()).copied(),
+            *kind,
+            None,
+        )?
+        .ok()?;
+        facts.extend(
+            nested_record
+                .store_facts(
+                    &sub.name,
+                    &format!("{member_name}."),
+                    &format!("{prefix}value"),
+                )
+                .ok()?,
         );
+        facts.extend(
+            record
+                .store_facts(
+                    &format!("{member_name}.{}", sub.name),
+                    "",
+                    &format!("{prefix}value"),
+                )
+                .ok()?,
+        );
+        all.push(facts);
     }
     Some(all)
 }
@@ -1303,21 +1385,24 @@ fn nested_sub_facts(
 /// varint, then per field (number order) a tag varint and the member content,
 /// ending by publishing the cursor through `written`.
 pub(super) fn emit_encode_machine(
+    names: &CodecNames,
     text: &mut String,
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
     domains: &HashMap<String, Vec<DomainPredicate>>,
-    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    records: &HashMap<String, RecordShape>,
     schemas: &[(String, Vec<WireMemberShape>)],
     schema_name: &str,
     signature: &[String],
     members: &[WireMemberShape],
 ) {
+    let prefix = names.prefix.as_str();
     if member_facts(
+        names,
         syntax_trees,
         sources,
         domains,
-        data_fields,
+        records,
         schemas,
         signature_value_type(signature),
         members,
@@ -1327,17 +1412,18 @@ pub(super) fn emit_encode_machine(
         return;
     }
     let mut emitter = MachineEmitter {
+        names,
         text,
         declarations: format!(
-            "value: {}, out: {}, written: {}, at: u64",
+            "{prefix}value: {}, {prefix}out: {}, {prefix}written: {}, {prefix}at: u64",
             signature[0], signature[1], signature[2]
         ),
-        call: "(value, out, written, at)".to_string(),
-        limit: "out.len",
+        call: format!("({prefix}value, {prefix}out, {prefix}written, {prefix}at)"),
+        limit: format!("{prefix}out.len"),
     };
     let _ = writeln!(
         emitter.text,
-        "machine {schema_name}::encode(value: {}, out: {}, written: {}) {{\n    transition {{ _ -> era_0(value, out, written, 0) }}\n",
+        "machine {schema_name}::encode({prefix}value: {}, {prefix}out: {}, {prefix}written: {}) {{\n    transition {{ _ -> {prefix}era_0({prefix}value, {prefix}out, {prefix}written, 0) }}\n",
         signature[0], signature[1], signature[2]
     );
 
@@ -1345,35 +1431,44 @@ pub(super) fn emit_encode_machine(
     // finish. Each emission names its continuation.
     let mut stages: Vec<String> = Vec::new();
     for member in members {
-        stages.push(format!("field_{}_tag_0", member.number));
-        stages.push(format!("field_{}_content", member.number));
+        stages.push(format!("{prefix}field_{}_tag_0", member.number));
+        stages.push(format!("{prefix}field_{}_content", member.number));
     }
     let era_next = stages
         .first()
         .cloned()
-        .unwrap_or_else(|| "encode_finish".to_string());
+        .unwrap_or_else(|| format!("{prefix}encode_finish"));
     let era_bytes = varint_bytes(0);
-    emitter.enc_tag_bytes(&era_bytes, |index| format!("era_{index}"), &era_next);
+    emitter.enc_tag_bytes(
+        &era_bytes,
+        |index| format!("{prefix}era_{index}"),
+        &era_next,
+    );
 
     for (member_index, member) in members.iter().enumerate() {
-        let content_label = format!("field_{}_content", member.number);
+        let content_label = format!("{prefix}field_{}_content", member.number);
         let after = if member_index + 1 == members.len() {
-            "encode_finish".to_string()
+            format!("{prefix}encode_finish")
         } else {
-            format!("field_{}_tag_0", members[member_index + 1].number)
+            format!("{prefix}field_{}_tag_0", members[member_index + 1].number)
         };
         let tag_bytes = varint_bytes(member.number);
         emitter.enc_tag_bytes(
             &tag_bytes,
-            |index| format!("field_{}_tag_{index}", member.number),
+            |index| format!("{prefix}field_{}_tag_{index}", member.number),
             &content_label,
         );
         match &member.shape {
             MemberShape::Scalar(ScalarKind::Bool) => {
-                emitter.enc_bool_member(&content_label, &format!("value.{}", member.name), &after);
+                emitter.enc_bool_member(
+                    &content_label,
+                    &format!("{prefix}value.{}", member.name),
+                    &after,
+                );
             }
             MemberShape::Scalar(kind) => {
-                let bits = kind.encode_bits_binding(&format!("value.{}", member.name));
+                let bits =
+                    kind.encode_bits_binding(&format!("{prefix}value.{}", member.name), prefix);
                 emitter.enc_varint(&content_label, &bits, &after);
             }
             MemberShape::BorrowedSlice { element } => {
@@ -1382,11 +1477,13 @@ pub(super) fn emit_encode_machine(
                 // encoded extent themselves, with no element-count prefix.
                 match element {
                     SliceElement::Byte => {
-                        let stage = format!("field_{}_body", member.number);
+                        let stage = format!("{prefix}field_{}_body", member.number);
                         emitter.enc_varint(
                             &content_label,
-                            &ScalarKind::U64
-                                .encode_bits_binding(&format!("value.{}.len", member.name)),
+                            &ScalarKind::U64.encode_bits_binding(
+                                &format!("{prefix}value.{}.len", member.name),
+                                prefix,
+                            ),
                             &stage,
                         );
                         emitter.enc_slice_bytes(&stage, &member.name, &after);
@@ -1403,8 +1500,8 @@ pub(super) fn emit_encode_machine(
                 // elements; the byte length is the only wire framing.
                 emitter.enc_packed(
                     &content_label,
-                    &format!("value.{}.length", member.name),
-                    &format!("value.{}.items", member.name),
+                    &format!("{prefix}value.{}.length", member.name),
+                    &format!("{prefix}value.{}.items", member.name),
                     Some(&capacity.to_string()),
                     *element,
                     &after,
@@ -1427,43 +1524,51 @@ pub(super) fn emit_encode_machine(
                 emitter.hop(
                     &content_label,
                     "",
-                    &format!("field_{}_measure_0", member.number),
+                    &format!("{prefix}field_{}_measure_0", member.number),
                     ", 0",
                 );
                 for index in 0..*length {
                     let measure_next = if index + 1 == *length {
-                        format!("field_{}_length", member.number)
+                        format!("{prefix}field_{}_length", member.number)
                     } else {
-                        format!("field_{}_measure_{}", member.number, index + 1)
+                        format!("{prefix}field_{}_measure_{}", member.number, index + 1)
                     };
                     emitter.enc_measure(
-                        &format!("field_{}_measure_{index}", member.number),
-                        &element.encode_bits_binding(&format!("value.{}[{index}]", member.name)),
+                        &format!("{prefix}field_{}_measure_{index}", member.number),
+                        &element.encode_bits_binding(
+                            &format!("{prefix}value.{}[{index}]", member.name),
+                            prefix,
+                        ),
                         &measure_next,
                     );
                 }
                 emitter.machine(
-                    &format!("field_{}_length", member.number),
-                    "acc: u64 in Wrapping",
+                    &format!("{prefix}field_{}_length", member.number),
+                    &format!("{prefix}accumulator: u64 in Wrapping"),
                     "",
                     &format!(
-                        "        let bits: u64 = acc as u64;\n        transition {{ _ -> field_{}_length_loop(value, out, written, at, bits) }}\n",
+                        "        let {prefix}bits: u64 = {prefix}accumulator as u64;\n        transition {{ _ -> {prefix}field_{}_length_loop({prefix}value, {prefix}out, {prefix}written, {prefix}at, {prefix}bits) }}\n",
                         member.number
                     ),
                 );
-                let element_zero = format!("field_{}_element_0", member.number);
+                let element_zero = format!("{prefix}field_{}_element_0", member.number);
                 let length_next: &str = if *length == 0 { &after } else { &element_zero };
-                emitter
-                    .enc_varint_loop(&format!("field_{}_length_loop", member.number), length_next);
+                emitter.enc_varint_loop(
+                    &format!("{prefix}field_{}_length_loop", member.number),
+                    length_next,
+                );
                 for index in 0..*length {
                     let next = if index + 1 == *length {
                         after.clone()
                     } else {
-                        format!("field_{}_element_{}", member.number, index + 1)
+                        format!("{prefix}field_{}_element_{}", member.number, index + 1)
                     };
                     emitter.enc_varint(
-                        &format!("field_{}_element_{index}", member.number),
-                        &element.encode_bits_binding(&format!("value.{}[{index}]", member.name)),
+                        &format!("{prefix}field_{}_element_{index}", member.number),
+                        &element.encode_bits_binding(
+                            &format!("{prefix}value.{}[{index}]", member.name),
+                            prefix,
+                        ),
                         &next,
                     );
                 }
@@ -1473,7 +1578,7 @@ pub(super) fn emit_encode_machine(
     let declarations = emitter.declarations.clone();
     let _ = writeln!(
         emitter.text,
-        "    machine encode_finish({declarations}) {{\n        written = at;\n    }}\n    machine encode_overflow({declarations}) {{\n        written = at;\n    }}\n}}\n"
+        "    machine {prefix}encode_finish({declarations}) {{\n        {prefix}written = {prefix}at;\n    }}\n    machine {prefix}encode_overflow({declarations}) {{\n        {prefix}written = {prefix}at;\n    }}\n}}\n"
     );
 }
 
@@ -1481,21 +1586,24 @@ pub(super) fn emit_encode_machine(
 /// &mut Verdict)`: expect the era bytes, then per field the tag bytes and the
 /// content; `read` publishes the cursor and `verdict` the soundness flag.
 pub(super) fn emit_decode_machine(
+    names: &CodecNames,
     text: &mut String,
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
     domains: &HashMap<String, Vec<DomainPredicate>>,
-    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    records: &HashMap<String, RecordShape>,
     schemas: &[(String, Vec<WireMemberShape>)],
     schema_name: &str,
     signature: &[String],
     members: &[WireMemberShape],
 ) {
+    let prefix = names.prefix.as_str();
     let Some(facts_by_member) = member_facts(
+        names,
         syntax_trees,
         sources,
         domains,
-        data_fields,
+        records,
         schemas,
         signature_value_type(signature),
         members,
@@ -1525,51 +1633,54 @@ pub(super) fn emit_decode_machine(
         .trim_start()
         .to_string();
     let mut emitter = MachineEmitter {
+        names,
         text,
         declarations: format!(
-            "value: {}, buffer: {}, read: {}, verdict: {}, at: u64, bad: u64 in Wrapping",
+            "{prefix}value: {}, {prefix}buffer: {}, {prefix}read: {}, {prefix}verdict: {}, {prefix}at: u64, {prefix}bad: u64 in Wrapping",
             signature[0], signature[1], signature[2], signature[3]
         ),
-        call: "(value, buffer, read, verdict, at, bad)".to_string(),
-        limit: "buffer.len",
+        call: format!(
+            "({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad)"
+        ),
+        limit: format!("{prefix}buffer.len"),
     };
     let _ = writeln!(
         emitter.text,
-        "machine {schema_name}::decode(value: {}, buffer: {}, read: {}, verdict: {}) {{\n    transition {{ _ -> era_0(value, buffer, read, verdict, 0, 0) }}\n",
+        "machine {schema_name}::decode({prefix}value: {}, {prefix}buffer: {}, {prefix}read: {}, {prefix}verdict: {}) {{\n    transition {{ _ -> {prefix}era_0({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, 0, 0) }}\n",
         signature[0], signature[1], signature[2], signature[3]
     );
 
     let era_bytes = varint_bytes(0);
     let first_tag = members
         .first()
-        .map(|member| format!("field_{}_tag_0", member.number))
-        .unwrap_or_else(|| "decode_finish".to_string());
+        .map(|member| format!("{prefix}field_{}_tag_0", member.number))
+        .unwrap_or_else(|| format!("{prefix}decode_finish"));
     emitter.dec_tag_bytes(
         &era_bytes,
-        |index| format!("era_{index}"),
+        |index| format!("{prefix}era_{index}"),
         &first_tag,
         "",
         "",
     );
 
     for (member_index, member) in members.iter().enumerate() {
-        let content_label = format!("field_{}_content", member.number);
+        let content_label = format!("{prefix}field_{}_content", member.number);
         let after = if member_index + 1 == members.len() {
-            "decode_finish".to_string()
+            format!("{prefix}decode_finish")
         } else {
-            format!("field_{}_tag_0", members[member_index + 1].number)
+            format!("{prefix}field_{}_tag_0", members[member_index + 1].number)
         };
         let tag_bytes = varint_bytes(member.number);
         emitter.dec_tag_bytes(
             &tag_bytes,
-            |index| format!("field_{}_tag_{index}", member.number),
+            |index| format!("{prefix}field_{}_tag_{index}", member.number),
             &content_label,
             "",
             "",
         );
         match &member.shape {
             MemberShape::Scalar(kind) => {
-                let store = format!("field_{}_store", member.number);
+                let store = format!("{prefix}field_{}_store", member.number);
                 emitter.dec_varint(&content_label, &store, "", "");
                 emitter.dec_scalar_store(
                     &store,
@@ -1593,10 +1704,11 @@ pub(super) fn emit_decode_machine(
             }
             MemberShape::NestedMessage { schema } => {
                 let Some(sub_facts) = nested_sub_facts(
+                    names,
                     syntax_trees,
                     sources,
                     domains,
-                    data_fields,
+                    records,
                     signature_value_type(signature),
                     &member.name,
                     schemas,
@@ -1624,13 +1736,13 @@ pub(super) fn emit_decode_machine(
                 // `&[u8]` decodes zero-copy: the length varint bounds the
                 // content window, and the member re-views `buffer[at..end]`
                 // rather than copying the bytes out of the buffer.
-                let open = format!("field_{}_open", member.number);
+                let open = format!("{prefix}field_{}_open", member.number);
                 emitter.dec_varint(&content_label, &open, "", "");
-                let open_in = format!("field_{}_open_in", member.number);
-                let view_slack = format!("field_{}_slack", member.number);
-                let view_prep = format!("field_{}_prep", member.number);
-                let view_ok = format!("field_{}_view", member.number);
-                let view_skip = format!("field_{}_skip", member.number);
+                let open_in = format!("{prefix}field_{}_open_in", member.number);
+                let view_slack = format!("{prefix}field_{}_slack", member.number);
+                let view_prep = format!("{prefix}field_{}_prep", member.number);
+                let view_ok = format!("{prefix}field_{}_view", member.number);
+                let view_skip = format!("{prefix}field_{}_skip", member.number);
                 // `open` guards the cursor bound its own subtraction needs —
                 // callers (the shared varint states) cannot carry a premise
                 // through, so `at <= buffer.len` is tested here and only the
@@ -1643,22 +1755,22 @@ pub(super) fn emit_decode_machine(
                 // bound is re-tested before the state that needs it.
                 emitter.machine(
                     &view_prep,
-                    "slack: u64, room: u64",
+                    &format!("{prefix}slack: u64, {prefix}room: u64"),
                     &format!(
-                        "slack <= room && slack <= {} && room <= {}",
+                        "{prefix}slack <= {prefix}room && {prefix}slack <= {} && {prefix}room <= {}",
                         emitter.limit, emitter.limit
                     ),
                     &format!(
-                        "        let end: u64 = buffer.len - slack;\n        let start: u64 = buffer.len - room;\n        transition start <= end && end <= {} {{\n            true -> {view_ok}(value, buffer, read, verdict, at, bad, start, end)\n            _ -> {view_skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n",
+                        "        let {prefix}end: u64 = {prefix}buffer.len - {prefix}slack;\n        let {prefix}start: u64 = {prefix}buffer.len - {prefix}room;\n        transition {prefix}start <= {prefix}end && {prefix}end <= {} {{\n            true -> {view_ok}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}start, {prefix}end)\n            _ -> {view_skip}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1, 0)\n        }}\n",
                         emitter.limit
                     ),
                 );
                 emitter.machine(
                     &view_ok,
-                    "start: u64, end: u64",
-                    &format!("start <= end && end <= {}", emitter.limit),
+                    &format!("{prefix}start: u64, {prefix}end: u64"),
+                    &format!("{prefix}start <= {prefix}end && {prefix}end <= {}", emitter.limit),
                     &format!(
-                        "        let decoded: &[u8] = buffer[start..end];\n        transition {{ _ -> {view_ok}_validate(value, buffer, read, verdict, end, bad, decoded) }}\n"
+                        "        let {prefix}decoded: &[u8] = {prefix}buffer[{prefix}start..{prefix}end];\n        transition {{ _ -> {view_ok}_validate({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}end, {prefix}bad, {prefix}decoded) }}\n"
                     ),
                 );
                 // Runtime checks establish exactly the view passed to the
@@ -1667,40 +1779,40 @@ pub(super) fn emit_decode_machine(
                 // but ordinary checked fields must retain their invariants.
                 let requires = facts_by_member[member_index]
                     .iter()
-                    .map(|fact| format!("({})", fact.instantiate("decoded")))
+                    .map(|fact| format!("({})", fact.instantiate(&format!("{prefix}decoded"))))
                     .collect::<Vec<_>>()
                     .join(" && ");
                 let write = format!("{view_ok}_write");
                 let validation = if requires.is_empty() {
                     format!(
-                        "        transition {{ _ -> {write}(value, buffer, read, verdict, at, bad, decoded) }}\n"
+                        "        transition {{ _ -> {write}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}decoded) }}\n"
                     )
                 } else {
                     format!(
-                        "        transition {requires} {{\n            true -> {write}(value, buffer, read, verdict, at, bad, decoded)\n            _ -> {after}(value, buffer, read, verdict, at, bad + 1)\n        }}\n"
+                        "        transition {requires} {{\n            true -> {write}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad, {prefix}decoded)\n            _ -> {after}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad + 1)\n        }}\n"
                     )
                 };
                 emitter.machine(
                     &format!("{view_ok}_validate"),
-                    "decoded: &[u8]",
+                    &format!("{prefix}decoded: &[u8]"),
                     "",
                     &validation,
                 );
                 emitter.machine(
                     &write,
-                    "decoded: &[u8]",
+                    &format!("{prefix}decoded: &[u8]"),
                     &requires,
                     &format!(
-                        "        value.{} = decoded;\n        transition {{ _ -> {after}(value, buffer, read, verdict, at, bad) }}\n",
+                        "        {prefix}value.{} = {prefix}decoded;\n        transition {{ _ -> {after}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad) }}\n",
                         member.name
                     ),
                 );
                 emitter.machine(
                     &view_skip,
-                    "end: u64",
+                    &format!("{prefix}end: u64"),
                     "",
                     &format!(
-                        "        transition {{ _ -> {}(value, buffer, read, verdict, at, bad) }}\n",
+                        "        transition {{ _ -> {}({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad) }}\n",
                         after
                     ),
                 );
@@ -1711,7 +1823,7 @@ pub(super) fn emit_decode_machine(
                 let first = if *length == 0 {
                     close.clone()
                 } else {
-                    format!("field_{}_element_0", member.number)
+                    format!("{prefix}field_{}_element_0", member.number)
                 };
                 // Fixed arrays use the same checked byte window as growable
                 // collections. The varint decoder cannot promise a cursor
@@ -1719,13 +1831,18 @@ pub(super) fn emit_decode_machine(
                 // before any subtraction or end calculation.
                 emitter.dec_open_window(&content_label, &first);
                 for index in 0..*length {
-                    let read = format!("field_{}_element_{index}", member.number);
-                    let store = format!("field_{}_element_{index}_store", member.number);
-                    emitter.dec_varint(&read, &store, "end: u64", ", end");
+                    let read = format!("{prefix}field_{}_element_{index}", member.number);
+                    let store = format!("{prefix}field_{}_element_{index}_store", member.number);
+                    emitter.dec_varint(
+                        &read,
+                        &store,
+                        &format!("{prefix}end: u64"),
+                        &format!(", {prefix}end"),
+                    );
                     let next = if index + 1 == *length {
                         close.clone()
                     } else {
-                        format!("field_{}_element_{}", member.number, index + 1)
+                        format!("{prefix}field_{}_element_{}", member.number, index + 1)
                     };
                     emitter.dec_element_store(
                         &store,
@@ -1743,6 +1860,6 @@ pub(super) fn emit_decode_machine(
     let declarations = emitter.declarations.clone();
     let _ = writeln!(
         emitter.text,
-        "    machine decode_finish({declarations}) {{\n        read = at;\n        transition bad == 0 {{\n            true -> decode_sound(value, buffer, read, verdict, at, bad)\n            _ -> decode_invalid(value, buffer, read, verdict, at, bad)\n        }}\n    }}\n    machine decode_sound({declarations}) {{\n        verdict = {verdict_type}::Sound;\n    }}\n    machine decode_invalid({declarations}) {{\n        verdict = {verdict_type}::Invalid;\n    }}\n}}\n"
+        "    machine {prefix}decode_finish({declarations}) {{\n        {prefix}read = {prefix}at;\n        transition {prefix}bad == 0 {{\n            true -> {prefix}decode_sound({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad)\n            _ -> {prefix}decode_invalid({prefix}value, {prefix}buffer, {prefix}read, {prefix}verdict, {prefix}at, {prefix}bad)\n        }}\n    }}\n    machine {prefix}decode_sound({declarations}) {{\n        {prefix}verdict = {verdict_type}::Sound;\n    }}\n    machine {prefix}decode_invalid({declarations}) {{\n        {prefix}verdict = {verdict_type}::Invalid;\n    }}\n}}\n"
     );
 }

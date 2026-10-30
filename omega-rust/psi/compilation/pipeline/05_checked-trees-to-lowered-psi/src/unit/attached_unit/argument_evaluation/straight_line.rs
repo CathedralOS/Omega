@@ -117,6 +117,7 @@ impl Evaluation {
                     checked,
                     binding,
                     &completed,
+                    &lowered_psi::LoweredSourceFrontierBindings::default(),
                     &self.erased_scalar_formals,
                     next_value,
                     operations,

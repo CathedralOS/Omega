@@ -174,16 +174,8 @@ impl Execution<'_, '_, '_> {
             let mut single = HandleSpan::empty();
             self.semantic.append_ref(&mut single, fact);
             let context = self.semantic.append_context(point, single);
-            crate::flow::reference_spans::append_flow_reference(
-                &mut self.context.contexts.semantic_context_refs,
-                contexts,
-                FlowSemanticContextRef { context },
-            );
-            crate::flow::append_constraint_ref(
-                &mut self.context.contexts.constraint_refs,
-                constraints,
-                FlowConstraintKind::SemanticContext { context },
-            );
+            self.context
+                .append_semantic_context(contexts, constraints, context);
         }
     }
 
@@ -505,15 +497,7 @@ impl Execution<'_, '_, '_> {
         });
         self.semantic.append_ref(&mut references, fact);
         let context = self.semantic.append_context(point, references);
-        crate::flow::reference_spans::append_flow_reference(
-            &mut self.context.contexts.semantic_context_refs,
-            contexts,
-            FlowSemanticContextRef { context },
-        );
-        crate::flow::append_constraint_ref(
-            &mut self.context.contexts.constraint_refs,
-            constraints,
-            FlowConstraintKind::SemanticContext { context },
-        );
+        self.context
+            .append_semantic_context(contexts, constraints, context);
     }
 }

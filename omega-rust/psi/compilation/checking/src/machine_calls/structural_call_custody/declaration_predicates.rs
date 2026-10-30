@@ -1045,6 +1045,35 @@ impl FactSpelling<'_> {
                 ))
             }
             _ => {
+                // The same closed-value judgment used by immutable bounds
+                // owns selected operators, arithmetic policy and landing.
+                // Carry its exact result and carrier, rather than requiring
+                // a predicate's closed operand to be a literal token.
+                if let Some(closed) = self
+                    .program
+                    .closed_integer_value_in(expression, self.definition.symbol)
+                {
+                    let spelling = closed.value.to_string();
+                    let literal = numerics::literals::IntegerLiteral::from_parts(
+                        spelling.starts_with('-'),
+                        numerics::literals::IntegerRadix::Decimal,
+                        spelling.trim_start_matches('-'),
+                    )
+                    .ok()?;
+                    let literal = if let Some(primitive) = closed.primitive {
+                        if !primitive.is_fixed_integer() {
+                            return None;
+                        }
+                        let landed = crate::land_integer_value(&closed.value, primitive)?;
+                        literal.with_landing(landed.landing()?)
+                    } else {
+                        literal
+                    };
+                    return Some((
+                        CheckedScalarExpression::IntegerLiteral { literal },
+                        closed.primitive,
+                    ));
+                }
                 let (path, leaf_type) = self.field_path(expression)?;
                 let primitive = self.program.primitive_type_reference(leaf_type)?;
                 if primitive == PrimitiveType::Bool || primitive == PrimitiveType::Addr {
