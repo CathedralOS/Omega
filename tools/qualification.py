@@ -458,6 +458,7 @@ class _RunSnapshot:
             if not unchanged:
                 record = load(path)
             require(record["revision"] == expected, "stale qualification revision; reread, do not overwrite")
+            require_active(record, path)
             change(record)
             record["revision"] += 1
             sha256 = atomic_json(path, record, indent=None, with_digest=True)
@@ -470,6 +471,7 @@ def update(path, expected, change):
     with exclusive(str(path) + ".lock"):
         record = load(path)
         require(record["revision"] == expected, "stale qualification revision; reread, do not overwrite")
+        require_active(record, path)
         change(record)
         record["revision"] += 1
         atomic_json(path, record, indent=None)
@@ -760,21 +762,25 @@ def recover_completed(repository, path, expected, review_path, *, disposition="a
     return update(path, expected, change)
 
 
+def initial_record(repository, path, base, config, candidate):
+    definition(config)
+    canonical_context = contract_mapping(repository, config, base, candidate)
+    return dict(schema=SCHEMA, revision=0, repository=str(repository), base=base,
+                qualification_revision=candidate, config=config, config_digest=digest(config),
+                canonical_context=canonical_context, runs=[], assessments=[], running=None,
+                source_ref=retain_source(repository, path, candidate))
+
+
 def start(repository, path, base, config):
     repository = Path(repository).resolve()
     head = clean_head(repository)
     revision(repository, base)
     subprocess.run(["git", "-C", str(repository), "merge-base", "--is-ancestor", base, head], check=True)
-    definition(config)
-    canonical_context = contract_mapping(repository, config, base, head)
     active = repository / "build" / "qualification-active.json"
     with exclusive(str(active) + ".lock"), exclusive(str(path) + ".lock"):
         require(not Path(path).exists(), "qualification already exists; retain its history")
         require(not active.exists(), "an active qualification already owns this worktree")
-        record = dict(schema=SCHEMA, revision=0, repository=str(repository), base=base,
-                      qualification_revision=head, config=config, config_digest=digest(config),
-                      canonical_context=canonical_context, runs=[], assessments=[], running=None)
-        record["source_ref"] = retain_source(repository, path, head)
+        record = initial_record(repository, path, base, config, head)
         atomic_json(path, record, indent=None)
         # Register the active assessment in this worktree so ordinary verify
         # cannot accidentally forget it after a rebase makes a new SHA.
@@ -791,6 +797,57 @@ def active_path(repository):
             and Path(registration["state"]).is_absolute() and Path(registration["state"]).is_file(),
             "missing/malformed active qualification registration")
     return registration["state"]
+
+
+def require_active(record, path):
+    require(active_path(record["repository"]) == str(Path(path).resolve()),
+            "qualification is not active in its worktree; retain historical evidence")
+
+
+def restart(repository, path, expected, successor, base, candidate, config, reason):
+    """Begin fresh acceptance after a real history rewrite, retaining its predecessor.
+
+    Persist the complete empty successor first, then atomically switch custody.
+    A failed switch leaves the predecessor active; only an identical, unstarted
+    successor can finish that same request. Never rewrite the predecessor or
+    copy its potentially large history into the new record.
+    """
+    repository, path, successor = (Path(value).resolve() for value in (repository, path, successor))
+    require(path != successor, "restart needs a distinct successor state path")
+    require(isinstance(reason, str) and reason.strip(), "restart needs a reviewed reason")
+    active = repository / "build" / "qualification-active.json"
+    require(successor != active and path != active, "state cannot replace active registration")
+    with exclusive(str(active) + ".lock"), exclusive(str(path) + ".lock"), exclusive(str(successor) + ".lock"):
+        previous = load(path)
+        require(previous["revision"] == expected, "stale qualification revision; reread, do not overwrite")
+        require(previous["repository"] == str(repository), "qualification worktree mismatch")
+        require_active(previous, path)
+        require(not previous["running"], "cannot restart while qualification command runs")
+        require(clean_head(repository) == revision(repository, candidate), "restart candidate must equal clean HEAD")
+        revision(repository, base)
+        relation = subprocess.run(["git", "-C", str(repository), "merge-base", "--is-ancestor", base, candidate])
+        require(relation.returncode == 0, "integration base is not a compatible ancestor")
+        relation = subprocess.run(["git", "-C", str(repository), "merge-base", "--is-ancestor", previous["base"], candidate])
+        require(relation.returncode == 1, "restart requires rewritten lineage; use assess/amend for compatible history")
+        definition(config)
+        checks = {check["id"]: check for check in config["checks"]}
+        require(all(check["id"] in checks and checks[check["id"]]["final"]
+                    and checks[check["id"]]["kind"] == check["kind"]
+                    for check in previous["config"]["checks"] if check["final"]),
+                "restart must retain final-candidate checks and their kinds")
+        predecessor = dict(path=str(path), sha256=file_digest(path), revision=expected,
+                           base=previous["base"], qualification_revision=previous["qualification_revision"],
+                           config_digest=previous["config_digest"], reason=reason,
+                           candidate=candidate, canonical_base=base)
+        del previous
+        record = initial_record(repository, successor, base, config, candidate)
+        record["predecessor"] = predecessor
+        if successor.exists():
+            require(load(successor) == record, "existing successor differs; preserve it and reconcile")
+        else:
+            atomic_json(successor, record, indent=None)
+        atomic_json(active, dict(state=str(successor)))
+        return record
 
 
 def amend(path, expected, config, reason, base=None):
@@ -1143,6 +1200,8 @@ def state_output(record, path, summary):
     result = dict(schema="omega-qualification-summary-v1", state=str(Path(path).resolve()))
     for key in ("revision", "base", "qualification_revision", "running", "source_ref"):
         result[key] = record[key]
+    if "predecessor" in record:
+        result["predecessor"] = record["predecessor"]
     if record["runs"]:
         latest = record["runs"][-1]
         result["latest_run"] = {key: latest[key] for key in
@@ -1154,7 +1213,7 @@ def state_output(record, path, summary):
 
 def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("context", "handoff", "start", "amend", "run", "assess", "run-pending", "status", "attest-source-reuse", "attest-source-reuse-batch", "source-reuse-context", "recover-interrupted", "recover-completed"))
+    parser.add_argument("command", choices=("context", "handoff", "start", "restart", "amend", "run", "assess", "run-pending", "status", "attest-source-reuse", "attest-source-reuse-batch", "source-reuse-context", "recover-interrupted", "recover-completed"))
     parser.add_argument("--repository", default=".")
     presentation = parser.add_mutually_exclusive_group()
     presentation.add_argument("--summary-output", action="store_true", default=True,
@@ -1162,6 +1221,8 @@ def main(arguments=None):
     presentation.add_argument("--full-output", action="store_false", dest="summary_output",
                               help="print the complete canonical state instead of its summary")
     parser.add_argument("--state")
+    parser.add_argument("--successor", help="restart only: distinct new state path; predecessor remains unchanged")
+    parser.add_argument("--candidate", help="restart only: exact clean source HEAD after history rewrite")
     parser.add_argument("--revision", type=int)
     parser.add_argument("--base")
     parser.add_argument("--config")
@@ -1176,6 +1237,8 @@ def main(arguments=None):
     try:
         require(options.disposition is None or options.command == "recover-completed",
                 "--disposition is only valid for recover-completed")
+        require(not (options.successor or options.candidate) or options.command == "restart",
+                "--successor/--candidate are only valid for restart")
         repository = Path(options.repository).resolve()
         if options.command in {"context", "handoff"}:
             record = None
@@ -1215,6 +1278,13 @@ def main(arguments=None):
                           accepted=False, reviewer=None, rationale=None)
         else:
             require(options.revision is not None, "mutation requires --revision from the last record")
+            if options.command == "restart":
+                require(options.successor and options.base and options.candidate and options.config,
+                        "restart needs --successor, --base, --candidate and --config")
+                result = restart(repository, path, options.revision, options.successor,
+                                 options.base, options.candidate, read_json(options.config), options.reason)
+                print(state_output(result, options.successor, options.summary_output))
+                return 0
             if options.command == "recover-interrupted":
                 require(options.review, "interruption recovery needs --review")
                 result = recover_interrupted(repository, path, options.revision, options.review)
