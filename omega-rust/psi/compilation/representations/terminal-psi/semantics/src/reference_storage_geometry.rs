@@ -19,6 +19,17 @@ pub struct ReferenceStorageProjection {
     pub stored_scalar: ScalarType,
 }
 
+/// One scalar's selected storage recipe. Fragmented fields retain their
+/// containing record's base and original bit recipe, never a scalar address.
+pub enum ReferenceScalarStorage<'recipe> {
+    Contiguous(ReferenceStorageProjection),
+    Fragmented {
+        byte_offset: u64,
+        logical_scalar: ScalarType,
+        fragments: &'recipe semantic_vocabulary::AuthoredBitFragments,
+    },
+}
+
 /// Geometry and any scalar codec selected by the same complete source path.
 /// A projected logical carrier alone cannot reconstruct authored storage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -391,6 +402,9 @@ pub fn reference_storage_region<'types>(
     path: &[StructuralPathSegment],
 ) -> Option<ReferenceStorageRegion> {
     let projection = storage_path(types.clone(), root, path)?;
+    if projection.fragments.is_some() {
+        return None;
+    }
     let size = match projection.scalar {
         Some((_, stored)) => scalar_geometry(stored)?.0,
         None => reference_storage_size(types, projection.carrier)?,
@@ -408,28 +422,56 @@ pub fn reference_storage_region<'types>(
     })
 }
 
-struct StoragePathProjection {
+/// Read scalar recipes through the same complete-path geometry as contiguous
+/// reference views. A fragment recipe describes bits, not a contiguous loan.
+pub fn reference_scalar_storage<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<ReferenceScalarStorage<'types>> {
+    let projection = storage_path(types, root, path)?;
+    let (logical_scalar, stored_scalar) = projection.scalar?;
+    Some(match projection.fragments {
+        Some(fragments) => ReferenceScalarStorage::Fragmented {
+            byte_offset: projection.byte_offset,
+            logical_scalar,
+            fragments,
+        },
+        None => ReferenceScalarStorage::Contiguous(ReferenceStorageProjection {
+            byte_offset: projection.byte_offset,
+            logical_scalar,
+            stored_scalar,
+        }),
+    })
+}
+
+struct StoragePathProjection<'recipe> {
     byte_offset: u64,
     carrier: StructuralTypeId,
     scalar: Option<(ScalarType, ScalarType)>,
+    fragments: Option<&'recipe semantic_vocabulary::AuthoredBitFragments>,
 }
 
 fn storage_path<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-) -> Option<StoragePathProjection> {
+) -> Option<StoragePathProjection<'types>> {
     let mut carrier = root;
     let mut byte_offset = 0_u64;
     let mut repeated_stride = None;
     let mut selected_storage = None;
     let mut selected_scalar = None;
+    let mut fragments = None;
     for segment in path {
         if let StructuralPathSegment::RepresentationView {
             structural_type,
             stored_scalar,
         } = segment
         {
+            if fragments.is_some() {
+                return None;
+            }
             let source_size = match selected_scalar {
                 Some(logical) => scalar_geometry(selected_storage.unwrap_or(logical))?.0,
                 None => match types.clone().find(|row| row.id == carrier)?.shape {
@@ -473,9 +515,13 @@ fn storage_path<'types>(
                     terminal_psi::StructuralRecordStorage::PlacedView(_)
                     | terminal_psi::StructuralRecordStorage::PlacedAccessor(_) => return None,
                     StructuralRecordStorage::TargetLayout(_) => return None,
-                    StructuralRecordStorage::Authored(_) => {
-                        field.storage.as_ref()?.byte_offset()?
-                    }
+                    StructuralRecordStorage::Authored(_) => match field.storage.as_ref()? {
+                        AuthoredFieldStorage::Fragmented(recipe) => {
+                            fragments = Some(recipe);
+                            0
+                        }
+                        storage => storage.byte_offset()?,
+                    },
                     StructuralRecordStorage::Packed => {
                         let mut offset = 0;
                         for candidate in fields.iter().filter(|field| !field.relevance.is_erased())
@@ -544,6 +590,7 @@ fn storage_path<'types>(
         byte_offset,
         carrier,
         scalar,
+        fragments,
     })
 }
 

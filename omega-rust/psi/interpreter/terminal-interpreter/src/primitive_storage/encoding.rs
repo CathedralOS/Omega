@@ -255,22 +255,24 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 }
                 let mut selected = Vec::new();
+                let selected_start = byte_offset.checked_mul(8).ok_or_else(malformed)?;
+                let selected_end = end.checked_mul(8).ok_or_else(malformed)?;
                 for fragment in fragments.iter() {
-                    let start = usize::from(fragment.destination_offset);
-                    let fragment_end = start + usize::from(fragment.byte_length);
-                    let first = start.max(byte_offset);
-                    let last = fragment_end.min(end);
+                    let start = usize::from(fragment.destination_bit_offset);
+                    let fragment_end = start + usize::from(fragment.bit_length);
+                    let first = start.max(selected_start);
+                    let last = fragment_end.min(selected_end);
                     if first >= last {
                         continue;
                     }
                     let mut fragment = fragment.clone();
-                    fragment.source_offset = fragment
-                        .source_offset
+                    fragment.source_bit_offset = fragment
+                        .source_bit_offset
                         .checked_add(u8::try_from(first - start).map_err(|_| malformed())?)
                         .ok_or_else(malformed)?;
-                    fragment.destination_offset =
-                        u8::try_from(first - byte_offset).map_err(|_| malformed())?;
-                    fragment.byte_length = u8::try_from(last - first).map_err(|_| malformed())?;
+                    fragment.destination_bit_offset =
+                        u8::try_from(first - selected_start).map_err(|_| malformed())?;
+                    fragment.bit_length = u8::try_from(last - first).map_err(|_| malformed())?;
                     selected.push(fragment);
                 }
                 *fragments = selected;
@@ -479,22 +481,32 @@ pub(crate) fn shifted_byte_endpoint(
                 return Err(malformed());
             }
             let mut selected = Vec::new();
+            let byte_start = byte_offset.checked_mul(8).ok_or_else(malformed)?;
+            let byte_end = byte_start.checked_add(8).ok_or_else(malformed)?;
             for fragment in fragments {
-                let first = usize::from(fragment.destination_offset);
-                let last = first + usize::from(fragment.byte_length);
-                if !(first..last).contains(&byte_offset) {
+                let first = usize::from(fragment.destination_bit_offset);
+                let last = first + usize::from(fragment.bit_length);
+                let start = first.max(byte_start);
+                let end = last.min(byte_end);
+                if start >= end {
                     continue;
                 }
                 let mut fragment = fragment.clone();
-                fragment.source_offset = fragment
-                    .source_offset
-                    .checked_add(u8::try_from(byte_offset - first).map_err(|_| malformed())?)
+                fragment.source_bit_offset = fragment
+                    .source_bit_offset
+                    .checked_add(u8::try_from(start - first).map_err(|_| malformed())?)
                     .ok_or_else(malformed)?;
-                fragment.destination_offset = 0;
-                fragment.byte_length = 1;
+                fragment.destination_bit_offset =
+                    u8::try_from(start - byte_start).map_err(|_| malformed())?;
+                fragment.bit_length = u8::try_from(end - start).map_err(|_| malformed())?;
                 selected.push(fragment);
             }
-            if selected.len() != 1 {
+            let coverage = selected.iter().try_fold(0u16, |covered, fragment| {
+                (u16::from(fragment.destination_bit_offset) == covered)
+                    .then(|| covered.checked_add(u16::from(fragment.bit_length)))
+                    .flatten()
+            });
+            if coverage != Some(8) {
                 return Err(malformed());
             }
             Ok(PrimitiveStorageEndpoint::Projection {

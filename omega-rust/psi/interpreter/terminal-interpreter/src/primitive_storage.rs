@@ -136,15 +136,34 @@ pub(crate) enum PrimitiveStorageEndpoint {
     },
 }
 
-/// A physical byte slice of one retained original scalar endpoint.
+/// A physical bit slice of one retained original scalar endpoint.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct PrimitiveStorageFragment {
     pub(super) storage: PrimitiveStorage,
     logical: ScalarType,
     stored: ScalarType,
-    pub(super) source_offset: u8,
-    destination_offset: u8,
-    byte_length: u8,
+    pub(super) source_bit_offset: u8,
+    destination_bit_offset: u8,
+    bit_length: u8,
+    /// The source is an actual contiguous scalar cell, not a logical field
+    /// whose bits were distributed by an authored storage recipe.
+    addressable_cell: bool,
+}
+
+impl PrimitiveStorageFragment {
+    /// Address exposure can reuse a contiguous original cell's prefix. Bit
+    /// assembly and clipping never turn a fragmented field into such a cell.
+    pub(super) fn contiguous_address_endpoint(
+        &self,
+        observed: ScalarType,
+    ) -> Option<PrimitiveStorageEndpoint> {
+        let width = terminal_semantics::reference_storage_byte_width(observed)?;
+        (self.addressable_cell
+            && self.source_bit_offset == 0
+            && self.destination_bit_offset == 0
+            && u16::from(self.bit_length) == u16::from(width) * 8)
+            .then(|| self.storage.endpoint.clone())
+    }
 }
 
 /// Encoding is retained with the endpoint, not reconstructed from a later

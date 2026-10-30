@@ -4,11 +4,11 @@
 //! every original endpoint before committing and preserve untouched cell bytes.
 use super::*;
 
-fn mask(bytes: u8) -> Result<u128, TerminalInterpretError> {
-    if bytes == 0 || bytes > 16 {
+fn mask(bits: u8) -> Result<u128, TerminalInterpretError> {
+    if bits == 0 || bits > 128 {
         return Err(malformed());
     }
-    Ok(u128::MAX >> (128 - usize::from(bytes) * 8))
+    Ok(u128::MAX >> (128 - usize::from(bits)))
 }
 
 fn projection_bits(
@@ -20,9 +20,8 @@ fn projection_bits(
     let mut bits = 0_u128;
     for fragment in fragments {
         let source = encoding::encode(fragment.stored, read(fragment)?)?;
-        let part =
-            (source >> (usize::from(fragment.source_offset) * 8)) & mask(fragment.byte_length)?;
-        bits |= part << (usize::from(fragment.destination_offset) * 8);
+        let part = (source >> usize::from(fragment.source_bit_offset)) & mask(fragment.bit_length)?;
+        bits |= part << usize::from(fragment.destination_bit_offset);
     }
     Ok(bits)
 }
@@ -41,9 +40,11 @@ impl TerminalExecution<'_> {
         if u64::from(width) != byte_length {
             return Err(malformed());
         }
+        let first = observed.byte_offset.checked_mul(8).ok_or_else(malformed)?;
         let end = observed
             .byte_offset
             .checked_add(byte_length)
+            .and_then(|end| end.checked_mul(8))
             .ok_or_else(malformed)?;
         let types = self.program.structural_types();
         let geometry = crate::reference::scalar_storage_fragments(
@@ -75,22 +76,38 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             shared |= shared_view;
-            let start = fragment.scalar.byte_offset.max(observed.byte_offset);
+            let start = fragment.bit_offset.max(first);
             let fragment_end = fragment
-                .scalar
-                .byte_offset
-                .checked_add(fragment.byte_length)
+                .bit_offset
+                .checked_add(fragment.bit_length)
                 .ok_or_else(malformed)?
                 .min(end);
+            let source_bit_offset = fragment
+                .source_bit_offset
+                .checked_add(start - fragment.bit_offset)
+                .ok_or_else(malformed)?;
+            let selected_length = fragment_end - start;
+            let stored_bits = u64::from(
+                terminal_semantics::reference_storage_byte_width(fragment.scalar.stored_scalar)
+                    .ok_or_else(malformed)?,
+            )
+            .checked_mul(8)
+            .ok_or_else(malformed)?;
+            if selected_length == 0
+                || source_bit_offset
+                    .checked_add(selected_length)
+                    .is_none_or(|end| end > stored_bits)
+            {
+                return Err(malformed());
+            }
             fragments.push(PrimitiveStorageFragment {
                 storage,
                 logical: fragment.scalar.logical_scalar,
                 stored: fragment.scalar.stored_scalar,
-                source_offset: u8::try_from(start - fragment.scalar.byte_offset)
-                    .map_err(|_| malformed())?,
-                destination_offset: u8::try_from(start - observed.byte_offset)
-                    .map_err(|_| malformed())?,
-                byte_length: u8::try_from(fragment_end - start).map_err(|_| malformed())?,
+                source_bit_offset: u8::try_from(source_bit_offset).map_err(|_| malformed())?,
+                destination_bit_offset: u8::try_from(start - first).map_err(|_| malformed())?,
+                bit_length: u8::try_from(selected_length).map_err(|_| malformed())?,
+                addressable_cell: fragment.addressable_cell,
             });
         }
         Ok((
@@ -175,9 +192,11 @@ impl PrimitiveStorageWrites {
         for fragment in fragments {
             let width = terminal_semantics::reference_storage_byte_width(fragment.stored)
                 .ok_or_else(malformed)?;
-            let source_shift = usize::from(fragment.source_offset) * 8;
-            let selected_mask = mask(fragment.byte_length)? << source_shift;
-            let old_bits = if fragment.source_offset == 0 && fragment.byte_length == width {
+            let source_shift = usize::from(fragment.source_bit_offset);
+            let selected_mask = mask(fragment.bit_length)? << source_shift;
+            let old_bits = if fragment.source_bit_offset == 0
+                && u16::from(fragment.bit_length) == u16::from(width) * 8
+            {
                 0
             } else {
                 encoding::encode(
@@ -191,8 +210,8 @@ impl PrimitiveStorageWrites {
                 )?
             };
             let replacement = (old_bits & !selected_mask)
-                | (((bits >> (usize::from(fragment.destination_offset) * 8))
-                    & mask(fragment.byte_length)?)
+                | (((bits >> usize::from(fragment.destination_bit_offset))
+                    & mask(fragment.bit_length)?)
                     << source_shift);
             let replacement = encoding::convert_scalar(
                 encoding::decode(fragment.stored, replacement)?,

@@ -175,14 +175,20 @@ impl TerminalExecution<'_> {
         endpoint: PrimitiveStorageEndpoint,
     ) -> Result<(Option<u64>, u64, Vec<Coordinate>), TerminalInterpretError> {
         let selected = match endpoint {
-            PrimitiveStorageEndpoint::Projection { fragments, .. } => {
-                let first = fragments.first().ok_or_else(malformed)?;
-                if first.source_offset != 0 {
+            PrimitiveStorageEndpoint::Projection {
+                fragments, stored, ..
+            } => {
+                let [first] = fragments.as_slice() else {
                     return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "storage-address exposure within a scalar backing cell is not modeled",
+                        "composed scalar observations have no single storage-address endpoint",
                     ));
-                }
-                return self.endpoint_identity(first.storage.endpoint.clone());
+                };
+                let endpoint = first.contiguous_address_endpoint(stored).ok_or(
+                    TerminalInterpretError::UnsupportedSemanticVariant(
+                        "storage-address exposure requires a contiguous original scalar endpoint",
+                    ),
+                )?;
+                return self.endpoint_identity(endpoint);
             }
             PrimitiveStorageEndpoint::Scalar(place) => place,
             PrimitiveStorageEndpoint::ScalarField(field) => {

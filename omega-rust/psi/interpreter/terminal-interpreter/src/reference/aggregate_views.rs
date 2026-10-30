@@ -70,7 +70,8 @@ impl AggregateViewRegion {
 
 /// Select a complete logical path before seeking its original cell. Aggregate
 /// selections retain the backing root and a smaller window instead of inventing
-/// an equivalent backing child. Ambiguous or fragmented scalar regions refuse.
+/// an equivalent backing child. Complete original bit recipes compose at scalar
+/// observation; gaps and ambiguous physical coverage refuse.
 pub(crate) fn translate_aggregate_view_path(
     types: &ProgramDeclarations<'_, terminal_psi::StructuralTypeDeclaration>,
     view: AggregateViewRegion,
@@ -90,8 +91,12 @@ pub(crate) fn translate_aggregate_view_path(
         let fragments =
             scalar_storage_fragments(types, backing, byte_offset, selected.byte_length)?;
         if let [fragment] = fragments.as_slice()
-            && fragment.scalar.byte_offset == byte_offset
-            && fragment.byte_length == selected.byte_length
+            && fragment.addressable_cell
+            && fragment.bit_offset == byte_offset.checked_mul(8)?
+            && fragment.source_bit_offset == 0
+            && fragment.bit_length == selected.byte_length.checked_mul(8)?
+            && terminal_semantics::reference_storage_byte_width(fragment.scalar.stored_scalar)
+                .is_some_and(|width| u64::from(width) == selected.byte_length)
         {
             return Some((
                 fragment.path.clone(),
@@ -133,7 +138,10 @@ pub(crate) fn translate_aggregate_view_path(
 pub(crate) struct ScalarStorageFragmentGeometry {
     pub(crate) path: Vec<StructuralPathSegment>,
     pub(crate) scalar: terminal_semantics::ReferenceStorageProjection,
-    pub(crate) byte_length: u64,
+    pub(crate) bit_offset: u64,
+    pub(crate) source_bit_offset: u64,
+    pub(crate) bit_length: u64,
+    pub(crate) addressable_cell: bool,
 }
 
 pub(crate) fn scalar_storage_fragments(
@@ -142,23 +150,24 @@ pub(crate) fn scalar_storage_fragments(
     byte_offset: u64,
     byte_length: u64,
 ) -> Option<Vec<ScalarStorageFragmentGeometry>> {
-    let end = byte_offset.checked_add(byte_length)?;
+    let start = byte_offset.checked_mul(8)?;
+    let end = byte_offset.checked_add(byte_length)?.checked_mul(8)?;
     let mut fragments = Vec::new();
     collect_scalar_fragments(
         types,
         backing,
         backing,
         &mut Vec::new(),
-        byte_offset,
+        start,
         end,
         &mut fragments,
     )?;
-    fragments.sort_by_key(|fragment| fragment.scalar.byte_offset);
-    let mut covered = byte_offset;
+    fragments.sort_by_key(|fragment| fragment.bit_offset);
+    let mut covered = start;
     for fragment in &fragments {
-        let start = fragment.scalar.byte_offset;
-        let next = start.checked_add(fragment.byte_length)?;
-        if start > covered || next <= covered {
+        let first = fragment.bit_offset;
+        let next = first.checked_add(fragment.bit_length)?;
+        if first > covered || next <= covered {
             return None;
         }
         covered = next.min(end);
@@ -178,17 +187,69 @@ fn collect_scalar_fragments(
     if path.len() >= 128 {
         return None;
     }
-    let region = terminal_semantics::reference_storage_region(types.values(), root, path)?;
-    let region_end = region.byte_offset.checked_add(region.byte_length)?;
-    if end <= region.byte_offset || start >= region_end {
+    if let Some(selected) = terminal_semantics::reference_scalar_storage(types.values(), root, path)
+    {
+        let mut append =
+            |scalar, bit_offset: u64, source_bit_offset, bit_length: u64, addressable_cell| {
+                let last = bit_offset.checked_add(bit_length)?;
+                if start < last && bit_offset < end {
+                    fragments.push(ScalarStorageFragmentGeometry {
+                        path: path.clone(),
+                        scalar,
+                        bit_offset,
+                        source_bit_offset,
+                        bit_length,
+                        addressable_cell,
+                    });
+                }
+                Some(())
+            };
+        match selected {
+            terminal_semantics::ReferenceScalarStorage::Contiguous(scalar) => {
+                append(
+                    scalar,
+                    scalar.byte_offset.checked_mul(8)?,
+                    0,
+                    u64::from(terminal_semantics::reference_storage_byte_width(
+                        scalar.stored_scalar,
+                    )?)
+                    .checked_mul(8)?,
+                    true,
+                )?;
+            }
+            terminal_semantics::ReferenceScalarStorage::Fragmented {
+                byte_offset,
+                logical_scalar,
+                fragments: recipe,
+            } => {
+                for fragment in recipe.fragments() {
+                    let scalar = terminal_semantics::ReferenceStorageProjection {
+                        byte_offset: byte_offset.checked_add(fragment.container_byte_offset)?,
+                        logical_scalar,
+                        stored_scalar: logical_scalar,
+                    };
+                    append(
+                        scalar,
+                        scalar
+                            .byte_offset
+                            .checked_mul(8)?
+                            .checked_add(fragment.destination_lsb)?,
+                        fragment.source_lsb,
+                        fragment.width,
+                        false,
+                    )?;
+                }
+            }
+        }
         return Some(());
     }
-    if let Some(scalar) = region.scalar {
-        fragments.push(ScalarStorageFragmentGeometry {
-            path: path.clone(),
-            scalar,
-            byte_length: region.byte_length,
-        });
+    let region = terminal_semantics::reference_storage_region(types.values(), root, path)?;
+    let region_start = region.byte_offset.checked_mul(8)?;
+    let region_end = region
+        .byte_offset
+        .checked_add(region.byte_length)?
+        .checked_mul(8)?;
+    if end <= region_start || start >= region_end {
         return Some(());
     }
     match &types.get(&carrier)?.shape {
@@ -217,9 +278,10 @@ fn collect_scalar_fragments(
             if stride == 0 || stride < first.byte_length {
                 return None;
             }
-            let first_index = start.saturating_sub(first.byte_offset) / stride;
-            let final_index =
-                (end.checked_sub(1)?.saturating_sub(first.byte_offset) / stride).min(length - 1);
+            let first_index = (start / 8).saturating_sub(first.byte_offset) / stride;
+            let final_index = ((end.checked_sub(1)? / 8).saturating_sub(first.byte_offset)
+                / stride)
+                .min(length - 1);
             for index in first_index..=final_index {
                 *path.last_mut()? = StructuralPathSegment::FixedIndex(index);
                 collect_scalar_fragments(types, root, *element, path, start, end, fragments)?;
