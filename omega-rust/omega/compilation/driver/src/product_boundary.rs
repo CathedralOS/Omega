@@ -626,6 +626,37 @@ fn installation_reach_settlement_consumes_prepared_rows() {
 }
 
 #[test]
+fn qualification_grants_consume_prepared_issuer_evidence() {
+    let binding = include_str!("../../realization/provider-planning/src/provider_planning.rs");
+    assert!(binding.contains(".admitted_qualification_issuers()"));
+    let policy = include_str!("../../realization/provider-selection/src/qualification_grants.rs");
+    for forbidden in [
+        "checked_trees",
+        "TypedTrees",
+        "SymbolHandle",
+        "provider_planning",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "grant policy reopens {forbidden}"
+        );
+    }
+    let preparation = include_str!(
+        "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/semantic/facts.rs"
+    );
+    let issuers = preparation
+        .find("qualification_evidence::prepare_issuers(")
+        .unwrap();
+    let occurrences = preparation
+        .find("append_contract_semantic_facts(program")
+        .unwrap();
+    assert!(
+        issuers < occurrences,
+        "issuer identities must precede occurrence production"
+    );
+}
+
+#[test]
 fn native_provider_handoff_borrows_closed_source_associations() {
     let projection = include_str!("../../products/src/checked_compilation/terminal.rs");
     assert!(projection.contains(".native_provider_sources"));

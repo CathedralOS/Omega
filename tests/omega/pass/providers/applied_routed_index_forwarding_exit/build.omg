@@ -5,13 +5,13 @@ machine build(builder: &mut Build) {
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::accept_boundary<Supply>(builder);
-    Build::select_provider<Supply, Provider>(builder, linux_arm64);
-    Build::select_provider<Supply, Provider>(builder, linux_x86_64);
-    Build::select_provider<Supply, Provider>(builder, macos_arm64);
-    Build::select_provider<Supply, Provider>(builder, macos_x86_64);
-    Build::select_provider<Supply, Provider>(builder, windows_x86_64);
-    Build::select_provider<Supply, Provider>(builder, uefi_x86_64);
-    Build::select_provider<Supply, Provider>(builder, cross_platform_cli);
-    Build::select_provider<Supply, Provider>(builder, local_unchecked);
-    Build::select_provider<Supply, Provider>(builder, alpha_bootstrap);
+    Build::select_provider<Supply<Word>, Provider>(builder, linux_arm64);
+    Build::select_provider<Supply<Word>, Provider>(builder, linux_x86_64);
+    Build::select_provider<Supply<Word>, Provider>(builder, macos_arm64);
+    Build::select_provider<Supply<Word>, Provider>(builder, macos_x86_64);
+    Build::select_provider<Supply<Word>, Provider>(builder, windows_x86_64);
+    Build::select_provider<Supply<Word>, Provider>(builder, uefi_x86_64);
+    Build::select_provider<Supply<Word>, Provider>(builder, cross_platform_cli);
+    Build::select_provider<Supply<Word>, Provider>(builder, local_unchecked);
+    Build::select_provider<Supply<Word>, Provider>(builder, alpha_bootstrap);
 }
