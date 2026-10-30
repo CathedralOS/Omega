@@ -1,0 +1,19 @@
+// A case-dependent `requires` disjunction participates in zero establishment:
+// the zeroed discriminant selects only the first declared case, so
+// `self.x >= 1` fails on the zeroed payload and the whole-value read must
+// reject until the data is constructed on every path.
+
+data Odd [copy]
+requires (self in Odd::Ready) && self.x >= 1
+{
+    case Ready(x: u64);
+}
+
+machine take(v: Odd) {
+    let _x: u64 = v.x;
+}
+
+machine main() {
+    let mut o: Odd;
+    take(o);
+}

@@ -1,0 +1,26 @@
+// A case-dependent `requires` disjunction admits the zeroed representation
+// when the first declared case's disjunct holds at zero: `self in Opt::Empty`
+// folds true on the zero discriminant while `Full`'s payload bound stays
+// guarded behind its case marker.
+
+data Opt [copy]
+requires (self in Opt::Empty) || ((self in Opt::Full) && self.v >= 1)
+{
+    case Empty;
+    case Full(v: u64);
+}
+
+machine take(v: Opt) -> u64 {
+    match v {
+        Opt::Empty -> 7,
+        Opt::Full { v } -> v
+    }
+}
+
+machine main() -> u64 {
+    let mut o: Opt;
+    let z: u64 = take(o);
+    let f: Opt = Opt::Full { v: 9 };
+    let _w: u64 = take(f);
+    transition { _ -> z }
+}
