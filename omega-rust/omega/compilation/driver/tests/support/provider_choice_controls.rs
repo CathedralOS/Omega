@@ -58,6 +58,7 @@ pub(super) fn prepare(
             .execution()
             .selected_provider_plan_facts
             .assumed_bindings(),
+        independent_components: &checked.providers().verified_independent_components,
         targets: &targets,
     }
     .prepare();
