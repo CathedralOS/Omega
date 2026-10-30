@@ -285,13 +285,9 @@ impl ByteSequenceBinding {
         }
         let case = match field.namespace {
             crate::values::StructuralFieldNamespace::Member => None,
-            crate::values::StructuralFieldNamespace::CasePayload => Some(
-                execution
-                    .structural_cases
-                    .get(&field.parent)
-                    .ok_or_else(malformed)?
-                    .case,
-            ),
+            crate::values::StructuralFieldNamespace::CasePayload => {
+                Some(execution.structural_cases.require(&field.parent)?.case)
+            }
         };
         let (fields, _) = execution.active_field_declarations(*parent_type, &field.parent, case)?;
         if !fields.iter().any(|declaration| {

@@ -1275,7 +1275,7 @@ impl TerminalExecution<'_> {
         }
         if path.contains(&StructuralPathSegment::Referent) {
             self.primitive_home_contract(home, writing, path)?;
-            let owner = structural_values.get(&place).ok_or_else(malformed)?;
+            let owner = structural_values.require(&place)?;
             if owner.structural_type != home.structural_type {
                 return Err(malformed());
             }
@@ -1285,7 +1285,7 @@ impl TerminalExecution<'_> {
         }
         if let Some(loan) = element_view_values.get(&place) {
             self.primitive_home_contract(home, writing, path)?;
-            let owner = structural_values.get(&place).ok_or_else(malformed)?;
+            let owner = structural_values.require(&place)?;
             if owner.structural_type != home.structural_type || !loan.matches_descriptor_home(owner)
             {
                 return Err(malformed());
@@ -1342,7 +1342,7 @@ impl TerminalExecution<'_> {
         // Reuse the same endpoint judgment without interpreting that PlaceId
         // in the current callee's frame.
         if let Some(binding) = byte_sequence_values.get(&place) {
-            let descriptor = structural_values.get(&place).ok_or_else(malformed)?;
+            let descriptor = structural_values.require(&place)?;
             let [StructuralPathSegment::FixedIndex(index)] = path else {
                 return Err(malformed());
             };
@@ -1738,10 +1738,7 @@ impl TerminalExecution<'_> {
         let payload = match &declaration.shape {
             terminal_psi::StructuralTypeShape::Sum { cases }
             | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => {
-                let stored = self
-                    .structural_cases
-                    .get(&parent_place)
-                    .ok_or_else(malformed)?;
+                let stored = self.structural_cases.require(&parent_place)?;
                 if stored.structural_type != parent {
                     return Err(malformed());
                 }

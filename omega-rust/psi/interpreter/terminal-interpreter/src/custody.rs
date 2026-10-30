@@ -750,9 +750,7 @@ pub(crate) fn bind_structural_primitive_values(
     let mut entry_places = RuntimeRows::new(account);
     for (position, parameter) in &primitive_parameters {
         if zero_initialized_arguments.contains(position) {
-            let root = structural_values
-                .get(&parameter.place)
-                .ok_or_else(malformed)?;
+            let root = structural_values.require(&parameter.place)?;
             let place = StructuralRuntimePlace::from(root);
             if !storage.contains_key(&place) {
                 return Err(malformed());

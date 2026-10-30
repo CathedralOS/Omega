@@ -1832,10 +1832,7 @@ impl TerminalExecution<'_> {
                 == StructuralRuntimePlace::from(&leaf)
                 && root.structural_type == leaf.structural_type
             {
-                let descriptor = self
-                    .element_view_values
-                    .get(&source)
-                    .ok_or_else(malformed)?;
+                let descriptor = self.element_view_values.require(&source)?;
                 if !descriptor.matches_descriptor_home(root) {
                     return Err(malformed());
                 }
@@ -2032,7 +2029,7 @@ impl TerminalExecution<'_> {
             path,
         ) {
             parent.path.extend(carrier.path);
-            let contents = self.structural_cases.get(&parent).ok_or(malformed())?;
+            let contents = self.structural_cases.require(&parent)?;
             if contents.structural_type != carrier.sum || contents.case != carrier.case {
                 return Err(malformed());
             }

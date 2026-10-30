@@ -231,11 +231,7 @@ impl TerminalExecution<'_> {
                 recipe.input(),
             )
             .map_err(|_| malformed())?;
-            let presentation = self
-                .structural_values
-                .get(&parameter.place)
-                .ok_or_else(malformed)?
-                .clone();
+            let presentation = self.structural_values.require(&parameter.place)?.clone();
             occurrence.ram = Some(PlacedReference {
                 storage: PlacedStorage::Ram {
                     correspondence: recipe.correspondence().clone(),

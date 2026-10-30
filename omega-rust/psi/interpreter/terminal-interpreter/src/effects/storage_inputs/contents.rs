@@ -347,10 +347,7 @@ fn collect(
                 };
                 case
             } else {
-                let contents = execution
-                    .structural_cases
-                    .get(destination)
-                    .ok_or_else(malformed)?;
+                let contents = execution.structural_cases.require(destination)?;
                 if contents.structural_type != root {
                     return Err(malformed());
                 }

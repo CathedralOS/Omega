@@ -757,7 +757,7 @@ impl TerminalExecution<'_> {
             PrimitiveStorageEndpoint::Scalar(home) => self.structural_primitive_storage.get(home),
             PrimitiveStorageEndpoint::ScalarField(field) => {
                 if field.namespace == StructuralFieldNamespace::CasePayload {
-                    let active = self.structural_cases.get(parent).ok_or_else(malformed)?;
+                    let active = self.structural_cases.require(parent)?;
                     if active.structural_type != selected {
                         return Err(malformed());
                     }

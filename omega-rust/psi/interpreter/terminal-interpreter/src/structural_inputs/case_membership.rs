@@ -75,7 +75,7 @@ impl TerminalExecution<'_> {
             else {
                 return Err(malformed());
             };
-            let contents = self.structural_cases.get(parent).ok_or_else(malformed)?;
+            let contents = self.structural_cases.require(parent)?;
             if contents.structural_type != parent_type || contents.case != case {
                 return Err(malformed());
             }
@@ -217,7 +217,7 @@ impl TerminalExecution<'_> {
                         else {
                             return Err(malformed());
                         };
-                        let actual = self.structural_cases.get(&parent).ok_or_else(malformed)?;
+                        let actual = self.structural_cases.require(&parent)?;
                         if actual.structural_type != structural_type {
                             return Err(malformed());
                         }
