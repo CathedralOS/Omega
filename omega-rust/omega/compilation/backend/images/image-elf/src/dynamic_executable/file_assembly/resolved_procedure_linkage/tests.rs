@@ -19,10 +19,8 @@ use crate::{
     plan_elf_relative_section_payload_layout, serialize_elf_dynamic_file_envelope,
 };
 use arena::Handle;
-use image::{
-    FinalImage, FinalImageMemory, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
-};
-use object_file::{RelocationKind, SymbolKind};
+use image::{FinalImage, FinalImageMemory, FinalImageRelocation, FinalImageSection};
+use object_file::RelocationKind;
 use target::TargetProfile;
 
 fn standard_envelope(target: TargetProfile) -> ValidatedElfDynamicFileEnvelope {
@@ -51,14 +49,7 @@ fn envelope(
         2,
         3 + general_slots.len(),
     );
-    let entry = image.symbol_table.symbols.insert(FinalImageSymbol {
-        name: "_start".to_owned(),
-        section: FinalImageSection::Text,
-        offset: 24,
-        size: 4,
-        kind: SymbolKind::Function,
-    });
-    image.symbol_table.entry_symbol = entry;
+    crate::test_support::text_entry(&mut image, 24);
 
     let mut imports = Vec::new();
     for (index, symbol) in imported_symbols.into_iter().enumerate() {

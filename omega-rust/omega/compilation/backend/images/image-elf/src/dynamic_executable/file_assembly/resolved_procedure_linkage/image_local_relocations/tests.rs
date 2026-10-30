@@ -46,14 +46,7 @@ fn callback_image(target: TargetProfile) -> FinalImage {
         4,
     );
     image.memory.data[CALLBACK_POINTER_DATA_OFFSET..CALLBACK_POINTER_DATA_OFFSET + 8].fill(0);
-    let entry = image.symbol_table.symbols.insert(FinalImageSymbol {
-        name: "_start".to_owned(),
-        section: FinalImageSection::Text,
-        offset: 24,
-        size: 4,
-        kind: SymbolKind::Function,
-    });
-    image.symbol_table.entry_symbol = entry;
+    crate::test_support::text_entry(&mut image, 24);
     let private_callback = image.symbol_table.symbols.insert(FinalImageSymbol {
         name: "__omega_private_callback".to_owned(),
         section: FinalImageSection::Text,

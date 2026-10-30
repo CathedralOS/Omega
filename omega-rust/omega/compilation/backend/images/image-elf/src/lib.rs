@@ -233,6 +233,22 @@ pub(crate) mod test_support {
         )
     }
 
+    /// Install the `_start` entry the file-assembly fixtures use: a four-byte
+    /// text symbol at `offset` that becomes the image entry.
+    pub(crate) fn text_entry(image: &mut FinalImage, offset: usize) {
+        use image::{FinalImageSection, FinalImageSymbol};
+        use object_file::SymbolKind;
+
+        let entry = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "_start".to_owned(),
+            section: FinalImageSection::Text,
+            offset,
+            size: 4,
+            kind: SymbolKind::Function,
+        });
+        image.symbol_table.entry_symbol = entry;
+    }
+
     /// The shared dynamic-link staging chain every dynamic-executable test
     /// drives through section planning to the procedure-linkage relocation
     /// plan.
