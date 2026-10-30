@@ -592,6 +592,40 @@ fn terminal_cohorts_retain_admitted_products() {
 }
 
 #[test]
+fn installation_reach_settlement_consumes_prepared_rows() {
+    let projection = include_str!(
+        "../../realization/provider-planning/src/provider_planning/installation_reach.rs"
+    );
+    assert!(projection.contains("provider.row_requirements"));
+    assert!(projection.contains("provider.row_realizations"));
+    assert!(projection.contains("provider_selection::resolve_installation_reach(rows)"));
+    for forbidden in [
+        "typed.machines()",
+        "typed.traits()",
+        "attached_data_path",
+        "named_provider_row",
+        "substitute_nested_installation_reaches",
+    ] {
+        assert!(
+            !projection.contains(forbidden),
+            "reach projection reconstructs {forbidden}"
+        );
+    }
+    let settlement = include_str!("../../realization/provider-selection/src/installation_reach.rs");
+    for forbidden in [
+        "checked_trees",
+        "TypedTrees",
+        "SymbolHandle",
+        "provider_planning",
+    ] {
+        assert!(
+            !settlement.contains(forbidden),
+            "reach settlement reopens {forbidden}"
+        );
+    }
+}
+
+#[test]
 fn native_provider_handoff_borrows_closed_source_associations() {
     let projection = include_str!("../../products/src/checked_compilation/terminal.rs");
     assert!(projection.contains(".native_provider_sources"));
