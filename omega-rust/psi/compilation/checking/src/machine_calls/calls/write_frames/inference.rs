@@ -7,6 +7,7 @@ use crate::value_custody::places::binding_observations::{
     BindingObservation, binding_has_write_effects, binding_is_exclusively_exposed,
     binding_is_written,
 };
+use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::state::State;
@@ -19,7 +20,9 @@ type CompletedSlotEffects =
 #[derive(Clone, Default)]
 pub(super) struct FrameInference {
     pub(super) active_states: Vec<SymbolHandle>,
-    local_shapes: Vec<StoredLocalOrigins>,
+    // Completed operands retain the same frozen prefix. Copy its records only
+    // when a branch actually extends that prefix, not for every observation.
+    local_shapes: Arc<Vec<StoredLocalOrigins>>,
     parameter_values: Option<ParameterValues>,
     // Relative normal-exit summaries belong to this inference invocation.
     // Cloned operand snapshots share completed work, never in-progress work.
@@ -57,7 +60,7 @@ impl FrameInference {
         }
     }
     pub(super) fn record_local(&mut self, local: &StoredLocalOrigins) {
-        self.local_shapes.push(local.clone());
+        Arc::make_mut(&mut self.local_shapes).push(local.clone());
     }
 
     pub(super) fn local_origins(&self, symbol: SymbolHandle) -> Option<&StoredLocalOrigins> {
@@ -68,9 +71,9 @@ impl FrameInference {
     }
 
     pub(super) fn with_local_scope<T>(&mut self, action: impl FnOnce(&mut Self) -> T) -> T {
-        let start = self.local_shapes.len();
+        let previous = self.local_shapes.clone();
         let result = action(self);
-        self.local_shapes.truncate(start);
+        self.local_shapes = previous;
         result
     }
 
@@ -521,4 +524,69 @@ fn constant_index(
         return None;
     };
     usize::try_from(integer.value_i64()?).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FrameInference, StoredLocalOrigins};
+    use std::sync::Arc;
+    use symbols::SymbolHandle;
+
+    fn local(symbolic: bool) -> StoredLocalOrigins {
+        StoredLocalOrigins {
+            local_symbol: SymbolHandle::default(),
+            references: Vec::new(),
+            cases: Vec::new(),
+            moves: Vec::new(),
+            symbolic,
+        }
+    }
+
+    #[test]
+    fn frame_snapshots_share_frozen_locals_until_branch_extension() {
+        let mut original = FrameInference::default();
+        original.record_local(&local(false));
+        let mut branch = original.clone();
+        assert!(Arc::ptr_eq(&original.local_shapes, &branch.local_shapes));
+        branch.record_local(&local(true));
+        assert!(!Arc::ptr_eq(&original.local_shapes, &branch.local_shapes));
+        assert!(
+            !original
+                .local_origins(SymbolHandle::default())
+                .unwrap()
+                .symbolic
+        );
+        assert!(
+            branch
+                .local_origins(SymbolHandle::default())
+                .unwrap()
+                .symbolic
+        );
+        assert_eq!(original.local_shapes.len(), 1);
+        assert_eq!(branch.local_shapes.len(), 2);
+    }
+
+    #[test]
+    fn frame_snapshots_restore_scope_without_changing_retained_observations() {
+        let mut inference = FrameInference::default();
+        inference.record_local(&local(false));
+        let before = inference.clone();
+        let captured = inference.with_local_scope(|scope| {
+            scope.record_local(&local(true));
+            scope.clone()
+        });
+        assert!(Arc::ptr_eq(&before.local_shapes, &inference.local_shapes));
+        assert!(
+            !inference
+                .local_origins(SymbolHandle::default())
+                .unwrap()
+                .symbolic
+        );
+        assert!(
+            captured
+                .local_origins(SymbolHandle::default())
+                .unwrap()
+                .symbolic
+        );
+    }
 }
