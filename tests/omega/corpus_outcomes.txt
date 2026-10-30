@@ -21199,7 +21199,6 @@ fail/layouts/public_schema_keeps_private_layout rejected 786ms expected @a92f164
 	public interface selects private data `HiddenPolicy<RecordSchema>`
 fail/layouts/qualified_record_layout_requires_alignment rejected 3248ms expected @a92f16431042
 	plan-laid value type `Packed<Payload>`: error: policy `Packed::plan` produced an invalid plan: field `words` at offset 7 violates its alignment 8
-fail/layouts/qualified_record_reference_is_not_inline rejected 3133ms expected @a92f16431042
 	plan-laid value type `Packed<Payload>`: error: schema data `Payload` field `word` is neither a supported primitive, a fixed array composed of supported primitives, nor a fixed record composed from those shapes
 fail/layouts/recast_integer_at_store_requires_fit rejected 1195ms expected @a92f16431042
 	IntegerAt store in machine `Main::main` state `main` assignment requires a value proven to fit 8-bit signed storage

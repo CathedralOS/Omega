@@ -7,7 +7,7 @@ boundary trait Callback {
 }
 
 
-CallbackSlot satisfies PrivateCallbackSlot<Spread, Callback::call> { }
+CallbackSlot satisfies PrivateCallbackSlot<ForeignRecord, Spread, Callback::call> { }
 
 Spread satisfies FixedLayout<ForeignRecord> {
     machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {

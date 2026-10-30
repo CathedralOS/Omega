@@ -13,7 +13,7 @@ boundary trait WindowProcedure {
 
 
 WndClassWindowProcedureSlot satisfies PrivateCallbackSlot<
-    Spread,
+    ForeignRecord, Spread,
     WindowProcedure::call
 > { }
 

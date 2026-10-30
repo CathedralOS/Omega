@@ -38,7 +38,7 @@ Policy satisfies FixedLayout<Payload> {
         }
     }
 }
-boundary trait LayoutExpectedSize { machine expected_size() -> u64; }
+boundary trait LayoutExpectedSize { machine expected_size() -> u64 reaches; }
 MacosArm64LayoutExpectedSize satisfies LayoutExpectedSize {
     machine expected_size() -> u64 { 8 }
 }
@@ -71,7 +71,7 @@ machine geometry() -> u64 {
 }
 GeometryProducer satisfies GeometryQuery { machine query() -> u64 { geometry() } }
 machine invoke<Query satisfies GeometryQuery>() -> u64 { Query::query() }
-boundary trait LayoutScoped { machine scoped(); }
+boundary trait LayoutScoped { machine scoped() reaches; }
 MacosArm64LayoutScoped satisfies LayoutScoped {
     machine scoped() {}
 }

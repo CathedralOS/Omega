@@ -6,10 +6,15 @@ boundary trait Callback {
     machine call(value: u64) -> u64 reaches;
 }
 
-data OtherLayout {
+OtherLayout satisfies FixedLayout<ForeignRecord> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+        Plan { entries: entries, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 8 }
+    }
 }
 
-WrongLayoutSlot satisfies PrivateCallbackSlot<OtherLayout, Callback::call> { }
+WrongLayoutSlot satisfies PrivateCallbackSlot<ForeignRecord, OtherLayout, Callback::call> { }
 
 
 Spread satisfies FixedLayout<ForeignRecord> {

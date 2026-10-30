@@ -38,7 +38,7 @@ Policy satisfies FixedLayout<Payload> {
         }
     }
 }
-boundary trait LayoutExpectedSize { machine expected_size() -> u64; }
+boundary trait LayoutExpectedSize { machine expected_size() -> u64 reaches; }
 MacosArm64LayoutExpectedSize satisfies LayoutExpectedSize {
     machine expected_size() -> u64 { 8 }
 }
@@ -68,7 +68,7 @@ machine geometry() -> u64 {
     let excess: u64 = bytes - 6;
     excess + 6
 }
-boundary trait LayoutScoped { machine scoped(); }
+boundary trait LayoutScoped { machine scoped() reaches; }
 MacosArm64LayoutScoped satisfies LayoutScoped {
     machine scoped() {}
 }

@@ -28,7 +28,7 @@ Policy satisfies FixedLayout<Payload> {
     }
 }
 
-boundary trait LayoutExpected { machine expected() -> u32; }
+boundary trait LayoutExpected { machine expected() -> u32 reaches; }
 MacosArm64LayoutExpected satisfies LayoutExpected {
     machine expected() -> u32 { 572662306 }
 }

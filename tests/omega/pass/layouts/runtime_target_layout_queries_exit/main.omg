@@ -41,7 +41,7 @@ Policy satisfies FixedLayout<Payload> {
         }
     }
 }
-boundary trait LayoutExpectedSize { machine expected_size() -> u64; }
+boundary trait LayoutExpectedSize { machine expected_size() -> u64 reaches; }
 MacosArm64LayoutExpectedSize satisfies LayoutExpectedSize {
     machine expected_size() -> u64 { 8 }
 }
@@ -69,7 +69,7 @@ machine query_size() -> u64 { size_of<LayoutStorage<Payload, Policy>>() }
 // target bodies. Every body is checked, even for a single-target product.
 machine demand_eight() requires size_of<LayoutStorage<Payload, Policy>>() == 8 {}
 machine demand_four() requires size_of<LayoutStorage<Payload, Policy>>() == 4 {}
-boundary trait LayoutDemandLayout { machine demand_layout(); }
+boundary trait LayoutDemandLayout { machine demand_layout() reaches; }
 MacosArm64LayoutDemandLayout satisfies LayoutDemandLayout {
     machine demand_layout() { demand_eight(); }
 }

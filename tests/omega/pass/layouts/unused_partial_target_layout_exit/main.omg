@@ -27,7 +27,7 @@ Policy satisfies FixedLayout<Payload> {
 
 machine observe(view: &View) -> u32 { view.payload.value }
 machine program() crashes Trap { LayoutPlatform::platform(); }
-boundary trait LayoutPlatform { machine platform() crashes Trap; }
+boundary trait LayoutPlatform { machine platform() reaches crashes Trap; }
 MacosArm64LayoutPlatform satisfies LayoutPlatform {
     machine platform() crashes Trap {
     let bytes: [u8; 8] = [17, 0, 0, 0, 34, 0, 0, 0];
