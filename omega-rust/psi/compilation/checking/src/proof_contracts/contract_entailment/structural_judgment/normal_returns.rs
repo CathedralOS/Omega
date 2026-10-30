@@ -1534,6 +1534,26 @@ impl<'program> StructuralJudge<'program> {
                 } else {
                     None
                 };
+                // A borrow uses its target's completed observation before any
+                // source-place fallback. The old home can be retired while the
+                // captured value remains valid; manufacturing a placeholder
+                // first can fail typing and discard this normal path entirely.
+                let completed_borrow = if let ExpressionNode::Borrow(borrow) = node {
+                    inputs.iter()
+                        .find(|(input, _)| *input == borrow.target)
+                        .and_then(|(_, referent)| referent.observed_value())
+                        .map(|observed| {
+                            crate::expression_result_type_reference(
+                                program, scope.0, scope.1, expression,
+                            )
+                            .and_then(|declared| {
+                                super::super::structural_terms::shared_inline_observation(
+                                    program, declared, observed.clone(),
+                                )
+                            })
+                            .unwrap_or_else(|| observed.clone())
+                        })
+                } else { None };
                 let mut value = if receiver_changed {
                     // The receiver selected its base before a later operand
                     // wrote storage. Reconstructing it from the live place now
@@ -1542,7 +1562,7 @@ impl<'program> StructuralJudge<'program> {
                         Some(value) => value,
                         None => judge.capture_unknown_value(expression, scope)?,
                     }
-                } else if let Some(value) = completed_measure.or(completed_field) {
+                } else if let Some(value) = completed_borrow.or(completed_measure).or(completed_field) {
                     value
                 } else if matches!(node, ExpressionNode::Atomic(_)) {
                     // The atomic owner distinguishes an observed load from
@@ -1712,28 +1732,6 @@ impl<'program> StructuralJudge<'program> {
                     }
                 }
                 judge.observe_completed_window(expression, &inputs, scope, &value)?;
-                if let ExpressionNode::Borrow(borrow) = node {
-                    // A checked borrow selects its referent; it does not create
-                    // a new case-bearing value. The referent's completed term
-                    // keeps the same descriptor identity the mathematical
-                    // `callee_term` walk would have produced, so later `len`
-                    // and field observations name this exact view.
-                    if let Some((_, referent)) =
-                        inputs.iter().find(|(input, _)| *input == borrow.target)
-                    {
-                        if let Some(observed) = referent.observed_value() {
-                            value = crate::expression_result_type_reference(
-                                program, scope.0, scope.1, expression,
-                            )
-                            .and_then(|declared| {
-                                super::super::structural_terms::shared_inline_observation(
-                                    program, declared, observed.clone(),
-                                )
-                            })
-                            .unwrap_or_else(|| observed.clone());
-                        }
-                    }
-                }
                 if scalar_storage_read {
                     // Completing a typed read observes its actual value even
                     // when no mathematical entry value is known. Integers,

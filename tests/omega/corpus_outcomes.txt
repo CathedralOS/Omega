@@ -7242,6 +7242,14 @@ fail/facts/closed_integer_bound_through_parameter_rejected rejected 969ms expect
 	cannot prove assignment value `6` satisfies bounded target `value` in `establish.entry`; expected 0..=5
 fail/facts/closed_integer_bound_through_target_body_rejected rejected 970ms expected @a92f16431042
 	cannot prove assignment value `6` satisfies bounded target `value` in `establish.entry`; expected 0..=5
+fail/facts/completed_operand_producer_later_operand_write_rejected rejected 852ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/completed_operand_producer_reset_eight_rejected rejected 787ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 2: result == Payload::Pending && result.value.count <= 7
+fail/facts/completed_operand_reseated_reference_origin_rejected rejected 794ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 4: result == Payload::Pending && result.value.count <= 7
+fail/facts/completed_operand_selected_aggregate_index_wrong_case_rejected rejected 795ms expected @80af9f60f917+wt
+	cannot prove requires contract for call consume from main: entry(shared items, 0) == constructor:81:package:5b75e0870e53f26f8b312c2fe54e7df17adb0e503901cd212b2d357bf062fcec::Payload12:name:Pending (needs fact `picked == Payload::Pending` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/compound_guard_call_association_alias_write_compile rejected 2578ms expected @598688c61fee
 	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
 fail/facts/compound_guard_different_call_result_compile rejected 2299ms expected @a92f16431042
@@ -12514,6 +12522,24 @@ fail/facts/nested_machine_joint_rank_preserving_subcycle_rejected rejected 764ms
 fail/facts/nested_machine_joint_rank_private_promise_rejected rejected 1024ms expected @34e571f3d5a1
 	terminating machine forward contains a recursive cycle but carries no ranking witness -- spell one with `terminates by <subjects> [-> View];` (decision 23)
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_call_result_rejected rejected 800ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_const_name_rejected rejected 814ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_field_rejected rejected 805ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_local_rejected rejected 800ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_match_join_rejected rejected 803ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_other_machine_rejected rejected 802ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_other_state_rejected rejected 798ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_parameter_rejected rejected 800ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
+fail/facts/nested_machine_joint_rank_producer_write_reference_payload_target_body_rejected rejected 793ms expected @80af9f60f917+wt
+	cannot prove ensures contract for exit from input at statement 1: result == Payload::Pending && result.value.count <= 7
 fail/facts/nested_machine_joint_rank_projected_mutated_copy_rejected rejected 730ms expected @82c75bb80584
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_projected_nested_record_rejected rejected 732ms expected @82c75bb80584
@@ -27352,6 +27378,8 @@ pass/facts/closed_integer_bound_through_other_machine_exit checked 3171ms check-
 pass/facts/closed_integer_bound_through_other_state_exit checked 3186ms check-target:macos_arm64 @a92f16431042
 pass/facts/closed_integer_bound_through_parameter_exit checked 3187ms check-target:macos_arm64 @a92f16431042
 pass/facts/closed_integer_bound_through_target_body_exit checked 2785ms check-target:macos_arm64 @a92f16431042
+pass/facts/completed_operand_saved_reference_origin_exit checked 1266ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/completed_operand_selected_aggregate_index_exit checked 1266ms check-target:macos_arm64 @80af9f60f917+wt
 pass/facts/compound_guard_through_call_result_compile checked 1840ms @a92f16431042
 pass/facts/compound_guard_through_const_name_compile checked 1809ms @a92f16431042
 pass/facts/compound_guard_through_distinct_match_calls_compile checked 2281ms @598688c61fee
@@ -29463,6 +29491,15 @@ pass/facts/nested_machine_joint_rank_other_machine_exit checked 8698ms check-tar
 pass/facts/nested_machine_joint_rank_other_state_exit checked 8602ms check-target:macos_arm64 @de3c5539bbb6
 pass/facts/nested_machine_joint_rank_parameter_exit checked 962ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/nested_machine_joint_rank_private_promise_exit checked 2240ms check-target:macos_arm64 @34e571f3d5a1
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_call_result_exit checked 1130ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_const_name_exit checked 1129ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_field_exit checked 1109ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_local_exit checked 1109ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_match_join_exit checked 1164ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_other_machine_exit checked 1085ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_other_state_exit checked 1132ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_parameter_exit checked 1053ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/nested_machine_joint_rank_producer_write_reference_payload_target_body_exit checked 1120ms check-target:macos_arm64 @80af9f60f917+wt
 pass/facts/nested_machine_joint_rank_projected_mutated_copy_exit checked 1216ms check-target:macos_arm64 @82c75bb80584
 pass/facts/nested_machine_joint_rank_projected_nested_record_exit checked 1216ms check-target:macos_arm64 @82c75bb80584
 pass/facts/nested_machine_joint_rank_projected_value_call_result_exit checked 1025ms check-target:macos_arm64 @82c75bb80584
