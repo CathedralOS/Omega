@@ -453,6 +453,19 @@ selection at their original admission points. Empty callback rosters do not
 initialize it. Clones share preparation, equality ignores only derived cache
 state, and no caller can replace the program independently of its plans.
 
+Psi's `PreparedProviderInventory` retains that same immutable checked owner
+before target selection. Its lazy demand inventory includes callable references,
+concrete and symbolic boundary applications, and implicit closed descriptor
+requirements; it is not entry reachability. Omega's source-free demand predicate
+reads those prepared coordinates, and the authored-choice predicate is shared
+with complete provider publication. Publication does not discard undemanded
+candidates. The inventory also retains authored Product target origins from the
+same typed-source query used during early Build preparation. Omega selects target
+defaults from these declarations without rescanning machine bodies. These
+process-local coordinates are not another portable boundary; candidate derivation,
+calling plans and source-side policy must still migrate before the driver can
+settle the full target product after Terminal production.
+
 Numeric meaning and external satisfaction have one Psi declaration producer,
 shared by Terminal retention and rootless package projection. Checked-provider
 binding retains that projection before selection. Package review prepares its

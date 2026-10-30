@@ -7,10 +7,12 @@ mod callback_declarations;
 pub mod checked_trees;
 pub mod provider_declarations;
 pub mod provider_instances;
+mod provider_inventory;
 pub use checked_trees::facts::ConstantPredicateObligation;
 pub use checked_trees::facts::{IntegerRangeModel, IntegerRangeObligation, IntegerRangeRecipe};
 pub use checked_trees::*;
 pub(crate) use optimization::digest_encoder;
+pub use provider_inventory::PreparedProviderInventory;
 
 // Downstream realization reads typed vocabulary through checked custody:
 // `CheckedTrees` carries the typed program, so its contained tree surface is

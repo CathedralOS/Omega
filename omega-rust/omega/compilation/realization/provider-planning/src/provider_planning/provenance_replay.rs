@@ -81,11 +81,7 @@ pub struct ProviderPlanProvenance {
     pub row_placed_accessors: Vec<Option<crate::SealedPlacedAccessor>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectedTargetMachineOrigin {
-    pub machine: symbols::SymbolHandle,
-    pub target: String,
-}
+pub use language_semantics::provider_declarations::SelectedTargetMachineOrigin;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DerivedProviderPlan {

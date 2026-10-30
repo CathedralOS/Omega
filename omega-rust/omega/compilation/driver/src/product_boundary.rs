@@ -1496,6 +1496,84 @@ fn provider_instance_consumers_share_one_immutable_declaration_owner() {
 }
 
 #[test]
+fn provider_demand_is_prepared_by_psi_not_each_target_settlement() {
+    let inventory = include_str!(
+        "../../../../psi/compilation/representations/checked-trees/src/provider_inventory.rs"
+    );
+    for source in [
+        "collect_program_references(",
+        ".boundary_applications",
+        ".symbolic_boundary_applications",
+        ".provider_closed_requirements",
+    ] {
+        assert!(
+            inventory.contains(source),
+            "lost provider demand source {source}"
+        );
+    }
+    assert!(inventory.contains("uses: OnceLock<HashSet<SymbolHandle>>"));
+    assert!(inventory.contains("self.require_owner(checked)?"));
+    assert!(inventory.contains("std::ptr::eq(self.checked.as_ref(), checked)"));
+    let settlement = include_str!("../../realization/provider-planning/src/provider_settlement.rs");
+    assert!(settlement.contains("provider_selection::is_candidate_demanded("));
+    assert!(!settlement.contains("collect_program_references("));
+    assert!(!settlement.contains("provider_closed_requirements"));
+    let demand = include_str!("../../realization/provider-selection/src/provider_demands.rs");
+    for forbidden in ["TypedTrees", "checked_trees", "CheckFacts", "SymbolHandle"] {
+        assert!(!demand.contains(forbidden));
+    }
+    assert!(demand.contains("choice.subject.selects_plan(schema, plan)"));
+    let publication = include_str!(
+        "../../realization/provider-planning/src/target_machines/provider_publication.rs"
+    );
+    assert!(publication.contains("choice.subject.selects_plan(&Ok(schema), &candidate.plan)"));
+    assert!(!publication.contains("is_candidate_demanded"));
+}
+
+#[test]
+fn target_defaults_consume_one_psi_authored_origin_inventory() {
+    let target_selection =
+        include_str!("../../realization/provider-planning/src/target_machines.rs");
+    let selection = target_selection
+        .split("pub fn settle_provider_defaults(")
+        .nth(1)
+        .expect("target-default selection")
+        .split("///")
+        .next()
+        .expect("target-default body");
+    assert!(selection.contains("origins: &[crate::SelectedTargetMachineOrigin]"));
+    assert!(!selection.contains(".machines()"));
+    assert!(!selection.contains("ProviderPlanningContext"));
+    let origins = include_str!(
+        "../../../../psi/compilation/representations/typed-trees/src/provider_declarations.rs"
+    );
+    assert!(origins.contains("symbol_is_in_dependency_scope(machine.symbol, scope)"));
+    assert!(
+        origins.contains("scope == source::DependencyScope::Product || machine.target.is_none()")
+    );
+    assert!(!origins.contains("TargetProfile"));
+    let build = include_str!("../../build-evaluation/src/admission/checking.rs");
+    assert!(build.contains("typed_trees::provider_declarations::provider_target_declarations("));
+    let inventory = include_str!(
+        "../../../../psi/compilation/representations/checked-trees/src/provider_inventory.rs"
+    );
+    assert!(
+        inventory.contains("typed_trees::provider_declarations::provider_target_declarations(")
+    );
+    let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(binding.contains("Arc::ptr_eq(settlement.provider_inventory.program(), &program)"));
+    let production = include_str!("terminal/terminal_artifact.rs");
+    assert!(production.contains("origins: source.provider_inventory.origins()"));
+    let publication = include_str!(
+        "../../realization/provider-planning/src/target_machines/authored_providers.rs"
+    );
+    assert!(
+        publication
+            .contains("super::settle_provider_defaults(self.origins, self.defaults, profile)")
+    );
+}
+
+#[test]
 fn selected_callback_custody_carries_declarations_not_source_symbols() {
     let selection = include_str!("../../realization/selected-dispatch/src/selected_execution.rs");
     assert!(

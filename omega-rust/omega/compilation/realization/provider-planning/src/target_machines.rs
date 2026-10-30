@@ -23,7 +23,7 @@ pub use provider_publication::{
 
 /// Project retained declarations onto one realization using their exact handles.
 pub fn settle_provider_defaults(
-    context: crate::ProviderPlanningContext<'_>,
+    origins: &[crate::SelectedTargetMachineOrigin],
     retained: &[crate::TargetProviderDefaults],
     target: TargetProfile,
 ) -> SettledTargetMachineDeclarations {
@@ -35,21 +35,10 @@ pub fn settle_provider_defaults(
         .filter(|row| row.target.as_ref().is_none_or(|name| matches_target(name)))
         .flat_map(|row| row.selections.iter().cloned())
         .collect();
-    let origins = context
-        .typed
-        .machines()
+    let origins = origins
         .iter()
-        .filter(|machine| {
-            context.contains(machine.symbol)
-                && (context.scope == source::DependencyScope::Product || machine.target.is_none())
-        })
-        .filter_map(|machine| {
-            let authored = machine.authored_target.as_ref()?;
-            matches_target(authored.as_str()).then(|| crate::SelectedTargetMachineOrigin {
-                machine: machine.symbol,
-                target: authored.as_str().to_owned(),
-            })
-        })
+        .filter(|origin| matches_target(&origin.target))
+        .cloned()
         .collect();
     SettledTargetMachineDeclarations {
         provider_defaults,
