@@ -563,19 +563,22 @@ impl<'artifact> TerminalExecution<'artifact> {
         )? {
             return Ok(OperationFlow::Advance);
         }
-        let mut boundary_arguments = self.resolve_boundary_arguments(
-            &boundary_declaration.structural_parameters,
-            structural_arguments,
-            handler.storage_arguments(boundary),
-            &boundary_declaration.normal_qualifications,
-        )?;
+        let mut boundary_arguments = self
+            .resolve_boundary_arguments(
+                &boundary_declaration.structural_parameters,
+                structural_arguments,
+                handler.storage_arguments(boundary),
+                &boundary_declaration.normal_qualifications,
+            )
+            .map_err(|error| error.in_argument_preparation("resolve host argument tuple"))?;
         bind_active_structural_arguments(
             &boundary_declaration.structural_parameters,
             &boundary_arguments.values,
             &self.program.structural_types(),
             self.structural_cases.as_map(),
             self.account.as_ref(),
-        )?;
+        )
+        .map_err(|error| error.in_argument_preparation("bind host argument declarations"))?;
         validate_boundary_requirements(boundary_declaration, |index| {
             boundary_arguments.values.get(index)
         })?;
@@ -636,6 +639,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             Ok(OperationFlow::Yield(status))
         } else {
             self.complete_boundary_effect(operation, handler, pending)
+                .map_err(|error| error.in_argument_preparation("execute captured host call"))
         }
     }
 
@@ -727,7 +731,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             boundary_arguments.reserve_host_result(&mut self.local_structural_identities, value)?;
         }
         boundary_arguments.commit_identity_cursor(self);
-        self.commit_boundary_result(&operation.result, &boundary_declaration.result, returned)?;
+        self.commit_boundary_result(&operation.result, &boundary_declaration.result, returned)
+            .map_err(|error| error.in_argument_preparation("commit host result"))?;
         for (argument, parameter) in structural_arguments
             .iter()
             .zip(&boundary_declaration.structural_parameters)
@@ -760,7 +765,9 @@ impl<'artifact> TerminalExecution<'artifact> {
                 )?;
             }
         }
-        boundary_arguments.commit(self)?;
+        boundary_arguments
+            .commit(self)
+            .map_err(|error| error.in_argument_preparation("commit captured host storage"))?;
         let loan_completions = self.loan_completions_for_operation(operation.id)?;
         self.complete_loan_custody(&loan_completions)?;
         self.effects.push(effect);
