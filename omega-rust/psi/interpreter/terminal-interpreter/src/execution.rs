@@ -771,11 +771,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         &mut self,
         inputs: crate::structural_inputs::TerminalStructuralInputs<'_>,
     ) -> Result<(), TerminalInterpretError> {
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         for (index, (parameter, value)) in machine
             .structural_parameters
             .iter()

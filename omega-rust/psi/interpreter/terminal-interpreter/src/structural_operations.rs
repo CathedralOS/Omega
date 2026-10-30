@@ -1016,11 +1016,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         if !terminal_semantics::structural_store_value_admitted(
             machine,
             self.program.structural_types().values(),
@@ -1366,11 +1362,7 @@ impl TerminalExecution<'_> {
                 }])?
                 .pop()
                 .ok_or_else(malformed)?;
-            let machine = self
-                .program
-                .machines()
-                .get(&self.current_machine)
-                .ok_or_else(malformed)?;
+            let machine = self.program.machine(self.current_machine)?;
             // `base` comes from the live, access-checked captured reference,
             // not raw pointer equality. Its semantic storage identity must
             // belong to this frame's exclusive ingress or live owned storage.

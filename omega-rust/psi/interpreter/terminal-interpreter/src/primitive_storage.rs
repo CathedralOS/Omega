@@ -1008,11 +1008,7 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
     ) -> Result<(StructuralTypeId, bool), TerminalInterpretError> {
         let machine_id = self.owned_array_home(&home)?;
-        let machine = self
-            .program
-            .machines()
-            .get(&machine_id)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(machine_id)?;
         let preserves =
             |root,
              whole: &[semantic_vocabulary::StructuralDomainId],
@@ -1312,11 +1308,7 @@ impl TerminalExecution<'_> {
             // the remaining typed projection and stored scalar carrier.
             return loan.scalar_storage(self, path, writing);
         }
-        let machine = self
-            .program
-            .machines()
-            .get(&machine_id)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(machine_id)?;
         if let Some(loan) = primitive_loan_values.get(&place) {
             let parameter = machine.structural_parameter(place).ok_or_else(malformed)?;
             if !path.is_empty()
@@ -1838,11 +1830,7 @@ impl TerminalExecution<'_> {
         value: ValueId,
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.structural().ok_or_else(malformed)?;
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         // Block entry retired any earlier visit's local, so a value still
         // here is a second live definition.
         if local_type(machine, result.place) != Some(result.structural_type)
@@ -2087,11 +2075,7 @@ impl TerminalExecution<'_> {
         let mut path = argument.path.clone();
         path.extend_from_slice(relative_path);
         if path.is_empty() {
-            let machine = self
-                .program
-                .machines()
-                .get(&self.current_machine)
-                .ok_or_else(malformed)?;
+            let machine = self.program.machine(self.current_machine)?;
             if let Some(parameter) = machine
                 .structural_parameter(argument.place)
                 .filter(|parameter| parameter.access == StructuralAccess::Owned)
@@ -2255,11 +2239,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let scalar = self.scalar_value(value)?;
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         let (root, whole, projected) = machine
             .structural_parameter(destination)
             .map(|parameter| {

@@ -854,11 +854,7 @@ impl TerminalExecution<'_> {
                             return Ok(binding.clone());
                         }
                         ByteSequenceBinding::Immutable(_) if value.path.is_empty() => {
-                            let declaration = self
-                                .program
-                                .machines()
-                                .get(&machine)
-                                .ok_or_else(malformed)?;
+                            let declaration = self.program.machine(machine)?;
                             let owns_storage = declaration
                                 .structural_parameter(*place)
                                 .is_some_and(|parameter| {

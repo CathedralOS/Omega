@@ -37,11 +37,7 @@ impl TerminalExecution<'_> {
         let mut selected: Option<OriginalAllocation> = None;
         let mut competing = false;
         for (depth, machine_id, values) in homes {
-            let machine = self
-                .program
-                .machines()
-                .get(&machine_id)
-                .ok_or_else(malformed)?;
+            let machine = self.program.machine(machine_id)?;
             for (place, allocation) in values {
                 if allocation.opaque_identity != source.opaque_identity
                     || !source.path.starts_with(&allocation.path)

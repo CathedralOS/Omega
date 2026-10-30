@@ -247,11 +247,7 @@ impl TerminalExecution<'_> {
         length_metadata: bool,
     ) -> Result<(StructuralByteSequenceRuntimeField, ByteSequenceCarrier), TerminalInterpretError>
     {
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         if crate::custody::place_is_claimed(&self.live_claims, root) {
             return Err(malformed());
         }
