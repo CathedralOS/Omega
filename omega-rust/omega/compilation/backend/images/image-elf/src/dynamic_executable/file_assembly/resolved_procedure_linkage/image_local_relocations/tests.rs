@@ -15,14 +15,10 @@ use crate::{
 };
 use arena::Handle;
 use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
-    FinalImageSection, FinalImageSymbol,
+    FinalImage, FinalImageMemory, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
 };
 use object_file::{RelocationKind, SymbolKind};
-use target::{
-    ForeignLocatorCandidate, TargetProfile,
-    normalize_foreign_locator,
-};
+use target::TargetProfile;
 
 /// `.text` offset of the compiler-private callback function.
 const PRIVATE_CALLBACK_OFFSET: usize = 40;
@@ -65,28 +61,15 @@ fn callback_image(target: TargetProfile) -> FinalImage {
         size: 8,
         kind: SymbolKind::Function,
     });
-    let import = image.symbol_table.symbols.insert(FinalImageSymbol {
-        name: "__omega_callback_registrar".to_owned(),
-        section: FinalImageSection::None,
-        offset: 0,
-        size: 0,
-        kind: SymbolKind::Import,
-    });
-    image.symbol_table.imports.insert(FinalImageImport {
-        symbol_handle: import,
-        import: FinalImageImportPlan::Normalized(
-            normalize_foreign_locator(
-                ForeignLocatorCandidate::ElfVersioned {
-                    object: b"libcallback-registrar.so".to_vec(),
-                    symbol: b"register_callback".to_vec(),
-                    version: b"CALLBACK_1".to_vec(),
-                },
-                target,
-            )
-            .unwrap()
-            .into(),
-        ),
-    });
+    let import = crate::test_support::versioned_import(
+        &mut image,
+        "__omega_callback_registrar",
+        b"libcallback-registrar.so",
+        b"register_callback",
+        b"CALLBACK_1",
+        target,
+        "versioned import locator",
+    );
 
     let mut relocate = |section, offset, byte_width, symbol_handle, kind| {
         image

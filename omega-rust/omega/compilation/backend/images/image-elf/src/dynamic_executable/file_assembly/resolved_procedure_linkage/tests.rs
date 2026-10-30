@@ -20,11 +20,10 @@ use crate::{
 };
 use arena::Handle;
 use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
-    FinalImageSection, FinalImageSymbol,
+    FinalImage, FinalImageMemory, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
 };
 use object_file::{RelocationKind, SymbolKind};
-use target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
+use target::TargetProfile;
 
 fn standard_envelope(target: TargetProfile) -> ValidatedElfDynamicFileEnvelope {
     envelope(
@@ -63,29 +62,15 @@ fn envelope(
 
     let mut imports = Vec::new();
     for (index, symbol) in imported_symbols.into_iter().enumerate() {
-        let handle = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: format!("__omega_resolved_import_{index}"),
-            section: FinalImageSection::None,
-            offset: 0,
-            size: 0,
-            kind: SymbolKind::Import,
-        });
-        image.symbol_table.imports.insert(FinalImageImport {
-            symbol_handle: handle,
-            import: FinalImageImportPlan::Normalized(
-                normalize_foreign_locator(
-                    ForeignLocatorCandidate::ElfVersioned {
-                        object: b"libresolved-procedure.so".to_vec(),
-                        symbol: symbol.to_vec(),
-                        version: b"RESOLVED_PROCEDURE_1".to_vec(),
-                    },
-                    target,
-                )
-                .unwrap()
-                .into(),
-            ),
-        });
-        imports.push(handle);
+        imports.push(crate::test_support::versioned_import(
+            &mut image,
+            &format!("__omega_resolved_import_{index}"),
+            b"libresolved-procedure.so",
+            symbol,
+            b"RESOLVED_PROCEDURE_1",
+            target,
+            "versioned import locator",
+        ));
     }
     crate::test_support::insert_text_call_relocations(
         &mut image,
