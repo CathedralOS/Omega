@@ -136,13 +136,16 @@ impl TargetProviderPreparationRequest<'_> {
                     .iter()
                     .chain(self.overrides)
                     .any(|selection| {
-                        candidate.plan.rows.iter().any(|row| {
-                            selection.subject.selects_schema(
-                                schema,
-                                candidate.plan.identity_text(row.requirement_identity),
-                                candidate.plan.schema.root_application_identity(),
-                            )
-                        })
+                        selection
+                            .target
+                            .is_none_or(|selected| selected.canonical_name() == target)
+                            && candidate.plan.rows.iter().any(|row| {
+                                selection.subject.selects_schema(
+                                    schema,
+                                    candidate.plan.identity_text(row.requirement_identity),
+                                    candidate.plan.schema.root_application_identity(),
+                                )
+                            })
                     });
             // Close nominal and numeric realization declarations while source
             // custody exists. Retain failure until selection and provenance

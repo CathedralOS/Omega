@@ -50,9 +50,8 @@ pub(crate) fn retain(checked: &CheckedTrees) -> ProofApplicationPlan {
             .terminal_unit_effects
             .layout_observations
             .is_empty();
-    if !plan.has_obligations {
-        return plan;
-    }
+    // The same application graph also discovers Build provider demand. A
+    // program without conditional scalar debt still invokes requirements.
     let mut declarations = typed_trees::references::collect_program_declarations(typed);
     declarations.retain(|owner| typed.machine_by_symbol(*owner).is_none());
     for owner in typed.traits() {

@@ -92,11 +92,11 @@ impl PreparedTargetProviderPublication {
                                     .map_err(|reason| vec![Diagnostic::error(reason)])?,
                             );
                         }
-                        prepared.select(artifact)
-                    })
-                    .map(|mut selection| {
-                        selection.assumed_bindings = self.assumed_bindings.clone();
-                        selection
+                        prepared.select(
+                            artifact,
+                            application_roots.as_deref(),
+                            &self.assumed_bindings,
+                        )
                     })
                     .map_err(|diagnostics| {
                         diagnostics
@@ -118,42 +118,141 @@ impl PreparedTargetProviderPublication {
 }
 
 impl PreparedTargetChoices {
-    /// Demand filters complete candidates, never the declared family coordinate roster.
+    /// Grow actual application demand through exact selected providers. Catalog
+    /// retention alone never applies a requirement on an unrelated target.
+    /// Each demanded schema still selects and admits its complete provider.
     pub fn select(
         self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
+        roots: Option<&[terminal_psi::ProofDeclarationId]>,
+        assumed_bindings: &[effects::AssumedBindingContractSelection],
     ) -> Result<backend_plan::TerminalTargetProviderSelection, Vec<Diagnostic>> {
-        let module = artifact.module();
-        let demanded = self
-            .candidates
-            .into_iter()
-            .filter(|candidate| {
-                candidate.explicitly_selected
-                    || module.boundary_machines.iter().any(|boundary| {
-                        boundary.role == terminal_psi::BoundaryDeclarationRole::Callable
-                            && module.identities.text(boundary.owner.identity())
-                                == Some(candidate.schema_owner.as_str())
-                    })
-            })
-            .map(|candidate| candidate.choice)
-            .collect();
-        let selected = crate::choose(demanded, self.profile, &self.defaults, &self.overrides)?;
-        let (_, selected) = crate::admit(
-            selected,
-            self.independent_components.iter().map(AsRef::as_ref),
-        )?;
-        let mut plans = Vec::with_capacity(selected.len());
-        for selected in selected {
-            let realizations = selected.candidate.owner?;
-            plans.push(backend_plan::TerminalTargetProviderPlan {
-                plan: selected.candidate.plan,
-                provider_declaration: realizations.provider_declaration,
-                row_numeric_realizations: realizations.row_numeric_realizations,
-            });
+        let mut demanded = vec![false; self.candidates.len()];
+        let mut previous = describe_selection(&[], artifact, assumed_bindings)?;
+        loop {
+            self.extend_application_demand(artifact, roots, &previous, &mut demanded)?;
+            let candidates = self
+                .candidates
+                .iter()
+                .zip(&demanded)
+                .filter(|(_, demanded)| **demanded)
+                .map(|(candidate, _)| candidate.choice.clone())
+                .collect();
+            let selected =
+                crate::choose(candidates, self.profile, &self.defaults, &self.overrides)?;
+            let proposed = describe_selection(&selected, artifact, assumed_bindings)?;
+            if proposed == previous {
+                // Intermediate choices discover calls, not evidence. Admit the
+                // complete fixed point once, including all independent edges.
+                let (_, selected) = crate::admit(
+                    selected,
+                    self.independent_components.iter().map(AsRef::as_ref),
+                )?;
+                return describe_selection(&selected, artifact, assumed_bindings);
+            }
+            previous = proposed;
         }
-        backend_plan::TerminalTargetProviderSelection::from_plans(plans, artifact)
-            .map_err(|reason| vec![Diagnostic::error(reason)])
     }
+
+    fn extend_application_demand(
+        &self,
+        artifact: terminal_codec::TerminalArtifactView<'_>,
+        roots: Option<&[terminal_psi::ProofDeclarationId]>,
+        selected: &backend_plan::TerminalTargetProviderSelection,
+        demanded: &mut [bool],
+    ) -> Result<(), Vec<Diagnostic>> {
+        let module = artifact.module();
+        let scope = &module.scalar_applications.proof_scope;
+        let declaration = |callable| {
+            scope.callable_declaration(callable).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "provider application demand lost its exact proof declaration",
+                )]
+            })
+        };
+        let mut roots = roots.map(<[_]>::to_vec);
+        let mut edges = Vec::new();
+        for row in &selected.checked_candidates {
+            let requirement =
+                declaration(terminal_psi::TargetMachineCallable::Boundary(row.boundary))?;
+            let body = declaration(terminal_psi::TargetMachineCallable::Machine(row.candidate))?;
+            edges.push((requirement, body));
+            if let Some(roots) = &mut roots
+                && !roots.contains(&body)
+            {
+                roots.push(body);
+            }
+        }
+        // Assumptions retain their exact required/supplied requirement edge.
+        // This discovers supply demand; final installation still owes the
+        // original checked contracts, authority and complete alias admission.
+        let plans = effects::SelectedProviderPlanFacts::from_selected_plans(
+            selected.plans.iter().map(|row| row.plan.clone()).collect(),
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?
+        .with_assumed_bindings(selected.assumed_bindings.clone());
+        for (required, supplied) in plans
+            .assumed_binding_coordinates(module)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+        {
+            edges.push((
+                declaration(terminal_psi::TargetMachineCallable::Boundary(required))?,
+                declaration(terminal_psi::TargetMachineCallable::Boundary(supplied))?,
+            ));
+        }
+        let mut calls = scope
+            .applications()
+            .reachability(self.profile.target_name(), true, &edges, roots.as_deref())
+            .calls;
+        calls.sort_unstable();
+        let mut invoked_owners = module
+            .boundary_machines
+            .iter()
+            .filter(|boundary| boundary.role == terminal_psi::BoundaryDeclarationRole::Callable)
+            .filter(|boundary| {
+                scope
+                    .callable_declaration(terminal_psi::TargetMachineCallable::Boundary(
+                        boundary.id,
+                    ))
+                    .is_some_and(|requirement| calls.binary_search(&requirement).is_ok())
+            })
+            .filter_map(|boundary| module.identities.text(boundary.owner.identity()))
+            .collect::<Vec<_>>();
+        invoked_owners.sort_unstable();
+        invoked_owners.dedup();
+        for (candidate, demanded) in self.candidates.iter().zip(demanded) {
+            *demanded |= candidate.explicitly_selected
+                || invoked_owners
+                    .binary_search(&candidate.schema_owner.as_str())
+                    .is_ok();
+        }
+        Ok(())
+    }
+}
+
+type SelectedCanonicalProvider = crate::SelectedProvider<
+    CanonicalProviderDeclaration,
+    Result<PreparedProviderRealizations, Vec<Diagnostic>>,
+>;
+
+fn describe_selection(
+    selected: &[SelectedCanonicalProvider],
+    artifact: terminal_codec::TerminalArtifactView<'_>,
+    assumed_bindings: &[effects::AssumedBindingContractSelection],
+) -> Result<backend_plan::TerminalTargetProviderSelection, Vec<Diagnostic>> {
+    let mut plans = Vec::with_capacity(selected.len());
+    for selected in selected {
+        let realizations = selected.candidate.owner.as_ref().map_err(Clone::clone)?;
+        plans.push(backend_plan::TerminalTargetProviderPlan {
+            plan: selected.candidate.plan.clone(),
+            provider_declaration: realizations.provider_declaration.clone(),
+            row_numeric_realizations: realizations.row_numeric_realizations.clone(),
+        });
+    }
+    let mut selection = backend_plan::TerminalTargetProviderSelection::from_plans(plans, artifact)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    selection.assumed_bindings = assumed_bindings.to_vec();
+    Ok(selection)
 }
 
 /// Rejoin exact prepared declarations to this immutable artifact, retaining

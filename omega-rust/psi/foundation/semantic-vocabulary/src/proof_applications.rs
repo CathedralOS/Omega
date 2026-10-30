@@ -137,6 +137,13 @@ pub struct ProofApplications<'a, Declaration: 'static, Calls> {
     operational: &'a Calls,
 }
 
+/// One walk retains executable owners and invoked coordinates separately.
+/// A boundary requirement can be invoked without having an executable body.
+pub struct ProofApplicationReachability<Declaration> {
+    pub machines: Vec<Declaration>,
+    pub calls: Vec<Declaration>,
+}
+
 impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCalls<Declaration>>
     ProofApplications<'a, Declaration, Calls>
 {
@@ -225,20 +232,22 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         providers: &[(Declaration, Declaration)],
         roots: Option<&[Declaration]>,
     ) -> (Vec<Declaration>, Vec<Declaration>) {
-        let machines = self.application_machines(scope, selected_product, providers, roots);
+        let machines = self
+            .reachability(scope, selected_product, providers, roots)
+            .machines;
         let mut declarations = self.plan.declaration_membership(&machines);
         declarations.sort_unstable_by_key(|declaration| Calls::declaration_order(*declaration));
         declarations.dedup();
         (machines, declarations)
     }
 
-    fn application_machines(
+    pub fn reachability(
         &self,
         target: &str,
         selected_product: bool,
         provider_edges: &[(Declaration, Declaration)],
         roots: Option<&[Declaration]>,
-    ) -> Vec<Declaration> {
+    ) -> ProofApplicationReachability<Declaration> {
         let mut pending = roots
             .into_iter()
             .flatten()
@@ -261,7 +270,13 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         }
         let mut visited = Vec::new();
         let mut machines = Vec::new();
+        let mut calls = Vec::new();
         while let Some(mut application) = pending.pop() {
+            if application.machine != Declaration::default()
+                && !calls.contains(&application.machine)
+            {
+                calls.push(application.machine);
+            }
             let Some(declaration) = self.plan.called_machine(application.machine) else {
                 continue;
             };
@@ -291,6 +306,11 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                 machines.push(machine.machine);
             }
             let has_summary = self.operational.visit_calls(machine.machine, |call| {
+                for coordinate in [call.state, call.operator] {
+                    if coordinate != Declaration::default() && !calls.contains(&coordinate) {
+                        calls.push(coordinate);
+                    }
+                }
                 let selected = application
                     .bindings
                     .iter()
@@ -342,7 +362,7 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                     }),
             );
         }
-        machines
+        ProofApplicationReachability { machines, calls }
     }
 }
 
