@@ -2512,6 +2512,9 @@ impl<'program> StructuralJudge<'program> {
         // An overwritten referent supplies no stable input observation, but
         // does not erase independent guarantees about this returned value.
         // Equations requiring an omitted formal fail exact substitution.
+        if let Some(captured) = &captured {
+            self.retain_completed_result_reads(scope.0, scope.1, expression, captured);
+        }
         let guarantees = self.selected_guarantees(
             &owner,
             &entry_bindings,

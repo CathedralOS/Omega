@@ -18,7 +18,7 @@ use symbols::SymbolKeyMap as HashMap;
 pub(super) mod bindings;
 mod projections;
 pub(super) mod read_backing;
-mod read_projection;
+pub(super) mod read_projection;
 mod results;
 
 /// Taking an owned storage address does not load a frozen reference binding.

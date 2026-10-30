@@ -21,7 +21,19 @@ pub(in crate::machine_calls::calls::write_frames) fn capture(
     if reads.is_empty() {
         return None;
     }
-    let mut values = vec![super::super::frame_coordinate_path(program, root, path)?];
+    from_reads(
+        reads,
+        vec![super::super::frame_coordinate_path(program, root, path)?],
+    )
+}
+
+pub(in crate::machine_calls::calls::write_frames) fn from_reads(
+    reads: Vec<stored_origins::CapturedReferenceRead>,
+    mut values: Vec<String>,
+) -> Option<CapturedStorageReadBacking> {
+    if reads.is_empty() {
+        return None;
+    }
     let mut bindings = Vec::new();
     let mut sources = Vec::new();
     for read in reads {

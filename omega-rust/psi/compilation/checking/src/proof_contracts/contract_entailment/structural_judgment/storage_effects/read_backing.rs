@@ -25,6 +25,132 @@ impl CapturedScalarReadBacking {
 }
 
 impl StructuralJudge<'_> {
+    /// A completed call's public coordinate observes current contents through
+    /// its independently retained result suppliers. It is a logical post-state
+    /// cell, not an invented executable scalar-read occurrence.
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn retain_completed_result_reads(
+        &mut self,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        captured: &super::super::StructuralTerm,
+    ) {
+        if !self.requires_value_preservation() {
+            return;
+        }
+        let Some(reference) =
+            crate::machine_calls::calls::call_result_type(self.program, expression)
+        else {
+            return;
+        };
+        for observation in
+            crate::scoped_call_result_observations(self.program, machine, state, expression)
+        {
+            let Some(backing) = observation.backing else {
+                continue;
+            };
+            let Some(coordinate) = self.capture_storage_place(crate::CanonicalPlace {
+                root: facts::PlaceRoot::Expression(expression),
+                segments: observation.path.clone(),
+            }) else {
+                continue;
+            };
+            let Some(geometry) = crate::structural_scalar_coordinate_in_type(
+                self.program,
+                facts::PlaceRoot::Expression(expression),
+                reference,
+                &observation.path,
+            ) else {
+                continue;
+            };
+            let mut value = Some(captured.clone());
+            let mut current_type = reference;
+            for segment in &observation.path {
+                let Some(projected) = crate::project_type_reference_from_segments(
+                    self.program,
+                    current_type,
+                    std::slice::from_ref(segment),
+                ) else {
+                    value = None;
+                    break;
+                };
+                value = value.and_then(|value| match segment {
+                    facts::PlaceSegment::Field { symbol } => {
+                        super::super::super::observed_projections::project_field(
+                            value,
+                            self.program.symbols.name(*symbol),
+                        )
+                    }
+                    facts::PlaceSegment::Case { .. } => Some(value),
+                    facts::PlaceSegment::FixedIndex { index } => {
+                        Some(super::super::StructuralTerm::IndexedValue {
+                            element_type: projected,
+                            element_identity: self.program.normalized_type_identity(projected),
+                            collection: Box::new(value),
+                            index: Box::new(super::super::StructuralTerm::Integer(
+                                numerics::bignum::BigInt::from_u64(u64::try_from(*index).ok()?),
+                            )),
+                        })
+                    }
+                    _ => None,
+                });
+                current_type = projected;
+            }
+            let Some(value) = value else {
+                continue;
+            };
+            let value = super::super::super::structural_terms::owned_projection_observation(
+                self.program,
+                geometry.result_type_reference,
+                value,
+            );
+            let backing = self.freeze_scalar_read_backing(state, backing);
+            self.retain_storage_value(coordinate.clone(), value, false);
+            if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
+                .iter_mut()
+                .find(|stored| stored.coordinate == coordinate)
+            {
+                stored.backing = Some(backing);
+            }
+        }
+    }
+
+    /// Only an already installed, still-current completed-result cell can
+    /// cross the descriptor fence. Re-querying the old call cannot revive it.
+    pub(in crate::proof_contracts::contract_entailment) fn completed_result_read(
+        &self,
+        captured: &super::super::StructuralTerm,
+        path: &[facts::PlaceSegment],
+    ) -> Option<super::super::StructuralTerm> {
+        let captured = captured.semantic_value();
+        let super::super::StructuralTerm::CapturedValue { expression, .. } = captured else {
+            return None;
+        };
+        let coordinate = self.capture_storage_place(crate::CanonicalPlace {
+            root: facts::PlaceRoot::Expression(*expression),
+            segments: path.to_vec(),
+        })?;
+        self.stored_values.iter().find_map(|stored| {
+            if stored.coordinate != coordinate || stored.backing.is_none() {
+                return None;
+            }
+            let current = stored.current.as_ref()?;
+            let mut root = current.semantic_value();
+            loop {
+                root = match root {
+                    super::super::StructuralTerm::Projection { subject, .. } => {
+                        subject.semantic_value()
+                    }
+                    super::super::StructuralTerm::IndexedValue { collection, .. } => {
+                        collection.semantic_value()
+                    }
+                    _ => break,
+                };
+            }
+            (root == captured).then(|| current.clone())
+        })
+    }
+
     pub(super) fn freeze_scalar_read_backing(
         &self,
         state: &State,

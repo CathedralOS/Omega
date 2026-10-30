@@ -125,7 +125,7 @@ fn capture_projection(
         precision: FramePathPrecision::Exact,
         source: initial,
     };
-    let mut reads = captured_reference_reads(program, &Some(origin), aliases, stored)
+    let reads = captured_reference_reads(program, &Some(origin), aliases, stored)
         .into_iter()
         .map(|read| read.and_then(|read| admitted(read, usage)))
         .collect::<Option<Vec<_>>>()?;
@@ -133,20 +133,88 @@ fn capture_projection(
         // A spatial answer or lifetime debt did not load this descriptor.
         return None;
     }
-    let mut consumed = initial_end;
-    for (end, load_required) in cuts
+    let spans = cuts
         .into_iter()
         .skip(1)
         .map(|end| (end, true))
-        .chain((usage == ProjectionUse::Contents).then_some((source.segments.len(), false)))
-    {
+        .chain((usage == ProjectionUse::Contents).then_some((source.segments.len(), false)));
+    complete_spans(
+        program,
+        reads,
+        &source.segments,
+        initial_end,
+        spans,
+        stored,
+        usage,
+    )
+}
+
+/// The returned field has already supplied this pointer value. Continue its
+/// owned suffix without loading that captured pointer from its former slot a
+/// second time. Every subsequent pointer still needs a distinct current load.
+pub(in crate::machine_calls::calls::write_frames) fn complete_contents(
+    program: &dyn crate::CheckingInput,
+    source: super::super::stored_calls::SlotSource,
+    mut cursor: StorageProjectionCursor<'_>,
+    path: &[PlaceSegment],
+    stored: &[StoredLocalOrigins],
+) -> Option<Vec<CapturedReferenceRead>> {
+    let mut cuts = Vec::new();
+    for position in 0..=path.len() {
+        while let Some(access) = cursor.reference_access() {
+            if !access.is_readable() {
+                return None;
+            }
+            cuts.push((position, true));
+            cursor.enter_referee()?;
+        }
+        if let Some(segment) = path.get(position) {
+            if !matches!(
+                segment,
+                PlaceSegment::Field { .. }
+                    | PlaceSegment::Case { .. }
+                    | PlaceSegment::FixedIndex { .. }
+            ) {
+                return None;
+            }
+            cursor.advance(segment)?;
+        }
+    }
+    cursor.finish()?;
+    let read = admitted(
+        CapturedReferenceRead {
+            source,
+            slots: Vec::new(),
+        },
+        ProjectionUse::Contents,
+    )?;
+    cuts.push((path.len(), false));
+    complete_spans(
+        program,
+        vec![read],
+        path,
+        0,
+        cuts,
+        stored,
+        ProjectionUse::Contents,
+    )
+}
+
+fn complete_spans(
+    program: &dyn crate::CheckingInput,
+    mut reads: Vec<CapturedReferenceRead>,
+    path: &[PlaceSegment],
+    mut consumed: usize,
+    spans: impl IntoIterator<Item = (usize, bool)>,
+    stored: &[StoredLocalOrigins],
+    usage: ProjectionUse,
+) -> Option<Vec<CapturedReferenceRead>> {
+    for (end, load_required) in spans {
         let mut completed = Vec::new();
         for read in reads {
             let before = read.slots.len();
             let mut projected = read.source.origin.clone();
-            projected.source = projected
-                .source
-                .append_segments(&source.segments[consumed..end]);
+            projected.source = projected.source.append_segments(&path[consumed..end]);
             projected.path = if projected.source.root.is_valid() {
                 super::super::frame_coordinate_path(
                     program,

@@ -224,58 +224,55 @@ fn borrowed_data_literal_initializers(
     let Some(literal) = program.expression_table.struct_literal_node(expression) else {
         return Vec::new();
     };
-    let literal_fields = program.expression_table.struct_fields(literal.fields);
-
-    let fields: Vec<&typed_trees::data::DataField> = if let Some(case_name) = &literal.case_name {
-        program
-            .data_members(definition)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Variant(variant)
-                    if variant.name.as_str() == case_name.as_str() =>
-                {
-                    Some(program.data_payload_fields(variant).iter().collect())
-                }
-                _ => None,
-            })
-            .unwrap_or_default()
-    } else {
-        program
-            .data_members(definition)
-            .iter()
-            .filter_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) => Some(field),
-                typed_trees::data::DataMember::Variant(_) => None,
-            })
-            .collect()
+    let Some(selected_definition) =
+        validation::selected_construction_definition(program, expression, literal)
+    else {
+        return Vec::new();
     };
+    if selected_definition.symbol != definition.symbol {
+        return Vec::new();
+    }
+    let selected_case =
+        validation::selected_construction_case(program, expression, literal, selected_definition);
+    if literal.case_symbol.is_some() != selected_case.is_some()
+        || literal.case_name.is_some() != selected_case.is_some()
+    {
+        return Vec::new();
+    }
 
-    fields
-        .into_iter()
-        .flat_map(|field| {
-            let Some(literal_field) = literal_fields
-                .iter()
-                .find(|literal_field| literal_field.name.as_str() == field.name.as_str())
-            else {
+    let mut fields = Vec::new();
+    let mut initializers = Vec::new();
+    // Construction holds every authored leaf at once, including common fields
+    // of a case value. The shared typed selector retains applied field types;
+    // declaration membership, not the literal's selected case, owns each path.
+    for literal_field in program.expression_table.struct_fields(literal.fields) {
+        let Some(field) = validation::selected_construction_field(
+            program,
+            expression,
+            literal,
+            literal_field.field_symbol,
+        ) else {
+            return Vec::new();
+        };
+        if fields.contains(&field.symbol) {
+            return Vec::new();
+        }
+        fields.push(field.symbol);
+        let mut field_path = owner_path.to_vec();
+        if let Some(variant) = facts::payload_variant_for_field(program, field.symbol) {
+            if selected_case.map(|case| case.symbol) != Some(variant) {
                 return Vec::new();
-            };
-            let mut field_path = owner_path.to_vec();
-            if let Some(case_name) = &literal.case_name
-                && let Some(variant) = program.data_members(definition).iter().find_map(|member| {
-                    let variant = member.as_variant()?;
-                    (variant.name.as_str() == case_name.as_str()).then_some(variant)
-                })
-            {
-                field_path.push(BorrowOwnerSegment::Case(variant.symbol));
             }
-            field_path.push(BorrowOwnerSegment::Field(field.symbol));
-            borrowed_initializers(
-                program,
-                field.type_reference,
-                literal_field.value,
-                substitutions,
-                &field_path,
-            )
-        })
-        .collect()
+            field_path.push(BorrowOwnerSegment::Case(variant));
+        }
+        field_path.push(BorrowOwnerSegment::Field(field.symbol));
+        initializers.extend(borrowed_initializers(
+            program,
+            field.type_reference,
+            literal_field.value,
+            substitutions,
+            &field_path,
+        ));
+    }
+    initializers
 }
