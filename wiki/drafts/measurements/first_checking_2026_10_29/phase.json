@@ -1,0 +1,47 @@
+[
+  {
+    "fixture": "runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\cases\\phase-runtime_numeric_operand_order_exit\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 3,
+    "seconds": 221.84938609999517,
+    "transcript": "cases\\phase-runtime_numeric_operand_order_exit\\00.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308"
+  },
+  {
+    "fixture": "runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\cases\\phase-runtime_numeric_operand_order_exit\\input"
+    ],
+    "exit": 0,
+    "seconds": 4.426260100000945,
+    "transcript": "cases\\phase-runtime_numeric_operand_order_exit\\01.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308"
+  },
+  {
+    "fixture": "runtime_numeric_operand_order_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "--target",
+      "windows_x86_64",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\cases\\phase-runtime_numeric_operand_order_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 8.61671909999859,
+    "transcript": "cases\\phase-runtime_numeric_operand_order_exit\\02.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308"
+  }
+]

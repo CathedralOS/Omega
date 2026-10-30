@@ -1,5 +1,17 @@
 # Stage-by-Stage Compiler Optimization Ledger (`omega-rust`)
 
+## First-time checking: batch-local operand resolution - 2026-10-29
+
+Retained on fixed 2a087aa3ec3: share completed full-payload operand resolution
+only across goals of one immutable proof batch, discarding answers before
+scratch reuse. A-B-B-A fresh package updates fall from 217.33/187.05 s to
+139.79/143.99 s (29.82% lower mean); all four native images are identical.
+Eight actual host comparisons, six authored refusals and the payload/context
+isolation unit test pass. No warm-compile or other-host speedup is claimed.
+Raw review also caught the old --both plus --target compile-only harness mistake;
+explicit host replays now establish runtime agreement and PR #822 records the
+correction. [Evidence and limits](first_checking_2026_10_29/README.md).
+
 ## First-time preparation convergence - 2026-10-29
 
 Retained locally on fixed `cb087c46476`: normalize realized invocation-set order
