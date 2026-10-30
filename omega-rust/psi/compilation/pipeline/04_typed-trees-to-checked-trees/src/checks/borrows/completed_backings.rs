@@ -580,21 +580,32 @@ impl Resolver<'_> {
         use validation::completed_storage::StoredOperand;
         match source {
             StoredOperand::Unavailable => Err("the stored descriptor has no current value source"),
-            StoredOperand::Incoming(source) => super::access_sources::resolve_descriptor_all(
-                self.program,
-                self.facts,
-                self.state,
-                operand.statement_index,
-                operand.constraints,
-                CapturedPlace {
-                    incoming_reference: Handle::invalid(),
-                    incoming_owner_path: Vec::new(),
-                    root: source.root,
-                    segments: source.segments,
-                },
-            )
-            .map(BackingFrontier::borrowed)
-            .ok_or("the incoming descriptor has no retained loan occurrence"),
+            StoredOperand::Incoming(source) => {
+                if let Some(places) = super::aliases::unchanged_incoming_leaf(
+                    self.program,
+                    self.facts,
+                    self.state,
+                    operand.constraints,
+                    &source,
+                )? {
+                    return Ok(BackingFrontier::borrowed(places));
+                }
+                super::access_sources::resolve_descriptor_all(
+                    self.program,
+                    self.facts,
+                    self.state,
+                    operand.statement_index,
+                    operand.constraints,
+                    CapturedPlace {
+                        incoming_reference: Handle::invalid(),
+                        incoming_owner_path: Vec::new(),
+                        root: source.root,
+                        segments: source.segments,
+                    },
+                )
+                .map(BackingFrontier::borrowed)
+                .ok_or("the incoming descriptor has no retained loan occurrence")
+            }
             StoredOperand::Value {
                 capture,
                 projection,
