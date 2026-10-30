@@ -22,7 +22,7 @@ pub(super) struct FrameInference {
     pub(super) active_states: Vec<SymbolHandle>,
     // Completed operands retain the same frozen prefix. Branch extension copies
     // only the selection of immutable records, not their reference/case trees.
-    local_shapes: Arc<Vec<Arc<StoredLocalOrigins>>>,
+    local_shapes: Arc<Vec<StoredLocalOrigins>>,
     parameter_values: Option<ParameterValues>,
     // Relative normal-exit summaries belong to this inference invocation.
     // Cloned operand snapshots share completed work, never in-progress work.
@@ -60,7 +60,7 @@ impl FrameInference {
         }
     }
     pub(super) fn record_local(&mut self, local: &StoredLocalOrigins) {
-        Arc::make_mut(&mut self.local_shapes).push(Arc::new(local.clone()));
+        Arc::make_mut(&mut self.local_shapes).push(local.clone());
     }
 
     pub(super) fn local_origins(&self, symbol: SymbolHandle) -> Option<&StoredLocalOrigins> {
@@ -68,7 +68,6 @@ impl FrameInference {
             .iter()
             .rev()
             .find(|local| local.local_symbol == symbol)
-            .map(Arc::as_ref)
     }
 
     pub(super) fn with_local_scope<T>(&mut self, action: impl FnOnce(&mut Self) -> T) -> T {
@@ -529,18 +528,19 @@ fn constant_index(
 
 #[cfg(test)]
 mod tests {
+    use super::super::stored_origins::StoredOriginRecord;
     use super::{FrameInference, StoredLocalOrigins};
     use std::sync::Arc;
     use symbols::SymbolHandle;
 
     fn local(symbolic: bool) -> StoredLocalOrigins {
-        StoredLocalOrigins {
+        StoredLocalOrigins::new(StoredOriginRecord {
             local_symbol: SymbolHandle::default(),
             references: Vec::new(),
             cases: Vec::new(),
             moves: Vec::new(),
             symbolic,
-        }
+        })
     }
 
     #[test]
@@ -551,9 +551,9 @@ mod tests {
         assert!(Arc::ptr_eq(&original.local_shapes, &branch.local_shapes));
         branch.record_local(&local(true));
         assert!(!Arc::ptr_eq(&original.local_shapes, &branch.local_shapes));
-        assert!(Arc::ptr_eq(
-            &original.local_shapes[0],
-            &branch.local_shapes[0]
+        assert!(std::ptr::eq(
+            &*original.local_shapes[0],
+            &*branch.local_shapes[0]
         ));
         assert!(
             !original
@@ -572,6 +572,28 @@ mod tests {
     }
 
     #[test]
+    fn frame_snapshots_isolate_origin_record_mutation() {
+        let mut original = local(false);
+        original
+            .cases
+            .push(vec![facts::PlaceSegment::FixedIndex { index: 1 }]);
+        let retained = original.clone();
+        assert!(std::ptr::eq(&*original, &*retained));
+
+        original.cases[0].push(facts::PlaceSegment::FixedIndex { index: 2 });
+        original.symbolic = true;
+        assert!(!std::ptr::eq(&*original, &*retained));
+        assert_eq!(retained.cases[0].len(), 1);
+        assert!(!retained.symbolic);
+        assert_eq!(original.cases[0].len(), 2);
+
+        let storage = original.cases.as_ptr();
+        let owned = original.into_owned();
+        assert_eq!(storage, owned.cases.as_ptr());
+        assert_eq!(retained.cases[0].len(), 1);
+    }
+
+    #[test]
     fn frame_snapshots_restore_scope_without_changing_retained_observations() {
         let mut inference = FrameInference::default();
         inference.record_local(&local(false));
@@ -581,9 +603,9 @@ mod tests {
             scope.clone()
         });
         assert!(Arc::ptr_eq(&before.local_shapes, &inference.local_shapes));
-        assert!(Arc::ptr_eq(
-            &before.local_shapes[0],
-            &captured.local_shapes[0]
+        assert!(std::ptr::eq(
+            &*before.local_shapes[0],
+            &*captured.local_shapes[0]
         ));
         assert!(
             !inference

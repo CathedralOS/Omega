@@ -278,6 +278,7 @@ fn transferred_slots(
             storage,
             true,
         )?
+        .into_owned()
         .references
         {
             if leaf
