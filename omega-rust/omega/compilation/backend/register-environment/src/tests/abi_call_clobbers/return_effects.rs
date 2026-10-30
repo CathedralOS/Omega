@@ -8,8 +8,8 @@ use register_model::RegisterOperandAccess;
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectCatalogValidationError, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    MachineEncodedStackEffect, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineTrapBehavior,
 };
 
 /// Every selected return rule key with the semantic family the effect

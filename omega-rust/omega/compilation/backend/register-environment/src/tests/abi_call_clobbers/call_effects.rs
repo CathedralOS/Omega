@@ -7,7 +7,7 @@ use register_model::RegisterOperandAccess;
 use selected_instructions::{
     MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectCatalogValidationError,
     MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineTrapBehavior,
+    MachineMemoryEffect, MachineSemanticKind, MachineTrapBehavior,
 };
 
 /// Every selected register-call rule key with the semantic family the effect

@@ -1,8 +1,8 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
-    assert_faulting_trap, assert_storage_free, baseline_target_register_environment,
-    binds_catalog_provenance, declaration_mut, named_view, produced_effects, scalar_abi_cases,
-    units_for_names, validate_effects,
+    assert_storage_free, baseline_target_register_environment, binds_catalog_provenance,
+    declaration_mut, named_view, produced_effects, scalar_abi_cases, units_for_names,
+    validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::SaturatingCarrier;
