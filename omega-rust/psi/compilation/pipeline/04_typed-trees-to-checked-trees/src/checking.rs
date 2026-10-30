@@ -534,6 +534,7 @@ fn check_program(
             target_families::validate_portable_references(&checked)?;
             crate::operators::retain_boundary_body_candidates(&mut checked)
                 .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+            crate::operators::retain_provider_requirements(&mut checked);
             Ok(())
         },
     )?;

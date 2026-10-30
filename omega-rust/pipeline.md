@@ -923,6 +923,15 @@ it does not rescan typed numeric meaning or satisfaction edges. That catalog is
 prepared before selected plan binding, so malformed declarations may precede plan
 or qualification diagnostics; both remain pre-execution refusals. Early Build's
 typed-only comparison path remains separate until it owns checked declarations.
+Product boundary-provider admission also consumes Psi's complete requirement
+inventory and occurrence applicability. Checking records slot/package identity,
+the distinct dormant-operator versus direct-call eligibility, and whether a use
+belongs to a generic machine; admission no longer reconstructs those facts from
+typed declarations. Requirement rows exist without implementations or uses.
+Product root pruning projects direct-call rows and template applicability with
+the machine roster while preserving independent operator declarations. The
+checked-tree bridge remains: portable publication and moving the complete
+admission operation into `provider-selection` are not closed by this step.
 The optional reference checked interpreter prepares adapter dispatch and selected
 float executions at its own entrance. `SelectedExecution` retains no reference
 dispatch table, and ordinary Product installation does not scan source to prepare
