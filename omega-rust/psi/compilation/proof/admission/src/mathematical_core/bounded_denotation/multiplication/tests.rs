@@ -4,7 +4,9 @@ use super::super::Elaboration;
 use super::super::test_utilities::{assert_refused, mathematical};
 use super::Law;
 use crate::proof::assumption_proof;
-use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
+use crate::{
+    Budget, IntegerAffineWitness, ProofNode, ProofRule, value_context, verify_bounded_certificate,
+};
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
     ScalarTerm, ScalarType, ValueId,
@@ -37,10 +39,7 @@ fn fixture(
     let right = value(2);
     let quotient = value(3);
     let endpoint_term = if landed { value(4) } else { literal(endpoint) };
-    let context = PropositionContext::from_value_types(
-        (1..=4).map(|index| (ValueId::new(index).unwrap(), scalar)),
-    )
-    .unwrap();
+    let context = value_context(scalar, 4);
     let divide =
         ScalarTerm::exact_integer_divide(integer, endpoint_term.clone(), right.clone()).unwrap();
     let mut axioms = Vec::new();

@@ -7,10 +7,12 @@
 //! chooses a provider. Invalid or open source tuples remain source obligations.
 
 use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 mod calls;
 mod demands;
 use typed_trees::finite_family::FamilyProbe;
 use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+use typed_trees::typed_trees::{ClosedConformanceApplication, StaticRequirementDispatch};
 use typed_trees::{TypedTrees, expression::StaticMachineArgument};
 
 pub(crate) fn instantiate_requirement_applications(
@@ -195,6 +197,24 @@ pub(crate) fn instantiate_requirement_applications(
     calls::retarget(program)?;
     super::contextual_calls::retain_closed_requirement_demands(program)?;
     Ok(())
+}
+
+/// The map one dispatch row names, at the committed coordinates call admission
+/// itself reads. A dispatch naming no single application yields an empty
+/// roster; each caller decides whether that is absence or a diagnostic.
+pub(super) fn selected_applications<'a>(
+    program: &'a TypedTrees,
+    owner: SymbolHandle,
+    dispatch: &StaticRequirementDispatch,
+) -> Vec<&'a ClosedConformanceApplication> {
+    program.selected_conformance_applications(
+        owner,
+        dispatch.selection_application,
+        dispatch.evidence_parameter,
+        dispatch.requirement,
+        dispatch.application_report_fingerprint,
+        dispatch.application_commitment,
+    )
 }
 
 /// Symbolic and executable requirement calls share one binding roster.

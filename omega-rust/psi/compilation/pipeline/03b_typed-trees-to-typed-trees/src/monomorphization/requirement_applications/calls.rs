@@ -9,6 +9,8 @@ use typed_trees::{
     trait_definition::AppliedTraitScope, types::TypeReferenceHandle,
 };
 
+use super::selected_applications;
+
 mod invocation_binding_views;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -310,14 +312,7 @@ pub(super) fn invocation_tuples<'p>(
                    invocation: InvocationTuple|
      -> Result<(), Vec<Diagnostic>> {
         let selected = if let Some(dispatch) = dispatch {
-            let applications = program.selected_conformance_applications(
-                owner,
-                dispatch.selection_application,
-                dispatch.evidence_parameter,
-                dispatch.requirement,
-                dispatch.application_report_fingerprint,
-                dispatch.application_commitment,
-            );
+            let applications = selected_applications(program, owner, dispatch);
             if applications.len() != 1 {
                 return Err(vec![Diagnostic::error(format!(
                     "static method occurrence in `{}` has {} selected conformance applications for `{}`; exactly one is required",
@@ -429,14 +424,7 @@ fn dispatch_instance(
     dispatch: &typed_trees::typed_trees::StaticRequirementDispatch,
     invocation: &InvocationTuple,
 ) -> SymbolHandle {
-    let applications = program.selected_conformance_applications(
-        owner,
-        dispatch.selection_application,
-        dispatch.evidence_parameter,
-        dispatch.requirement,
-        dispatch.application_report_fingerprint,
-        dispatch.application_commitment,
-    );
+    let applications = selected_applications(program, owner, dispatch);
     let [application] = applications.as_slice() else {
         return SymbolHandle::invalid();
     };
@@ -697,14 +685,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             continue;
         };
         let selected_scope = if let Some(dispatch) = &call.static_requirement_dispatch {
-            let applications = program.selected_conformance_applications(
-                owner,
-                dispatch.selection_application,
-                dispatch.evidence_parameter,
-                dispatch.requirement,
-                dispatch.application_report_fingerprint,
-                dispatch.application_commitment,
-            );
+            let applications = selected_applications(program, owner, dispatch);
             let [application] = applications.as_slice() else {
                 continue;
             };

@@ -205,10 +205,7 @@ fn direct_subtract_bound_replays_opposite_ordered_endpoints_and_rejects_mutation
     let right = value(2, integer_type);
     let target =
         ScalarTerm::exact_integer_subtract(integer_type, left.clone(), right.clone()).unwrap();
-    let context = PropositionContext::from_value_types(
-        (1..=5).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 5);
     let checked = check_integer_affine_witness(
         &context,
         &[],

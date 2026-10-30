@@ -58,15 +58,10 @@ impl Expansion<'_> {
         result_types.push(result_type);
         let mut arguments = parameters(input_types);
         arguments.push(parameter(scoped_types.len(), result_type));
-        let completion = self.push(LoweredScalarBranchState {
-            structural_parameters: Vec::new(),
-            structural_effects: Vec::new(),
-            parameter_types: result_types,
-            erased_formal_types: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            bindings: Vec::new(),
-            terminator: LoweredScalarBranchTerminator::jump(target, arguments),
-        });
+        let completion = self.push(LoweredScalarBranchState::continuing(
+            result_types,
+            LoweredScalarBranchTerminator::jump(target, arguments),
+        ));
         let retained = self.established_values.len();
         let completed = self.completed.len();
         self.retain_scope_prefix(&operands, &prefixes);

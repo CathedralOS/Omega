@@ -171,6 +171,24 @@ pub(crate) struct LoweredScalarBranchState {
 }
 
 impl LoweredScalarBranchState {
+    /// A plain continuation: scalar parameters and the terminator that leaves
+    /// the state, with no structural parameters or effects, no erased formals
+    /// and no bindings. Nearly every scalar graph continuation takes this shape.
+    pub(crate) fn continuing(
+        parameter_types: Vec<QualifiedScalarType>,
+        terminator: LoweredScalarBranchTerminator,
+    ) -> Self {
+        Self {
+            structural_parameters: Vec::new(),
+            parameter_types,
+            erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            bindings: Vec::new(),
+            structural_effects: Vec::new(),
+            terminator,
+        }
+    }
+
     /// A jump-only expansion state continuing to `target`, binding the
     /// parameters produced from `argument_types`.
     pub(crate) fn jumping(
@@ -182,19 +200,14 @@ impl LoweredScalarBranchState {
     ) -> Self {
         Self {
             structural_parameters,
-            parameter_types,
-            erased_formal_types: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            bindings: Vec::new(),
             structural_effects,
-            terminator: LoweredScalarBranchTerminator::Jump {
-                target,
-                arguments: crate::scalar_lowering::computations::parameters(argument_types),
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-                cleanup_actions: Vec::new(),
-            },
+            ..Self::continuing(
+                parameter_types,
+                LoweredScalarBranchTerminator::jump(
+                    target,
+                    crate::scalar_lowering::computations::parameters(argument_types),
+                ),
+            )
         }
     }
 }

@@ -1,4 +1,5 @@
 use crate::proof::{assumption_proof, semantic_axiom_proof};
+use crate::proof_node;
 use std::collections::BTreeSet;
 
 use semantic_vocabulary::{
@@ -541,10 +542,8 @@ fn a_decided_closed_equality_is_refl_in_the_kernel() {
     let sum =
         ScalarTerm::wrapping_integer_add(unsigned64(), two.clone(), zero).expect("wrapping add");
     let goal = Proposition::Equal(sum, two);
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-    };
+    let proof =
+        proof_node!(goal.clone() => ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation));
     let denoted = verify_bounded_certificate(
         &PropositionContext::default(),
         &goal,
@@ -573,10 +572,8 @@ fn a_decided_closed_equality_is_refl_in_the_kernel() {
 #[test]
 fn a_closed_order_uses_only_the_fixed_numeral_law_closure() {
     let goal = Proposition::LessThan(literal(1), literal(2));
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-    };
+    let proof =
+        proof_node!(goal.clone() => ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation));
     let mut denoted = verify_bounded_certificate(
         &PropositionContext::default(),
         &goal,
@@ -613,10 +610,7 @@ fn a_closed_order_uses_only_the_fixed_numeral_law_closure() {
     );
 
     // `Truth` is definitional: no signature, no decision assumption.
-    let proof = ProofNode {
-        conclusion: Proposition::Truth,
-        rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-    };
+    let proof = proof_node!(Proposition::Truth => ProofRule::Primitive(PrimitiveJudgment::Truth));
     let denoted = verify_bounded_certificate(
         &PropositionContext::default(),
         &Proposition::Truth,
@@ -641,10 +635,8 @@ fn disjunction_rules_become_tagged_sum_constructions() {
     let p = atom(1);
     let q = atom(2);
     let r = atom(3);
-    let truth_node = || ProofNode {
-        conclusion: Proposition::Truth,
-        rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-    };
+    let truth_node =
+        || proof_node!(Proposition::Truth => ProofRule::Primitive(PrimitiveJudgment::Truth));
 
     // Introduction: `[P] ⊢ P ∨ Q` pairs `zero` with the cited premise.
     let disjunction = Proposition::Disjunction(vec![p.clone(), q.clone()]);
@@ -870,10 +862,7 @@ fn forged_and_malformed_certificates_reject() {
 
     // A primitive label on a false relation never decides it.
     let falsehood = Proposition::LessThan(literal(2), literal(1));
-    let proof = ProofNode {
-        conclusion: falsehood.clone(),
-        rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-    };
+    let proof = proof_node!(falsehood.clone() => ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation));
     assert!(matches!(
         denote_bounded_certificate(&PropositionContext::default(), &falsehood, &[], &[], &proof,),
         Err(BoundedDenotationError::Certificate(
@@ -968,10 +957,8 @@ mod content_algebra;
 #[test]
 fn closed_primitive_order_does_not_assume_its_conclusion() {
     let goal = Proposition::LessOrEqual(literal(3), literal(5));
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-    };
+    let proof =
+        proof_node!(goal.clone() => ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation));
     let context = PropositionContext::default();
     let parameters = BTreeSet::new();
     let mut elaboration = Elaboration::new(&context, &goal, &[], &[], &parameters).unwrap();
@@ -991,10 +978,7 @@ fn false_closed_order_is_rejected_before_derivation() {
         Proposition::LessThan(literal(2), literal(1)),
         Proposition::LessOrEqual(literal(6), literal(5)),
     ] {
-        let proof = ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-        };
+        let proof = proof_node!(goal.clone() => ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation));
         assert!(matches!(
             denote_bounded_certificate(&PropositionContext::default(), &goal, &[], &[], &proof),
             Err(BoundedDenotationError::Certificate(_))

@@ -12,8 +12,8 @@ use super::{
 };
 use crate::IntegerAffineWitness;
 use crate::{
-    CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness, IntegerCastChainWitness,
-    IntegerCorrelatedForbiddenRootWitness, PrimitiveJudgment,
+    CorrelatedAffineBranchWitness, IntegerCastChainWitness, IntegerCorrelatedForbiddenRootWitness,
+    PrimitiveJudgment, correlated_step, proof_node,
 };
 use semantic_vocabulary::PropositionId;
 
@@ -250,10 +250,9 @@ fn integer_order_transitivity_weakens_a_negative_bound_for_nonzero() {
                 negative_two_bound.clone(),
                 0,
             )),
-            middle_less_or_equal_right: Box::new(ProofNode {
-                conclusion: Proposition::LessOrEqual(literal(-2), literal(-1)),
-                rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-            }),
+            middle_less_or_equal_right: Box::new(
+                proof_node!(Proposition::LessOrEqual(literal(-2), literal(-1)) => ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)),
+            ),
         },
     };
     let proof = ProofNode {
@@ -298,10 +297,9 @@ fn integer_order_transitivity_requires_exact_middle_endpoints_and_relations() {
         conclusion,
         rule: ProofRule::IntegerLessOrEqualTransitivity {
             left_less_or_equal_middle: Box::new(assumption_proof(first.clone(), 0)),
-            middle_less_or_equal_right: Box::new(ProofNode {
-                conclusion: second,
-                rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-            }),
+            middle_less_or_equal_right: Box::new(
+                proof_node!(second => ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)),
+            ),
         },
     };
 
@@ -380,10 +378,9 @@ fn integer_order_substitution_transports_either_endpoint_in_either_equality_orie
     let positive_proof = ProofNode {
         conclusion: positive.clone(),
         rule: ProofRule::IntegerOrderSubstitution {
-            relation: Box::new(ProofNode {
-                conclusion: positive_literal,
-                rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-            }),
+            relation: Box::new(
+                proof_node!(positive_literal => ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)),
+            ),
             equality: Box::new(semantic_axiom_proof(positive_equality.clone(), 0)),
             endpoint: 1,
         },
@@ -415,10 +412,9 @@ fn integer_order_substitution_transports_either_endpoint_in_either_equality_orie
     let negative_proof = ProofNode {
         conclusion: negative.clone(),
         rule: ProofRule::IntegerOrderSubstitution {
-            relation: Box::new(ProofNode {
-                conclusion: negative_literal,
-                rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-            }),
+            relation: Box::new(
+                proof_node!(negative_literal => ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation)),
+            ),
             equality: Box::new(assumption_proof(reverse_negative_equality.clone(), 0)),
             endpoint: 0,
         },
@@ -641,10 +637,9 @@ fn integer_affine_bound_checks_root_proof_normalization_and_exact_custody() {
     let non_order_proof = ProofNode {
         conclusion: conclusion.clone(),
         rule: ProofRule::IntegerAffineBound {
-            root_bound: Box::new(ProofNode {
-                conclusion: Proposition::Truth,
-                rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-            }),
+            root_bound: Box::new(
+                proof_node!(Proposition::Truth => ProofRule::Primitive(PrimitiveJudgment::Truth)),
+            ),
             witness: IntegerAffineWitness {
                 root,
                 target,
@@ -844,10 +839,7 @@ fn nested_scopes_do_not_export_discharged_same_index_premises() {
         },
     };
     let goal = Proposition::Conjunction(vec![implication(&first), implication(&second)]);
-    let proof = ProofNode {
-        conclusion: goal.clone(),
-        rule: ProofRule::ConjunctionIntroduction(vec![branch(&first), branch(&second)]),
-    };
+    let proof = proof_node!(goal.clone() => ProofRule::ConjunctionIntroduction(vec![branch(&first), branch(&second)]));
     let accepted = accept_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("both nested implication premises");
     assert!(accepted.assumptions.is_empty());
@@ -990,24 +982,12 @@ fn correlated_division_fixture() -> (
                 dividend: CorrelatedAffineBranchWitness {
                     root: root.clone(),
                     target: dividend,
-                    steps: vec![CorrelatedAffineStepWitness {
-                        definition_axiom: 0,
-                        literal_axiom: None,
-                    }],
+                    steps: vec![correlated_step(0, None)],
                 },
                 divisor: CorrelatedAffineBranchWitness {
                     root: root.clone(),
                     target: divisor,
-                    steps: vec![
-                        CorrelatedAffineStepWitness {
-                            definition_axiom: 1,
-                            literal_axiom: None,
-                        },
-                        CorrelatedAffineStepWitness {
-                            definition_axiom: 2,
-                            literal_axiom: None,
-                        },
-                    ],
+                    steps: vec![correlated_step(1, None), correlated_step(2, None)],
                 },
                 definition_axiom_count: 3,
                 lower_bound_axiom: 3,
@@ -1078,10 +1058,7 @@ fn correlated_forbidden_root_rule_rejects_nonparameter_root_and_forged_conclusio
         ))
     ));
 
-    let forged = ProofNode {
-        conclusion: Proposition::Truth,
-        rule: proof.rule,
-    };
+    let forged = proof_node!(Proposition::Truth => proof.rule);
     assert_eq!(
         accept_certificate_with_machine_parameters(
             &context,
