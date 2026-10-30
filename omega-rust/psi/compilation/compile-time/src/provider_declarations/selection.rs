@@ -33,9 +33,14 @@ impl ProviderSelectionIdentity {
                     .iter()
                     .map(|row| row.realization_machine)
                     .collect(),
-                // Legacy data providers remain with their existing declaration
-                // closure until the native-binding migration retires that form.
-                None => vec![self.symbol],
+                // Attached member identity is retained independently from its
+                // data owner; selecting the owner does not select its methods.
+                None => program
+                    .machines()
+                    .iter()
+                    .filter(|machine| machine.attached_data_symbol == self.symbol)
+                    .map(|machine| machine.symbol)
+                    .collect(),
             });
         };
         if !program

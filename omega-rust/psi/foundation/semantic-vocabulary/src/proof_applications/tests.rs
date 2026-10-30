@@ -151,3 +151,29 @@ fn repeated_declaration_payloads_contribute_all_formation_dependencies() {
         [2, 3, 4, 5].map(symbol)
     );
 }
+
+#[test]
+fn invocation_roots_do_not_seed_uninvoked_scoped_branches() {
+    let mut plan = ProofApplicationPlan::<u32>::default();
+    machine(&mut plan, 1, None);
+    machine(&mut plan, 2, Some("macos_arm64"));
+    machine(&mut plan, 3, Some("macos_arm64"));
+    machine(&mut plan, 4, Some("windows_x86_64"));
+    let mut graph = ProofCallGraph::<u32>::default();
+    let calls = graph.calls.insert_many([ProofApplicationCall {
+        callee: 10,
+        ..Default::default()
+    }]);
+    graph.machines.insert(ProofCallMachine {
+        machine: 1,
+        calls,
+        ..Default::default()
+    });
+    let applications = ProofApplications::new(&plan, &graph);
+    let reached = applications.invocation_reachability("macos_arm64", &[(10, 2)], &[1]);
+    assert_eq!(reached.machines, [1, 2]);
+    assert!(reached.calls.contains(&10));
+    let language = applications.reachability("macos_arm64", false, &[(10, 2)], Some(&[1]));
+    assert!(language.machines.contains(&3));
+    assert!(!language.machines.contains(&4));
+}

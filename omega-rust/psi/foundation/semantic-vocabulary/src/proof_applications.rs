@@ -268,6 +268,35 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                 });
             }
         }
+        self.walk_applications(target, provider_edges, pending)
+    }
+
+    /// Physical application demand begins only at supplied invocations. Merely
+    /// declaring a target-scoped body does not invoke its layout policies.
+    /// Conditional language checking uses `reachability` to include authored
+    /// source scopes as well; both consumers share the same call/substitution walk.
+    pub fn invocation_reachability(
+        &self,
+        target: &str,
+        provider_edges: &[(Declaration, Declaration)],
+        roots: &[Declaration],
+    ) -> ProofApplicationReachability<Declaration> {
+        let pending = roots
+            .iter()
+            .map(|root| Application {
+                machine: *root,
+                bindings: Vec::new(),
+            })
+            .collect();
+        self.walk_applications(target, provider_edges, pending)
+    }
+
+    fn walk_applications(
+        &self,
+        target: &str,
+        provider_edges: &[(Declaration, Declaration)],
+        mut pending: Vec<Application<Declaration>>,
+    ) -> ProofApplicationReachability<Declaration> {
         let mut visited = Vec::new();
         let mut machines = Vec::new();
         let mut calls = Vec::new();

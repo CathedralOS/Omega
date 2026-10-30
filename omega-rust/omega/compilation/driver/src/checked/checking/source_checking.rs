@@ -230,13 +230,13 @@ fn layout_target_scopes(
                         .target
                         .is_none_or(|target| target.canonical_name() == profile.target_name())
                 })
-                .map(|choice| choice.provider_type.clone())
+                .map(|choice| (**choice).clone())
                 .collect()
         };
         scopes.push(build_time_evaluation::FixedLayoutTargetScope {
             target: profile.target_name().to_owned(),
             facts: profile.layout_target_facts(),
-            roots,
+            roots: (!reusable).then_some(roots),
             providers,
         });
     }

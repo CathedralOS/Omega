@@ -6,13 +6,14 @@ use diagnostics::Diagnostic;
 use typed_trees::{TypedTrees, references::DeclarationSelection};
 
 /// An explicit deployment scope from Build or the embedding library checker.
-/// Empty roots describe the reusable source surface, rather than a host entry.
+/// None describes the reusable source surface. An empty deployment root roster
+/// instead exports the explicit provider members without inventing a host entry.
 #[derive(Debug, Clone)]
 pub struct FixedLayoutTargetScope {
     pub target: String,
     pub facts: Option<layout_plans::LayoutTargetFacts>,
-    pub roots: Vec<symbols::SymbolHandle>,
-    pub providers: Vec<crate::provider_declarations::ProviderSelectionIdentity>,
+    pub roots: Option<Vec<symbols::SymbolHandle>>,
+    pub providers: Vec<crate::provider_declarations::ProviderSelection>,
 }
 
 /// Close physical representation applications before the settled source judgment.
@@ -39,26 +40,58 @@ pub fn evaluate_fixed_layout_applications(
         return Ok(());
     }
     typed_trees_to_typed_trees::specialize_static_machine_calls(typed)?;
+    let defaults = crate::provider_declarations::retain_provider_defaults(
+        crate::provider_declarations::ProviderPlanningContext::new(
+            typed,
+            source::DependencyScope::Product,
+        ),
+    )?;
+    let topology =
+        typed_trees::typed_trees::calls::application_graph::source_application_plan(typed);
+    let operational = validation::infer_operational_may(typed);
+    let applications =
+        semantic_vocabulary::proof_applications::ProofApplications::new(&topology, &operational);
     let mut targets = Vec::new();
     let mut inputs = Vec::new();
     for scope in scopes {
-        let mut roots = scope.roots.clone();
-        for provider in &scope.providers {
-            for member in provider
-                .prepared_implementation_members(typed)
+        let providers = crate::provider_declarations::source_application_dependencies(
+            typed,
+            &scope.target,
+            &scope.providers,
+            &defaults,
+            topology.provider_candidates.storage_slice(),
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let work = if let Some(roots) = &scope.roots {
+            let mut roots = roots.clone();
+            if roots.is_empty() {
+                // A provider-only deployment exposes its explicitly selected
+                // member entries. Ambient source defaults are descriptions,
+                // not externally invoked roots of that deployment.
+                for (_, member) in crate::provider_declarations::source_application_dependencies(
+                    typed,
+                    &scope.target,
+                    &scope.providers,
+                    &[],
+                    topology.provider_candidates.storage_slice(),
+                )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?
-            {
-                if !roots.contains(&member) {
-                    roots.push(member);
+                {
+                    if !roots.contains(&member) {
+                        roots.push(member);
+                    }
                 }
             }
-        }
-        let work = if roots.is_empty() {
-            DeclarationSelection::from_program(typed)
+            let reached = applications.invocation_reachability(&scope.target, &providers, &roots);
+            crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
+                typed,
+                &reached.machines,
+                &[],
+            )
+            .work()
+            .clone()
         } else {
-            crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(typed, &roots, &[])
-                .work()
-                .clone()
+            DeclarationSelection::from_program(typed)
         };
         for occurrence in
             typed_trees::references::collect_selected_program_type_occurrences(typed, &work)
