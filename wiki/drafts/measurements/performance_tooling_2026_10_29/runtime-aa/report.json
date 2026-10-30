@@ -1,0 +1,48 @@
+{
+  "schema": "omega-performance-report/1",
+  "name": "timed-work instrument A/A",
+  "metric": "reported_work_ns_per_unit",
+  "comparison": {
+    "pairs": 12,
+    "baseline": {
+      "median": 0.4144,
+      "minimum": 0.37,
+      "maximum": 0.4878,
+      "median_absolute_deviation": 0.03925000000000001
+    },
+    "candidate": {
+      "median": 0.4283,
+      "minimum": 0.3718,
+      "maximum": 0.4906,
+      "median_absolute_deviation": 0.032399999999999984
+    },
+    "paired_candidate_minus_baseline": {
+      "median": 0.010099999999999998,
+      "minimum": -0.07619999999999999,
+      "maximum": 0.12059999999999998,
+      "median_absolute_deviation": 0.03879999999999997
+    },
+    "paired_percent_change": {
+      "median": 2.2258582420573045,
+      "minimum": -16.37301246239794,
+      "maximum": 32.5945945945946,
+      "median_absolute_deviation": 9.173225890716758
+    },
+    "median_difference_bootstrap_95": [
+      -0.028699999999999976,
+      0.04569999999999999
+    ],
+    "bootstrap_resamples": 4000,
+    "bootstrap_seed": 8029185205361337710,
+    "interpretation": "inconclusive"
+  },
+  "warnings": [
+    "Within-run bootstrap uncertainty does not cover host drift, contention, or workload selection.",
+    "Only declared input paths are hashed. Declare dependency/library/lock inputs used by the workload.",
+    "Compiler stage times are inclusive and may overlap; do not sum nested rows."
+  ],
+  "memory": {
+    "reason": "The bounded child runner does not expose per-process memory observations.",
+    "status": "unavailable"
+  }
+}

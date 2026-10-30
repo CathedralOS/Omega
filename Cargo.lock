@@ -76,13 +76,12 @@ dependencies = [
 name = "advection-terminal-validation"
 version = "0.1.0"
 dependencies = [
- "compiler",
- "omega-build",
- "package-manager",
- "target",
- "terminal-interpreter",
- "terminal-runtime",
+ "sample-runner",
 ]
+
+[[package]]
+name = "allocation-observation"
+version = "0.1.0"
 
 [[package]]
 name = "ambient-authority"
@@ -180,6 +179,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "artifacts",
+ "backend-plan",
  "build-declarations",
  "build-output",
  "build-time-evaluation",
@@ -765,14 +765,7 @@ dependencies = [
 name = "hmm-terminal-validation"
 version = "0.1.0"
 dependencies = [
- "compilation-products",
- "compiler",
- "omega-build",
- "package-manager",
- "sha2",
- "target",
- "terminal-interpreter",
- "terminal-runtime",
+ "sample-runner",
 ]
 
 [[package]]
@@ -899,13 +892,8 @@ dependencies = [
 name = "ind11-terminal-validation"
 version = "0.1.0"
 dependencies = [
- "compiler",
  "effects",
- "omega-build",
- "package-manager",
- "target",
- "terminal-interpreter",
- "terminal-runtime",
+ "sample-runner",
 ]
 
 [[package]]
@@ -913,6 +901,7 @@ name = "ind19-spectrum-validation"
 version = "0.1.0"
 dependencies = [
  "build-declarations",
+ "build-time-evaluation",
  "compilation-products",
  "compiler",
  "diagnostics",
@@ -923,6 +912,8 @@ dependencies = [
  "optimization-core",
  "package-compilation",
  "package-evidence",
+ "package-manager",
+ "provider-planning",
  "semantic-vocabulary",
  "source-files-to-tokens",
  "symbols",
@@ -980,6 +971,7 @@ dependencies = [
  "diagnostics",
  "encoded-scalar-plan",
  "function-identity",
+ "isa-conformance",
  "layout-plans",
  "legalized-operations",
  "normalized-foreign-call-plan",
@@ -997,6 +989,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "isa-conformance"
+version = "0.1.0"
+dependencies = [
+ "register-model",
+ "selected-instructions",
+]
+
+[[package]]
 name = "isa-x86_64"
 version = "0.1.0"
 dependencies = [
@@ -1004,6 +1004,7 @@ dependencies = [
  "diagnostics",
  "encoded-scalar-plan",
  "function-identity",
+ "isa-conformance",
  "layout-plans",
  "legalized-operations",
  "normalized-foreign-call-plan",
@@ -1028,6 +1029,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
+name = "laminate-stiffness-response-validation"
+version = "0.1.0"
+dependencies = [
+ "sample-runner",
+]
+
+[[package]]
 name = "language-core"
 version = "0.1.0"
 dependencies = [
@@ -1048,6 +1056,13 @@ dependencies = [
  "semantic-vocabulary",
  "source",
  "symbols",
+]
+
+[[package]]
+name = "layered-seismic-refraction-validation"
+version = "0.1.0"
+dependencies = [
+ "sample-runner",
 ]
 
 [[package]]
@@ -1245,6 +1260,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "molecular-pair-distribution-validation"
+version = "0.1.0"
+dependencies = [
+ "sample-runner",
+]
+
+[[package]]
 name = "mutation-matrix"
 version = "0.1.0"
 
@@ -1344,12 +1366,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "new031-terminal-validation"
+version = "0.1.0"
+dependencies = [
+ "sample-runner",
+]
+
+[[package]]
 name = "new087-terminal-validation"
 version = "0.1.0"
 dependencies = [
  "compiler",
  "omega-build",
- "package-manager",
  "target",
  "terminal-interpreter",
  "terminal-runtime",
@@ -1412,6 +1440,7 @@ dependencies = [
 name = "omega"
 version = "0.1.0"
 dependencies = [
+ "allocation-observation",
  "artifacts",
  "bounded-process",
  "compilation-products",
@@ -1435,6 +1464,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-bench"
+version = "0.1.0"
+dependencies = [
+ "allocation-observation",
+ "bounded-process",
+ "libc",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "omega-build"
 version = "0.1.0"
 dependencies = [
@@ -1444,6 +1485,8 @@ dependencies = [
  "compilation-products",
  "compiler",
  "diagnostics",
+ "image-emission",
+ "native-production",
  "package-compilation",
  "package-manager",
  "phase-profile",
@@ -1766,11 +1809,29 @@ dependencies = [
  "optimization-core",
  "package-compilation",
  "program-entry-plan",
+ "provider-selection",
  "representation-planning",
  "semantic-vocabulary",
  "source",
  "source-audit",
  "symbols",
+ "target",
+ "terminal-codec",
+ "terminal-psi",
+]
+
+[[package]]
+name = "provider-selection"
+version = "0.1.0"
+dependencies = [
+ "backend-plan",
+ "boundary-applications",
+ "component-description",
+ "diagnostics",
+ "effects",
+ "language-semantics",
+ "optimization-core",
+ "semantic-vocabulary",
  "target",
  "terminal-codec",
  "terminal-psi",
@@ -1791,6 +1852,7 @@ dependencies = [
  "phase-profile",
  "psi-terminal-production",
  "rayon",
+ "representation-planning",
  "representation-selections",
  "semantic-vocabulary",
  "source",
@@ -2011,16 +2073,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
-name = "sci04-terminal-validation"
+name = "sample-runner"
 version = "0.1.0"
 dependencies = [
- "compiler",
+ "bounded-process",
  "omega-build",
  "package-manager",
  "serde_json",
+ "sha2",
  "target",
- "terminal-interpreter",
  "terminal-runtime",
+]
+
+[[package]]
+name = "sci04-terminal-validation"
+version = "0.1.0"
+dependencies = [
+ "sample-runner",
 ]
 
 [[package]]
@@ -2039,6 +2108,7 @@ dependencies = [
  "package-compilation",
  "program-entry-plan",
  "provider-planning",
+ "provider-selection",
  "psi-terminal-production",
  "representation-planning",
  "semantic-vocabulary",
@@ -2261,11 +2331,7 @@ dependencies = [
 name = "spectral-power-validation"
 version = "0.1.0"
 dependencies = [
- "compiler",
- "omega-build",
- "package-manager",
- "target",
- "terminal-runtime",
+ "sample-runner",
 ]
 
 [[package]]
@@ -2530,6 +2596,7 @@ dependencies = [
  "optimization-unit-semantics",
  "program-entry-plan",
  "proof-admission",
+ "provider-selection",
  "runtime-abi",
  "semantic-vocabulary",
  "source",
@@ -2584,11 +2651,7 @@ dependencies = [
 name = "thin-film-reflectometry-validation"
 version = "0.1.0"
 dependencies = [
- "compiler",
- "omega-build",
- "package-manager",
- "target",
- "terminal-runtime",
+ "sample-runner",
 ]
 
 [[package]]
@@ -2746,12 +2809,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "wavelet-transient-validation"
 version = "0.1.0"
 dependencies = [
- "bounded-process",
- "compiler",
- "omega-build",
- "package-manager",
- "target",
- "terminal-runtime",
+ "sample-runner",
 ]
 
 [[package]]

@@ -1,0 +1,13 @@
+// Independently authored selected-index snapshot falsifier.
+// Expected exit: 0
+data Payload [copy] { case Pending(count: u64); case Empty; }
+machine [] replacement(items: &[Payload; 1], index: u64) -> Payload
+requires index < 1;
+ensures result in Payload::Empty;
+{ Payload::Empty {} }
+machine main() crashes Trap {
+ let items: [Payload; 1] = [Payload::Pending { count: 7 }];
+ let picked: Payload = items[0];
+ transition picked in Payload::Empty { true -> done() false -> bad() }
+ machine done() {} machine bad() crashes Trap { crash Trap; }
+}

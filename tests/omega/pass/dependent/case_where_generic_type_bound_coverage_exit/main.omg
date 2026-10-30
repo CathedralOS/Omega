@@ -1,0 +1,39 @@
+// CASE-CONSTRAINTS generic case-data coverage through the migrated data-level
+// `requires` form: `T == i32` refutes `Integer` on `Value<bool>`, so `Integer`
+// is an impossible case on this instance and a transition covering only
+// `Boolean` is already exhaustive -- no `_` arm needed.
+
+use omega_language_std::console;
+
+data Value<T>
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: T);
+    case Boolean(value: T);
+}
+
+data Main {
+    v: Value<bool>;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.v = Value::Boolean { value: true };
+
+    transition main.v {
+        Value::Boolean { value } -> done()
+    }
+
+    machine done() {
+        Console::exit_process(0);
+    }
+}
+
+// The entry owns ordinary local state; `Value<bool>`'s default domain is not
+// satisfied by the zeroed representation, so storage is established first.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main = Main {
+        v: Value::Boolean { value: false }
+    };
+    Main::main(&mut entry_storage);
+}

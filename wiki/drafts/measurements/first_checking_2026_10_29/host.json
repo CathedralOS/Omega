@@ -1,0 +1,58 @@
+[
+  {
+    "label": "comparison-A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\cases\\timing-0-A\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.5987682000049972,
+    "transcript": "host-00.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308"
+  },
+  {
+    "label": "comparison-B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\cases\\timing-1-B\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.5795273999974597,
+    "transcript": "host-01.txt",
+    "producer_sha256": "1c7645a93c087116c69bb5951cc940709cdadecfeae847d38f9de957d3ad4d60"
+  },
+  {
+    "label": "comparison-B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\cases\\timing-2-B\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.5681274000016856,
+    "transcript": "host-02.txt",
+    "producer_sha256": "1c7645a93c087116c69bb5951cc940709cdadecfeae847d38f9de957d3ad4d60"
+  },
+  {
+    "label": "comparison-A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\preparation-convergence\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\cases\\timing-3-A\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.5509032999980263,
+    "transcript": "host-03.txt",
+    "producer_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308"
+  }
+]

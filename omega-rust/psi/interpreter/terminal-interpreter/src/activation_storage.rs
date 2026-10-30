@@ -165,8 +165,14 @@ impl TerminalExecution<'_> {
                 usize::try_from(committed).map_err(|_| malformed())?,
                 self.account.as_ref(),
             )?;
-            self.structural_byte_storage
-                .insert(home.clone(), ByteSequenceView::new(bytes))?;
+            self.structural_byte_storage.insert(
+                home.clone(),
+                crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(
+                    backing_type,
+                    ByteSequenceView::new(bytes),
+                    self.account.as_ref(),
+                ),
+            )?;
             self.activation_storage
                 .owners
                 .insert(home.clone(), owner.clone())?;

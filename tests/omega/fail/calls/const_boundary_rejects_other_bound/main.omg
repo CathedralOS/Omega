@@ -1,0 +1,13 @@
+boundary trait BoundedValue {
+    machine bound<const Bound: u64>(value: u64) -> u64 reaches
+        requires value <= Bound ensures result <= Bound;
+}
+PortableBoundedValue satisfies BoundedValue {
+    machine bound<const Cap: u64>(value: u64) -> u64
+        requires value <= Cap ensures result <= Cap { value }
+}
+machine forward<const Available: u64, const Other: u64>(value: u64) -> u64
+    reaches BoundedValue invokes BoundedValue;
+    requires value <= Available ensures result <= Available
+{ BoundedValue::bound<Other>(value) }
+machine main() {}

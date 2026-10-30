@@ -3,17 +3,15 @@ use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
     ValidatedAarch64SelectedFormEncoding,
 };
-use crate::machine_effects::form_alternative;
 use register_model::RegisterConstraintKey;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability,
-    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
-    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+    LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -75,20 +73,16 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::HostedReadByte,
+    MachineEffectDeclaration::single(
+        MachineSemanticKind::HostedReadByte,
         constraint,
-        memory: MachineMemoryEffect::HostedReadByteV1,
-        trap: MachineTrapBehavior::HostedReadFailureV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: form_alternative!(
-            MachineAlternativeFamily::HostedReadByte,
-            size(target),
-            effects(target)
-        ),
-    }
+        MachineMemoryEffect::HostedReadByteV1,
+        MachineTrapBehavior::HostedReadFailureV1,
+        MachineBarrier::ExternalEffect,
+        MachineAlternativeFamily::HostedReadByte,
+        size(target),
+        effects(target),
+    )
 }
 
 fn request(

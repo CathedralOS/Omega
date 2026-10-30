@@ -17,6 +17,8 @@ use symbols::SymbolKeyMap as HashMap;
 
 pub(super) mod bindings;
 mod projections;
+pub(super) mod read_backing;
+pub(super) mod read_projection;
 mod results;
 
 /// Taking an owned storage address does not load a frozen reference binding.
@@ -325,58 +327,52 @@ pub(super) fn coordinate_sources_before_statement(
         HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
     >,
 ) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
-    let root = source.root;
-    let path = source.segments.as_slice();
     let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
-    validate_source_projection(program, machine, state, index, source, &prefix.stored)?;
-    carrier_storage_type(program, source_root_type(program, state, index, root)?)?;
-    if let Some(record) = prefix
-        .stored
-        .iter()
-        .find(|record| record.local_symbol == root)
-    {
-        for leaf in &record.references {
-            if !path.starts_with(&leaf.local_segments) {
-                continue;
-            }
-            let stored_origins::StoredOriginKind::Reference(access) = leaf.kind else {
-                return None;
-            };
-            if !access.is_readable() || leaf.origin.is_none() {
-                return None;
-            }
-            let sources =
-                stored_origins::selected_slot_sources(record, &leaf.local_segments, None)?;
-            for source in sources {
-                if source.lifetime_access.is_some()
-                    || source.origin.precision != FramePathPrecision::Exact
-                    || source.origin.source.output_identity().is_some()
-                {
-                    return None;
-                }
-            }
-        }
+    coordinate_reads_in_prefix(program, machine, state, index, source, &prefix).map(|reads| {
+        reads
+            .into_iter()
+            .map(|read| read.source.origin.into())
+            .collect()
+    })
+}
+
+fn coordinate_reads_in_prefix(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    index: usize,
+    source: &FrameSourcePlace,
+    prefix: &CollectedStatementPrefix,
+) -> Option<Vec<stored_origins::CapturedReferenceRead>> {
+    let current = caller_aliases::prefix_reference_origins(
+        program,
+        Some((state, index)),
+        &prefix.stored,
+        &[],
+        &[],
+    )?;
+    let aliases = caller_aliases::current_reference_aliases(program, &current, &prefix.aliases);
+    if source.recasts.is_empty() && source.representation.is_none() {
+        return read_projection::capture(program, state, index, source, &aliases, &prefix.stored);
     }
+    // Recast formations authenticate their own interpretation chain. Preserve
+    // that route's existing source and access obligations independently.
+    validate_source_projection(program, machine, state, index, source, &prefix.stored)?;
     let origin = FramePlaceOrigin {
-        path: super::frame_coordinate_path(program, root, path)?,
+        path: super::frame_coordinate_path(program, source.root, &source.segments)?,
         precision: FramePathPrecision::Exact,
         source: source.clone(),
     };
-    stored_origins::canonical_reference_sources(
-        program,
-        &Some(origin),
-        &prefix.aliases,
-        &prefix.stored,
-    )
-    .into_iter()
-    .map(|source| {
-        let source = source?;
-        (source.lifetime_access.is_none()
-            && source.origin.precision == FramePathPrecision::Exact
-            && source.origin.source.output_identity().is_none())
-        .then(|| source.origin.into())
-    })
-    .collect()
+    stored_origins::captured_reference_reads(program, &Some(origin), &aliases, &prefix.stored)
+        .into_iter()
+        .map(|source| {
+            let read = source?;
+            (read.source.lifetime_access.is_none()
+                && read.source.origin.precision == FramePathPrecision::Exact
+                && read.source.origin.source.output_identity().is_none())
+            .then_some(read)
+        })
+        .collect()
 }
 
 /// Complete backing footprints for invalidation, independent of exact identity.
@@ -1067,54 +1063,15 @@ pub(super) fn validate_source_projection(
 
 fn validate_declaration_source_projection(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
+    _machine: &Machine,
     state: &State,
     index: usize,
     source: &FrameSourcePlace,
     stored: &[StoredLocalOrigins],
 ) -> Option<()> {
-    let reference = source_root_type(program, state, index, source.root)?;
-    if projections::validate_owned_source(program, machine, reference, source).is_some() {
-        return Some(());
-    }
-    let reference = carrier_storage_type(program, reference)?;
-    if !program
-        .state_parameter_by_symbol(state, source.root)
-        .is_some()
-        || source.segments.iter().any(|segment| {
-            !matches!(
-                segment,
-                PlaceSegment::Field { .. }
-                    | PlaceSegment::Case { .. }
-                    | PlaceSegment::FixedIndex { .. }
-            )
-        })
-    {
-        return None;
-    }
-    let input = stored
-        .iter()
-        .find(|input| input.local_symbol == source.root)?;
-    let mut leaves = input
-        .references
-        .iter()
-        .filter(|leaf| source.segments.starts_with(&leaf.local_segments));
-    let leaf = leaves.next()?;
-    if leaves.next().is_some() {
-        return None;
-    }
-    let slot = stored_origins::projected_storage_type(program, reference, &leaf.local_segments)?;
-    if !type_reference_is_reference(program, slot)
-        || stored_origins::project_stored_origins(program, input, &leaf.local_segments, false)?
-            .references
-            .iter()
-            .filter(|leaf| leaf.local_segments.is_empty())
-            .count()
-            != 1
-    {
-        return None;
-    }
-    validate_owned_projection(program, slot, &source.segments[leaf.local_segments.len()..])
+    // Declaration validation authenticates current load availability without
+    // changing an initializer owner's already captured source association.
+    read_projection::validate_address(program, state, index, source, stored)
 }
 
 pub(super) fn source_root_type(

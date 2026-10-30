@@ -200,6 +200,58 @@ pub(crate) fn place_segments(
         .collect()
 }
 
+/// Incoming family, selected ingress descriptor and pointee suffix are three
+/// different coordinates. Publish the first two as an opaque root identity;
+/// the ordinary place segments stay below the loaded pointer. This joins
+/// checked occurrences only and supplies no physical separation or permission.
+fn captured_root_identity(
+    checked: &CheckedTrees,
+    place: &checked_trees::CapturedPlace,
+    capture: Capture,
+) -> Result<String, LoweringError> {
+    let root = storage_root_identity(checked, place.root)?;
+    if !place.incoming_reference.is_valid() {
+        return Ok(root);
+    }
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-terminal-incoming-borrow-root-v1");
+    digest.bytes(root.as_bytes());
+    digest.raw(&place.incoming_reference.arena_index().to_le_bytes());
+    digest.raw(&place.incoming_reference.generation().to_le_bytes());
+    digest.len(place.incoming_owner_path.len());
+    for segment in &place.incoming_owner_path {
+        match segment {
+            facts::PlaceSegment::Field { symbol } => {
+                digest.byte(0);
+                digest.bytes(identity(checked, *symbol)?.as_bytes());
+            }
+            facts::PlaceSegment::Case { variant } => {
+                digest.byte(1);
+                digest.bytes(identity(checked, *variant)?.as_bytes());
+            }
+            facts::PlaceSegment::FixedIndex { index } => {
+                digest.byte(2);
+                digest.u64(ordinal(*index)?);
+            }
+            facts::PlaceSegment::Index { expression } => {
+                digest.byte(3);
+                digest.bytes(capture.selector_identity(checked, *expression)?.as_bytes());
+            }
+            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
+                return unsupported("incoming descriptor selection is not an exact captured leaf");
+            }
+        }
+    }
+    Ok(format!(
+        "terminal-borrow-incoming:{}",
+        digest
+            .finish()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    ))
+}
+
 pub(crate) fn place(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
@@ -207,7 +259,7 @@ pub(crate) fn place(
     capture: Capture,
 ) -> Result<TerminalBorrowPlace, LoweringError> {
     Ok(TerminalBorrowPlace {
-        root_identity: identities.intern(&storage_root_identity(checked, place.root)?),
+        root_identity: identities.intern(&captured_root_identity(checked, place, capture)?),
         segments: place_segments(identities, checked, &place.segments, capture)?,
     })
 }
@@ -222,7 +274,10 @@ pub(crate) fn projected_place(
     child: &checked_trees::CapturedPlace,
     capture: Capture,
 ) -> Result<(TerminalBorrowPlace, Vec<TerminalBorrowPlaceSegment>), LoweringError> {
-    if parent.root != child.root || parent.incoming_reference != child.incoming_reference {
+    if parent.root != child.root
+        || parent.incoming_reference != child.incoming_reference
+        || parent.incoming_owner_path != child.incoming_owner_path
+    {
         return unsupported("reborrow custody child changes its captured root");
     }
     let remainder = child

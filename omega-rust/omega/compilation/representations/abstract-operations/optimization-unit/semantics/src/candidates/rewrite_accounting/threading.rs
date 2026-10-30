@@ -42,7 +42,14 @@ pub fn reconstruct_linear_thread_bindings(
     )
 }
 
-pub(crate) fn reconstruct_linear_thread_ownership_is_identity(
+/// The ownership-frontier identity both empty-block threads owe: the six
+/// frontier sites the thread erases or retargets carry one snapshot at the
+/// unit's identity, or -- with no frontier fact published at all -- the
+/// function declares no structural parameters, entry claims or places.
+/// Proposing rules and the replay checkers share it; it decides ownership
+/// only, so it grants neither acceptance nor the provenance accounting a
+/// rewrite still owes.
+pub fn reconstruct_linear_thread_ownership_is_identity(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     incoming: EdgeId,

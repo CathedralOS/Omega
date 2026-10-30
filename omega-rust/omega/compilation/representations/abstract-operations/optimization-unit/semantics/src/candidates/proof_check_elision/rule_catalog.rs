@@ -8,6 +8,7 @@
 //! the shared protocol calls to reconstruct its shape and to check its
 //! evidence.
 use optimization_core::{AnalysisKind, OptimizationRuleIdentity};
+use optimization_unit::ProofCertifiedScalarIdentityKind;
 
 use super::integer_constant_law::IndependentIntegerConstantLaw;
 use super::same_operand::{
@@ -26,26 +27,54 @@ pub(super) enum ProofCheckValidationRoute {
     IntegerConstantLaw(IndependentIntegerConstantLaw),
 }
 
+/// One operand-substitution rule: the producer rule it replays, the validator
+/// identity an accepted rewrite publishes, and the exact identity kinds that
+/// rule may name. The family acceptance reads this row rather than restating
+/// the rule domains in its own `match` arms.
+pub(super) struct OperandSubstitutionRule {
+    pub(super) rule_domain: &'static [u8],
+    pub(super) validator_domain: &'static [u8],
+    pub(super) identities: &'static [ProofCertifiedScalarIdentityKind],
+}
+
+/// The six operand-substitution rules, one row each: routing and acceptance
+/// both read these rows, so a rule's validator identity is stated once.
+#[rustfmt::skip]
+const OPERAND_SUBSTITUTION_RULES: &[OperandSubstitutionRule] = &[
+    OperandSubstitutionRule { rule_domain: b"omega.psi-rule.live-proof-certified-integer-identity-elimination.v1", validator_domain: b"omega.validator.live-proof-certified-integer-identity-elimination.v1", identities: &[ProofCertifiedScalarIdentityKind::ExactIntegerAddZeroLeft, ProofCertifiedScalarIdentityKind::ExactIntegerAddZeroRight, ProofCertifiedScalarIdentityKind::ExactIntegerSubtractZeroRight, ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyOneLeft, ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyOneRight, ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroCount, ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroCount] },
+    OperandSubstitutionRule { rule_domain: b"omega.psi-rule.live-proof-certified-integer-divide-by-one-elimination.v1", validator_domain: b"omega.validator.live-proof-certified-integer-divide-by-one-elimination.v1", identities: &[ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight, ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight, ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight] },
+    OperandSubstitutionRule { rule_domain: b"omega.psi-rule.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1", validator_domain: b"omega.validator.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1", identities: &[ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroLeft, ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroRight] },
+    OperandSubstitutionRule { rule_domain: b"omega.psi-rule.live-proof-certified-integer-zero-dividend-elimination.v1", validator_domain: b"omega.validator.live-proof-certified-integer-zero-dividend-elimination.v1", identities: &[ProofCertifiedScalarIdentityKind::ExactIntegerDivideZeroLeft, ProofCertifiedScalarIdentityKind::WrappingIntegerDivideZeroLeft, ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideZeroLeft, ProofCertifiedScalarIdentityKind::ExactIntegerRemainderZeroLeft, ProofCertifiedScalarIdentityKind::WrappingIntegerRemainderZeroLeft, ProofCertifiedScalarIdentityKind::SaturatingIntegerRemainderZeroLeft] },
+    OperandSubstitutionRule { rule_domain: b"omega.psi-rule.live-proof-certified-exact-integer-zero-value-shift-elimination.v1", validator_domain: b"omega.validator.live-proof-certified-exact-integer-zero-value-shift-elimination.v1", identities: &[ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroValue, ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroValue] },
+    OperandSubstitutionRule { rule_domain: b"omega.psi-rule.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1", validator_domain: b"omega.validator.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1", identities: &[ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightNegativeOneValue] },
+];
+
+/// Whether `rule` is one of the operand-substitution rules at all: the roster
+/// check the family acceptance runs before it reads a row.
+pub(super) fn is_operand_substitution_rule(rule: OptimizationRuleIdentity) -> bool {
+    OPERAND_SUBSTITUTION_RULES
+        .iter()
+        .any(|row| rule == identity(row.rule_domain))
+}
+
+/// The row one accepted operand substitution publishes: `rule` must be the
+/// row's producer rule and `identity_kind` one of the kinds that rule may name.
+pub(super) fn operand_substitution_row(
+    rule: OptimizationRuleIdentity,
+    identity_kind: ProofCertifiedScalarIdentityKind,
+) -> Option<&'static OperandSubstitutionRule> {
+    OPERAND_SUBSTITUTION_RULES
+        .iter()
+        .find(|row| rule == identity(row.rule_domain) && row.identities.contains(&identity_kind))
+}
+
 impl ProofCheckValidationRoute {
     pub(super) fn for_rule(rule: OptimizationRuleIdentity) -> Option<Self> {
         let route = if rule
             == identity(b"omega.psi-rule.dead-unused-proof-certified-scalar-elimination.v1")
         {
             Self::DeadScalar
-        } else if [
-            b"omega.psi-rule.live-proof-certified-integer-identity-elimination.v1".as_slice(),
-            b"omega.psi-rule.live-proof-certified-integer-divide-by-one-elimination.v1".as_slice(),
-            b"omega.psi-rule.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1"
-                .as_slice(),
-            b"omega.psi-rule.live-proof-certified-integer-zero-dividend-elimination.v1".as_slice(),
-            b"omega.psi-rule.live-proof-certified-exact-integer-zero-value-shift-elimination.v1"
-                .as_slice(),
-            b"omega.psi-rule.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1"
-                .as_slice(),
-        ]
-        .into_iter()
-        .any(|domain| rule == identity(domain))
-        {
+        } else if is_operand_substitution_rule(rule) {
             Self::OperandSubstitution
         } else {
             // Each constant law names its own rule domain, so the roster below

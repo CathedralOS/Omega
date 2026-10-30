@@ -180,3 +180,27 @@ coordinates and the parent's other accepted requirements remain unfinished.
 carry that same fact across all nine places while temporarily replacing and
 restoring stored references. The operand result, caller-visible audit and
 unchanged spare distinguish completed captures from reloaded descriptor homes.
+
+## Indexed scalar coordinates
+
+The same fact's `indexed_value/` production carries a runtime selector beside
+its readable fixed-array backing through all nine places. Both selectors and
+the seven/empty paths are observable, with untouched-neighbor canaries.
+[Entry formation, snapshot identity, read lowering and controls](local/indexed_value/README.md)
+separate admitted index bounds from source syntax and declaration geometry.
+
+## Case payload coordinates
+
+Each place's `case_value/` carries the same private-cycle fact through an
+independently classified Pending payload. The [requirement mapping and controls](local/case_value/README.md)
+cover declaration-owned case formation, public result guarantees, nested payload
+fields and computed construction, with strict-descent twins in every place.
+
+[Stored-reference case ranks](local/case_value/stored_reference/README.md)
+carry the same counter fact through a loaded descriptor, with aggregate/scalar
+aliases, ordered descriptor replacement and snapshot controls.
+
+[Reference-bearing case payload ranks](local/case_value/stored_reference/reference_payload/README.md)
+carry the same seven/empty counter fact through two independently captured stored
+references in all nine places, with common-field loans, pointer restoration and
+stale-result controls.

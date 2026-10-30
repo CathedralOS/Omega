@@ -1,28 +1,21 @@
 //! Exact operand-free architectural trap for a semantic Crash leaf.
-use crate::machine_effects::form_alternative;
 use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 pub(crate) fn declaration(constraint: &RegisterInstructionConstraint) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::Crash,
-        constraint: constraint.key,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::ExplicitCrashV1,
-        barrier: MachineBarrier::ControlFlow,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: form_alternative!(
-            MachineAlternativeFamily::Crash,
-            MachineSizeKnowledge::ExactBytes(4),
-            MachineEncodedEffects::crash_v1(&constraint.implicit_uses)
-        ),
-    }
+    MachineEffectDeclaration::single(
+        MachineSemanticKind::Crash,
+        constraint.key,
+        MachineMemoryEffect::NoneV1,
+        MachineTrapBehavior::ExplicitCrashV1,
+        MachineBarrier::ControlFlow,
+        MachineAlternativeFamily::Crash,
+        MachineSizeKnowledge::ExactBytes(4),
+        MachineEncodedEffects::crash_v1(&constraint.implicit_uses),
+    )
 }
 
 #[cfg(test)]

@@ -17,6 +17,7 @@ mod ranges;
 struct Coordinate {
     parameter: SymbolHandle,
     path: Vec<facts::PlaceSegment>,
+    entry_indexes: Vec<checked_trees::CheckedEntryIndexBound>,
     entry_value: ScopedArithmeticValue,
     position: usize,
     primitive: PrimitiveType,
@@ -94,9 +95,9 @@ pub(super) fn select(
     let mut field_paths = Vec::new();
     for machine in &machines {
         for state in program.machine_states(machine) {
-            for path in
-                crate::checks::current_scalar_values::parameter_field_paths(program, machine, state)
-            {
+            for path in crate::checks::current_scalar_values::parameter_projection_paths(
+                program, machine, state,
+            ) {
                 if !field_paths.contains(&path) {
                     field_paths.push(path);
                 }
@@ -117,7 +118,7 @@ pub(super) fn select(
             .statement_table
             .admitted_execution_order(entry.statement_nodes);
         let first = *execution.indices().first()?;
-        let values = CurrentScalarValues::at_observing_fields(
+        let values = CurrentScalarValues::at_observing_projections(
             program,
             machine,
             entry,
@@ -186,12 +187,13 @@ pub(super) fn select(
             subject,
         )?;
         let parameter = place.root.as_symbol()?;
+        let values = entry_values.last()?;
         let selected = available
             .last()?
             .iter()
             .find(|coordinate| {
                 coordinate.parameter == parameter
-                    && coordinate.path == place.segments
+                    && values.same_scalar_projection(&coordinate.path, &place.segments)
                     && coordinate.observation == observation
             })?
             .clone();
@@ -206,7 +208,6 @@ pub(super) fn select(
         if let Err(reason) = ranges::entry(program, machine, measure) {
             return Some(Err(reason));
         }
-        let values = entry_values.last()?;
         let bound = if let Some(expression) = upper {
             let value = values.current_value(expression)?;
             if order == Order::BoundedDistance
@@ -336,7 +337,7 @@ pub(super) fn select(
                         "natural rank operands have an unpreserved evaluation prefix",
                     ));
                 }
-                let Some(values) = CurrentScalarValues::at_observing_fields(
+                let Some(values) = CurrentScalarValues::at_observing_projections(
                     program,
                     machine,
                     entry,
@@ -381,10 +382,20 @@ impl Coordinate {
         &self,
         values: &CurrentScalarValues<'_>,
         actual: ExpressionHandle,
+        callee: &typed_trees::machine::Machine,
+        arguments: &[ExpressionHandle],
     ) -> Option<ScopedArithmeticValue> {
         match self.observation {
             validation::RankPremiseObservation::Value => {
-                values.projected_scalar_value(actual, &self.path)
+                let state = values.program().machine_states(callee).first()?;
+                values.projected_scalar_value_in_call(
+                    actual,
+                    &self.path,
+                    callee,
+                    state,
+                    values.program().state_parameters(state),
+                    arguments,
+                )
             }
             validation::RankPremiseObservation::Length => {
                 values.projected_collection_length(actual, &self.path)
@@ -422,9 +433,12 @@ impl Bound {
                     )?,
                 ))
             }
-            Self::Coordinate(coordinate) => {
-                coordinate.current(&edge.values, *edge.arguments.get(coordinate.position)?)
-            }
+            Self::Coordinate(coordinate) => coordinate.current(
+                &edge.values,
+                *edge.arguments.get(coordinate.position)?,
+                machine,
+                edge.arguments,
+            ),
             Self::Closed(value) => Some(value.clone()),
         }
     }
@@ -462,6 +476,7 @@ fn coordinates(
                     coordinates.push(Coordinate {
                         parameter: parameter.symbol,
                         path: Vec::new(),
+                        entry_indexes: Vec::new(),
                         entry_value,
                         position,
                         primitive,
@@ -473,12 +488,10 @@ fn coordinates(
             // The runtime projection owner independently authenticates each selected
             // scalar path, including erasure and exact declaration identities.
             if observation == validation::RankPremiseObservation::Value {
-                for (path, primitive, value) in values.scalar_field_observations(parameter.symbol) {
-                    let path = path
-                        .iter()
-                        .map(|symbol| facts::PlaceSegment::Field { symbol: *symbol })
-                        .collect::<Vec<_>>();
-                    let Some(field) = validation::structural_scalar_field_at_coordinate(
+                for (path, primitive, value, entry_indexes) in
+                    values.entry_scalar_field_observations(parameter.symbol)
+                {
+                    let Some(field) = validation::structural_scalar_coordinate(
                         program,
                         program.state_parameters(state),
                         parameter.symbol,
@@ -492,6 +505,7 @@ fn coordinates(
                     coordinates.push(Coordinate {
                         parameter: parameter.symbol,
                         path,
+                        entry_indexes,
                         entry_value: value.clone(),
                         position,
                         primitive,
@@ -522,6 +536,7 @@ fn coordinates(
                     coordinates.push(Coordinate {
                         parameter: parameter.symbol,
                         path,
+                        entry_indexes: Vec::new(),
                         entry_value: value.clone(),
                         position,
                         primitive: PrimitiveType::U64,
@@ -570,7 +585,12 @@ fn compare(
 ) -> Option<bool> {
     let actual = *edge.arguments.get(destination.coordinate.position)?;
     let initial = &source.coordinate.entry_value;
-    let next = destination.coordinate.current(&edge.values, actual)?;
+    let next = destination.coordinate.current(
+        &edge.values,
+        actual,
+        machines[edge.destination],
+        edge.arguments,
+    )?;
     let zero = ScopedArithmeticValue::Integer(BigInt::zero());
     let proves = |operator, left: &ScopedArithmeticValue, right: &ScopedArithmeticValue| {
         edge.values
@@ -714,6 +734,7 @@ fn search(
                     parameter: coordinate.parameter,
                     path: coordinate.path.clone(),
                 },
+                entry_indexes: coordinate.entry_indexes.clone(),
                 parameter_position: u32::try_from(coordinate.position).ok()?,
                 primitive_type: coordinate.primitive,
                 observation: coordinate.observation,

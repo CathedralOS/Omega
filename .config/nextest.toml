@@ -15,6 +15,12 @@ filter = 'package(=bounded-process)'
 threads-required = "num-test-threads"
 priority = 100
 
+# Benchmark instrument checks spawn timed children; keep their own cases from
+# competing with one another in nextest's separate test processes.
+[[profile.default.overrides]]
+filter = 'package(=omega-bench) & binary(=runner)'
+threads-required = "num-test-threads"
+
 # Start long Git/filesystem fixtures early to reduce the end-of-run tail.
 # Leave thread counts at the host default: Windows trials did not establish
 # a repeatable advantage from a universal eight-thread cap.

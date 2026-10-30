@@ -1,0 +1,14 @@
+diff --git a/omega-rust/psi/foundation/compiler-storage/src/buffer.rs b/omega-rust/psi/foundation/compiler-storage/src/buffer.rs
+index 9369abbd636..f2d321f2f0d 100644
+--- a/omega-rust/psi/foundation/compiler-storage/src/buffer.rs
++++ b/omega-rust/psi/foundation/compiler-storage/src/buffer.rs
+@@ -177,6 +177,9 @@ impl<'bytes, Context> RecordReader<'bytes, Context> {
+         Ok(length)
+     }
+ 
++    // Keep the depth guard in the record decoder's frame. A separate return
++    // boundary here forces large decoded values through another temporary.
++    #[inline(always)]
+     pub fn record<T>(
+         &mut self,
+         read: impl FnOnce(&mut Self) -> Result<T, RecordError>,

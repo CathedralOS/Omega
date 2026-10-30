@@ -1,0 +1,19 @@
+// A completion guarantee cannot establish the next invocation's premises.
+machine first(position: u64) -> u64
+    requires position <= 256u64
+    ensures result <= 256u64
+{
+    transition position < 257u64 {
+        true -> second(position)
+        false -> (position)
+    }
+}
+machine second(position: u64) -> u64
+    requires position < 256u64
+    ensures result <= 256u64
+{
+    transition {
+        _ -> first(((position as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64)
+    }
+}
+machine main() {}

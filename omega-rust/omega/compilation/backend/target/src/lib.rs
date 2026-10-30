@@ -42,7 +42,7 @@ pub use foreign_locator::{
 pub use target_profile::{
     Architecture, HostedIntrinsicBundle, NativeTarget, ObjectFormat, ProgramEntryCallingConvention,
     ProgramEntryPhysicalContractPackage, ProgramEntrySchema, ProgramEntrySlotDeclaration,
-    ProgramEntryVisibleParameters, TargetProfile, TargetWireIdentityError,
+    ProgramEntrySlots, ProgramEntryVisibleParameters, TargetProfile, TargetWireIdentityError,
 };
 pub use target_semantics::{
     SymbolicTargetObservationApplication, TargetEntryStackGuarantee, TargetSemantics, UefiX86_64,

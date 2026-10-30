@@ -1,0 +1,1 @@
+{"schema":"omega-allocation-observation/1","scope":"process-lifetime Rust global allocator; instrumentation enabled","allocations":1113533,"reallocations":48657,"deallocations":1101302,"requested_bytes":280482651,"live_bytes":936822,"peak_live_bytes":143683009,"failures":0}

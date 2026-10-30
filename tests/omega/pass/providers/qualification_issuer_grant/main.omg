@@ -1,0 +1,53 @@
+// Check-only: complete qualification inventory is independent of emitted roots.
+// Exact inherited issuer grants remain distinct from receiver calling contracts.
+use omega_language_std::calling;
+public domain u64::Issued established by Parent::value;
+public boundary trait Parent { machine value() -> u64 reaches ensures result in u64::Issued; }
+public boundary trait FirstRoot: Parent + Calling<FirstCalling> { machine selected() -> u64 reaches; }
+public boundary trait SecondRoot: Parent + Calling<SecondCalling> { machine selected() -> u64 reaches; }
+public FirstCalling satisfies CallingPolicy { machine plan(signature: BoundarySignature) -> BoundaryPlanResult { first_plan(signature) } }
+public SecondCalling satisfies CallingPolicy { machine plan(signature: BoundarySignature) -> BoundaryPlanResult { second_plan(signature) } }
+FirstMap satisfies FirstRoot { machine value() -> u64 { 17 } machine selected() -> u64 { 17 } }
+SecondMap satisfies SecondRoot { machine value() -> u64 { 29 } machine selected() -> u64 { 29 } }
+machine first_value() -> u64 { 17 }
+machine second_value() -> u64 { 29 }
+ParentMap satisfies Parent { machine value() -> u64 { 37 } }
+
+machine first_plan(signature: BoundarySignature) -> BoundaryPlanResult { value_plan(signature, false) }
+machine second_plan(signature: BoundarySignature) -> BoundaryPlanResult { value_plan(signature, true) }
+machine value_plan(signature: BoundarySignature, allow_vectors: bool) -> BoundaryPlanResult {
+    transition signature.parameter_count == 0 && signature.has_result {
+        true -> select_result(signature, signature.result, allow_vectors)
+        _ -> reject()
+    }
+    machine select_result(signature: BoundarySignature, result: u64, allow_vectors: bool) -> BoundaryPlanResult {
+        transition result < 256 { true -> accept(signature, result, allow_vectors) _ -> reject() }
+    }
+    machine accept(signature: BoundarySignature, result: u64, allow_vectors: bool) -> BoundaryPlanResult {
+        let mut plan: BoundaryEntryPlan;
+        plan.call.convention = CallingConvention::Aapcs64;
+        plan.call.has_result = true;
+        plan.call.result.shape.class = AbiValueClass::Integer;
+        plan.call.result.shape.byte_size = signature.shapes[result].byte_size;
+        plan.call.result.shape.alignment = signature.shapes[result].alignment;
+        plan.call.result.location_count = 1;
+        plan.call.result.locations[0] = ValueLocation::Register {
+            register: MachineRegister::Aarch64X { index: 0 }, value_byte_offset: 0, byte_size: 8
+        };
+        plan.call.stack_alignment = 16;
+        plan.call.entry_control = EntryControl::CallReturn;
+        plan.state.initial_regime = MachineRegime::Aarch64A64 { exception_level: 0 };
+        plan.state.permitted_transitive_use.general_registers = true;
+        plan.state.permitted_transitive_use.flags = true;
+        plan.state.permitted_transitive_use.vector_registers = allow_vectors;
+        plan.state.stack = EntryStack::ProviderSelected;
+        plan.state.preemption = Preemption::NotApplicable;
+        BoundaryPlanResult::Accepted { plan: plan }
+    }
+    machine reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one scalar result" } }
+    }
+}
+
+// Check includes admitted facts in uncalled bodies, not only emitted entries.
+machine issued() -> u64 in Issued reaches Parent { Parent::value() }

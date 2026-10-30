@@ -1,0 +1,142 @@
+{
+  "scans-coarse-a": {
+    "producer": "scans-profile",
+    "mode": "coarse",
+    "wall_seconds": 25.543038499999966,
+    "cpu_seconds": 31.546875,
+    "source_replay_ms": 3302.0635,
+    "membership_ms": 4295.4876,
+    "peak_working_set_bytes": 1926963200,
+    "peak_commit_bytes": 3526950912
+  },
+  "scans-coarse-b": {
+    "producer": "scans-profile",
+    "mode": "coarse",
+    "wall_seconds": 32.66318389999651,
+    "cpu_seconds": 38.796875,
+    "source_replay_ms": 2830.6345,
+    "membership_ms": 3987.0067,
+    "peak_working_set_bytes": 2029297664,
+    "peak_commit_bytes": 3413999616
+  },
+  "scans-coarse-c": {
+    "producer": "scans-profile",
+    "mode": "coarse",
+    "wall_seconds": 22.663818799999717,
+    "cpu_seconds": 29.5,
+    "source_replay_ms": 2003.6804,
+    "membership_ms": 2987.1315,
+    "peak_working_set_bytes": 2141310976,
+    "peak_commit_bytes": 3517394944
+  },
+  "scans-counts-a": {
+    "producer": "scans-profile",
+    "mode": "counts",
+    "wall_seconds": 25.360635800003365,
+    "cpu_seconds": 31.671875,
+    "source_replay_ms": 2187.2399,
+    "membership_ms": 3668.112,
+    "peak_working_set_bytes": 2152660992,
+    "peak_commit_bytes": 3550330880
+  },
+  "scans-counts-b": {
+    "producer": "scans-profile",
+    "mode": "counts",
+    "wall_seconds": 21.81616010000289,
+    "cpu_seconds": 28.265625,
+    "source_replay_ms": 1973.9864,
+    "membership_ms": 2748.2433,
+    "peak_working_set_bytes": 2132049920,
+    "peak_commit_bytes": 3461353472
+  },
+  "scans-fine-a": {
+    "producer": "scans-profile",
+    "mode": "fine",
+    "wall_seconds": 25.87157170000137,
+    "cpu_seconds": 32.21875,
+    "source_replay_ms": 2117.3516,
+    "membership_ms": 3088.4001,
+    "peak_working_set_bytes": 2105925632,
+    "peak_commit_bytes": 3495342080
+  },
+  "scans-fine-b": {
+    "producer": "scans-profile",
+    "mode": "fine",
+    "wall_seconds": 26.91824970000016,
+    "cpu_seconds": 34.484375,
+    "source_replay_ms": 2328.4778,
+    "membership_ms": 3404.653,
+    "peak_working_set_bytes": 2128789504,
+    "peak_commit_bytes": 3512909824
+  },
+  "scans-off-a": {
+    "producer": "scans-profile",
+    "mode": "off",
+    "wall_seconds": 31.816228600000613,
+    "cpu_seconds": 38.171875,
+    "source_replay_ms": 2539.609,
+    "membership_ms": 3634.3004,
+    "peak_working_set_bytes": 2014846976,
+    "peak_commit_bytes": 3356753920
+  },
+  "scans-off-b": {
+    "producer": "scans-profile",
+    "mode": "off",
+    "wall_seconds": 26.85027529999934,
+    "cpu_seconds": 33.203125,
+    "source_replay_ms": 3246.6034,
+    "membership_ms": 4303.7629,
+    "peak_working_set_bytes": 2039607296,
+    "peak_commit_bytes": 3387957248
+  },
+  "scans-off-c": {
+    "producer": "scans-profile",
+    "mode": "off",
+    "wall_seconds": 29.83331999999791,
+    "cpu_seconds": 36.203125,
+    "source_replay_ms": 2313.3638,
+    "membership_ms": 3310.0461,
+    "peak_working_set_bytes": 1899532288,
+    "peak_commit_bytes": 3483500544
+  },
+  "scans-original-a": {
+    "producer": "payload",
+    "mode": "off",
+    "wall_seconds": 30.09667150000314,
+    "cpu_seconds": 37.4375,
+    "source_replay_ms": 2431.2887,
+    "membership_ms": 3480.2413,
+    "peak_working_set_bytes": 2122526720,
+    "peak_commit_bytes": 3453915136
+  },
+  "scans-original-b": {
+    "producer": "payload",
+    "mode": "off",
+    "wall_seconds": 29.994484800001374,
+    "cpu_seconds": 36.328125,
+    "source_replay_ms": 2377.9733,
+    "membership_ms": 3380.0208,
+    "peak_working_set_bytes": 1905987584,
+    "peak_commit_bytes": 3495903232
+  },
+  "scans-original-c": {
+    "producer": "payload",
+    "mode": "off",
+    "wall_seconds": 26.06456719999551,
+    "cpu_seconds": 33.46875,
+    "source_replay_ms": 1948.1146,
+    "membership_ms": 2928.2793,
+    "peak_working_set_bytes": 2016956416,
+    "peak_commit_bytes": 3355033600
+  },
+  "scans-verified": {
+    "producer": "scans-profile",
+    "mode": "off",
+    "wall_seconds": 20.83440100000007,
+    "cpu_seconds": 27.21875,
+    "source_replay_ms": 1746.3921,
+    "membership_ms": 2649.4458,
+    "peak_working_set_bytes": 4176592896,
+    "peak_commit_bytes": 5027532800
+  }
+}

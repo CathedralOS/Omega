@@ -1,0 +1,12 @@
+{
+  "command": [
+    "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+    "-c",
+    "allocation = bytearray(64*1024*1024); print(len(allocation))"
+  ],
+  "wall_seconds": 0.08564430000001266,
+  "exit_code": 0,
+  "cpu_seconds": 0.0625,
+  "peak_working_set_bytes": 79552512,
+  "peak_commit_bytes": 73486336
+}

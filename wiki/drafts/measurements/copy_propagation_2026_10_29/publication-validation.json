@@ -1,0 +1,47 @@
+{
+  "scope": "Publication packaging validation only; all compiler performance and runtime observations retain their original identities.",
+  "qualification": {
+    "id": "b9950292ee704ad69aaaec290dbac82f",
+    "check": "publication-record-integrity",
+    "revision": "5aa3f6fbd78ecffbaeb2b93327bbd3d5295faa35",
+    "exit": 0,
+    "invalidations": [],
+    "duration_seconds": 17.211272100001224,
+    "receipt": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\copy-propagation-publication\\build\\publication-qualification.records\\b9950292ee704ad69aaaec290dbac82f.json",
+      "sha256": "62341b1dca471761acd3cd26f83c90abee77d9490a8e7ce50708a721b185ca00"
+    }
+  },
+  "report_sha256": "0b3f4c969be61889d7879c4bb090d6c5ef77ac58949c82ea1c325c834e3c060f",
+  "report": {
+    "scope": "Publication integrity audit only; no new compiler/runtime/performance observation",
+    "fixed_base": "bc1ed575da8c741b6b464776ad326a85d506510f",
+    "historical_source": "1a577399dc528ce7c32c7012af2a8f731decd7d9",
+    "observed_publication_revision": "5aa3f6fbd78ecffbaeb2b93327bbd3d5295faa35",
+    "paths": 36,
+    "python_syntax": 17,
+    "json_documents": 5,
+    "local_links": 49,
+    "archives": {
+      "copy_propagation_2026_10_29": {
+        "records": 674,
+        "sha256": "4509d327c8378a248cc1c05b2e5982ae5cb419e3562cedf80385034f8229db23"
+      },
+      "owner_lifecycle_2026_10_29": {
+        "records": 150,
+        "sha256": "b2e6fd01b3bc6cf6515006a65113602a1e1f343da5861f438eb865c689f902e1"
+      },
+      "spill_cost_2026_10_29": {
+        "records": 147,
+        "sha256": "251610140f476b3a194193b39800a64e47a24f9045816e37a0b0df9777bf24f6"
+      }
+    },
+    "historical_performance_images": 170,
+    "historical_agreements": 10,
+    "historical_rejects": 9,
+    "historical_failures_preserved": 2,
+    "runtime_applicability": "Historical receipts and producer IDs are retained. Publication changes only wiki evidence/harness/controls and packaging prose; no compiler/default/original sample changes. No claim of execution by the published compiler."
+  },
+  "claim_ticket": "0a407e640ad14fdc90fa200062a21dc7",
+  "agent": "OpenAI Codex; exact model variant unavailable"
+}

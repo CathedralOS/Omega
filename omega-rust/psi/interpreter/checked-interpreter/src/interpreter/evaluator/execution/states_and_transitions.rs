@@ -59,7 +59,7 @@ impl<'program> Evaluator<'program> {
             executed_build_selections: Vec::new(),
             executed_wire_demands: Vec::new(),
             product_entry_descriptions: Vec::new(),
-            product_entry_compatibility: None,
+            product_entry_slots: None,
             product_schema_descriptions: Vec::new(),
             product_provider_descriptions: Vec::new(),
             stdin,

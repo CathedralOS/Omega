@@ -197,17 +197,23 @@ pub(crate) fn exact_cast_fits_at_occurrence(
 /// Both operands have completed, but this operation has not. Their own carrier
 /// bounds and live observations may prove the result; its proposed carrier may
 /// not supply an assumption about that same result.
-pub(crate) fn exact_binary_fits_at_occurrence(
+#[derive(Default)]
+pub(crate) struct CompletedIntegerFormation {
+    pub(crate) proven: bool,
+    pub(crate) recipe: Option<checked_trees::IntegerRangeRecipe>,
+}
+
+pub(crate) fn exact_binary_formation_at_occurrence(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-) -> bool {
+) -> CompletedIntegerFormation {
     let Some(binary) = program.expression_table.binary_node(expression) else {
-        return false;
+        return CompletedIntegerFormation::default();
     };
     if !crate::has_builtin_binary_expression_meaning(program, machine, Some(state), expression) {
-        return false;
+        return CompletedIntegerFormation::default();
     }
     let mut references = [binary.left, binary.right]
         .map(|operand| crate::expression_result_type_reference(program, machine, state, operand));
@@ -221,12 +227,13 @@ pub(crate) fn exact_binary_fits_at_occurrence(
         }
         let operand = [binary.left, binary.right][position];
         if !crate::value_custody::literals::has_anonymous_numeric_results(program, operand) {
-            return false;
+            return CompletedIntegerFormation::default();
         }
-        let Some(peer) = references[1 - position]
-            .and_then(|reference| program.primitive_type_reference(reference))
-        else {
-            return false;
+        let Some(peer) = references[1 - position].and_then(|reference| {
+            crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
+                .map(|(primitive, _)| primitive)
+        }) else {
+            return CompletedIntegerFormation::default();
         };
         let carrier = typed_trees::operator::integer_peer_operand_carrier(
             binary.operator,
@@ -237,43 +244,53 @@ pub(crate) fn exact_binary_fits_at_occurrence(
             .landed_landing()
             .map(typed_trees::types::builtin_type_atom)
         else {
-            return false;
+            return CompletedIntegerFormation::default();
         };
         references[position] =
             crate::proof_contracts::bound_expression_meaning::builtin_type_reference(program, atom);
     }
     let [Some(left), Some(right)] = references else {
-        return false;
+        return CompletedIntegerFormation::default();
     };
-    let primitives = [left, right].map(|reference| program.primitive_type_reference(reference));
+    let primitives = [left, right].map(|reference| {
+        crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
+            .map(|(primitive, _)| primitive)
+    });
     let [Some(left_primitive), Some(right_primitive)] = primitives else {
-        return false;
+        return CompletedIntegerFormation::default();
     };
     let Some(target) = typed_trees::operator::builtin_integer_result_carrier(
         binary.operator,
         [left_primitive, right_primitive],
     ) else {
-        return false;
+        return CompletedIntegerFormation::default();
     };
-    matches!(
-        operand_fits_at_occurrence(
-            program,
-            machine,
-            state,
-            OperandFitRequest {
-                expression,
-                position: 0,
-                source: OperandSource::CompletedOperation {
-                    operator: binary.operator,
-                    references: [left, right],
-                    established_carriers,
-                },
-                target,
-                context_reference: left,
+    let Some(observed) = observe_operand_fit_at_occurrence(
+        program,
+        machine,
+        state,
+        OperandFitRequest {
+            expression,
+            position: 0,
+            source: OperandSource::CompletedOperation {
+                operator: binary.operator,
+                references: [left, right],
+                established_carriers,
             },
-        ),
-        CarrierFit::Proven
-    )
+            target,
+            context_reference: left,
+        },
+    ) else {
+        return CompletedIntegerFormation::default();
+    };
+    CompletedIntegerFormation {
+        proven: matches!(observed.judgment, Some(CarrierFit::Proven)),
+        recipe: observed
+            .range_complete
+            .then_some(observed.range_recipe)
+            .flatten()
+            .filter(checked_trees::IntegerRangeRecipe::is_target_dependent),
+    }
 }
 
 /// The caller independently checks anonymous integrality/representation and
@@ -420,11 +437,19 @@ fn operand_fits_at_occurrence(
     state: &State,
     request: OperandFitRequest,
 ) -> CarrierFit {
-    let Some(statement_index) =
-        super::completed_values::expression_statement_index(program, state, request.expression)
-    else {
-        return CarrierFit::Unknown;
-    };
+    observe_operand_fit_at_occurrence(program, machine, state, request)
+        .and_then(|observed| observed.judgment)
+        .unwrap_or(CarrierFit::Unknown)
+}
+
+fn observe_operand_fit_at_occurrence(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    request: OperandFitRequest,
+) -> Option<OperandFit> {
+    let statement_index =
+        super::completed_values::expression_statement_index(program, state, request.expression)?;
     let mut visitor = OperandFit {
         site: StructuralPrefixSite {
             state: state.symbol,
@@ -439,6 +464,8 @@ fn operand_fits_at_occurrence(
         request,
         seen: false,
         judgment: None,
+        range_recipe: None,
+        range_complete: true,
     };
     let recognized = super::structural_prefix::observe_runtime_state_prefix(
         program,
@@ -447,28 +474,27 @@ fn operand_fits_at_occurrence(
         &mut visitor,
     )
     .is_some();
-    let local = if recognized && visitor.seen {
-        visitor.judgment.unwrap_or(CarrierFit::Unknown)
-    } else {
-        CarrierFit::Unknown
-    };
-    if !matches!(local, CarrierFit::Unknown) {
-        return local;
+    if recognized
+        && visitor.seen
+        && (visitor.has_positive_proof()
+            || matches!(
+                visitor.judgment,
+                Some(CarrierFit::Refuted | CarrierFit::Pending { .. })
+            ))
+    {
+        return Some(visitor);
     }
-    // A private entry's actual arrivals may supply facts absent from its
-    // authored signature. Reuse this same operand judgment in every incoming
-    // frame; incomplete coverage or a single unproved path remains unknown.
-    // No inferred destination or completed result participates in formation.
+    // Inferred private requirements owe every actual arrival. The same
+    // coordinator closes callable uses and recursion before publishing either
+    // a proof or a conditional recipe; an omitted input never establishes one.
     visitor.seen = false;
     visitor.judgment = None;
-    if super::structural_prefix::observe_private_arrivals(program, machine, &mut visitor, false)
+    visitor.range_recipe = None;
+    visitor.range_complete = true;
+    (super::structural_prefix::observe_private_arrivals(program, machine, &mut visitor, false)
         == Some(true)
-        && visitor.seen
-    {
-        visitor.judgment.unwrap_or(CarrierFit::Unknown)
-    } else {
-        CarrierFit::Unknown
-    }
+        && visitor.seen)
+        .then_some(visitor)
 }
 
 #[derive(Clone)]
@@ -477,11 +503,19 @@ struct OperandFit {
     request: OperandFitRequest,
     seen: bool,
     judgment: Option<CarrierFit>,
+    range_recipe: Option<checked_trees::IntegerRangeRecipe>,
+    range_complete: bool,
 }
 
 impl StructuralPrefixVisitor for OperandFit {
     fn has_positive_proof(&self) -> bool {
-        self.seen && matches!(self.judgment, Some(CarrierFit::Proven))
+        self.seen
+            && (matches!(self.judgment, Some(CarrierFit::Proven))
+                || (self.range_complete
+                    && self
+                        .range_recipe
+                        .as_ref()
+                        .is_some_and(checked_trees::IntegerRangeRecipe::is_target_dependent)))
     }
 
     fn site(&self) -> StructuralPrefixSite {
@@ -494,6 +528,7 @@ impl StructuralPrefixVisitor for OperandFit {
 
     fn unresolved(&mut self, _machine: &Machine) {
         self.judgment = Some(CarrierFit::Unknown);
+        self.range_complete = false;
     }
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
@@ -515,10 +550,12 @@ impl StructuralPrefixVisitor for OperandFit {
         };
         let Some(entries) = entries else {
             self.judgment = Some(CarrierFit::Unknown);
+            self.range_complete = false;
             return;
         };
         if entries.is_empty() {
             self.judgment = Some(CarrierFit::Unknown);
+            self.range_complete = false;
         }
         for entry in entries {
             let Some(value) = entry
@@ -527,6 +564,7 @@ impl StructuralPrefixVisitor for OperandFit {
                 .and_then(Option::as_ref)
             else {
                 self.judgment = Some(CarrierFit::Unknown);
+                self.range_complete = false;
                 continue;
             };
             let judgment = match self.request.source {
@@ -612,14 +650,36 @@ impl StructuralPrefixVisitor for OperandFit {
                 } => {
                     let [Some(left), Some(right)] = entry.arguments.as_slice() else {
                         self.judgment = Some(CarrierFit::Unknown);
+                        self.range_complete = false;
                         continue;
                     };
                     let values = [left, right];
+                    // Selecting a readable carrier is not evidence that its
+                    // contents were observed. In particular, a returned pointer
+                    // cannot acquire scalar bounds from this wrapper alone.
+                    if values.iter().zip(references).any(|(value, reference)| {
+                        !super::structural_terms::scalar_operand_is_observed(
+                            program, reference, value,
+                        )
+                    }) {
+                        self.judgment = Some(CarrierFit::Unknown);
+                        continue;
+                    }
+                    let observed = references.map(|reference| {
+                        crate::value_custody::expression_types::readable_observation_type_reference(
+                            program, reference,
+                        )
+                    });
+                    let [Some(observed_left), Some(observed_right)] = observed else {
+                        self.judgment = Some(CarrierFit::Unknown);
+                        continue;
+                    };
+                    let observed = [observed_left, observed_right];
                     let [left, right] = std::array::from_fn(|position| {
                         let value = values[position].clone();
                         let value = if established_carriers[position] {
                             StructuralTerm::ObservedValue {
-                                observed_type: references[position],
+                                observed_type: observed[position],
                                 value: Box::new(value),
                                 descriptor: None,
                             }
@@ -631,14 +691,36 @@ impl StructuralPrefixVisitor for OperandFit {
                             value: Box::new(value),
                         }
                     });
-                    entry.judge.integer_term_fit_judgment(
-                        StructuralTerm::MathematicalBinary {
-                            operator,
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        },
-                        self.request.target,
-                    )
+                    let result = StructuralTerm::MathematicalBinary {
+                        operator,
+                        left: Box::new(left),
+                        right: Box::new(right),
+                    };
+                    let judgment = entry
+                        .judge
+                        .integer_term_fit_judgment(result.clone(), self.request.target);
+                    let recipe = if matches!(judgment, CarrierFit::Proven) {
+                        // A proved path already establishes the result carrier.
+                        // Re-expanding loose operand intervals must not undo it.
+                        self.request.target.integer_bounds().map(|(low, high)| {
+                            checked_trees::IntegerRangeRecipe::bounds(
+                                numerics::bignum::BigInt::from_i128(low),
+                                numerics::bignum::BigInt::from_i128(high),
+                            )
+                        })
+                    } else {
+                        entry.judge.completed_integer_range_recipe(&result)
+                    };
+                    if let Some(recipe) = recipe {
+                        self.range_recipe = Some(
+                            self.range_recipe
+                                .take()
+                                .map_or_else(|| recipe.clone(), |prior| prior.union(&recipe)),
+                        );
+                    } else {
+                        self.range_complete = false;
+                    }
+                    judgment
                 }
             };
             self.judgment = Some(match self.judgment.take() {

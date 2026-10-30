@@ -299,6 +299,7 @@ pub(crate) fn storage_projection(
                     checked_trees::CheckedScalarSelector {
                         expression: value,
                         occurrence,
+                        entry_bound: None,
                     },
                 ));
             }
@@ -312,7 +313,7 @@ pub(crate) fn storage_projection(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn pure_selector(
+pub(crate) fn pure_selector(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
     operand: ExpressionHandle,

@@ -67,9 +67,7 @@ pub(super) fn validate_machine_parameter_arguments(
         writable_roots.statements,
         false,
         &[],
-        |argument, required| {
-            argument_matches_call_carrier(program, machine.symbol, argument, required, &bindings)
-        },
+        call_carrier_matcher(program, machine.symbol, &bindings),
         diagnostics,
         formation_obligations,
     );

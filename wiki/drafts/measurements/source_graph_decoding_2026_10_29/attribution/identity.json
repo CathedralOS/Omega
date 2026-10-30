@@ -1,0 +1,9 @@
+{
+  "sha256": "adefab2059598ae84b412a4d67b6abd08cbd7f134c8c2f1d80bde7f11308216a",
+  "base": "64013e1f9517f4d7857ba6c459bbeb572dcfefa9",
+  "source_sha256": "bba58c5cd2ac0f38d79797b4eef199268d07c3169ee4d3776775d31757a4dd21",
+  "profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  }
+}

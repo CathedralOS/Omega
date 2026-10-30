@@ -98,7 +98,8 @@ pub(crate) use result_type::{
     cast_result_type_reference, operand_arithmetic_domain, selected_operator_result_type_reference,
 };
 pub(crate) use scalar_observations::{
-    builtin_scalar_operand_references, scalar_observation_meaning,
+    builtin_scalar_operand_references, readable_observation_type_reference,
+    scalar_observation_meaning,
 };
 
 pub(crate) use cast_validation::validate_cast_types;
@@ -1099,4 +1100,51 @@ pub(crate) fn expression_type_name_handle(
         ExpressionNode::TypeExpression(_) => "static type operand",
         ExpressionNode::ZeroValue(_) => "zero-value representation observation",
     }
+}
+
+/// The store checks one slot runs on the value delivered to it, in the order
+/// the statement validators report them: the nominal conflict first, then the
+/// array/scalar and scalar/data shape guards. Each check still decides on its
+/// own evidence; this only names the roster a slot owes.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn report_place_value_mismatches(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: Option<&typed_trees::state::State>,
+    value: ExpressionHandle,
+    target_type: TypeReferenceHandle,
+    slot_context: &str,
+    slot_noun: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    report_data_type_conflict(
+        program,
+        machine,
+        state,
+        value,
+        target_type,
+        slot_context,
+        slot_noun,
+        diagnostics,
+    );
+    report_array_scalar_shape_mismatch(
+        program,
+        machine,
+        state,
+        value,
+        target_type,
+        slot_context,
+        slot_noun,
+        diagnostics,
+    );
+    report_scalar_data_shape_mismatch(
+        program,
+        machine,
+        state,
+        value,
+        target_type,
+        slot_context,
+        slot_noun,
+        diagnostics,
+    );
 }

@@ -1,5 +1,6 @@
 mod boolean_requirements;
 mod captured_boolean;
+mod contradictory_edge;
 mod guard_observations;
 mod labels;
 mod predicate_domains;
@@ -69,7 +70,7 @@ pub(super) fn check_call_requires(
             )
             .collect()
     });
-    phase_profile::scope("05.d.7.3b.1b.contextual_and_nominal", || {
+    phase_profile::scope("05.d.7.3b.1b.contextual_cleanup", || {
         super::contextual_cleanup::check(
             program,
             facts,
@@ -79,6 +80,8 @@ pub(super) fn check_call_requires(
             call_frames,
             diagnostics,
         );
+    });
+    phase_profile::scope("05.d.7.3b.1b.nominal_inputs", || {
         super::nominal_inputs::check(
             program,
             facts,

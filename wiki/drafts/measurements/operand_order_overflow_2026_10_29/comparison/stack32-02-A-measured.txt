@@ -1,0 +1,18 @@
+     8.666 ms  prepare: project -> prepared sources
+  1989.957 ms  compile: sources -> requested product
+    13.423 ms  publish: retained product -> published product
+    11.681 ms  Source ingress: SourceFiles -> SyntaxTrees
+     2.325 ms  Step: assemble: PreparedSources -> AssembledSyntax
+    17.306 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees
+    39.739 ms  Stage 04: SymbolResolvedTrees -> TypedTrees
+   247.497 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)
+  1280.653 ms  Stage 05: TypedTrees -> CheckedTrees
+    56.657 ms  Step: settle: CheckedTrees -> SelectedExecution
+     6.629 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact
+     5.832 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi
+     0.000 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine
+     0.320 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi
+     0.128 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt
+     0.273 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact
+  2244.366 ms  total elapsed
+published native output to \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\operand-order-overflow\comparison\stack32-02-A-measured\build\omega-program.exe

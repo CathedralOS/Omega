@@ -144,9 +144,11 @@ pub fn retain_runtime_rank_component(
             .into_iter()
             .map(|state| {
                 let path = admitted.path_segments.insert_many(state.coordinate.path);
+                let entry_indexes = admitted.entry_indexes.insert_many(state.entry_indexes);
                 let coordinate = admitted.coordinates.insert(CheckedRankCoordinate {
                     parameter: state.coordinate.parameter,
                     path,
+                    entry_indexes,
                 });
                 CheckedRuntimeNaturalState {
                     state: state.state,
@@ -225,6 +227,10 @@ pub fn retained_runtime_natural_components(
                             parameter: coordinate.parameter,
                             path: admitted.path_segments.span(coordinate.path)?.to_vec(),
                         },
+                        entry_indexes: admitted
+                            .entry_indexes
+                            .span(coordinate.entry_indexes)?
+                            .to_vec(),
                         parameter_position: state.parameter_position,
                         primitive_type: state.primitive_type,
                         observation: state.observation,

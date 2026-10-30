@@ -1,0 +1,33 @@
+{
+  "schema": "omega-performance-plan/1",
+  "name": "allocations native runtime",
+  "working_directory": "../../../..",
+  "inputs": [
+    "tools/benchmark/src/workloads.rs"
+  ],
+  "baseline": {
+    "program": "target/debug/omega-bench-workload.exe",
+    "arguments": [
+      "allocations",
+      "100000",
+      "17"
+    ]
+  },
+  "candidate": {
+    "program": "target/debug/omega-bench-workload.exe",
+    "arguments": [
+      "allocations",
+      "100000",
+      "17"
+    ]
+  },
+  "warmups": 1,
+  "pairs": 12,
+  "timeout_ms": 30000,
+  "measurement": {
+    "kind": "reported_work",
+    "stdin": "",
+    "work_units": 100000,
+    "checksum": "14442337"
+  }
+}

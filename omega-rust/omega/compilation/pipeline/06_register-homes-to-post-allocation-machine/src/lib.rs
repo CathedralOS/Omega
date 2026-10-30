@@ -14,6 +14,21 @@
 //! This stage never inspects rewrite history or selects a different
 //! construction route.
 
+/// The one error surface every stage error shares: its variant list is the
+/// report, so `Display` names the stage and `Error` adds no behavior beyond
+/// what the variants already carry.
+macro_rules! stage_error_display {
+    ($error:ty, $stage:literal) => {
+        impl std::fmt::Display for $error {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(formatter, "{}: {self:?}", $stage)
+            }
+        }
+
+        impl std::error::Error for $error {}
+    };
+}
+
 #[macro_use]
 mod accessors;
 mod optimization;

@@ -1,0 +1,6 @@
+# Raw observations and digest-bound reports retain their captured bytes.
+*.stdout -text -whitespace
+*.stderr -text -whitespace
+*.jsonl -text
+report.json -text
+summary.md -whitespace

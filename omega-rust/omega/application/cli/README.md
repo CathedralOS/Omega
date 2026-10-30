@@ -4,6 +4,12 @@
 [CLI](src/cli/mod.rs) owns argument spelling, console rendering, and shell exit
 codes. It calls complete operations, not individual compiler stages.
 
+For separate allocation attribution, the optional `allocation-observation`
+feature wraps the normal MiMalloc allocator and marks `--version`. Successful
+invocations write a requested-byte/count report to `OMEGA_ALLOCATION_PROFILE`
+when set. Use an uninstrumented retained producer for timing comparisons; see
+the [performance tooling guide](../../../../tools/benchmark/comparison.md).
+
 Project Build has an independent [application owner](../build/README.md).
 The CLI package also exposes execution and inspection through its [library](src/lib.rs):
 

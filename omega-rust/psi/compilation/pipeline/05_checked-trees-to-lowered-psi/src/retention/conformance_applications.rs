@@ -161,6 +161,7 @@ fn collect_closed_conformance_applications<'checked>(
             let selected = checked.typed.selected_conformance_applications(
                 source_owner,
                 dispatch.selection_application,
+                dispatch.evidence_parameter,
                 dispatch.requirement,
                 dispatch.application_report_fingerprint,
                 dispatch.application_commitment,

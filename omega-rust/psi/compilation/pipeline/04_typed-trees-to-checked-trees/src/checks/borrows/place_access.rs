@@ -94,6 +94,7 @@ pub(in crate::checks::borrows) fn argument_backings(
 ) -> Result<ArgumentBackings, &'static str> {
     let place = CapturedPlace {
         incoming_reference: Default::default(),
+        incoming_owner_path: Default::default(),
         root: access.root,
         segments: facts.borrow.access_segments(access).to_vec(),
     };
@@ -376,12 +377,14 @@ pub(in crate::checks::borrows) fn access_interferes<'p>(
                             program,
                             &CapturedPlace {
                                 incoming_reference: ancestor.incoming_reference,
+                                incoming_owner_path: borrow.access_segments.span_or_empty(ancestor.incoming_owner_path).to_vec(),
                                 root: ancestor.root,
                                 segments: borrow.loan_segments(ancestor).to_vec(),
                             },
                             &ancestor.kind,
                             &CapturedPlace {
                                 incoming_reference: loan.incoming_reference,
+                                incoming_owner_path: borrow.access_segments.span_or_empty(loan.incoming_owner_path).to_vec(),
                                 root: loan.root,
                                 segments: borrow.loan_segments(loan).to_vec(),
                             },
@@ -398,6 +401,7 @@ pub(in crate::checks::borrows) fn access_interferes<'p>(
             .map_or(segments.len(), |retained| retained.depth);
         let loan_place = CapturedPlace {
             incoming_reference: loan.incoming_reference,
+            incoming_owner_path: borrow.access_segments.span_or_empty(loan.incoming_owner_path).to_vec(),
             root: loan.root,
             segments: segments[..depth].to_vec(),
         };

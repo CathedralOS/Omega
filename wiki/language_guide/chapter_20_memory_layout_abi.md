@@ -205,6 +205,23 @@ Interpretation uses the selected target layout, not the size of an interpreter
 object. A proof-only type without a runtime layout does not receive a fake zero
 size. See [layout queries](../spec/layouts/plans.md#size-and-alignment-queries).
 
+The value form asks about an actual location instead:
+
+```omega
+machine header_is_aligned(packet: &[u8]) -> bool
+requires packet.len >= 16
+{
+    align_of(packet) >= 16
+}
+```
+
+For a borrowed slice this measures its first element's location, not the
+descriptor, and requires a nonempty slice. It can establish stronger alignment
+than `align_of<u8>()`; it still supplies no bounds or access authority. The
+observation may need runtime computation. An offset view must establish its own
+alignment, and interpreted address IDs are not physical alignment evidence.
+See [location alignment](../spec/language/counts_and_addresses.md#location-alignment).
+
 ## Exposing Addresses
 
 Use `address_of` to observe an executable machine's entry or borrowed storage:

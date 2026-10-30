@@ -1,0 +1,5 @@
+module setup;
+
+machine launch() {
+    let marker: u8 = 0;
+}

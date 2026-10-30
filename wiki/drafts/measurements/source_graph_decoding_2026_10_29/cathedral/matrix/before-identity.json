@@ -1,0 +1,13 @@
+{
+  "base_revision": "4144122f9aa4f30ab870a78ef8b9090d0237c7d5",
+  "binary_sha256": "0ce563da66114d49e73f380fd3e4994929553cd7f2c5d273b52b0e2016a68dcc",
+  "profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  },
+  "source_sha256": {
+    "omega-rust/psi/foundation/compiler-storage/src/buffer.rs": "57a4bd9bf2a2feb897956e22026fffcfd5b90f63d14c992d3fc26ff571e8b595",
+    "omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/providers/provider_plan/digest_encoder.rs": "68660be6d5721533b008c2a30eb14086a569d8f4d546401c34d5c5cb3b9a21e2",
+    "omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/providers/provider_plan/retained_inputs.rs": "76c3964ffff2d3780ba04879acb2debed07acb7914531c118ab3abc52e5c6b85"
+  }
+}

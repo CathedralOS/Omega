@@ -1,31 +1,72 @@
-use super::*;
-use crate::custody::platform::verify_windows_open_cache_ancestry_identity;
+use crate::custody::platform::retain_verified_windows_cache_ancestor;
+use crate::custody::tree::{
+    CacheCustodyKind, verify_cache_custody_root, verify_retained_cache_custody_root,
+};
+use crate::test_support::temp_root;
+use crate::tree::filesystem::open_absolute_directory_nofollow;
 
 #[test]
-fn windows_ancestry_rejects_replacement_after_classification() {
-    let root = temp_root("ancestry-replacement");
-    let ancestor = root.join("ancestor");
-    std::fs::create_dir_all(&ancestor).unwrap();
-    let root = root.canonicalize().unwrap();
-    let ancestor = ancestor.canonicalize().unwrap();
-    verify_cache_custody_root(&ancestor, CacheCustodyKind::Git).unwrap();
-    let classified = std::fs::symlink_metadata(&ancestor).unwrap();
+fn windows_ancestry_accepts_deep_concrete_directories() {
+    let root = temp_root("windows-ancestry-deep");
+    let leaf = root.join("one/two/three/four/five/six");
+    std::fs::create_dir_all(&leaf).unwrap();
+    let leaf = leaf.canonicalize().unwrap();
+    let retained = open_absolute_directory_nofollow(&leaf).unwrap();
+    verify_retained_cache_custody_root(
+        &leaf,
+        CacheCustodyKind::LocalSnapshot,
+        &retained,
+        "retained leaf changed",
+    )
+    .unwrap();
+    drop(retained);
+    assert!(root.starts_with(std::env::temp_dir()));
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn windows_ancestry_rejects_replaced_child_after_classification() {
+    let root = temp_root("windows-ancestry-child-replaced");
+    let child = root.join("child");
+    std::fs::create_dir_all(&child).unwrap();
     let parent = open_absolute_directory_nofollow(&root).unwrap();
-    std::fs::rename(&ancestor, root.join("original")).unwrap();
-    std::fs::create_dir(&ancestor).unwrap();
-    let error = verify_windows_open_cache_ancestry_identity(
+    let classified = std::fs::symlink_metadata(&child).unwrap();
+    std::fs::rename(&child, root.join("old-child")).unwrap();
+    std::fs::create_dir(&child).unwrap();
+    let error = retain_verified_windows_cache_ancestor(
         CacheCustodyKind::Git,
-        &ancestor,
+        &child,
         &classified,
         Some(&parent),
     )
-    .expect_err("replacement must not inherit the classified directory identity");
-    assert!(
-        matches!(error, SourceResolveError::GitCacheInvalid { message, .. }
-        if message.contains("changed between classification"))
-    );
+    .unwrap_err();
+    assert!(error.to_string().contains("changed between classification"));
     drop(parent);
-    std::fs::remove_dir_all(&root).unwrap();
+    assert!(root.starts_with(std::env::temp_dir()));
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn windows_ancestry_reconciles_retained_leaf_after_parent_replacement() {
+    let root = temp_root("windows-ancestry-parent-replaced");
+    let leaf = root.join("parent/child");
+    std::fs::create_dir_all(&leaf).unwrap();
+    std::fs::rename(root.join("parent"), root.join("old-parent")).unwrap();
+    // Windows may forbid renaming a parent with a live descendant handle.
+    // Retain the original identity after moving it, then replace its old name.
+    let retained = open_absolute_directory_nofollow(&root.join("old-parent/child")).unwrap();
+    std::fs::create_dir_all(&leaf).unwrap();
+    let error = verify_retained_cache_custody_root(
+        &leaf,
+        CacheCustodyKind::LocalSnapshot,
+        &retained,
+        "retained leaf changed",
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("retained leaf changed"));
+    drop(retained);
+    assert!(root.starts_with(std::env::temp_dir()));
+    std::fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
@@ -42,19 +83,17 @@ fn windows_ancestry_rejects_child_from_a_different_parent() {
     let parent = open_absolute_directory_nofollow(&original_parent).unwrap();
     std::fs::create_dir_all(&child_path).unwrap();
     let classified = std::fs::symlink_metadata(&child_path).unwrap();
-    let error = verify_windows_open_cache_ancestry_identity(
+    let error = retain_verified_windows_cache_ancestor(
         CacheCustodyKind::Git,
         &child_path,
         &classified,
         Some(&parent),
     )
     .expect_err("old parent handle must not validate the new parent's child");
-    assert!(
-        matches!(error, SourceResolveError::GitCacheInvalid { message, .. }
-        if message.contains("changed between classification"))
-    );
+    assert!(error.to_string().contains("changed between classification"));
     drop(parent);
-    std::fs::remove_dir_all(&root).unwrap();
+    assert!(root.starts_with(std::env::temp_dir()));
+    std::fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
@@ -76,8 +115,9 @@ fn windows_ancestry_rejects_junction_parent() {
     );
     let error = verify_cache_custody_root(&junction.join("cache"), CacheCustodyKind::Git)
         .expect_err("an ancestor junction must not redirect cache custody");
-    assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+    assert!(error.to_string().contains("non-directory") || error.to_string().contains("reparse"));
     std::fs::remove_dir(&junction).unwrap();
     assert!(target.join("cache").is_dir());
-    std::fs::remove_dir_all(&root).unwrap();
+    assert!(root.starts_with(std::env::temp_dir()));
+    std::fs::remove_dir_all(root).unwrap();
 }

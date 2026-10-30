@@ -116,14 +116,7 @@ pub(super) fn reconstruct(
             || argument.access != parameter.access
             || (argument.path.is_empty() && parameter.multiplicity != destination.multiplicity)
             || !target::control_flow::sources::dominates(caller, block, call_site.0)
-            || !caller.structural_places.iter().any(|place| {
-                place.id == parameter.place
-                    && place.kind
-                        == StructuralPlaceKind::BlockParameter {
-                            block,
-                            position: parameter.position,
-                        }
-            })
+            || !structural_case::block_parameter_declared(caller, block, parameter)
         {
             return Err(LegalizationError::custody());
         }
@@ -187,14 +180,7 @@ pub(super) fn reconstruct(
         })
         .ok_or(LegalizationError::custody())?;
         if !precedes(caller, producer_site, call_operation, argument)?
-            || !caller.structural_places.iter().any(|place| {
-                place.id == result.place
-                    && place.kind
-                        == StructuralPlaceKind::OperationResult {
-                            producer,
-                            structural_type: result.structural_type,
-                        }
-            })
+            || !structural_case::records_operation_result(caller, producer, result)
         {
             return Err(LegalizationError::custody());
         }

@@ -8,7 +8,7 @@
 use crate::{
     channel,
     shared_backing::SharedBacking,
-    wire::{self, Cursor, Duplex, Geometry, Packet, invalid},
+    wire::{self, BorrowGeometry, Cursor, Duplex, Geometry, Packet, invalid},
     worker,
 };
 use bounded_process::{BoundedProcessChild, BoundedProcessLimits, BoundedProcessPrepared};
@@ -42,11 +42,20 @@ pub struct NativeHomeId {
 pub enum NativeParameterStorage {
     Value,
     OriginalReference { byte_size: usize, alignment: usize },
+    OriginalByteView,
 }
 
 pub enum NativeArgument<'a> {
     Value(&'a [u8]),
-    Borrowed { home: NativeHomeId, offset: usize },
+    Borrowed {
+        home: NativeHomeId,
+        offset: usize,
+    },
+    ByteView {
+        home: NativeHomeId,
+        offset: usize,
+        length: usize,
+    },
 }
 
 #[derive(Debug)]
@@ -304,6 +313,22 @@ impl NativeProviderProcess {
                     packet.number(home.ordinal);
                     packet.number(*offset as u64);
                 }
+                NativeArgument::ByteView {
+                    home,
+                    offset,
+                    length,
+                } => {
+                    if home.era != self.era || !self.homes.contains_key(&home.ordinal) {
+                        return Err(invalid(
+                            "native byte view belongs to another or absent original home",
+                        )
+                        .into());
+                    }
+                    packet.byte(2);
+                    packet.number(home.ordinal);
+                    packet.number(*offset as u64);
+                    packet.number(*length as u64);
+                }
             }
         }
         self.exchange(packet)
@@ -431,7 +456,17 @@ fn geometry(shape: ValueShape, storage: NativeParameterStorage) -> io::Result<Ge
             Ok(Geometry {
                 extent: 8,
                 alignment: 8,
-                referent: Some((byte_size, alignment)),
+                referent: Some(BorrowGeometry::Fixed {
+                    extent: byte_size,
+                    alignment,
+                }),
+            })
+        }
+        NativeParameterStorage::OriginalByteView if shape == ValueShape::integer(16, 8) => {
+            Ok(Geometry {
+                extent: 16,
+                alignment: 8,
+                referent: Some(BorrowGeometry::ByteView),
             })
         }
         NativeParameterStorage::Value

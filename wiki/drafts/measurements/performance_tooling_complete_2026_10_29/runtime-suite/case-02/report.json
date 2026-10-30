@@ -1,0 +1,314 @@
+{
+  "schema": "omega-performance-report/2",
+  "name": "calls native runtime",
+  "metric": "reported_work_ns_per_unit",
+  "comparison": {
+    "pairs": 12,
+    "baseline": {
+      "median": 1.65895,
+      "mean": 1.6208083333333334,
+      "observed_p95": 1.7615,
+      "observed_p99": 1.7615,
+      "minimum": 1.4366,
+      "maximum": 1.7615,
+      "median_absolute_deviation": 0.07795000000000007
+    },
+    "candidate": {
+      "median": 1.6556000000000002,
+      "mean": 1.6077166666666667,
+      "observed_p95": 1.8125,
+      "observed_p99": 1.8125,
+      "minimum": 1.2252,
+      "maximum": 1.8125,
+      "median_absolute_deviation": 0.14034999999999997
+    },
+    "paired_candidate_minus_baseline": {
+      "median": 0.006900000000000017,
+      "mean": -0.013091666666666687,
+      "observed_p95": 0.3585999999999998,
+      "observed_p99": 0.3585999999999998,
+      "minimum": -0.5363,
+      "maximum": 0.3585999999999998,
+      "median_absolute_deviation": 0.06699999999999995
+    },
+    "paired_percent_change": {
+      "median": 0.430664198495323,
+      "mean": -0.4471900413440364,
+      "observed_p95": 24.961715160796306,
+      "observed_p99": 24.961715160796306,
+      "minimum": -30.445642917967643,
+      "maximum": 24.961715160796306,
+      "median_absolute_deviation": 4.187043965068049
+    },
+    "paired_percent_change_bootstrap_95": [
+      -3.50524374276226,
+      4.617708163563372
+    ],
+    "median_difference_bootstrap_95": [
+      -0.060799999999999965,
+      0.07389999999999997
+    ],
+    "bootstrap_resamples": 4000,
+    "bootstrap_seed": 8029185205361337710,
+    "interpretation": "inconclusive"
+  },
+  "warnings": [
+    "Within-run bootstrap uncertainty does not cover host drift, contention, or workload selection.",
+    "Only declared input paths are hashed. Declare dependency/library/lock inputs used by the workload.",
+    "Compiler stage times are inclusive and may overlap; do not sum nested rows.",
+    "Observed p95/p99 are nearest-rank sample quantiles; small runs do not resolve population tails."
+  ],
+  "additional_metrics": {
+    "cpu_cycles": {
+      "comparison": {
+        "baseline": {
+          "maximum": 91816650.0,
+          "mean": 82462237.5,
+          "median": 82876725.0,
+          "median_absolute_deviation": 3395025.0,
+          "minimum": 73531350.0,
+          "observed_p95": 91816650.0,
+          "observed_p99": 91816650.0
+        },
+        "bootstrap_resamples": 4000,
+        "bootstrap_seed": 8029185205361337710,
+        "candidate": {
+          "maximum": 91642500.0,
+          "mean": 80194537.5,
+          "median": 82293975.0,
+          "median_absolute_deviation": 5209425.0,
+          "minimum": 69972300.0,
+          "observed_p95": 91642500.0,
+          "observed_p99": 91642500.0
+        },
+        "interpretation": "inconclusive",
+        "median_difference_bootstrap_95": [
+          -7807050.0,
+          2478600.0
+        ],
+        "paired_candidate_minus_baseline": {
+          "maximum": 8579700.0,
+          "mean": -2267700.0,
+          "median": 2025.0,
+          "median_absolute_deviation": 3564225.0,
+          "minimum": -14787000.0,
+          "observed_p95": 8579700.0,
+          "observed_p99": 8579700.0
+        },
+        "paired_percent_change": {
+          "maximum": 10.329172626013094,
+          "mean": -2.5229559906749857,
+          "median": 0.010940061173647653,
+          "median_absolute_deviation": 4.376818280056149,
+          "minimum": -16.41058982627691,
+          "observed_p95": 10.329172626013094,
+          "observed_p99": 10.329172626013094
+        },
+        "paired_percent_change_bootstrap_95": [
+          -9.45242301452987,
+          3.1191820397949988
+        ],
+        "pairs": 12
+      },
+      "status": "measured"
+    },
+    "major_page_faults": {
+      "reason": "metric missing from one or more paired observations",
+      "status": "unavailable"
+    },
+    "minor_page_faults": {
+      "reason": "metric missing from one or more paired observations",
+      "status": "unavailable"
+    },
+    "peak_resident_bytes": {
+      "comparison": {
+        "baseline": {
+          "maximum": 6348800.0,
+          "mean": 6228992.0,
+          "median": 6148096.0,
+          "median_absolute_deviation": 4096.0,
+          "minimum": 6144000.0,
+          "observed_p95": 6348800.0,
+          "observed_p99": 6348800.0
+        },
+        "bootstrap_resamples": 4000,
+        "bootstrap_seed": 8029185205361337710,
+        "candidate": {
+          "maximum": 6344704.0,
+          "mean": 6162090.666666667,
+          "median": 6144000.0,
+          "median_absolute_deviation": 2048.0,
+          "minimum": 6139904.0,
+          "observed_p95": 6344704.0,
+          "observed_p99": 6344704.0
+        },
+        "interpretation": "inconclusive",
+        "median_difference_bootstrap_95": [
+          -196608.0,
+          2048.0
+        ],
+        "paired_candidate_minus_baseline": {
+          "maximum": 4096.0,
+          "mean": -66901.33333333333,
+          "median": -4096.0,
+          "median_absolute_deviation": 8192.0,
+          "minimum": -204800.0,
+          "observed_p95": 4096.0,
+          "observed_p99": 4096.0
+        },
+        "paired_percent_change": {
+          "maximum": 0.06666666666665932,
+          "mean": -1.0546038313177084,
+          "median": -0.06662225183211579,
+          "median_absolute_deviation": 0.13223311935024462,
+          "minimum": -3.2258064516129004,
+          "observed_p95": 0.06666666666665932,
+          "observed_p99": 0.06666666666665932
+        },
+        "paired_percent_change_bootstrap_95": [
+          -3.09977429799671,
+          0.03229974160207094
+        ],
+        "pairs": 12
+      },
+      "status": "measured"
+    },
+    "system_cpu_ns": {
+      "comparison": {
+        "baseline": {
+          "maximum": 31250000.0,
+          "mean": 10416666.666666666,
+          "median": 15625000.0,
+          "median_absolute_deviation": 7812500.0,
+          "minimum": 0.0,
+          "observed_p95": 31250000.0,
+          "observed_p99": 31250000.0
+        },
+        "bootstrap_resamples": 4000,
+        "bootstrap_seed": 8029185205361337710,
+        "candidate": {
+          "maximum": 31250000.0,
+          "mean": 14322916.666666666,
+          "median": 15625000.0,
+          "median_absolute_deviation": 0.0,
+          "minimum": 0.0,
+          "observed_p95": 31250000.0,
+          "observed_p99": 31250000.0
+        },
+        "interpretation": "inconclusive",
+        "median_difference_bootstrap_95": [
+          0.0,
+          7812500.0
+        ],
+        "paired_candidate_minus_baseline": {
+          "maximum": 31250000.0,
+          "mean": 3906250.0,
+          "median": 0.0,
+          "median_absolute_deviation": 0.0,
+          "minimum": -15625000.0,
+          "observed_p95": 31250000.0,
+          "observed_p99": 31250000.0
+        },
+        "paired_percent_change": null,
+        "paired_percent_change_bootstrap_95": null,
+        "pairs": 12
+      },
+      "status": "measured"
+    },
+    "total_page_faults": {
+      "comparison": {
+        "baseline": {
+          "maximum": 1622.0,
+          "mean": 1618.5833333333333,
+          "median": 1618.0,
+          "median_absolute_deviation": 2.0,
+          "minimum": 1616.0,
+          "observed_p95": 1622.0,
+          "observed_p99": 1622.0
+        },
+        "bootstrap_resamples": 4000,
+        "bootstrap_seed": 8029185205361337710,
+        "candidate": {
+          "maximum": 1622.0,
+          "mean": 1617.75,
+          "median": 1618.0,
+          "median_absolute_deviation": 2.0,
+          "minimum": 1615.0,
+          "observed_p95": 1622.0,
+          "observed_p99": 1622.0
+        },
+        "interpretation": "inconclusive",
+        "median_difference_bootstrap_95": [
+          -3.5,
+          1.5
+        ],
+        "paired_candidate_minus_baseline": {
+          "maximum": 5.0,
+          "mean": -0.8333333333333334,
+          "median": -1.0,
+          "median_absolute_deviation": 2.5,
+          "minimum": -5.0,
+          "observed_p95": 5.0,
+          "observed_p99": 5.0
+        },
+        "paired_percent_change": {
+          "maximum": 0.30921459492887493,
+          "mean": -0.051360771101870616,
+          "median": -0.06169033809806934,
+          "median_absolute_deviation": 0.15447349776085972,
+          "minimum": -0.30864197530864335,
+          "observed_p95": 0.30921459492887493,
+          "observed_p99": 0.30921459492887493
+        },
+        "paired_percent_change_bootstrap_95": [
+          -0.21616383585892907,
+          0.092783536697294
+        ],
+        "pairs": 12
+      },
+      "status": "measured"
+    },
+    "user_cpu_ns": {
+      "comparison": {
+        "baseline": {
+          "maximum": 31250000.0,
+          "mean": 11718750.0,
+          "median": 15625000.0,
+          "median_absolute_deviation": 15625000.0,
+          "minimum": 0.0,
+          "observed_p95": 31250000.0,
+          "observed_p99": 31250000.0
+        },
+        "bootstrap_resamples": 4000,
+        "bootstrap_seed": 8029185205361337710,
+        "candidate": {
+          "maximum": 15625000.0,
+          "mean": 5208333.333333333,
+          "median": 0.0,
+          "median_absolute_deviation": 0.0,
+          "minimum": 0.0,
+          "observed_p95": 15625000.0,
+          "observed_p99": 15625000.0
+        },
+        "interpretation": "inconclusive",
+        "median_difference_bootstrap_95": [
+          -15625000.0,
+          0.0
+        ],
+        "paired_candidate_minus_baseline": {
+          "maximum": 15625000.0,
+          "mean": -6510416.666666667,
+          "median": -15625000.0,
+          "median_absolute_deviation": 0.0,
+          "minimum": -15625000.0,
+          "observed_p95": 15625000.0,
+          "observed_p99": 15625000.0
+        },
+        "paired_percent_change": null,
+        "paired_percent_change_bootstrap_95": null,
+        "pairs": 12
+      },
+      "status": "measured"
+    }
+  }
+}

@@ -18,7 +18,7 @@ use super::super::specification_calls::{
     AppliedProofBindings, SelectedCallContract, owner_contracts, owner_leading_operands,
     owner_return_type, owner_symbol, selected_call_contract,
 };
-use super::selected_contracts::bound_term;
+
 use super::value_predicates::boolean_term;
 use super::{MembershipGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm};
 use crate::expression_traversal::children;
@@ -35,6 +35,15 @@ pub(in crate::proof_contracts::contract_entailment) struct NormalReturnPath<'pro
     pub value: StructuralTerm,
     pub judge: StructuralJudge<'program>,
     observation: NormalValueObservation,
+}
+
+/// Fresh normal-exit storage is installed only after the invocation retires
+/// incoming observations. Backing selectors freeze in that resulting epoch.
+#[derive(Clone)]
+pub(super) struct PostCallStorage {
+    pub(super) coordinate: super::storage_effects::CapturedStorageCoordinate,
+    pub(super) value: StructuralTerm,
+    pub(super) backing: Option<crate::machine_calls::calls::CapturedStorageReadBacking>,
 }
 
 /// Completing an address/effect traversal does not observe its stored value.
@@ -308,6 +317,7 @@ impl<'program> StructuralJudge<'program> {
                     .try_fold(subject.clone(), |value, field| {
                         super::super::observed_projections::project_declared_field(
                             self.program,
+                            self,
                             value,
                             field,
                         )
@@ -1524,6 +1534,26 @@ impl<'program> StructuralJudge<'program> {
                 } else {
                     None
                 };
+                // A borrow uses its target's completed observation before any
+                // source-place fallback. The old home can be retired while the
+                // captured value remains valid; manufacturing a placeholder
+                // first can fail typing and discard this normal path entirely.
+                let completed_borrow = if let ExpressionNode::Borrow(borrow) = node {
+                    inputs.iter()
+                        .find(|(input, _)| *input == borrow.target)
+                        .and_then(|(_, referent)| referent.observed_value())
+                        .map(|observed| {
+                            crate::expression_result_type_reference(
+                                program, scope.0, scope.1, expression,
+                            )
+                            .and_then(|declared| {
+                                super::super::structural_terms::shared_inline_observation(
+                                    program, declared, observed.clone(),
+                                )
+                            })
+                            .unwrap_or_else(|| observed.clone())
+                        })
+                } else { None };
                 let mut value = if receiver_changed {
                     // The receiver selected its base before a later operand
                     // wrote storage. Reconstructing it from the live place now
@@ -1532,7 +1562,7 @@ impl<'program> StructuralJudge<'program> {
                         Some(value) => value,
                         None => judge.capture_unknown_value(expression, scope)?,
                     }
-                } else if let Some(value) = completed_measure.or(completed_field) {
+                } else if let Some(value) = completed_borrow.or(completed_measure).or(completed_field) {
                     value
                 } else if matches!(node, ExpressionNode::Atomic(_)) {
                     // The atomic owner distinguishes an observed load from
@@ -1605,6 +1635,7 @@ impl<'program> StructuralJudge<'program> {
                                 callable: SymbolHandle::invalid(),
                                 occurrence: judge.capture_sequence,
                                 result_type: declared.type_reference,
+                                integer_range: None,
                             })
                         },
                     );
@@ -1701,28 +1732,6 @@ impl<'program> StructuralJudge<'program> {
                     }
                 }
                 judge.observe_completed_window(expression, &inputs, scope, &value)?;
-                if let ExpressionNode::Borrow(borrow) = node {
-                    // A checked borrow selects its referent; it does not create
-                    // a new case-bearing value. The referent's completed term
-                    // keeps the same descriptor identity the mathematical
-                    // `callee_term` walk would have produced, so later `len`
-                    // and field observations name this exact view.
-                    if let Some((_, referent)) =
-                        inputs.iter().find(|(input, _)| *input == borrow.target)
-                    {
-                        if let Some(observed) = referent.observed_value() {
-                            value = crate::expression_result_type_reference(
-                                program, scope.0, scope.1, expression,
-                            )
-                            .and_then(|declared| {
-                                super::super::structural_terms::shared_inline_observation(
-                                    program, declared, observed.clone(),
-                                )
-                            })
-                            .unwrap_or_else(|| observed.clone());
-                        }
-                    }
-                }
                 if scalar_storage_read {
                     // Completing a typed read observes its actual value even
                     // when no mathematical entry value is known. Integers,
@@ -1834,6 +1843,9 @@ impl<'program> StructuralJudge<'program> {
                     callable,
                     occurrence: rejoined.capture_sequence,
                     result_type,
+                    integer_range: StructuralTerm::joined_integer_ranges(
+                        outcomes.iter().map(|path| Some(&path.value)),
+                    ),
                 };
                 return Some(vec![
                     NormalReturnPath::observed(captured, rejoined)
@@ -1919,9 +1931,21 @@ impl<'program> StructuralJudge<'program> {
         scope: ValueScope<'_>,
     ) -> Option<StructuralTerm> {
         self.capture_sequence += 1;
+        let primitive = self
+            .normal_value_type_reference(expression, scope)
+            .and_then(|reference| self.program.primitive_type_reference(reference));
+        let integer_range =
+            crate::proof_contracts::arithmetic_domains::deferred_integer_observation(
+                self.program,
+                scope.0.symbol,
+                expression,
+                primitive,
+            )
+            .map(std::sync::Arc::new);
         let value = StructuralTerm::CapturedValue {
             expression,
             callable: SymbolHandle::invalid(),
+            integer_range,
             occurrence: self.capture_sequence,
             result_type: self
                 .normal_value_type_reference(expression, scope)
@@ -1953,7 +1977,6 @@ impl<'program> StructuralJudge<'program> {
         };
         self.intake_current_storage_fields(scope.0, scope.1, expression, &value);
         if let StructuralTerm::CapturedValue { result_type, .. } = &value {
-            self.intake_admitted_scalar_bounds(*result_type, &value);
             self.intake_atomic_observation_bounds(
                 scope.0,
                 scope.1,
@@ -2194,10 +2217,67 @@ impl<'program> StructuralJudge<'program> {
         let post_storage =
             self.capture_normal_call(expression, actuals, environment, scope, writes);
         self.observe_storage_effects(scope.1, writes.complete_paths())?;
-        for (coordinate, value) in post_storage.into_iter().flatten() {
-            self.retain_storage_value(coordinate, value, false);
+        for storage in post_storage.into_iter().flatten() {
+            self.install_post_call_storage(scope.1, storage);
         }
         Some(())
+    }
+
+    /// The ordinary return-range owner consumes the immutable scalar actuals
+    /// already captured by this call. It owns complete return-path joins and
+    /// effects; no caller initializer or post-call storage is reconstructed.
+    fn completed_call_integer_range(
+        &self,
+        owner: &SelectedCallContract<'program>,
+        call: &typed_trees::expression::TableCallExpression,
+        parameters: &[typed_trees::signature::StateParameter],
+        actuals: &[StructuralTerm],
+        result_type: TypeReferenceHandle,
+    ) -> Option<checked_trees::IntegerRangeRecipe> {
+        let SelectedCallContract::Concrete(machine, entry) = owner else {
+            return None;
+        };
+        if !call.selects_only_nominal_route()
+            || !call.machine_arguments.is_empty()
+            || !self.program.machine_type_parameters(machine).is_empty()
+        {
+            return None;
+        }
+        let primitive = self.program.primitive_type_reference(result_type)?;
+        primitive.integer_bounds()?;
+        let actuals = parameters
+            .iter()
+            .zip(actuals)
+            .filter_map(|(parameter, value)| {
+                if parameter.is_mutable || parameter.is_const {
+                    return None;
+                }
+                let primitive = self
+                    .program
+                    .primitive_type_reference(parameter.type_reference)?;
+                let (low, high) = primitive.integer_bounds()?;
+                let value = StructuralTerm::IntegerEmbedding {
+                    reference: parameter.type_reference,
+                    value: Box::new(value.clone()),
+                };
+                Some((
+                    parameter.symbol,
+                    crate::proof_contracts::arithmetic_domains::Interval {
+                        low: i64::try_from(low).ok(),
+                        high: i64::try_from(high).ok(),
+                    },
+                    self.completed_integer_range_recipe(&value),
+                ))
+            })
+            .collect::<Vec<_>>();
+        crate::proof_contracts::arithmetic_domains::infer_return_interval(
+            self.program,
+            machine,
+            entry,
+            Some(primitive),
+            &actuals,
+        )
+        .and_then(|(_, recipe)| recipe)
     }
 
     fn capture_normal_call(
@@ -2207,12 +2287,7 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
         writes: &NormalizedWriteFrame,
-    ) -> Option<
-        Vec<(
-            super::storage_effects::CapturedStorageCoordinate,
-            StructuralTerm,
-        )>,
-    > {
+    ) -> Option<Vec<PostCallStorage>> {
         let program = self.program;
         let node = program.expression_table.expression(expression);
         let ExpressionNode::Call(call) = node else {
@@ -2418,6 +2493,7 @@ impl<'program> StructuralJudge<'program> {
                 callable: owner_symbol(&owner),
                 occurrence: self.capture_sequence,
                 result_type: subject.entry.type_reference,
+                integer_range: None,
             };
             let mut observed = if program
                 .primitive_type_reference(subject.entry.type_reference)
@@ -2460,7 +2536,11 @@ impl<'program> StructuralJudge<'program> {
             } else {
                 bindings.push((subject.entry.parameter, observed));
             }
-            post_storage.push((coordinate, value));
+            post_storage.push(PostCallStorage {
+                coordinate,
+                value,
+                backing: None,
+            });
         }
         let callable = match owner {
             SelectedCallContract::Concrete(machine, _) => machine.symbol,
@@ -2501,6 +2581,23 @@ impl<'program> StructuralJudge<'program> {
                 occurrence: self.capture_sequence,
                 callable,
                 result_type: presentation.type_reference,
+                integer_range:
+                    crate::proof_contracts::arithmetic_domains::deferred_integer_observation(
+                        program,
+                        scope.0.symbol,
+                        expression,
+                        program.primitive_type_reference(presentation.type_reference),
+                    )
+                    .or_else(|| {
+                        self.completed_call_integer_range(
+                            &owner,
+                            call,
+                            parameters,
+                            actuals,
+                            presentation.type_reference,
+                        )
+                    })
+                    .map(std::sync::Arc::new),
             }
         });
         if super::super::struct_trace() {
@@ -2511,6 +2608,10 @@ impl<'program> StructuralJudge<'program> {
         // An overwritten referent supplies no stable input observation, but
         // does not erase independent guarantees about this returned value.
         // Equations requiring an omitted formal fail exact substitution.
+        if let Some(captured) = &captured {
+            post_storage
+                .extend(self.stage_completed_result_reads(scope.0, scope.1, expression, captured));
+        }
         let guarantees = self.selected_guarantees(
             &owner,
             &entry_bindings,
@@ -2591,18 +2692,11 @@ impl<'program> StructuralJudge<'program> {
         // A saved local now resolves to this occurrence, so the callee's case
         // tags must classify it here; the citation route's saved-binding tags
         // never meet that environment term. Tags never become value equations.
-        let tag_callee = match owner {
-            SelectedCallContract::Concrete(machine, _)
-                if parameters.iter().all(|parameter| {
-                    bindings
-                        .iter()
-                        .any(|(symbol, _)| *symbol == parameter.symbol)
-                }) =>
-            {
-                Some(machine)
-            }
-            _ => None,
-        };
+        let tags_have_complete_bindings = parameters.iter().all(|parameter| {
+            bindings
+                .iter()
+                .any(|(symbol, _)| *symbol == parameter.symbol)
+        });
         let tag_map = parameters
             .iter()
             .filter_map(|parameter| {
@@ -2649,8 +2743,7 @@ impl<'program> StructuralJudge<'program> {
                     // its exact detached occurrence, never a live caller name
                     // or the result's borrowed referent. Later writes change
                     // the observed subject and cannot reuse this snapshot.
-                    if let Some(subject) = bound_term(
-                        program,
+                    if let Some(subject) = self.bound_contract_term(
                         guarantee.value,
                         callable,
                         parameters,
@@ -2678,9 +2771,9 @@ impl<'program> StructuralJudge<'program> {
                 let ProofFact::Expression(guarantee) = fact else {
                     continue;
                 };
-                if let Some(callee) = tag_callee {
-                    self.instantiated_case_guarantees(
-                        callee,
+                if tags_have_complete_bindings {
+                    self.instantiated_contract_case_guarantees(
+                        &owner,
                         *guarantee,
                         &tag_map,
                         &mut case_guarantees,

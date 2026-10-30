@@ -1,0 +1,2 @@
+omega.lock missing; settling package review via omega update (records project acceptance, not an audit)
+wrote tools\benchmark\records\prime_counter__windows_x86_64__default.json

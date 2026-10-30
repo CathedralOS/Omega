@@ -129,6 +129,13 @@ These forms take data types. Executable machine entries and their late code
 regions instead use [address and code-layout queries](../language/counts_and_addresses.md#native-code-layout-queries).
 Neither `usize` nor a dedicated alignment carrier is introduced.
 
+The separate value form `align_of(value)` observes a live storage location,
+following a reference to its referent and a nonempty slice to its first element.
+It may establish stronger alignment than a type's layout minimum; it does not
+measure a reference descriptor or create access authority. Its runtime and
+interpretation obligations are specified under
+[location alignment](../language/counts_and_addresses.md#location-alignment).
+
 The Rust reference's supported query flow and retained arithmetic obligations
 are documented under [runtime layout observations](../../../omega-rust/psi/compilation/compile-time/layouts.md#runtime-layout-observations).
 

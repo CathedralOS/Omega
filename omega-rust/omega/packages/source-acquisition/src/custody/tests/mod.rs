@@ -30,7 +30,9 @@ mod macos_acl;
 mod publication;
 mod repository_integrity;
 mod snapshots;
-#[cfg(windows)]
-mod windows_ancestry;
 #[cfg(unix)]
 mod traversal;
+#[cfg(windows)]
+mod windows_ancestry;
+#[cfg(windows)]
+mod windows_siblings;

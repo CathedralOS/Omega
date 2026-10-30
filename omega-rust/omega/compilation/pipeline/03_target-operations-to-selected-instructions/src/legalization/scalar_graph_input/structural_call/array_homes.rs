@@ -99,14 +99,7 @@ pub(super) fn argument(
             return Ok(None);
         }
         if parameter.multiplicity == StructuralMultiplicity::Linear
-            || !caller.structural_places.iter().any(|place| {
-                place.id == parameter.place
-                    && place.kind
-                        == StructuralPlaceKind::BlockParameter {
-                            block,
-                            position: parameter.position,
-                        }
-            })
+            || !structural_case::block_parameter_declared(caller, block, parameter)
         {
             return Err(LegalizationError::custody());
         }
@@ -159,14 +152,7 @@ pub(super) fn argument(
         if result.multiplicity == StructuralMultiplicity::Linear
             || !result.claims.is_empty()
             || !precedes(caller, producer_site, call_operation, semantic)?
-            || !caller.structural_places.iter().any(|place| {
-                place.id == result.place
-                    && place.kind
-                        == StructuralPlaceKind::OperationResult {
-                            producer,
-                            structural_type: result.structural_type,
-                        }
-            })
+            || !structural_case::records_operation_result(caller, producer, result)
         {
             return Err(LegalizationError::custody());
         }

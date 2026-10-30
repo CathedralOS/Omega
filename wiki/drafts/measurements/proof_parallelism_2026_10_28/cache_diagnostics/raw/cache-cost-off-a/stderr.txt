@@ -1,0 +1,1480 @@
+RECONCILE	places	7	9700
+RECONCILE	residences	7	13800
+RECONCILE	memberships	7	2100
+RECONCILE	places	2	1700
+RECONCILE	residences	2	3800
+RECONCILE	memberships	2	2900
+RECONCILE	places	202	148700
+RECONCILE	residences	202	57800
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	51400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	1600	destroy_ns=500	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	3400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REBIND	query	ThreadId(103)	428700	append_cow=11	append_ns=27700	appended_output_rows=382	canonical_ns=54700	contained_output_rows=119	contained_requests=4	containment_ns=13600	cow_row_handles=455	edge_retirement_ns=36600	operation_retirement_ns=46000	requested_input_rows=460	requests=17	retire_ambient_cow=2	retire_shared_cow=2	returned_output_rows=501	temporary_result_drop_ns=600	transform_calls=17	transform_ns=49000
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REBIND	query	ThreadId(103)	293600	append_cow=11	append_ns=8700	appended_output_rows=396	canonical_ns=57800	contained_output_rows=61	contained_requests=4	containment_ns=11300	cow_row_handles=477	edge_retirement_ns=45200	operation_retirement_ns=13100	requested_input_rows=414	requests=17	retire_ambient_cow=2	retire_shared_cow=2	returned_output_rows=457	temporary_result_drop_ns=500	transform_calls=17	transform_ns=45600
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REBIND	query	ThreadId(103)	374400	append_cow=11	append_ns=13300	appended_output_rows=394	canonical_ns=55800	contained_output_rows=21	contained_requests=4	containment_ns=8300	cow_row_handles=493	edge_retirement_ns=49700	operation_retirement_ns=44600	requested_input_rows=378	requests=17	retire_ambient_cow=2	retire_shared_cow=2	returned_output_rows=415	temporary_result_drop_ns=500	transform_calls=17	transform_ns=43900
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	685300	append_cow=3	append_ns=700	appended_output_rows=13	canonical_ns=1300	containment_ns=700	cow_row_handles=7	edge_retirement_ns=1200	requested_input_rows=7	requests=3	returned_output_rows=13	transform_calls=3	transform_ns=2200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	428100	append_cow=1	append_ns=200	appended_output_rows=2	canonical_ns=200	containment_ns=100	cow_row_handles=0	edge_retirement_ns=200	requested_input_rows=0	requests=1	returned_output_rows=2	transform_calls=1	transform_ns=600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	24000	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=200	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	428700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	20200	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=100	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	11700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	3700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	21200	canonical_ns=100	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=100	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	12900	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=0	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	22500	canonical_ns=100	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=0	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	20600	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=100	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	25700	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=0	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	25400	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=0	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	232213100	append_cow=64	append_ns=173100	appended_output_rows=5439	canonical_ns=2336400	contained_output_rows=299000	contained_requests=3223	containment_ns=8301100	cow_row_handles=5159	edge_retirement_ns=703800	operation_retirement_ns=26390200	requested_input_rows=304159	requests=3287	returned_output_rows=304439	temporary_result_drop_ns=1671100	transform_calls=3287	transform_ns=20183500
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	600	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	1183500
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	1075800
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	1110800
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	1031000
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	939500
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	923400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	896200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	819300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	984400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	1019800
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	1093200
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	879100
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	233502200	append_cow=64	append_ns=181500	appended_output_rows=5439	canonical_ns=2358400	contained_output_rows=299000	contained_requests=3223	containment_ns=8366100	cow_row_handles=5159	edge_retirement_ns=675200	operation_retirement_ns=26653800	requested_input_rows=304159	requests=3287	returned_output_rows=304439	temporary_result_drop_ns=1589000	transform_calls=3287	transform_ns=20236000
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	900	destroy_ns=200	entries=0
+REBIND	query	ThreadId(103)	1209100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	932500
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	957800
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	909200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	873100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	870600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	894700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	828600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	835700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	795900
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	600	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	833500
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	829600
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	1400	destroy_ns=200	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	34200	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=200	edge_retirement_ns=0	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	510600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	181300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	368300	append_cow=4	append_ns=3600	appended_output_rows=96	canonical_ns=11200	containment_ns=3200	cow_row_handles=64	edge_retirement_ns=6300	requested_input_rows=64	requests=4	returned_output_rows=96	transform_calls=4	transform_ns=15100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	214400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	419900
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	182300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	330200	append_cow=4	append_ns=2200	appended_output_rows=96	canonical_ns=6800	containment_ns=2300	cow_row_handles=64	edge_retirement_ns=6500	requested_input_rows=64	requests=4	returned_output_rows=96	transform_calls=4	transform_ns=10600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	218600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	4200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	4000
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	2700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	426700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	42200	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=200	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	424300	append_cow=1	append_ns=300	appended_output_rows=8	canonical_ns=700	containment_ns=300	cow_row_handles=0	edge_retirement_ns=200	requested_input_rows=0	requests=1	returned_output_rows=8	transform_calls=1	transform_ns=1600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	166900
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	405300	append_cow=1	append_ns=300	appended_output_rows=8	canonical_ns=300	containment_ns=100	cow_row_handles=0	edge_retirement_ns=200	requested_input_rows=0	requests=1	returned_output_rows=8	transform_calls=1	transform_ns=1600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	185900
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	2300	destroy_ns=200	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	126800
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	19500
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	113100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=200	entries=0
+REBIND	query	ThreadId(103)	39500
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	49300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	11400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	31100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	9700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	10300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	540300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	1100	destroy_ns=500	entries=0
+REBIND	query	ThreadId(103)	219600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	305100	canonical_ns=0	contained_output_rows=0	contained_requests=4	containment_ns=100	edge_retirement_ns=200	requested_input_rows=0	requests=4	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=4	transform_ns=500
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	497300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	207800
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	271600	canonical_ns=0	contained_output_rows=0	contained_requests=4	containment_ns=200	edge_retirement_ns=400	requested_input_rows=0	requests=4	returned_output_rows=0	temporary_result_drop_ns=200	transform_calls=4	transform_ns=200
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	8600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=200	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	68200	canonical_ns=100	contained_output_rows=1	contained_requests=1	containment_ns=2200	edge_retirement_ns=200	operation_retirement_ns=800	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=300	transform_calls=1	transform_ns=2400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	17800
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	147500	canonical_ns=0	contained_output_rows=1	contained_requests=1	containment_ns=1400	edge_retirement_ns=100	operation_retirement_ns=1300	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=500	transform_calls=1	transform_ns=2500
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	34900
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	101000	canonical_ns=0	contained_output_rows=1	contained_requests=1	containment_ns=200	edge_retirement_ns=100	operation_retirement_ns=900	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=100	transform_calls=1	transform_ns=900
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	25800
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	69900	canonical_ns=0	contained_output_rows=1	contained_requests=1	containment_ns=200	edge_retirement_ns=0	operation_retirement_ns=800	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=0	transform_calls=1	transform_ns=600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	22300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	28100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	38900
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	104000	canonical_ns=100	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=100	operation_retirement_ns=600	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=100	transform_calls=1	transform_ns=200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	46600	canonical_ns=100	contained_output_rows=0	contained_requests=3	containment_ns=0	edge_retirement_ns=0	requested_input_rows=0	requests=3	returned_output_rows=0	temporary_result_drop_ns=200	transform_calls=3	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	600	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	31200	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=300	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=400	transform_calls=1	transform_ns=500
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=200	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	23900	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=100	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	27200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	1000	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	38600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	437800	canonical_ns=0	contained_output_rows=1	contained_requests=1	containment_ns=1800	edge_retirement_ns=100	operation_retirement_ns=1000	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=400	transform_calls=1	transform_ns=2500
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	407200	canonical_ns=0	contained_output_rows=1	contained_requests=1	containment_ns=200	edge_retirement_ns=0	operation_retirement_ns=300	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=400	transform_calls=1	transform_ns=700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	437500	canonical_ns=100	contained_output_rows=1	contained_requests=1	containment_ns=700	edge_retirement_ns=100	operation_retirement_ns=600	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=200	transform_calls=1	transform_ns=1200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	16400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	13800
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	14000
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	14100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	13300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	15200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	13500
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	13100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	13100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	12600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	36300	canonical_ns=0	contained_output_rows=1	contained_requests=1	containment_ns=500	edge_retirement_ns=200	operation_retirement_ns=400	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=100	transform_calls=1	transform_ns=800
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	16900
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	14500	canonical_ns=0	contained_output_rows=1	contained_requests=1	containment_ns=200	edge_retirement_ns=0	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=100	transform_calls=1	transform_ns=400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	15200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	144200	canonical_ns=0	contained_output_rows=1	contained_requests=1	containment_ns=1800	edge_retirement_ns=200	operation_retirement_ns=1000	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=600	transform_calls=1	transform_ns=2100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=300	entries=0
+REBIND	query	ThreadId(103)	26000
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	24100	canonical_ns=0	contained_output_rows=1	contained_requests=1	containment_ns=200	edge_retirement_ns=0	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=100	transform_calls=1	transform_ns=600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	23700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	39000
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	703900	operation_retirement_ns=700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	696600	append_cow=6	append_ns=2900	appended_output_rows=80	canonical_ns=13500	contained_output_rows=0	contained_requests=1	containment_ns=3200	cow_row_handles=64	edge_retirement_ns=9200	operation_retirement_ns=7800	requested_input_rows=64	requests=7	returned_output_rows=80	temporary_result_drop_ns=100	transform_calls=7	transform_ns=17400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	831700	operation_retirement_ns=1500
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=200	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	690200	operation_retirement_ns=2500
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	14000
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	15000
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	31000	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=300	edge_retirement_ns=100	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=100	transform_calls=1	transform_ns=300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=200	entries=0
+REBIND	query	ThreadId(103)	91100	canonical_ns=0	contained_output_rows=0	contained_requests=2	containment_ns=100	edge_retirement_ns=100	operation_retirement_ns=1800	requested_input_rows=0	requests=2	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=2	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	17100	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=100	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	74500	canonical_ns=100	contained_output_rows=0	contained_requests=2	containment_ns=0	edge_retirement_ns=0	operation_retirement_ns=1600	requested_input_rows=0	requests=2	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=2	transform_ns=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	791896100	append_cow=304	append_ns=43240700	appended_output_rows=725871	canonical_ns=118506800	contained_output_rows=542749	contained_requests=203	containment_ns=42528000	cow_row_handles=741719	edge_retirement_ns=78791100	operation_retirement_ns=108217100	requested_input_rows=1266104	requests=510	retire_ambient_cow=3	retire_shared_cow=3	returned_output_rows=1268620	temporary_result_drop_ns=3377100	transform_calls=510	transform_ns=162876600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	1300	destroy_ns=300	entries=0
+REBIND	query	ThreadId(103)	1577900
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	2300	destroy_ns=400	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	435980900	append_cow=304	append_ns=24278300	appended_output_rows=725871	canonical_ns=59006900	contained_output_rows=542749	contained_requests=203	containment_ns=27005900	cow_row_handles=741719	edge_retirement_ns=49761400	operation_retirement_ns=47098200	requested_input_rows=1266104	requests=510	retire_ambient_cow=3	retire_shared_cow=3	returned_output_rows=1268620	temporary_result_drop_ns=2042500	transform_calls=510	transform_ns=84594300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	1100	destroy_ns=300	entries=0
+REBIND	query	ThreadId(103)	1074800
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	1400	destroy_ns=700	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	75600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	600	destroy_ns=200	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	43200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	30700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	90400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	1700	destroy_ns=200	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	151100	canonical_ns=0	contained_output_rows=1	contained_requests=1	containment_ns=4100	edge_retirement_ns=0	operation_retirement_ns=1200	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=1400	transform_calls=1	transform_ns=6100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	34700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	25200	canonical_ns=100	contained_output_rows=1	contained_requests=1	containment_ns=200	edge_retirement_ns=100	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=100	transform_calls=1	transform_ns=1000
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	31200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	100500	canonical_ns=100	contained_output_rows=1	contained_requests=1	containment_ns=100	edge_retirement_ns=100	operation_retirement_ns=500	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=100	transform_calls=1	transform_ns=700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	24300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	700	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	44700	canonical_ns=100	contained_output_rows=1	contained_requests=1	containment_ns=1200	edge_retirement_ns=100	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=400	transform_calls=1	transform_ns=2000
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	23200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	67300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	52800
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	24600	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=200	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	85600	canonical_ns=0	contained_output_rows=1	contained_requests=1	containment_ns=600	edge_retirement_ns=0	operation_retirement_ns=1000	requested_input_rows=1	requests=1	returned_output_rows=1	temporary_result_drop_ns=200	transform_calls=1	transform_ns=1300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=200	entries=0
+REBIND	query	ThreadId(103)	47300	canonical_ns=100	contained_output_rows=3	contained_requests=2	containment_ns=700	edge_retirement_ns=300	operation_retirement_ns=1900	requested_input_rows=3	requests=2	returned_output_rows=3	temporary_result_drop_ns=200	transform_calls=2	transform_ns=2900
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	38500	canonical_ns=0	contained_output_rows=5	contained_requests=2	containment_ns=500	edge_retirement_ns=0	operation_retirement_ns=2300	requested_input_rows=5	requests=2	returned_output_rows=5	temporary_result_drop_ns=0	transform_calls=2	transform_ns=1900
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	53800	canonical_ns=100	contained_output_rows=7	contained_requests=2	containment_ns=400	edge_retirement_ns=100	operation_retirement_ns=2200	requested_input_rows=7	requests=2	returned_output_rows=7	temporary_result_drop_ns=100	transform_calls=2	transform_ns=2500
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=200	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	493500	operation_retirement_ns=400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	46000
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	800	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	211400	canonical_ns=100	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=400	operation_retirement_ns=12600	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=100	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	119900	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=100	operation_retirement_ns=8300	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=100	transform_calls=1	transform_ns=400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	100800	canonical_ns=100	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=100	operation_retirement_ns=6600	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=100	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	109700	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=500	operation_retirement_ns=6100	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	160200	canonical_ns=0	contained_output_rows=0	contained_requests=2	containment_ns=0	edge_retirement_ns=200	operation_retirement_ns=3200	requested_input_rows=0	requests=2	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=2	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	192700	operation_retirement_ns=300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	38200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	305100	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=100	operation_retirement_ns=12100	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=100	transform_calls=1	transform_ns=400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	112500	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=100	operation_retirement_ns=6000	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=100	transform_calls=1	transform_ns=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	600	destroy_ns=100	entries=0
+REBIND	query	ThreadId(103)	123900	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=100	operation_retirement_ns=6100	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	138200	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=0	operation_retirement_ns=5300	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=0	entries=0
+REBIND	query	ThreadId(103)	149600	canonical_ns=0	contained_output_rows=0	contained_requests=2	containment_ns=0	edge_retirement_ns=100	operation_retirement_ns=2800	requested_input_rows=0	requests=2	returned_output_rows=0	temporary_result_drop_ns=100	transform_calls=2	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	200	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	43200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	100	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	50000
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	600	destroy_ns=300	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	19400
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	93200	canonical_ns=100	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=100	operation_retirement_ns=100	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=100	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	104700	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=200	operation_retirement_ns=200	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	145000	canonical_ns=100	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=200	operation_retirement_ns=300	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=200	transform_calls=1	transform_ns=300
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	134400	canonical_ns=100	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=200	operation_retirement_ns=200	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=100	transform_calls=1	transform_ns=200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	600	destroy_ns=200	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	76100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	600	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	69600
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	83200
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	600	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	64100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	23100	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=200	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	44600	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=200	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	33600	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=100	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=100	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	400	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	30800	canonical_ns=100	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=100	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=100	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	36500	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=300	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=100	transform_calls=1	transform_ns=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=200	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	32800	canonical_ns=0	contained_output_rows=0	contained_requests=1	containment_ns=100	edge_retirement_ns=100	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=0	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	500	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	41900	canonical_ns=100	contained_output_rows=0	contained_requests=1	containment_ns=0	edge_retirement_ns=100	requested_input_rows=0	requests=1	returned_output_rows=0	temporary_result_drop_ns=100	transform_calls=1	transform_ns=100
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	300	destroy_ns=100	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REBIND	query	ThreadId(103)	15700
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_HISTORY_DROP_BEGIN	ThreadId(103)
+REBIND	cleanup	ThreadId(103)	700	destroy_ns=0	entries=0
+SOURCE_HISTORY_DROP_END	ThreadId(103)
+RECONCILE	memberships	202	2362397200	analysis_drop_ns=4192900	discovery_ns=64500	graph_drop_ns=3301400	graph_preparation_ns=133503100	history_creation_ns=34600	history_drop_ns=17878100	leaf_query_formation_ns=56500	leaf_root_lookup_ns=216900	merge_ns=1291100	operand_queries_ns=28190100	payload_contract_queries_ns=4746100	payload_target_queries_ns=4145100	reachability_drop_ns=100	reference_context_drop_ns=4616000	reference_queries_ns=407830600	source_contract_queries_ns=1736285700	types_drop_ns=24400	view_queries_ns=4843000
+    22.440 ms  prepare: project -> prepared sources
+ 17190.943 ms  compile: sources -> requested product
+    64.556 ms  publish: retained product -> published product
+    18.054 ms  Source ingress: SourceFiles -> SyntaxTrees
+     3.007 ms  Step: assemble: PreparedSources -> AssembledSyntax
+   162.725 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees
+   262.176 ms  Stage 04: SymbolResolvedTrees -> TypedTrees
+   897.272 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)
+  6054.937 ms  Stage 05: TypedTrees -> CheckedTrees
+   355.940 ms  Step: settle: CheckedTrees -> SelectedExecution
+  4157.298 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact
+  4100.640 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi
+     0.006 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine
+    17.929 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi
+     8.098 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt
+    30.268 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact
+ 17786.311 ms  total elapsed

@@ -1,0 +1,16 @@
+// Expected exit: 0.
+// ZF is set here, so the `jz` arm to `equal` is the one that runs: only a
+// refuted arm is free of its requirement, and `eax == 0` is not required.
+machine main() crashes Trap {
+    asm where clobbers rax, rflags {
+    entry:
+        mov eax, 3;
+        cmp eax, eax;
+        jz equal;
+    equal requires eax == 0:
+        nop;
+    }
+    transition true { true -> finished() false -> failed() }
+    machine finished() {}
+    machine failed() crashes Trap { crash Trap; }
+}

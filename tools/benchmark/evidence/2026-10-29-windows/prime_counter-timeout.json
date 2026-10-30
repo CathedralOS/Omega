@@ -1,0 +1,7 @@
+{
+  "status": "preparation-timeout",
+  "subject": "prime_counter",
+  "deadline_seconds": 1200,
+  "preparation_started_utc": "2026-10-29T22:30:15.349193+00:00",
+  "observed_utc": "2026-10-29T22:50:15.351161+00:00"
+}

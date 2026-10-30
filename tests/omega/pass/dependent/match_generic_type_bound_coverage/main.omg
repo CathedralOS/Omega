@@ -1,0 +1,40 @@
+// CASE-CONSTRAINTS structural `match` coverage through the migrated
+// data-level `requires` form: `T == i32` refutes `Integer` on `Value<bool>`,
+// so a `match` covering only `Boolean` is already exhaustive and its payload
+// binds `bool` -- no `_` arm needed. `Range`'s `lo <= hi` where-fact makes
+// `hi - lo` exact without a guard or Wrapping.
+data Value<T> [copy]
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: i32);
+    case Boolean(value: bool);
+}
+data Interval [copy]
+    requires (self in Interval::Empty)
+       || ((self in Interval::Range) && self.lo <= self.hi)
+{
+    case Empty;
+    case Range(lo: u64, hi: u64);
+}
+machine flag(v: Value<bool>) -> bool {
+    match v {
+        Value::Boolean { value } -> value
+    }
+}
+machine width(span: Interval) -> u64 {
+    match span {
+        Interval::Range { lo, hi } -> hi - lo
+        Interval::Empty -> 0
+    }
+}
+machine main() crashes Trap {
+    let marked: Value<bool> = Value::Boolean { value: true };
+    let span: Interval = Interval::Range { lo: 17, hi: 21 };
+    transition flag(marked) == true && width(span) == 4 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -186,8 +186,15 @@ impl IntegerParsingImport {
 import_signature_via_clone!(IntegerParsingImport);
 
 impl TerminalEffectHandler for IntegerParsingImport {
-    fn storage_arguments(&self, _: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
-        &[0, 1]
+    fn storage_requirements(
+        &self,
+        _: semantic_vocabulary::BoundaryMachineId,
+        _arguments: &[terminal_interpreter::TerminalScalarValue],
+    ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
+        terminal_interpreter::TerminalCallStorageRequirements {
+            original: false,
+            arguments: &[0, 1],
+        }
     }
 
     fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {

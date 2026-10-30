@@ -1959,7 +1959,10 @@ fn completed_build_target_fanout() {
     let outcomes = session
         .compiler()
         .complete_package_products(products)
-        .unwrap();
+        .unwrap()
+        .into_iter()
+        .map(|(owner, outcome)| (owner, outcome.and_then(omega_build::complete_product)))
+        .collect::<Vec<_>>();
     assert_eq!(outcomes.len(), 4);
     assert_eq!(
         outcomes.iter().map(|(owner, _)| *owner).collect::<Vec<_>>(),

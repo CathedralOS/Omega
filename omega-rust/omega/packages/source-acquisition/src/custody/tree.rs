@@ -2,7 +2,7 @@
 
 use super::lock::same_std_and_capability_file_identity;
 #[cfg(windows)]
-use super::platform::verify_windows_open_cache_ancestry_identity;
+use super::platform::retain_verified_windows_cache_ancestor;
 use super::platform::{
     same_capability_file_identity, verify_cache_node_owner_and_mode,
     verify_capability_cache_node_owner_and_mode, verify_macos_cache_ancestor_acl_custody,
@@ -153,6 +153,45 @@ pub(crate) fn verify_retained_cache_custody_root(
     replaced: &'static str,
 ) -> Result<(), SourceResolveError> {
     verify_cache_ancestry(kind, root)?;
+    let metadata = classify_retained_cache_directory(kind, root)?;
+    let named = open_absolute_directory_nofollow(root).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            root,
+            format!("could not retain cache custody directory: {error}"),
+        )
+    })?;
+    verify_retained_cache_directory(kind, root, &metadata, &named, retained, replaced)
+}
+
+/// A resolver walk has freshly checked the parent and checks it again after
+/// its direct children. Each child still binds fresh pathname metadata to a
+/// no-follow open and its retained identity inside that same parent.
+#[cfg(windows)]
+pub(crate) fn verify_retained_cache_child_custody_root(
+    parent_path: &Path,
+    parent: &CapabilityDirectory,
+    root: &Path,
+    kind: CacheCustodyKind,
+    retained: &CapabilityDirectory,
+    replaced: &'static str,
+) -> Result<(), SourceResolveError> {
+    let name = super::publication::direct_cache_child_name(kind, parent_path, root)?;
+    let metadata = classify_retained_cache_directory(kind, root)?;
+    let named = parent.open_dir_nofollow(name).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            root,
+            format!("could not retain cache custody directory: {error}"),
+        )
+    })?;
+    verify_retained_cache_directory(kind, root, &metadata, &named, retained, replaced)
+}
+
+fn classify_retained_cache_directory(
+    kind: CacheCustodyKind,
+    root: &Path,
+) -> Result<std::fs::Metadata, SourceResolveError> {
     let metadata = std::fs::symlink_metadata(root).map_err(|error| io_error(root, error))?;
     if metadata.file_type().is_symlink() || !metadata.is_dir() {
         return Err(cache_custody_invalid(
@@ -162,24 +201,28 @@ pub(crate) fn verify_retained_cache_custody_root(
         ));
     }
     verify_cache_node_owner_and_mode(kind, root, &metadata)?;
-    let named = open_absolute_directory_nofollow(root).map_err(|error| {
-        cache_custody_invalid(
-            kind,
-            root,
-            format!("could not retain cache custody directory: {error}"),
-        )
-    })?;
+    Ok(metadata)
+}
+
+fn verify_retained_cache_directory(
+    kind: CacheCustodyKind,
+    root: &Path,
+    metadata: &std::fs::Metadata,
+    named: &CapabilityDirectory,
+    retained: &CapabilityDirectory,
+    replaced: &'static str,
+) -> Result<(), SourceResolveError> {
     let opened = named
         .dir_metadata()
         .map_err(|error| io_error(root, error))?;
-    if !opened.is_dir() || !same_std_and_capability_file_identity(&metadata, &opened) {
+    if !opened.is_dir() || !same_std_and_capability_file_identity(metadata, &opened) {
         return Err(cache_custody_invalid(
             kind,
             root,
             "cache custody directory changed between classification and no-follow open",
         ));
     }
-    verify_macos_opened_cache_directory_acl_custody(kind, root, &named)?;
+    verify_macos_opened_cache_directory_acl_custody(kind, root, named)?;
     let retained_metadata = retained
         .dir_metadata()
         .map_err(|error| io_error(root, error))?;
@@ -238,8 +281,11 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
 
 #[cfg(windows)]
 fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), SourceResolveError> {
+    // Open each component from its just-verified parent instead of reopening
+    // every prefix from the drive/share root. Fresh classification and handle
+    // identity checks still run at every component on every walk.
     let ancestors: Vec<&Path> = root.ancestors().collect();
-    let mut verified_parent = None;
+    let mut verified_parent: Option<CapabilityDirectory> = None;
     for ancestor in ancestors.into_iter().rev() {
         let metadata =
             std::fs::symlink_metadata(ancestor).map_err(|error| io_error(ancestor, error))?;
@@ -250,7 +296,7 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
                 "cache custody ancestry contains a non-directory or reparse point",
             ));
         }
-        verified_parent = Some(verify_windows_open_cache_ancestry_identity(
+        verified_parent = Some(retain_verified_windows_cache_ancestor(
             kind,
             ancestor,
             &metadata,

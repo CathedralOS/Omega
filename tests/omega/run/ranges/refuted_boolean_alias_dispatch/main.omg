@@ -1,0 +1,19 @@
+// Expected exit: 0.
+machine bounded(bytes: &[u8]) -> u64 {
+    transition bytes.len <= 4u64 {
+        true -> length(bytes)
+        false -> length(&bytes[0..4])
+        _ -> length(&bytes[0..4])
+    }
+    machine length(bytes: &[u8]) -> u64 { bytes.len }
+}
+machine main() crashes Trap {
+    let short: u64 = bounded("abc");
+    let long: u64 = bounded("abcdef");
+    transition short == 3u64 && long == 4u64 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

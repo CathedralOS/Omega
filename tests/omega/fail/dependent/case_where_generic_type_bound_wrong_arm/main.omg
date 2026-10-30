@@ -1,0 +1,18 @@
+// CASE-CONSTRAINTS impossible-arm coverage is not coverage: `T == i32`
+// refutes `Integer` on `Value<bool>`, so matching only the impossible arm
+// leaves the possible `Boolean` case uncovered.
+data Value<T>
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: T);
+    case Boolean(value: T);
+}
+data Main { v: Value<bool>; }
+machine Main::main(main: &mut Main) {
+    main.v = Value::Boolean { value: true };
+    transition main.v {
+        Value::Integer { value } -> done()
+    }
+    machine done() {}
+}

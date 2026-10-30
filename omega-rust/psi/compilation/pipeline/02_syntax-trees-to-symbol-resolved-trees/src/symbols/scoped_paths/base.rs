@@ -42,8 +42,22 @@ pub(super) fn resolve_base_lookup(
         return SymbolLookup::Unique(machine_child);
     }
 
-    let lexical =
-        super::super::lookup::lexical_machine_lookup(symbols, machine_symbol, member.as_str());
+    // Static declaration binders belong to the enclosing lexical namespace,
+    // just like nested machine names. Runtime fields, parameters and locals
+    // above were restricted to this invocation and never enter this walk.
+    let lexical = super::super::lookup::lexical_declaration_lookup(
+        symbols,
+        machine_symbol,
+        member.as_str(),
+        &[
+            SymbolKind::Machine,
+            SymbolKind::TypeParameter,
+            SymbolKind::MachineParameter,
+            SymbolKind::ConformanceParameter,
+            SymbolKind::PropositionParameter,
+            SymbolKind::PropositionMachineParameter,
+        ],
+    );
     if !matches!(lexical, SymbolLookup::NotFound) {
         return lexical;
     }

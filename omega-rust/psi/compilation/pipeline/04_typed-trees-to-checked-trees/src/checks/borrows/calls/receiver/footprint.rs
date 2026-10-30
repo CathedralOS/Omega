@@ -49,6 +49,7 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
     for argument in retained_arguments {
         let operand = CapturedPlace {
             incoming_reference: Default::default(),
+            incoming_owner_path: Default::default(),
             root: argument.root,
             segments: facts.borrow.access_segments(argument).to_vec(),
         };
@@ -264,6 +265,7 @@ fn captured_places(places: Vec<CanonicalPlace>) -> Vec<CapturedPlace> {
         .filter_map(|place| {
             place.root.is_valid().then_some(CapturedPlace {
                 incoming_reference: Default::default(),
+                incoming_owner_path: Default::default(),
                 root: place.root,
                 segments: place.segments,
             })

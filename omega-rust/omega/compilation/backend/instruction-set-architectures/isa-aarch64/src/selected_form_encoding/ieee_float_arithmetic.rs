@@ -58,15 +58,12 @@
 //! Encodings follow Arm's A64 scalar floating-point data-processing (one, two
 //! and three source), conversion between floating-point and integer, Advanced
 //! SIMD scalar three-same `FCMGT`/`FCMEQ`, and three-same logical `BSL`.
-use crate::machine_effects::form_alternative;
 
 use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId, sorted_units};
 use selected_instructions::{
-    IeeeFloatArithmeticForm, MachineAlternative, MachineAlternativeApplicability,
-    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
-    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
+    IeeeFloatArithmeticForm, MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration,
+    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedTrapBehavior,
     MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
     ieee_float_arithmetic_is_trapping,
 };
@@ -120,28 +117,24 @@ pub(crate) fn declaration(
     form: IeeeFloatArithmeticForm,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::NearestIeeeFloatArithmetic(form),
+    MachineEffectDeclaration::single(
+        MachineSemanticKind::NearestIeeeFloatArithmetic(form),
         constraint,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: if ieee_float_arithmetic_is_trapping(form) {
+        MachineMemoryEffect::NoneV1,
+        if ieee_float_arithmetic_is_trapping(form) {
             MachineTrapBehavior::TrappingIntegerV1
         } else {
             MachineTrapBehavior::NeverV1
         },
-        barrier: if ieee_float_arithmetic_is_trapping(form) {
+        if ieee_float_arithmetic_is_trapping(form) {
             MachineBarrier::ExternalEffect
         } else {
             MachineBarrier::None
         },
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: form_alternative!(
-            MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
-            MachineSizeKnowledge::ExactBytes(4 * program(form, &[0, 0, 0, 0]).len() as u16),
-            effects(form)
-        ),
-    }
+        MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
+        MachineSizeKnowledge::ExactBytes(4 * program(form, &[0, 0, 0, 0]).len() as u16),
+        effects(form),
+    )
 }
 
 pub(crate) fn footprint(

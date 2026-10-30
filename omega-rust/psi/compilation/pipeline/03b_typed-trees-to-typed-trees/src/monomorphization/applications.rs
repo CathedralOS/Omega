@@ -346,7 +346,7 @@ pub(super) fn retain_instance(
         }
     }
     if source.is_some() {
-        super::body_cloning::copy_binding_type_payloads(source, program, &mut bindings, &[]);
+        super::body_cloning::copy_binding_type_payloads(source, program, &mut bindings, &[])?;
     }
     let application = program.expression_table.retain_static_machine_application(
         candidate.template.template_symbol,

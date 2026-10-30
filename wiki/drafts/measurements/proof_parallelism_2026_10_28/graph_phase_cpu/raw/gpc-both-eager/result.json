@@ -1,0 +1,48 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\graph-phase-cpu\\omega.exe",
+    "run",
+    "--both",
+    "--keep",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 21.603570299994317,
+  "cpu_seconds": 27.140625,
+  "kernel_seconds": 3.21875,
+  "user_seconds": 23.921875,
+  "exit_code": 0,
+  "system_before": {
+    "idle": 1587922.640625,
+    "kernel": 1765241.625,
+    "user": 389107.5625
+  },
+  "system_after": {
+    "idle": 1588358.8125,
+    "kernel": 1765793.109375,
+    "user": 389247.578125
+  },
+  "system_cpu_capacity_seconds": 691.5,
+  "system_busy_seconds": 255.328125,
+  "external_busy_seconds": 228.1875,
+  "external_busy_capacity_percent": 32.99891540130152,
+  "observer": "endpoints only",
+  "producer": "graph-phase-cpu",
+  "compiler_sha256": "babdabe9df24eec6d812f31e2c8324e45d58ce63d514984714fa2f4da801a6dd",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "07d093dce4fd258ce0b6ce72510d9839e50ee4cfda3a8ddd543807cf9d9a66c5",
+  "cache_mode": "shared user cache",
+  "terminal_stdout_agrees": true,
+  "retained_image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+  "graph_mode": "eager",
+  "graph_counts": {
+    "ready": [],
+    "builds": []
+  },
+  "counts_enabled": false,
+  "warm_cache_from": null,
+  "comparison": true,
+  "cpu_windows": []
+}

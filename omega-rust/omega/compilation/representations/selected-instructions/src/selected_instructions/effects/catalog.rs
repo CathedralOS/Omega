@@ -1075,6 +1075,40 @@ impl MachineEffectDeclaration {
         }
         declaration
     }
+
+    /// One always-applicable alternative over the selected constraint row: the
+    /// form states the semantic, the columns the semantic owns, its alternative
+    /// family, and the size and encoded effects its encoder produces. The call
+    /// and cleanup columns stay at their no-effect identity and latency at the
+    /// stable baseline; a form that declares an actual call or cleanup surface
+    /// states that row itself.
+    pub fn single(
+        semantic: MachineSemanticKind,
+        constraint: RegisterConstraintKey,
+        memory: MachineMemoryEffect,
+        trap: MachineTrapBehavior,
+        barrier: MachineBarrier,
+        family: MachineAlternativeFamily,
+        size: MachineSizeKnowledge,
+        encoded: MachineEncodedEffects,
+    ) -> Self {
+        Self {
+            semantic,
+            constraint,
+            memory,
+            trap,
+            barrier,
+            call: MachineCallEffect::NoneV1,
+            cleanup: MachineCleanupEffect::NoneV1,
+            alternatives: vec![MachineAlternative {
+                key: MachineAlternativeKey { family, variant: 0 },
+                applicability: MachineAlternativeApplicability::Always,
+                size,
+                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+                encoded,
+            }],
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1227,4 +1261,53 @@ pub fn validate_isa_machine_effect_catalog<E>(
         return Err(IsaCatalogValidation::SemanticMismatch);
     }
     Ok(validated)
+}
+
+/// State an ISA machine-effect catalog's admission plumbing once: the
+/// crate-local validation error and its four-arm fail-closed correspondence to
+/// the shared [`validate_isa_machine_effect_catalog`] outcomes, its `Display`,
+/// and the `validate` entry point. An ISA names its error type, entry point,
+/// architecture, label, and catalog builder; every arm of the correspondence is
+/// stated here, so a new validation outcome is added in one place.
+#[macro_export]
+macro_rules! isa_machine_effect_catalog_plumbing {
+    ($error:ident, $validate:ident, $architecture:expr, $label:literal, $build:path) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum $error {
+            TargetArchitectureMismatch,
+            UnsupportedTargetAbi,
+            Structural($crate::MachineEffectCatalogValidationError),
+            TargetSemanticMismatch,
+        }
+
+        impl std::fmt::Display for $error {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(formatter, "invalid {} machine effects: {:?}", $label, self)
+            }
+        }
+
+        impl std::error::Error for $error {}
+
+        pub fn $validate(
+            target: ::target::NativeTarget,
+            constraints: &::register_model::ValidatedRegisterConstraintCatalog,
+            catalog: $crate::MachineEffectCatalog,
+        ) -> Result<$crate::ValidatedMachineEffectCatalog, $error> {
+            $crate::validate_isa_machine_effect_catalog(
+                $architecture,
+                target,
+                constraints,
+                catalog,
+                $build,
+            )
+            .map_err(|failure| match failure {
+                $crate::IsaCatalogValidation::ArchitectureMismatch => {
+                    $error::TargetArchitectureMismatch
+                }
+                $crate::IsaCatalogValidation::Structural(error) => $error::Structural(error),
+                $crate::IsaCatalogValidation::SemanticMismatch => $error::TargetSemanticMismatch,
+                $crate::IsaCatalogValidation::Builder(error) => error,
+            })
+        }
+    };
 }

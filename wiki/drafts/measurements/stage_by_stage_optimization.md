@@ -1,5 +1,74 @@
 # Stage-by-Stage Compiler Optimization Ledger (`omega-rust`)
 
+## Repeated integer premise preparation: attribution - 2026-10-29
+
+No optimization retained. A fresh instrumented update took 127.65 s; inclusive
+premise projection/installation totals were 91.28/42.80 s, versus 0.087 s copying
+comparisons. The scopes nest, so these are not disjoint wall-time savings.
+787,550 projection input visits contained no exact duplicate pairs within a list;
+list deduplication is rejected. Cross-query reuse remains unmeasured and the
+existing prepared-premise route is not interchangeable with guard preparation.
+Actual native/Terminal execution passes, and the image matches prior evidence.
+Next: measure completed projection reuse under full context and active-chain
+identity before implementing a cache. [Evidence and limits](integer_premise_preparation_2026_10_29/README.md).
+
+## Body unfolding: scalar guard preparation - 2026-10-29
+
+The unfolding timer is dominated by integer proof preparation for scalar guards;
+body setup and term construction are small. Reusing exact operand resolutions
+within one immutable integer query measured A 116.64/117.01 s versus B
+105.23/106.77 s for fresh preparation, 9.26% lower mean with separated ranges.
+Rejected below the predefined 10% threshold and removed from production source.
+Four native images match; five actual host comparisons and one focused refusal
+pass. Broader tests were skipped after the failed screen. Next: measure repeated
+integer premise preparation under exact guard contexts.
+[Evidence and limits](body_unfolding_2026_10_29/README.md).
+
+## Remaining first-time checking: empty-equation query - 2026-10-30
+
+Rejected on fixed `0ac181bf065`: skip unproductive non-Boolean specification
+guarantee queries without expression ensures. Fresh A-B-B-A updates measured
+133.18/141.95 s for A and 130.57/122.30 s for B, an 8.09% lower mean below the
+predeclared 10% threshold. Four native images match and actual host comparisons
+pass; both producers preserve the focused specification-formation refusal.
+The candidate is removed. Broader quality tests were skipped after the failed
+screen. Body unfolding is the next diagnostic lead; its inclusive time overlaps
+nested work. [Evidence and harness correction](remaining_first_checking_2026_10_30/README.md).
+
+## First-time checking: batch-local operand resolution - 2026-10-29
+
+Retained on fixed 2a087aa3ec3: share completed full-payload operand resolution
+only across goals of one immutable proof batch, discarding answers before
+scratch reuse. A-B-B-A fresh package updates fall from 217.33/187.05 s to
+139.79/143.99 s (29.82% lower mean); all four native images are identical.
+Eight actual host comparisons, six authored refusals and the payload/context
+isolation unit test pass. No warm-compile or other-host speedup is claimed.
+Raw review also caught the old --both plus --target compile-only harness mistake;
+explicit host replays now establish runtime agreement and PR #822 records the
+correction. [Evidence and limits](first_checking_2026_10_29/README.md).
+
+## First-time preparation convergence - 2026-10-29
+
+Retained locally on fixed `cb087c46476`: normalize realized invocation-set order
+before fixed-point comparison. Main's unchanged operand-order update hit 180 s
+and an extended diagnostic was stopped at 438 s in invocation inference; the
+candidate finishes first updates in 161-167 s and both original controls execute
+with native/Terminal agreement. Nine compile/native observations, nine separate
+Terminal comparisons and twelve expected rejects pass, including paired applied
+provider/cycle controls. No percentage speedup is claimed against an unfinished
+baseline. [Evidence, finite-set model and limits](preparation_convergence_2026_10_29/README.md).
+
+## Operand-order checker stack overflow - 2026-10-29
+
+The fixed-workbench repair and reduced regression establish that selected-contract
+queries must share the exact-context application recursion guard. Main already
+received the equivalent guard in #784, with a broader boundary around carrier
+selection. This publication retains that implementation and adds the regression
+pair and historical evidence, not duplicate compiler code. The historical
+baseline overflowed; five repaired positives and six reject controls passed.
+Mixed overlapping timing ranges establish no general speedup.
+[Evidence and source identities](operand_order_overflow_2026_10_29/README.md).
+
 ## Windows cache ancestry traversal - 2026-10-29
 
 Retained locally on `4fba237cd10`: walk each ancestor from its freshly validated
@@ -11,8 +80,6 @@ and remains inconclusive on length/dispatch. All 94 compile/native pairs, two
 native replays, two static rejects and ten focused custody tests pass. One
 initial diagnostic native timeout and one fixture-setup failure remain recorded.
 [Full evidence, scope and next question](source_resolution_remaining_2026_10_29/README.md).
-
-## Earlier experiments
 
 Host: Windows `x86_64` (`windows_x86_64`), release profile (`target/release/omega.exe`, `target/release/deps/corpus_runner-*.exe`).
 Base commit: `e44ed43aefa9` (`HEAD`).

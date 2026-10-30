@@ -213,7 +213,10 @@ pub(super) fn window_projection(
     }
     crate::lowering::structural_layout::reference_referent_projection(
         root_type,
-        path,
+        // Authenticate descriptor loads here. The final suffix belongs to the
+        // consuming operation: a field store can end in a Case namespace whose
+        // scalar field is a separate operand, not a standalone aggregate value.
+        &path[..=crossing],
         required_access,
         None,
         types,

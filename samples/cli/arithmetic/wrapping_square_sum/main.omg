@@ -13,18 +13,26 @@
 //
 // `main` returns through the ordinary ProgramEntry completion, so the
 // runtime leg observes a deterministic clean exit on any hosted target
-// without needing a ProcessExit or Console provider.
+// without needing a ProcessExit or Console provider. The final accumulator is
+// checked, so dropping the arithmetic cannot masquerade as a successful run.
+// Inputs are constants: this remains an optimizer subject, not a guarantee of
+// sustained arithmetic throughput. Runtime-input reference kernels live in
+// tools/benchmark/src/workloads.rs.
 //
 // Expected exit: 0
 
-machine main() {
+machine main() crashes Trap {
     transition { _ -> loop_(0, 1) }
 
     machine loop_(acc: u64 in Wrapping, i: u64 in Wrapping) {
-        transition i <= 2000000 { true -> step(acc, i) _ -> done() }
+        transition i <= 2000000 { true -> step(acc, i) _ -> done(acc) }
     }
     machine step(acc: u64 in Wrapping, i: u64 in Wrapping) {
         transition { _ -> loop_(acc + i * i, i + 1) }
     }
-    machine done() {}
+    machine done(acc: u64 in Wrapping) {
+        transition acc == 2666668666667000000 { true -> passed() _ -> failed() }
+    }
+    machine passed() {}
+    machine failed() { crash Trap; }
 }

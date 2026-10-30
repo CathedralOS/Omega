@@ -267,7 +267,10 @@ pub(super) fn check_call_result_qualifications(
             // Content carries an additional conservation obligation, kept in
             // the routes below: promising provenance cannot create capacity.
             // Authorized issuance likewise keeps its existing freshness join.
-            if projection.is_none()
+            // A declared sub-place of the result carrier is not that minting:
+            // the membership is the record's own construction invariant, which
+            // the admitted provider already owed — the caller receives it.
+            if (projection.is_none() || !path.is_empty())
                 && boundary_requirement_signature(program, target_symbol, domain).is_none()
                 && program.traits().iter().any(|owner| {
                     owner.is_boundary

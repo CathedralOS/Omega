@@ -755,8 +755,8 @@ fn runtime_fact_for_parameters(
                 && runtime_fact_for_parameters(program, owner, parameters, binary.right);
         }
         if super::structural_terms::is_case_observation(program, expression) {
-            return crate::proof_contracts::bound_expression_meaning::has_exact_parameter_case_membership_meaning(
-                program, parameters, expression, binary,
+            return crate::proof_contracts::bound_expression_meaning::has_exact_declaration_case_membership_meaning(
+                program, owner, parameters, expression, binary,
             );
         }
     }
