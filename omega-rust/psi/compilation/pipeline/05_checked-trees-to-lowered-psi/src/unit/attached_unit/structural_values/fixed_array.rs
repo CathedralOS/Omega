@@ -110,6 +110,9 @@ impl emission::Emission<'_, '_, '_> {
         let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
             return unsupported("fixed byte literal has a nonarray carrier");
         };
+        let terminal_psi::ArrayExtent::Literal(length) = length else {
+            return unsupported("fixed byte literal requires its exact closed array extent");
+        };
         if usize::try_from(length).ok() != Some(bytes.len()) {
             return unsupported("fixed byte literal width differs from its array carrier");
         }
