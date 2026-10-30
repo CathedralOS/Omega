@@ -3,12 +3,12 @@ use std::fmt::Write;
 
 use source::SourceMap;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use syntax_trees::types::TypeReferenceNode;
 
 use super::analysis::{
-    DomainPredicate, MemberShape, ScalarKind, SliceElement, StoreFacts, StorePredicate,
-    WireMemberShape, const_literal_capacity, scalar_kind_of_type, slice_element_of_type,
-    store_type_facts, value_field_facts, varint_bytes,
+    DomainPredicate, MemberShape, RecordShape, ScalarKind, SliceElement, StoreFacts,
+    StorePredicate, WireMemberShape, const_literal_capacity, scalar_kind_of_type,
+    slice_element_of_type, store_type_facts, value_field_facts, varint_bytes,
 };
 
 // Each emission helper declares an ordinary nested machine with explicit
@@ -729,12 +729,11 @@ impl MachineEmitter<'_> {
         );
     }
 
-    /// Scalar store behind the declared range guard and any value-field
-    /// constraint facts; a failure flags `bad` and skips the store, matching
-    /// `wire_scalar_in_range`. Signed members unzigzag to `wide: i64` before
-    /// the guard, which doubles as the store state's `requires` so the
-    /// bounded assignment discharges. `carry`/`carry_arg` thread extra state
-    /// (a length-prefixed body's `end`) through both states.
+    /// Primitive landing and owner validity are distinct obligations. First
+    /// prove the decoded wide value fits its carrier, then form that exact
+    /// typed candidate and evaluate every retained predicate. The write helper
+    /// receives the same candidate and guard as ordinary source contracts;
+    /// failure forwards the unchanged valid destination with sticky `bad`.
     fn dec_scalar_store(
         &mut self,
         name: &str,
@@ -745,57 +744,64 @@ impl MachineEmitter<'_> {
         carry: &str,
         carry_arg: &str,
     ) {
+        let landing = format!("{name}_candidate");
         let store = format!("{name}_write");
         let operand = if kind.decodes_signed() { "wide" } else { "raw" };
-        let entry_extras = carried_operand(carry, "raw: u64");
-        let mut guard: Vec<String> = kind.decode_range_guard(operand).into_iter().collect();
-        guard.extend(facts.iter().map(|fact| fact.instantiate(operand)));
-        let requires = guard.join(" && ");
-        let entry = if guard.is_empty() {
-            format!(
-                "        transition {{ _ -> {store}(value, buffer, read, verdict, at, bad{carry_arg}, {operand}) }}\n"
-            )
+        let wide_type = if kind.decodes_signed() { "i64" } else { "u64" };
+        let fit = kind.decode_range_guard(operand).unwrap_or_default();
+        let arguments = format!("value, buffer, read, verdict, at, bad{carry_arg}");
+        let failure = format!("{next}(value, buffer, read, verdict, at, bad + 1{carry_arg})");
+        let entry = if fit.is_empty() {
+            format!("        transition {{ _ -> {landing}({arguments}, {operand}) }}\n")
         } else {
             format!(
-                "        transition {requires} {{\n            true -> {store}(value, buffer, read, verdict, at, bad{carry_arg}, {operand})\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg})\n        }}\n"
+                "        transition {fit} {{\n            true -> {landing}({arguments}, {operand})\n            _ -> {failure}\n        }}\n"
             )
         };
-        match kind {
-            ScalarKind::I32 | ScalarKind::I64 => {
-                self.machine(
-                    name,
-                    &entry_extras,
-                    "",
-                    &format!("{}{entry}", ScalarKind::decode_signed_binding()),
-                );
-                self.machine(
-                    &store,
-                    &carried_operand(carry, "wide: i64"),
-                    &requires,
-                    &format!(
-                        "        value.{field} = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad{carry_arg}) }}\n",
-                        kind.decode_store_expression("wide")
-                    ),
-                );
-            }
-            ScalarKind::U32 | ScalarKind::Bool | ScalarKind::U64 => {
-                self.machine(name, &entry_extras, "", &entry);
-                self.machine(
-                    &store,
-                    &carried_operand(carry, "raw: u64"),
-                    &requires,
-                    &format!(
-                        "        value.{field} = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad{carry_arg}) }}\n",
-                        kind.decode_store_expression("raw")
-                    ),
-                );
-            }
-        }
+        let signed_binding = if kind.decodes_signed() {
+            ScalarKind::decode_signed_binding()
+        } else {
+            ""
+        };
+        self.machine(
+            name,
+            &carried_operand(carry, "raw: u64"),
+            "",
+            &format!("{signed_binding}{entry}"),
+        );
+
+        let requires = facts
+            .iter()
+            .map(|fact| format!("({})", fact.instantiate("candidate")))
+            .collect::<Vec<_>>()
+            .join(" && ");
+        let admission = if requires.is_empty() {
+            format!("        transition {{ _ -> {store}({arguments}, candidate) }}\n")
+        } else {
+            format!(
+                "        transition {requires} {{\n            true -> {store}({arguments}, candidate)\n            _ -> {failure}\n        }}\n"
+            )
+        };
+        self.machine(
+            &landing,
+            &carried_operand(carry, &format!("{operand}: {wide_type}")),
+            &fit,
+            &format!(
+                "        let candidate: {} = {};\n{admission}",
+                kind.name(),
+                kind.decode_store_expression(operand)
+            ),
+        );
+        self.machine(
+            &store,
+            &carried_operand(carry, &format!("candidate: {}", kind.name())),
+            &requires,
+            &format!("        value.{field} = candidate;\n        transition {{ _ -> {next}({arguments}) }}\n"),
+        );
     }
 
-    /// Element store for a packed fixed array: `value.f[index] = decoded`
-    /// behind the element's range guard, threading `end` before `raw` (the
-    /// varint continuation order).
+    /// Fixed-index stores use the same typed admission and commit operation.
+    /// Only the destination projection and carried framing cursor differ.
     fn dec_element_store(
         &mut self,
         name: &str,
@@ -805,49 +811,15 @@ impl MachineEmitter<'_> {
         next: &str,
         facts: &[StorePredicate],
     ) {
-        let store = format!("{name}_write");
-        let entry_extras = "end: u64, raw: u64";
-        let operand = if kind.decodes_signed() { "wide" } else { "raw" };
-        let mut guard: Vec<String> = kind.decode_range_guard(operand).into_iter().collect();
-        guard.extend(facts.iter().map(|fact| fact.instantiate(operand)));
-        let requires = guard.join(" && ");
-        let entry = if guard.is_empty() {
-            format!(
-                "        transition {{ _ -> {store}(value, buffer, read, verdict, at, bad, end, {operand}) }}\n"
-            )
-        } else {
-            format!(
-                "        transition {requires} {{\n            true -> {store}(value, buffer, read, verdict, at, bad, end, {operand})\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1, end)\n        }}\n"
-            )
-        };
-        if kind.decodes_signed() {
-            self.machine(
-                name,
-                entry_extras,
-                "",
-                &format!("{}{entry}", ScalarKind::decode_signed_binding()),
-            );
-            self.machine(
-                &store,
-                &format!("end: u64, {operand}: i64"),
-                &requires,
-                &format!(
-                    "        value.{field}[{index}] = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad, end) }}\n",
-                    kind.decode_store_expression("wide")
-                ),
-            );
-        } else {
-            self.machine(name, entry_extras, "", &entry);
-            self.machine(
-                &store,
-                "end: u64, raw: u64",
-                &requires,
-                &format!(
-                    "        value.{field}[{index}] = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad, end) }}\n",
-                    kind.decode_store_expression("raw")
-                ),
-            );
-        }
+        self.dec_scalar_store(
+            name,
+            &format!("{field}[{index}]"),
+            kind,
+            next,
+            facts,
+            "end: u64",
+            ", end",
+        );
     }
 
     /// The `end`-window derivation shared by every length-delimited member: a
@@ -1112,14 +1084,31 @@ fn member_facts(
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
     domains: &HashMap<String, Vec<DomainPredicate>>,
-    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    records: &HashMap<String, RecordShape>,
     schemas: &[(String, Vec<WireMemberShape>)],
     value_type: &str,
     members: &[WireMemberShape],
 ) -> Option<Vec<StoreFacts>> {
-    let value_fields = data_fields.get(value_type)?;
+    let record = records.get(value_type)?;
+    let value_fields = &record.fields;
     let mut all = Vec::with_capacity(members.len());
     for member in members {
+        // Element stores replace a leaf, not the array or vector containing
+        // it. A predicate consuming that entire aggregate needs a prospective
+        // aggregate; RecordShape refuses to reuse its old value as evidence.
+        let projection = match member.shape {
+            MemberShape::FixedScalarArray { .. } | MemberShape::FixedVec { .. } => {
+                format!("{}[index]", member.name)
+            }
+            _ => member.name.clone(),
+        };
+        let owner_facts = record.store_facts(&projection, "");
+        let extend_owner = |facts: StoreFacts| {
+            facts.and_then(|mut facts| {
+                facts.extend(owner_facts?);
+                Ok(facts)
+            })
+        };
         // A view's storage shape and its destination predicates are independent
         // obligations: matching &[E] cannot establish a qualified byte domain.
         if let MemberShape::BorrowedSlice { element } = &member.shape {
@@ -1159,7 +1148,7 @@ fn member_facts(
             if slice_element_of_type(syntax_trees, *element_type) != Some(*element) {
                 return None;
             }
-            all.push(facts);
+            all.push(extend_owner(facts));
             continue;
         }
         // A `FixedVec<E, N>` member's value field must spell the same
@@ -1197,7 +1186,7 @@ fn member_facts(
                 *element,
                 None,
             )?;
-            all.push(facts);
+            all.push(extend_owner(facts));
             continue;
         }
         // A nested-message member's value field names the value mirror of
@@ -1212,7 +1201,8 @@ fn member_facts(
                 .type_references
                 .type_reference(field_handle)
                 .as_named()?;
-            let nested_fields = data_fields.get(value_name.as_str(syntax_trees))?;
+            let nested_record = records.get(value_name.as_str(syntax_trees))?;
+            let nested_fields = &nested_record.fields;
             let (_, sub_members) = schemas
                 .iter()
                 .find(|(name, _)| name.as_str() == schema.as_str())?;
@@ -1231,7 +1221,14 @@ fn member_facts(
                 )?;
                 // Nested guards are emitted per field, but failure to resolve
                 // any predicate must decline decoding before text is emitted.
-                requirements = requirements.and(facts.map(|_| Vec::new()));
+                let predicates = facts.and_then(|mut facts| {
+                    facts.extend(
+                        nested_record.store_facts(&sub.name, &format!("{}.", member.name))?,
+                    );
+                    facts.extend(record.store_facts(&format!("{}.{}", member.name, sub.name), "")?);
+                    Ok(facts)
+                });
+                requirements = requirements.and(predicates.map(|_| Vec::new()));
             }
             all.push(requirements);
             continue;
@@ -1251,7 +1248,7 @@ fn member_facts(
             expected,
             array_length,
         )?;
-        all.push(facts);
+        all.push(extend_owner(facts));
     }
     Some(all)
 }
@@ -1265,36 +1262,47 @@ fn nested_sub_facts(
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
     domains: &HashMap<String, Vec<DomainPredicate>>,
-    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    records: &HashMap<String, RecordShape>,
     value_type: &str,
     member_name: &str,
     schemas: &[(String, Vec<WireMemberShape>)],
     schema: &str,
 ) -> Option<Vec<Vec<StorePredicate>>> {
-    let field_handle = data_fields.get(value_type)?.get(member_name).copied()?;
+    let record = records.get(value_type)?;
+    let field_handle = record.fields.get(member_name).copied()?;
     let value_name = syntax_trees
         .tables
         .type_references
         .type_reference(field_handle)
         .as_named()?;
-    let nested_fields = data_fields.get(value_name.as_str(syntax_trees))?;
+    let nested_record = records.get(value_name.as_str(syntax_trees))?;
+    let nested_fields = &nested_record.fields;
     let (_, sub_members) = schemas.iter().find(|(name, _)| name.as_str() == schema)?;
     let mut all = Vec::with_capacity(sub_members.len());
     for sub in sub_members {
         let MemberShape::Scalar(kind) = &sub.shape else {
             return None;
         };
-        all.push(
-            value_field_facts(
-                syntax_trees,
-                sources,
-                domains,
-                nested_fields.get(sub.name.as_str()).copied(),
-                *kind,
-                None,
-            )?
-            .ok()?,
+        let mut facts = value_field_facts(
+            syntax_trees,
+            sources,
+            domains,
+            nested_fields.get(sub.name.as_str()).copied(),
+            *kind,
+            None,
+        )?
+        .ok()?;
+        facts.extend(
+            nested_record
+                .store_facts(&sub.name, &format!("{member_name}."))
+                .ok()?,
         );
+        facts.extend(
+            record
+                .store_facts(&format!("{member_name}.{}", sub.name), "")
+                .ok()?,
+        );
+        all.push(facts);
     }
     Some(all)
 }
@@ -1307,7 +1315,7 @@ pub(super) fn emit_encode_machine(
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
     domains: &HashMap<String, Vec<DomainPredicate>>,
-    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    records: &HashMap<String, RecordShape>,
     schemas: &[(String, Vec<WireMemberShape>)],
     schema_name: &str,
     signature: &[String],
@@ -1317,7 +1325,7 @@ pub(super) fn emit_encode_machine(
         syntax_trees,
         sources,
         domains,
-        data_fields,
+        records,
         schemas,
         signature_value_type(signature),
         members,
@@ -1485,7 +1493,7 @@ pub(super) fn emit_decode_machine(
     syntax_trees: &SyntaxTrees,
     sources: &SourceMap,
     domains: &HashMap<String, Vec<DomainPredicate>>,
-    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    records: &HashMap<String, RecordShape>,
     schemas: &[(String, Vec<WireMemberShape>)],
     schema_name: &str,
     signature: &[String],
@@ -1495,7 +1503,7 @@ pub(super) fn emit_decode_machine(
         syntax_trees,
         sources,
         domains,
-        data_fields,
+        records,
         schemas,
         signature_value_type(signature),
         members,
@@ -1596,7 +1604,7 @@ pub(super) fn emit_decode_machine(
                     syntax_trees,
                     sources,
                     domains,
-                    data_fields,
+                    records,
                     signature_value_type(signature),
                     &member.name,
                     schemas,

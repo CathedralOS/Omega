@@ -28,10 +28,10 @@ impl ScalarKind {
     /// i64 span their carriers, so no check is emitted.
     pub(super) fn decode_range_guard(self, operand: &str) -> Option<String> {
         match self {
-            Self::U32 => Some(format!("{operand} <= 4294967295")),
+            Self::U32 => Some(format!("{operand} <= 0xffff_ffff")),
             Self::Bool => Some(format!("{operand} <= 1")),
             Self::I32 => Some(format!(
-                "-2147483648 <= {operand} && {operand} <= 2147483647"
+                "-0x8000_0000 <= {operand} && {operand} <= 0x7fff_ffff"
             )),
             Self::U64 | Self::I64 => None,
         }
@@ -137,6 +137,209 @@ pub(super) struct DomainPredicate {
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct StorePredicate {
     pub(super) segments: Vec<String>,
+}
+
+/// Destination shape and validity belong to the same declaration. Keeping only
+/// field types loses an owner's ordinary `requires` when its fields use bare
+/// carriers; shape matching cannot grant those predicates to decoded bytes.
+pub(super) struct RecordShape {
+    pub(super) fields: HashMap<String, TypeReferenceHandle>,
+    predicates: Result<Vec<RecordPredicate>, ()>,
+}
+
+struct RecordPredicate {
+    source: String,
+    reads: Vec<RecordFieldRead>,
+}
+
+struct RecordFieldRead {
+    start: usize,
+    end: usize,
+    path: Vec<String>,
+}
+
+impl RecordShape {
+    /// Evaluate the original predicate over a prospective field replacement,
+    /// observing every other field through the existing valid destination.
+    /// A whole-aggregate operand cannot be replaced by one of its leaves: that
+    /// needs an actual prospective aggregate, never its stale prior value.
+    pub(super) fn store_facts(&self, field: &str, prefix: &str) -> StoreFacts {
+        let mut facts = Vec::new();
+        for predicate in self.predicates.as_ref().map_err(|_| ())? {
+            let mut segments = Vec::new();
+            let mut literal = String::new();
+            let mut copied_until = 0;
+            for read in &predicate.reads {
+                if read.path.is_empty() {
+                    return Err(());
+                }
+                let path = read.path.join(".");
+                literal.push_str(&predicate.source[copied_until..read.start]);
+                if path == field {
+                    segments.push(std::mem::take(&mut literal));
+                } else if let Some(suffix) = path.strip_prefix(&format!("{field}.")) {
+                    segments.push(std::mem::take(&mut literal));
+                    literal.push('.');
+                    literal.push_str(suffix);
+                } else if field.starts_with(&format!("{path}."))
+                    || field.starts_with(&format!("{path}["))
+                {
+                    return Err(());
+                } else {
+                    literal.push_str("value.");
+                    literal.push_str(prefix);
+                    literal.push_str(&path);
+                }
+                copied_until = read.end;
+            }
+            literal.push_str(&predicate.source[copied_until..]);
+            segments.push(literal);
+            facts.push(StorePredicate { segments });
+        }
+        Ok(facts)
+    }
+}
+
+/// Parser nodes distinguish value reads from labels, type arguments and quoted
+/// source. Member spans name their final token, so compose their full extent
+/// from the receiver instead of scanning text for a field's spelling.
+fn record_projection(
+    syntax_trees: &SyntaxTrees,
+    fields: &HashMap<String, TypeReferenceHandle>,
+    expression: ExpressionHandle,
+) -> Option<(SourceSpan, Vec<String>)> {
+    match syntax_trees.tables.expressions.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let name = sole_member_name(syntax_trees, *path)?;
+            let path = if name == "self" {
+                Vec::new()
+            } else if fields.contains_key(name) {
+                vec![name.to_owned()]
+            } else {
+                return None;
+            };
+            Some((
+                syntax_trees.tables.expressions.source_span(expression),
+                path,
+            ))
+        }
+        ExpressionNode::Member(member) => {
+            let (mut span, mut path) = record_projection(syntax_trees, fields, member.receiver)?;
+            let member_span = member.member.source_span();
+            if span.source_id != member_span.source_id {
+                return None;
+            }
+            span.span.end = member_span.span.end;
+            path.push(member.member.as_str(syntax_trees).to_owned());
+            Some((span, path))
+        }
+        _ => None,
+    }
+}
+
+fn record_predicate(
+    syntax_trees: &SyntaxTrees,
+    sources: &SourceMap,
+    fields: &HashMap<String, TypeReferenceHandle>,
+    fact: arena::Handle<syntax_trees::item::ProofFact>,
+) -> Result<RecordPredicate, ()> {
+    let span = syntax_trees
+        .tables
+        .items
+        .proof_fact_source_span(fact)
+        .ok_or(())?;
+    let root = match syntax_trees.tables.items.proof_fact(fact) {
+        syntax_trees::item::ProofFact::Expression(expression) => *expression,
+        syntax_trees::item::ProofFact::Membership(membership) => membership.value,
+    };
+    let mut pending = vec![root];
+    let mut reads = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if !expression.is_valid() {
+            continue;
+        }
+        if let Some((read, path)) = record_projection(syntax_trees, fields, expression) {
+            if read.source_id != span.source_id
+                || read.span.start < span.span.start
+                || read.span.end > span.span.end
+            {
+                return Err(());
+            }
+            reads.push(RecordFieldRead {
+                start: read.span.start - span.span.start,
+                end: read.span.end - span.span.start,
+                path,
+            });
+            continue;
+        }
+        match syntax_trees.tables.expressions.expression(expression) {
+            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
+            ExpressionNode::Unary(unary) => pending.push(unary.operand),
+            ExpressionNode::Cast(cast) => pending.push(cast.value),
+            ExpressionNode::Member(member) => pending.push(member.receiver),
+            ExpressionNode::Indexed(indexed) => pending.extend([indexed.collection, indexed.index]),
+            ExpressionNode::Membership(membership) => pending.push(membership.value),
+            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
+            ExpressionNode::Call(call) => {
+                if !call.target_is_static {
+                    pending.push(call.receiver);
+                }
+                pending.extend(
+                    syntax_trees
+                        .tables
+                        .expressions
+                        .expression_handles(call.arguments),
+                );
+            }
+            ExpressionNode::ArrayLiteral(elements) => {
+                pending.extend(
+                    syntax_trees
+                        .tables
+                        .expressions
+                        .expression_handles(*elements),
+                );
+            }
+            ExpressionNode::StructLiteral(record) => {
+                pending.extend(
+                    syntax_trees
+                        .tables
+                        .expressions
+                        .struct_fields(record.fields)
+                        .iter()
+                        .map(|field| field.value),
+                );
+            }
+            ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
+            ExpressionNode::Atomic(atomic) => pending.extend([atomic.value, atomic.result]),
+            ExpressionNode::Match(dispatch) => {
+                pending.push(dispatch.subject);
+                for arm in syntax_trees.tables.expressions.match_arms(dispatch.arms) {
+                    pending.extend(
+                        syntax_trees
+                            .tables
+                            .expressions
+                            .match_pattern_dependencies(arm.pattern),
+                    );
+                    pending.push(arm.value);
+                }
+            }
+            ExpressionNode::SavedSubject(_)
+            | ExpressionNode::Name(_)
+            | ExpressionNode::Boolean(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::TypeExpression(_)
+            | ExpressionNode::ZeroValue(_) => {}
+        }
+    }
+    reads.sort_unstable_by_key(|read| (read.start, read.end));
+    reads.dedup_by(|a, b| a.start == b.start && a.end == b.end);
+    Ok(RecordPredicate {
+        source: sources.text_at(span).to_owned(),
+        reads,
+    })
 }
 
 /// Shape admission is separate from executable validation. Encoding consumes
@@ -328,15 +531,7 @@ pub(super) fn value_field_facts(
     let (handle, facts) = store_type_facts(syntax_trees, sources, domains, handle, expected.name());
     match syntax_trees.tables.type_references.type_reference(handle) {
         TypeReferenceNode::Named(name) if name.as_str(syntax_trees) == expected.name() => {
-            Some(facts.and_then(|facts| {
-                // Boolean decoding stores `raw != 0`, not the integer operand
-                // used by scalar guards. Do not substitute the wrong carrier.
-                if expected == ScalarKind::Bool && !facts.is_empty() {
-                    Err(())
-                } else {
-                    Ok(facts)
-                }
-            }))
+            Some(facts)
         }
         _ => None,
     }
@@ -380,10 +575,11 @@ pub(super) fn store_type_facts(
 /// The field-name -> declared-type map for a `data` declaration (used to read
 /// data-parameter field types at call sites). Declarations carrying case variants are
 /// declined — field typing needs the plain record shape.
-pub(super) fn collect_plain_fields(
+pub(super) fn collect_plain_record(
     syntax_trees: &SyntaxTrees,
+    sources: &SourceMap,
     data: &syntax_trees::item::DataDefinition,
-) -> Option<HashMap<String, TypeReferenceHandle>> {
+) -> Option<RecordShape> {
     let mut fields = HashMap::new();
     for member in syntax_trees.tables.items.data_members(data.members) {
         let DataMember::Field(field) = member else {
@@ -394,7 +590,12 @@ pub(super) fn collect_plain_fields(
             field.type_reference,
         );
     }
-    Some(fields)
+    let predicates = data
+        .where_facts
+        .handles()
+        .map(|fact| record_predicate(syntax_trees, sources, &fields, fact))
+        .collect();
+    Some(RecordShape { fields, predicates })
 }
 
 /// A wire schema is a plain data declaration whose members all carry `#N`
@@ -403,7 +604,7 @@ pub(super) fn collect_plain_fields(
 /// non-scalar field types — declines and keeps meeting the intrinsic wall.
 pub(super) fn wire_schema_members(
     syntax_trees: &SyntaxTrees,
-    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    records: &HashMap<String, RecordShape>,
     data: &syntax_trees::item::DataDefinition,
 ) -> Option<Vec<WireMemberShape>> {
     if !data.lifetime_parameters.is_empty()
@@ -424,7 +625,7 @@ pub(super) fn wire_schema_members(
             continue;
         }
         let number = field.identity?;
-        let shape = member_shape(syntax_trees, data_fields, field.type_reference)?;
+        let shape = member_shape(syntax_trees, records, field.type_reference)?;
         members.push(WireMemberShape {
             name: field.name.as_str(syntax_trees).to_string(),
             number,
@@ -461,14 +662,14 @@ pub(super) fn constraints_are_plain_domains(
 
 pub(super) fn member_shape(
     syntax_trees: &SyntaxTrees,
-    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    records: &HashMap<String, RecordShape>,
     handle: TypeReferenceHandle,
 ) -> Option<MemberShape> {
     match syntax_trees.tables.type_references.type_reference(handle) {
         TypeReferenceNode::Named(name) => {
             if let Some(kind) = scalar_kind(name.as_str(syntax_trees)) {
                 Some(MemberShape::Scalar(kind))
-            } else if data_fields.contains_key(name.as_str(syntax_trees)) {
+            } else if records.contains_key(name.as_str(syntax_trees)) {
                 Some(MemberShape::NestedMessage {
                     schema: name.as_str(syntax_trees).to_string(),
                 })
@@ -533,7 +734,7 @@ pub(super) fn member_shape(
             base_type,
             constraints,
         } if constraints_are_plain_domains(syntax_trees, *constraints) => {
-            member_shape(syntax_trees, data_fields, *base_type)
+            member_shape(syntax_trees, records, *base_type)
         }
         _ => None,
     }
@@ -608,7 +809,7 @@ pub(super) fn collect_call_sites(
     syntax_trees: &SyntaxTrees,
     machine: &Machine,
     schema_names: &HashSet<&str>,
-    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    records: &HashMap<String, RecordShape>,
     sites: &mut HashMap<(String, &'static str), Vec<Vec<String>>>,
 ) {
     for state_handle in syntax_trees.tables.items.state_handles(machine.states) {
@@ -651,7 +852,7 @@ pub(super) fn collect_call_sites(
             // Unknown sites participate in agreement; omitting one could attach
             // a signature inferred from another, unrelated occurrence.
             let mut arguments =
-                render_argument_types(syntax_trees, &bindings, data_fields, call.arguments)
+                render_argument_types(syntax_trees, &bindings, records, call.arguments)
                     .unwrap_or_default();
             // The codec's buffer position accepts any fixed byte array: the
             // intrinsic contract validates `&[u8; N]` with the decoder
@@ -678,7 +879,7 @@ pub(super) fn collect_call_sites(
 fn render_argument_types(
     syntax_trees: &SyntaxTrees,
     bindings: &HashMap<&str, TypeReferenceHandle>,
-    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    records: &HashMap<String, RecordShape>,
     arguments: HandleSpan<ExpressionHandle>,
 ) -> Option<Vec<String>> {
     syntax_trees
@@ -689,8 +890,7 @@ fn render_argument_types(
         .map(
             |argument| match syntax_trees.tables.expressions.expression(*argument) {
                 ExpressionNode::Borrow(borrow) => {
-                    let target =
-                        expression_type(syntax_trees, bindings, data_fields, borrow.target)?;
+                    let target = expression_type(syntax_trees, bindings, records, borrow.target)?;
                     let access = if borrow.access.is_exclusive() {
                         "&mut "
                     } else {
@@ -701,7 +901,7 @@ fn render_argument_types(
                 ExpressionNode::Call(call) => exclusive_call_result_type(syntax_trees, call),
                 _ => type_text(
                     syntax_trees,
-                    expression_type(syntax_trees, bindings, data_fields, *argument)?,
+                    expression_type(syntax_trees, bindings, records, *argument)?,
                 ),
             },
         )
@@ -714,7 +914,7 @@ fn render_argument_types(
 fn expression_type(
     syntax_trees: &SyntaxTrees,
     bindings: &HashMap<&str, TypeReferenceHandle>,
-    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    records: &HashMap<String, RecordShape>,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     match syntax_trees.tables.expressions.expression(expression) {
@@ -722,20 +922,20 @@ fn expression_type(
             .get(sole_member_name(syntax_trees, *path)?)
             .copied(),
         ExpressionNode::Member(member) => {
-            let receiver = expression_type(syntax_trees, bindings, data_fields, member.receiver)?;
+            let receiver = expression_type(syntax_trees, bindings, records, member.receiver)?;
             let name = syntax_trees
                 .tables
                 .type_references
                 .type_reference(projection_type(syntax_trees, receiver))
                 .as_named()?;
-            data_fields
+            records
                 .get(name.as_str(syntax_trees))?
+                .fields
                 .get(member.member.as_str(syntax_trees))
                 .copied()
         }
         ExpressionNode::Indexed(indexed) => {
-            let collection =
-                expression_type(syntax_trees, bindings, data_fields, indexed.collection)?;
+            let collection = expression_type(syntax_trees, bindings, records, indexed.collection)?;
             match syntax_trees
                 .tables
                 .type_references

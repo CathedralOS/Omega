@@ -57,10 +57,10 @@ use std::collections::{HashMap, HashSet};
 use source::{DependencyScope, SourceMap, SourceOrigin};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
-use syntax_trees::types::TypeReferenceHandle;
 
 use analysis::{
-    WireMemberShape, collect_call_sites, collect_domains, collect_plain_fields, wire_schema_members,
+    RecordShape, WireMemberShape, collect_call_sites, collect_domains, collect_plain_record,
+    wire_schema_members,
 };
 use emission::{emit_decode_machine, emit_encode_machine};
 
@@ -102,7 +102,7 @@ pub(crate) fn generated_wire_codec_source(
     // `let sample: BlobSample`, `&mut main.buffer` a field of `Main`. The
     // field map completes before member resolution so a nested-message
     // member can name a declaration declared after it.
-    let mut data_fields: HashMap<String, HashMap<String, TypeReferenceHandle>> = HashMap::new();
+    let mut records: HashMap<String, RecordShape> = HashMap::new();
     for handle in syntax_trees.root_item_handles() {
         let Some(data) = syntax_trees.tables.items.item(*handle).as_data() else {
             continue;
@@ -110,8 +110,8 @@ pub(crate) fn generated_wire_codec_source(
         if !product_sources.contains(&data.name.source_span().source_id.0) {
             continue;
         }
-        if let Some(fields) = collect_plain_fields(syntax_trees, data) {
-            data_fields.insert(data.name.as_str(syntax_trees).to_string(), fields);
+        if let Some(record) = collect_plain_record(syntax_trees, sources, data) {
+            records.insert(data.name.as_str(syntax_trees).to_string(), record);
         }
     }
     let mut schemas: Vec<(String, Vec<WireMemberShape>)> = Vec::new();
@@ -123,7 +123,7 @@ pub(crate) fn generated_wire_codec_source(
         if !product_sources.contains(&source_id) || scoped_sources.contains(&source_id) {
             continue;
         }
-        if let Some(members) = wire_schema_members(syntax_trees, &data_fields, data) {
+        if let Some(members) = wire_schema_members(syntax_trees, &records, data) {
             schemas.push((data.name.as_str(syntax_trees).to_string(), members));
         }
     }
@@ -142,13 +142,7 @@ pub(crate) fn generated_wire_codec_source(
         if !sources.source_is_selected(machine.name.source_span().source_id) {
             continue;
         }
-        collect_call_sites(
-            syntax_trees,
-            machine,
-            &schema_names,
-            &data_fields,
-            &mut sites,
-        );
+        collect_call_sites(syntax_trees, machine, &schema_names, &records, &mut sites);
     }
 
     let mut emitted = String::new();
@@ -173,7 +167,7 @@ pub(crate) fn generated_wire_codec_source(
                     syntax_trees,
                     sources,
                     &domains,
-                    &data_fields,
+                    &records,
                     &schemas,
                     schema_name,
                     &signature,
@@ -185,7 +179,7 @@ pub(crate) fn generated_wire_codec_source(
                     syntax_trees,
                     sources,
                     &domains,
-                    &data_fields,
+                    &records,
                     &schemas,
                     schema_name,
                     &signature,
