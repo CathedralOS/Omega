@@ -38,8 +38,8 @@ pub(crate) use receiver::{
     family_data_binding_parameter,
 };
 pub(crate) use regions::StorageRegion;
-pub(in crate::flow) use summary::instantiate_call_relative_places;
 use summary::instantiate_known_call_mutation_summary_places;
+pub(in crate::flow) use summary::{AccessRouteReader, instantiate_call_relative_places};
 pub(crate) use summary::{StateMutationSummaryCache, state_storage_writes};
 
 #[derive(Clone, Copy)]
