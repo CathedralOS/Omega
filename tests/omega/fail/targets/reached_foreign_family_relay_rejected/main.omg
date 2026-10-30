@@ -19,7 +19,7 @@ CheckedHelperFirmwareOnly satisfies SelectedHelperFirmwareOnly {
     transition { _ -> 63 }
 }
 }
-uefi_x86_64 machine firmware_only(helper: &Helper) -> i32 {
+uefi_x86_64 machine Helper::firmware_only(helper: &Helper) -> i32 {
     transition { _ -> 63 }
 }
 

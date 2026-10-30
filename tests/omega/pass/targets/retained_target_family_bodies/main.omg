@@ -23,7 +23,7 @@ MacosArm64HelperDelta satisfies SelectedHelperDelta {
     transition { _ -> 7 }
 }
 }
-uefi_x86_64 machine delta(helper: &Helper) -> u32 {
+uefi_x86_64 machine Helper::delta(helper: &Helper) -> u32 {
     transition { _ -> 31 }
 }
 
@@ -31,14 +31,19 @@ boundary trait SelectedHelperValue {
     machine value(helper: &Helper) -> u32 reaches
 ;
 }
-CheckedHelperValue satisfies SelectedHelperValue {
+LinuxX8664HelperValue satisfies SelectedHelperValue {
     machine value(helper: &Helper) -> u32
 {
-    transition { _ -> SelectedHelperDelta::delta(helper) }
+    transition { _ -> LinuxX8664HelperDelta::delta(helper) }
 }
 }
-
-uefi_x86_64 machine value(helper: &Helper) -> u32 {
+MacosArm64HelperValue satisfies SelectedHelperValue {
+    machine value(helper: &Helper) -> u32
+{
+    transition { _ -> MacosArm64HelperDelta::delta(helper) }
+}
+}
+uefi_x86_64 machine Helper::value(helper: &Helper) -> u32 {
     transition { _ -> SelectedHelperDelta::delta(helper) }
 }
 

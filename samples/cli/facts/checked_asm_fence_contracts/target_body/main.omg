@@ -44,14 +44,17 @@ boundary trait SelectedForward {
     machine forward(input: u32) -> u32 reaches
 requires input == 37 ensures result == 37;
 }
-CheckedForward satisfies SelectedForward {
+LinuxX8664Forward satisfies SelectedForward {
     machine forward(input: u32) -> u32 requires input == 37 ensures result == 37
-{ SelectedOrdered::ordered(input) }
+{ LinuxX8664Ordered::ordered(input) }
 }
 
 
 
-
+LinuxArm64Forward satisfies SelectedForward {
+    machine forward(input: u32) -> u32 requires input == 37 ensures result == 37
+{ LinuxArm64Ordered::ordered(input) }
+}
 
 
 

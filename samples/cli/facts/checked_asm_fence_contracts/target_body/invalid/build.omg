@@ -3,10 +3,10 @@ machine build(builder: &mut Build) {
     Build::select_provider<SelectedOrdered, LinuxX8664Ordered>(builder, windows_x86_64);
     Build::select_provider<SelectedOrdered, LinuxArm64Ordered>(builder, linux_arm64);
     Build::select_provider<SelectedOrdered, LinuxArm64Ordered>(builder, macos_arm64);
-    Build::select_provider<SelectedForward, CheckedForward>(builder, linux_x86_64);
-    Build::select_provider<SelectedForward, CheckedForward>(builder, windows_x86_64);
-    Build::select_provider<SelectedForward, CheckedForward>(builder, linux_arm64);
-    Build::select_provider<SelectedForward, CheckedForward>(builder, macos_arm64);
+    Build::select_provider<SelectedForward, LinuxX8664Forward>(builder, linux_x86_64);
+    Build::select_provider<SelectedForward, LinuxX8664Forward>(builder, windows_x86_64);
+    Build::select_provider<SelectedForward, LinuxArm64Forward>(builder, linux_arm64);
+    Build::select_provider<SelectedForward, LinuxArm64Forward>(builder, macos_arm64);
 
     Build::application(builder, "checked_asm_fence_contracts_target_body_invalid");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

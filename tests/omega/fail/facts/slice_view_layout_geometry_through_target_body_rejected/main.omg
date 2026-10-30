@@ -1,5 +1,5 @@
 // Fact: querying size_of and align_of on a 64-bit slice view (&[u64]) establishes its exact two-word (ptr, len) descriptor geometry (size == 16u64 and align == 8u64), discharging exact subtraction size - (align * 2u64) across all nine places.
-// Invalid: querying thin pointer &u64 (size == 8u64, align == 8u64), so target-scoped SelectedComputeGeometry::compute_geometry() underflows u64.
+// Invalid: querying thin pointer &u64 (size == 8u64, align == 8u64), so target-scoped compute_geometry() underflows u64.
 // Expected exit: 0
 
 boundary trait SelectedComputeGeometry {

@@ -20,7 +20,7 @@ MacosArm64HelperValue satisfies SelectedHelperValue {
 }
 }
 
-uefi_x86_64 machine value(helper: &Helper) -> bool {
+uefi_x86_64 machine Helper::value(helper: &Helper) -> bool {
     transition { _ -> true }
 }
 

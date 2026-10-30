@@ -14,7 +14,7 @@ CheckedCycle satisfies SelectedCycle {
     requires remaining > 0 {
         counter = (counter as u64 in Wrapping + 1) as u64;
         block tick();
-        transition { _ -> block SelectedCycle::cycle(counter, value, remaining - 1, select) }
+        transition { _ -> block CheckedCycle::cycle(counter, value, remaining - 1, select) }
     }
 }
 }

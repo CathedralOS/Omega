@@ -1,5 +1,5 @@
 // Fact: querying size_of and align_of on a four-element u64 fixed-size array ([u64; 4]) establishes its exact layout geometry (size == 32u64 and align == 8u64), discharging exact subtraction size - (align * 4u64) across all nine places.
-// Invalid: querying narrower array [u64; 3] (size == 24u64, align == 8u64), so target-scoped SelectedComputeGeometry::compute_geometry() underflows u64.
+// Invalid: querying narrower array [u64; 3] (size == 24u64, align == 8u64), so target-scoped compute_geometry() underflows u64.
 // Expected exit: 0
 
 boundary trait SelectedComputeGeometry {

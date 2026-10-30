@@ -1,4 +1,4 @@
-// A selected checked provider closes SelectedLimit::limit() to 7; requires value <= SelectedLimit::limit() carries that bound into exact subtraction 7 - value.
+// A selected checked provider closes limit() to 7; requires value <= limit() carries that bound into exact subtraction 7 - value.
 // Expected: reject the named formation or fact obligation
 public boundary trait Endpoint {
     machine upper() -> u64 reaches terminates;

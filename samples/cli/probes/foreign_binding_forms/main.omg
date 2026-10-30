@@ -6,7 +6,7 @@
 // named `VtableField(field)` — target-scoped to
 // macos_arm64, checked every compile.
 //
-//   * `satisfies Mixed::via_import via SelectedImportBinding::import_binding()`
+//   * `satisfies Mixed::via_import via import_binding()`
 //     — a machine call as the via-target (evaluated
 //     binding, not a literal).
 //   * `data NativeTable { reserved0: addr; ...;
