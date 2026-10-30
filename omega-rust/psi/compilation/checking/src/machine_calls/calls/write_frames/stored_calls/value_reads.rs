@@ -70,7 +70,15 @@ impl CompletedValueReads {
         &self,
         program: &dyn crate::CheckingInput,
     ) -> Option<Vec<frames::LocalWriteSource>> {
-        let (boundary, sources) = self.sources_at_boundary(program, &[])?;
+        let addressed = self.sources_at_boundary(program, &[]);
+        if addressed.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT completed-address-refused reference={:?} leaves={:?}",
+                program.type_reference_table.type_reference(self.reference),
+                self.returned.references
+            );
+        }
+        let (boundary, sources) = addressed?;
         if boundary != 0 {
             return None;
         }
