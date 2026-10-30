@@ -1,0 +1,61 @@
+{
+  "cathedral_revision": "e493d887eee66f1769a79998209db393c832f4ad",
+  "local_snapshot_root": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline",
+  "host": {
+    "os": "Windows-11-10.0.26200-SP0",
+    "cpu": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+    "logical_cpus": 32
+  },
+  "retained_inputs": {
+    "source-manifest.json": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\source-manifest.json",
+      "sha256": "d5c9a384be1e82b92f27cbbb431e2c01129b60b36c85fe37e9ea5775d34af878",
+      "bytes": 870403
+    },
+    "target-migration-source-manifest.json": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\target-migration-source-manifest.json",
+      "sha256": "a7b042742ff88c74b1bccb810dade3d342c1f30fdd786794710dff8ad1b598d2",
+      "bytes": 870403
+    },
+    "syntax-migration-source-manifest.json": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\syntax-migration-source-manifest.json",
+      "sha256": "ad265638cfe314ba3dcf156f08058fd2a4916d67541e80e717777b6b404aa222",
+      "bytes": 870402
+    },
+    "provenance.json": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\provenance.json",
+      "sha256": "3e9184b524b79cf5f322f94f54a2a3d599581ea566c11da98904a9dac471d258",
+      "bytes": 10349
+    },
+    "cathedral-dirty.patch": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\cathedral-dirty.patch",
+      "sha256": "ad9589f8858868fddbd26d9e5ff46540a18d04f70c807614db7cec1f6b8999cb",
+      "bytes": 1031431
+    },
+    "freeze.py": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\freeze.py",
+      "sha256": "cf33f2cee9229b99f152855ded8425386f4820dc16dbf8fdd2e76d458116d99c",
+      "bytes": 1633
+    },
+    "migrate_targets.py": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\migrate_targets.py",
+      "sha256": "1a37a6117b899d0743ad33b585689830b752b936787b6a4a8d25af826aa27448",
+      "bytes": 1991
+    },
+    "migrate_syntax.py": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\migrate_syntax.py",
+      "sha256": "dd88fb6551d213bd7951d68a2d7c797ebc82f6b179a982eb9ec99689d771c8cb",
+      "bytes": 2317
+    },
+    "prepare_syntax.py": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\prepare_syntax.py",
+      "sha256": "f7834401e3ff9203cc7936edc64b163791e62d29a5c3edcee4e451ef12c1bc3e",
+      "bytes": 1171
+    },
+    "local-package-roots.json": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\local-package-roots.json",
+      "sha256": "01b7abcc4fa76334e399643791bfb794818246821dfda2ce67e6e876c4787b2c",
+      "bytes": 2105
+    }
+  }
+}

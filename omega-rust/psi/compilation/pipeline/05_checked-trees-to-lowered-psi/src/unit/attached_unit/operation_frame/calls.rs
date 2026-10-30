@@ -21,7 +21,7 @@
 
 use super::super::{ordinary_calls, signatures, structural_values};
 use super::{OperationFrame, StructuralResults};
-use crate::direct_calls::DirectCallResult;
+use crate::direct_calls::{DirectCallResult, ModuleInvocationArguments};
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use crate::unit::{
@@ -31,7 +31,7 @@ use crate::unit::{
 };
 use checked_trees::{
     CheckedBoundaryMachineResultPlan, CheckedUnitCallPlan, CheckedUnitCallResult,
-    CheckedUnitCallRoute,
+    CheckedUnitCallRoute, CheckedUnitStructuralArgumentPlan,
 };
 
 /// The completed operands one call hands the frame. Each route evaluates
@@ -669,21 +669,16 @@ impl OperationFrame<'_, '_> {
         Ok(bindings)
     }
 
-    /// A call into a complete Unit body of the closure: operands, claims,
-    /// requirement obligations and crash substitution through
-    /// `ordinary_calls::prepare`, then either a Unit call or the structural
-    /// call that establishes the callee's owned result.
-    fn unit_call(
+    /// Operands, claims, requirement obligations, and crash substitution for
+    /// one module call. Result publication stays with the caller.
+    fn prepare_module_call(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
-        call: &CheckedUnitCallPlan,
+        machine: symbols::SymbolHandle,
+        structural_arguments: &[CheckedUnitStructuralArgumentPlan],
         inputs: &CallInputs<'_>,
-    ) -> Result<(), LoweringError> {
-        let checked = self.checked;
-        let coordinate = &call.coordinate;
-        let target_machine = &call.target.machine;
-        let structural_arguments = &call.structural_arguments;
+    ) -> Result<ModuleInvocationArguments, LoweringError> {
         let earlier =
             self.results
                 .earlier(structural_arguments, self.operations, self.evaluation)?;
@@ -697,13 +692,13 @@ impl OperationFrame<'_, '_> {
                 .chain(self.primitive_locals.iter().map(|local| local.declaration))
                 .chain(self.private_places.iter().cloned()),
         );
-        let prepared = ordinary_calls::prepare(
+        ordinary_calls::prepare(
             identities,
-            checked,
+            self.checked,
             &self.evaluation.scalar_applications,
             self.state,
             operation,
-            signatures::find(self.callees.signatures, *target_machine)?.call_target(),
+            signatures::find(self.callees.signatures, machine)?.call_target(),
             inputs.evaluated_scalar_arguments,
             inputs.evaluated_selectors,
             inputs.completed_structural_arguments,
@@ -723,8 +718,30 @@ impl OperationFrame<'_, '_> {
             self.next_value,
             self.operations,
             &mut self.evaluation.current_claims,
+        )
+    }
+
+    /// A call into a complete Unit body of the closure: operands, claims,
+    /// requirement obligations and crash substitution through
+    /// `ordinary_calls::prepare`, then either a Unit call or the structural
+    /// call that establishes the callee's owned result.
+    fn unit_call(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        operation: &CheckedUnitEffectOperationPlan,
+        call: &CheckedUnitCallPlan,
+        inputs: &CallInputs<'_>,
+    ) -> Result<(), LoweringError> {
+        let checked = self.checked;
+        let coordinate = &call.coordinate;
+        let target_machine = &call.target.machine;
+        let prepared = self.prepare_module_call(
+            identities,
+            operation,
+            *target_machine,
+            &call.structural_arguments,
+            inputs,
         )?;
-        drop(earlier);
         let callee = lookup_machine_id(self.calls.machine_ids, *target_machine)?;
         if *call.result() == CheckedUnitCallResult::NoNormal {
             if self.operations.invocation_completion.is_some() {
@@ -856,47 +873,13 @@ impl OperationFrame<'_, '_> {
         // Structural guards resolve through the same allocated signature and
         // completed operands as Unit calls. A scalar result changes publication,
         // never the namespace or root substitution of the callee's contract.
-        let earlier =
-            self.results
-                .earlier(&call.structural_arguments, self.operations, self.evaluation)?;
-        let caller_bindings = self.evaluation.completed_bindings(
-            self.operations,
-            self.caller
-                .local_places
-                .iter()
-                .cloned()
-                .chain(earlier.iter().filter_map(|(place, _)| *place))
-                .chain(self.primitive_locals.iter().map(|local| local.declaration))
-                .chain(self.private_places.iter().cloned()),
-        );
-        let prepared = ordinary_calls::prepare(
+        let prepared = self.prepare_module_call(
             identities,
-            checked,
-            &self.evaluation.scalar_applications,
-            self.state,
             operation,
-            signature.call_target(),
-            inputs.evaluated_scalar_arguments,
-            inputs.evaluated_selectors,
-            inputs.completed_structural_arguments,
-            self.values,
-            self.caller.erased_scalar_parameters,
-            self.caller.erased_proof_parameters,
-            &self.evaluation.structural_parameters,
-            &self.parameters,
-            self.caller.local_places,
-            &earlier,
-            self.primitive_locals,
-            &self.evaluation.structural_locals,
-            &caller_bindings,
-            self.structural_types.declarations(),
-            inputs.byte_places,
-            self.calls,
-            self.next_value,
-            self.operations,
-            &mut self.evaluation.current_claims,
+            *realization_machine,
+            &call.structural_arguments,
+            inputs,
         )?;
-        drop(earlier);
         let value = ValueDeclaration {
             qualifications: result_qualifications,
             id: value_id(allocate_dense(self.next_value)?),

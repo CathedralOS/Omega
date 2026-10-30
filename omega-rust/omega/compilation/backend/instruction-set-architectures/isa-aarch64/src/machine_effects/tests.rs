@@ -24,6 +24,12 @@ fn constraints() -> ValidatedRegisterConstraintCatalog {
     .unwrap_or_else(|error: Aarch64RegisterConstraintCatalogValidationError| panic!("{error}"))
 }
 
+macro_rules! eq {
+    ($left:expr => $right:expr) => {
+        assert_eq!($left, $right);
+    };
+}
+
 #[test]
 fn every_saturating_carrier_binds_its_shape_key_size_and_flags() {
     use selected_instructions::{SaturatingCarrier, SaturatingOperation};
@@ -206,14 +212,8 @@ fn wrapping_remainder_catalog_preserves_inputs_and_flags() {
         let declaration = catalog
             .declaration_by_semantic(MachineSemanticKind::WrappingRemainderI64)
             .unwrap();
-        assert_eq!(
-            declaration.constraint,
-            crate::register_model::AARCH64_REMAINDER_I64
-        );
-        assert_eq!(
-            declaration.alternatives[0].size,
-            MachineSizeKnowledge::ExactBytes(8)
-        );
+        eq!(declaration.constraint => crate::register_model::AARCH64_REMAINDER_I64);
+        eq!(declaration.alternatives[0].size => MachineSizeKnowledge::ExactBytes(8));
         assert_eq!(
             declaration.alternatives[0].encoded,
             MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2])
@@ -247,15 +247,9 @@ fn bitwise_xor_catalog_binds_family_size_and_pure_effects() {
             .unwrap();
         assert_eq!(declaration.alternatives.len(), 1);
         let alternative = &declaration.alternatives[0];
-        assert_eq!(
-            alternative.key.family,
-            MachineSemanticKind::BitwiseXorI64.into()
-        );
+        eq!(alternative.key.family => MachineSemanticKind::BitwiseXorI64.into());
         assert_eq!(alternative.size, MachineSizeKnowledge::ExactBytes(4));
-        assert_eq!(
-            alternative.encoded,
-            MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2])
-        );
+        eq!(alternative.encoded => MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2]));
         for corruption in 0..3 {
             let mut changed = catalog.clone();
             let alternative = &mut changed
@@ -292,10 +286,7 @@ fn integer_normalization_catalog_binds_identity_size_and_effects() {
             let alternative = &declaration.alternatives[0];
             assert_eq!(alternative.key.family, semantic.into());
             assert_eq!(alternative.size, MachineSizeKnowledge::ExactBytes(4));
-            assert_eq!(
-                alternative.encoded,
-                MachineEncodedEffects::fallthrough_v1(vec![0], vec![1])
-            );
+            eq!(alternative.encoded => MachineEncodedEffects::fallthrough_v1(vec![0], vec![1]));
             for corruption in 0..3 {
                 let mut changed = catalog.clone();
                 let row = changed.declaration_by_semantic_mut(semantic).unwrap();
@@ -329,14 +320,8 @@ fn catalog_declares_one_flag_transparent_subtraction_alternative() {
         assert!(register_effects.implicit_defs.is_empty());
         assert!(register_effects.clobbers.is_empty());
         assert_eq!(subtract.alternatives.len(), 1);
-        assert_eq!(
-            subtract.alternatives[0].applicability,
-            MachineAlternativeApplicability::Always
-        );
-        assert_eq!(
-            subtract.alternatives[0].size,
-            MachineSizeKnowledge::ExactBytes(4)
-        );
+        eq!(subtract.alternatives[0].applicability => MachineAlternativeApplicability::Always);
+        eq!(subtract.alternatives[0].size => MachineSizeKnowledge::ExactBytes(4));
         let less_than_branch = catalog
             .declaration_by_semantic(MachineSemanticKind::ConditionalBranchU64LessThan)
             .unwrap();
@@ -357,10 +342,7 @@ fn catalog_declares_one_flag_transparent_subtraction_alternative() {
             less_than_branch.alternatives[0].encoded.control,
             MachineEncodedControlEffect::ConditionalRelativeBranchV1
         );
-        assert_eq!(
-            signed_less_than_branch.constraint,
-            AARCH64_CONDITIONAL_BRANCH
-        );
+        eq!(signed_less_than_branch.constraint => AARCH64_CONDITIONAL_BRANCH);
         assert_eq!(signed_less_than_branch.alternatives.len(), 1);
         assert_eq!(
             signed_less_than_branch.alternatives[0].key.family,
@@ -382,10 +364,7 @@ fn catalog_declares_one_flag_transparent_subtraction_alternative() {
                     pre_call_stack_alignment: 16,
                 }
             );
-            assert_eq!(
-                scalar_call.alternatives[0].size,
-                MachineSizeKnowledge::ExactBytes(4)
-            );
+            eq!(scalar_call.alternatives[0].size => MachineSizeKnowledge::ExactBytes(4));
             assert_eq!(
                 scalar_call.alternatives[0].encoded.control,
                 MachineEncodedControlEffect::DirectRelativeCallV1
@@ -503,14 +482,8 @@ fn selected_keys_declare_the_supported_aarch64_pairs() {
                 .chain(crate::aarch64_indirect_aggregate_call_keys(darwin))
                 .collect::<Vec<_>>()
         );
-        assert_eq!(
-            keys.return_aggregate,
-            crate::aarch64_register_aggregate_return_keys(darwin)
-        );
-        assert_eq!(
-            keys.return_float,
-            crate::aarch64_float_scalar_return_keys(darwin)
-        );
+        eq!(keys.return_aggregate => crate::aarch64_register_aggregate_return_keys(darwin));
+        eq!(keys.return_float => crate::aarch64_float_scalar_return_keys(darwin));
     }
 }
 

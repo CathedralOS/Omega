@@ -44,11 +44,12 @@ pub(in crate::git) fn probe_exact_git_object(
     validate_requested_oid(oid)?;
     executor.verify_budget()?;
     repository.verify_identity()?;
-    let cache_root =
-        repository
-            .entry_root
-            .parent()
-            .ok_or_else(|| cache_invalid(&repository.entry_root, "Git cache entry has no retained parent"))?;
+    let cache_root = repository.entry_root.parent().ok_or_else(|| {
+        cache_invalid(
+            &repository.entry_root,
+            "Git cache entry has no retained parent",
+        )
+    })?;
     let mut request = PendingGitBatchRequest::create(&repository.cache_parent, cache_root)?;
     let operation = (|| {
         let mut bytes = [0; 65];

@@ -106,16 +106,19 @@ fn structural_function() -> SelectedFunction {
     function
 }
 
+macro_rules! eq {
+    ($left:expr => $right:expr) => {
+        assert_eq!($left, $right);
+    };
+}
+
 #[test]
 fn artifact_v15_round_trips_structural_functions_call_plans_and_semantic_call_rows() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut plan.transformed)
         .functions
         .push(structural_function());
-    assert_eq!(
-        FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap(),
-        plan
-    );
+    eq!(FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap() => plan);
 }
 
 #[test]
@@ -130,10 +133,7 @@ fn dynamic_call_target_round_trips_selector_and_requirement_identity() {
     std::sync::Arc::make_mut(&mut plan.transformed)
         .functions
         .push(function);
-    assert_eq!(
-        FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap(),
-        plan
-    );
+    eq!(FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap() => plan);
 }
 
 #[test]
@@ -194,10 +194,7 @@ fn activation_local_roster_and_memory_roles_round_trip() {
     std::sync::Arc::make_mut(&mut plan.transformed)
         .functions
         .push(function);
-    assert_eq!(
-        FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap(),
-        plan
-    );
+    eq!(FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap() => plan);
 }
 
 #[test]
@@ -249,10 +246,7 @@ fn operation_scratch_read_identity_is_not_its_anchor_place() {
             identity
         );
         assert_ne!(changed.encode().unwrap(), encoded);
-        assert_eq!(
-            FixedViewCopyPlan::decode(&changed.encode().unwrap()).unwrap(),
-            changed
-        );
+        eq!(FixedViewCopyPlan::decode(&changed.encode().unwrap()).unwrap() => changed);
     }
 }
 
@@ -390,10 +384,7 @@ fn block_descriptor_slots_and_non_operation_memory_origins_round_trip() {
     std::sync::Arc::make_mut(&mut plan.transformed)
         .functions
         .push(function);
-    assert_eq!(
-        FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap(),
-        plan
-    );
+    eq!(FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap() => plan);
     let mut identities = Vec::new();
     for origin in [
         SelectedMemoryAccessOrigin::Block(block),
@@ -499,10 +490,7 @@ fn compiler_spill_origin_and_local_slot_round_trip_without_source_authority() {
         register: VirtualRegisterId(0),
     };
     function.virtual_registers[0].definition_site = None;
-    assert_eq!(
-        FixedViewCopyPlan::decode(&source.encode().unwrap()).unwrap(),
-        source
-    );
+    eq!(FixedViewCopyPlan::decode(&source.encode().unwrap()).unwrap() => source);
 }
 
 #[test]
@@ -598,10 +586,7 @@ fn cleanup_call_owner_round_trips_and_identity_keeps_edge_and_action() {
         action_ordinal: 7,
     };
     // Plain wire custody; this fixture grants no executable cleanup authority.
-    assert_eq!(
-        FixedViewCopyPlan::decode(&original.encode().unwrap()).unwrap(),
-        original
-    );
+    eq!(FixedViewCopyPlan::decode(&original.encode().unwrap()).unwrap() => original);
     let identity = selected_instructions::selected_instruction_plan_identity(&original.transformed);
     for owner in [
         target_operations::CallSiteOwner::CleanupAction {
@@ -620,10 +605,7 @@ fn cleanup_call_owner_round_trips_and_identity_keeps_edge_and_action() {
             selected_instructions::selected_instruction_plan_identity(&changed.transformed),
             identity
         );
-        assert_eq!(
-            FixedViewCopyPlan::decode(&changed.encode().unwrap()).unwrap(),
-            changed
-        );
+        eq!(FixedViewCopyPlan::decode(&changed.encode().unwrap()).unwrap() => changed);
     }
 }
 
@@ -698,10 +680,7 @@ fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identi
             3 => {
                 // No provenance row is unknown; explicit Empty is a proven
                 // zero descriptor and must survive transport distinctly.
-                assert_eq!(
-                    function.calls[0].call.descriptor_origins.pop(),
-                    Some(Origin::Empty)
-                );
+                eq!(function.calls[0].call.descriptor_origins.pop() => Some(Origin::Empty));
             }
             _ => {
                 function.memory_accesses.last_mut().unwrap().role =
@@ -711,10 +690,7 @@ fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identi
             }
         }
         assert_ne!(changed.encode().unwrap(), encoded);
-        assert_eq!(
-            FixedViewCopyPlan::decode(&changed.encode().unwrap()).unwrap(),
-            changed
-        );
+        eq!(FixedViewCopyPlan::decode(&changed.encode().unwrap()).unwrap() => changed);
     }
 }
 
@@ -737,8 +713,5 @@ fn scalar_result_buffer_round_trips_separately_from_boundary_controls() {
     std::sync::Arc::make_mut(&mut source.transformed)
         .functions
         .push(function);
-    assert_eq!(
-        FixedViewCopyPlan::decode(&source.encode().unwrap()).unwrap(),
-        source
-    );
+    eq!(FixedViewCopyPlan::decode(&source.encode().unwrap()).unwrap() => source);
 }

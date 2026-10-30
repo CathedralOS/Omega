@@ -603,29 +603,28 @@ fn visit_type_positions(
     traversal: TypePositionTraversal,
 ) {
     positions.push(type_reference);
+    macro_rules! visit_child {
+        ($child:expr $(,)?) => {
+            visit_type_positions(
+                syntax,
+                $child,
+                positions,
+                include_domain_arguments,
+                traversal,
+            )
+        };
+    }
     match syntax.tables.type_references.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
             if traversal == TypePositionTraversal::Identity {
-                visit_type_positions(
-                    syntax,
-                    *referee,
-                    positions,
-                    include_domain_arguments,
-                    traversal,
-                );
+                visit_child!(*referee);
             }
         }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            visit_type_positions(
-                syntax,
-                *base_type,
-                positions,
-                include_domain_arguments,
-                traversal,
-            );
+            visit_child!(*base_type);
             // The legacy synthesis walk must not capture machine-domain
             // locals. Original-scope discovery may visit these children,
             // but its caller must resolve their lexical bindings first.
@@ -638,13 +637,7 @@ fn visit_type_positions(
                         .type_references
                         .type_reference_handles(domain.arguments)
                     {
-                        visit_type_positions(
-                            syntax,
-                            *argument,
-                            positions,
-                            include_domain_arguments,
-                            traversal,
-                        );
+                        visit_child!(*argument);
                     }
                 }
             }
@@ -653,30 +646,12 @@ fn visit_type_positions(
             element_type,
             length,
         } => {
-            visit_type_positions(
-                syntax,
-                *element_type,
-                positions,
-                include_domain_arguments,
-                traversal,
-            );
+            visit_child!(*element_type);
             if let syntax_trees::types::FixedArrayLength::Expression(value) = length {
-                visit_type_positions(
-                    syntax,
-                    *value,
-                    positions,
-                    include_domain_arguments,
-                    traversal,
-                );
+                visit_child!(*value);
             }
         }
-        TypeReferenceNode::Slice { element_type } => visit_type_positions(
-            syntax,
-            *element_type,
-            positions,
-            include_domain_arguments,
-            traversal,
-        ),
+        TypeReferenceNode::Slice { element_type } => visit_child!(*element_type),
         TypeReferenceNode::Generic { arguments, .. }
         | TypeReferenceNode::DynamicTrait {
             trait_arguments: arguments,
@@ -687,13 +662,7 @@ fn visit_type_positions(
                 .type_references
                 .type_reference_handles(*arguments)
             {
-                visit_type_positions(
-                    syntax,
-                    *argument,
-                    positions,
-                    include_domain_arguments,
-                    traversal,
-                );
+                visit_child!(*argument);
             }
         }
         TypeReferenceNode::ConstExpression(expression) => {
@@ -704,13 +673,7 @@ fn visit_type_positions(
             super::super::uses::collect_expression_handles(syntax, *expression, &mut expressions);
             for expression in expressions {
                 visit_expression_type_inputs(syntax, expression, &mut |reference| {
-                    visit_type_positions(
-                        syntax,
-                        reference,
-                        positions,
-                        include_domain_arguments,
-                        traversal,
-                    );
+                    visit_child!(reference);
                 });
             }
         }

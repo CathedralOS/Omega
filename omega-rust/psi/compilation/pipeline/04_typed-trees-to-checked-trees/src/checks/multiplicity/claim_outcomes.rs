@@ -701,6 +701,20 @@ fn claim_outcomes_for_expression(
     known_maps: &[CheckedClaimOutcomeMap],
     output_prefix: &[facts::PlaceSegment],
 ) -> Vec<CheckedClaimOutcomeEntry> {
+    macro_rules! claim_child {
+        ($expression:expr, $output_prefix:expr $(,)?) => {
+            claim_outcomes_for_expression(
+                program,
+                state,
+                statement_index,
+                $expression,
+                ownership,
+                permission_events,
+                known_maps,
+                $output_prefix,
+            )
+        };
+    }
     let segments = &ownership.segments;
     if let Some(place) = validation::canonical_place_from_expression_in_state(
         program,
@@ -751,16 +765,7 @@ fn claim_outcomes_for_expression(
             .flat_map(|(index, value)| {
                 let mut element_prefix = output_prefix.to_vec();
                 element_prefix.push(facts::PlaceSegment::FixedIndex { index });
-                claim_outcomes_for_expression(
-                    program,
-                    state,
-                    statement_index,
-                    *value,
-                    ownership,
-                    permission_events,
-                    known_maps,
-                    &element_prefix,
-                )
+                claim_child!(*value, &element_prefix)
             })
             .collect(),
         typed_trees::expression::ExpressionNode::StructLiteral(literal)
@@ -796,16 +801,7 @@ fn claim_outcomes_for_expression(
                     field_prefix.push(facts::PlaceSegment::Field {
                         symbol: field.symbol,
                     });
-                    Some(claim_outcomes_for_expression(
-                        program,
-                        state,
-                        statement_index,
-                        value,
-                        ownership,
-                        permission_events,
-                        known_maps,
-                        &field_prefix,
-                    ))
+                    Some(claim_child!(value, &field_prefix))
                 })
                 .flatten()
                 .collect()
@@ -849,16 +845,7 @@ fn claim_outcomes_for_expression(
                     field_prefix.push(facts::PlaceSegment::Field {
                         symbol: field.symbol,
                     });
-                    claim_outcomes_for_expression(
-                        program,
-                        state,
-                        statement_index,
-                        literal_field.value,
-                        ownership,
-                        permission_events,
-                        known_maps,
-                        &field_prefix,
-                    )
+                    claim_child!(literal_field.value, &field_prefix)
                 })
                 .collect()
         }
@@ -925,16 +912,7 @@ fn claim_outcomes_for_expression(
             )
             .is_some() =>
         {
-            claim_outcomes_for_expression(
-                program,
-                state,
-                statement_index,
-                cast.value,
-                ownership,
-                permission_events,
-                known_maps,
-                output_prefix,
-            )
+            claim_child!(cast.value, output_prefix)
         }
         _ => Vec::new(),
     }

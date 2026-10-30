@@ -11,49 +11,28 @@ use source_audit::violations;
 /// The crate whose sources these guards pin.
 const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
+macro_rules! row {
+    ($a:expr => $b:expr) => {
+        ($a, $b)
+    };
+}
+
 /// Boundary declarations where identity text is legitimate: constructor
 /// parameters that intern into a caller-supplied `TerminalIdentityTableBuilder`
 /// on arrival.
 const ALLOWED: &[(&str, &str)] = &[
-    (
-        "program_entry_physical/mod.rs",
-        "requirement_identity: String,",
-    ),
-    (
-        "program_entry_physical/mod.rs",
-        "parameter_type_identities: Vec<String>,",
-    ),
-    (
-        "program_entry_physical/mod.rs",
-        "result_type_identity: String,",
-    ),
-    (
-        "selected_entry/service_establishment.rs",
-        "attachment_type_identity: String,",
-    ),
-    (
-        "selected_entry/service_establishment.rs",
-        "field_identity: String,",
-    ),
-    (
-        "selected_entry/service_establishment.rs",
-        "carrier_type_identity: String,",
-    ),
-    (
-        "selected_entry/service_establishment.rs",
-        "carrier_base_identity: String,",
-    ),
-    (
-        "selected_entry/service_establishment.rs",
-        "requirement_identity: String,",
-    ),
+    row!("program_entry_physical/mod.rs" => "requirement_identity: String,"),
+    row!("program_entry_physical/mod.rs" => "parameter_type_identities: Vec<String>,"),
+    row!("program_entry_physical/mod.rs" => "result_type_identity: String,"),
+    row!("selected_entry/service_establishment.rs" => "attachment_type_identity: String,"),
+    row!("selected_entry/service_establishment.rs" => "field_identity: String,"),
+    row!("selected_entry/service_establishment.rs" => "carrier_type_identity: String,"),
+    row!("selected_entry/service_establishment.rs" => "carrier_base_identity: String,"),
+    row!("selected_entry/service_establishment.rs" => "requirement_identity: String,"),
     ("selected_entry.rs", "requirement_identity: String,"),
     // Validate-to-construct scratch carries the canonical requirement text
     // once; construction mints it into the contract record's table.
-    (
-        "optimized_semantic_entry/validation.rs",
-        "pub(super) requirement_identity: String,",
-    ),
+    row!("optimized_semantic_entry/validation.rs" => "pub(super) requirement_identity: String,"),
 ];
 
 /// Stored `*identity`/`identities` declarations carry interned

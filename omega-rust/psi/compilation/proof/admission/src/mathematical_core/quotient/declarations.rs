@@ -1,5 +1,21 @@
 use super::*;
 
+macro_rules! pi {
+    ($name:expr => $domain:expr => $codomain:expr) => {
+        pi($name, $domain, $codomain)
+    };
+}
+macro_rules! lam {
+    ($name:expr => $domain:expr => $body:expr) => {
+        lam($name, $domain, $body)
+    };
+}
+macro_rules! id {
+    ($ty:expr => $left:expr => $right:expr) => {
+        id($ty, $left, $right)
+    };
+}
+
 /// `isSet` — declaration 0, a definition:
 /// `λ(X : Type s). Π(x y : X). Π(p q : Id X x y). Id (Id X x y) p q`.
 fn is_set_declaration(arena: &mut TermArena) -> Declaration {
@@ -86,22 +102,14 @@ fn transport_declaration(arena: &mut TermArena) -> Declaration {
         [("P", motive_type())],
         related_pis(
             "_",
-            pi(
-                "_",
-                app(v("P"), project_of(v("a"))),
-                app(v("P"), project_of(v("b"))),
-            ),
+            pi!("_" => app(v("P"), project_of(v("a"))) => app(v("P"), project_of(v("b")))),
         ),
     ));
     // `C y p = P y` over `p : Id Q (project a) y`.
     let motive = lam(
         "y",
         quotient_of(),
-        lam(
-            "_",
-            id(quotient_of(), project_of(v("a")), v("y")),
-            app(v("P"), v("y")),
-        ),
+        lam!("_" => id(quotient_of(), project_of(v("a")), v("y")) => app(v("P"), v("y"))),
     );
     let body = lam_description(lam(
         "P",
@@ -131,11 +139,7 @@ fn pi_cases(rest: Syntax) -> Syntax {
             ("P", motive_type()),
             (
                 "sets",
-                pi(
-                    "z",
-                    quotient_of(),
-                    is_set(Level::Parameter(2), app(v("P"), v("z"))),
-                ),
+                pi!("z" => quotient_of() => is_set(Level::Parameter(2), app(v("P"), v("z")))),
             ),
             ("d", pi("a", v("A"), app(v("P"), project_of(v("a"))))),
             (
@@ -182,11 +186,7 @@ fn related_pis(evidence: &'static str, rest: Syntax) -> Syntax {
 /// `λ(a b : A). λ(r : R a b). rest` — the clause form every coherence a
 /// derived declaration supplies is stated under.
 fn related_lams(rest: Syntax) -> Syntax {
-    lam(
-        "a",
-        v("A"),
-        lam("b", v("A"), lam("r", related(v("a"), v("b")), rest)),
-    )
+    lam!("a" => v("A") => lam("b", v("A"), lam("r", related(v("a"), v("b")), rest)))
 }
 
 /// `elim` — declaration 7, an assumption: dependent elimination into a
@@ -257,11 +257,7 @@ fn id_trans_declaration(arena: &mut TermArena) -> Declaration {
     let motive = lam(
         "z2",
         v("B"),
-        lam(
-            "_",
-            id(v("B"), v("y"), v("z2")),
-            id(v("B"), v("x"), v("z2")),
-        ),
+        lam!("_" => id(v("B"), v("y"), v("z2")) => id(v("B"), v("x"), v("z2"))),
     );
     let body = lam(
         "B",
@@ -330,11 +326,7 @@ fn transport_const_declaration(arena: &mut TermArena) -> Declaration {
         lam(
             "p2",
             id(v("A"), v("x"), v("y2")),
-            id(
-                v("B"),
-                jelim(constant_motive(), v("b"), v("y2"), v("p2")),
-                v("b"),
-            ),
+            id!(v("B") => jelim(constant_motive(), v("b"), v("y2"), v("p2")) => v("b")),
         ),
     );
     let body = lam(
@@ -523,11 +515,7 @@ fn lift_precondition_declaration(arena: &mut TermArena) -> Declaration {
                         pi(
                             "a",
                             v("A"),
-                            pi(
-                                "_",
-                                app(v("Pub"), project_of(v("a"))),
-                                app(v("Pre"), v("a")),
-                            ),
+                            pi!("_" => app(v("Pub"), project_of(v("a"))) => app(v("Pre"), v("a"))),
                         ),
                         pi(
                             "f",
@@ -577,22 +565,14 @@ fn id_sym_declaration(arena: &mut TermArena) -> Declaration {
         pi(
             "x",
             v("X"),
-            pi(
-                "y",
-                v("X"),
-                pi("_", id(v("X"), v("x"), v("y")), id(v("X"), v("y"), v("x"))),
-            ),
+            pi!("y" => v("X") => pi("_", id(v("X"), v("x"), v("y")), id(v("X"), v("y"), v("x")))),
         ),
     );
     // `C y' p' = Id X y' x` over `p' : Id X x y'`.
     let motive = lam(
         "y2",
         v("X"),
-        lam(
-            "_",
-            id(v("X"), v("x"), v("y2")),
-            id(v("X"), v("y2"), v("x")),
-        ),
+        lam!("_" => id(v("X"), v("x"), v("y2")) => id(v("X"), v("y2"), v("x"))),
     );
     let body = lam(
         "X",
@@ -653,11 +633,7 @@ fn id_cancel_declaration(arena: &mut TermArena) -> Declaration {
                 pi(
                     "p",
                     id(v("X"), v("x"), v("y")),
-                    id(
-                        id(v("X"), v("y"), v("y")),
-                        cancelled("y", "p"),
-                        refl(v("X"), v("y")),
-                    ),
+                    id!(id(v("X"), v("y"), v("y")) => cancelled("y", "p") => refl(v("X"), v("y"))),
                 ),
             ),
         ),
@@ -669,11 +645,7 @@ fn id_cancel_declaration(arena: &mut TermArena) -> Declaration {
         lam(
             "p2",
             id(v("X"), v("x"), v("y2")),
-            id(
-                id(v("X"), v("y2"), v("y2")),
-                cancelled("y2", "p2"),
-                refl(v("X"), v("y2")),
-            ),
+            id!(id(v("X"), v("y2"), v("y2")) => cancelled("y2", "p2") => refl(v("X"), v("y2"))),
         ),
     );
     let body = lam(
@@ -850,11 +822,7 @@ fn box_prop_declaration(arena: &mut TermArena) -> Declaration {
     let statement = pi(
         "S",
         strict(0),
-        pi(
-            "x",
-            boxed_s(),
-            pi("y", boxed_s(), id(boxed_s(), v("x"), v("y"))),
-        ),
+        pi!("x" => boxed_s() => pi("y", boxed_s(), id(boxed_s(), v("x"), v("y")))),
     );
     let body = lam(
         "S",
@@ -862,11 +830,7 @@ fn box_prop_declaration(arena: &mut TermArena) -> Declaration {
         lam(
             "x",
             boxed_s(),
-            lam(
-                "y",
-                boxed_s(),
-                app(box_elim(outer_motive, case, v("x")), v("y")),
-            ),
+            lam!("y" => boxed_s() => app(box_elim(outer_motive, case, v("x")), v("y"))),
         ),
     );
     define(arena, 1, &statement, &body)
@@ -949,11 +913,7 @@ fn ind_prop_declaration(arena: &mut TermArena) -> Declaration {
     let statement = pi_description(pi(
         "P",
         family_type.clone(),
-        pi(
-            "d",
-            case_type.clone(),
-            pi("z", quotient_of(), app(v("P"), v("z"))),
-        ),
+        pi!("d" => case_type.clone() => pi("z", quotient_of(), app(v("P"), v("z")))),
     ));
     let body = lam_description(lam(
         "P",
@@ -1029,11 +989,7 @@ fn unique_declaration(arena: &mut TermArena) -> Declaration {
     let identity_family = lam(
         "z2",
         quotient_of(),
-        id(
-            app(v("P"), v("z2")),
-            app(v("s1"), v("z2")),
-            app(v("s2"), v("z2")),
-        ),
+        id!(app(v("P"), v("z2")) => app(v("s1"), v("z2")) => app(v("s2"), v("z2"))),
     );
     // `sets' = λz'. propIsSet (M z') (sets z' (s₁ z') (s₂ z'))` — the
     // family's own setness, since `sets z'` makes `M z'` a proposition.
@@ -1043,11 +999,7 @@ fn unique_declaration(arena: &mut TermArena) -> Declaration {
         apps(
             scheme_at(QUOTIENT_PROP_IS_SET, vec![Level::Parameter(2)]),
             [
-                id(
-                    app(v("P"), v("z3")),
-                    app(v("s1"), v("z3")),
-                    app(v("s2"), v("z3")),
-                ),
+                id!(app(v("P"), v("z3")) => app(v("s1"), v("z3")) => app(v("s2"), v("z3"))),
                 apps(
                     v("sets"),
                     [v("z3"), app(v("s1"), v("z3")), app(v("s2"), v("z3"))],

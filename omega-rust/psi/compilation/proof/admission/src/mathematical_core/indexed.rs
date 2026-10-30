@@ -65,6 +65,12 @@ use super::scheme_dsl::{
 use super::signature::Declaration;
 use super::term::{Level, Term, TermArena, TermHandle};
 
+macro_rules! pi {
+    ($name:expr => $domain:expr => $codomain:expr) => {
+        pi($name, $domain, $codomain)
+    };
+}
+
 /// `IndexedAt` — the indexing condition — is declaration 0 of
 /// [`indexed_scheme`].
 pub const INDEXED_AT: u32 = 0;
@@ -188,11 +194,7 @@ fn indexed_at_declaration(arena: &mut TermArena) -> Declaration {
             pi("b", app(v("B"), v("a")), w(v("A"), v("B"))),
             lam(
                 "ih",
-                pi(
-                    "b",
-                    app(v("B"), v("a")),
-                    app(motive.clone(), app(v("k"), v("b"))),
-                ),
+                pi!("b" => app(v("B"), v("a")) => app(motive.clone(), app(v("k"), v("b")))),
                 lam(
                     "i2",
                     v("I"),
@@ -247,11 +249,7 @@ fn indexed_pack_declaration(arena: &mut TermArena) -> Declaration {
     let statement = pi_description(pi(
         "i",
         v("I"),
-        pi(
-            "t",
-            w(v("A"), v("B")),
-            pi("e", at(v("i"), v("t")), iw(v("i"))),
-        ),
+        pi!("t" => w(v("A"), v("B")) => pi("e", at(v("i"), v("t")), iw(v("i")))),
     ));
     let body = lam_description(lam(
         "i",
@@ -348,11 +346,7 @@ fn indexed_ind_declaration(arena: &mut TermArena) -> Declaration {
         v("A"),
         pi(
             "g",
-            pi(
-                "b",
-                app(v("B"), v("a")),
-                iw(app(app(v("next"), v("a")), v("b"))),
-            ),
+            pi!("b" => app(v("B"), v("a")) => iw(app(app(v("next"), v("a")), v("b")))),
             pi(
                 "_",
                 pi(
@@ -379,11 +373,7 @@ fn indexed_ind_declaration(arena: &mut TermArena) -> Declaration {
         pi(
             "s",
             step_type.clone(),
-            pi(
-                "i",
-                v("I"),
-                pi("t", iw(v("i")), app(app(v("Q"), v("i")), v("t"))),
-            ),
+            pi!("i" => v("I") => pi("t", iw(v("i")), app(app(v("Q"), v("i")), v("t")))),
         ),
     ));
 
@@ -394,11 +384,7 @@ fn indexed_ind_declaration(arena: &mut TermArena) -> Declaration {
         pi(
             "i2",
             v("I"),
-            pi(
-                "e2",
-                at(v("i2"), v("u")),
-                app(app(v("Q"), v("i2")), pair(v("u"), v("e2"))),
-            ),
+            pi!("e2" => at(v("i2"), v("u")) => app(app(v("Q"), v("i2")), pair(v("u"), v("e2")))),
         ),
     );
     // `g' = λb. iwPack (next a b) (k b) (snd e b)`.
@@ -455,11 +441,7 @@ fn indexed_ind_declaration(arena: &mut TermArena) -> Declaration {
             pi("b", app(v("B"), v("a")), w(v("A"), v("B"))),
             lam(
                 "ih",
-                pi(
-                    "b",
-                    app(v("B"), v("a")),
-                    app(inner_motive.clone(), app(v("k"), v("b"))),
-                ),
+                pi!("b" => app(v("B"), v("a")) => app(inner_motive.clone(), app(v("k"), v("b")))),
                 lam(
                     "i2",
                     v("I"),
@@ -561,11 +543,7 @@ fn indexed_correctness_declaration(arena: &mut TermArena) -> Declaration {
         v("A"),
         lam(
             "g",
-            pi(
-                "b",
-                app(v("B"), v("a")),
-                iw(app(app(v("next"), v("a")), v("b"))),
-            ),
+            pi!("b" => app(v("B"), v("a")) => iw(app(app(v("next"), v("a")), v("b")))),
             lam(
                 "ih",
                 pi(

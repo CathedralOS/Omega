@@ -10,6 +10,12 @@ use semantic_vocabulary::{
     ScalarTerm, ScalarType, ValueId,
 };
 
+macro_rules! check {
+    ($context:expr => $axioms:expr => $witness:expr) => {
+        check_integer_cast_chain_witness($context, $axioms, $witness)
+    };
+}
+
 fn unsigned_type(bits: u16) -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, bits).unwrap()
 }
@@ -168,11 +174,7 @@ fn expression_root_rejects_unknown_and_mistyped_nested_values() {
     )
     .unwrap();
     assert_eq!(
-        check_integer_cast_chain_witness(
-            &fixture.context,
-            &[fixture.definition()],
-            &fixture.witness(),
-        ),
+        check!(&fixture.context => &[fixture.definition()] => &fixture.witness()),
         Err(IntegerCastChainWitnessError::MalformedProposition(
             PropositionError::UnknownValue(ValueId::new(9).unwrap())
         ))
@@ -184,11 +186,7 @@ fn expression_root_rejects_unknown_and_mistyped_nested_values() {
         right: Box::new(literal(fixture.source_type, 256)),
     };
     assert!(matches!(
-        check_integer_cast_chain_witness(
-            &fixture.context,
-            &[fixture.definition()],
-            &fixture.witness(),
-        ),
+        check!(&fixture.context => &[fixture.definition()] => &fixture.witness()),
         Err(IntegerCastChainWitnessError::MalformedProposition(_))
     ));
 
@@ -199,11 +197,7 @@ fn expression_root_rejects_unknown_and_mistyped_nested_values() {
     )
     .unwrap();
     assert!(matches!(
-        check_integer_cast_chain_witness(
-            &fixture.context,
-            &[fixture.definition()],
-            &fixture.witness(),
-        ),
+        check!(&fixture.context => &[fixture.definition()] => &fixture.witness()),
         Err(IntegerCastChainWitnessError::MalformedProposition(
             PropositionError::ValueTypeMismatch { .. }
         ))
@@ -222,22 +216,14 @@ fn expression_root_preserves_cast_identity_policy_and_canonical_order() {
     )
     .unwrap();
     assert_eq!(
-        check_integer_cast_chain_witness(
-            &fixture.context,
-            std::slice::from_ref(&definition),
-            &witness
-        ),
+        check!(&fixture.context => std::slice::from_ref(&definition) => &witness),
         Err(IntegerCastChainWitnessError::CastChainMismatch(0))
     );
 
     witness = fixture.witness();
     witness.definition_axioms = vec![0, 0];
     assert_eq!(
-        check_integer_cast_chain_witness(
-            &fixture.context,
-            std::slice::from_ref(&definition),
-            &witness
-        ),
+        check!(&fixture.context => std::slice::from_ref(&definition) => &witness),
         Err(IntegerCastChainWitnessError::NonCanonicalDefinitionOrder)
     );
 
@@ -265,11 +251,7 @@ fn expression_root_rejects_cast_targets_nested_in_the_root() {
     witness.definition_axioms.push(1);
     witness.target = value(1, fixture.source_type);
     assert_eq!(
-        check_integer_cast_chain_witness(
-            &fixture.context,
-            &[fixture.definition(), return_to_source],
-            &witness,
-        ),
+        check!(&fixture.context => &[fixture.definition(), return_to_source] => &witness),
         Err(IntegerCastChainWitnessError::CyclicValue(1)),
         "a later cast cannot define a value already used inside the root"
     );
@@ -286,11 +268,7 @@ fn expression_root_rejects_cast_targets_nested_in_the_root() {
     )
     .unwrap();
     assert_eq!(
-        check_integer_cast_chain_witness(
-            &fixture.context,
-            &[fixture.definition()],
-            &fixture.witness(),
-        ),
+        check!(&fixture.context => &[fixture.definition()] => &fixture.witness()),
         Err(IntegerCastChainWitnessError::CyclicValue(0)),
         "the first cast cannot define a value nested inside the root either"
     );

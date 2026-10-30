@@ -16,71 +16,55 @@ pub(super) fn collect_dependency_paths_from_expression(
         return;
     }
 
+    macro_rules! collect_child {
+        ($expression:expr $(,)?) => {
+            collect_dependency_paths_from_expression(program, $expression, domain, dependencies)
+        };
+    }
+
     match program.expression_table.expression(expression) {
         ExpressionNode::SavedSubject(saved) => {
             if let Some(source) = program.saved_value_source(saved) {
-                collect_dependency_paths_from_expression(program, source, domain, dependencies);
+                collect_child!(source);
             }
         }
         ExpressionNode::Match(dispatch) => {
-            collect_dependency_paths_from_expression(
-                program,
-                dispatch.subject,
-                domain,
-                dependencies,
-            );
+            collect_child!(dispatch.subject);
             for arm in program.expression_table.match_arms(dispatch.arms) {
                 for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
-                    collect_dependency_paths_from_expression(
-                        program,
-                        pattern,
-                        domain,
-                        dependencies,
-                    );
+                    collect_child!(pattern);
                 }
-                collect_dependency_paths_from_expression(program, arm.value, domain, dependencies);
+                collect_child!(arm.value);
             }
         }
-        ExpressionNode::Atomic(atomic) => {
-            collect_dependency_paths_from_expression(program, atomic.value, domain, dependencies)
-        }
+        ExpressionNode::Atomic(atomic) => collect_child!(atomic.value),
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                collect_dependency_paths_from_expression(program, *value, domain, dependencies);
+                collect_child!(*value);
             }
         }
         ExpressionNode::Binary(binary) => {
-            collect_dependency_paths_from_expression(program, binary.left, domain, dependencies);
-            collect_dependency_paths_from_expression(program, binary.right, domain, dependencies);
+            collect_child!(binary.left);
+            collect_child!(binary.right);
         }
         ExpressionNode::Range(range) => {
             if range.start.is_valid() {
-                collect_dependency_paths_from_expression(
-                    program,
-                    range.start,
-                    domain,
-                    dependencies,
-                );
+                collect_child!(range.start);
             }
             if range.end.is_valid() {
-                collect_dependency_paths_from_expression(program, range.end, domain, dependencies);
+                collect_child!(range.end);
             }
         }
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
-                collect_dependency_paths_from_expression(
-                    program,
-                    call.receiver,
-                    domain,
-                    dependencies,
-                );
+                collect_child!(call.receiver);
             }
             for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_dependency_paths_from_expression(program, *argument, domain, dependencies);
+                collect_child!(*argument);
             }
         }
         ExpressionNode::Cast(cast) => {
-            collect_dependency_paths_from_expression(program, cast.value, domain, dependencies);
+            collect_child!(cast.value);
         }
         ExpressionNode::Indexed(indexed) => {
             if let Some(place) = canonical_place_from_expression(program, expression) {
@@ -90,14 +74,9 @@ pub(super) fn collect_dependency_paths_from_expression(
             {
                 dependencies.push(segments);
             } else {
-                collect_dependency_paths_from_expression(
-                    program,
-                    indexed.collection,
-                    domain,
-                    dependencies,
-                );
+                collect_child!(indexed.collection);
             }
-            collect_dependency_paths_from_expression(program, indexed.index, domain, dependencies);
+            collect_child!(indexed.index);
         }
         ExpressionNode::Member(member) => {
             if let Some(place) = canonical_place_from_expression(program, expression) {
@@ -107,19 +86,14 @@ pub(super) fn collect_dependency_paths_from_expression(
             {
                 dependencies.push(segments);
             } else {
-                collect_dependency_paths_from_expression(
-                    program,
-                    member.receiver,
-                    domain,
-                    dependencies,
-                );
+                collect_child!(member.receiver);
             }
         }
         ExpressionNode::Borrow(inner) => {
-            collect_dependency_paths_from_expression(program, inner.target, domain, dependencies);
+            collect_child!(inner.target);
         }
         ExpressionNode::Unary(unary) => {
-            collect_dependency_paths_from_expression(program, unary.operand, domain, dependencies);
+            collect_child!(unary.operand);
         }
         ExpressionNode::Name(_) => {
             if let Some(place) = canonical_place_from_expression(program, expression) {
@@ -135,12 +109,7 @@ pub(super) fn collect_dependency_paths_from_expression(
                 .expression_table
                 .struct_fields(struct_literal.fields)
             {
-                collect_dependency_paths_from_expression(
-                    program,
-                    field.value,
-                    domain,
-                    dependencies,
-                );
+                collect_child!(field.value);
             }
         }
         ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {}

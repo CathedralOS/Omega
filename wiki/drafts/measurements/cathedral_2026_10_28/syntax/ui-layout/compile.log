@@ -1,0 +1,18 @@
+    22.862 ms  prepare: project -> prepared sources
+ 11824.080 ms  compile: sources -> requested product
+    39.385 ms  publish: retained product -> published product
+    21.060 ms  Source ingress: SourceFiles -> SyntaxTrees
+     2.183 ms  Step: assemble: PreparedSources -> AssembledSyntax
+    48.452 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees
+   145.284 ms  Stage 04: SymbolResolvedTrees -> TypedTrees
+   718.957 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)
+  3081.861 ms  Stage 05: TypedTrees -> CheckedTrees
+  1205.765 ms  Step: settle: CheckedTrees -> SelectedExecution
+  1206.312 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact
+  1125.889 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi
+     0.002 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine
+     7.092 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi
+     2.433 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt
+    70.570 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact
+ 13694.550 ms  total elapsed
+published native output to \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\cathedral-benchmark\build\cathedral-benchmark\syntax-migration-01\ui-layout\product\omega-program

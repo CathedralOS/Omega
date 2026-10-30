@@ -9,6 +9,27 @@ use super::signature::Signature;
 use super::substitution::{instantiate_levels, shift, substitute};
 use super::term::{Level, Sort, Term, TermArena, TermHandle};
 
+macro_rules! row {
+    (Apply => $function:expr => $argument:expr) => {
+        Term::Apply {
+            function: $function,
+            argument: $argument,
+        }
+    };
+    (Pi => $domain:expr => $codomain:expr) => {
+        Term::Pi {
+            domain: $domain,
+            codomain: $codomain,
+        }
+    };
+    (TypeMismatch => $expected:expr => $actual:expr) => {
+        CoreError::TypeMismatch {
+            expected: $expected,
+            actual: $actual,
+        }
+    };
+}
+
 /// The full ambient judgment scope `Σ; Δ; Γ`: the signature `Σ` of
 /// declarations every `Constant` resolves through, the level arity `Δ` —
 /// the count of universe parameters every `Level::Parameter` must stay
@@ -370,21 +391,12 @@ pub fn infer_type(
             let two = arena.insert(Term::Two);
             check_type(arena, context, scrutinee, two, budget)?;
             let zero = arena.insert(Term::TwoZero);
-            let zero_type = arena.insert(Term::Apply {
-                function: motive,
-                argument: zero,
-            });
+            let zero_type = arena.insert(row!(Apply => motive => zero));
             check_type(arena, context, zero_branch, zero_type, budget)?;
             let one = arena.insert(Term::TwoOne);
-            let one_type = arena.insert(Term::Apply {
-                function: motive,
-                argument: one,
-            });
+            let one_type = arena.insert(row!(Apply => motive => one));
             check_type(arena, context, one_branch, one_type, budget)?;
-            Ok(arena.insert(Term::Apply {
-                function: motive,
-                argument: scrutinee,
-            }))
+            Ok(arena.insert(row!(Apply => motive => scrutinee)))
         }
         Term::Id { ty, left, right } => {
             // `Id A x y : Type u` for `A : Type u` and `x, y : A`. The
@@ -441,10 +453,7 @@ pub fn infer_type(
             };
             check_type(arena, context, endpoint, ty, budget)?;
             if !convertible(arena, context, recorded, endpoint, ty, budget)? {
-                return Err(CoreError::TypeMismatch {
-                    expected: recorded,
-                    actual: endpoint,
-                });
+                return Err(row!(TypeMismatch => recorded => endpoint));
             }
             let (domain, first_codomain) =
                 admit_eliminator_motive(arena, context, motive, ty, budget)?;
@@ -480,10 +489,7 @@ pub fn infer_type(
                 shared_proof_domain,
                 budget,
             )? {
-                return Err(CoreError::TypeMismatch {
-                    expected: expected_domain,
-                    actual: proof_domain,
-                });
+                return Err(row!(TypeMismatch => expected_domain => proof_domain));
             }
             // The motive level `w` is read off the checked codomain —
             // elimination is not confined to the carrier's level — but
@@ -507,23 +513,11 @@ pub fn infer_type(
             // The base case supplies the reflexive instance at the
             // fixed endpoint: `d : C x (refl A x)`.
             let refl = arena.insert(Term::Refl { ty, value: fixed });
-            let at_fixed = arena.insert(Term::Apply {
-                function: motive,
-                argument: fixed,
-            });
-            let base_type = arena.insert(Term::Apply {
-                function: at_fixed,
-                argument: refl,
-            });
+            let at_fixed = arena.insert(row!(Apply => motive => fixed));
+            let base_type = arena.insert(row!(Apply => at_fixed => refl));
             check_type(arena, context, base, base_type, budget)?;
-            let at_endpoint = arena.insert(Term::Apply {
-                function: motive,
-                argument: endpoint,
-            });
-            Ok(arena.insert(Term::Apply {
-                function: at_endpoint,
-                argument: proof,
-            }))
+            let at_endpoint = arena.insert(row!(Apply => motive => endpoint));
+            Ok(arena.insert(row!(Apply => at_endpoint => proof)))
         }
         Term::W { carrier, children } => {
             // `W A B : Type max(u, v)` — one shared formation rule,
@@ -544,10 +538,7 @@ pub fn infer_type(
             // the new `b` binder.
             check_w_formation(arena, context, carrier, children, budget)?;
             check_type(arena, context, label, carrier, budget)?;
-            let domain = arena.insert(Term::Apply {
-                function: children,
-                argument: label,
-            });
+            let domain = arena.insert(row!(Apply => children => label));
             let w_type = arena.insert(Term::W { carrier, children });
             let codomain = shift(arena, w_type, 0, 1);
             let function_type = arena.insert(Term::Pi { domain, codomain });
@@ -588,10 +579,7 @@ pub fn infer_type(
             }
             let step_type = w_step_type(arena, carrier, children, motive);
             check_type(arena, context, step, step_type, budget)?;
-            Ok(arena.insert(Term::Apply {
-                function: motive,
-                argument: tree,
-            }))
+            Ok(arena.insert(row!(Apply => motive => tree)))
         }
         Term::Empty => {
             // `sEmpty : Strict 0` — the strict empty proposition sits at
@@ -663,10 +651,7 @@ pub fn infer_type(
                 }
             }
             let codomain = shift(arena, proposition, 0, 1);
-            let function_type = arena.insert(Term::Pi {
-                domain: carrier,
-                codomain,
-            });
+            let function_type = arena.insert(row!(Pi => carrier => codomain));
             check_type(arena, context, function, function_type, budget)?;
             Ok(proposition)
         }
@@ -727,10 +712,7 @@ pub fn infer_type(
             // inhabitant: `f : Π(a : A). P (box a)`.
             let body_type = box_body_type(arena, payload, motive);
             check_type(arena, context, body, body_type, budget)?;
-            Ok(arena.insert(Term::Apply {
-                function: motive,
-                argument: scrutinee,
-            }))
+            Ok(arena.insert(row!(Apply => motive => scrutinee)))
         }
         Term::Constant {
             declaration: index,
@@ -827,10 +809,7 @@ fn check_w_formation(
     let domain_sort = infer_sort(arena, context, domain, budget)?;
     let shared_domain = arena.insert(Term::Sort(domain_sort));
     if !convertible(arena, context, domain, carrier, shared_domain, budget)? {
-        return Err(CoreError::TypeMismatch {
-            expected: carrier,
-            actual: domain,
-        });
+        return Err(row!(TypeMismatch => carrier => domain));
     }
     let codomain_head = weak_head_normalize(arena, context.signature(), codomain, budget)?;
     let children_level = match arena.get(codomain_head) {
@@ -876,10 +855,7 @@ fn admit_eliminator_motive(
                 shared_domain,
                 budget,
             )? {
-                return Err(CoreError::TypeMismatch {
-                    expected: scrutinee_type,
-                    actual: domain,
-                });
+                return Err(row!(TypeMismatch => scrutinee_type => domain));
             }
             Ok((domain, codomain))
         }
@@ -908,40 +884,22 @@ pub(super) fn w_step_type(
 ) -> TermHandle {
     let children_at_one = shift(arena, children, 0, 1);
     let bound_a = arena.insert(Term::Variable(0));
-    let children_domain = arena.insert(Term::Apply {
-        function: children_at_one,
-        argument: bound_a,
-    });
+    let children_domain = arena.insert(row!(Apply => children_at_one => bound_a));
     let carrier_at_two = shift(arena, carrier, 0, 2);
     let children_at_two = shift(arena, children, 0, 2);
     let w_at_two = arena.insert(Term::W {
         carrier: carrier_at_two,
         children: children_at_two,
     });
-    let function_type = arena.insert(Term::Pi {
-        domain: children_domain,
-        codomain: w_at_two,
-    });
+    let function_type = arena.insert(row!(Pi => children_domain => w_at_two));
     let bound_a = arena.insert(Term::Variable(1));
-    let hypothesis_domain = arena.insert(Term::Apply {
-        function: children_at_two,
-        argument: bound_a,
-    });
+    let hypothesis_domain = arena.insert(row!(Apply => children_at_two => bound_a));
     let motive_at_three = shift(arena, motive, 0, 3);
     let bound_k = arena.insert(Term::Variable(1));
     let bound_b = arena.insert(Term::Variable(0));
-    let child = arena.insert(Term::Apply {
-        function: bound_k,
-        argument: bound_b,
-    });
-    let hypothesis_codomain = arena.insert(Term::Apply {
-        function: motive_at_three,
-        argument: child,
-    });
-    let hypothesis = arena.insert(Term::Pi {
-        domain: hypothesis_domain,
-        codomain: hypothesis_codomain,
-    });
+    let child = arena.insert(row!(Apply => bound_k => bound_b));
+    let hypothesis_codomain = arena.insert(row!(Apply => motive_at_three => child));
+    let hypothesis = arena.insert(row!(Pi => hypothesis_domain => hypothesis_codomain));
     let carrier_at_three = shift(arena, carrier, 0, 3);
     let children_at_three = shift(arena, children, 0, 3);
     let bound_a = arena.insert(Term::Variable(2));
@@ -952,22 +910,10 @@ pub(super) fn w_step_type(
         label: bound_a,
         function: bound_k,
     });
-    let result = arena.insert(Term::Apply {
-        function: motive_at_three,
-        argument: sup,
-    });
-    let inner = arena.insert(Term::Pi {
-        domain: hypothesis,
-        codomain: result,
-    });
-    let middle = arena.insert(Term::Pi {
-        domain: function_type,
-        codomain: inner,
-    });
-    arena.insert(Term::Pi {
-        domain: carrier,
-        codomain: middle,
-    })
+    let result = arena.insert(row!(Apply => motive_at_three => sup));
+    let inner = arena.insert(row!(Pi => hypothesis => result));
+    let middle = arena.insert(row!(Pi => function_type => inner));
+    arena.insert(row!(Pi => carrier => middle))
 }
 
 /// The checked type of an `unbox` body:
@@ -988,14 +934,8 @@ pub(super) fn box_body_type(
         ty: shifted_payload,
         value: bound,
     });
-    let body_codomain = arena.insert(Term::Apply {
-        function: shifted_motive,
-        argument: boxed,
-    });
-    arena.insert(Term::Pi {
-        domain: payload,
-        codomain: body_codomain,
-    })
+    let body_codomain = arena.insert(row!(Apply => shifted_motive => boxed));
+    arena.insert(row!(Pi => payload => body_codomain))
 }
 
 /// Which formation rule produced one link of a `Π`/`Σ` codomain chain:
@@ -1075,10 +1015,7 @@ fn infer_lambda_spine(
     }
     let mut inferred = infer_type(arena, &extended, tail, budget)?;
     for domain in domains.into_iter().rev() {
-        inferred = arena.insert(Term::Pi {
-            domain,
-            codomain: inferred,
-        });
+        inferred = arena.insert(row!(Pi => domain => inferred));
     }
     Ok(inferred)
 }
@@ -1269,10 +1206,7 @@ pub fn check_type(
                     shared_domain,
                     budget,
                 )? {
-                    return Err(CoreError::TypeMismatch {
-                        expected: expected_domain,
-                        actual: domain,
-                    });
+                    return Err(row!(TypeMismatch => expected_domain => domain));
                 }
                 extended.bindings.push(domain);
                 term = body;

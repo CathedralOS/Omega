@@ -77,7 +77,7 @@ impl CompilationSession {
             return;
         };
         cache.scope_to_root(root);
-        match cache.load() {
+        match phase_profile::scope("source.graph.recovery", || cache.load()) {
             Ok(Some(graph)) => {
                 // Decode one coupled owner before any new IDs are allocated.
                 // Every request below still supplies fresh source/custody and
@@ -276,7 +276,7 @@ impl CompilationSession {
     ) -> Result<PreparedCheckedSource, CompileFailure> {
         // Acquisition precedes lookup and consumes no compiler coordinates.
         // Passing this same capture into assembly avoids a second snapshot.
-        let acquired = if self.source_graph.is_some() && inputs.is_none() && capture.is_none() {
+        let acquired = if inputs.is_none() && capture.is_none() {
             Some(package_compilation::capture_anonymous_compilation_source(
                 root_path,
             )?)

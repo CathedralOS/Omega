@@ -1,5 +1,20 @@
 use super::*;
 
+macro_rules! math_value {
+    ($source_type:expr => $value:expr) => {
+        IntegerMathTerm::MathValue {
+            source_type: $source_type,
+            value: $value,
+        }
+    };
+}
+
+macro_rules! le {
+    ($left:expr => $right:expr) => {
+        Proposition::IntegerMathLessOrEqual($left, $right)
+    };
+}
+
 #[test]
 fn direct_add_bound_replays_both_ordered_endpoints_and_rejects_mutations() {
     let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
@@ -25,14 +40,8 @@ fn direct_add_bound_replays_both_ordered_endpoints_and_rejects_mutations() {
     )
     .expect("direct mathematical add endpoint");
     let sum = IntegerMathTerm::Add(
-        Box::new(IntegerMathTerm::MathValue {
-            source_type: integer_type,
-            value: ValueId::new(1).unwrap(),
-        }),
-        Box::new(IntegerMathTerm::MathValue {
-            source_type: integer_type,
-            value: ValueId::new(2).unwrap(),
-        }),
+        Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+        Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
     );
     assert_eq!(
         map_integer_affine_bound(
@@ -42,10 +51,7 @@ fn direct_add_bound_replays_both_ordered_endpoints_and_rejects_mutations() {
                 Proposition::LessOrEqual(literal(integer_type, 20), right.clone()),
             ]),
         ),
-        Ok(Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::literal(IntegerValue::Signed(-80)),
-            sum.clone(),
-        )),
+        Ok(le!(IntegerMathTerm::literal(IntegerValue::Signed(-80)) => sum.clone())),
     );
     assert_eq!(
         map_integer_affine_bound(
@@ -55,10 +61,7 @@ fn direct_add_bound_replays_both_ordered_endpoints_and_rejects_mutations() {
                 Proposition::LessOrEqual(right.clone(), literal(integer_type, 20)),
             ]),
         ),
-        Ok(Proposition::IntegerMathLessOrEqual(
-            sum.clone(),
-            IntegerMathTerm::literal(IntegerValue::Signed(120)),
-        )),
+        Ok(le!(sum.clone() => IntegerMathTerm::literal(IntegerValue::Signed(120)))),
     );
     assert_eq!(
         map_integer_affine_bound(
@@ -68,10 +71,7 @@ fn direct_add_bound_replays_both_ordered_endpoints_and_rejects_mutations() {
                 Proposition::LessOrEqual(right.clone(), literal(integer_type, 100)),
             ]),
         ),
-        Ok(Proposition::IntegerMathLessOrEqual(
-            sum.clone(),
-            IntegerMathTerm::literal(IntegerValue::Signed(107)),
-        )),
+        Ok(le!(sum.clone() => IntegerMathTerm::literal(IntegerValue::Signed(107)))),
     );
     assert_eq!(
         map_integer_affine_bound(
@@ -81,10 +81,7 @@ fn direct_add_bound_replays_both_ordered_endpoints_and_rejects_mutations() {
                 Proposition::LessOrEqual(literal(integer_type, 0), right.clone()),
             ]),
         ),
-        Ok(Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::literal(IntegerValue::Signed(-128)),
-            sum.clone(),
-        )),
+        Ok(le!(IntegerMathTerm::literal(IntegerValue::Signed(-128)) => sum.clone())),
     );
     assert_eq!(
         map_integer_affine_bound(
@@ -94,10 +91,7 @@ fn direct_add_bound_replays_both_ordered_endpoints_and_rejects_mutations() {
                 Proposition::LessOrEqual(right.clone(), literal(integer_type, 0)),
             ]),
         ),
-        Ok(Proposition::IntegerMathLessOrEqual(
-            sum.clone(),
-            IntegerMathTerm::literal(IntegerValue::Signed(127)),
-        )),
+        Ok(le!(sum.clone() => IntegerMathTerm::literal(IntegerValue::Signed(127)))),
     );
     assert_eq!(
         map_integer_affine_bound(
@@ -117,10 +111,7 @@ fn direct_add_bound_replays_both_ordered_endpoints_and_rejects_mutations() {
                 Proposition::Truth,
             ]),
             IntegerMathTerm::Add(
-                Box::new(IntegerMathTerm::MathValue {
-                    source_type: integer_type,
-                    value: ValueId::new(1).unwrap(),
-                }),
+                Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
                 Box::new(IntegerMathTerm::literal(IntegerValue::Signed(7))),
             ),
         ),
@@ -133,10 +124,7 @@ fn direct_add_bound_replays_both_ordered_endpoints_and_rejects_mutations() {
             ]),
             IntegerMathTerm::Add(
                 Box::new(IntegerMathTerm::literal(IntegerValue::Signed(7))),
-                Box::new(IntegerMathTerm::MathValue {
-                    source_type: integer_type,
-                    value: ValueId::new(2).unwrap(),
-                }),
+                Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
             ),
         ),
     ] {
@@ -153,10 +141,7 @@ fn direct_add_bound_replays_both_ordered_endpoints_and_rejects_mutations() {
         .expect("direct add with embedded literal");
         assert_eq!(
             map_integer_affine_bound(&literal_checked, &evidence),
-            Ok(Proposition::IntegerMathLessOrEqual(
-                expected_sum,
-                IntegerMathTerm::literal(IntegerValue::Signed(107)),
-            )),
+            Ok(le!(expected_sum => IntegerMathTerm::literal(IntegerValue::Signed(107)))),
         );
     }
 
@@ -244,14 +229,8 @@ fn direct_subtract_bound_replays_opposite_ordered_endpoints_and_rejects_mutation
         Ok(Proposition::IntegerMathLessOrEqual(
             IntegerMathTerm::literal(IntegerValue::Signed(-120)),
             IntegerMathTerm::Subtract(
-                Box::new(IntegerMathTerm::MathValue {
-                    source_type: integer_type,
-                    value: ValueId::new(1).unwrap(),
-                }),
-                Box::new(IntegerMathTerm::MathValue {
-                    source_type: integer_type,
-                    value: ValueId::new(2).unwrap(),
-                }),
+                Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+                Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
             ),
         )),
     );
@@ -333,21 +312,12 @@ fn direct_multiply_replays_four_corners_and_rejects_order_mutations() {
         Proposition::LessOrEqual(right.clone(), literal(integer_type, 2)),
     ]);
     let product = IntegerMathTerm::Multiply(
-        Box::new(IntegerMathTerm::MathValue {
-            source_type: integer_type,
-            value: ValueId::new(1).unwrap(),
-        }),
-        Box::new(IntegerMathTerm::MathValue {
-            source_type: integer_type,
-            value: ValueId::new(2).unwrap(),
-        }),
+        Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+        Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
     );
     assert_eq!(
         map_integer_affine_bound(&checked, &lower),
-        Ok(Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::literal(IntegerValue::Signed(-15)),
-            product,
-        )),
+        Ok(le!(IntegerMathTerm::literal(IntegerValue::Signed(-15)) => product)),
     );
     for malformed in [
         Proposition::Conjunction(vec![
@@ -396,14 +366,8 @@ fn direct_multiply_requires_oriented_zero_evidence_for_exact_zero_bounds() {
     .expect("direct multiply witness");
     let zero = literal(integer_type, 0);
     let product = IntegerMathTerm::Multiply(
-        Box::new(IntegerMathTerm::MathValue {
-            source_type: integer_type,
-            value: ValueId::new(1).unwrap(),
-        }),
-        Box::new(IntegerMathTerm::MathValue {
-            source_type: integer_type,
-            value: ValueId::new(2).unwrap(),
-        }),
+        Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+        Box::new(math_value!(integer_type => ValueId::new(2).unwrap())),
     );
     let lower = Proposition::Conjunction(vec![
         Proposition::Truth,
@@ -413,10 +377,7 @@ fn direct_multiply_requires_oriented_zero_evidence_for_exact_zero_bounds() {
     ]);
     assert_eq!(
         map_integer_affine_bound(&checked, &lower),
-        Ok(Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::literal(IntegerValue::Signed(0)),
-            product.clone(),
-        )),
+        Ok(le!(IntegerMathTerm::literal(IntegerValue::Signed(0)) => product.clone())),
     );
     let upper = Proposition::Conjunction(vec![
         Proposition::Truth,
@@ -426,10 +387,7 @@ fn direct_multiply_requires_oriented_zero_evidence_for_exact_zero_bounds() {
     ]);
     assert_eq!(
         map_integer_affine_bound(&checked, &upper),
-        Ok(Proposition::IntegerMathLessOrEqual(
-            product,
-            IntegerMathTerm::literal(IntegerValue::Signed(0)),
-        )),
+        Ok(le!(product => IntegerMathTerm::literal(IntegerValue::Signed(0)))),
     );
 
     let one_equality = Proposition::Equal(right, literal(integer_type, 1));
@@ -470,14 +428,8 @@ fn direct_shift_bound_replays_count_range_and_sign_oriented_endpoint() {
     let lower_count = Proposition::LessOrEqual(literal(count_type, 0), count.clone());
     let upper_count = Proposition::LessOrEqual(count.clone(), literal(count_type, 3));
     let shifted = IntegerMathTerm::ShiftLeft {
-        value: Box::new(IntegerMathTerm::MathValue {
-            source_type: integer_type,
-            value: ValueId::new(1).unwrap(),
-        }),
-        count: Box::new(IntegerMathTerm::MathValue {
-            source_type: count_type,
-            value: ValueId::new(2).unwrap(),
-        }),
+        value: Box::new(math_value!(integer_type => ValueId::new(1).unwrap())),
+        count: Box::new(math_value!(count_type => ValueId::new(2).unwrap())),
     };
     let mapped = |root_bound| {
         map_integer_affine_bound(
@@ -490,40 +442,28 @@ fn direct_shift_bound_replays_count_range_and_sign_oriented_endpoint() {
             literal(integer_type, -16),
             root.clone(),
         )),
-        Ok(Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::literal(IntegerValue::Signed(-128)),
-            shifted.clone(),
-        )),
+        Ok(le!(IntegerMathTerm::literal(IntegerValue::Signed(-128)) => shifted.clone())),
     );
     assert_eq!(
         mapped(Proposition::LessOrEqual(
             root.clone(),
             literal(integer_type, 15),
         )),
-        Ok(Proposition::IntegerMathLessOrEqual(
-            shifted.clone(),
-            IntegerMathTerm::literal(IntegerValue::Signed(120)),
-        )),
+        Ok(le!(shifted.clone() => IntegerMathTerm::literal(IntegerValue::Signed(120)))),
     );
     assert_eq!(
         mapped(Proposition::LessOrEqual(
             literal(integer_type, 2),
             root.clone(),
         )),
-        Ok(Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::literal(IntegerValue::Signed(2)),
-            shifted.clone(),
-        )),
+        Ok(le!(IntegerMathTerm::literal(IntegerValue::Signed(2)) => shifted.clone())),
     );
     assert_eq!(
         mapped(Proposition::LessOrEqual(
             root.clone(),
             literal(integer_type, -2),
         )),
-        Ok(Proposition::IntegerMathLessOrEqual(
-            shifted,
-            IntegerMathTerm::literal(IntegerValue::Signed(-2)),
-        )),
+        Ok(le!(shifted => IntegerMathTerm::literal(IntegerValue::Signed(-2)))),
     );
     assert_eq!(
         map_integer_affine_bound(

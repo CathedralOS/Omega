@@ -56,13 +56,46 @@ impl TerminalApplicationCustody<'_> {
             })
             .map_err(|error| TerminalArtifactProductionError::Lowering(error).diagnostics())?;
         if let Some(admission) = self.admission {
-            let mut roots = std::iter::once(selection.machine)
-                .chain(self.admission_roots.iter().copied())
+            let entry =
+                std::iter::once_with(|| project_root(checked, lowered, selection.machine, sources));
+            let callbacks = self
+                .callback_roots
+                .into_iter()
+                .flat_map(|roots| roots.retained_roots(&lowered.semantic_module))
+                .map(|root| project_callback_root(checked, lowered, root));
+            let adapter = self
+                .physical_adapter
+                .is_valid()
+                .then_some(self.physical_adapter)
+                .into_iter()
                 .map(|machine| project_root(checked, lowered, machine, sources));
+            let mut roots = entry.chain(callbacks).chain(adapter);
             admission.admit(&lowered.semantic_module, &mut roots)?;
         }
         Ok(Some(selection))
     }
+}
+
+fn project_callback_root(
+    checked: &checked_trees::CheckedTrees,
+    lowered: &lowered_psi::LoweredPsi,
+    root: Result<checked_trees_to_lowered_psi::RetainedTerminalRoot<'_>, String>,
+) -> Result<TerminalAdmissionRoot, Vec<Diagnostic>> {
+    let root = root.map_err(|reason| {
+        vec![Diagnostic::error(format!(
+            "callback composition root: {reason}"
+        ))]
+    })?;
+    let provenance = checked_trees_to_lowered_psi::lowered_machine_provenance(
+        checked,
+        lowered,
+        root.machine,
+        root.name.map(|name| (name, root.span)),
+    );
+    Ok(TerminalAdmissionRoot {
+        machine: root.machine,
+        provenance,
+    })
 }
 
 fn project_root(
@@ -78,8 +111,14 @@ fn project_root(
         &lowered.semantic_module,
     )
     .map_err(|error| TerminalArtifactProductionError::EntryReceipt(error).diagnostics())?;
+    let entry_name = checked.typed.machine(machine).map(|body| {
+        (
+            body.name.as_str(),
+            checked.typed.symbols.symbol_source_span(machine),
+        )
+    });
     let provenance = checked_trees_to_lowered_psi::lowered_machine_provenance(
-        checked, lowered, machine, sources,
+        checked, lowered, entry.id, entry_name,
     );
     Ok(TerminalAdmissionRoot {
         machine: entry.id,

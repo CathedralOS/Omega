@@ -302,6 +302,23 @@ fn emit_reserved_boolean_guard_decision_blocks(
     all_operations: &mut OperationBuffer,
     blocks: &mut Vec<Option<Block>>,
 ) -> LoweredBooleanDecisionTarget {
+    macro_rules! guard_blocks {
+        ($decision:expr, $block_parameters:expr $(,)?) => {
+            emit_reserved_boolean_guard_decision_blocks(
+                $decision,
+                parameters,
+                $block_parameters,
+                when_true_target,
+                when_false_target,
+                first_block_identity,
+                next_value_identity,
+                next_edge_identity,
+                all_operations,
+                blocks,
+            )
+        };
+    }
+
     // These observation-only decisions inherit their parent's scope; neither
     // sibling nor caller may reuse lengths first emitted in a private child.
     let incoming_observations = all_operations.storage_observations.clone();
@@ -336,30 +353,8 @@ fn emit_reserved_boolean_guard_decision_blocks(
             let operation_end = all_operations.len();
             let true_edge = mint(next_edge_identity, edge_id);
             let false_edge = mint(next_edge_identity, edge_id);
-            let when_true = emit_reserved_boolean_guard_decision_blocks(
-                when_true,
-                parameters,
-                Vec::new(),
-                when_true_target,
-                when_false_target,
-                first_block_identity,
-                next_value_identity,
-                next_edge_identity,
-                all_operations,
-                blocks,
-            );
-            let when_false = emit_reserved_boolean_guard_decision_blocks(
-                when_false,
-                parameters,
-                Vec::new(),
-                when_true_target,
-                when_false_target,
-                first_block_identity,
-                next_value_identity,
-                next_edge_identity,
-                all_operations,
-                blocks,
-            );
+            let when_true = guard_blocks!(when_true, Vec::new());
+            let when_false = guard_blocks!(when_false, Vec::new());
             blocks[block_index] = Some(Block {
                 structural_parameters: Vec::new(),
                 id: block,
@@ -421,18 +416,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
                 .map(|(_, value)| *value)
                 .collect::<Vec<_>>();
             let when_true = if matches!(when_true.as_ref(), LoweredBooleanDecision::Value(_)) {
-                let target = emit_reserved_boolean_guard_decision_blocks(
-                    when_true,
-                    parameters,
-                    Vec::new(),
-                    when_true_target,
-                    when_false_target,
-                    first_block_identity,
-                    next_value_identity,
-                    next_edge_identity,
-                    all_operations,
-                    blocks,
-                );
+                let target = guard_blocks!(when_true, Vec::new());
                 reserve_case_entry(
                     target,
                     payload_parameters,
@@ -441,31 +425,9 @@ fn emit_reserved_boolean_guard_decision_blocks(
                     blocks,
                 )
             } else {
-                emit_reserved_boolean_guard_decision_blocks(
-                    when_true,
-                    parameters,
-                    payload_parameters,
-                    when_true_target,
-                    when_false_target,
-                    first_block_identity,
-                    next_value_identity,
-                    next_edge_identity,
-                    all_operations,
-                    blocks,
-                )
+                guard_blocks!(when_true, payload_parameters)
             };
-            let when_false = emit_reserved_boolean_guard_decision_blocks(
-                when_false,
-                parameters,
-                Vec::new(),
-                when_true_target,
-                when_false_target,
-                first_block_identity,
-                next_value_identity,
-                next_edge_identity,
-                all_operations,
-                blocks,
-            );
+            let when_false = guard_blocks!(when_false, Vec::new());
             assert!(
                 when_true.arguments.is_empty() && when_false.arguments.is_empty(),
                 "case dispatch successors bind only payload parameters"

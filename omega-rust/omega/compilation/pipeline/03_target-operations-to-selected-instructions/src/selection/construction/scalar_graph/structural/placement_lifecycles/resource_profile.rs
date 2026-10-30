@@ -19,6 +19,12 @@ mod geometry;
 mod tests;
 use geometry::{Counted, ProfileLayout, Scalar, TransferLayout};
 
+macro_rules! bin {
+    ($emission:expr => $builder:expr => $kind:ident => $left:expr => $right:expr) => {
+        $emission.binary($builder, SelectedInstructionKind::$kind, $left, $right)
+    };
+}
+
 /// Scratch contains only operation-local counters and an accumulated predicate.
 /// It must be disjoint from the immutable profile and any provider backing.
 pub(super) const VALIDATION_SCRATCH_BYTES: u32 = 48;
@@ -146,12 +152,7 @@ impl Emission<'_> {
         predicate: VirtualRegisterId,
     ) -> Result<(), SelectedInstructionError> {
         let valid = self.read_scratch(builder, VALID)?;
-        let valid = self.binary(
-            builder,
-            SelectedInstructionKind::BitwiseAndI64,
-            valid,
-            predicate,
-        )?;
+        let valid = bin!(self => builder => BitwiseAndI64 => valid => predicate)?;
         self.write_scratch(builder, VALID, valid)
     }
 
@@ -166,12 +167,7 @@ impl Emission<'_> {
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
         let mut value = self.constant(builder, 0)?;
         let displacement = self.constant(builder, u64::from(scalar.offset))?;
-        let address = self.binary(
-            builder,
-            SelectedInstructionKind::WrappingAddI64,
-            pointer,
-            displacement,
-        )?;
+        let address = bin!(self => builder => WrappingAddI64 => pointer => displacement)?;
         for byte in 0..scalar.width {
             let output = super::super::transport_register(builder, self.profile.place, 0)?;
             self.profile.storage.footprint(
@@ -200,12 +196,7 @@ impl Emission<'_> {
                 u64::from(byte) * 8,
                 true,
             )?;
-            value = self.binary(
-                builder,
-                SelectedInstructionKind::BitwiseOrI64,
-                value,
-                shifted,
-            )?;
+            value = bin!(self => builder => BitwiseOrI64 => value => shifted)?;
         }
         Ok(value)
     }
@@ -218,25 +209,10 @@ impl Emission<'_> {
         position: VirtualRegisterId,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
         let stride = self.constant(builder, u64::from(array.stride))?;
-        let displacement = self.binary(
-            builder,
-            SelectedInstructionKind::WrappingMultiplyI64,
-            position,
-            stride,
-        )?;
+        let displacement = bin!(self => builder => WrappingMultiplyI64 => position => stride)?;
         let offset = self.constant(builder, u64::from(array.offset))?;
-        let displacement = self.binary(
-            builder,
-            SelectedInstructionKind::WrappingAddI64,
-            displacement,
-            offset,
-        )?;
-        self.binary(
-            builder,
-            SelectedInstructionKind::WrappingAddI64,
-            pointer,
-            displacement,
-        )
+        let displacement = bin!(self => builder => WrappingAddI64 => displacement => offset)?;
+        bin!(self => builder => WrappingAddI64 => pointer => displacement)
     }
 
     /// An invalid count contributes false, then executes zero iterations. It
@@ -256,12 +232,7 @@ impl Emission<'_> {
             let present = self.nonzero(builder, count)?;
             self.require(builder, present)?;
         }
-        self.binary(
-            builder,
-            SelectedInstructionKind::WrappingMultiplyI64,
-            count,
-            bounded,
-        )
+        bin!(self => builder => WrappingMultiplyI64 => count => bounded)
     }
 
     fn repeat(
@@ -285,12 +256,7 @@ impl Emission<'_> {
                 let position = self.read_scratch(builder, counter)?;
                 body(builder, position)?;
                 let one = self.constant(builder, 1)?;
-                let next = self.binary(
-                    builder,
-                    SelectedInstructionKind::WrappingAddI64,
-                    position,
-                    one,
-                )?;
+                let next = bin!(self => builder => WrappingAddI64 => position => one)?;
                 self.write_scratch(builder, counter, next)
             },
         )
@@ -314,30 +280,15 @@ impl Emission<'_> {
             let bounded = self.at_most(builder, width, maximum)?;
             self.require(builder, bounded)?;
             let byte_mask = self.constant(builder, 7)?;
-            let remainder = self.binary(
-                builder,
-                SelectedInstructionKind::BitwiseAndI64,
-                width,
-                byte_mask,
-            )?;
+            let remainder = bin!(self => builder => BitwiseAndI64 => width => byte_mask)?;
             let zero = self.constant(builder, 0)?;
             let whole_bytes = self.equal(builder, remainder, zero)?;
             self.require(builder, whole_bytes)?;
             let present = self.nonzero(builder, alignment)?;
             self.require(builder, present)?;
             let one = self.constant(builder, 1)?;
-            let previous = self.binary(
-                builder,
-                SelectedInstructionKind::WrappingSubtractI64,
-                alignment,
-                one,
-            )?;
-            let bits = self.binary(
-                builder,
-                SelectedInstructionKind::BitwiseAndI64,
-                alignment,
-                previous,
-            )?;
+            let previous = bin!(self => builder => WrappingSubtractI64 => alignment => one)?;
+            let bits = bin!(self => builder => BitwiseAndI64 => alignment => previous)?;
             let power = self.equal(builder, bits, zero)?;
             self.require(builder, power)?;
             if let Some(operations) = &layout.operations {
@@ -404,23 +355,13 @@ fn validate_layout(
     let valid = emission.nonzero(builder, available)?;
     emission.write_scratch(builder, VALID, valid)?;
     let displacement = emission.constant(builder, u64::from(profile.byte_offset))?;
-    let pointer = emission.binary(
-        builder,
-        SelectedInstructionKind::WrappingAddI64,
-        profile.pointer,
-        displacement,
-    )?;
+    let pointer = bin!(emission => builder => WrappingAddI64 => profile.pointer => displacement)?;
     let count = emission.bounded_count(builder, pointer, layout.regions, false)?;
     emission.repeat(builder, count, REGION, |builder, position| {
         let region = emission.element(builder, pointer, layout.regions, position)?;
         let start = emission.load(builder, region, layout.start)?;
         let length = emission.load(builder, region, layout.length)?;
-        let end = emission.binary(
-            builder,
-            SelectedInstructionKind::WrappingAddI64,
-            start,
-            length,
-        )?;
+        let end = bin!(emission => builder => WrappingAddI64 => start => length)?;
         let nonempty = emission.nonzero(builder, length)?;
         emission.require(builder, nonempty)?;
         let nonoverflow = emission.at_most(builder, start, end)?;
@@ -443,12 +384,7 @@ fn validate_layout(
                 )?;
                 let before = emission.at_most(builder, end, prior_start)?;
                 let after = emission.at_most(builder, prior_end, start)?;
-                let disjoint = emission.binary(
-                    builder,
-                    SelectedInstructionKind::BitwiseOrI64,
-                    before,
-                    after,
-                )?;
+                let disjoint = bin!(emission => builder => BitwiseOrI64 => before => after)?;
                 emission.require(builder, disjoint)
             },
         )?;
@@ -465,20 +401,10 @@ fn validate_layout(
         let known = emission.at_most(builder, stable, three)?;
         emission.require(builder, known)?;
         let stable_present = emission.nonzero(builder, stable)?;
-        let hostile_stable = emission.binary(
-            builder,
-            SelectedInstructionKind::BitwiseAndI64,
-            peer,
-            stable_present,
-        )?;
+        let hostile_stable = bin!(emission => builder => BitwiseAndI64 => peer => stable_present)?;
         let safe = emission.invert(builder, hostile_stable)?;
         emission.require(builder, safe)?;
-        let any = emission.binary(
-            builder,
-            SelectedInstructionKind::BitwiseOrI64,
-            stable,
-            external,
-        )?;
+        let any = bin!(emission => builder => BitwiseOrI64 => stable => external)?;
         let any = emission.binary(builder, SelectedInstructionKind::BitwiseOrI64, any, atomic)?;
         let present = emission.nonzero(builder, any)?;
         emission.require(builder, present)?;

@@ -12,14 +12,44 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, 
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
 
+type SlotEffectSummaryKey = (SymbolHandle, Option<ParameterValues>);
+type CompletedSlotEffects =
+    std::collections::HashMap<SlotEffectSummaryKey, Vec<super::stored_calls::SlotEffect>>;
+
 #[derive(Clone, Default)]
 pub(super) struct FrameInference {
     pub(super) active_states: Vec<SymbolHandle>,
     local_shapes: Vec<StoredLocalOrigins>,
     parameter_values: Option<ParameterValues>,
+    // Relative normal-exit summaries belong to this inference invocation.
+    // Cloned operand snapshots share completed work, never in-progress work.
+    slot_effects: std::sync::Arc<std::sync::Mutex<CompletedSlotEffects>>,
 }
 
 impl FrameInference {
+    pub(super) fn slot_effects_key(&self, state: SymbolHandle) -> SlotEffectSummaryKey {
+        // Reuse requires the identical invocation snapshot. The consumer checks
+        // active-body guards before lookup; only completed summaries publish.
+        (state, self.parameter_values.clone())
+    }
+
+    pub(super) fn cached_slot_effects(
+        &self,
+        key: &SlotEffectSummaryKey,
+    ) -> Option<Vec<super::stored_calls::SlotEffect>> {
+        self.slot_effects.lock().ok()?.get(key).cloned()
+    }
+
+    pub(super) fn retain_slot_effects(
+        &self,
+        key: SlotEffectSummaryKey,
+        effects: &[super::stored_calls::SlotEffect],
+    ) {
+        if let Ok(mut completed) = self.slot_effects.lock() {
+            completed.insert(key, effects.to_vec());
+        }
+    }
+
     pub(super) fn for_state(symbol: SymbolHandle) -> Self {
         Self {
             active_states: vec![symbol],
@@ -205,7 +235,7 @@ impl FrameInference {
 
 /// Invocation entry snapshots and live private-home values for one state walk.
 /// Calls consume values at their program point, never replay outer expressions.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub(super) struct ParameterValues {
     pub(super) state: SymbolHandle,
     entry_values: Vec<BoolTruth>,
@@ -393,7 +423,7 @@ impl ParameterValues {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) enum BoolTruth {
     True,
     False,

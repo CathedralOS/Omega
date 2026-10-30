@@ -10,6 +10,12 @@ use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::ScalarType;
 use semantic_vocabulary::{IntegerSign, ValueId};
 
+macro_rules! map {
+    ($checked:expr => $bound:expr) => {
+        map_integer_affine_bound($checked, $bound)
+    };
+}
+
 #[test]
 fn wrapping_product_bounds_require_the_entire_rectangle_to_fit() {
     let signed = [
@@ -178,10 +184,7 @@ fn wrapping_add_backward_maps_strict_bounds_with_headroom_evidence() {
         Err(IntegerAffineBoundConversionError::WrappingEvidenceMissing),
     );
     assert_eq!(
-        map_integer_affine_bound(
-            &checked,
-            &Proposition::Conjunction(vec![strict, headroom.clone()]),
-        ),
+        map!(&checked => &Proposition::Conjunction(vec![strict, headroom.clone()])),
         Ok(Proposition::LessThan(
             operand.clone(),
             unsigned_literal(integer_type, 1),
@@ -191,10 +194,7 @@ fn wrapping_add_backward_maps_strict_bounds_with_headroom_evidence() {
     // The non-strict twin maps through the same evidence.
     let upper = Proposition::LessOrEqual(defined.clone(), unsigned_literal(integer_type, 2));
     assert_eq!(
-        map_integer_affine_bound(
-            &checked,
-            &Proposition::Conjunction(vec![upper, headroom.clone()]),
-        ),
+        map!(&checked => &Proposition::Conjunction(vec![upper, headroom.clone()])),
         Ok(Proposition::LessOrEqual(
             operand.clone(),
             unsigned_literal(integer_type, 1),
@@ -214,10 +214,7 @@ fn wrapping_add_backward_maps_strict_bounds_with_headroom_evidence() {
         )),
     );
     assert_eq!(
-        map_integer_affine_bound(
-            &checked,
-            &Proposition::LessThan(unsigned_literal(integer_type, 1), defined),
-        ),
+        map!(&checked => &Proposition::LessThan(unsigned_literal(integer_type, 1), defined)),
         Ok(Proposition::LessThan(
             unsigned_literal(integer_type, 0),
             operand,
@@ -338,10 +335,7 @@ fn wrapping_divide_maps_both_directions_and_rejects_zero() {
     );
     // Division is not a translation: strict endpoints cannot traverse it.
     assert_eq!(
-        map_integer_affine_bound(
-            &checked,
-            &Proposition::LessThan(root.clone(), unsigned_literal(integer_type, 9)),
-        ),
+        map!(&checked => &Proposition::LessThan(root.clone(), unsigned_literal(integer_type, 9))),
         Err(IntegerAffineBoundConversionError::StrictBoundNotTranslation),
     );
 
@@ -547,10 +541,7 @@ fn signed_wrapping_add_demands_evidence_on_the_side_its_addend_can_cross() {
     // `x + 1 <= 10` unconditionally, while `0 <= x` needs `x <= 126`.
     let (operand, target, forward, backward) = signed_wrapping_witnesses(1);
     assert_eq!(
-        map_integer_affine_bound(
-            &forward,
-            &Proposition::LessOrEqual(operand.clone(), bound(9))
-        ),
+        map!(&forward => &Proposition::LessOrEqual(operand.clone(), bound(9))),
         Ok(Proposition::LessOrEqual(target.clone(), bound(10))),
     );
     let lower = Proposition::LessOrEqual(bound(0), operand.clone());
@@ -564,18 +555,12 @@ fn signed_wrapping_add_demands_evidence_on_the_side_its_addend_can_cross() {
         Err(IntegerAffineBoundConversionError::WrappingEvidenceMissing),
     );
     assert_eq!(
-        map_integer_affine_bound(
-            &forward,
-            &Proposition::Conjunction(vec![lower, headroom.clone()]),
-        ),
+        map!(&forward => &Proposition::Conjunction(vec![lower, headroom.clone()])),
         Ok(Proposition::LessOrEqual(bound(1), target.clone())),
     );
     // Backward, the lower side is the unconditional one.
     assert_eq!(
-        map_integer_affine_bound(
-            &backward,
-            &Proposition::LessOrEqual(bound(5), target.clone())
-        ),
+        map!(&backward => &Proposition::LessOrEqual(bound(5), target.clone())),
         Ok(Proposition::LessOrEqual(bound(4), operand.clone())),
     );
     let upper = Proposition::LessOrEqual(target.clone(), bound(5));
@@ -588,10 +573,7 @@ fn signed_wrapping_add_demands_evidence_on_the_side_its_addend_can_cross() {
     // `1 <= x - 1` unconditionally, while `x <= 9` needs `-127 <= x`.
     let (operand, target, forward, backward) = signed_wrapping_witnesses(-1);
     assert_eq!(
-        map_integer_affine_bound(
-            &forward,
-            &Proposition::LessOrEqual(bound(2), operand.clone())
-        ),
+        map!(&forward => &Proposition::LessOrEqual(bound(2), operand.clone())),
         Ok(Proposition::LessOrEqual(bound(1), target.clone())),
     );
     let upper = Proposition::LessOrEqual(operand.clone(), bound(9));
@@ -605,10 +587,7 @@ fn signed_wrapping_add_demands_evidence_on_the_side_its_addend_can_cross() {
         Err(IntegerAffineBoundConversionError::WrappingEvidenceMissing),
     );
     assert_eq!(
-        map_integer_affine_bound(
-            &forward,
-            &Proposition::Conjunction(vec![upper, floor.clone()]),
-        ),
+        map!(&forward => &Proposition::Conjunction(vec![upper, floor.clone()])),
         Ok(Proposition::LessOrEqual(target.clone(), bound(8))),
     );
     // A positive addend's headroom is not evidence for a negative addend.
@@ -624,10 +603,7 @@ fn signed_wrapping_add_demands_evidence_on_the_side_its_addend_can_cross() {
     );
     // Backward, the upper side is the unconditional one.
     assert_eq!(
-        map_integer_affine_bound(
-            &backward,
-            &Proposition::LessOrEqual(target.clone(), bound(5))
-        ),
+        map!(&backward => &Proposition::LessOrEqual(target.clone(), bound(5))),
         Ok(Proposition::LessOrEqual(operand.clone(), bound(6))),
     );
     assert_eq!(
