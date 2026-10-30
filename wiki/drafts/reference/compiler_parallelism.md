@@ -399,3 +399,10 @@ passed; full conditional qualification and confirmation did not run. Its
 unpublished production patch was parked. The next
 [invocation setup attribution](../measurements/invocation_setup_2026_10_29/README.md)
 measures startup and remaining serial setup before choosing another candidate.
+
+The [Windows sibling-custody experiment](../measurements/windows_sibling_custody_2026_10_29/README.md)
+passed correctness checks but weakened from 16.8–17.7% small-program screen
+gains to 5.9–9.6% in independent confirmation, with a 3.3% stack32 regression.
+It is not a standalone substantial win. Preserve its frozen producer as a
+control for a separately measured composition with linear ancestry, without
+adding percentages or promoting either inconclusive standalone result.
