@@ -35,17 +35,15 @@ use time_host;
 // becoming an enormous unsigned tick count.
 public data LinuxX64TimeHostInstant { seconds: i64; nanoseconds: i64; }
 
-// Per-target requirement carriers. Each target's seam owns its own carrier
-// rather than re-declaring a shared path. `LinuxClockWait` and
-// `LinuxArmClockWait` are the one-member boundary traits for the clock waits.
-data LinuxX64TimeRead { }
-
-boundary requirement LinuxX64TimeRead::clock_gettime(clock_id: u32, instant: &mut LinuxX64TimeHostInstant) -> i64
-reaches TimeHost;
-
-boundary requirement LinuxX64TimeRead::poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
-reaches TimeHost
-blocks;
+// Per-target raw seam. `LinuxClockWait` and `LinuxArmClockWait` are the
+// one-member clock-wait traits; this trait owns the time-host read and wait.
+boundary trait LinuxX64TimeRead {
+    machine clock_gettime(clock_id: u32, instant: &mut LinuxX64TimeHostInstant) -> i64
+    reaches TimeHost;
+    machine poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
+    reaches TimeHost
+    blocks;
+}
 
 data LinuxX64TimeImports { }
 
@@ -179,6 +177,5 @@ blocks;
 
 linux_x86_64 machine TimeHostNativeProvider::provider_defaults(defaults: &mut TimeHostNativeProvider) {
     TimeHostNativeProvider::select_provider<TimeHost, NativeTimeHost>(defaults);
-    TimeHostNativeProvider::select_provider<LinuxX64TimeRead::clock_gettime, LinuxX64TimeImports>(defaults);
-    TimeHostNativeProvider::select_provider<LinuxX64TimeRead::poll, LinuxX64TimeImports>(defaults);
+    TimeHostNativeProvider::select_provider<LinuxX64TimeRead, LinuxX64TimeImports>(defaults);
 }
