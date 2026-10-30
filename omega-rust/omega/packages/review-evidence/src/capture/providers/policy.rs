@@ -30,9 +30,9 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
 ) -> Result<(PackagePolicySelectedProviders, Vec<usize>), Vec<Diagnostic>> {
     let input = input.into();
     let projected = input
-        .external_providers
+        .numeric_realizations
         .is_none()
-        .then(|| input.project_external_providers())
+        .then(|| input.project_numeric_realizations())
         .transpose()?;
     let services = input
         .service_declarations
@@ -40,7 +40,7 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
         .then(|| input.project_service_declarations());
     let compilation = &PackageReviewInput {
         service_declarations: input.service_declarations.or(services.as_ref()),
-        external_providers: input.external_providers.or(projected.as_ref()),
+        numeric_realizations: input.numeric_realizations.or(projected.as_ref()),
         ..input
     };
     let selected_execution = compilation.custody.execution();

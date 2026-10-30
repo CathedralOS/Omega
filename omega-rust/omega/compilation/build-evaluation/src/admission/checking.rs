@@ -57,7 +57,7 @@ pub(crate) fn prepare_checked_build(
             pending.push(continuation);
         }
     }
-    let provisional = if pre_checks.is_empty() {
+    let mut provisional = if pre_checks.is_empty() {
         projection
     } else {
         validation::execution_projection::project_build_program(typed, entry)?
@@ -66,17 +66,21 @@ pub(crate) fn prepare_checked_build(
     // type-work. Provider planning still needs their complete declaration
     // roster. Borrow the retained frontier, filtered to this Build scope;
     // checking and execution below keep the projected program.
+    let inherited = handoffs
+        .admitted_provider_selections(packages, source::DependencyScope::Build)?
+        .into_iter()
+        .map(|selection| {
+            selection
+                .rejoin(&mut provisional, source::DependencyScope::Build, &[])
+                .map_err(|error| vec![error])
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let context = provider_planning::ProviderPlanningContext::new(
         provisional.product_declarations(),
         source::DependencyScope::Build,
     );
     let mut defaults =
         build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
-    let inherited = handoffs.rejoin_provider_selections(
-        context.typed,
-        packages,
-        source::DependencyScope::Build,
-    )?;
     for selection in inherited {
         defaults.push(
             build_time_evaluation::provider_declarations::TargetProviderDefaults {

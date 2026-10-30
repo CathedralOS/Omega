@@ -202,6 +202,7 @@ pub fn prepare_build_evaluation(
                 product_selection_requests: Vec::new(),
                 behavior_exclusion_requests: Vec::new(),
                 native_binding_requests: Vec::new(),
+                native_formations: Vec::new(),
                 project_declaration: None,
                 optimization_report_request:
                     optimization_core::OptimizationReportRequest::Suppressed,

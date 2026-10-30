@@ -49,6 +49,7 @@ pub(crate) fn derive(
             continue;
         }
         let application = selection.application;
+        let application_identity = application.identity(typed).map_err(fail)?;
         let schema = crate::service_schema::from_typed_requirement_application(
             context,
             calling,
@@ -83,10 +84,7 @@ pub(crate) fn derive(
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
-        let provider = format!(
-            "native-build:{supplier}:{}",
-            schema.identity_text(schema.trait_name)
-        );
+        let provider = format!("native-build:{supplier}:{}", application_identity);
         let name = crate::satisfies_plan_name(
             target.target_name(),
             schema.identity_text(schema.trait_name),
@@ -96,6 +94,15 @@ pub(crate) fn derive(
             candidate.plan.schema == schema
                 && candidate.plan.target == target.target_name()
                 && candidate.plan.origin_package_identity == Some(selection.supplier_package)
+                && candidate
+                    .provenance
+                    .row_realizations
+                    .first()
+                    .and_then(|origin| origin.native())
+                    .is_some_and(|origin| {
+                        origin.selection.application.identity(typed).ok().as_ref()
+                            == Some(&application_identity)
+                    })
         }) {
             Some(index) => index,
             None => {
@@ -136,7 +143,7 @@ pub(crate) fn derive(
             else {
                 return Err(fail("native Build row changed realization owner".into()));
             };
-            if origin.selection.application != application
+            if origin.selection.application.identity(typed).map_err(fail)? != application_identity
                 || origin.selection.supply != selection.supply
                 || origin.selection.same_stack_demand != selection.same_stack_demand
             {

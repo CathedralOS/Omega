@@ -34,6 +34,7 @@ pub struct TerminalBuildBindingHost {
     product_facet: Option<TerminalStructuralValue>,
     account: Option<evaluation_accounting::EvaluationInvocationAccount>,
     declarations: Arc<[Arc<ProductDeclarationRequest>]>,
+    native_formations: Arc<[language_semantics::declaration_selection::NativeBindingFormation]>,
     original: TerminalStructuralValue,
     native_schemas: Vec<(
         semantic_vocabulary::OperationId,
@@ -145,10 +146,20 @@ impl TerminalBuildBindingHost {
             product_facet,
             account: account.cloned(),
             declarations: Arc::clone(declarations),
+            native_formations: bindings
+                .native_formations_for(artifact)
+                .cloned()
+                .ok_or("native formation belongs to another Terminal artifact")?,
             original,
             native_schemas,
             state: Mutex::new(BindingState::default()),
         }))
+    }
+
+    pub(crate) fn native_formations(
+        &self,
+    ) -> &[language_semantics::declaration_selection::NativeBindingFormation] {
+        &self.native_formations
     }
 
     pub(crate) fn declared(&self) -> &[std::sync::Arc<ProductDeclarationRequest>] {

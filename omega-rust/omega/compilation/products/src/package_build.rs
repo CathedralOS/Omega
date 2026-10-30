@@ -147,7 +147,7 @@ impl PreparedPackageBuild {
         let build = &prepared.built.computed_build_config;
         let (declarations, intents) =
             build_time_evaluation::native_bindings::capture_package_intents(
-                inputs.root(),
+                Some(inputs.root()),
                 &build.native_formations,
                 &build.native_binding_requests,
             )?;

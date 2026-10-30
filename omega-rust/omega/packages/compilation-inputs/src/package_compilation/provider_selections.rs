@@ -6,104 +6,11 @@
 //! is introduced. Activation authorship stays on the original receipt.
 
 use super::{PackageBuildHandoff, PackageCompilationInputs};
-use build_declarations::DependencyPurpose;
-use build_time_evaluation::provider_declarations::ProviderSelection;
 use diagnostics::Diagnostic;
 use source::{SourceOrigin, SourceResolutionStratum};
 use symbols::RetainedDeclaration;
 
 impl PackageCompilationInputs {
-    pub(crate) fn product_selection_source_seeds(&self) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-        let mut paths = Vec::new();
-        for (scope, bundle) in self.dependency_build_handoff_instances() {
-            if scope != DependencyPurpose::Product {
-                continue;
-            }
-            self.admit_provider_activation(bundle)?;
-            for selection in bundle.provider_selections() {
-                for anchor in [&selection.subject, &selection.provider] {
-                    let anchor = self.admit_retained_product_declaration(bundle, anchor)?;
-                    if anchor.source().resolution_stratum == SourceResolutionStratum::Base {
-                        paths.push(anchor.source().path.clone());
-                    }
-                }
-                for application in [
-                    &selection.subject_application,
-                    &selection.provider_application,
-                ]
-                .into_iter()
-                .flatten()
-                {
-                    for span in application.declaration_spans() {
-                        let file = application.sources.get(span.source_id).ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "retained application has a foreign source coordinate",
-                            )]
-                        })?;
-                        let source = self.admit_retained_product_source(bundle, file)?;
-                        if source.resolution_stratum == SourceResolutionStratum::Base {
-                            paths.push(source.path);
-                        }
-                    }
-                }
-            }
-        }
-        paths.sort();
-        paths.dedup();
-        Ok(paths)
-    }
-    pub fn rejoin_package_provider_selections(
-        &self,
-        source: &mut psi_compiler::SourceContinuation,
-    ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
-        let mut selections = Vec::new();
-        for (scope, bundle) in self.dependency_build_handoff_instances() {
-            if scope != DependencyPurpose::Product {
-                continue;
-            }
-            self.admit_provider_activation(bundle)?;
-            for selection in bundle.provider_selections() {
-                let mut selected = selection.clone();
-                selected.subject =
-                    self.admit_retained_product_declaration(bundle, &selected.subject)?;
-                selected.provider =
-                    self.admit_retained_product_declaration(bundle, &selected.provider)?;
-                // Duplicate/default arbitration belongs to provider settlement,
-                // where authoritative root overrides have their proper tier.
-                for application in [
-                    &mut selected.subject_application,
-                    &mut selected.provider_application,
-                ]
-                .into_iter()
-                .flatten()
-                {
-                    let needed = application
-                        .declaration_spans()
-                        .map(|span| span.source_id)
-                        .collect::<Vec<_>>();
-                    let files = application
-                        .sources
-                        .files()
-                        .map(|file| {
-                            if needed.contains(&file.source_id) {
-                                self.admit_retained_product_source(bundle, file)
-                            } else {
-                                Ok(file.clone())
-                            }
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    application.sources = std::sync::Arc::new(source::SourceMap::from_files(files));
-                }
-                selections.push(
-                    source
-                        .rejoin_product_provider_selection(&selected)
-                        .map_err(|error| vec![error])?,
-                );
-            }
-        }
-        Ok(selections)
-    }
-
     pub(crate) fn admit_provider_activation(
         &self,
         bundle: &PackageBuildHandoff,
@@ -163,7 +70,7 @@ impl PackageCompilationInputs {
             .map_err(|reason| vec![Diagnostic::error(reason)])
     }
 
-    fn admit_retained_product_source(
+    pub(crate) fn admit_retained_product_source(
         &self,
         bundle: &PackageBuildHandoff,
         original: &source::SourceFile,

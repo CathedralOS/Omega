@@ -712,13 +712,14 @@ fn boundary_row_shape(
     let Some(realization_identity) = typed.machine_callable_identity_text(realization) else {
         return Ok(false);
     };
-    // A hosted console leaf is either compiler-known (the intrinsic names the
-    // realization's own identity) or, on a target whose kernel entry is DLL
-    // linkage, an evaluated import the realization reaches through `via`.
-    let intrinsic_machine = match &row.binding {
-        ProviderBinding::CompilerIntrinsic { machine } => Some(machine),
-        ProviderBinding::Import { .. } => None,
-        _ => return Ok(false),
+    // A sealed catalogue leaf has its own exact compiler-intrinsic identity.
+    // Build-owned native backing is a separately admitted row, never a legacy
+    // external realization or an authored forwarding signature.
+    let ProviderBinding::CompilerIntrinsic {
+        machine: intrinsic_machine,
+    } = &row.binding
+    else {
+        return Ok(false);
     };
     // The realization's published envelope must spell the same honest shape
     // as its requirement: the hosted byte-input leaf may occupy the worker
@@ -732,40 +733,15 @@ fn boundary_row_shape(
         return Ok(false);
     }
     if realization.name.as_str() != realization_name
-        || intrinsic_machine.is_some_and(|machine| machine != &realization_identity)
+        || intrinsic_machine != &realization_identity
         || !realization.lifetime_parameters.is_empty()
         || !typed.machine_type_parameters(realization).is_empty()
         || realization.body_is_present
     {
         return Ok(false);
     }
-    let inferred_supply = realization.supply_mode == MachineSupplyMode::Boundary;
-    let legacy_binding = match realization.supply_mode {
-        MachineSupplyMode::ExternalRealization {
-            binding: Some(binding),
-            mechanism: Some(language_semantics::ExternalBindingMechanism::CompilerIntrinsic),
-        } if typed.external_bindings.identity(binding)
-            == Some(&language_semantics::ExternalBindingIdentity::CompilerIntrinsic) =>
-        {
-            Some(binding)
-        }
-        _ => None,
-    };
-    let evaluated_import = intrinsic_machine.is_none()
-        && matches!(
-            realization.supply_mode,
-            MachineSupplyMode::ExternalRealization { .. }
-        );
-    if require_inferred_supply && !inferred_supply {
-        return Ok(false);
-    }
-    if !inferred_supply && legacy_binding.is_none() && !evaluated_import {
-        return Ok(false);
-    }
-    let [entry] = typed.machine_states(realization) else {
-        return Ok(false);
-    };
-    if !exact_boundary_state(typed, entry, trait_symbol, shape) {
+    let _ = require_inferred_supply;
+    if realization.supply_mode != MachineSupplyMode::Boundary {
         return Ok(false);
     }
     let conformances = typed
@@ -776,17 +752,6 @@ fn boundary_row_shape(
                 && conformance.requirement_symbol == requirement_symbol
                 && conformance.requirement.as_ref().map(|name| name.as_str())
                     == Some(requirement_name)
-                && ((inferred_supply
-                    && conformance.external_binding.is_none()
-                    && !conformance.via_expression.is_valid()
-                    && conformance.external_binding_source_span.is_none())
-                    || (!require_inferred_supply
-                        && conformance.external_binding == legacy_binding
-                        && !conformance.via_expression.is_valid()
-                        && conformance.external_binding_source_span.is_some())
-                    || (evaluated_import
-                        && conformance.external_binding.is_none()
-                        && conformance.via_expression.is_valid()))
                 && checked_trees::typed_trees::machine::resolve_satisfied_declaration(
                     typed,
                     realization,

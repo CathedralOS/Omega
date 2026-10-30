@@ -22,6 +22,70 @@ impl NativeRequirementApplication {
     pub fn callable(self) -> SymbolHandle {
         self.closed_requirement.unwrap_or(self.requirement)
     }
+
+    fn coordinates(
+        self,
+        typed: &TypedTrees,
+    ) -> Result<(String, Option<String>, Option<String>), String> {
+        let declared =
+            if let Some((owner, signature)) = typed.trait_machine_signature(self.requirement) {
+                typed.trait_requirement_callable_identity_text(owner, signature)
+            } else {
+                typed
+                    .machine(self.requirement)
+                    .and_then(|machine| typed.machine_callable_identity_text(machine))
+                    .ok_or("native requirement lost its callable declaration identity")?
+            };
+        let outer = self
+            .trait_scope
+            .map(|retained| {
+                retained
+                    .scope(typed)
+                    .and_then(|scope| scope.portable_application_identity(typed))
+                    .and_then(|identity| typed.type_identity_text(identity))
+                    .ok_or_else(|| {
+                        "native requirement lost its complete outer application identity".to_owned()
+                    })
+            })
+            .transpose()?;
+        let local = self
+            .closed_requirement
+            .map(|closed| {
+                let application = typed
+                    .closed_requirement_application(closed)
+                    .filter(|application| application.template == self.requirement)
+                    .ok_or("native requirement lost its exact closed member application")?;
+                let (owner, _) = typed
+                    .trait_machine_signature(self.requirement)
+                    .ok_or("closed native member lost its declaring trait")?;
+                Ok::<_, String>(
+                    typed.trait_requirement_callable_identity_text(owner, application.signature),
+                )
+            })
+            .transpose()?;
+        Ok((declared, outer, local))
+    }
+
+    pub fn identity(self, typed: &TypedTrees) -> Result<String, String> {
+        let (declaration, outer, local) = self.coordinates(typed)?;
+        Ok(format!("{declaration:?};outer={outer:?};member={local:?}"))
+    }
+
+    fn overlaps(self, other: Self, typed: &TypedTrees) -> Result<bool, String> {
+        let left = self.coordinates(typed)?;
+        let right = other.coordinates(typed)?;
+        Ok(left.0 == right.0
+            && left
+                .1
+                .as_ref()
+                .zip(right.1.as_ref())
+                .is_none_or(|(left, right)| left == right)
+            && left
+                .2
+                .as_ref()
+                .zip(right.2.as_ref())
+                .is_none_or(|(left, right)| left == right))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,13 +164,23 @@ pub fn collect(
     let fail = |intent: &PreparedNativeIntent, reason: &str| {
         vec![Diagnostic::error(reason).with_source_span(intent.source_span)]
     };
-    let same_key = |left: &PreparedNativeIntent, right: &PreparedNativeIntent| {
-        left.application == right.application
-            && left.target == right.target
-            && left.declaration.producer.package == right.declaration.producer.package
+    let keys = intents
+        .iter()
+        .map(|intent| {
+            intent
+                .application
+                .identity(typed)
+                .map_err(|reason| fail(intent, &reason))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let same_key = |left: usize, right: usize| {
+        keys[left] == keys[right]
+            && intents[left].target == intents[right].target
+            && intents[left].declaration.producer.package
+                == intents[right].declaration.producer.package
     };
     let mut selections: Vec<NativeBindingSelection> = Vec::new();
-    for intent in intents {
+    for (index, intent) in intents.iter().enumerate() {
         if !intent
             .intent
             .matches_operation(intent.declaration.request.operation)
@@ -120,8 +194,8 @@ pub fn collect(
             if bytes == 0 {
                 return Err(fail(intent, "native same-stack demand must be positive"));
             }
-            let mut matching = intents.iter().filter(|other| {
-                same_key(intent, other)
+            let mut matching = intents.iter().enumerate().filter(|(other_index, other)| {
+                same_key(index, *other_index)
                     && !matches!(other.intent, NativeBuildIntent::SameStackDemand { .. })
             });
             if matching.next().is_none() {
@@ -148,7 +222,11 @@ pub fn collect(
             NativeBuildIntent::SameStackDemand { .. } => unreachable!(),
         };
         let mut demand = None;
-        for footprint in intents.iter().filter(|other| same_key(intent, other)) {
+        for (_, footprint) in intents
+            .iter()
+            .enumerate()
+            .filter(|(other_index, _)| same_key(index, *other_index))
+        {
             let NativeBuildIntent::SameStackDemand { bytes } = footprint.intent else {
                 continue;
             };
@@ -169,8 +247,28 @@ pub fn collect(
                 event_ordinal: footprint.event_ordinal,
             });
         }
+        for prior in &selections {
+            if prior.target == intent.target
+                && prior.supplier_package == intent.declaration.producer.package
+                && prior
+                    .application
+                    .overlaps(intent.application, typed)
+                    .map_err(|reason| fail(intent, &reason))?
+                && (prior
+                    .application
+                    .identity(typed)
+                    .map_err(|reason| fail(intent, &reason))?
+                    != keys[index]
+                    || prior.supply != supply)
+            {
+                return Err(fail(
+                    intent,
+                    "overlapping native bindings for one full requirement application, target and supplier",
+                ));
+            }
+        }
         if selections.iter().any(|prior| {
-            prior.application == intent.application
+            prior.application.identity(typed).ok().as_ref() == Some(&keys[index])
                 && prior.target == intent.target
                 && prior.supplier_package == intent.declaration.producer.package
                 && prior.supply != supply
