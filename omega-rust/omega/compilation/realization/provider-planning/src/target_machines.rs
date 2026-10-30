@@ -177,47 +177,6 @@ fn called_machine(
         .or_else(|| typed.machine_holding_state(called_symbol))
 }
 
-/// The same exact family selection supplies closed source evaluation. These
-/// rows name checked bodies; they supply no invocation or access permission.
-pub fn selected_constant_target_bodies(
-    context: crate::ProviderPlanningContext<'_>,
-    target: TargetProfile,
-) -> Result<Vec<build_time_evaluation::SelectedBuildTimeTargetBody>, Vec<Diagnostic>> {
-    if context.scope != source::DependencyScope::Product {
-        return Ok(Vec::new());
-    }
-    let mut selected = Vec::new();
-    for family in &context.typed.target_machine_families {
-        if !context.contains(family.canonical) {
-            continue;
-        }
-        let Some(member) = context
-            .typed
-            .target_family_member(family.canonical, target.target_name())
-        else {
-            continue;
-        };
-        // This roster transports ordinary checked bodies only. An imported
-        // intrinsic or foreign family keeps its own execution owner; merely
-        // being realized for this target cannot turn it into checked source.
-        if !member.supplies_checked_body()
-            || !realizes_machine(context, member, Some(target.target_name()))
-        {
-            continue;
-        }
-        selected.push(
-            build_time_evaluation::SelectedBuildTimeTargetBody::prepare(
-                context.typed,
-                family.canonical,
-                member.symbol,
-                target.target_name(),
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?,
-        );
-    }
-    Ok(selected)
-}
-
 /// The machine a provider row realizes on the selected target. A row names
 /// the machine resolution bound its authored path to: a portable body, an
 /// exact target member, or a target family's head when the authored name is
