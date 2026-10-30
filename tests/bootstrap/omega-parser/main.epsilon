@@ -45,7 +45,7 @@ machine Main::main(&mut self) {
     self.parser.parse_view("machine p() { x = value as &u8; }");
     self.check_incomplete(27, 28);
 
-    self.parser.parse_view("data Bound [copy] requires self.b > 0 requires b <= (3 + 6) || false { b: u32; } data Plain { value: u32; } data Flag requires ready { ready: bool; }");
+    self.parser.parse_view("data Bound [copy] requires self.b > 0 requires self.b in Positive requires b <= (3 + 6) || false { b: u32; } data Plain { value: u32; } data Flag requires ready { ready: bool; }");
     self.check_requirement_owners();
 
     self.parser.parse_view("data Missing requires { value: u32; }");
@@ -131,21 +131,64 @@ machine Main::check_requirement_owners(&mut self) {
     self.check_complete();
     assert self.parser.root_count == 3;
     assert self.parser.data_count == 3;
-    assert self.parser.data_requirement_count == 3;
+    assert self.parser.data_requirement_count == 4;
     assert self.parser.data_items[0].first_requirement == 0;
-    assert self.parser.data_items[0].requirement_count == 2;
-    assert self.parser.data_items[1].first_requirement == 2;
+    assert self.parser.data_items[0].requirement_count == 3;
+    assert self.parser.data_items[1].first_requirement == 3;
     assert self.parser.data_items[1].requirement_count == 0;
-    assert self.parser.data_items[2].first_requirement == 2;
+    assert self.parser.data_items[2].first_requirement == 3;
     assert self.parser.data_items[2].requirement_count == 1;
-    assert self.parser.expression_count == 11;
+    assert self.parser.expression_count == 13;
     assert self.parser.binary_expression_count == 4;
     assert self.parser.data_requirements[0].expression == 2;
-    assert self.parser.data_requirements[1].expression == 9;
-    assert self.parser.data_requirements[2].expression == 10;
-    assert self.parser.binary_expressions[2].right == 6;
-    assert self.parser.binary_expressions[3].left == 7;
-    assert self.parser.binary_expressions[3].right == 8;
+    assert self.parser.data_requirements[1].expression == 4;
+    assert self.parser.data_requirements[2].expression == 11;
+    assert self.parser.data_requirements[3].expression == 12;
+    assert self.parser.binary_expressions[2].right == 8;
+    assert self.parser.binary_expressions[3].left == 9;
+    assert self.parser.binary_expressions[3].right == 10;
+    assert self.parser.expressions[0].payload1 == 2;
+    assert self.parser.expressions[0].payload2 == 1;
+    assert self.parser.members[self.parser.expressions[0].payload0].start == 27;
+    assert self.parser.members[self.parser.expressions[0].payload0].end == 31;
+    assert self.parser.members[self.parser.expressions[0].payload0 + 1].start == 32;
+    assert self.parser.members[self.parser.expressions[0].payload0 + 1].end == 33;
+    assert self.parser.expressions[4].payload0 == 3;
+    assert self.parser.expressions[4].payload2 == 1;
+    transition self.parser.binary_expressions[0].operator {
+        OmegaBinaryOperatorKind::Greater -> addition()
+        _ -> self.console.exit_process(1)
+    }
+    state addition() {
+        transition self.parser.binary_expressions[1].operator {
+            OmegaBinaryOperatorKind::Add -> comparison()
+            _ -> self.console.exit_process(1)
+        }
+    }
+    state comparison() {
+        transition self.parser.binary_expressions[2].operator {
+            OmegaBinaryOperatorKind::LessEqual -> logical()
+            _ -> self.console.exit_process(1)
+        }
+    }
+    state logical() {
+        transition self.parser.binary_expressions[3].operator {
+            OmegaBinaryOperatorKind::Or -> self_path()
+            _ -> self.console.exit_process(1)
+        }
+    }
+    state self_path() {
+        transition self.parser.expressions[0].path_kind {
+            OmegaPathExpressionKind::Member -> membership()
+            _ -> self.console.exit_process(1)
+        }
+    }
+    state membership() {
+        transition self.parser.expressions[4].kind {
+            OmegaExpressionKind::Membership -> return
+            _ -> self.console.exit_process(1)
+        }
+    }
 }
 
 machine Main::check_suffix_refused(&mut self, start: i32, end: i32) {

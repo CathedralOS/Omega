@@ -3734,6 +3734,14 @@ machine OmegaParser::parse_view(
             "in"
         ) {
             1 -> select_expression_membership()
+            _ -> membership_expression_clause_tail()
+        }
+    }
+
+    state membership_expression_clause_tail() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::DataRequirement ->
+                data_requirement_tail_identifier()
             _ -> membership_expression_end_failure()
         }
     }

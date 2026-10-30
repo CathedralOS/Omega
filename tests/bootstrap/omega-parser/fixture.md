@@ -17,11 +17,13 @@ The requirement owns the ordinary `LessEqual` expression with its exact path,
 literal and operator spans. The final invocation repeats this same input after
 failures and requires the same live rows.
 
-A separate input retains two repeated predicates on `[copy]` data, followed by
+A separate input retains three repeated predicates on `[copy]` data, followed by
 a declaration with no requirements and one with a bare Boolean requirement.
-Its eleven expression rows preserve grouping and arithmetic/logical precedence;
-three ordered requirement roots belong to data spans 0..2, 2..2 and 2..3.
-The first predicate uses the logical `self.b` subject. This checks syntax
+Its thirteen expression rows preserve grouping and arithmetic/logical precedence;
+four ordered requirement roots belong to data spans 0..3, 3..3 and 3..4.
+The first predicate uses the logical `self.b` subject; the second retains
+named membership followed by the third clause. Operator identities and the
+logical subject's exact path spans remain observable. This checks syntax
 ownership and composition, not semantic proof of the requirements.
 
 The machine input retains three assignment targets and their values: two
