@@ -13,6 +13,7 @@
 //! program rather than replaying checking. Escaping mutation is excluded by
 //! the evaluator's fresh-value/snapshot boundary.
 
+use crate::unique::push_unique;
 use checked_interpreter::{BuildMachineEvaluationRequest, BuildTimeOperationEvaluation};
 use checked_trees::CheckedTrees;
 use std::collections::VecDeque;
@@ -204,11 +205,7 @@ fn walk_call_closure<Outcome>(
 ) -> Option<Outcome> {
     let mut pending = vec![root];
     let mut visited = Vec::new();
-    while let Some(symbol) = pending.pop() {
-        if visited.contains(&symbol) {
-            continue;
-        }
-        visited.push(symbol);
+    while let Some(symbol) = crate::worklist::unvisited(&mut pending, &mut visited) {
         let Some(machine) = program.machine(symbol) else {
             continue;
         };
@@ -366,9 +363,7 @@ impl BuildTimeAdmissionPlan {
                 .filter(|edge| edge.source_machine_symbol == machine)
             {
                 if let Some(target) = edge.target_machine(program) {
-                    if !execution.contains(&target) {
-                        execution.push(target);
-                    }
+                    push_unique(execution, target);
                 }
             }
         }
@@ -393,11 +388,7 @@ impl BuildTimeAdmissionPlan {
     ) -> bool {
         let mut pending = vec![root];
         let mut visited = Vec::new();
-        while let Some(machine) = pending.pop() {
-            if visited.contains(&machine) {
-                continue;
-            }
-            visited.push(machine);
+        while let Some(machine) = crate::worklist::unvisited(&mut pending, &mut visited) {
             // An ordinary body with proof-static implementation evidence must
             // close that exact application before its selected call graph is
             // available. Retain the work; preparation still owes every actual

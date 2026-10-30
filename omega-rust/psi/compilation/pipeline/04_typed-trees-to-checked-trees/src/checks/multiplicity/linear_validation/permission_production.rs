@@ -1049,10 +1049,7 @@ pub(crate) fn complete_statement_permissions(
         && (matches!(statement, StatementNode::Transition(_))
             || program.state_by_symbol(state_symbol).is_some_and(|state| {
                 statement_index + 1
-                    == program
-                        .statement_table
-                        .statements(state.statement_nodes)
-                        .len()
+                    == crate::flow::state_statements(program, state.statement_nodes).len()
             }))
     {
         for place in places

@@ -281,7 +281,7 @@ impl Execution<'_, '_, '_> {
         ) else {
             return;
         };
-        let active = super::super::active_context_handles(self.context, *contexts);
+        let active = super::super::active_context_handles(&self.context.contexts, *contexts);
         super::super::narrow_pinned_index_segments(
             self.program,
             self.semantic,

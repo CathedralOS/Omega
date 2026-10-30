@@ -1,14 +1,15 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, ScalarAbiCase,
-    abi_case_context, baseline_target_register_environment, convention_for, declaration_mut,
+    abi_case_context, assert_faulting_trap, assert_storage_free,
+    baseline_target_register_environment, binds_catalog_provenance, convention_for, encoded_mut,
     produced_effects, scalar_abi_cases, units_for_names, validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectCatalogValidationError, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    MachineEncodedStackEffect, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineTrapBehavior,
 };
 
 /// Every selected return rule key with the semantic family the effect
@@ -97,14 +98,7 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
             case.convention
         );
 
-        // The catalog is bound to this exact validated constraint catalog,
-        // target, and key selection — provenance, not a re-derived roster.
-        assert_eq!(catalog.catalog().target, case.target);
-        assert_eq!(
-            catalog.catalog().register_constraints,
-            environment.constraints().identity()
-        );
-        assert_eq!(catalog.catalog().selected_keys, keys);
+        binds_catalog_provenance(&catalog, case, &environment, keys);
 
         for (key, semantic) in &return_rules {
             let row = environment
@@ -199,11 +193,7 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
                     .all(|unit| row.implicit_defs.contains(unit)),
                 "{key:?} encoded defs must stay inside the constraint row"
             );
-            assert_eq!(
-                encoded.trap,
-                MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                "{key:?}"
-            );
+            assert_faulting_trap(encoded, *key);
             match case.target.architecture {
                 Architecture::X86_64 => {
                     let stack_pointer = model.view_named("rsp").unwrap();
@@ -247,16 +237,7 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
                     // encoded `ret` itself reads only the link register.
                     assert_eq!(encoded.implicit_unit_uses, link.units, "{key:?}");
                     assert_eq!(encoded.implicit_unit_defs, program_counter.units, "{key:?}");
-                    assert_eq!(
-                        encoded.memory,
-                        MachineEncodedMemoryEffect::NoneV1,
-                        "{key:?}"
-                    );
-                    assert_eq!(
-                        encoded.stack,
-                        MachineEncodedStackEffect::UnchangedV1,
-                        "{key:?}"
-                    );
+                    assert_storage_free(encoded, *key);
                     assert_eq!(
                         encoded.control,
                         MachineEncodedControlEffect::ReturnIndirectRegisterV1 { target: link.id },
@@ -287,9 +268,8 @@ fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
             // A return encoded as ordinary fall-through fails the encoded
             // control/barrier join.
             let mut corrupted = catalog.clone();
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
-                .control = MachineEncodedControlEffect::FallThroughV1;
+            encoded_mut(&mut corrupted, key, semantic, 0).control =
+                MachineEncodedControlEffect::FallThroughV1;
             assert_eq!(
                 selected_instructions::validate_machine_effect_catalog(
                     environment.constraints(),
@@ -306,8 +286,7 @@ fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
             // to a non-empty subset, and a use list that reads nothing has
             // dropped the read its control effect still performs.
             let mut corrupted = catalog.clone();
-            let encoded =
-                &mut declaration_mut(&mut corrupted, key, semantic).alternatives[0].encoded;
+            let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
             assert!(
                 !encoded.implicit_unit_uses.is_empty(),
                 "{key:?} declares no return-address use"
@@ -327,8 +306,7 @@ fn every_selected_return_rule_rejects_encoded_return_forgery_on_every_target() {
             let row = environment.constraint(key).unwrap();
             assert!(row.clobbers.is_empty(), "{key:?}");
             let preserved = convention.callee_saved[0];
-            declaration_mut(&mut corrupted, key, semantic).alternatives[0]
-                .encoded
+            encoded_mut(&mut corrupted, key, semantic, 0)
                 .implicit_unit_clobbers
                 .push(preserved);
             assert_eq!(

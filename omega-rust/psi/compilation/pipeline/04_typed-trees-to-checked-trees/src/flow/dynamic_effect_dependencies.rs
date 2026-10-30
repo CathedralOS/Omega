@@ -191,11 +191,7 @@ fn returned_implementations(
         .states
         .iter()
         .find_map(|(_, state)| (state.state_symbol == capture.state_symbol).then_some(state))?;
-    let mut calls = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state.calls)
+    let mut calls = crate::flow::call_flows(&facts.flow.control, state.calls)
         .iter()
         .filter(|call| {
             capture.expression.is_valid()

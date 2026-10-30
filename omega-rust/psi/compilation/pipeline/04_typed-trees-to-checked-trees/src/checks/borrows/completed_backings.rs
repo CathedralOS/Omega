@@ -458,10 +458,9 @@ impl Resolver<'_> {
         let source =
             coordinate.ok_or("the completed descriptor has no source storage coordinate")?;
         let mut place = CapturedPlace {
-            incoming_reference: Default::default(),
-            incoming_owner_path: Default::default(),
             root: source.root,
             segments: source.segments,
+            ..Default::default()
         };
         place.segments.extend_from_slice(path);
         if matches!(
@@ -531,10 +530,9 @@ impl Resolver<'_> {
         forwarded_inputs: &mut Vec<Handle<FlowOperandFact>>,
     ) -> Result<BackingFrontier, &'static str> {
         let mut place = CapturedPlace {
-            incoming_reference: Handle::invalid(),
-            incoming_owner_path: Vec::new(),
             root: source.root,
             segments: source.segments.clone(),
+            ..Default::default()
         };
         place.segments.extend_from_slice(path);
         // Current checked descriptor occurrences own custody even when a weak
@@ -615,10 +613,9 @@ impl Resolver<'_> {
                     operand.statement_index,
                     operand.constraints,
                     CapturedPlace {
-                        incoming_reference: Handle::invalid(),
-                        incoming_owner_path: Vec::new(),
                         root: source.root,
                         segments: source.segments,
+                        ..Default::default()
                     },
                 )
                 .map(BackingFrontier::borrowed)
@@ -788,10 +785,9 @@ impl Resolver<'_> {
             self.state,
             observation.statement_index,
             CapturedPlace {
-                incoming_reference: Handle::invalid(),
-                incoming_owner_path: Vec::new(),
                 root: coordinate.root,
                 segments: coordinate.segments,
+                ..Default::default()
             },
             candidates,
         )

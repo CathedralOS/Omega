@@ -47,6 +47,7 @@
 //! evaluator's arbitrary payload. Format, operator selection and argument
 //! admission remain attached to every operation throughout evaluation.
 
+use crate::unique::extend_unique;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{
     CanonicalConstIdentity, CanonicalConstValue, DecodedCanonicalConstValue,
@@ -432,11 +433,7 @@ fn evaluate_expression(
                             }
                             _ => return Err("constant call result differs from its validated scalar carrier".into()),
                         });
-                        for warning in call_warnings {
-                            if !warnings.contains(&warning) {
-                                warnings.push(warning);
-                            }
-                        }
+                        extend_unique(&mut warnings, call_warnings);
                     }
                     ExpressionNode::Match(dispatch) => {
                         active.push(expression);
@@ -884,11 +881,7 @@ fn validate_shapes(
                     }
                     shapes.push(shape);
                     call_shapes.push((expression, shape));
-                    for warning in call_warnings {
-                        if !warnings.contains(&warning) {
-                            warnings.push(warning);
-                        }
-                    }
+                    extend_unique(&mut warnings, call_warnings);
                 }
                 ExpressionNode::Match(dispatch) => {
                     active.push(expression);

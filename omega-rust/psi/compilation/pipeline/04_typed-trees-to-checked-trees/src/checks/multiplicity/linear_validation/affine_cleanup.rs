@@ -136,12 +136,11 @@ fn visit_owned_cleanup_events(
         }
     };
 
-    for (statement_index, statement) in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-        .rev()
+    for (statement_index, statement) in
+        crate::flow::state_statements(program, state.statement_nodes)
+            .iter()
+            .enumerate()
+            .rev()
     {
         if let Some(local) = statement.as_local_data()
             && !local.relevance.is_erased()

@@ -20,6 +20,7 @@ use crate::emission::operation_emission::place_declarations::operation_result_pl
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings};
 use crate::expression_preparation::byte_literals;
+use crate::terminal_identities::stored_structural_identity;
 use arena::HandleSpan;
 use checked_trees::{
     CheckedStructuralValue, CheckedStructuralValueHandle, CheckedStructuralValueKind,
@@ -1227,6 +1228,19 @@ pub(super) struct ProjectionSource {
 }
 
 impl Emission<'_, '_, '_> {
+    /// A completed aggregate whose place is an operation result retires the
+    /// operands that produced it. Any other declaration retires nothing.
+    pub(super) fn retire_completed_operands(
+        &mut self,
+        declaration: &StructuralPlaceDeclaration,
+    ) -> Result<(), LoweringError> {
+        let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
+            return Ok(());
+        };
+        self.evaluation
+            .retire_structural_operation_operands(producer, self.operations)
+    }
+
     fn bind_completion_claims(
         operations: &mut OperationBuffer,
         place: PlaceId,
@@ -1924,12 +1938,7 @@ impl Emission<'_, '_, '_> {
                 let child = self.structural_value_node(source);
                 let source_type = lookup_type_id(
                     self.type_ids,
-                    &validation::stored_structural_type_identity(
-                        &self.checked.typed,
-                        child.type_reference,
-                        &[],
-                        &[],
-                    ),
+                    &stored_structural_identity(&self.checked, child.type_reference),
                 )?;
                 let ValueOutcome::Normal(completed) = self.child_constructor_operand(
                     identities,

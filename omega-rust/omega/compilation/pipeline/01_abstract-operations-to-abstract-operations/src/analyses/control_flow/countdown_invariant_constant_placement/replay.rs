@@ -8,11 +8,10 @@ use super::{
     OptimizerUnsignedCountdownRankingCertificate, PsiOptimizationFunction, PsiOptimizationUnit,
     ScalarType, UnsignedCountdownInvariantConstantPlacements, UnsignedCountdownLoopSummary,
     ValidatedCountdownInvariantConstantAnalysis, ValidatedCountedLoopAnalysis,
-    ValidatedOptimizerCycleComponents, consumer_matches, consumer_operation, expected_constant,
-    invariant_constant_row, sole_provenance_node, validate_analysis_root,
+    ValidatedOptimizerCycleComponents, by_key, consumer_matches, consumer_operation,
+    expected_constant, invariant_constant_row, sole_provenance_node, validate_analysis_root,
     validate_moved_constant_locations,
 };
-use std::collections::BTreeMap;
 
 pub(super) fn reconstruct(
     unit: &PsiOptimizationUnit,
@@ -24,26 +23,14 @@ pub(super) fn reconstruct(
     CountdownInvariantConstantPlacementAnalysisError,
 > {
     validate_roots(unit, custody, counted, invariants)?;
-    let functions = unit
-        .functions
-        .iter()
-        .map(|function| (function.machine, function))
-        .collect::<BTreeMap<_, _>>();
-    let components = custody
-        .components()
-        .iter()
-        .map(|component| (component.id.clone(), component))
-        .collect::<BTreeMap<_, _>>();
-    let counted_loops = counted
-        .loops()
-        .iter()
-        .map(|summary| (summary.certificate.component.clone(), summary))
-        .collect::<BTreeMap<_, _>>();
-    let invariant_loops = invariants
-        .loops()
-        .iter()
-        .map(|summary| (summary.counted_loop.certificate.component.clone(), summary))
-        .collect::<BTreeMap<_, _>>();
+    let functions = by_key(&unit.functions, |function| function.machine);
+    let components = by_key(custody.components(), |component| component.id.clone());
+    let counted_loops = by_key(counted.loops(), |summary| {
+        summary.certificate.component.clone()
+    });
+    let invariant_loops = by_key(invariants.loops(), |summary| {
+        summary.counted_loop.certificate.component.clone()
+    });
     // The countdown chain is keyed by the certified subset of the validated
     // SCC roster; uncertified components carry no counted or invariant row.
     if functions.len() != unit.functions.len()

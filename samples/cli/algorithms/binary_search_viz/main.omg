@@ -20,7 +20,9 @@ requires
 domain [u8; 4]::Utf8
 requires
     valid_utf8(self);
-data Main {
+data Main
+requires self.x >= 0 && self.x <= 31
+{
     arr: [i32; 31];
     line: [u8; 31] in Utf8;   // render buffer
     chars: [u8; 4] in Utf8;   // " -*#"  excluded / range / target / mid
@@ -39,94 +41,94 @@ machine Main::main(main: &mut Main) reaches Clock + Console {
     main.line = "                               ";
     main.chars = " -*#";
     main.x = 0;
-    transition { _ -> init_loop(main) }
+    transition { _ -> block init_loop(main) }
 
     // arr[i] = i, so the value `target` sits at index `target`
     machine init_loop(main: &mut Main) {
-        transition main.x >= 0 && main.x < 31 { true -> init_cell(main) _ -> setup(main) }
+        transition main.x >= 0 && main.x < 31 { true -> block init_cell(main) _ -> block setup(main) }
     }
     machine init_cell(main: &mut Main) {
         main.arr[main.x] = main.x;
         main.x = main.x + 1;
-        transition { _ -> init_loop(main) }
+        transition { _ -> block init_loop(main) }
     }
     machine setup(main: &mut Main) {
         main.lo = 0;
         main.hi = 30;
         main.target = 20;
-        transition { _ -> search(main) }
+        transition { _ -> block search(main) }
     }
 
     machine search(main: &mut Main) {
-        transition main.lo <= main.hi { true -> mid_calc(main) _ -> not_found(main) }
+        transition main.lo <= main.hi { true -> block mid_calc(main) _ -> not_found(main) }
     }
     machine mid_calc(main: &mut Main) {
         // The min/max clamps are the identity for the search's real values
         // (lo in [0,31], hi in [-1,30] whenever this state runs) while giving
         // the fold provable bounds, so the midpoint math is Exact -- no domain.
         main.mid = (min_i32(max_i32(main.lo, 0), 31) + min_i32(max_i32(main.hi, 0 - 1), 30)) / 2;
-        transition main.mid >= 0 && main.mid < 31 { true -> render_init(main) _ -> bad(main) }
+        transition main.mid >= 0 && main.mid < 31 { true -> block render_init(main) _ -> bad(main) }
     }
 
     // --- render one row: priority mid '#' > target '*' > range '-' > excluded ' ' ---
     machine render_init(main: &mut Main) {
         main.x = 0;
-        transition { _ -> render_loop(main) }
+        transition { _ -> block render_loop(main) }
     }
     machine render_loop(main: &mut Main) {
-        transition main.x >= 0 && main.x < 31 { true -> cell(main) _ -> emit(main) }
+        transition main.x >= 0 && main.x < 31 { true -> block cell(main) _ -> block emit(main) }
     }
     machine cell(main: &mut Main) {
-        transition main.x == main.mid { true -> kind_mid(main) _ -> chk_target(main) }
+        transition main.x == main.mid { true -> block kind_mid(main) _ -> block chk_target(main) }
     }
     machine chk_target(main: &mut Main) {
-        transition main.x == main.target { true -> kind_target(main) _ -> chk_range(main) }
+        transition main.x == main.target { true -> block kind_target(main) _ -> block chk_range(main) }
     }
     machine chk_range(main: &mut Main) {
-        transition main.lo <= main.x && main.x <= main.hi { true -> kind_range(main) _ -> kind_none(main) }
+        transition main.lo <= main.x && main.x <= main.hi { true -> block kind_range(main) _ -> block kind_none(main) }
     }
-    machine kind_mid(main: &mut Main) { main.kind = 3; transition { _ -> put_cell(main) } }
-    machine kind_target(main: &mut Main) { main.kind = 2; transition { _ -> put_cell(main) } }
-    machine kind_range(main: &mut Main) { main.kind = 1; transition { _ -> put_cell(main) } }
-    machine kind_none(main: &mut Main) { main.kind = 0; transition { _ -> put_cell(main) } }
+    machine kind_mid(main: &mut Main) { main.kind = 3; transition { _ -> block put_cell(main) } }
+    machine kind_target(main: &mut Main) { main.kind = 2; transition { _ -> block put_cell(main) } }
+    machine kind_range(main: &mut Main) { main.kind = 1; transition { _ -> block put_cell(main) } }
+    machine kind_none(main: &mut Main) { main.kind = 0; transition { _ -> block put_cell(main) } }
     machine put_cell(main: &mut Main) {
-        transition main.kind >= 0 && main.kind < 4 { true -> glyph_lookup(main) _ -> bad(main) }
+        transition main.kind >= 0 && main.kind < 4 { true -> block glyph_lookup(main) _ -> bad(main) }
     }
     machine glyph_lookup(main: &mut Main) {
         main.glyph = main.chars[main.kind];
-        transition main.x >= 0 && main.x < 31 { true -> emit_cell(main) _ -> bad(main) }
+        transition main.x >= 0 && main.x < 31 { true -> block emit_cell(main) _ -> bad(main) }
     }
     machine emit_cell(main: &mut Main) {
         main.line[main.x] = main.glyph;
         main.x = main.x + 1;
-        transition { _ -> render_loop(main) }
+        transition { _ -> block render_loop(main) }
     }
     machine emit(main: &mut Main) {
         Console::write_line(main.line);
         Clock::sleep(250);
-        transition { _ -> probe(main) }
+        transition { _ -> block probe(main) }
     }
 
     // --- the actual binary search step (reads arr[mid]) ---
     machine probe(main: &mut Main) {
-        transition main.mid >= 0 && main.mid < 31 { true -> probe_read(main) _ -> bad(main) }
+        transition main.mid >= 0 && main.mid < 31 { true -> block probe_read(main) _ -> bad(main) }
     }
     machine probe_read(main: &mut Main) {
         main.vmid = main.arr[main.mid];
-        transition main.vmid == main.target { true -> finish(main) _ -> narrow(main) }
+        transition main.vmid == main.target { true -> block finish(main) _ -> block narrow(main) }
     }
     machine narrow(main: &mut Main) {
-        transition main.vmid < main.target { true -> go_right(main) _ -> go_left(main) }
+        transition main.vmid < main.target { true -> block go_right(main) _ -> block go_left(main) }
     }
     // The clamp on `mid` is the identity (mid is always in [0,30] here) and
     // bounds the +1 / -1 folds, keeping the narrowing steps Exact.
     machine go_right(main: &mut Main) {
         main.lo = min_i32(max_i32(main.mid, 0), 30) + 1;
-        transition { _ -> search(main) }
+        transition { _ -> block search(main) }
     }
     machine go_left(main: &mut Main) {
         main.hi = min_i32(max_i32(main.mid, 0), 30) - 1;
-        transition { _ -> search(main) }
+        transition { _ -> block search(main) }
     }
 
     machine finish(main: &mut Main) {

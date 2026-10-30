@@ -375,12 +375,10 @@ impl<'a> Admission<'a> {
                         .then_some(state)
                 })
                 .ok_or("callee state has no checked flow inventory")?;
-            for (ordinal, statement) in self
-                .program
-                .statement_table
-                .statements(body.statement_nodes)
-                .iter()
-                .enumerate()
+            for (ordinal, statement) in
+                crate::flow::state_statements(self.program, body.statement_nodes)
+                    .iter()
+                    .enumerate()
             {
                 if let Some(assignment) = statement.as_assignment() {
                     let reference = validation::declared_place_type_raw(

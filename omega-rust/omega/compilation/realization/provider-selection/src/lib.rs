@@ -9,10 +9,12 @@
 mod boundary_applications;
 mod boundary_review;
 mod callback_roots;
+mod provider_demands;
 mod provider_instances;
 pub use callback_roots::{
     CallbackProviderDeclarations, SelectedCallbackRow, select_callback_declarations,
 };
+pub use provider_demands::is_candidate_demanded;
 pub use provider_instances::{
     GenericProviderInstanceDeclarations, ProviderInstanceDeclarations,
     ProviderInstanceRowDeclarations, ProviderPlanInstanceDeclarations, project_provider_instances,

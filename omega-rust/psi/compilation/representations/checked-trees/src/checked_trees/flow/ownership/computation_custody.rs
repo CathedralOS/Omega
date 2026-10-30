@@ -368,6 +368,12 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
         })
     }
     fn argument(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
+        self.argument_transfer(argument)
+            + self.argument_evaluation(argument)
+            + self.produced(argument)
+    }
+
+    fn argument_transfer(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
         let whole_owner = argument.access == CheckedStructuralAccess::Owned
             && argument.path.is_empty()
             && argument.type_identity == self.result.type_identity
@@ -383,7 +389,7 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 }
                 _ => false,
             };
-        usize::from(whole_owner) + self.argument_evaluation(argument) + self.produced(argument)
+        usize::from(whole_owner)
     }
 
     /// An anonymous operand the call consumes or lends is completed before
@@ -406,6 +412,14 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
         let (Some(root), None) = (roots.next(), roots.next()) else {
             return 0;
         };
+        if matches!(
+            plans.nodes.get(root.root).kind,
+            CheckedStructuralValueKind::Place(_)
+        ) {
+            // Loading a place is already accounted for by the argument. Its
+            // retained root supplies identity, not a second construction.
+            return 0;
+        }
         self.constructed(
             root.root,
             (self.call_schedules)(root.root).unwrap_or(&[]),
@@ -433,11 +447,11 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 .map(|argument| self.structural(*argument, calls))
                 .sum(),
             CheckedStructuralValueKind::Place(source) => {
-                if consumes_whole {
-                    self.argument(source)
-                } else {
-                    self.argument_evaluation(source)
-                }
+                // A Place is an existing value, not another construction. Its
+                // expression may identify this very root; following production
+                // again turns that identity edge into infinite execution.
+                usize::from(consumes_whole) * self.argument_transfer(source)
+                    + self.argument_evaluation(source)
             }
             crate::record_or_structural_case_pattern!(fields, ..) => plans
                 .record_fields
@@ -891,5 +905,57 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
             | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => 0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn place_identity_does_not_reenter_production_or_double_count_transfer() {
+        let expression = arena::Handle::from_parts(1, 1);
+        let mut argument = CheckedUnitStructuralArgumentPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
+            ..Default::default()
+        };
+        let mut values = CheckedValueFacts::default();
+        let root = values
+            .structural_values
+            .nodes
+            .append(crate::CheckedStructuralValue {
+                expression,
+                kind: CheckedStructuralValueKind::Place(argument.clone()),
+                ..Default::default()
+            });
+        values
+            .structural_values
+            .roots
+            .append(crate::CheckedStructuralValueRoot {
+                expression,
+                root,
+                ..Default::default()
+            });
+        let result = CheckedUnitStructuralResultBindingPlan {
+            statement_index: 0,
+            binding_ordinal: 0,
+            type_identity: Default::default(),
+            multiplicity: language_semantics::Multiplicity::Affine,
+            local: Default::default(),
+        };
+        let transfers = CallTransfers {
+            values: &values,
+            call_schedules: &|_| None,
+            result: &result,
+            local: SymbolHandle::invalid(),
+            expression,
+            established_values: Vec::new(),
+            completed_computations: Vec::new(),
+        };
+        assert_eq!(transfers.argument(&argument), 1);
+        assert_eq!(transfers.constructed(root, &[], true), 1);
+        assert_eq!(transfers.constructed(root, &[], false), 0);
+        argument.access = CheckedStructuralAccess::SharedBorrow;
+        assert_eq!(transfers.argument(&argument), 0);
     }
 }

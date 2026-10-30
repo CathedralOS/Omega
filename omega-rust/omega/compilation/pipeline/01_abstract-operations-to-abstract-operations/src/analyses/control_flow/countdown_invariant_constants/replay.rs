@@ -5,11 +5,10 @@ use super::{
     CountdownInvariantConstantAnalysisSnapshot, CountdownInvariantConstantRole,
     CountdownInvariantIntegerConstant, OptimizerUnsignedCountdownRankingCertificate,
     PsiOptimizationFunction, PsiOptimizationUnit, UnsignedCountdownInvariantConstants,
-    ValidatedCountedLoopAnalysis, ValidatedOptimizerCycleComponents, expected_constant,
+    ValidatedCountedLoopAnalysis, ValidatedOptimizerCycleComponents, by_key, expected_constant,
     invariant_constant_row, sole_provenance_node, unsupported, validate_analysis_root,
     validate_locations,
 };
-use std::collections::BTreeMap;
 
 pub(super) fn reconstruct(
     unit: &PsiOptimizationUnit,
@@ -17,21 +16,11 @@ pub(super) fn reconstruct(
     counted: &ValidatedCountedLoopAnalysis,
 ) -> Result<CountdownInvariantConstantAnalysisSnapshot, CountdownInvariantConstantAnalysisError> {
     validate_roots(unit, custody, counted)?;
-    let functions = unit
-        .functions
-        .iter()
-        .map(|function| (function.machine, function))
-        .collect::<BTreeMap<_, _>>();
-    let components = custody
-        .components()
-        .iter()
-        .map(|component| (component.id.clone(), component))
-        .collect::<BTreeMap<_, _>>();
-    let counted_loops = counted
-        .loops()
-        .iter()
-        .map(|summary| (summary.certificate.component.clone(), summary))
-        .collect::<BTreeMap<_, _>>();
+    let functions = by_key(&unit.functions, |function| function.machine);
+    let components = by_key(custody.components(), |component| component.id.clone());
+    let counted_loops = by_key(counted.loops(), |summary| {
+        summary.certificate.component.clone()
+    });
     if functions.len() != unit.functions.len()
         || components.len() != custody.components().len()
         || counted_loops.len() != counted.loops().len()

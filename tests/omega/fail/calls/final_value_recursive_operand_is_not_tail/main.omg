@@ -1,0 +1,11 @@
+// A completing expression does not make calls in its operands tail calls.
+machine walk(remaining: u64) -> u64 {
+    transition remaining > 0 {
+        true -> step(remaining)
+        false -> (0)
+    }
+    machine step(remaining: u64) -> u64 requires remaining > 0 {
+        ((walk(remaining - 1) as u64 in Wrapping) + (1 as u64 in Wrapping)) as u64
+    }
+}
+machine main() { let value: u64 = walk(3); }

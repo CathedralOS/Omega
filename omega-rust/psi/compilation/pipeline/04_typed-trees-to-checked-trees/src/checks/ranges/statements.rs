@@ -193,9 +193,7 @@ pub(super) fn bound_reference_referent_extent(
     }
     // The binding's own alias is recorded once the NEXT statement begins, so
     // the prefix observed there is the one carrying the new referent.
-    let before = program
-        .statement_table
-        .statements(state.statement_nodes)
+    let before = crate::flow::state_statements(program, state.statement_nodes)
         .get(facts.statement_index + 1)?;
     let origins = call_frames?
         .local_write_origins_before_statement(machine, before)?

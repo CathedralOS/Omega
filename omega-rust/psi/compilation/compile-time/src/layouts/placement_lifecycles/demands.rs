@@ -1,6 +1,7 @@
 //! Source-owned policy demand across ordinary specialization. An interned
 //! callable tuple describes a signature, not an invocation or its requester.
 
+use crate::unique::{extend_unique, push_unique};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -84,11 +85,7 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Demand>, Vec<Diagn
                         .with_source_span(call.source),
                 ]);
             }
-            for source in result {
-                if !demand.sources.contains(&source) {
-                    demand.sources.push(source);
-                }
-            }
+            extend_unique(&mut demand.sources, result);
         } else {
             demands.push(Demand {
                 callable: arguments.callable,
@@ -294,9 +291,7 @@ fn policy_sources(
         if source.span.start >= source.span.end {
             return Err("policy operand has no authored invocation source");
         }
-        if !sources.contains(&source) {
-            sources.push(source);
-        }
+        push_unique(sources, source);
         return Ok(());
     }
     if visiting.contains(&origin) {
@@ -403,6 +398,25 @@ mod tests {
         }
     }
 
+    /// The supplying sources one policy operand resolves to against these calls.
+    fn sources_for(
+        program: &TypedTrees,
+        calls: &[Invocation],
+        policy: TypeReferenceHandle,
+    ) -> Vec<source::SourceSpan> {
+        let mut sources = Vec::new();
+        policy_sources(
+            program,
+            calls,
+            policy,
+            location(0),
+            &mut Vec::new(),
+            &mut sources,
+        )
+        .unwrap();
+        sources
+    }
+
     #[test]
     fn shared_body_retains_every_supplying_requester() {
         let mut program = TypedTrees::default();
@@ -420,17 +434,10 @@ mod tests {
             invocation(&mut program, instance, parameter, closed, location(1)),
             invocation(&mut program, instance, parameter, closed, location(2)),
         ];
-        let mut sources = Vec::new();
-        policy_sources(
-            &program,
-            &calls,
-            policy,
-            location(0),
-            &mut Vec::new(),
-            &mut sources,
-        )
-        .unwrap();
-        assert_eq!(sources, vec![location(1), location(2)]);
+        assert_eq!(
+            sources_for(&program, &calls, policy),
+            vec![location(1), location(2)]
+        );
     }
 
     #[test]
@@ -443,17 +450,7 @@ mod tests {
             invocation(&mut program, instance, parameter, policy, location(1)),
             invocation(&mut program, instance, parameter, policy, location(2)),
         ];
-        let mut sources = Vec::new();
-        policy_sources(
-            &program,
-            &calls,
-            policy,
-            location(0),
-            &mut Vec::new(),
-            &mut sources,
-        )
-        .unwrap();
-        assert_eq!(sources, vec![location(0)]);
+        assert_eq!(sources_for(&program, &calls, policy), vec![location(0)]);
     }
 
     #[test]
@@ -483,17 +480,10 @@ mod tests {
             invocation(&mut program, inner, inner_parameter, forwarded, location(2)),
             invocation(&mut program, inner, inner_parameter, closed, location(3)),
         ];
-        let mut sources = Vec::new();
-        policy_sources(
-            &program,
-            &calls,
-            policy,
-            location(0),
-            &mut Vec::new(),
-            &mut sources,
-        )
-        .unwrap();
-        assert_eq!(sources, vec![location(1), location(3)]);
+        assert_eq!(
+            sources_for(&program, &calls, policy),
+            vec![location(1), location(3)]
+        );
     }
 
     #[test]

@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use crate::analyses::block_dominates;
 use crate::rules::control_flow_cleanup::{
-    node_realized_provenance, provenance_realized_at, record_node_provenance,
+    node_realized_provenance, provenance_realized_at, record_block_provenance,
 };
 use optimization_unit::{
     NodeLocation, PhiTranslatedScalarIncoming, ProvenanceRewrite, PsiOptimizationFunction,
@@ -68,12 +68,7 @@ pub(super) fn phi_translated_cse_accounting(
     }
     for later in function.blocks.iter().skip(block_position + 1) {
         affected.insert(later.id);
-        record_node_provenance(
-            function.machine,
-            later,
-            later.nodes.iter().enumerate(),
-            &mut provenance,
-        )?;
+        record_block_provenance(function.machine, later, &mut provenance)?;
     }
     provenance.sort_by_key(ProvenanceRewrite::canonical_sort_key);
     Some((affected.into_iter().collect(), provenance))

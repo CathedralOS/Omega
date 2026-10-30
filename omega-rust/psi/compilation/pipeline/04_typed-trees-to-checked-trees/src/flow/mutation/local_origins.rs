@@ -771,9 +771,7 @@ pub(crate) fn place_from_origin_path(
         .iter()
         .find_map(|parameter| (parameter.name.as_str() == root_name).then_some(parameter.symbol))
         .or_else(|| {
-            program
-                .statement_table
-                .statements(state.statement_nodes)
+            crate::flow::state_statements(program, state.statement_nodes)
                 .iter()
                 .take(statement_index)
                 .find_map(|statement| {

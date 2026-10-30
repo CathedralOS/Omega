@@ -6,6 +6,7 @@
 //! value, preservation, range, availability or loan: the consuming capture or
 //! live-subject owner must independently establish those facts.
 
+use crate::value_custody::type_references::substituted_identity;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -55,13 +56,11 @@ pub(super) fn primitive_delivery_matches(
             return false;
         }
         use typed_trees::type_identity::TypeIdentityRequest;
-        return program.type_identity(TypeIdentityRequest {
-            substitutions: &substitutions,
-            ..TypeIdentityRequest::ordinary(observed)
-        }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-            substitutions: required_substitutions,
-            ..TypeIdentityRequest::ordinary(required)
-        });
+        return substituted_identity(program, observed, &substitutions)
+            == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                substitutions: required_substitutions,
+                ..TypeIdentityRequest::ordinary(required)
+            });
     }
     false
 }

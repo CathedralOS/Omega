@@ -7,7 +7,6 @@
 //! envelope compatible with that hold. Unknown writes and interior descriptor
 //! crossings refuse; observation footprints never become physical addresses.
 
-use arena::Handle;
 use checked_trees::{BorrowAccessKind, CapturedPlace, CheckFacts, FlowCallFact, FlowStateFact};
 use facts::PlaceRoot;
 use validation::CanonicalPlace;
@@ -306,10 +305,9 @@ fn write_permission_envelope(
         return Err("the write crosses an unavailable or mutable descriptor boundary");
     }
     let place = CapturedPlace {
-        incoming_reference: Handle::invalid(),
-        incoming_owner_path: Default::default(),
         root: root.root,
         segments: Vec::new(),
+        ..Default::default()
     };
     if reference.is_none() {
         return Ok(vec![super::aliases::ResolvedAlias {

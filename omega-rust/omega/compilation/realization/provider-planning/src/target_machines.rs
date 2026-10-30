@@ -6,7 +6,6 @@
 //! provider settlement behind Terminal Psi is separate work.
 
 use crate::SettledProviderDefaults;
-use checked_trees::typed_trees::TypedTrees;
 use target::TargetProfile;
 
 mod authored_providers;
@@ -32,17 +31,6 @@ pub fn settle_provider_defaults(
         .flat_map(|row| row.selections.iter().cloned())
         .collect();
     SettledProviderDefaults { provider_defaults }
-}
-
-/// A call names the callee's entry state, a named transition one of its own
-/// states, and a few call forms the machine itself.
-fn called_machine(
-    typed: &TypedTrees,
-    called_symbol: symbols::SymbolHandle,
-) -> Option<&checked_trees::typed_trees::machine::Machine> {
-    typed
-        .machine_by_symbol(called_symbol)
-        .or_else(|| typed.machine_holding_state(called_symbol))
 }
 
 /// Resolve exactly the authored ordinary declaration in this planning scope.

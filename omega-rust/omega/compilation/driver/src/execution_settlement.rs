@@ -356,6 +356,7 @@ fn select_checked_providers(
         Arc::clone(&source.program),
         source.accepted_template_classifications.clone(),
         ProviderBindingRequest {
+            provider_inventory: &source.provider_inventory,
             external_declarations: source.external_declarations.as_ref(),
             exact_toolchain_sources: source.sources.exact_toolchain_sources(),
             package_inputs,
@@ -453,6 +454,7 @@ fn prepare_target_provider_selection(
     let application_roots = product_application_roots(source, profile)?;
     provider_planning::settle_checked_providers(
         &source.program,
+        &source.provider_inventory,
         settled_provider_defaults,
         selected_target_profile,
         package_inputs,

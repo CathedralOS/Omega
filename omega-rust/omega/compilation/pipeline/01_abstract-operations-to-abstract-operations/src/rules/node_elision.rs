@@ -16,7 +16,7 @@ use semantic_vocabulary::{BlockId, OperationId, ScalarType, ValueId};
 
 use super::accepted_obligations::accepted_obligation_fact;
 use crate::rules::control_flow_cleanup::{
-    node_realized_provenance, provenance_realized_at, record_node_provenance,
+    node_realized_provenance, provenance_realized_at, record_block_provenance,
 };
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
@@ -180,12 +180,7 @@ pub(super) fn node_elision_accounting(
     let mut affected = vec![block.id];
     for later in function.blocks.iter().skip(block_position + 1) {
         affected.push(later.id);
-        record_node_provenance(
-            function.machine,
-            later,
-            later.nodes.iter().enumerate(),
-            &mut provenance,
-        )?;
+        record_block_provenance(function.machine, later, &mut provenance)?;
     }
     for use_block in &function.blocks {
         if affected.contains(&use_block.id)
@@ -194,12 +189,7 @@ pub(super) fn node_elision_accounting(
             continue;
         }
         affected.push(use_block.id);
-        record_node_provenance(
-            function.machine,
-            use_block,
-            use_block.nodes.iter().enumerate(),
-            &mut provenance,
-        )?;
+        record_block_provenance(function.machine, use_block, &mut provenance)?;
     }
     affected.sort();
     provenance.sort_by_key(ProvenanceRewrite::canonical_sort_key);

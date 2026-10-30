@@ -5,6 +5,7 @@
 use super::StateGraphEmission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::lowering_error::{LoweringError, unsupported};
+use crate::terminal_identities::stored_structural_identity;
 use crate::unit::attached_unit::argument_evaluation::Evaluation;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 use terminal_psi::{StructuralParameterDeclaration, ValueDeclaration};
@@ -125,12 +126,7 @@ impl StateGraphEmission<'_, '_> {
             }
             let structural_type = crate::terminal_identities::lookup_type_id(
                 &self.catalogs.type_ids,
-                &validation::stored_structural_type_identity(
-                    &checked.typed,
-                    root.type_reference,
-                    &[],
-                    &[],
-                ),
+                &stored_structural_identity(checked, root.type_reference),
             )?;
             StateFrame::new(checked, owner, state, &self.state_erased[position]).evaluate(
                 self.catalogs,

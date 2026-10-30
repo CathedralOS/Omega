@@ -1,5 +1,6 @@
 //! The affine array construction prefix.
 
+use crate::execution::permission_events;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, parameter_qualifications, type_graph_requires_nominal_drop,
 };
@@ -142,11 +143,7 @@ pub(crate) fn build_affine_array_construction_prefix(
         state_symbol: state.symbol,
         source: PermissionEventSource::Statement { statement_index: 0 },
     };
-    let exit_events = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
+    let exit_events = permission_events(facts)
         .filter(|(_, event)| {
             event.machine_symbol == machine.symbol
                 && event.state_symbol == state.symbol

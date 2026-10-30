@@ -6,6 +6,7 @@
 //! give detached expressions ordinary checking context; they remain in a private
 //! clone and never add a runtime declaration or a portable representation.
 
+use crate::unique::push_unique;
 use std::sync::Arc;
 
 use diagnostics::Diagnostic;
@@ -440,11 +441,7 @@ pub(crate) fn validate(
 fn contains_floating_component(program: &TypedTrees, root: TypeReferenceHandle) -> bool {
     let mut pending = vec![root];
     let mut visited = Vec::new();
-    while let Some(reference) = pending.pop() {
-        if visited.contains(&reference) {
-            continue;
-        }
-        visited.push(reference);
+    while let Some(reference) = crate::worklist::unvisited(&mut pending, &mut visited) {
         if float_destination(program, reference).is_some() {
             return true;
         }
@@ -657,11 +654,7 @@ fn validate_float_value(
     let mut visited = Vec::new();
     let mut pending = vec![original];
     pending.extend(dependency_roots);
-    while let Some(expression) = pending.pop() {
-        if visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
+    while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
         if let Some(binary) = probe.expression_table.binary_node(expression) {
             if !validation::has_builtin_binary_expression_meaning(
                 probe,
@@ -672,9 +665,7 @@ fn validate_float_value(
                 return Err("floating constant replay lost selected builtin meaning".into());
             }
             let reference = probe.expression_table.source_span(expression);
-            if !operators.contains(&reference) {
-                operators.push(reference);
-            }
+            push_unique(&mut operators, reference);
             pending.push(binary.right);
             pending.push(binary.left);
         } else if let ExpressionNode::Match(dispatch) =
@@ -883,9 +874,7 @@ fn validate_dependency_values(
                     );
                 }
             }
-            if !authored_roots.contains(&declaration.authored_initializer) {
-                authored_roots.push(declaration.authored_initializer);
-            }
+            push_unique(&mut authored_roots, declaration.authored_initializer);
             continue;
         }
         let expected = CanonicalConstIdentity {

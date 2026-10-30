@@ -115,17 +115,7 @@ pub(crate) fn requires_custody(
         ExpressionNode::Unary(unary) => child(unary.operand),
         ExpressionNode::Match(dispatch) => {
             child(dispatch.subject)
-                || program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .any(|arm| {
-                        program
-                            .expression_table
-                            .match_pattern_operands(arm.pattern)
-                            .any(child)
-                            || child(arm.value)
-                    })
+                || crate::flow::match_arm_satisfies(program, dispatch.arms, child)
         }
         ExpressionNode::Call(call) => {
             child(call.receiver)

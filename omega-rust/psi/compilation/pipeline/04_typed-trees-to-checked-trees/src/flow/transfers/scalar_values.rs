@@ -115,12 +115,7 @@ pub(super) fn capture_statement(
                     crate::values::scalar_value_at_place(
                         program,
                         semantic,
-                        context
-                            .contexts
-                            .semantic_context_refs
-                            .span_or_empty(active)
-                            .iter()
-                            .map(|reference| semantic.contexts.get(reference.context)),
+                        context.semantic_context_views(semantic, active),
                         place,
                     )
                 },
@@ -176,12 +171,7 @@ fn completed_statement_scalar(
     let value = crate::values::scalar_value_at_place(
         program,
         semantic,
-        context
-            .contexts
-            .semantic_context_refs
-            .span_or_empty(active)
-            .iter()
-            .map(|reference| semantic.contexts.get(reference.context)),
+        context.semantic_context_views(semantic, active),
         &place,
     )?;
     match &value {
@@ -251,12 +241,7 @@ pub(super) fn capture_bounds(
         && let Some(bounds) = crate::values::integer_bounds_at_place(
             program,
             semantic,
-            context
-                .contexts
-                .semantic_context_refs
-                .span_or_empty(active)
-                .iter()
-                .map(|reference| semantic.contexts.get(reference.context)),
+            context.semantic_context_views(semantic, active),
             &place,
         )
     {
@@ -288,12 +273,7 @@ pub(super) fn capture_bounds(
             selected.convert(crate::values::integer_bounds_at_place(
                 program,
                 semantic,
-                context
-                    .contexts
-                    .semantic_context_refs
-                    .span_or_empty(active)
-                    .iter()
-                    .map(|reference| semantic.contexts.get(reference.context)),
+                context.semantic_context_views(semantic, active),
                 &place,
             )?)
         });
@@ -304,7 +284,7 @@ pub(super) fn capture_bounds(
         selected_statement(program, context, state, statement_index, statement)
         && builtin
     {
-        let contexts = crate::flow::active_context_handles(context, active);
+        let contexts = crate::flow::active_context_handles(&context.contexts, active);
         let (machine_index, state_index) = located?;
         return validation::selected_scalar_interval(
             expression,

@@ -65,35 +65,18 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub(crate) use rewrite::remove_selected_redundant_extension;
 pub(crate) use validation::measured_steps;
 
-/// An accepted redundant-extension removal with its replay receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedRedundantExtension {
-    transformed: Arc<SelectedInstructionPlan>,
-    receipt: RedundantExtensionReceipt,
-}
+validated_transformed_receipt!(
+    /// An accepted redundant-extension removal with its replay receipt.
+    ValidatedRedundantExtension,
+    RedundantExtensionReceipt
+);
 
-validated_transformed_receipt!(ValidatedRedundantExtension, RedundantExtensionReceipt);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RedundantExtensionReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-    function_index: usize,
-    extension: SelectedInstructionId,
-}
-
-impl RedundantExtensionReceipt {
-    receipt_accessor_rows!(ref RedundantExtensionReceipt {
+rewrite_receipt!(RedundantExtensionReceipt {
     /// The function the redundant extension was rewritten in.
-        function_index: usize,
+    function_index: usize,
     /// The rewritten extension instruction's source-side identity.
-        extension: SelectedInstructionId,
-    });
-}
-
-receipt_selected_identities!(RedundantExtensionReceipt);
+    extension: SelectedInstructionId,
+});
 
 // Canonical identity of one validated redundant-extension removal: every
 // receipt field — the coordinate, both plan identities, and the proof

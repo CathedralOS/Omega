@@ -1496,6 +1496,94 @@ fn provider_instance_consumers_share_one_immutable_declaration_owner() {
 }
 
 #[test]
+fn provider_demand_is_prepared_by_psi_not_each_target_settlement() {
+    let inventory = include_str!(
+        "../../../../psi/compilation/representations/checked-trees/src/provider_inventory.rs"
+    );
+    for source in [
+        "for_each_declaration_references(",
+        ".boundary_applications",
+        ".symbolic_boundary_applications",
+        ".provider_closed_requirements",
+    ] {
+        assert!(
+            inventory.contains(source),
+            "lost provider demand source {source}"
+        );
+    }
+    assert!(inventory.contains("uses: OnceLock<HashSet<SymbolHandle>>"));
+    assert!(inventory.contains("self.require_owner(checked)?"));
+    assert!(inventory.contains("std::ptr::eq(self.checked.as_ref(), checked)"));
+    let settlement = include_str!("../../realization/provider-planning/src/provider_settlement.rs");
+    assert!(settlement.contains("provider_selection::is_candidate_demanded("));
+    assert!(!settlement.contains("collect_program_references("));
+    assert!(!settlement.contains("provider_closed_requirements"));
+    assert!(
+        settlement
+            .split_whitespace()
+            .collect::<String>()
+            .contains("provider_inventory.requirements_for_declarations(")
+    );
+    assert!(!settlement.contains("collect_selected_program_references("));
+    let demand = include_str!("../../realization/provider-selection/src/provider_demands.rs");
+    for forbidden in ["TypedTrees", "checked_trees", "CheckFacts", "SymbolHandle"] {
+        assert!(!demand.contains(forbidden));
+    }
+    assert!(demand.contains("choice.subject.selects_plan(schema, plan)"));
+    let publication = include_str!(
+        "../../realization/provider-planning/src/target_machines/provider_publication.rs"
+    );
+    assert!(publication.contains("choice.subject.selects_plan(&Ok(schema), &candidate.plan)"));
+    assert!(!publication.contains("is_candidate_demanded"));
+}
+
+#[test]
+fn build_target_defaults_preserve_the_shared_checked_owner() {
+    let selection = include_str!("../../realization/provider-planning/src/target_machines.rs");
+    assert!(selection.contains("retained: &[crate::TargetProviderDefaults]"));
+    assert!(!selection.contains("SelectedTargetMachineOrigin"));
+    assert!(!selection.contains("target_machine_families"));
+    let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(binding.contains("Arc::ptr_eq(settlement.provider_inventory.program(), &program)"));
+    let production = include_str!("terminal/terminal_artifact.rs");
+    assert!(production.contains("body_declarations: source.provider_inventory.direct_calls()"));
+    assert!(!production.contains("origins: source.provider_inventory.origins()"));
+}
+
+#[test]
+fn declaration_scope_policy_consumes_psi_direct_call_declarations() {
+    let projection =
+        include_str!("../../../../psi/compilation/representations/typed-trees/src/direct_calls.rs");
+    assert!(projection.contains("ExplicitStateCallees"));
+    assert!(projection.contains("symbol_is_in_dependency_scope"));
+    assert!(!projection.contains("TargetProfile"));
+    for retired in [
+        "family_interface",
+        "authored_target",
+        "source_target_context",
+        "target_machine_families",
+    ] {
+        assert!(
+            !projection.contains(retired),
+            "retained source family policy {retired}"
+        );
+    }
+    let absence = include_str!(
+        "../../realization/provider-planning/src/target_machines/direct_declaration_absences.rs"
+    );
+    assert!(!absence.contains("TypedTrees"));
+    assert!(!absence.contains("ExplicitStateCallees"));
+    assert!(absence.contains("DirectCallDeclarations"));
+    let inventory = include_str!(
+        "../../../../psi/compilation/representations/checked-trees/src/provider_inventory.rs"
+    );
+    assert!(inventory.contains("direct_calls: OnceLock<"));
+    assert!(inventory.contains("self.require_owner(checked)?"));
+    let build = include_str!("../../build-evaluation/src/admission/checking.rs");
+    assert!(build.contains("typed_trees::direct_calls::collect(context.typed, context.scope)"));
+}
+
+#[test]
 fn selected_callback_custody_carries_declarations_not_source_symbols() {
     let selection = include_str!("../../realization/selected-dispatch/src/selected_execution.rs");
     assert!(

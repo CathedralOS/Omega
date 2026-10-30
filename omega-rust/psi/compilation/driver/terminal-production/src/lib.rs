@@ -17,6 +17,7 @@ mod build_requests;
 mod composition_admission;
 mod custody;
 mod observation;
+pub use checked_trees::PreparedProviderInventory;
 mod terminal_production;
 
 pub use build_bindings::{

@@ -28,6 +28,7 @@ pub mod byte_predicates;
 pub mod const_value;
 pub mod content;
 pub mod declaration_selection;
+pub mod direct_calls;
 mod external_bindings;
 mod machine_termination;
 pub mod numeric_intrinsics;

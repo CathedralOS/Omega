@@ -422,11 +422,10 @@ struct DirectReads<'walk, 'program> {
 impl DirectReads<'_, '_> {
     fn collect(&mut self) {
         let program = self.program;
-        for (statement_index, statement) in program
-            .statement_table
-            .statements(self.owner.state.statement_nodes)
-            .iter()
-            .enumerate()
+        for (statement_index, statement) in
+            crate::flow::state_statements(program, self.owner.state.statement_nodes)
+                .iter()
+                .enumerate()
         {
             self.statement_index = statement_index;
             if let Some(call) = statement.as_call()

@@ -10,6 +10,7 @@ use semantic_vocabulary::MachineId;
 use target::{Architecture, NativeTarget};
 use target_operations::TerminalPsiProvenance;
 
+use super::super::instruction_bytes;
 use super::super::instruction_loads::{aarch64_terminal_register, x86_terminal_register};
 use crate::ObjectError;
 
@@ -274,10 +275,7 @@ pub(crate) fn validate_structural_return_record(
                 }
             }
             instructions.push(0xd65f_03c0);
-            instructions
-                .into_iter()
-                .flat_map(u32::to_le_bytes)
-                .collect()
+            instruction_bytes(instructions)
         }
     };
     if bytes != expected.as_slice() {

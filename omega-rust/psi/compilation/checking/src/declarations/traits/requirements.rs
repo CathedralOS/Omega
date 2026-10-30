@@ -1,5 +1,6 @@
 use super::trait_definition_by_symbol;
 use crate::declarations::symbols::TopLevelSymbols;
+use crate::value_custody::type_references::TypeParameterScope;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::operator::trait_operator_operand_signature;
@@ -76,12 +77,11 @@ pub(crate) fn validate_trait_requirements(
                         trait_definition.name, requirement.name
                     ),
                     symbols,
-                    crate::value_custody::type_references::TypeParameterScope {
-                        operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-                        lexical_owner: trait_definition.symbol,
-                        type_parameters: program.trait_type_parameters(trait_definition),
-                        lifetime_parameters: &trait_definition.lifetime_parameters,
-                    },
+                    TypeParameterScope::authored(
+                        trait_definition.symbol,
+                        program.trait_type_parameters(trait_definition),
+                        &trait_definition.lifetime_parameters,
+                    ),
                     diagnostics,
                     formation_obligations,
                 );

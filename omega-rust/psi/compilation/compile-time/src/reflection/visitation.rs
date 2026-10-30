@@ -342,7 +342,7 @@ pub fn replay_runtime_visitation_plan(
 /// diagnostic coordinate, never identity (matching the graph and snapshot
 /// fingerprints).
 fn plan_revision(plan: &RuntimeVisitationPlan) -> u64 {
-    use crate::fnv::{byte, bytes, optional_text, query_authority, text, uint};
+    use crate::fnv::{byte, bytes, optional_text, optional_uint, query_authority, text, uint};
 
     let mut hash = crate::fnv::OFFSET_BASIS;
     bytes(&mut hash, b"omega.reflect.visitation.v1");
@@ -365,13 +365,7 @@ fn plan_revision(plan: &RuntimeVisitationPlan) -> u64 {
             },
         );
         uint(&mut hash, u64::from(field.declaration_position));
-        match field.stable_number {
-            Some(number) => {
-                byte(&mut hash, 1);
-                uint(&mut hash, number);
-            }
-            None => byte(&mut hash, 0),
-        }
+        optional_uint(&mut hash, field.stable_number);
         optional_text(&mut hash, &field.qualified_type);
         optional_text(&mut hash, &field.owner_case_identity);
         optional_text(&mut hash, &field.carrier_identity);

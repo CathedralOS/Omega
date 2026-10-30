@@ -279,10 +279,7 @@ pub(super) fn append_statement_calls<'plans>(
         StatementNode::Expression(expression) => {
             if state.return_type.is_valid()
                 && statement_index + 1
-                    == program
-                        .statement_table
-                        .statements(state.statement_nodes)
-                        .len()
+                    == crate::flow::state_statements(program, state.statement_nodes).len()
             {
                 let evaluated = execution.evaluated_operand_as(
                     *expression,
@@ -911,6 +908,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             };
             let owner = self.context.control.operands.append(capture);
             capture.reference_leaves = self.capture_owned_reference_leaves(owner, &owned_places);
+            // Attaching conditional descriptor inventory does not produce new
+            // owned bytes. Retain the exact completion used by its formations,
+            // so later saved copies can identify that carrier by handle.
+            capture.value_source = owner;
         }
         self.retain_observation_result(expression, capture);
         EvaluatedOperand {
@@ -1781,6 +1782,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     constraints,
                 );
                 *invocation = completed.call;
+                self.complete_call_reference_formations(
+                    completed.call,
+                    referents,
+                    reference_leaves,
+                );
                 // Share the invocation's exact captured operands. Cloning
                 // them would manufacture second evaluation occurrences and
                 // make retained-loan correspondence ambiguous.

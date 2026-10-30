@@ -1,5 +1,6 @@
 //! Resolve and normalize temporary syntax with the originating loader's custody.
 
+use crate::unique::push_unique;
 use std::sync::Arc;
 
 mod evaluation;
@@ -168,9 +169,7 @@ pub(crate) fn extend_normalization_owners(
                 .with_source_span(*owner),
             ]);
         };
-        if !declarations.contains(item) {
-            declarations.push(*item);
-        }
+        push_unique(declarations, *item);
     }
     Ok(())
 }

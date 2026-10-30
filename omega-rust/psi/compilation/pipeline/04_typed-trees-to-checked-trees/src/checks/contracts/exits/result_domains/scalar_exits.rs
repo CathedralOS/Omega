@@ -4,7 +4,7 @@ use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
 
 use super::super::super::return_values::{exit_return_call, exit_return_expression};
 use super::proofs::*;
-use crate::flow::canonical_place_from_semantic_place;
+use crate::flow::{active_context_handles, canonical_place_from_semantic_place};
 use checked_trees::{CheckFacts, FlowExitFact};
 use diagnostics::Diagnostic;
 use facts::FactContextHandle;
@@ -74,14 +74,7 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
         return;
     }
     let returned = exit_return_expression(program, exit);
-    let contexts = facts
-        .flow
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(exit.entry_semantic_contexts)
-        .iter()
-        .map(|reference| reference.context)
-        .collect::<Vec<_>>();
+    let contexts = active_context_handles(&facts.flow.contexts, exit.entry_semantic_contexts);
     let subject = returned
         .is_valid()
         .then(|| {

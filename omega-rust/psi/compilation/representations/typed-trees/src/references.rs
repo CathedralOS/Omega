@@ -672,6 +672,79 @@ pub fn collect_selected_program_references(
     collect_program_references_with_roles(program, selection, None)
 }
 
+/// Visit each declaration's complete reference inventory once, including
+/// shared arena nodes under every owning declaration. The consumer may retain
+/// a compact projection without storing the full traversal scratch.
+pub fn for_each_declaration_references(
+    program: &TypedTrees,
+    mut consume: impl FnMut(SymbolHandle, ProgramReferences),
+) {
+    struct Declarations<'consumer, Consumer> {
+        consume: &'consumer mut Consumer,
+        owner: SymbolHandle,
+        current: ReferenceCollector,
+    }
+    impl<Consumer: FnMut(SymbolHandle, ProgramReferences)> Declarations<'_, Consumer> {
+        fn finish(&mut self) {
+            let current = std::mem::take(&mut self.current);
+            if self.owner.is_valid() {
+                (self.consume)(self.owner, finish_references(current));
+            }
+        }
+    }
+    impl<Consumer> Extend<SymbolHandle> for Declarations<'_, Consumer> {
+        fn extend<Symbols: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: Symbols) {
+            self.current.extend(symbols);
+        }
+    }
+    impl<Consumer: FnMut(SymbolHandle, ProgramReferences)> TypedReferences
+        for Declarations<'_, Consumer>
+    {
+        fn declaration(&mut self, owner: SymbolHandle) -> bool {
+            self.finish();
+            self.owner = owner;
+            self.current.declaration(owner)
+        }
+        fn callable_use(&mut self, symbol: SymbolHandle) {
+            self.current.callable_use(symbol);
+        }
+        fn statement_handle(&mut self, handle: StatementHandle) {
+            self.current.statement_handle(handle);
+        }
+        fn authored_selection(
+            &mut self,
+            occurrence: crate::AuthoredDeclarationSelectionOccurrenceId,
+        ) {
+            self.current.authored_selection(occurrence);
+        }
+        fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
+            self.current.declaration_description_dependency(symbol);
+        }
+        fn expression(&mut self, handle: ExpressionHandle) -> bool {
+            self.current.expression(handle)
+        }
+        fn type_reference(&mut self, handle: TypeReferenceHandle) -> bool {
+            self.current.type_reference(handle)
+        }
+        fn proof_fact(&mut self, handle: arena::Handle<ProofFact>) -> bool {
+            self.current.proof_fact(handle)
+        }
+        fn mathematical_type(
+            &mut self,
+            handle: crate::mathematical::MathematicalTypeHandle,
+        ) -> bool {
+            self.current.mathematical_type(handle)
+        }
+    }
+    let mut declarations = Declarations {
+        consume: &mut consume,
+        owner: SymbolHandle::invalid(),
+        current: ReferenceCollector::default(),
+    };
+    visit_program(program, &mut declarations);
+    declarations.finish();
+}
+
 /// Per-declaration symbol dependencies from the same traversal used by product
 /// retention. Each root gets its own visited-node set: a shared type node still
 /// contributes its dependencies to every declaration that owns a reference.

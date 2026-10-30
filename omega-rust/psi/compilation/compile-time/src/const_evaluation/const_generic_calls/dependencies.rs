@@ -6,6 +6,7 @@
 //! This schedules work only. Every ready expression still owes normal checked
 //! invocation admission, and an admission error is never a retry signal.
 
+use crate::unique::push_unique;
 use diagnostics::Diagnostic;
 use syntax_trees::{SyntaxTrees, expression::ExpressionHandle, types::TypeReferenceHandle};
 
@@ -48,9 +49,7 @@ pub(super) fn ready_layer(
                             .with_source_span(reference),
                     ]
                 })?;
-            if !required.contains(&dependency) {
-                required.push(dependency);
-            }
+            push_unique(&mut required, dependency);
         }
         dependencies.push(required);
     }

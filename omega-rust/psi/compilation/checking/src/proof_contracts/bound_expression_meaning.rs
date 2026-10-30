@@ -646,8 +646,14 @@ pub fn has_exact_declaration_case_membership_meaning(
 ) -> bool {
     exact_case_membership_meaning(program, expression, comparison, |subject, owner| {
         membership_subject_matches_owner(program, subject, owner, |subject| {
-            crate::value_custody::places::parameter_scoped_type_reference(
-                program, parameters, subject,
+            // Declaration formation precedes final selection stamps. Reuse
+            // its exact telescope and selected operation instead of requiring
+            // an already-published builtin storage coordinate.
+            crate::parameter_expression_result_type_reference(
+                program,
+                declaration_owner,
+                parameters,
+                subject,
             )
             .or_else(|| {
                 crate::reserved_result_place(program, subject)

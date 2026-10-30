@@ -63,11 +63,10 @@ pub(super) fn edges_to_state<'program>(
 ) -> Vec<GuardedEdge<'program>> {
     let mut edges = Vec::new();
     let mut previous = Vec::new();
-    for (statement_ordinal, statement) in program
-        .statement_table
-        .statements(source.statement_nodes)
-        .iter()
-        .enumerate()
+    for (statement_ordinal, statement) in
+        crate::flow::state_statements(program, source.statement_nodes)
+            .iter()
+            .enumerate()
     {
         let Some(transition) = statement.as_transition() else {
             previous.clear();

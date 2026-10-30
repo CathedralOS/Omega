@@ -1223,9 +1223,7 @@ fn parameter_bound_identically(
     if !place.segments.is_empty() || place.root != facts::PlaceRoot::Symbol(source) {
         return false;
     }
-    !program
-        .statement_table
-        .statements(state.statement_nodes)
+    !crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .any(|statement| {
             matches!(statement, StatementNode::LocalData(local) if local.name == source_parameter.name)

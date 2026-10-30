@@ -112,7 +112,7 @@ pub(crate) fn lower_unit_scalar_argument_for_places(
     let symbols = unit_scalar_binding_symbols(program, state, before_statement)?;
     crate::facts::boolean_predicates::map_scalar(&mut value, &mut |operand| {
         let primitive = operand.primitive_type()?;
-        let place = match operand {
+        let place = match operand.scalar()? {
             CheckedScalarExpression::Parameter { position, .. }
             | CheckedScalarExpression::Local { position, .. } => {
                 crate::flow::canonical_place_from_symbol(*symbols.get(*position)?)?
@@ -142,7 +142,7 @@ pub(crate) fn lower_unit_scalar_argument_for_places(
         if bound.primitive_type()? != primitive {
             return None;
         }
-        *operand = bound;
+        *operand = bound.into();
         Some(())
     })?;
     Some(value)

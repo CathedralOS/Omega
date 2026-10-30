@@ -4,7 +4,7 @@
 //! formulas only, clearing decisions rather than granting them: published
 //! operations, formation obligations, policies and captured epochs stay intact.
 
-use super::{Boolean, BoundPredicate, Observation, Scalar, map_observations};
+use super::{Boolean, BoundPredicate, Observation, ObservationKind, Scalar, map_observations};
 
 pub(super) fn normalize(predicates: &[BoundPredicate]) -> Option<(Vec<Boolean>, Vec<Observation>)> {
     let mut observations = Vec::new();
@@ -14,8 +14,8 @@ pub(super) fn normalize(predicates: &[BoundPredicate]) -> Option<(Vec<Boolean>, 
             let mut expression = predicate.expression.clone();
             map_observations(&mut expression, &mut |operand| {
                 let binding = predicate.binding(operand)?;
-                let primitive_type = operand.primitive_type()?;
-                let key = (binding.place.clone(), primitive_type);
+                let kind = ObservationKind::of(binding)?;
+                let key = (binding.place.clone(), kind);
                 let position = observations
                     .iter()
                     .position(|known| known == &key)
@@ -24,10 +24,7 @@ pub(super) fn normalize(predicates: &[BoundPredicate]) -> Option<(Vec<Boolean>, 
                         observations.push(key);
                         position
                     });
-                *operand = Scalar::Parameter {
-                    position,
-                    primitive_type,
-                };
+                *operand = kind.operand(position)?;
                 Some(())
             })?;
             clear_boolean_formation_decisions(&mut expression);

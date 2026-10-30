@@ -41,6 +41,7 @@ fn integer_type() -> IntegerType {
 fn scalar() -> ScalarType {
     ScalarType::Integer(integer_type())
 }
+
 fn integer(value: u128) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
         scalar_type: integer_type(),

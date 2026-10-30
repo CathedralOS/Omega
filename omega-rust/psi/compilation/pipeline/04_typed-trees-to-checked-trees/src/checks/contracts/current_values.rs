@@ -85,10 +85,7 @@ pub(crate) fn proves_exit_expression<'program>(
                 }
                 None if !exit.transition_target.is_valid()
                     && exit.statement_index
-                        == program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .len() =>
+                        == crate::flow::state_statements(program, state.statement_nodes).len() =>
                 {
                     None
                 }

@@ -31,8 +31,6 @@ impl<'p> ProviderPlanningContext<'p> {
     pub fn contains(self, symbol: SymbolHandle) -> bool {
         self.typed
             .symbols
-            .symbol_provenance_source_span(symbol)
-            .and_then(|span| self.typed.symbols.source_file(span))
-            .is_none_or(|file| file.dependency_scope == self.scope)
+            .symbol_is_in_dependency_scope(symbol, self.scope)
     }
 }

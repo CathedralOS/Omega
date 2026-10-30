@@ -99,9 +99,11 @@ pub(crate) fn prepare_checked_build(
         &defaults,
         execution_profile.unwrap_or_else(target::TargetProfile::host),
     );
+    let body_declarations = typed_trees::direct_calls::collect(context.typed, context.scope);
     let candidates =
         provider_planning::derive_satisfies_plans(provider_planning::ProviderPlanDerivation::new(
             context,
+            &body_declarations,
             &[],
             execution_profile.map(target::TargetProfile::target_name),
         ))?;

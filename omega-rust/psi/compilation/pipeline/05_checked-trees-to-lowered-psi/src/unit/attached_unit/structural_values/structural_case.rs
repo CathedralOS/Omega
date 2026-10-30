@@ -173,12 +173,7 @@ impl emission::Emission<'_, '_, '_> {
             self.evaluation.structural_root_parameters(),
             self.operations,
         )?;
-        if let semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. } =
-            declaration.kind
-        {
-            self.evaluation
-                .retire_structural_operation_operands(producer, self.operations)?;
-        }
+        self.retire_completed_operands(&declaration)?;
         self.environment.private_places.push(declaration);
         claims.sort();
         self.operations

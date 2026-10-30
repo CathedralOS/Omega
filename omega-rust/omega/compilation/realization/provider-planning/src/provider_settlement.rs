@@ -441,13 +441,20 @@ fn provider_application_declarations(
 
 fn demanded_provider_plans(
     checked: &checked_trees::CheckedTrees,
+    requirements: &checked_trees::ProviderApplicationRequirements,
     candidates: &[crate::DerivedProviderPlan],
     defaults: &[ProviderSelection],
     requested: &[ProviderSelection],
-    declarations: &checked_trees::typed_trees::references::DeclarationSelection,
 ) -> Vec<crate::DerivedProviderPlan> {
-    let uses = demanded_requirement_uses(checked, declarations);
-    let coordinates = demanded_requirement_coordinates(checked, declarations);
+    let uses = &requirements.templates;
+    let coordinates = &requirements.coordinates;
+    let choices = defaults
+        .iter()
+        .chain(requested)
+        .map(|choice| {
+            crate::provider_planning::selection_declarations::project_declaration(choice, &Ok, ())
+        })
+        .collect::<Vec<_>>();
     candidates
         .iter()
         .filter(|candidate| {
@@ -507,109 +514,23 @@ fn demanded_provider_plans(
                 });
             }
 
-            candidate
-                .provenance
-                .row_requirements
-                .iter()
-                .any(|requirement| uses.contains(requirement))
-                || defaults.iter().chain(requested).any(|selection| {
-                    selection
-                        .target
-                        .is_none_or(|target| target.canonical_name() == candidate.plan.target)
-                        && candidate.plan.rows.iter().any(|row| {
-                            selection.subject.selects_schema(
-                                candidate.provenance.schema.symbol(),
-                                candidate.plan.identity_text(row.requirement_identity),
-                                candidate.plan.schema.root_application_identity(),
-                            )
-                        })
-                })
+            provider_selection::is_candidate_demanded(
+                &candidate.plan,
+                &Ok(candidate.provenance.schema.symbol()),
+                &candidate.provenance.row_requirements,
+                uses,
+                &choices,
+            )
         })
         .cloned()
         .collect()
-}
-
-fn demanded_requirement_uses(
-    checked: &checked_trees::CheckedTrees,
-    declarations: &checked_trees::typed_trees::references::DeclarationSelection,
-) -> std::collections::HashSet<symbols::SymbolHandle> {
-    demanded_requirement_coordinates(checked, declarations)
-        .into_iter()
-        .map(|symbol| {
-            checked
-                .typed
-                .closed_requirement_application(symbol)
-                .map_or(symbol, |application| application.template)
-        })
-        .collect()
-}
-
-fn demanded_requirement_coordinates(
-    checked: &checked_trees::CheckedTrees,
-    declarations: &checked_trees::typed_trees::references::DeclarationSelection,
-) -> std::collections::HashSet<symbols::SymbolHandle> {
-    // Satisfaction declares a candidate, not a request to install it. Use the
-    // source owner's callable-use inventory, not all nominal references: a
-    // conformance row necessarily mentions its requirement without calling it.
-    let references = checked_trees::typed_trees::references::collect_selected_program_references(
-        &checked.typed,
-        declarations,
-    );
-    let site_is_retained =
-        |site: &checked_trees::operators::CheckedBoundaryOperatorApplicationUseSite| {
-            use checked_trees::operators::CheckedBoundaryOperatorApplicationUseSite;
-            match site {
-                CheckedBoundaryOperatorApplicationUseSite::Expression { expression, .. }
-                | CheckedBoundaryOperatorApplicationUseSite::MatchEquality { expression, .. } => {
-                    references.expressions.contains(expression)
-                }
-                CheckedBoundaryOperatorApplicationUseSite::Statement(statement) => {
-                    references.statements.contains(statement)
-                }
-            }
-        };
-    let mut uses = references
-        .callable_uses
-        .iter()
-        .copied()
-        .collect::<std::collections::HashSet<_>>();
-    uses.extend(
-        checked
-            .facts
-            .operators
-            .boundary_applications
-            .iter()
-            .filter(|application| site_is_retained(&application.site))
-            .map(|application| application.requirement_symbol),
-    );
-    uses.extend(
-        checked
-            .facts
-            .operators
-            .symbolic_boundary_applications
-            .iter()
-            .filter(|application| site_is_retained(&application.site))
-            .map(|application| application.requirement_symbol),
-    );
-    // Boundary requirements satisfied by the program's own selections are
-    // demands even when no callable names them: stored-descriptor slice
-    // operations mint `Slice::index`/`Slice::range` reaches that surface only
-    // in the checker's closed-requirement inventory.
-    uses.extend(
-        checked
-            .facts
-            .provider_closed_requirements
-            .iter()
-            .filter(|row| declarations.contains(row.provider))
-            .map(|row| row.closed_requirement),
-    );
-    uses
 }
 
 /// Derive every candidate, selecting whole maps only for demanded or authored
 /// slots. Unselected exported implementations remain checked review content.
 pub fn settle_checked_providers(
     checked: &checked_trees::CheckedTrees,
+    provider_inventory: &checked_trees::PreparedProviderInventory,
     settled_provider_defaults: SettledProviderDefaults,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
@@ -622,6 +543,9 @@ pub fn settle_checked_providers(
     synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
     application_roots: &[symbols::SymbolHandle],
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
+    let body_declarations = provider_inventory
+        .direct_calls_for(checked)
+        .map_err(|error| vec![error])?;
     let typed = &checked.typed;
     // Every Product body has already been checked. This target chooses only
     // realization rows; it never narrows the source program.
@@ -637,6 +561,7 @@ pub fn settle_checked_providers(
     let authored_providers =
         std::sync::Arc::new(crate::target_machines::AuthoredTargetProviders::derive(
             context,
+            body_declarations,
             &boundary_calling_plan_realizations,
             planning_target,
             settled_provider_defaults,
@@ -661,13 +586,16 @@ pub fn settle_checked_providers(
         build_provider_selections,
         application_roots,
     );
+    let requirements = provider_inventory
+        .requirements_for_declarations(checked, &application_declarations)
+        .map_err(|error| vec![error])?;
     let selected_provider_plans = crate::select_derived_provider_plans(
         &demanded_provider_plans(
             checked,
+            &requirements,
             &derived_provider_plans,
             target_provider_defaults,
             build_provider_selections,
-            &application_declarations,
         ),
         planning_target.unwrap_or_else(target::TargetProfile::host),
         target_provider_defaults,

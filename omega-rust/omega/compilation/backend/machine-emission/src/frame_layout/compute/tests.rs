@@ -1,6 +1,6 @@
 use super::{
     CalleeSaveFrameSlot, FrameAbiPreservationConvention, ReturnAddressFrameCustody,
-    TargetFrameLayoutError, TargetFrameLayoutPolicy, function_layout,
+    TargetFrameLayoutError, TargetFrameLayoutPolicy, function_layout, spill,
 };
 
 macro_rules! row {
@@ -410,13 +410,6 @@ fn system_v_leaf_spill_storage_inside_the_red_zone_commits_nothing() {
         target::NativeTarget::linux_x64(),
     )
     .unwrap();
-    let spill = |register: u32| selected_instructions::SelectedLocalStorageSlot {
-        id: selected_instructions::LocalStorageSlotId::Spill {
-            register: selected_instructions::VirtualRegisterId(register),
-        },
-        byte_size: 8,
-        alignment: 8,
-    };
     for slots in [
         vec![spill(0)],
         vec![spill(0), spill(1), spill(2)],
@@ -465,13 +458,6 @@ fn system_v_leaf_spill_storage_inside_the_red_zone_commits_nothing() {
 
 #[test]
 fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
-    let spill = |register: u32| selected_instructions::SelectedLocalStorageSlot {
-        id: selected_instructions::LocalStorageSlotId::Spill {
-            register: selected_instructions::VirtualRegisterId(register),
-        },
-        byte_size: 8,
-        alignment: 8,
-    };
     let structural = selected_instructions::SelectedLocalStorageSlot {
         id: selected_instructions::LocalStorageSlotId::Structural {
             operation: semantic_vocabulary::OperationId::new(7).unwrap(),

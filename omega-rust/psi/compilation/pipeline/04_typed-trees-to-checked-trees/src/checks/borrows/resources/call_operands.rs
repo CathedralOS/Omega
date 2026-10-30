@@ -779,20 +779,18 @@ fn projected_operand_places(
             operand.statement_index,
             operand.constraints,
             CapturedPlace {
-                incoming_reference: Handle::invalid(),
-                incoming_owner_path: Default::default(),
                 root: source.root,
                 segments: source.segments,
+                ..Default::default()
             },
             active_calls,
         )?
     } else {
         vec![crate::checks::borrows::aliases::ResolvedAlias {
             place: CapturedPlace {
-                incoming_reference: Handle::invalid(),
-                incoming_owner_path: Default::default(),
                 root: source.root,
                 segments: source.segments,
+                ..Default::default()
             },
             lineage: Vec::new(),
         }]

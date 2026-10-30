@@ -349,26 +349,8 @@ impl OperationFrame<'_, '_> {
         // The initializer completes on the ordinary operand schedule: a
         // computation evaluates its calls and selections in authored order
         // before the storage exists, so it can never read its own local.
-        let initializer = {
-            let (mut environment, emission) = self.reborrow().split();
-            emission.evaluation.source_value(
-                identities,
-                environment.checked,
-                environment.machine,
-                environment.state,
-                *statement_index,
-                CheckedScalarExpressionRole::StorageInitializer,
-                value,
-                emission.source_value_count,
-                emission.values,
-                emission.next_value,
-                emission.next_block,
-                emission.next_edge,
-                emission.operations,
-                emission.calls,
-                &mut environment,
-            )
-        }?;
+        let role = CheckedScalarExpressionRole::StorageInitializer;
+        let initializer = self.source_value(identities, *statement_index, role, value)?;
         let structural_type = lookup_type_id(self.type_ids, type_identity)?;
         let declarations: &[StructuralTypeDeclaration] = match &self.structural_types {
             StructuralTypeRoster::Owned(types) => types,

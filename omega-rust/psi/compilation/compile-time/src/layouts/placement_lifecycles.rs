@@ -121,11 +121,7 @@ pub fn retain_placement_lifecycle_plans(
 fn validate_nonresident_schema(program: &TypedTrees, schema: SymbolHandle) -> Result<(), String> {
     let mut records = vec![schema];
     let mut visited = Vec::new();
-    while let Some(symbol) = records.pop() {
-        if visited.contains(&symbol) {
-            continue;
-        }
-        visited.push(symbol);
+    while let Some(symbol) = crate::worklist::unvisited(&mut records, &mut visited) {
         let Some(data) = program.data_definition_by_symbol(symbol) else {
             continue;
         };

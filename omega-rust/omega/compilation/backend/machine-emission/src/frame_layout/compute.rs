@@ -413,12 +413,24 @@ fn align_to_residue(
         .ok_or(TargetFrameLayoutError::GeometryOverflow)
 }
 
+/// One eight-byte spill slot for virtual register `register`.
+#[cfg(test)]
+fn spill(register: u32) -> selected_instructions::SelectedLocalStorageSlot {
+    selected_instructions::SelectedLocalStorageSlot {
+        id: selected_instructions::LocalStorageSlotId::Spill {
+            register: selected_instructions::VirtualRegisterId(register),
+        },
+        byte_size: 8,
+        alignment: 8,
+    }
+}
+
 #[cfg(test)]
 mod tests;
 
 #[cfg(test)]
 mod spill_tests {
-    use super::{TargetFrameLayoutPolicy, function_layout};
+    use super::{TargetFrameLayoutPolicy, function_layout, spill};
 
     #[test]
     fn compiler_spill_slots_expand_final_frame_without_aliasing_outgoing_or_other_locals() {
@@ -433,13 +445,7 @@ mod spill_tests {
             let abi = register_environment::selected_abi_preservation(&environment)
                 .unwrap()
                 .kind;
-            let slots = [0, 1].map(|register| selected_instructions::SelectedLocalStorageSlot {
-                id: selected_instructions::LocalStorageSlotId::Spill {
-                    register: selected_instructions::VirtualRegisterId(register),
-                },
-                byte_size: 8,
-                alignment: 8,
-            });
+            let slots = [0, 1].map(spill);
             let layout = function_layout(
                 &environment,
                 abi,

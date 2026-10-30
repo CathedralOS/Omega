@@ -433,11 +433,7 @@ fn collect_generic_range_endpoint_call_leaves(
 ) {
     let mut visited = Vec::new();
     let mut worklist = syntax.type_references.generic_nodes();
-    while let Some(reference) = worklist.pop() {
-        if visited.contains(&reference) {
-            continue;
-        }
-        visited.push(reference);
+    while let Some(reference) = crate::worklist::unvisited(&mut worklist, &mut visited) {
         match syntax.type_references.type_reference(reference) {
             TypeReferenceNode::Generic { arguments, .. } => {
                 worklist.extend(syntax.type_references.type_reference_handles(*arguments));

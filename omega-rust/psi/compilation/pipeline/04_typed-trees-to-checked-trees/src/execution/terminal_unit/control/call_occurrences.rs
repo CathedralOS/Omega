@@ -189,10 +189,7 @@ pub(super) fn ordered_statement_call<'program>(
         // Its value/claim custody is checked by statement sequencing, not by
         // treating all non-scalar expression statements as Unit calls.
         if statement_index.checked_add(1)?
-            != program
-                .statement_table
-                .statements(state.statement_nodes)
-                .len()
+            != crate::flow::state_statements(program, state.statement_nodes).len()
             || program.normalized_type_identity(validation::call_target_return_type(
                 program,
                 validation::call_target_symbol(program, call),

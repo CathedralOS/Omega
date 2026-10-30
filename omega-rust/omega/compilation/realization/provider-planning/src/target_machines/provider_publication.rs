@@ -117,24 +117,25 @@ impl TargetProviderPreparationRequest<'_> {
             )]);
         }
         let candidates = inventory.candidates();
+        let explicit_choices = inventory
+            .defaults()
+            .iter()
+            .chain(self.overrides)
+            .map(|choice| {
+                crate::provider_planning::selection_declarations::project_declaration(
+                    choice,
+                    &Ok,
+                    (),
+                )
+            })
+            .collect::<Vec<_>>();
         let mut prepared = Vec::with_capacity(candidates.len());
         for candidate in candidates {
             let schema = candidate.provenance.schema.symbol();
             let schema_owner = self.declaration_identity(schema)?;
-            let explicitly_selected =
-                inventory
-                    .defaults()
-                    .iter()
-                    .chain(self.overrides)
-                    .any(|selection| {
-                        candidate.plan.rows.iter().any(|row| {
-                            selection.subject.selects_schema(
-                                schema,
-                                candidate.plan.identity_text(row.requirement_identity),
-                                candidate.plan.schema.root_application_identity(),
-                            )
-                        })
-                    });
+            let explicitly_selected = explicit_choices
+                .iter()
+                .any(|choice| choice.subject.selects_plan(&Ok(schema), &candidate.plan));
             // Close nominal and numeric realization declarations while source
             // custody exists. Retain failure until selection and provenance
             // admission demand this candidate, preserving the prior boundary.

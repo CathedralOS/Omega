@@ -14,6 +14,7 @@ use crate::declarations::traits::conformance::signature_matching::{
 };
 use crate::declarations::traits::conformance::trait_applications::validate_trait_application_obligations;
 use crate::declarations::traits::trait_definition_by_symbol;
+use crate::value_custody::type_references::TypeParameterScope;
 use crate::value_custody::type_references::type_reference_label;
 use diagnostics::Diagnostic;
 use typed_trees::data::TypeParameterKind;
@@ -116,12 +117,11 @@ pub(crate) fn validate_machine_trait_conformances(
                 machine.name, trait_definition.name
             ),
             symbols,
-            crate::value_custody::type_references::TypeParameterScope {
-                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-                lexical_owner: authored_machine.symbol,
-                type_parameters: program.machine_type_parameters(authored_machine),
-                lifetime_parameters: &authored_machine.lifetime_parameters,
-            },
+            TypeParameterScope::authored(
+                authored_machine.symbol,
+                program.machine_type_parameters(authored_machine),
+                &authored_machine.lifetime_parameters,
+            ),
             diagnostics,
             formation_obligations,
         );

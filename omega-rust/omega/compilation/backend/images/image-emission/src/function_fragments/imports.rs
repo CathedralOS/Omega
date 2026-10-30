@@ -9,7 +9,7 @@
 //! independently joins each relocation to the retained source call and rejects
 //! missing, extra, substituted, or reordered imports and call fields.
 
-use super::{Error, host};
+use super::{Error, host, refuse_symbol_collision};
 use crate::{
     ObjectArtifact, ObjectForeignCall, ObjectFunction, derive_normalized_foreign_call_custody,
 };
@@ -143,14 +143,7 @@ pub(super) fn publish(
             import.symbol
         } else {
             let name = normalized_import_symbol_name(locator);
-            if object
-                .layout
-                .symbols
-                .iter()
-                .any(|(_, symbol)| symbol.name == name)
-            {
-                return Err(Error::Mismatch("fragment import symbol name collision"));
-            }
+            refuse_symbol_collision(object, &name, "fragment import symbol name collision")?;
             object.layout.insert_normalized_import(name, locator)
         };
         relocations.push_record(RelocationRecord {

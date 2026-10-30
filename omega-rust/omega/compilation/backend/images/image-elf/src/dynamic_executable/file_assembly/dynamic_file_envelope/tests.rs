@@ -12,12 +12,8 @@ use crate::{
     plan_elf_dynamic_load_layout, plan_elf_indexed_section_payloads,
     plan_elf_relative_section_payload_layout,
 };
-use arena::Handle;
-use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageSymbol,
-};
+use image::{FinalImage, FinalImageSymbol};
 use object_file::SymbolKind;
-use target::{ForeignLocatorCandidate, normalize_foreign_locator};
 
 #[derive(Clone, Copy)]
 enum EntryFixture {
@@ -45,19 +41,7 @@ fn resolved(
     entry_fixture: EntryFixture,
     imported_symbol: &[u8],
 ) -> ValidatedElfResolvedDynamicTable {
-    let mut image = FinalImage::with_capacity(
-        target.native_target(),
-        FinalImageMemory {
-            text: vec![0; 32],
-            data: vec![0x5a; 13],
-            bss_size: 23,
-            bss_alignment: 16,
-        },
-        Handle::invalid(),
-        2,
-        1,
-        1,
-    );
+    let mut image = crate::test_support::import_image(target, 16, 2);
     let entry = match entry_fixture {
         EntryFixture::Text { offset } => {
             Some((FinalImageSection::Text, offset, 4, SymbolKind::Function))
@@ -78,28 +62,15 @@ fn resolved(
         });
         image.symbol_table.entry_symbol = entry;
     }
-    let imported = image.symbol_table.symbols.insert(FinalImageSymbol {
-        name: "__omega_dynamic_envelope_import".to_owned(),
-        section: FinalImageSection::None,
-        offset: 0,
-        size: 0,
-        kind: SymbolKind::Import,
-    });
-    image.symbol_table.imports.insert(FinalImageImport {
-        symbol_handle: imported,
-        import: FinalImageImportPlan::Normalized(
-            normalize_foreign_locator(
-                ForeignLocatorCandidate::ElfVersioned {
-                    object: b"libdynamic-envelope.so".to_vec(),
-                    symbol: imported_symbol.to_vec(),
-                    version: b"DYNAMIC_ENVELOPE_1".to_vec(),
-                },
-                target,
-            )
-            .unwrap()
-            .into(),
-        ),
-    });
+    let imported = crate::test_support::versioned_import(
+        &mut image,
+        "__omega_dynamic_envelope_import",
+        b"libdynamic-envelope.so",
+        imported_symbol,
+        b"DYNAMIC_ENVELOPE_1",
+        target,
+        "versioned import locator",
+    );
     crate::test_support::insert_text_call_relocations(&mut image, target, [(0, imported)]);
     let linkage = crate::test_support::resolved_linkage(image, target);
     let headers = crate::test_support::section_header_table_from_linkage(linkage);

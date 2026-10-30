@@ -42,7 +42,10 @@ pub(crate) fn selected_execution_for_identity(
     let candidate = effects::numeric_realizations::selected_numeric_realization(
         numeric_realizations,
         identities,
-        effects::numeric_realizations::NumericInvocation::Requirement { declaration: requirement, realization },
+        effects::numeric_realizations::NumericInvocation::Requirement {
+            declaration: requirement,
+            realization,
+        },
         plan,
         row,
     )?;

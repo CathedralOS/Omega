@@ -42,12 +42,28 @@ impl Execution<'_, '_, '_> {
             self.state,
             &dispatch,
         );
-        let subject_operand = if structural.is_some() {
+        // Structural pattern correspondence does not determine whether the
+        // subject is an owned value or a view. Owned subjects need their full
+        // once-completed inventory; views keep address and live-read custody.
+        let subject_type = self.context.expression_result_type_at(
+            self.program,
+            self.machine,
+            self.state,
+            dispatch.subject,
+        );
+        let subject_operand = if structural.is_some()
+            && subject_type.is_some_and(|reference| self.is_view_type(reference))
+        {
             self.evaluated_place(dispatch.subject, contexts, constraints)
                 .capture
         } else {
-            self.evaluated_operand(dispatch.subject, contexts, constraints)
-                .capture
+            self.evaluated_operand_as(
+                dispatch.subject,
+                subject_type.unwrap_or_default(),
+                contexts,
+                constraints,
+            )
+            .capture
         };
         let outer_captures = self.match_subjects.len();
         if dispatch.capture.is_valid() {
@@ -358,11 +374,7 @@ impl Execution<'_, '_, '_> {
             self.program,
             self.semantic,
             self.context
-                .contexts
-                .semantic_context_refs
-                .span_or_empty(*contexts)
-                .iter()
-                .map(|reference| self.semantic.contexts.get(reference.context)),
+                .semantic_context_views(self.semantic, *contexts),
             &source,
         )
     }
@@ -451,10 +463,7 @@ impl Execution<'_, '_, '_> {
                 place: facts::FactPlace::Place(place),
                 point,
                 origin: facts::FactOrigin::StatementTransfer,
-                evidence: facts::QualificationEvidence::from_origin(
-                    language_semantics::QualificationEvidenceOrigin::Propagated,
-                    self.state.symbol,
-                ),
+                evidence: crate::facts::propagated_evidence(self.state.symbol),
                 payload: FactPayload::AssignedScalarValue { value },
             });
             self.semantic.append_ref(&mut refs, fact);
@@ -464,10 +473,7 @@ impl Execution<'_, '_, '_> {
                 place: facts::FactPlace::Place(place),
                 point,
                 origin: facts::FactOrigin::StatementTransfer,
-                evidence: facts::QualificationEvidence::from_origin(
-                    language_semantics::QualificationEvidenceOrigin::Propagated,
-                    self.state.symbol,
-                ),
+                evidence: crate::facts::propagated_evidence(self.state.symbol),
                 payload: domain.payload(expression),
             });
             self.semantic.append_ref(&mut refs, fact);

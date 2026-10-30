@@ -296,6 +296,19 @@ pub(super) struct FlowBuildContext<'plans> {
 }
 
 impl<'plans> FlowBuildContext<'plans> {
+    /// Each active semantic context, resolved against the plan's arena.
+    pub(super) fn semantic_context_views<'a>(
+        &'a self,
+        semantic: &'a facts::FactPlan,
+        active: arena::HandleSpan<checked_trees::FlowSemanticContextRef>,
+    ) -> impl Iterator<Item = &'a facts::FactContext> + 'a {
+        self.contexts
+            .semantic_context_refs
+            .span_or_empty(active)
+            .iter()
+            .map(|reference| semantic.contexts.get(reference.context))
+    }
+
     pub(super) fn stored_reference_effects(
         &mut self,
         machine: &typed_trees::machine::Machine,
@@ -557,7 +570,7 @@ impl<'plans> FlowBuildContext<'plans> {
                     statement,
                     writes,
                     unknown_write,
-                    operand,
+                    operand.scalar()?,
                 )
             },
         )
@@ -576,7 +589,7 @@ impl<'plans> FlowBuildContext<'plans> {
                 self,
                 state,
                 statement,
-                &binding.operand,
+                binding.operand.scalar()?,
             )?;
             if program.primitive_type_reference(observed.reference)
                 != binding.operand.primitive_type()
@@ -1006,17 +1019,32 @@ impl<'plans> FlowBuildContext<'plans> {
 }
 
 /// The semantic context handles active at one program point, in span order.
-pub(super) fn active_context_handles(
-    contexts: &FlowBuildContext<'_>,
+pub(crate) fn active_context_handles(
+    contexts: &checked_trees::FlowContextFacts,
     active: arena::HandleSpan<checked_trees::FlowSemanticContextRef>,
 ) -> Vec<facts::FactContextHandle> {
     contexts
-        .contexts
         .semantic_context_refs
         .span_or_empty(active)
         .iter()
         .map(|reference| reference.context)
         .collect::<Vec<_>>()
+}
+
+/// The call flow facts a state's call span names, in span order.
+pub(crate) fn call_flows(
+    control: &checked_trees::FlowControlFacts,
+    calls: arena::HandleSpan<checked_trees::FlowCallFact>,
+) -> &[checked_trees::FlowCallFact] {
+    control.calls.span_or_empty(calls)
+}
+
+/// The statements a state's statement span names, in authored order.
+pub(crate) fn state_statements(
+    program: &dyn ::validation::CheckingInput,
+    statements: arena::HandleSpan<typed_trees::statement::StatementNode>,
+) -> &[typed_trees::statement::StatementNode] {
+    program.statement_table.statements(statements)
 }
 
 /// Every fact payload the active contexts carry, in span order.
@@ -1051,7 +1079,7 @@ pub(super) fn source_transfer_cases_selected(
     root: facts::PlaceRoot,
     segments: Vec<facts::PlaceSegment>,
 ) -> bool {
-    let context_handles = active_context_handles(contexts, active);
+    let context_handles = active_context_handles(&contexts.contexts, active);
     let facts::ProgramPoint::Statement {
         machine_symbol,
         state_symbol,

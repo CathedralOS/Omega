@@ -17,6 +17,7 @@ pub(crate) use call_custody::{DependencyValue, retain_current_initializer_calls}
 pub(super) mod lexical_selection;
 pub(super) mod value;
 
+use crate::unique::push_unique;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
@@ -581,11 +582,7 @@ pub(super) fn expression_custody(
     let mut operators = Vec::new();
     let mut pending = vec![root];
     let mut visited = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
+    while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
         for occurrence in program
             .expression_table
             .authored_selection_occurrences(expression)
@@ -683,9 +680,7 @@ pub(super) fn expression_custody(
                     .clone()
                     .ok_or("selected constant has no canonical value")?,
             };
-            if !origins.contains(&origin) {
-                origins.push(origin);
-            }
+            push_unique(&mut origins, origin);
         }
         if let Some(binary) = program.expression_table.binary_node(expression) {
             pending.push(binary.right);

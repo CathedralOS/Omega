@@ -143,9 +143,7 @@ pub(in crate::checks::borrows) fn resolve_places_with_loans(
     place: CapturedPlace,
 ) -> Option<Vec<ResolvedPlace>> {
     let state = program.state_by_symbol(state_flow.state_symbol)?;
-    let reference_local = program
-        .statement_table
-        .statements(state.statement_nodes)
+    let reference_local = crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .any(|statement| {
             matches!(statement, StatementNode::LocalData(local)

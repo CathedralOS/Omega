@@ -896,7 +896,7 @@ impl TerminalExecution<'_> {
                 let mut cursor = self.local_structural_identities.cursor();
                 let (source_value, binding) = self.establish_byte_array_binding(
                     source,
-                    result.structural_type,
+                    &descriptor_value,
                     &collection,
                     &mut cursor,
                 )?;
@@ -1034,7 +1034,7 @@ impl TerminalExecution<'_> {
                 let mut cursor = self.local_structural_identities.cursor();
                 let (value, binding) = self.establish_byte_array_binding(
                     source,
-                    result.structural_type,
+                    &descriptor_value,
                     &collection,
                     &mut cursor,
                 )?;
@@ -1110,7 +1110,7 @@ impl TerminalExecution<'_> {
     /// Resident collections keep stable opaque cells. Packed arrays instead
     /// retain their original activation home through the selected array loan.
     /// A borrowed descriptor's current frame is never a new backing home.
-    fn element_collection_storage(
+    pub(crate) fn element_collection_storage(
         &self,
         source: &terminal_psi::StructuralArgument,
     ) -> Result<(Option<TerminalStructuralValue>, Option<ElementViewHome>), TerminalInterpretError>

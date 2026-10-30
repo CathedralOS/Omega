@@ -34,12 +34,7 @@ pub(crate) fn validate_callable_state_signatures(
             symbols,
             &format!("machine `{}`", machine.name),
             program.machine_type_parameters(machine),
-            TypeParameterScope {
-                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-                lexical_owner: machine.symbol,
-                type_parameters: &type_parameters,
-                lifetime_parameters: &lifetime_parameters,
-            },
+            TypeParameterScope::authored(machine.symbol, &type_parameters, &lifetime_parameters),
             diagnostics,
             formation_obligations,
         );
@@ -59,12 +54,7 @@ pub(crate) fn validate_callable_state_signatures(
             symbols,
             diagnostics,
             StateSignatureOwner::Machine(machine),
-            TypeParameterScope {
-                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-                lexical_owner: machine.symbol,
-                type_parameters: &type_parameters,
-                lifetime_parameters: &lifetime_parameters,
-            },
+            TypeParameterScope::authored(machine.symbol, &type_parameters, &lifetime_parameters),
             formation_obligations,
         );
         validate_machine_parameter_signatures(
@@ -135,12 +125,11 @@ pub(crate) fn validate_callable_state_signatures(
                 symbols,
                 diagnostics,
                 StateSignatureOwner::Trait(trait_definition.name.as_str()),
-                TypeParameterScope {
-                    operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-                    lexical_owner: machine.symbol,
-                    type_parameters: &type_parameters,
-                    lifetime_parameters: &lifetime_parameters,
-                },
+                TypeParameterScope::authored(
+                    machine.symbol,
+                    &type_parameters,
+                    &lifetime_parameters,
+                ),
                 formation_obligations,
             );
             validate_machine_parameter_signatures(
@@ -291,12 +280,11 @@ fn validate_machine_parameter_signatures<'program>(
             symbols,
             diagnostics,
             StateSignatureOwner::Requirement(parameter.name.as_str()),
-            TypeParameterScope {
-                operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-                lexical_owner: contract.symbol,
-                type_parameters: &local_type_parameters,
-                lifetime_parameters: &local_lifetime_parameters,
-            },
+            TypeParameterScope::authored(
+                contract.symbol,
+                &local_type_parameters,
+                &local_lifetime_parameters,
+            ),
             formation_obligations,
         );
         validate_machine_parameter_signatures(

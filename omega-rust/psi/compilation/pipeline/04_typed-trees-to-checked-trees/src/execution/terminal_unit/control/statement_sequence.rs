@@ -340,9 +340,7 @@ pub(in crate::execution::terminal_unit) fn build(
     let erased_locals = phase_profile::scope("05.d.8_10.a.3.2c.3b2.erased_locals", || {
         erased_alias_locals(program, facts, machine, state)
     });
-    let mut scalar_count = program
-        .statement_table
-        .statements(state.statement_nodes)
+    let mut scalar_count = crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .take(construction_statement_count)
         .filter(|statement| {

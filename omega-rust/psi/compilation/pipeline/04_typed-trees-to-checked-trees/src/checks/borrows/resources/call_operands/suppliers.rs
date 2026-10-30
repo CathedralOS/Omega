@@ -365,10 +365,9 @@ fn collect_invocation_accesses(
             capture.statement_index,
             capture.constraints,
             checked_trees::CapturedPlace {
-                incoming_reference: Handle::invalid(),
-                incoming_owner_path: Default::default(),
                 root: row.root,
                 segments: facts.borrow.access_segments(row).to_vec(),
+                ..Default::default()
             },
             &mut Vec::new(),
         ) else {

@@ -6,11 +6,11 @@
 //! Computed cast and selected operator policy belong to the shared result-type
 //! owner; candidate lookup never manufactures an adapted result from a peer.
 
+use crate::value_custody::type_references::substituted_identity;
 use checked_trees::CheckedValueOrigin;
 use numerics::literals::FloatFormat;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Recover an existing operand type handle in its executable statement context.
@@ -328,10 +328,7 @@ fn field_type_reference(
             // view. A raw telescope field cannot stand in for its substituted
             // type and exclude a genuinely applicable operator candidate.
             (program.normalized_type_identity(field)
-                == program.type_identity(TypeIdentityRequest {
-                    substitutions: &substitutions,
-                    ..TypeIdentityRequest::ordinary(field)
-                }))
+                == substituted_identity(program, field, &substitutions))
             .then_some(field)
         }
         TypeReferenceNode::Named {

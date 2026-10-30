@@ -12,7 +12,7 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use std::sync::{Arc, OnceLock};
 
 pub struct SelectedProviderSource {
-    program: Arc<checked_trees::CheckedTrees>,
+    inventory: Arc<checked_trees::PreparedProviderInventory>,
     plans: effects::SelectedProviderPlanFacts,
     declarations: OnceLock<PreparedProviderInstances>,
 }
@@ -35,25 +35,28 @@ impl PartialEq for SelectedProviderSource {
     fn eq(&self, other: &Self) -> bool {
         // As with the external-declaration product, equal-looking source from
         // another checked owner is not interchangeable. Derived cache state is.
-        Arc::ptr_eq(&self.program, &other.program) && self.plans == other.plans
+        Arc::ptr_eq(self.program(), other.program()) && self.plans == other.plans
     }
 }
 impl Eq for SelectedProviderSource {}
 
 impl SelectedProviderSource {
     pub fn new(
-        program: Arc<checked_trees::CheckedTrees>,
+        inventory: Arc<checked_trees::PreparedProviderInventory>,
         plans: effects::SelectedProviderPlanFacts,
     ) -> Self {
         Self {
-            program,
+            inventory,
             plans,
             declarations: OnceLock::new(),
         }
     }
 
     pub fn program(&self) -> &Arc<checked_trees::CheckedTrees> {
-        &self.program
+        self.inventory.program()
+    }
+    pub fn inventory(&self) -> &Arc<checked_trees::PreparedProviderInventory> {
+        &self.inventory
     }
     pub fn plans(&self) -> &effects::SelectedProviderPlanFacts {
         &self.plans
@@ -111,10 +114,10 @@ impl SelectedProviderSource {
 
     fn declarations(&self) -> &PreparedProviderInstances {
         self.declarations.get_or_init(|| {
-            let adapters = CheckedAdapterDeclarations::prepare(&self.program.typed, &self.plans);
+            let adapters = CheckedAdapterDeclarations::prepare(&self.program().typed, &self.plans);
             let plans = prepare_instance_declarations(
-                &self.program.typed,
-                &self.program.facts,
+                &self.program().typed,
+                &self.program().facts,
                 &self.plans,
                 &adapters,
             );

@@ -1,0 +1,31 @@
+// Expected exit: 0
+// Every arrival to read proves its index, including the recurrent arrival.
+machine scan(text: &[u8], position: u64) -> u8 {
+    transition position < text.len { true -> read(text, position) false -> (0) }
+    machine next(text: &[u8], next_position: u64) -> u8 {
+        transition next_position < text.len {
+            true -> read(text, next_position)
+            false -> (0)
+        }
+    }
+    machine read(text: &[u8], position: u64) -> u8 {
+        let byte: u8 = text[position];
+        transition byte == 0 {
+            true -> next(text, ((position as u64 in Wrapping) + (1 as u64 in Wrapping)) as u64)
+            false -> (byte)
+        }
+    }
+}
+machine main() crashes Trap {
+    let bytes: [u8; 2] = [0, 73];
+    let zeros: [u8; 2] = [0, 0];
+    let found: u8 = scan(&bytes, 0);
+    let exhausted: u8 = scan(&zeros, 0);
+    let empty: u8 = scan(&bytes, 2);
+    transition found == 73 && exhausted == 0 && empty == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

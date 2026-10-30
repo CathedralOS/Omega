@@ -3,13 +3,12 @@
 //! fields remain separate subjects. Ordinary tuple binding supplies substitution,
 //! and executable specialization never replaces the authored application.
 
+use crate::value_custody::type_references::substituted_identity;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::domain::CleanupSelection;
 use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
-use typed_trees::type_identity::{
-    IndexIdentityArgument, TypeIdentityRequest, normalized_index_identity,
-};
+use typed_trees::type_identity::{IndexIdentityArgument, normalized_index_identity};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 fn declarations(program: &dyn crate::CheckingInput) -> impl Iterator<Item = &CleanupSelection> {
@@ -351,10 +350,7 @@ pub(super) fn validate_declaration_owners(
                     _ => None,
                 })
                 .collect::<Vec<_>>();
-            let actual = program.type_identity(TypeIdentityRequest {
-                substitutions: &substitutions,
-                ..TypeIdentityRequest::ordinary(shell.referee)
-            });
+            let actual = substituted_identity(program, shell.referee, &substitutions);
             Some(actual == program.normalized_type_identity(selection.subject))
         });
         if shape != Some(true) {

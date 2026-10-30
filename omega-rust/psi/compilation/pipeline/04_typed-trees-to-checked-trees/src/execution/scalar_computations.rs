@@ -575,10 +575,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 // independent of guard/operand evaluation order; internal
                 // state transfers keep the transition roles below instead.
                 if let Some(captured) = captured {
-                    for call in flow
-                        .control
-                        .calls
-                        .span_or_empty(captured.calls)
+                    for call in crate::flow::call_flows(&flow.control, captured.calls)
                         .iter()
                         .filter(|call| call.statement_index == statement_index)
                     {

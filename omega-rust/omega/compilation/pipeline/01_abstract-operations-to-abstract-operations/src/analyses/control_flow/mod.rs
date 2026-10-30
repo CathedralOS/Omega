@@ -38,6 +38,17 @@ pub(crate) use dominance::block_dominates;
 pub(super) use dominance::dominators;
 pub(super) use graph::control_flow;
 pub(super) use loops::loops;
+
+/// Index a roster by a caller-derived key. The analyses that build a keyed
+/// view of a roster all then compare those views by key and by length, so the
+/// maps must all dedup duplicate keys the same way a `BTreeMap` collect does.
+pub(in crate::analyses) fn by_key<'a, K: Ord, V>(
+    rows: &'a [V],
+    key: impl Fn(&V) -> K,
+) -> std::collections::BTreeMap<K, &'a V> {
+    rows.iter().map(|row| (key(row), row)).collect()
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum ExitKind {
     Normal,

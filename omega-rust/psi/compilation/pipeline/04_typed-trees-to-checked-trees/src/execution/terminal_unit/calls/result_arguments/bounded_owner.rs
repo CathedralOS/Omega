@@ -38,9 +38,7 @@ pub(super) fn loan(
     if !place.segments.is_empty() {
         return None;
     }
-    let local = program
-        .statement_table
-        .statements(source_state.statement_nodes)
+    let local = crate::flow::state_statements(program, source_state.statement_nodes)
         .get(usize::try_from(result.statement_index).ok()?)?
         .as_local_data()?;
     let CheckedByteSequenceCarrier::BoundedOwned { capacity } =

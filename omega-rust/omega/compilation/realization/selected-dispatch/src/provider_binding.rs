@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 /// Realization choices joined to a completed source judgment.
 pub struct ProviderBindingRequest<'a> {
+    pub provider_inventory: &'a Arc<psi_terminal_production::PreparedProviderInventory>,
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
     pub boundary_calling_plan_realizations:
@@ -41,6 +42,11 @@ pub fn prepare_selected_execution(
     accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     mut settlement: ProviderBindingRequest<'_>,
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
+    if !Arc::ptr_eq(settlement.provider_inventory.program(), &program) {
+        return Err(vec![Diagnostic::error(
+            "selected provider inventory belongs to another checked program",
+        )]);
+    }
     if settlement.selected_target_profile.is_some()
         && settlement.selected_target_profile != settlement.provider_planning_target_profile
     {
@@ -104,7 +110,7 @@ pub fn prepare_selected_execution(
     )?;
     let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
     let provider_source = Arc::new(provider_planning::SelectedProviderSource::new(
-        Arc::clone(&program),
+        Arc::clone(settlement.provider_inventory),
         selected_provider_plan_facts,
     ));
     let selected_provider_plan_facts = provider_source.plans();

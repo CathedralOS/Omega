@@ -1040,11 +1040,7 @@ impl Builder<'_, '_> {
     ) -> Option<(arena::Handle<checked_trees::FlowCallFact>, u32)> {
         let target = validation::call_target_entry_symbol(self.program, target);
         let state = self.flow.control.state(self.machine, self.state)?;
-        let mut matching = self
-            .flow
-            .control
-            .calls
-            .span_or_empty(state.calls)
+        let mut matching = crate::flow::call_flows(&self.flow.control, state.calls)
             .iter()
             .filter(|call| {
                 call.statement_index == self.statement_index

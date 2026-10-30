@@ -4,6 +4,48 @@ use syntax_trees::item::Item;
 use syntax_trees::statement::StatementNode;
 
 #[test]
+fn final_values_are_completion_edges_but_semicolon_expressions_are_not() {
+    for body in [
+        "callee()",
+        "(callee())",
+        "callee() + 1",
+        "42 machine helper() {}",
+    ] {
+        let source = format!("machine run() -> u64 {{ {body} }}");
+        let trees = super::parse_source(&source, "final value");
+        let machine = super::root_machine(&trees, "machine");
+        let state = super::entry_state(&trees, machine);
+        let statements = trees.items.statements(state.statements);
+        let StatementNode::Transition(completion) = trees.statements.statement(statements[0])
+        else {
+            panic!("final value must carry its completion edge");
+        };
+        assert!(matches!(
+            completion.guard,
+            syntax_trees::statement::TransitionGuardNode::Always
+        ));
+        assert!(!completion.continuation.is_valid());
+        assert!(completion.ends_dispatch);
+        assert!(matches!(
+            trees.statements.transition_target(completion.target),
+            syntax_trees::statement::TransitionTargetNode::Value(_)
+        ));
+    }
+    let trees = super::parse_source("machine run() { callee(); 42; }", "ordinary statements");
+    let machine = super::root_machine(&trees, "machine");
+    let state = super::entry_state(&trees, machine);
+    let statements = trees.items.statements(state.statements);
+    assert!(matches!(
+        trees.statements.statement(statements[0]),
+        StatementNode::Call(_)
+    ));
+    assert!(matches!(
+        trees.statements.statement(statements[1]),
+        StatementNode::Expression(_)
+    ));
+}
+
+#[test]
 fn nested_machine_declarations_and_copies_retain_direct_child_cohorts() {
     let source =
         "machine outer() -> u64 { 42 machine first() { machine inner() {} } machine second() {} }";

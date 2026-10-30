@@ -99,6 +99,9 @@ pub struct PreparedProductSource {
 pub struct CheckedProductSource {
     pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub program: Arc<checked_trees::CheckedTrees>,
+    /// Complete source demand is shared across targets without forcing fallible
+    /// external declarations or treating nominal references as invocations.
+    pub provider_inventory: Arc<psi_compiler::PreparedProviderInventory>,
     /// One lazy declaration product for this immutable checked owner. Delaying
     /// preparation preserves provider-failure order and avoids unused work for
     /// consumers that do not request external declarations.

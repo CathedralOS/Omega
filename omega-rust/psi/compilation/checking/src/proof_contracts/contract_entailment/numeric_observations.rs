@@ -469,52 +469,10 @@ fn collect_numeric_observations(
     if observe_runtime_state_prefix(program, machine, state, &mut visitor).is_none() {
         return (CapturedNumericObservations::default(), false);
     }
-    let scalar_values = if demand.scalar_values {
-        visitor
-            .values
-            .into_iter()
-            .filter_map(|(expression, value)| {
-                Some(CapturedScalarObservation {
-                    expression,
-                    value: value?,
-                })
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
-    let integer_operations = visitor
-        .orderings
-        .into_iter()
-        .map(
-            |(expression, minimum, preserves_storage)| CapturedIntegerOperation {
-                state: state.symbol,
-                expression,
-                minimum_difference: minimum,
-                preserves_storage,
-            },
-        )
-        .collect();
-    let scalar_associations = visitor
-        .associations
-        .into_iter()
-        .flat_map(|(expression, places)| {
-            places
-                .into_iter()
-                .map(move |current| CapturedScalarAssociation {
-                    state: state.symbol,
-                    expression,
-                    current,
-                })
-        })
-        .collect();
+    let complete = visitor.complete;
     (
-        CapturedNumericObservations {
-            scalar_values,
-            integer_operations,
-            scalar_associations,
-        },
-        visitor.complete,
+        finalize_visitor_observations(state.symbol, demand, visitor),
+        complete,
     )
 }
 

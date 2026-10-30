@@ -34,11 +34,7 @@ pub(crate) fn observe_call_completion(
     let Some(state_flow) = facts.flow.control.state(machine, state) else {
         return;
     };
-    let invocations = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state_flow.calls)
+    let invocations = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
         .iter()
         .filter(|call| call.statement_index == statement && call.authored_expression == expression)
         .map(|call| call.call_ordinal)
@@ -142,16 +138,13 @@ pub(crate) fn observe_call_completion(
                             &projection,
                         )?;
                         let state_flow = facts.flow.control.state(machine, state)?;
-                        let call_flow = facts
-                            .flow
-                            .control
-                            .calls
-                            .span_or_empty(state_flow.calls)
-                            .iter()
-                            .find(|candidate| {
-                                candidate.statement_index == statement
-                                    && candidate.call_ordinal == ordinal
-                            })?;
+                        let call_flow =
+                            crate::flow::call_flows(&facts.flow.control, state_flow.calls)
+                                .iter()
+                                .find(|candidate| {
+                                    candidate.statement_index == statement
+                                        && candidate.call_ordinal == ordinal
+                                })?;
                         let (_, receiver_offset) = crate::flow::captured_call_operands(
                             program,
                             &facts.flow,

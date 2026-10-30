@@ -1,46 +1,37 @@
-//! Propagate missing declaration custody through direct provider call closures.
+//! Propagate missing declaration custody through the prepared direct-call roster.
 //!
 //! Scope membership is source provenance, not target applicability. Bodyless
 //! requirements remain provider dependencies; this walk grants no execution.
 
-use crate::ProviderPlanningContext;
-use checked_trees::typed_trees::TypedTrees;
-use checked_trees::typed_trees::typed_trees::inspection::callees::ExplicitStateCallees;
+use language_semantics::direct_calls::DirectCallDeclarations;
 use symbols::SymbolHandle;
 
-pub(crate) struct DirectDeclarationAbsences {
-    /// Positions belong to the immutable typed machine roster of this query.
+pub(crate) struct DirectDeclarationAbsences<'declarations> {
+    declarations: &'declarations DirectCallDeclarations<SymbolHandle>,
     absent: Vec<bool>,
 }
 
-impl DirectDeclarationAbsences {
-    pub(crate) fn derive(context: ProviderPlanningContext<'_>) -> Self {
-        let typed = context.typed;
-        let machines = typed.machines();
-        let mut absent = vec![false; machines.len()];
-        let mut callers = vec![Vec::new(); machines.len()];
-        let mut callees = ExplicitStateCallees::default();
-        for (position, machine) in machines.iter().enumerate() {
-            if !context.contains(machine.symbol) {
+impl<'declarations> DirectDeclarationAbsences<'declarations> {
+    pub(crate) fn derive(
+        declarations: &'declarations DirectCallDeclarations<SymbolHandle>,
+    ) -> Self {
+        let mut absent = vec![false; declarations.machines.len()];
+        let mut callers = vec![Vec::new(); declarations.machines.len()];
+        for (position, machine) in declarations.machines.iter().enumerate() {
+            if !machine.in_scope {
                 absent[position] = true;
                 continue;
             }
-            for state in typed.machine_states(machine) {
-                for called in callees.collect(typed, state) {
-                    // A requirement without an authored machine is a provider
-                    // dependency, not a missing authored declaration.
-                    let Some(declaration) = super::called_machine(typed, *called) else {
-                        continue;
-                    };
-                    let Some(realization) = super::scoped_row_machine(context, declaration.symbol)
-                    else {
-                        absent[position] = true;
-                        continue;
-                    };
-                    if let Some(callee) = typed.machine_position_by_symbol(realization.symbol) {
-                        callers[callee].push(position);
-                    }
+            for called in machine.states.iter().flat_map(|state| &state.calls) {
+                // A requirement without an authored machine remains a provider
+                // dependency. Exact source-scope absence propagates to callers.
+                let Some(callee) = called.machine else {
+                    continue;
+                };
+                if !declarations.machines[callee].in_scope {
+                    absent[position] = true;
                 }
+                callers[callee].push(position);
             }
         }
         let mut frontier: Vec<usize> = absent
@@ -55,12 +46,15 @@ impl DirectDeclarationAbsences {
                 }
             }
         }
-        Self { absent }
+        Self {
+            declarations,
+            absent,
+        }
     }
 
-    pub(crate) fn contains(&self, typed: &TypedTrees, machine: SymbolHandle) -> bool {
-        typed
-            .machine_position_by_symbol(machine)
+    pub(crate) fn contains(&self, machine: SymbolHandle) -> bool {
+        self.declarations
+            .called_machine_position(&machine)
             .is_some_and(|position| self.absent[position])
     }
 }

@@ -26,12 +26,20 @@ use crate::provider_planning::source_provider_selections::{
 };
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use effects::provider_plan::{ProviderIdentityId, ProviderIdentityTable};
+use language_semantics::direct_calls::DirectCallDeclarations;
+use symbols::SymbolHandle;
 
 pub(crate) fn derive_provider_plans(
     context: ProviderPlanningContext<'_>,
+    body_declarations: &DirectCallDeclarations<SymbolHandle>,
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&str>,
 ) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
+    if body_declarations.scope != context.scope {
+        return Err(vec![diagnostics::Diagnostic::error(
+            "provider direct-call declarations belong to another dependency purpose",
+        )]);
+    }
     let typed = context.typed;
     let mut plans: Vec<DerivedProviderPlan> = Vec::new();
     // Typed trees retain every authored body and its conformances. This
@@ -139,12 +147,12 @@ pub(crate) fn derive_provider_plans(
     derive_placed_accessor_plans(context, selected_target, &mut plans)?;
     // A candidate cannot borrow declarations from the other dependency purpose.
     // Selection and admission independently establish its execution closure.
-    let absent = crate::target_machines::DirectDeclarationAbsences::derive(context);
+    let absent = crate::target_machines::DirectDeclarationAbsences::derive(body_declarations);
     plans.retain(|candidate| {
         !candidate.provenance.row_realizations.iter().any(|machine| {
             machine
                 .authored()
-                .is_some_and(|machine| absent.contains(typed, machine))
+                .is_some_and(|machine| absent.contains(machine))
         })
     });
     Ok(plans)

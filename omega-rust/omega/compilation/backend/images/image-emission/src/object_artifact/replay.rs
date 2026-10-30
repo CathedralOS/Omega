@@ -27,6 +27,14 @@ fn x86_register_info_writes_stack_pointer(info: &iced_x86::InstructionInfo) -> b
     })
 }
 
+/// The little-endian byte image of one already-decided instruction-word list.
+pub(crate) fn instruction_bytes(instructions: Vec<u32>) -> Vec<u8> {
+    instructions
+        .into_iter()
+        .flat_map(u32::to_le_bytes)
+        .collect()
+}
+
 pub(crate) fn exact_attribution_count(
     attribution: &[machine_code::SemanticCodeAttribution],
     operation: semantic_vocabulary::OperationId,

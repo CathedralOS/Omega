@@ -10,6 +10,7 @@ use super::{OperationEnvironment, OperationFrame, StructuralResults};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::StructuralLocalBinding;
+use crate::terminal_identities::stored_structural_identity;
 use crate::unit::{
     CheckedUnitEffectOperationPlan, LoweringError, StructuralTypeId, ValueDeclaration,
     lookup_type_id, unsupported,
@@ -35,12 +36,7 @@ impl OperationFrame<'_, '_> {
         let node = checked.facts.values.structural_values.nodes.get(*value);
         let structural_type = lookup_type_id(
             environment.type_ids,
-            &validation::stored_structural_type_identity(
-                &checked.typed,
-                node.type_reference,
-                &[],
-                &[],
-            ),
+            &stored_structural_identity(checked, node.type_reference),
         )?;
         let super::OperationEmission {
             evaluation,
@@ -210,6 +206,7 @@ impl OperationEnvironment<'_> {
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
         let checked = self.checked;
+        let first_new_place = *self.next_place;
         let node = checked.facts.values.structural_values.nodes.get(value);
         let root = checked
             .facts
@@ -325,11 +322,19 @@ impl OperationEnvironment<'_> {
         let structural_values::ValueOutcome::Normal(completed) = produced? else {
             return Ok(());
         };
+        // The allocator interval covers delegated calls and joins as well as
+        // declarations returned directly by the value emitter. Borrowed aliases
+        // and projections do not own that fresh whole home.
+        let fresh_storage = completed.argument.place.get() >= first_new_place
+            && completed.argument.place.get() < *self.next_place
+            && completed.argument.path.is_empty()
+            && completed.argument.access == terminal_psi::StructuralAccess::Owned;
         if let Some(declaration) = completed.declaration {
             self.private_places.push(declaration);
         }
         let argument = completed.argument;
         let binding = crate::emission::operation_emission::buffer::ComputedValueBinding {
+            fresh_storage,
             argument: argument.clone(),
             structural_type: completed.binding.structural_type(),
             observation,
@@ -472,12 +477,7 @@ fn prepare_value_observation(
         _ => {
             // Calls, constructions and joins publish a whole value under their
             // own declared root, independent of their source spelling.
-            let identity = validation::stored_structural_type_identity(
-                &checked.typed,
-                node.type_reference,
-                &[],
-                &[],
-            );
+            let identity = stored_structural_identity(checked, node.type_reference);
             Ok(ComputedValueObservation {
                 root_type: lookup_type_id(type_ids, &identity)?,
                 path: Vec::new(),

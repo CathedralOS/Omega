@@ -213,12 +213,7 @@ pub(crate) fn prepare_permission_events(
         }
         // Snapshot the state's ordered calls once while permission production
         // mutates ownership arenas. Each evaluation selects from this snapshot.
-        let calls = facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(state_flow.calls)
-            .to_vec();
+        let calls = crate::flow::call_flows(&facts.flow.control, state_flow.calls).to_vec();
         let completion_regions = if !places
             .iter()
             .any(|place| place.multiplicity == Multiplicity::Linear)

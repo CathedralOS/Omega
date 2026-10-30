@@ -7,7 +7,9 @@
 
 use crate::{DerivedProviderPlan, ProviderPlanningContext, ProviderSelection};
 use diagnostics::Diagnostic;
+use language_semantics::direct_calls::DirectCallDeclarations;
 use std::sync::Arc;
+use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthoredTargetProviders {
@@ -23,12 +25,14 @@ impl AuthoredTargetProviders {
 
     pub(crate) fn derive(
         context: ProviderPlanningContext<'_>,
+        body_declarations: &DirectCallDeclarations<SymbolHandle>,
         calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
         target: Option<target::TargetProfile>,
         declarations: crate::SettledProviderDefaults,
     ) -> Result<Self, Vec<Diagnostic>> {
         let candidates = crate::derive_satisfies_plans(crate::ProviderPlanDerivation::new(
             context,
+            body_declarations,
             calling_plans,
             target.map(target::TargetProfile::target_name),
         ))?;
@@ -51,6 +55,7 @@ impl AuthoredTargetProviders {
 /// Source-side preparation for the full publication target roster. Unavailable
 /// targets retain their refusal; they cannot invalidate another target's artifact.
 pub struct TargetProviderInventoryRequest<'program> {
+    pub body_declarations: &'program DirectCallDeclarations<SymbolHandle>,
     pub context: ProviderPlanningContext<'program>,
     pub defaults: &'program [crate::TargetProviderDefaults],
     pub settlement: &'program crate::ProviderSettlement,
@@ -75,6 +80,7 @@ impl TargetProviderInventoryRequest<'_> {
         let declarations = super::settle_provider_defaults(self.defaults, profile);
         AuthoredTargetProviders::derive(
             self.context,
+            self.body_declarations,
             &self.settlement.boundary_calling_plan_realizations,
             Some(profile),
             declarations,

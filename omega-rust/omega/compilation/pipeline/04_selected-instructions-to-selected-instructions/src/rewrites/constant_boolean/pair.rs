@@ -305,23 +305,11 @@ pub(super) const CONDITION_MATERIALIZATION_RULES: &[ConditionMaterializationRule
     ConditionMaterializationRule::COMPARE_ZERO_I64_LESS_OR_EQUAL,
 ];
 
-/// The declared pair for one (producer, consumer) kind combination, or none
-/// when the family declares no such relationship — several rules matching
-/// one combination is a catalog defect and refuses rather than preferring
-/// table order.
-pub(super) fn condition_materialization_for(
-    producer: MachineSemanticKind,
-    consumer: MachineSemanticKind,
-) -> Option<&'static ConditionMaterializationRule> {
-    let mut matches = CONDITION_MATERIALIZATION_RULES
-        .iter()
-        .filter(|rule| rule.producer() == producer && rule.consumer() == consumer);
-    let rule = matches.next()?;
-    if matches.next().is_some() {
-        return None;
-    }
-    Some(rule)
-}
+declared_pair_lookup!(
+    condition_materialization_for,
+    CONDITION_MATERIALIZATION_RULES,
+    ConditionMaterializationRule
+);
 
 /// The consumer kinds the family declares at all — for admission error
 /// reporting that distinguishes an unadmitted consumer kind from an

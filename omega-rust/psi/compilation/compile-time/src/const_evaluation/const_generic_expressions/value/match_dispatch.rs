@@ -428,7 +428,7 @@ fn landing_summaries(
                             };
                             let mut selection = left.selection.clone();
                             selection.extend(right.selection.iter().copied());
-                            push_unique(
+                            push_landing_summary(
                                 &mut joined,
                                 LandingSummary {
                                     value,
@@ -455,7 +455,10 @@ fn landing_summaries(
 /// Distinct (value, fractional-origin) pairs are the warnings the authored
 /// tree can emit; identical pairs share one diagnostic, so the recorded
 /// selection of either path reproduces it.
-fn push_unique(summaries: &mut Vec<LandingSummary>, summary: LandingSummary) -> Result<(), String> {
+fn push_landing_summary(
+    summaries: &mut Vec<LandingSummary>,
+    summary: LandingSummary,
+) -> Result<(), String> {
     let duplicate = summaries.iter().any(|existing| {
         existing.value.cmp_value(&summary.value).is_eq()
             && match (&existing.fractional, &summary.fractional) {
@@ -485,7 +488,7 @@ fn append_unique(
     for summary in arm_results {
         // Duplicate (value, origin) pairs would emit an identical diagnostic;
         // the bound still applies because distinct arms can exceed it joined.
-        push_unique(summaries, summary)?;
+        push_landing_summary(summaries, summary)?;
     }
     Ok(())
 }

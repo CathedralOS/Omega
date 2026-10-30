@@ -22,6 +22,8 @@ pub use requirement_identities::{same_semantic_name, satisfies_plan_name};
 use super::ProviderPlan;
 use crate::ProviderPlanningContext;
 use crate::provider_planning::provenance_replay::plan_derivation::derive_provider_plans;
+use language_semantics::direct_calls::DirectCallDeclarations;
+use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderSchemaDeclaration {
@@ -89,17 +91,20 @@ pub struct DerivedProviderPlan {
 #[derive(Clone, Copy)]
 pub struct ProviderPlanDerivation<'a> {
     context: ProviderPlanningContext<'a>,
+    body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
     calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&'a str>,
 }
 impl<'a> ProviderPlanDerivation<'a> {
     pub const fn new(
         context: ProviderPlanningContext<'a>,
+        body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
         calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
         selected_target: Option<&'a str>,
     ) -> Self {
         Self {
             context,
+            body_declarations,
             calling_plans,
             selected_target,
         }
@@ -113,6 +118,7 @@ pub fn derive_satisfies_plans(
 ) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
     derive_provider_plans(
         derivation.context,
+        derivation.body_declarations,
         derivation.calling_plans,
         derivation.selected_target,
     )

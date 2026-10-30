@@ -4,10 +4,12 @@
 //! consume the ordinary live-case judgment, independently of scalar format,
 //! qualification, or whether the accessed payload is copied or borrowed.
 
+mod completed_carriers;
+
 use arena::Handle;
 use checked_trees::{CheckFacts, FlowCaseAccessFact, FlowOperandReferent};
 use diagnostics::Diagnostic;
-use facts::{PlaceRoot, PlaceSegment};
+use facts::PlaceSegment;
 use validation::CanonicalPlace;
 
 #[derive(Clone, Copy)]
@@ -199,11 +201,11 @@ fn subject_cases_are_selected(
                 return Err("the completed carrier occurrence is missing");
             }
             let owner = control.operands.get(formation.owner);
-            if formation.source_access.is_valid() {
-                if !control.case_accesses.is_valid(formation.source_access) {
+            if formation.source_access().is_valid() {
+                if !control.case_accesses.is_valid(formation.source_access()) {
                     return Err("the carrier source access is missing");
                 }
-                let source = control.case_accesses.get(formation.source_access);
+                let source = control.case_accesses.get(formation.source_access());
                 if source.expression != owner.expression
                     || source.state_symbol != owner.state_symbol
                     || source.statement_index != owner.statement_index
@@ -214,17 +216,12 @@ fn subject_cases_are_selected(
             // Conditional inventory does not select an inner sum. This exact
             // completed carrier must supply its own current case evidence at
             // the descriptor load, independently of the source-copy prefix.
-            if !crate::flow::place_cases_are_selected(
+            if !completed_carriers::case_path_is_selected(
                 program,
-                &facts.semantic,
-                &contexts,
-                access.machine_symbol,
-                access.state_symbol,
-                access.statement_index,
-                &CanonicalPlace {
-                    root: PlaceRoot::Expression(owner.expression),
-                    segments: path.to_vec(),
-                },
+                facts,
+                access,
+                formation.owner,
+                path,
             ) {
                 return Err("the completed carrier does not select its required case");
             }
@@ -237,8 +234,38 @@ fn subject_cases_are_selected(
             return Err("the captured formation source is missing");
         }
         let source = control.operand_referents.get(formation.source);
-        if formation.source_access.is_valid() {
-            recorded_access_is_selected(program, facts, formation.source_access, source, proofs)?;
+        if let checked_trees::FlowReferentFormationEvidence::Return(call) = formation.evidence {
+            if !control.calls.is_valid(call)
+                || formation.owner.is_valid()
+                || !path.is_empty()
+                || canonical_subject(facts, source).is_none_or(|source| {
+                    source.root != formation.root || source.segments != namespace
+                })
+            {
+                return Err("the returned descriptor has no matching completed formation");
+            }
+            let invocation = control.calls.get(call);
+            if !control
+                .operand_referents
+                .span(invocation.normal_return_referents)
+                .is_some_and(|returned| {
+                    returned.iter().any(|returned| {
+                        returned.formation == subject.formation
+                            && returned.root == formation.root
+                            && control.operand_referent_segments.span(returned.segments)
+                                == Some(namespace)
+                    })
+                })
+            {
+                return Err("the invocation did not produce this descriptor formation");
+            }
+            // The complete body-derived return relation installed this
+            // descriptor's possible origins. Formation is checked at the
+            // callee's read/return, not by assuming every alternative tag at
+            // the caller. Its actual operands, loan retention and writes are
+            // checked independently; later pointee cases are still checked below.
+        } else if formation.source_access().is_valid() {
+            recorded_access_is_selected(program, facts, formation.source_access(), source, proofs)?;
         } else {
             let Some(source_place) = canonical_subject(facts, source) else {
                 return Err("the historical source has no canonical place");

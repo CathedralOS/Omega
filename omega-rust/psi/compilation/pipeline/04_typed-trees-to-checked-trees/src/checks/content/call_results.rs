@@ -936,11 +936,7 @@ pub(super) fn input_claim(
         .flow
         .control
         .state(invocation.machine, invocation.state)?;
-    let call_flow = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state_flow.calls)
+    let call_flow = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
         .iter()
         .find(|call| {
             call.statement_index == invocation.statement

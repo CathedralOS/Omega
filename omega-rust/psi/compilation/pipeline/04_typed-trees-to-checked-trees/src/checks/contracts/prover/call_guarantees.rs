@@ -49,11 +49,7 @@ fn invocation_fact<'facts>(
     caller: &FlowStateFact,
     invocation: &Invocation<'_>,
 ) -> Option<&'facts checked_trees::FlowCallFact> {
-    let mut calls = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(caller.calls)
+    let mut calls = crate::flow::call_flows(&facts.flow.control, caller.calls)
         .iter()
         .filter(|call| {
             call.statement_index == invocation.statement && call.call_ordinal == invocation.ordinal

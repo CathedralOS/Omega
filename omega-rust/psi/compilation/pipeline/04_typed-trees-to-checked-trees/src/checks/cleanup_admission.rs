@@ -102,11 +102,7 @@ pub(crate) fn validate_selected_cleanup_guarantees(
             .iter()
             .filter(|(_, state)| state.machine_symbol == target)
             .all(|(_, state)| {
-                facts
-                    .flow
-                    .control
-                    .calls
-                    .span_or_empty(state.calls)
+                crate::flow::call_flows(&facts.flow.control, state.calls)
                     .iter()
                     .all(|call| {
                         let Some(site) = validation::find_call_site(

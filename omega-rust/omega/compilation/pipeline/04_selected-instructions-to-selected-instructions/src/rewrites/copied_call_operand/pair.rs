@@ -294,23 +294,11 @@ pub(super) const COPIED_CALL_OPERAND_RULES: &[CopiedCallOperandRule] = &[
     CopiedCallOperandRule::COPY_CALL_AGGREGATE,
 ];
 
-/// The declared pair for one (producer, consumer) kind combination, or none
-/// when the family declares no such relationship — several rules matching
-/// one combination is a catalog defect and refuses rather than preferring
-/// table order.
-pub(super) fn copied_call_operand_for(
-    producer: MachineSemanticKind,
-    consumer: MachineSemanticKind,
-) -> Option<&'static CopiedCallOperandRule> {
-    let mut matches = COPIED_CALL_OPERAND_RULES
-        .iter()
-        .filter(|rule| rule.producer() == producer && rule.consumer() == consumer);
-    let rule = matches.next()?;
-    if matches.next().is_some() {
-        return None;
-    }
-    Some(rule)
-}
+declared_pair_lookup!(
+    copied_call_operand_for,
+    COPIED_CALL_OPERAND_RULES,
+    CopiedCallOperandRule
+);
 
 /// The consumer kinds the family declares at all — for admission error
 /// reporting that distinguishes an unadmitted consumer kind from an

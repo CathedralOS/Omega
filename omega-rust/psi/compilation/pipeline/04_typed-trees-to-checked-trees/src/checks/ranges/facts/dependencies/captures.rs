@@ -218,10 +218,7 @@ impl<'field> RangeFacts<'field> {
                     machine,
                     state,
                     if same_snapshot {
-                        program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .len()
+                        crate::flow::state_statements(program, state.statement_nodes).len()
                     } else {
                         prefix
                     },

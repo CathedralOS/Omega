@@ -53,12 +53,7 @@ pub(crate) fn lower_current_state_predicate(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
-    if statement_index
-        > program
-            .statement_table
-            .statements(state.statement_nodes)
-            .len()
-    {
+    if statement_index > crate::flow::state_statements(program, state.statement_nodes).len() {
         return None;
     }
     Reader {

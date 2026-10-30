@@ -2,6 +2,7 @@
 //! completes. Reserve the result place while the comparison expression is
 //! still being built, then emit the call into that same place.
 use super::{CheckedTrees, LoweringError};
+use crate::terminal_identities::stored_structural_identity;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{
     CheckedScalarComputationKind, CheckedUnitCallCoordinate, CheckedUnitStructuralArgumentPlan,
@@ -51,12 +52,7 @@ pub(crate) fn prepare(
                 .ok_or(LoweringError::Unsupported(
                     "call byte view lost its checked result",
                 ))?;
-            let identity = validation::stored_structural_type_identity(
-                &checked.typed,
-                root.type_reference,
-                &[],
-                &[],
-            );
+            let identity = stored_structural_identity(checked, root.type_reference);
             let declaration = crate::terminal_identities::structural_declaration_by_identity(
                 types,
                 identities,

@@ -20,7 +20,10 @@ use validation::CanonicalPlace;
 
 mod descriptor_lengths;
 
-use super::{ExitScalars, ExpressionHandle, ScalarValue, exit_return_expression, stable_segments};
+use super::{
+    ExitScalars, ExpressionHandle, ScalarValue, exit_return_expression, is_scalar_roster_local,
+    stable_segments,
+};
 use crate::flow::{self};
 use checked_trees::CheckedScalarExpression;
 use facts::PlaceRoot;
@@ -127,18 +130,14 @@ impl ExitScalars<'_, '_> {
                         .and_then(|reference| self.program.primitive_type_reference(reference))
                             == Some(primitive)
                     {
-                        let mut calls = self
-                            .facts
-                            .flow
-                            .control
-                            .calls
-                            .span_or_empty(caller.calls)
-                            .iter()
-                            .filter(|call| {
-                                call.statement_index == self.exit.statement_index
-                                    && call.authored_expression == selected
-                                    && call.authored_source_custody_valid
-                            });
+                        let mut calls =
+                            crate::flow::call_flows(&self.facts.flow.control, caller.calls)
+                                .iter()
+                                .filter(|call| {
+                                    call.statement_index == self.exit.statement_index
+                                        && call.authored_expression == selected
+                                        && call.authored_source_custody_valid
+                                });
                         if calls.next().is_some() && calls.next().is_none() {
                             return Some(arithmetic::atom(
                                 CanonicalPlace {
@@ -867,21 +866,12 @@ impl ExitScalars<'_, '_> {
                     primitive_type,
                 } if !contract => {
                     let ordinal = position.checked_sub(scalar_parameters().count())?;
-                    let local = self
-                        .program
-                        .statement_table
-                        .statements(state.statement_nodes)
+                    let local = crate::flow::state_statements(self.program, state.statement_nodes)
                         .get(..self.exit.statement_index)?
                         .iter()
                         .filter_map(|node| {
                             let local = node.as_local_data()?;
-                            (!local.is_mutable
-                                && local.initial_value.is_valid()
-                                && self
-                                    .program
-                                    .primitive_type_reference(local.type_reference)
-                                    .is_some())
-                            .then_some(local)
+                            is_scalar_roster_local(self.program, local).then_some(local)
                         })
                         .nth(ordinal)?;
                     (

@@ -5,7 +5,7 @@
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, Evaluation, LoweredBooleanReturnExpression,
     LoweredDirectExpression, LoweringError, QualifiedScalarType, ValueDeclaration,
-    terminal_scalar_type, unsupported,
+    scalar_source_types, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -305,10 +305,7 @@ impl Evaluation {
     ) -> Result<ValueDeclaration, LoweringError> {
         let bindings = self.contextual_bindings();
         let qualifications = &self.shared_qualifications;
-        let source_types = values
-            .iter()
-            .map(|value| value.value_type())
-            .collect::<Vec<_>>();
+        let source_types = scalar_source_types(values);
         // The completion carries the body's declared result, tags included,
         // as every other Unit scalar result does.
         let result_type = crate::unit::attached_unit::parameters::unit_scalar_result_type(

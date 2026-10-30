@@ -82,6 +82,7 @@ use crate::declarations::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
 use std::fmt;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
+use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 /// The declaration whose lexical binders own a static call's type arguments.
@@ -440,12 +441,7 @@ pub fn validate_static_type_argument<'program>(
             owner: caller,
             generic_depth: 0,
         },
-        TypeParameterScope {
-            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-            lexical_owner,
-            type_parameters: &type_parameters,
-            lifetime_parameters: &lifetime_parameters,
-        },
+        TypeParameterScope::authored(lexical_owner, &type_parameters, &lifetime_parameters),
         formation_obligations,
     );
 }
@@ -577,12 +573,7 @@ pub(crate) fn validate_generic_instance_argument_bounds(
         *base_symbol,
         base_name.as_str(),
         *arguments,
-        TypeParameterScope {
-            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-            lexical_owner: instance.symbol,
-            type_parameters: &[],
-            lifetime_parameters: &instance.lifetime_parameters,
-        },
+        TypeParameterScope::authored(instance.symbol, &[], &instance.lifetime_parameters),
         diagnostics,
     );
 }
@@ -1003,6 +994,21 @@ pub(crate) struct TypeParameterScope<'program> {
 }
 
 impl<'program> TypeParameterScope<'program> {
+    /// The authored telescope of `lexical_owner`: no retained operand supplies
+    /// its lifetimes, so the declaration's own parameters are the whole scope.
+    pub(crate) fn authored(
+        lexical_owner: symbols::SymbolHandle,
+        type_parameters: &'program [TypeParameter],
+        lifetime_parameters: &'program [typed_trees::name::Identifier],
+    ) -> Self {
+        Self {
+            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
+            lexical_owner,
+            type_parameters,
+            lifetime_parameters,
+        }
+    }
+
     fn contains(self, name: &str) -> bool {
         self.type_parameters
             .iter()
@@ -1104,6 +1110,20 @@ pub(crate) fn type_references_match(
     }
 
     program.normalized_type_identity(actual) == program.normalized_type_identity(required)
+}
+
+/// The ordinary identity of `type_reference` under one-at-a-time
+/// `substitutions`. The derivation stays in the typed program: callers that
+/// compare two identities still ask for each operand separately.
+pub(crate) fn substituted_identity(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> typed_trees::type_identity::NormalizedTypeIdentity {
+    program.type_identity(TypeIdentityRequest {
+        substitutions,
+        ..TypeIdentityRequest::ordinary(type_reference)
+    })
 }
 
 pub(crate) fn type_reference_label(

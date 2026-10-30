@@ -30,6 +30,15 @@ pub(crate) fn optional_text(hash: &mut u64, value: &Option<String>) {
         None => byte(hash, 0),
     }
 }
+pub(crate) fn optional_uint(hash: &mut u64, value: Option<u64>) {
+    match value {
+        Some(value) => {
+            byte(hash, 1);
+            uint(hash, value);
+        }
+        None => byte(hash, 0),
+    }
+}
 
 /// One query authority: its scope tag then the requester's identity.
 pub(super) fn query_authority(hash: &mut u64, authority: &super::SchemaQueryAuthority) {
