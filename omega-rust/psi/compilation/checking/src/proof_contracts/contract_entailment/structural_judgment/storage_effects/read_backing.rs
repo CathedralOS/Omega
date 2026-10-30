@@ -72,12 +72,36 @@ impl StructuralJudge<'_> {
             expression,
             place.root.as_symbol()?,
             &place.segments,
-        )?;
+        );
+        if super::super::super::struct_trace() {
+            eprintln!(
+                "STRUCT scalar-backing read={} dependencies={dependencies:?}",
+                self.program.expression_table.display_name(expression)
+            );
+        }
+        let dependencies = dependencies?;
         let identity = self
             .freeze_scalar_read_backing(state, dependencies)
             .identity?;
         if identity.1 != primitive {
             return None;
+        }
+        if super::super::super::struct_trace() {
+            for stored in self.stored_values.iter() {
+                eprintln!(
+                    "STRUCT scalar-backing donor read={} current={:?} identity={} same={}",
+                    self.program.expression_table.display_name(expression),
+                    stored.current,
+                    stored
+                        .backing
+                        .as_ref()
+                        .is_some_and(|b| b.identity.is_some()),
+                    stored
+                        .backing
+                        .as_ref()
+                        .is_some_and(|b| b.identity.as_ref() == Some(&identity))
+                );
+            }
         }
         self.stored_values.iter().find_map(|stored| {
             (stored.backing.as_ref()?.identity.as_ref()? == &identity)
