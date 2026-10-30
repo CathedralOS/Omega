@@ -32,9 +32,16 @@ pub(super) fn bind(
     )
     .is_err()
     {
-        return Err(vec![Diagnostic::error(
-            "nested machine application supplies an argument beyond its declared telescope",
-        )]);
+        return Err(vec![Diagnostic::error(format!(
+            "nested machine application supplies an argument beyond its declared telescope: selected `{}`, template `{}` has {} Type, {} Const/Value, {} Machine and {} evidence parameters, supplied {} arguments",
+            program.symbols.display_path(selected, "::"),
+            provider.template.template_name,
+            provider.template.type_parameters.len(),
+            provider.template.const_parameters.len(),
+            provider.template.machine_parameters.len(),
+            provider.template.evidence_parameters.len(),
+            arguments.len(),
+        ))]);
     }
     let supplied = super::selection::proposal_bindings(program, provider, proposals);
     provider.type_bindings = supplied.type_bindings;
