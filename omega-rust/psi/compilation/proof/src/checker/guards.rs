@@ -86,31 +86,34 @@ pub(crate) fn apply_assignment_guard(
     }
 }
 
+/// The side of an `==` comparison that is not the literal `true`, i.e. the
+/// condition an equality against `true` spells. `None` for any other
+/// comparison, so callers fall through to their own reading of the guard.
+fn non_true_operand(
+    proof_plan: &ProofPlan,
+    condition: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let binary = proof_plan.program.expression_table.binary_node(condition)?;
+    if binary.operator != BinaryOperator::Equal {
+        return None;
+    }
+    let is_true = |handle| {
+        matches!(
+            proof_plan.program.expression_table.expression(handle),
+            ExpressionNode::Boolean(true)
+        )
+    };
+    if is_true(binary.right) {
+        return Some(binary.left);
+    }
+    is_true(binary.left).then_some(binary.right)
+}
+
 pub(crate) fn unwrap_true_guard_condition(
     proof_plan: &ProofPlan,
     condition: ExpressionHandle,
 ) -> ExpressionHandle {
-    let Some(binary) = proof_plan.program.expression_table.binary_node(condition) else {
-        return condition;
-    };
-
-    if binary.operator == BinaryOperator::Equal {
-        if matches!(
-            proof_plan.program.expression_table.expression(binary.right),
-            ExpressionNode::Boolean(true)
-        ) {
-            return binary.left;
-        }
-
-        if matches!(
-            proof_plan.program.expression_table.expression(binary.left),
-            ExpressionNode::Boolean(true)
-        ) {
-            return binary.right;
-        }
-    }
-
-    condition
+    non_true_operand(proof_plan, condition).unwrap_or(condition)
 }
 
 pub(crate) fn apply_handle_condition(
@@ -128,20 +131,8 @@ pub(crate) fn apply_handle_condition(
         return range;
     };
 
-    if binary.operator == BinaryOperator::Equal {
-        if matches!(
-            proof_plan.program.expression_table.expression(binary.right),
-            ExpressionNode::Boolean(true)
-        ) {
-            return apply_handle_condition(proof_plan, range, argument, binary.left);
-        }
-
-        if matches!(
-            proof_plan.program.expression_table.expression(binary.left),
-            ExpressionNode::Boolean(true)
-        ) {
-            return apply_handle_condition(proof_plan, range, argument, binary.right);
-        }
+    if let Some(operand) = non_true_operand(proof_plan, condition) {
+        return apply_handle_condition(proof_plan, range, argument, operand);
     }
 
     if binary.operator == BinaryOperator::And {
@@ -191,33 +182,15 @@ pub(crate) fn apply_source_condition(
         return range;
     };
 
-    if binary.operator == BinaryOperator::Equal {
-        if matches!(
-            proof_plan.program.expression_table.expression(binary.right),
-            ExpressionNode::Boolean(true)
-        ) {
-            return apply_source_condition(
-                proof_plan,
-                range,
-                argument,
-                binary.left,
-                machine_symbol,
-                source_state,
-            );
-        }
-        if matches!(
-            proof_plan.program.expression_table.expression(binary.left),
-            ExpressionNode::Boolean(true)
-        ) {
-            return apply_source_condition(
-                proof_plan,
-                range,
-                argument,
-                binary.right,
-                machine_symbol,
-                source_state,
-            );
-        }
+    if let Some(operand) = non_true_operand(proof_plan, condition) {
+        return apply_source_condition(
+            proof_plan,
+            range,
+            argument,
+            operand,
+            machine_symbol,
+            source_state,
+        );
     }
 
     if binary.operator == BinaryOperator::And {
