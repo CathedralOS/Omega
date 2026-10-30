@@ -27,17 +27,19 @@ pub(super) fn check(
                 .control
                 .operand_referents
                 .span_or_empty(access.places);
-            let unavailable_subject = subjects
-                .iter()
-                .find(|subject| {
-                    !subject_cases_are_selected(program, facts, access, subject, &mut Vec::new())
-                })
-                .map(|subject| {
-                    canonical_subject(facts, subject).unwrap_or(CanonicalPlace {
-                        root: subject.root,
-                        segments: Vec::new(),
+            let unavailable_subject = subjects.iter().find_map(|subject| {
+                subject_cases_are_selected(program, facts, access, subject, &mut Vec::new())
+                    .err()
+                    .map(|reason| {
+                        (
+                            canonical_subject(facts, subject).unwrap_or(CanonicalPlace {
+                                root: subject.root,
+                                segments: Vec::new(),
+                            }),
+                            reason,
+                        )
                     })
-                });
+            });
             if subjects.is_empty() || unavailable_subject.is_some() {
                 let location = program
                     .machine_by_symbol(state.machine_symbol)
@@ -54,9 +56,9 @@ pub(super) fn check(
                     .unwrap_or_default();
                 let observation = unavailable_subject.map_or_else(
                     || "no captured source place is available".to_owned(),
-                    |subject| {
+                    |(subject, reason)| {
                         format!(
-                            "captured source `{}` has no live case evidence",
+                            "captured source `{}` has no live case evidence: {reason}",
                             facts::canonical_place_label_from_parts(
                                 program,
                                 subject.root,
@@ -90,14 +92,14 @@ fn recorded_access_is_selected(
     handle: Handle<FlowCaseAccessFact>,
     expected: &FlowOperandReferent,
     ancestors: &mut Vec<Handle<FlowCaseAccessFact>>,
-) -> bool {
+) -> Result<(), &'static str> {
     let control = &facts.flow.control;
     if !control.case_accesses.is_valid(handle) || ancestors.contains(&handle) {
-        return false;
+        return Err("the recorded source access is missing or cyclic");
     }
     let access = control.case_accesses.get(handle);
     let Some(subjects) = control.operand_referents.span(access.places) else {
-        return false;
+        return Err("the recorded source access has no valid source list");
     };
     // The producer associates the actual source coordinates with its read;
     // a successful unrelated access is not a substitute for this prefix.
@@ -107,12 +109,12 @@ fn recorded_access_is_selected(
                 && canonical_subject(facts, subject) == canonical_subject(facts, expected)
         })
     {
-        return false;
+        return Err("the recorded source access does not name this captured source");
     }
     ancestors.push(handle);
-    let selected = subjects
-        .iter()
-        .all(|subject| subject_cases_are_selected(program, facts, access, subject, ancestors));
+    let selected = subjects.iter().try_for_each(|subject| {
+        subject_cases_are_selected(program, facts, access, subject, ancestors)
+    });
     ancestors.pop();
     selected
 }
@@ -123,9 +125,9 @@ fn subject_cases_are_selected(
     access: &FlowCaseAccessFact,
     subject: &FlowOperandReferent,
     ancestors: &mut Vec<Handle<FlowCaseAccessFact>>,
-) -> bool {
+) -> Result<(), &'static str> {
     let Some(place) = canonical_subject(facts, subject) else {
-        return false;
+        return Err("the captured source has no canonical place");
     };
     let control = &facts.flow.control;
     let contexts = facts
@@ -135,11 +137,11 @@ fn subject_cases_are_selected(
     let mut prefix_length = 0;
     if subject.formation.is_valid() {
         if !control.referent_formations.is_valid(subject.formation) {
-            return false;
+            return Err("the captured formation is missing");
         }
         let formation = control.referent_formations.get(subject.formation);
         let Some(namespace) = control.operand_referent_segments.span(formation.segments) else {
-            return false;
+            return Err("the captured formation has no valid namespace");
         };
         // Only the proven Case prefixes are historical. Non-case view-window
         // geometry may be projected by the ordinary captured-view operation;
@@ -151,26 +153,26 @@ fn subject_cases_are_selected(
         if formation.root != place.root
             || !place.segments.starts_with(&namespace[..case_prefix_length])
         {
-            return false;
+            return Err("the captured formation namespace does not prefix its source");
         }
         let Some(path) = control.operand_child_paths.span(formation.path) else {
-            return false;
+            return Err("the captured formation has no valid carrier path");
         };
         if formation.owner.is_valid() {
             if !control.operands.is_valid(formation.owner) {
-                return false;
+                return Err("the completed carrier occurrence is missing");
             }
             let owner = control.operands.get(formation.owner);
             if formation.source_access.is_valid() {
                 if !control.case_accesses.is_valid(formation.source_access) {
-                    return false;
+                    return Err("the carrier source access is missing");
                 }
                 let source = control.case_accesses.get(formation.source_access);
                 if source.expression != owner.expression
                     || source.state_symbol != owner.state_symbol
                     || source.statement_index != owner.statement_index
                 {
-                    return false;
+                    return Err("the carrier source access belongs to a different occurrence");
                 }
             }
             // Conditional inventory does not select an inner sum. This exact
@@ -188,30 +190,28 @@ fn subject_cases_are_selected(
                     segments: path.to_vec(),
                 },
             ) {
-                return false;
+                return Err("the completed carrier does not select its required case");
             }
         } else {
             if !path.is_empty() {
-                return false;
+                return Err("a carrier-less formation has a nonempty carrier path");
             }
         }
         if !control.operand_referents.is_valid(formation.source) {
-            return false;
+            return Err("the captured formation source is missing");
         }
         let source = control.operand_referents.get(formation.source);
         if formation.source_access.is_valid() {
-            if !recorded_access_is_selected(
+            recorded_access_is_selected(
                 program,
                 facts,
                 formation.source_access,
                 source,
                 ancestors,
-            ) {
-                return false;
-            }
+            )?;
         } else {
             let Some(source_place) = canonical_subject(facts, source) else {
-                return false;
+                return Err("the historical source has no canonical place");
             };
             if source.formation.is_valid()
                 || source_place
@@ -219,12 +219,12 @@ fn subject_cases_are_selected(
                     .iter()
                     .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
             {
-                return false;
+                return Err("a historical case source has no completed access evidence");
             }
         }
         prefix_length = case_prefix_length;
     }
-    crate::flow::place_cases_are_selected_after(
+    if crate::flow::place_cases_are_selected_after(
         program,
         &facts.semantic,
         &contexts,
@@ -233,5 +233,9 @@ fn subject_cases_are_selected(
         access.statement_index,
         &place,
         prefix_length,
-    )
+    ) {
+        Ok(())
+    } else {
+        Err("the current source does not select its required case")
+    }
 }
