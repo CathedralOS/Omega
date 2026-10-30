@@ -362,7 +362,7 @@ pub(in crate::machine_calls::calls::write_frames) fn project_aggregate_origins(
         .iter()
         .map(|leaf| leaf.origin.clone())
         .collect::<Vec<_>>();
-    let established = StoredLocalOrigins {
+    let established = StoredLocalOrigins::new(super::StoredOriginRecord {
         local_symbol,
         references: origins
             .references
@@ -380,7 +380,7 @@ pub(in crate::machine_calls::calls::write_frames) fn project_aggregate_origins(
         cases: origins.cases,
         moves: origins.moves,
         symbolic: false,
-    };
+    });
     project_stored_origins_with_sources(
         program,
         &established,

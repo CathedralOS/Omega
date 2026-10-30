@@ -73,13 +73,15 @@ pub(in crate::machine_calls::calls::write_frames) fn apply(
             .iter()
             .position(|record| record.local_symbol == effect.root)
             .unwrap_or_else(|| {
-                stored.push(StoredLocalOrigins {
-                    local_symbol: effect.root,
-                    references: Vec::new(),
-                    cases: Vec::new(),
-                    moves: Vec::new(),
-                    symbolic: false,
-                });
+                stored.push(StoredLocalOrigins::new(
+                    super::super::stored_origins::StoredOriginRecord {
+                        local_symbol: effect.root,
+                        references: Vec::new(),
+                        cases: Vec::new(),
+                        moves: Vec::new(),
+                        symbolic: false,
+                    },
+                ));
                 stored.len() - 1
             });
         let record = &mut stored[index];
