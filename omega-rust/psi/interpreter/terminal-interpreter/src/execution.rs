@@ -886,6 +886,16 @@ impl<'artifact> TerminalExecution<'artifact> {
         u64::try_from(value).map_err(|_| malformed())
     }
 
+    /// Every live structural value: the running frame's own table, then each
+    /// suspended caller's.
+    pub(crate) fn live_structural_values(&self) -> impl Iterator<Item = &TerminalStructuralValue> {
+        self.structural_values.values().chain(
+            self.call_stack
+                .iter()
+                .flat_map(|frame| frame.structural_values.values()),
+        )
+    }
+
     /// Every scalar bound to `arguments`, in order.
     pub(crate) fn scalar_values_at(
         &self,

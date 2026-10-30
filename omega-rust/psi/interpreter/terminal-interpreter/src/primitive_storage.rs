@@ -1749,13 +1749,7 @@ impl TerminalExecution<'_> {
         shared_view: bool,
     ) -> Result<StructuralScalarRuntimeField, TerminalInterpretError> {
         let root = self
-            .structural_values
-            .values()
-            .chain(
-                self.call_stack
-                    .iter()
-                    .flat_map(|frame| frame.structural_values.values()),
-            )
+            .live_structural_values()
             .filter(|value| value.path.is_empty())
             .find_map(|value| {
                 (value.opaque_identity == view.opaque_identity).then_some(value.structural_type)
