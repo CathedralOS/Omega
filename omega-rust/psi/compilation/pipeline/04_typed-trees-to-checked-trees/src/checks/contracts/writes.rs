@@ -37,8 +37,8 @@ mod domain_tests;
 mod member_domains;
 use domain_implications::value_proves_qualification;
 pub(super) use domain_implications::value_proves_qualification_in_contexts;
-use member_domains::initializer_satisfies_predicate_domain;
-pub(super) use member_domains::value_satisfies_domain_predicates_in_contexts;
+pub(in crate::checks::contracts) use member_domains::initializer_satisfies_predicate_domain;
+pub(in crate::checks::contracts) use member_domains::value_satisfies_domain_predicates_in_contexts;
 
 /// Receiving obligations of fresh structural constructors, indexed once for
 /// the state's authored expression walk. A row requests a judgment; it never

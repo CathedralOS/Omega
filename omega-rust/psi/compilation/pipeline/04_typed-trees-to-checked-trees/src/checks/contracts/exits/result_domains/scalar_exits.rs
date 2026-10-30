@@ -62,6 +62,7 @@ pub(crate) fn scalar_result_domains(
 pub(in crate::checks::contracts) fn check_scalar_result_domains(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    state_flow: &checked_trees::FlowStateFact,
     exit: &FlowExitFact,
     decisions: &mut Vec<checked_trees::CheckedScalarReturnQualification>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -147,8 +148,42 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
                         )?,
                     )
                     };
-                establishes_scalar_predicates(program, facts, exit, &contexts, domain, constraint)
-                    .then_some(origin)
+                // A qualified constant returns its initializer through this probe.
+                // Use the same predicate judgment a local initializer uses, including
+                // nested membership and an inherited parent chain.
+                let qualified_value = if returned.is_valid() {
+                    returned
+                } else if facts.flow.control.operands.is_valid(exit.returned_value) {
+                    facts
+                        .flow
+                        .control
+                        .operands
+                        .get(exit.returned_value)
+                        .expression
+                } else {
+                    typed_trees::expression::ExpressionHandle::default()
+                };
+                if qualified_value.is_valid()
+                    && super::super::super::writes::initializer_satisfies_predicate_domain(
+                        program,
+                        facts,
+                        state_flow,
+                        exit.statement_index,
+                        qualified_value,
+                        domain_symbol,
+                        &mut Vec::new(),
+                        None,
+                    )
+                {
+                    return Some(origin);
+                }
+                matches!(
+                    establishes_scalar_predicates(
+                        program, facts, exit, &contexts, domain, constraint,
+                    ),
+                    ScalarPredicateJudgment::Proven,
+                )
+                .then_some(origin)
             })
         };
         if let Some(origin) = origin {
@@ -163,6 +198,24 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
                 domain: domain_symbol,
                 origin,
             });
+        } else if program.domain_definition(domain_symbol).is_some_and(|domain| {
+            matches!(
+                establishes_scalar_predicates(
+                    program, facts, exit, &contexts, domain, constraint,
+                ),
+                ScalarPredicateJudgment::Refuted,
+            )
+        }) && crate::labels::machine_name(program, exit.machine_symbol)
+            .starts_with("@const-qualification-")
+        {
+            let full = crate::labels::symbol_name(program, domain_symbol);
+            let short = full
+                .split_once("::")
+                .map(|(_, rest)| rest.to_owned())
+                .unwrap_or(full.clone());
+            diagnostics.push(Diagnostic::error(format!(
+                "domain constraint `{short}` for the const leaf value is false; failed domain `{full}`",
+            )));
         } else {
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove scalar result domain for return from {} at statement {}: {}",

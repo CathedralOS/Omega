@@ -14,7 +14,7 @@ use typed_trees::expression::ExpressionHandle;
 /// nested place. Mutation invalidation retires both evidence forms, so stale
 /// establishment never survives a rewrite, and a foreign case or owner fails
 /// the exact variant-symbol comparison.
-pub(super) fn initializer_satisfies_predicate_domain(
+pub(in crate::checks::contracts) fn initializer_satisfies_predicate_domain(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
