@@ -56,26 +56,12 @@ impl OperationFrame<'_, '_> {
             if !qualifications.is_empty() || !projected_qualifications.is_empty() {
                 for (_, parameter) in &mut self.evaluation.structural_parameters {
                     if parameter.place == completion.place {
-                        parameter.qualifications.extend_from_slice(&qualifications);
-                        parameter.qualifications.sort();
-                        parameter.qualifications.dedup();
-                        parameter
-                            .projected_qualifications
-                            .extend_from_slice(&projected_qualifications);
-                        parameter.projected_qualifications.sort();
-                        parameter.projected_qualifications.dedup();
+                        merge_rosters(parameter, &qualifications, &projected_qualifications);
                     }
                 }
                 for parameter in &mut self.evaluation.block_structural_parameters {
                     if parameter.place == completion.place {
-                        parameter.qualifications.extend_from_slice(&qualifications);
-                        parameter.qualifications.sort();
-                        parameter.qualifications.dedup();
-                        parameter
-                            .projected_qualifications
-                            .extend_from_slice(&projected_qualifications);
-                        parameter.projected_qualifications.sort();
-                        parameter.projected_qualifications.dedup();
+                        merge_rosters(parameter, &qualifications, &projected_qualifications);
                     }
                 }
             }
@@ -244,29 +230,32 @@ impl OperationFrame<'_, '_> {
             );
             for (_, parameter) in &mut self.evaluation.structural_parameters {
                 if parameter.place == owner.place {
-                    parameter.qualifications.extend_from_slice(&qualifications);
-                    parameter.qualifications.sort();
-                    parameter.qualifications.dedup();
-                    parameter
-                        .projected_qualifications
-                        .extend_from_slice(&projected_qualifications);
-                    parameter.projected_qualifications.sort();
-                    parameter.projected_qualifications.dedup();
+                    merge_rosters(parameter, &qualifications, &projected_qualifications);
                 }
             }
             for parameter in &mut self.evaluation.block_structural_parameters {
                 if parameter.place == owner.place {
-                    parameter.qualifications.extend_from_slice(&qualifications);
-                    parameter.qualifications.sort();
-                    parameter.qualifications.dedup();
-                    parameter
-                        .projected_qualifications
-                        .extend_from_slice(&projected_qualifications);
-                    parameter.projected_qualifications.sort();
-                    parameter.projected_qualifications.dedup();
+                    merge_rosters(parameter, &qualifications, &projected_qualifications);
                 }
             }
         }
         Ok(())
     }
+}
+
+/// Merge one owner's qualification rosters into a declaration that names its
+/// place, keeping both rosters sorted and duplicate-free.
+fn merge_rosters(
+    parameter: &mut terminal_psi::StructuralParameterDeclaration,
+    qualifications: &[semantic_vocabulary::StructuralDomainId],
+    projected_qualifications: &[terminal_psi::StructuralPathQualification],
+) {
+    parameter.qualifications.extend_from_slice(qualifications);
+    parameter.qualifications.sort();
+    parameter.qualifications.dedup();
+    parameter
+        .projected_qualifications
+        .extend_from_slice(projected_qualifications);
+    parameter.projected_qualifications.sort();
+    parameter.projected_qualifications.dedup();
 }

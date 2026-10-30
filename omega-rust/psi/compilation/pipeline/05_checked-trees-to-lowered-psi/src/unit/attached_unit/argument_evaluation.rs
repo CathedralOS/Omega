@@ -21,6 +21,7 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::value_successor;
 use crate::scalar_lowering::branch_states::prepared::scalar_state_emission_order;
 use crate::scalar_lowering::contracts::{erased_proof_formal_declarations, lowered_proof_terms};
 use crate::unit::attached_unit::OperationEnvironment;
@@ -2234,13 +2235,5 @@ fn dispatch_successor_edge(
     next_edge: &mut u64,
     target: BlockId,
 ) -> Result<terminal_psi::SuccessorEdge, LoweringError> {
-    Ok(terminal_psi::SuccessorEdge {
-        edge: edge_id(allocate_dense(next_edge)?),
-        target,
-        arguments: Vec::new(),
-        erased_arguments: Vec::new(),
-        erased_proof_arguments: Vec::new(),
-        structural_arguments: Vec::new(),
-        cleanup_actions: Vec::new(),
-    })
+    Ok(value_successor(edge_id(allocate_dense(next_edge)?), target))
 }

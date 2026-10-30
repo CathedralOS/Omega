@@ -8,7 +8,7 @@ use super::{
     check_predicate_denotations_with_value_equalities,
 };
 use crate::proof::{assumption_proof, semantic_axiom_proof};
-use crate::{PrimitiveJudgment, ProofNode, ProofRule};
+use crate::{PrimitiveJudgment, ProofNode, ProofRule, proof_node, value_context};
 
 fn integer_type() -> IntegerType {
     IntegerType::new(IntegerSign::Signed, 32).unwrap()
@@ -72,10 +72,7 @@ fn fixture() -> (PropositionContext, Proposition, Vec<Proposition>) {
 }
 
 fn citation(checked: &CheckedPredicateDenotations<'_>, index: usize) -> ProofNode {
-    ProofNode {
-        conclusion: checked.goal().clone(),
-        rule: ProofRule::SemanticAxiom { index },
-    }
+    proof_node!(checked.goal().clone() => ProofRule::SemanticAxiom { index })
 }
 
 #[test]
@@ -157,10 +154,7 @@ fn requirements_and_conditional_equalities_never_supply_global_definitions() {
         checked
             .check_certificate(
                 &context,
-                &ProofNode {
-                    conclusion: checked.goal().clone(),
-                    rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
-                }
+                &proof_node!(checked.goal().clone() => ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality))
             )
             .is_err(),
         "the goal cannot establish its own equality"
@@ -211,23 +205,14 @@ fn cyclic_definitions_reject_but_shared_acyclic_aliases_preserve_identity() {
     checked
         .check_certificate(
             &context,
-            &ProofNode {
-                conclusion: checked.goal().clone(),
-                rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
-            },
+            &proof_node!(checked.goal().clone() => ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality)),
         )
         .unwrap();
 }
 
 #[test]
 fn shared_budget_bounds_input_depth_and_repeated_dag_expansion() {
-    let context = PropositionContext::from_value_types((1..=16).map(|identity| {
-        (
-            ValueId::new(identity).unwrap(),
-            ScalarType::Integer(integer_type()),
-        )
-    }))
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type()), 16);
     let goal = Proposition::Equal(value(16), literal(1));
     let axioms = (2..=16)
         .map(|identity| {

@@ -1,9 +1,9 @@
 use super::{
     GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CONFIG_SHA1, LocalSourceLimits,
-    ProvisionalCacheDirectory, SourceResolveError, create_git_source,
-    create_private_cache_directory, git_cache_entry_root, local_git_request,
-    make_tree_owner_writable, open_absolute_directory_nofollow, open_verified_git_repository,
-    resolve_git_source_from_hardened_base, temp_root,
+    ProvisionalCacheDirectory, SourceResolveError, create_private_cache_directory,
+    git_cache_entry_root, make_tree_owner_writable, open_absolute_directory_nofollow,
+    open_verified_git_repository, primed_git_cache, resolve_git_source_from_hardened_base,
+    temp_root,
 };
 #[cfg(unix)]
 use super::{first_regular_descendant, invalidate_git_cache_entry_from_retained_parent};
@@ -50,11 +50,7 @@ fn git_cache_invalidation_does_not_follow_a_substituted_entry_symlink() {
 
 #[test]
 fn git_cache_rejects_repository_config_substitution_without_asking_git() {
-    let (repo, _) = create_git_source("git-origin-source");
-    let cache = temp_root("git-origin-cache");
-    let request = local_git_request(&repo, "HEAD");
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("prime cache");
+    let (repo, cache, request) = primed_git_cache("git-origin");
     let repository = git_cache_entry_root(&cache, &request).join(GIT_CACHE_REPOSITORY);
     let config = repository.join("config");
     assert_eq!(std::fs::read(&config).unwrap(), GIT_CONFIG_SHA1);
@@ -79,11 +75,7 @@ fn git_cache_rejects_repository_config_substitution_without_asking_git() {
     ignore = "Windows prevents replacement while the retained repository handle is open"
 )]
 fn verified_git_repository_rejects_replaced_repository_path() {
-    let (repo, _) = create_git_source("git-retained-repository-source");
-    let cache = temp_root("git-retained-repository-cache");
-    let request = local_git_request(&repo, "HEAD");
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("prime cache");
+    let (repo, cache, request) = primed_git_cache("git-retained-repository");
     let verified = open_verified_git_repository(&cache, &request);
     let repository = verified.path().to_path_buf();
     let displaced = repository.with_file_name("repository.displaced");
@@ -106,11 +98,7 @@ fn verified_git_repository_rejects_replaced_repository_path() {
     ignore = "Windows prevents replacement while the retained object-store handle is open"
 )]
 fn verified_git_repository_rejects_replaced_objects_path() {
-    let (repo, _) = create_git_source("git-retained-objects-source");
-    let cache = temp_root("git-retained-objects-cache");
-    let request = local_git_request(&repo, "HEAD");
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("prime cache");
+    let (repo, cache, request) = primed_git_cache("git-retained-objects");
     let verified = open_verified_git_repository(&cache, &request);
     let objects = verified.path().join("objects");
     let displaced = verified.path().join("objects.displaced");
@@ -129,11 +117,7 @@ fn verified_git_repository_rejects_replaced_objects_path() {
 
 #[test]
 fn git_cache_forbidden_record_probe_rejects_non_not_found_errors() {
-    let (repo, _) = create_git_source("git-forbidden-probe-source");
-    let cache = temp_root("git-forbidden-probe-cache");
-    let request = local_git_request(&repo, "HEAD");
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("prime cache");
+    let (repo, cache, request) = primed_git_cache("git-forbidden-probe");
     let entry = git_cache_entry_root(&cache, &request);
     let info = entry.join(GIT_CACHE_REPOSITORY).join("objects/info");
     std::fs::remove_dir(&info).expect("remove empty Git info directory");
@@ -153,11 +137,7 @@ fn git_cache_forbidden_record_probe_rejects_non_not_found_errors() {
 #[test]
 fn git_cache_rejects_symlinks_in_owned_repository_namespaces() {
     for relative in ["config", "FETCH_HEAD", "HEAD"] {
-        let (repo, _) = create_git_source(&format!("git-symlink-{relative}-source"));
-        let cache = temp_root(&format!("git-symlink-{relative}-cache"));
-        let request = local_git_request(&repo, "HEAD");
-        resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-            .expect("prime cache");
+        let (repo, cache, request) = primed_git_cache(&format!("git-symlink-{relative}"));
         let entry = git_cache_entry_root(&cache, &request);
         let repository = entry.join(GIT_CACHE_REPOSITORY);
         let path = repository.join(relative);
@@ -175,11 +155,7 @@ fn git_cache_rejects_symlinks_in_owned_repository_namespaces() {
         let _ = std::fs::remove_dir_all(&cache);
     }
 
-    let (repo, _) = create_git_source("git-symlink-object-source");
-    let cache = temp_root("git-symlink-object-cache");
-    let request = local_git_request(&repo, "HEAD");
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("prime cache");
+    let (repo, cache, request) = primed_git_cache("git-symlink-object");
     let repository = git_cache_entry_root(&cache, &request).join(GIT_CACHE_REPOSITORY);
     let object = first_regular_descendant(&repository.join("objects"));
     let displaced = object.with_extension("displaced");
@@ -199,11 +175,7 @@ fn git_cache_rejects_symlinks_in_owned_repository_namespaces() {
 #[cfg(unix)]
 #[test]
 fn git_cache_rejects_multiply_linked_regular_files() {
-    let (repo, _) = create_git_source("git-hardlink-source");
-    let cache = temp_root("git-hardlink-cache");
-    let request = local_git_request(&repo, "HEAD");
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("prime cache");
+    let (repo, cache, request) = primed_git_cache("git-hardlink");
     let entry = git_cache_entry_root(&cache, &request);
     let config = entry.join(GIT_CACHE_REPOSITORY).join("config");
     std::fs::hard_link(&config, cache.join("config-alias"))
@@ -224,11 +196,7 @@ fn git_cache_rejects_multiply_linked_regular_files() {
 fn git_cache_rejects_group_or_other_writable_custody() {
     use std::os::unix::fs::PermissionsExt;
 
-    let (repo, _) = create_git_source("git-custody-source");
-    let cache = temp_root("git-custody-cache");
-    let request = local_git_request(&repo, "HEAD");
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("prime cache");
+    let (repo, cache, request) = primed_git_cache("git-custody");
     std::fs::set_permissions(&cache, std::fs::Permissions::from_mode(0o777))
         .expect("make cache externally writable");
 

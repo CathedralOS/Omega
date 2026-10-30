@@ -38,14 +38,7 @@ fn insert_write_import(image: &mut FinalImage) -> Handle<FinalImageSymbol> {
 }
 
 fn image_with_referenced_import() -> FinalImage {
-    let mut image = FinalImage::with_capacity(
-        NativeTarget::macos_arm64(),
-        Default::default(),
-        Handle::invalid(),
-        1,
-        1,
-        1,
-    );
+    let mut image = crate::test_support::image(NativeTarget::macos_arm64(), Default::default());
     insert_write_import(&mut image);
     image
 }
@@ -144,14 +137,7 @@ fn mutated_import_thunk_opcode_rejects_final_validation() {
 
 #[test]
 fn x86_64_import_thunks_emit_and_validate_the_closed_jmp_rip_form() {
-    let mut image = FinalImage::with_capacity(
-        NativeTarget::macos_x64(),
-        Default::default(),
-        Handle::invalid(),
-        1,
-        1,
-        1,
-    );
+    let mut image = crate::test_support::image(NativeTarget::macos_x64(), Default::default());
     insert_write_import(&mut image);
 
     let imports =
@@ -192,14 +178,7 @@ fn x86_64_import_thunks_emit_and_validate_the_closed_jmp_rip_form() {
 
 #[test]
 fn x86_64_mutated_import_thunk_rejects_final_validation() {
-    let mut image = FinalImage::with_capacity(
-        NativeTarget::macos_x64(),
-        Default::default(),
-        Handle::invalid(),
-        1,
-        1,
-        1,
-    );
+    let mut image = crate::test_support::image(NativeTarget::macos_x64(), Default::default());
     insert_write_import(&mut image);
     let imports =
         install_import_thunks(&mut image, MachoIsa::X86_64).expect("valid x86-64 bootstrap import");
@@ -372,14 +351,7 @@ fn repeated_normalized_identity_rejects_without_image_mutation() {
 
 #[test]
 fn excessive_dylib_ordinals_reject_before_image_mutation() {
-    let mut image = FinalImage::with_capacity(
-        NativeTarget::macos_arm64(),
-        Default::default(),
-        Handle::invalid(),
-        15,
-        15,
-        15,
-    );
+    let mut image = crate::test_support::image(NativeTarget::macos_arm64(), Default::default());
     for index in 0..15 {
         let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: format!("diagnostic-{index}"),

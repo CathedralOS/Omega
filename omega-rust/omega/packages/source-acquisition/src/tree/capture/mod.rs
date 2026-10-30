@@ -44,6 +44,23 @@ pub(crate) fn capture_local_source(
     capture_local_source_from_open_root(root, root_directory, limits, policy)
 }
 
+/// Capture the tree below an already open no-follow root under the exact
+/// materialized policy, cloning the handle so the caller keeps its own.
+pub(crate) fn capture_exact_materialized(
+    root: &Path,
+    root_directory: &CapabilityDirectory,
+    limits: LocalSourceLimits,
+) -> Result<CapturedLocalTree, SourceResolveError> {
+    capture_local_source_from_open_root(
+        root.to_path_buf(),
+        root_directory
+            .try_clone()
+            .map_err(|error| io_error(root, error))?,
+        limits,
+        SourceTreePolicy::ExactMaterialized,
+    )
+}
+
 pub(crate) fn capture_local_source_from_open_root(
     root: PathBuf,
     root_directory: CapabilityDirectory,

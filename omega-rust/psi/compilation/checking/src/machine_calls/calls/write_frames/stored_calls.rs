@@ -162,6 +162,25 @@ fn invocation_reference_effects(
             );
         }
     };
+    // Every completed supplier — closed dynamic, checked alternative or
+    // projected body — rebases its output occurrences onto this caller site
+    // before the applied transfer completes.
+    let transfer = |parameters: &[StateParameter], mut relative: Vec<SlotEffect>| {
+        rebase_output_occurrences(
+            program,
+            machine,
+            caller_state,
+            call_site,
+            target,
+            call_expression,
+            parameters,
+            &mut relative,
+        )?;
+        instantiate(
+            program, machine, parameters, captures, &relative, context, symbols,
+        )
+        .map(|instantiated| SlotRelationTransfer::complete(instantiated.effects))
+    };
     if arguments.len() != captures.len()
         || arguments
             .iter()
@@ -209,23 +228,9 @@ fn invocation_reference_effects(
     // output-occurrence rebasing as concrete bodies. Missing closed coverage
     // retains declared lifetime debts without inventing a supplied pointer.
     if let Some(slot) = program.dynamic_slot_by_symbol(target) {
-        if let Some(mut relative) =
-            dynamic_outputs::relative_effects(program, slot, symbols, inference)
+        if let Some(relative) = dynamic_outputs::relative_effects(program, slot, symbols, inference)
         {
-            rebase_output_occurrences(
-                program,
-                machine,
-                caller_state,
-                call_site,
-                target,
-                call_expression,
-                parameters,
-                &mut relative,
-            )?;
-            return instantiate(
-                program, machine, parameters, captures, &relative, context, symbols,
-            )
-            .map(|instantiated| SlotRelationTransfer::complete(instantiated.effects));
+            return transfer(parameters, relative);
         }
         return declared_outputs::effects(program, machine, parameters, captures, context, symbols);
     }
@@ -275,27 +280,14 @@ fn invocation_reference_effects(
     let parameters = body_parameters;
     if callee.target_family_interface {
         let alternatives = super::call_targets::checked_body_alternatives(program, callee, state)?;
-        let mut relative = checked_alternatives::relative_effects(
+        let relative = checked_alternatives::relative_effects(
             program,
             &alternatives,
             parameters,
             symbols,
             inference,
         )?;
-        rebase_output_occurrences(
-            program,
-            machine,
-            caller_state,
-            call_site,
-            target,
-            call_expression,
-            parameters,
-            &mut relative,
-        )?;
-        return instantiate(
-            program, machine, parameters, captures, &relative, context, symbols,
-        )
-        .map(|instantiated| SlotRelationTransfer::complete(instantiated.effects));
+        return transfer(parameters, relative);
     }
     if !callee.body_is_present || !callee.supply_mode.is_checked_body() {
         trace_refusal("checked-body-unavailable");
@@ -314,28 +306,13 @@ fn invocation_reference_effects(
         .iter()
         .map(|captured| captured.inference.index_value(program, captured.expression))
         .collect::<Vec<_>>();
-    let Some(mut relative) =
-        inference.with_invocation(program, state, &[], &indices, |inference| {
-            state_effects(program, callee, state, symbols, inference)
-        })
-    else {
+    let Some(relative) = inference.with_invocation(program, state, &[], &indices, |inference| {
+        state_effects(program, callee, state, symbols, inference)
+    }) else {
         trace_refusal("relative-state-effects");
         return None;
     };
-    rebase_output_occurrences(
-        program,
-        machine,
-        caller_state,
-        call_site,
-        target,
-        call_expression,
-        parameters,
-        &mut relative,
-    )?;
-    instantiate(
-        program, machine, parameters, captures, &relative, context, symbols,
-    )
-    .map(|instantiated| SlotRelationTransfer::complete(instantiated.effects))
+    transfer(parameters, relative)
 }
 
 fn output_identity(

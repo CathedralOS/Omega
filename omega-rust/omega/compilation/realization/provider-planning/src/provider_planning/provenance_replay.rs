@@ -14,12 +14,10 @@ mod adapter_conformance;
 mod named_provider_plans;
 mod plan_derivation;
 mod requirement_identities;
-mod specialization_rows;
 
 pub(crate) use adapter_conformance::exact_checked_adapter_invocations;
 pub use adapter_conformance::{exact_checked_adapter, selected_requirement_checked_adapter};
 pub use requirement_identities::{same_semantic_name, satisfies_plan_name};
-pub use specialization_rows::project_checked_provider_instances;
 
 use super::ProviderPlan;
 use crate::ProviderPlanningContext;

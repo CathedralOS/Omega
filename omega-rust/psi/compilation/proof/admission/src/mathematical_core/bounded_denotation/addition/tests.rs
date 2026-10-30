@@ -3,7 +3,9 @@ use super::super::test_utilities::{
     verify_then_elaborate,
 };
 use crate::proof::assumption_proof;
-use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
+use crate::{
+    Budget, IntegerAffineWitness, ProofNode, ProofRule, value_context, verify_bounded_certificate,
+};
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
     ScalarTerm, ScalarType, ValueId,
@@ -31,10 +33,7 @@ fn correlated_add_bounds_transport_ssa_roots_and_carrier_endpoints() {
         let integer = IntegerType::new(sign, width).unwrap();
         let scalar = ScalarType::Integer(integer);
         let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
-        let context = PropositionContext::from_value_types(
-            (1..=4).map(|index| (ValueId::new(index).unwrap(), scalar)),
-        )
-        .unwrap();
+        let context = value_context(scalar, 4);
         let left = if width == 8 {
             ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap()
         } else {
@@ -346,10 +345,7 @@ fn exact_add_definition_proof(
 fn check_exact_add_definition_bound(integer: IntegerType, lower: bool, reversed: bool) {
     let scalar = ScalarType::Integer(integer);
     let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
-    let context = PropositionContext::from_value_types(
-        (1..=3).map(|index| (ValueId::new(index).unwrap(), scalar)),
-    )
-    .unwrap();
+    let context = value_context(scalar, 3);
     let (left_endpoint, right_endpoint, bound) = match (integer.sign(), lower) {
         (IntegerSign::Signed, true) => (
             IntegerValue::Signed(-5),
@@ -445,10 +441,7 @@ fn exact_add_definition_bound_transports_operand_equalities() {
     let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
     let literal =
         |magnitude| ScalarTerm::integer(integer, IntegerValue::Unsigned(magnitude)).unwrap();
-    let context = PropositionContext::from_value_types(
-        (1..=3).map(|index| (ValueId::new(index).unwrap(), scalar)),
-    )
-    .unwrap();
+    let context = value_context(scalar, 3);
     let output = value(3);
     let expression = ScalarTerm::exact_integer_add(integer, value(1), value(2)).unwrap();
     for reversed_equality in [false, true] {
@@ -500,10 +493,7 @@ fn exact_add_definition_bound_rejects_mismatched_certificates() {
     let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
     let literal =
         |magnitude| ScalarTerm::integer(integer, IntegerValue::Unsigned(magnitude)).unwrap();
-    let context = PropositionContext::from_value_types(
-        (1..=4).map(|index| (ValueId::new(index).unwrap(), scalar)),
-    )
-    .unwrap();
+    let context = value_context(scalar, 4);
     let output = value(3);
     let expression = ScalarTerm::exact_integer_add(integer, value(1), value(2)).unwrap();
     let left_premise = Proposition::LessOrEqual(literal(2), value(1));
@@ -585,10 +575,7 @@ fn direct_add_bound_out_of_numeral_range_keeps_instance_fallback() {
     let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
     let literal = |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).unwrap();
     let minimum = literal(i128::MIN);
-    let context = PropositionContext::from_value_types(
-        (1..=2).map(|index| (ValueId::new(index).unwrap(), scalar)),
-    )
-    .unwrap();
+    let context = value_context(scalar, 2);
     let premise = Proposition::Conjunction(vec![
         Proposition::Equal(value(1), literal(i128::MIN + 1)),
         Proposition::LessOrEqual(minimum, value(2)),
@@ -626,10 +613,7 @@ fn direct_add_bound_rejects_mismatched_certificates() {
     let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
     let literal =
         |magnitude| ScalarTerm::integer(integer, IntegerValue::Unsigned(magnitude)).unwrap();
-    let context = PropositionContext::from_value_types(
-        (1..=3).map(|index| (ValueId::new(index).unwrap(), scalar)),
-    )
-    .unwrap();
+    let context = value_context(scalar, 3);
     let sum = IntegerMathTerm::Add(
         Box::new(mathematical(&value(1))),
         Box::new(mathematical(&value(2))),

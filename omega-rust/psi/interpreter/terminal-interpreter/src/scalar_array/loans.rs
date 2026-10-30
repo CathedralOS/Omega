@@ -160,11 +160,7 @@ impl TerminalExecution<'_> {
         let length = usize::try_from(length).map_err(|_| malformed())?;
         // Validate the source declaration even for empty arrays: no element
         // access will happen there to catch an illicit mutable reborrow.
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         let root_type = self.live_structural_type(argument.place)?;
         let source_access = if let Some(source) = machine.structural_parameter(argument.place) {
             if source.structural_type != root_type

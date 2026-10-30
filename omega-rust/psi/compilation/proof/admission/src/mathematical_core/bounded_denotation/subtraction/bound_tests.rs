@@ -5,7 +5,9 @@ use super::super::test_utilities::{
     verify_then_elaborate,
 };
 use crate::proof::assumption_proof;
-use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
+use crate::{
+    Budget, IntegerAffineWitness, ProofNode, ProofRule, value_context, verify_bounded_certificate,
+};
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
     ScalarTerm, ScalarType, ValueId,
@@ -21,10 +23,7 @@ fn check(left: ScalarTerm, right: ScalarTerm) {
     let ScalarType::Integer(integer) = left.scalar_type() else {
         unreachable!()
     };
-    let context = PropositionContext::from_value_types(
-        (1..=2).map(|index| (ValueId::new(index).unwrap(), left.scalar_type())),
-    )
-    .unwrap();
+    let context = value_context(left.scalar_type(), 2);
     let premise = Proposition::LessOrEqual(right.clone(), left.clone());
     let goal = Proposition::IntegerMathLessOrEqual(
         IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
@@ -204,10 +203,7 @@ fn correlated_subtract_upper_through_cited_definitions() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let scalar = ScalarType::Integer(integer);
     let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
-    let context = PropositionContext::from_value_types(
-        (1..=4).map(|index| (ValueId::new(index).unwrap(), scalar)),
-    )
-    .unwrap();
+    let context = value_context(scalar, 4);
     let endpoint = ScalarTerm::integer(integer, integer.maximum_value()).unwrap();
     let addend = ScalarTerm::integer(integer, IntegerValue::Unsigned(7)).unwrap();
     let expression = ScalarTerm::exact_integer_add(integer, value(4), addend.clone()).unwrap();
@@ -318,10 +314,7 @@ fn subtraction_identity_transport_accepts_existing_leaf_math_citations() {
             middle_equals_right: Box::new(assumption_proof(second, 1)),
         },
     };
-    let context = PropositionContext::from_value_types(
-        (1..=2).map(|index| (ValueId::new(index).unwrap(), scalar)),
-    )
-    .unwrap();
+    let context = value_context(scalar, 2);
     verify_bounded_certificate(
         &context,
         &goal,
@@ -356,10 +349,7 @@ fn direct_subtract_bound_exact_carrier_boundary_cases() {
     let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
     let literal =
         |magnitude| ScalarTerm::integer(integer, IntegerValue::Unsigned(magnitude)).unwrap();
-    let context = PropositionContext::from_value_types(
-        (1..=2).map(|index| (ValueId::new(index).unwrap(), scalar)),
-    )
-    .unwrap();
+    let context = value_context(scalar, 2);
     let difference = sub!(Box::new(mathematical(&value(1))) => Box::new(mathematical(&value(2))));
     for (lower, exact, bound) in [
         (true, 255, IntegerValue::Unsigned(0)),
@@ -407,10 +397,7 @@ fn direct_subtract_bound_out_of_numeral_range_keeps_instance_fallback() {
     let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
     let literal =
         |magnitude| ScalarTerm::integer(integer, IntegerValue::Unsigned(magnitude)).unwrap();
-    let context = PropositionContext::from_value_types(
-        (1..=2).map(|index| (ValueId::new(index).unwrap(), scalar)),
-    )
-    .unwrap();
+    let context = value_context(scalar, 2);
     let premise = Proposition::Conjunction(vec![
         Proposition::Equal(value(1), literal(0)),
         Proposition::LessOrEqual(value(2), literal(u128::MAX)),
@@ -444,10 +431,7 @@ fn direct_subtract_bound_rejects_mismatched_certificates() {
     let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
     let literal =
         |magnitude| ScalarTerm::integer(integer, IntegerValue::Unsigned(magnitude)).unwrap();
-    let context = PropositionContext::from_value_types(
-        (1..=3).map(|index| (ValueId::new(index).unwrap(), scalar)),
-    )
-    .unwrap();
+    let context = value_context(scalar, 3);
     let difference = sub!(Box::new(mathematical(&value(1))) => Box::new(mathematical(&value(2))));
     let premise = Proposition::Conjunction(vec![
         Proposition::LessOrEqual(literal(5), value(1)),
@@ -558,10 +542,7 @@ fn exact_subtract_case(
 ) -> ExactSubtractCase {
     let scalar = ScalarType::Integer(integer);
     let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
-    let context = PropositionContext::from_value_types(
-        (1..=3).map(|index| (ValueId::new(index).unwrap(), scalar)),
-    )
-    .unwrap();
+    let context = value_context(scalar, 3);
     let (left_endpoint, right_endpoint, bound) = endpoints;
     let literal = |value| ScalarTerm::integer(integer, value).unwrap();
     let output = value(3);

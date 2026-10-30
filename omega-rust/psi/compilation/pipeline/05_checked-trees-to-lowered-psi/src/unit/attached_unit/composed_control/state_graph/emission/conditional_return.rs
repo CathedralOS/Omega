@@ -15,6 +15,7 @@ use super::super::super::super::{
 use super::super::super::LoweringError;
 use super::StateGraphEmission;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
+use crate::emission::value_successor;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 
 /// Result preparation cannot emit cleanup: another temporary may have to die
@@ -440,15 +441,7 @@ impl StateGraphEmission<'_, '_> {
         evaluation.blocks.extend(arm_evaluation.blocks);
         operations.structural_values.truncate(retained_bindings);
         operations.storage_observations.clear();
-        Ok(SuccessorEdge {
-            edge: edge_id(allocate_dense(next_edge)?),
-            target,
-            arguments: Vec::new(),
-            erased_arguments: Vec::new(),
-            erased_proof_arguments: Vec::new(),
-            structural_arguments: Vec::new(),
-            cleanup_actions: Vec::new(),
-        })
+        Ok(value_successor(edge_id(allocate_dense(next_edge)?), target))
     }
 }
 

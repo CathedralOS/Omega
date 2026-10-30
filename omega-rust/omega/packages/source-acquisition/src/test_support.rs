@@ -68,6 +68,17 @@ pub(crate) fn resolve_git_source_from_hardened_base(
     resolve_git_source(request, &storage, limits)
 }
 
+/// Create one Git source fixture and prime the cache lane its request resolves
+/// into, returning the repository, cache base, and request.
+pub(crate) fn primed_git_cache(stem: &str) -> (PathBuf, PathBuf, GitSourceRequest) {
+    let (repository, _) = create_git_source(&format!("{stem}-source"));
+    let cache = temp_root(&format!("{stem}-cache"));
+    let request = local_git_request(&repository, "HEAD");
+    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
+        .expect("prime cache");
+    (repository, cache, request)
+}
+
 pub(crate) fn resolve_local_source_snapshot_from_hardened_base(
     root: impl AsRef<Path>,
     hardened_base: impl AsRef<Path>,

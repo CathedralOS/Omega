@@ -48,6 +48,16 @@ The compiler forwards that adapter to Psi's build-time evaluator, which owns
 execution admissibility, operands and replay; it does not reconstruct provider
 authority.
 
+[Provider instances](src/provider_instances.rs) prepares original plan/row
+correspondence and exact adapter judgments. Psi projects checked inherited and
+generic declaration groups; [instance selection](../provider-selection/src/provider_instances.rs)
+judges candidate counts, template agreement and complete closed-instance coverage
+without source. Psi retains checked identity handles; this plan boundary renders
+them into its existing normalized vocabulary. Check, callback preparation, reference interpretation and package
+review share this route. Review derives from original compiler custody, not its
+supplied semantic candidate. These invocation-local records are not a portable
+provider artifact or an execution grant.
+
 [Legacy target declarations](src/target_machines.rs) retain every target's default
 declaration effects and project them onto one realization for settlement.
 After Psi checks all bodies, execution reach resolves a portable family head

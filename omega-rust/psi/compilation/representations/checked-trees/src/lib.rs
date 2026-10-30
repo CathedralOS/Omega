@@ -7,6 +7,7 @@ pub mod applications;
 mod callback_declarations;
 pub mod checked_trees;
 pub mod provider_declarations;
+pub mod provider_instances;
 pub use checked_trees::facts::ConstantPredicateObligation;
 pub use checked_trees::facts::{IntegerRangeModel, IntegerRangeObligation, IntegerRangeRecipe};
 pub use checked_trees::*;

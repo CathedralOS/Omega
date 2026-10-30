@@ -5,6 +5,7 @@ use crate::integer_rules::integer_affine::{
     IntegerAffineWitnessError, check_integer_affine_bound_conversion, check_integer_affine_witness,
     integer_affine_truth_bounds, map_integer_affine_bound,
 };
+use crate::{affine_witness, value_context};
 use semantic_vocabulary::IntegerMathTerm;
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::IntegerValue;
@@ -42,12 +43,7 @@ fn unsigned_remainder_intersects_dividend_bounds_and_accepts_legacy_images() {
     let form = check_integer_affine_witness(
         &context,
         &[definition],
-        &IntegerAffineWitness {
-            root: root.clone(),
-            target: target.clone(),
-            definition_axioms: vec![0],
-            literal_axioms: vec![None],
-        },
+        &affine_witness(root.clone(), target.clone(), vec![0], vec![None]),
     )
     .unwrap();
     for (bound, expected) in [
@@ -117,12 +113,7 @@ fn signed_remainder_keeps_truncation_bounds_for_both_divisor_signs() {
         let form = check_integer_affine_witness(
             &context,
             &[definition],
-            &IntegerAffineWitness {
-                root: root.clone(),
-                target: target.clone(),
-                definition_axioms: vec![0],
-                literal_axioms: vec![None],
-            },
+            &affine_witness(root.clone(), target.clone(), vec![0], vec![None]),
         )
         .unwrap();
         for (bound, upper, expected) in [
@@ -333,12 +324,12 @@ fn maps_mixed_exact_shift_endpoints_and_rejects_witness_tamper() {
             .chain([(ValueId::new(5).unwrap(), ScalarType::Integer(i8_type))]),
     )
     .unwrap();
-    let witness = IntegerAffineWitness {
-        root: root.clone(),
-        target: target.clone(),
-        definition_axioms: vec![1, 2, 3],
-        literal_axioms: vec![Some(0), None, None],
-    };
+    let witness = affine_witness(
+        root.clone(),
+        target.clone(),
+        vec![1, 2, 3],
+        vec![Some(0), None, None],
+    );
     let checked = check_integer_affine_witness(&context, &axioms, &witness)
         .expect("ordered mixed shift witness");
     assert_eq!(
@@ -378,20 +369,12 @@ fn bitwise_and_mask_maps_every_root_endpoint_to_the_mask_image() {
     let root = value(1, integer_type);
     let target = value(2, integer_type);
     let literal = |value| literal(integer_type, value);
-    let context = PropositionContext::from_value_types(
-        (1..=2).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 2);
     let definition = Proposition::Equal(
         target.clone(),
         ScalarTerm::integer_bitwise_and(integer_type, root.clone(), literal(15)).unwrap(),
     );
-    let witness = IntegerAffineWitness {
-        root: root.clone(),
-        target: target.clone(),
-        definition_axioms: vec![0],
-        literal_axioms: vec![None],
-    };
+    let witness = affine_witness(root.clone(), target.clone(), vec![0], vec![None]);
     let checked =
         check_integer_affine_witness(&context, std::slice::from_ref(&definition), &witness)
             .expect("bitwise-and mask witness");
@@ -449,10 +432,7 @@ fn bitwise_and_mask_maps_every_root_endpoint_to_the_mask_image() {
     // The same step inside a longer chain keeps mapping through later
     // translations: `v = c & 15; w = v - 3` sends `c <= 259` to `w <= 12`.
     let widened = value(3, integer_type);
-    let context = PropositionContext::from_value_types(
-        (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-    )
-    .unwrap();
+    let context = value_context(ScalarType::Integer(integer_type), 3);
     let axioms = [
         definition,
         Proposition::Equal(
@@ -463,12 +443,7 @@ fn bitwise_and_mask_maps_every_root_endpoint_to_the_mask_image() {
     let chained = check_integer_affine_witness(
         &context,
         &axioms,
-        &IntegerAffineWitness {
-            root: root.clone(),
-            target: widened.clone(),
-            definition_axioms: vec![0, 1],
-            literal_axioms: vec![None, None],
-        },
+        &affine_witness(root.clone(), widened.clone(), vec![0, 1], vec![None, None]),
     )
     .expect("mask then subtract chain");
     assert_eq!(
@@ -498,10 +473,7 @@ fn saturating_endpoints_cover_every_byte_input_and_reject_plateau_strictness() {
         };
         let root = value(1, integer_type);
         let target = value(2, integer_type);
-        let context = PropositionContext::from_value_types(
-            (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
-        )
-        .unwrap();
+        let context = value_context(ScalarType::Integer(integer_type), 3);
         // Include both carrier edges, signed negative literals, subtraction,
         // and commuted addition. Check actual byte semantics independently of
         // the certificate's endpoint implementation.

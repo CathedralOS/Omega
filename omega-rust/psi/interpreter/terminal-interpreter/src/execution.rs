@@ -476,6 +476,26 @@ macro_rules! dispatched_operation {
 
 pub(crate) use dispatched_operation;
 
+/// The named per-frame binding table, mutably: the running frame's own table,
+/// or the suspended frame at `depth`. The borrow stays inside one field, so a
+/// caller's other fields — its invocation account, say — remain usable at the
+/// same site.
+macro_rules! frame_field_mut {
+    ($execution:ident, $depth:expr, $field:ident) => {
+        if $depth == $execution.call_stack.len() {
+            &mut $execution.$field
+        } else {
+            &mut $execution
+                .call_stack
+                .get_mut($depth)
+                .ok_or_else($crate::errors::malformed)?
+                .$field
+        }
+    };
+}
+
+pub(crate) use frame_field_mut;
+
 impl<'artifact> TerminalExecution<'artifact> {
     /// Start one instance on an already-admitted program: bind this
     /// invocation's inputs and custody, commit no operation. The program is
@@ -734,11 +754,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         &mut self,
         inputs: crate::structural_inputs::TerminalStructuralInputs<'_>,
     ) -> Result<(), TerminalInterpretError> {
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         for (index, (parameter, value)) in machine
             .structural_parameters
             .iter()
@@ -847,6 +863,16 @@ impl<'artifact> TerminalExecution<'artifact> {
             return Err(malformed());
         }
         u64::try_from(value).map_err(|_| malformed())
+    }
+
+    /// Every live structural value: the running frame's own table, then each
+    /// suspended caller's.
+    pub(crate) fn live_structural_values(&self) -> impl Iterator<Item = &TerminalStructuralValue> {
+        self.structural_values.values().chain(
+            self.call_stack
+                .iter()
+                .flat_map(|frame| frame.structural_values.values()),
+        )
     }
 
     /// Every scalar bound to `arguments`, in order.

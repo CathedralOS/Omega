@@ -181,11 +181,7 @@ impl TerminalExecution<'_> {
         structural_type: StructuralTypeId,
         path: &[StructuralPathSegment],
     ) -> Result<StructuralAccess, TerminalInterpretError> {
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         let mut authority = StructuralAccess::Owned;
         if let Some(parameter) = machine
             .structural_parameter(place)

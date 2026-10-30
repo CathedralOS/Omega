@@ -7,7 +7,7 @@ use terminal_psi::{
 };
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::custody::project_structural_value;
+use crate::custody::{literal_fixed_array, project_structural_value};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{TerminalExecution, operation_kind};
 use crate::values::StructuralByteSequenceRuntimeField;
@@ -246,11 +246,7 @@ impl TerminalExecution<'_> {
         length_metadata: bool,
     ) -> Result<(StructuralByteSequenceRuntimeField, ByteSequenceCarrier), TerminalInterpretError>
     {
-        let machine = self
-            .program
-            .machines()
-            .get(&self.current_machine)
-            .ok_or_else(malformed)?;
+        let machine = self.program.machine(self.current_machine)?;
         if crate::custody::place_is_claimed(&self.live_claims, root) {
             return Err(malformed());
         }
@@ -310,18 +306,8 @@ impl TerminalExecution<'_> {
                 carrier_path,
                 requires_mutation,
             )?;
-            let StructuralTypeShape::FixedArray {
-                element: backing_element,
-                ..
-            } = self
-                .program
-                .structural_types()
-                .get(&collection.structural_type)
-                .ok_or_else(malformed)?
-                .shape
-            else {
-                return Err(malformed());
-            };
+            let (backing_element, _) =
+                literal_fixed_array(&self.program.structural_types(), collection.structural_type)?;
             if element != backing_element {
                 return Err(malformed());
             }

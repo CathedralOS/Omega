@@ -595,6 +595,20 @@ struct SelectedOperatorCall {
     arguments: Box<[typed_trees::expression::StaticMachineArgument]>,
 }
 
+/// The implementation's collection and start formals, in declaration order. A
+/// shorter roster leaves the missing formal open instead of lending another's.
+fn implementation_formals(
+    parameters: &[typed_trees::signature::StateParameter],
+) -> (TypeReferenceHandle, TypeReferenceHandle) {
+    let formal = |index: usize| {
+        let parameter = parameters.get(index);
+        parameter.map_or_else(TypeReferenceHandle::invalid, |parameter| {
+            parameter.type_reference
+        })
+    };
+    (formal(0), formal(1))
+}
+
 fn synthesized_operator_call(
     receiver: ExpressionHandle,
     target: SelectedOperatorCall,
@@ -680,22 +694,14 @@ fn selected_call_target(
                         "selected implementation lost its requirement call placeholder",
                     )
                 })?;
+            let (collection_parameter, start_parameter) =
+                implementation_formals(program.state_signature_parameters(meaning.requirement));
             return Ok(Some(SelectedOperatorCall {
                 entry,
                 name: meaning.requirement.name.clone(),
                 binder: meaning.bound.binder,
-                collection_parameter: program
-                    .state_signature_parameters(meaning.requirement)
-                    .first()
-                    .map_or_else(TypeReferenceHandle::invalid, |parameter| {
-                        parameter.type_reference
-                    }),
-                start_parameter: program
-                    .state_signature_parameters(meaning.requirement)
-                    .get(1)
-                    .map_or_else(TypeReferenceHandle::invalid, |parameter| {
-                        parameter.type_reference
-                    }),
+                collection_parameter,
+                start_parameter,
                 dispatch: None,
                 arguments: Box::default(),
             }));
@@ -717,22 +723,14 @@ fn selected_call_target(
                 .ok_or_else(|| {
                     Diagnostic::error("selected implementation lost its realization entry")
                 })?;
+            let (collection_parameter, start_parameter) =
+                implementation_formals(program.state_parameters(entry));
             return Ok(Some(SelectedOperatorCall {
                 entry: entry.symbol,
                 name: entry.name.clone(),
                 binder: SymbolHandle::invalid(),
-                collection_parameter: program
-                    .state_parameters(entry)
-                    .first()
-                    .map_or_else(TypeReferenceHandle::invalid, |parameter| {
-                        parameter.type_reference
-                    }),
-                start_parameter: program
-                    .state_parameters(entry)
-                    .get(1)
-                    .map_or_else(TypeReferenceHandle::invalid, |parameter| {
-                        parameter.type_reference
-                    }),
+                collection_parameter,
+                start_parameter,
                 dispatch: Some(StaticRequirementDispatch {
                     selection_application: Default::default(),
                     evidence_parameter: SymbolHandle::invalid(),
@@ -795,22 +793,14 @@ fn selected_call_target(
         .machine_states(machine)
         .first()
         .ok_or_else(|| Diagnostic::error("selected token machine declares no entry state"))?;
+    let (collection_parameter, start_parameter) =
+        implementation_formals(program.state_parameters(entry));
     Ok(Some(SelectedOperatorCall {
         entry: entry.symbol,
         name: entry.name.clone(),
         binder: SymbolHandle::invalid(),
-        collection_parameter: program
-            .state_parameters(entry)
-            .first()
-            .map_or_else(TypeReferenceHandle::invalid, |parameter| {
-                parameter.type_reference
-            }),
-        start_parameter: program
-            .state_parameters(entry)
-            .get(1)
-            .map_or_else(TypeReferenceHandle::invalid, |parameter| {
-                parameter.type_reference
-            }),
+        collection_parameter,
+        start_parameter,
         dispatch: None,
         arguments: Box::default(),
     }))

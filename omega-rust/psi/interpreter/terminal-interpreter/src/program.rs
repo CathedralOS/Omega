@@ -21,7 +21,7 @@
 //! the separate upstream authority that produced the bytes.
 
 use crate::effects::{AdmittedBoundarySupply, TerminalRuntimeSupplies};
-use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError};
+use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError, malformed};
 use evaluation_accounting::EvaluationInvocationAccount;
 mod declarations;
 pub(crate) use declarations::ProgramDeclarations;
@@ -161,6 +161,15 @@ impl AdmittedTerminalProgram<'_> {
 
     pub(crate) fn machines(&self) -> ProgramDeclarations<'_, terminal_psi::TerminalMachine> {
         ProgramDeclarations::new(&self.catalogs.machines)
+    }
+
+    /// The machine keyed `machine`, refusing a miss as a malformed state: every
+    /// running or suspended frame was admitted from this catalog.
+    pub(crate) fn machine(
+        &self,
+        machine_id: MachineId,
+    ) -> Result<&terminal_psi::TerminalMachine, TerminalInterpretError> {
+        self.machines().get(&machine_id).ok_or_else(malformed)
     }
 
     /// The machine keyed `machine` — admission proves the catalog entry

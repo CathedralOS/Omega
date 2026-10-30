@@ -1,6 +1,6 @@
 use super::{
     CacheCustodyKind, LocalSourceLimits, OpenOptions, SourceResolveError, change_macos_acl,
-    create_git_source, git_cache_entry_root, local_git_request, open_absolute_directory_nofollow,
+    git_cache_entry_root, open_absolute_directory_nofollow, primed_git_cache,
     resolve_git_source_from_hardened_base, resolve_local_source_snapshot_from_hardened_base,
     temp_root, verify_cache_custody, verify_cache_custody_root,
     verify_cache_lock_path_identity_for_test, verify_macos_cache_ancestor_acl_custody,
@@ -186,11 +186,7 @@ fn cache_locks_reject_extended_acl_allow_entries() {
 #[cfg(target_os = "macos")]
 #[test]
 fn git_cache_reuse_rejects_extended_acl_allow_entry() {
-    let (repository, _) = create_git_source("git-cache-acl-source");
-    let cache = temp_root("git-cache-acl-cache");
-    let request = local_git_request(&repository, "HEAD");
-    resolve_git_source_from_hardened_base(&request, &cache, LocalSourceLimits::default())
-        .expect("prime cache");
+    let (repository, cache, request) = primed_git_cache("git-cache-acl");
     let cache = cache.canonicalize().expect("canonicalize Git cache");
     let entry = git_cache_entry_root(&cache, &request);
     change_macos_acl(&entry, &["+a", "everyone allow write"]);

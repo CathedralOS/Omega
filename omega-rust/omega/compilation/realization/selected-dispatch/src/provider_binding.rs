@@ -112,13 +112,19 @@ pub fn prepare_selected_execution(
             .filter(|realization| realization.boundary_arguments.is_empty())
             .map(|realization| (realization.boundary_trait, realization.requirement_machine)),
     );
-    let callback_roots = provider_planning::callback_roots::prepare(
-        &program,
-        &selected_provider_plan_facts,
-        &declaration_catalog.callbacks.declarations,
-        &calling_requirements,
-    )?;
-    let callback_roots = declaration_catalog.selected_callback_roots(callback_roots);
+    let callback_roots = {
+        let providers = provider_planning::prepare_callback_providers(
+            &program,
+            &selected_provider_plan_facts,
+            &declaration_catalog.callbacks.declarations,
+        )?;
+        let selected = provider_selection::select_callback_declarations(
+            &declaration_catalog.callbacks.declarations,
+            &calling_requirements,
+            &providers,
+        )?;
+        declaration_catalog.selected_callback_roots(selected)
+    };
     let service_declarations = Arc::new(
         provider_planning::service_declarations::ServiceDeclarations::prepare(
             provider_planning::ProviderPlanningContext::new(

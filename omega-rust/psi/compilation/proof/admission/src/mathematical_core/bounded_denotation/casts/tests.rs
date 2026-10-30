@@ -1,7 +1,7 @@
 use super::super::test_utilities::{assert_refused, elaborate_checked};
 use crate::proof::assumption_proof;
 use crate::{
-    Budget, IntegerCastChainWitness, PrimitiveJudgment, ProofNode, ProofRule,
+    Budget, IntegerCastChainWitness, PrimitiveJudgment, ProofNode, ProofRule, proof_node,
     verify_bounded_certificate,
 };
 use semantic_vocabulary::{
@@ -183,10 +183,9 @@ fn truth_root_cast_bound_uses_the_tightest_carrier_membership() {
         let proof = ProofNode {
             conclusion: conclusion.clone(),
             rule: ProofRule::IntegerCastBound {
-                root_bound: Box::new(ProofNode {
-                    conclusion: Proposition::Truth,
-                    rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
-                }),
+                root_bound: Box::new(
+                    proof_node!(Proposition::Truth => ProofRule::Primitive(PrimitiveJudgment::Truth)),
+                ),
                 witness: IntegerCastChainWitness {
                     root: root.clone(),
                     target: target.clone(),

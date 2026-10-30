@@ -22,7 +22,6 @@
 //! Source selection declarations are owned by Psi compile-time admission; the
 //! re-exported selection records below are inputs, not a second source decoder.
 
-pub mod callback_roots;
 pub mod calling_policy_plans;
 pub mod data_layout_queries;
 pub(crate) use optimization_core::digest_encoder;
@@ -35,10 +34,12 @@ mod sealed_placed_accessors;
 pub use sealed_placed_accessors::{SealedPlacedAccessor, SealedPlacedScalarOperation};
 pub mod program_entry;
 mod provider_identity;
+mod provider_instances;
 pub use provider_identity::{
     ProviderReceiverApplication, provider_receiver_application, provider_row_matches,
     provider_trait_application, provider_trait_requirement_matches,
 };
+pub use provider_instances::{prepare_callback_providers, project_checked_provider_instances};
 pub mod intrinsic_declarations;
 mod provider_planning;
 mod provider_settlement;
@@ -70,8 +71,8 @@ pub use provider_planning::{
     CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderRowRealization,
     ProviderSchemaDeclaration, ProviderSelectionProvenance, SelectedProviderReviewProvenance,
     derive_satisfies_plans, exact_checked_adapter, prepare_selected_plan_declarations,
-    project_checked_provider_instances, same_semantic_name, satisfies_plan_name,
-    select_derived_provider_plans, selected_checked_operator_body, selected_provider_plan_facts,
+    same_semantic_name, satisfies_plan_name, select_derived_provider_plans,
+    selected_checked_operator_body, selected_provider_plan_facts,
     selected_requirement_checked_adapter, selected_requirement_plan, selected_use_plan,
 };
 pub(crate) use provider_planning::{

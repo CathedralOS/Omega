@@ -8,6 +8,7 @@ use crate::record::{
 };
 pub(crate) mod values;
 use super::SignatureProjection;
+use super::parameters::identity_lifetime_substitutions;
 use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::signature::instantiate_static_parameters;
 use crate::capture::refusal;
@@ -88,11 +89,7 @@ pub(crate) fn requirement<'projection>(
         },
         bounds: Default::default(),
     }];
-    let substitutions = outer_lifetimes
-        .iter()
-        .cloned()
-        .map(|name| (name.clone(), name))
-        .collect::<Vec<_>>();
+    let substitutions = identity_lifetime_substitutions(outer_lifetimes);
     let mut scopes = Vec::new();
     instantiate_static_parameters(
         projected,
@@ -160,11 +157,7 @@ pub(crate) fn parameters(
     let compilation = &input;
     let projected = projection.trees();
     let mut parameters = source.to_vec();
-    let substitutions = lifetimes
-        .iter()
-        .cloned()
-        .map(|name| (name.clone(), name))
-        .collect::<Vec<_>>();
+    let substitutions = identity_lifetime_substitutions(lifetimes);
     let mut scopes = Vec::new();
     instantiate_static_parameters(
         projected,

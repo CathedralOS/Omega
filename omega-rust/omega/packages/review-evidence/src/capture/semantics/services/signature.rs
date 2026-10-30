@@ -3,6 +3,8 @@ use super::application::ApplicationSource;
 use crate::capture::semantics::services::calling;
 use crate::capture::semantics::services::rejected;
 use crate::capture::semantics::signatures::SignatureProjection;
+use crate::capture::semantics::signatures::parameters::identity_lifetime_substitutions;
+use crate::capture::semantics::signatures::parameters::project_signature_parameters;
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::record::{
@@ -202,11 +204,7 @@ pub(super) fn project(
     // At depth zero, an empty static telescope performs no instantiation.
     // Borrow typed input until a parameter needs projection-local storage.
     if !parameters.is_empty() {
-        let lifetime_substitutions = lifetimes
-            .iter()
-            .cloned()
-            .map(|name| (name.clone(), name))
-            .collect::<Vec<_>>();
+        let lifetime_substitutions = identity_lifetime_substitutions(lifetimes);
         crate::capture::calling::application::signature::instantiate_static_parameters(
             projected.program_mut(),
             &mut parameters,
@@ -231,22 +229,7 @@ pub(super) fn project(
         false,
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     )?;
-    let parameters = values
-        .iter()
-        .map(|parameter| {
-            Ok(PackageReviewSignatureParameter {
-                name: parameter.name.as_str().to_owned(),
-                type_identity: review_signature_type_identity_with_binders(
-                    compilation,
-                    parameter.type_reference,
-                    &binders,
-                    lifetimes,
-                )?,
-                is_const: parameter.is_const,
-                is_mutable: parameter.is_mutable,
-            })
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let parameters = project_signature_parameters(compilation, values, &binders, lifetimes)?;
     Ok(PackagePolicyServiceSignature {
         schema_arguments: Vec::new(),
         schema_lifetime_parameter_count: 0,

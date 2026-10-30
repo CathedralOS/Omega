@@ -143,7 +143,7 @@ pub(super) fn parameter_destination_inventory(
                 reference,
                 true,
             )?;
-            for mut leaf in inventory.references {
+            for mut leaf in inventory.into_owned().references {
                 let leaf_type = stored_origins::projected_storage_type(
                     program,
                     reference,

@@ -7,18 +7,18 @@ use super::super::contracts::facts::{
 };
 use super::super::semantics::conformances::project_conformance_bounds;
 use super::super::semantics::declarations::{
-    is_product_scope_instance, nominal_identity, reviewed_package_owns, trait_requirement_identity,
+    nominal_identity, owned_identity, trait_requirement_identity,
 };
 use super::super::semantics::signatures::parameters::{
-    project_type_parameters, project_type_parameters_after,
+    project_signature_parameters, project_type_parameters, project_type_parameters_after,
 };
 use super::super::semantics::types::lifetimes::lifetime_binder_ordinal;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
-    PackageReviewSignatureParameter, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
-    PackageReviewTraitRequirement, PackageReviewTraitShape,
+    PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTraitRequirement,
+    PackageReviewTraitShape,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -32,13 +32,9 @@ pub(crate) fn project_public_traits<'a>(
 {
     let mut rows = Vec::new();
     for definition in compilation.traits().iter().filter(|row| row.is_public) {
-        if !is_product_scope_instance(compilation, definition.symbol)? {
+        let Some(identity) = owned_identity(compilation, package, definition.symbol)? else {
             continue;
-        }
-        let identity = nominal_identity(compilation, definition.symbol)?;
-        if !reviewed_package_owns(&identity, package)? {
-            continue;
-        }
+        };
         let parameters = compilation.trait_type_parameters(definition);
         let (mut trait_binders, type_parameters) = project_type_parameters(
             compilation,
@@ -226,23 +222,12 @@ pub(crate) fn project_trait_requirement(
         has_default_realization: requirement.is_default,
         lifetime_parameter_count: requirement.lifetime_parameters.len(),
         type_parameters,
-        parameters: compilation
-            .state_signature_parameters(requirement)
-            .iter()
-            .map(|parameter| {
-                Ok(PackageReviewSignatureParameter {
-                    name: parameter.name.as_str().to_owned(),
-                    type_identity: review_signature_type_identity_with_binders(
-                        compilation,
-                        parameter.type_reference,
-                        &binders,
-                        &lifetime_binders,
-                    )?,
-                    is_const: parameter.is_const,
-                    is_mutable: parameter.is_mutable,
-                })
-            })
-            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?,
+        parameters: project_signature_parameters(
+            compilation,
+            compilation.state_signature_parameters(requirement),
+            &binders,
+            &lifetime_binders,
+        )?,
         return_type: review_signature_type_identity_with_binders(
             compilation,
             requirement.return_type,

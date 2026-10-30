@@ -176,38 +176,53 @@ mod tests {
     };
     use object_file::{RelocationKind, SymbolKind};
 
+    /// The one private text symbol these witnesses point at.
+    fn private_function(
+        image: &mut FinalImage,
+        offset: usize,
+        size: usize,
+    ) -> Handle<FinalImageSymbol> {
+        image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "private-realization".to_owned(),
+            section: FinalImageSection::Text,
+            offset,
+            size,
+            kind: SymbolKind::Function,
+        })
+    }
+
+    /// A DATA absolute-64 pointer record: the only shape dyld rebases here.
+    fn data_pointer_relocation(
+        image: &mut FinalImage,
+        offset: usize,
+        addend: i64,
+        symbol: Handle<FinalImageSymbol>,
+    ) -> Handle<FinalImageRelocation> {
+        image
+            .relocation_table
+            .relocations
+            .insert(FinalImageRelocation {
+                section: FinalImageSection::Data,
+                offset,
+                byte_width: 8,
+                symbol_handle: symbol,
+                addend,
+                kind: RelocationKind::Absolute64,
+            })
+    }
+
     #[test]
     fn data_absolute_relocations_become_exact_dyld_pointer_sites() {
-        let mut image = FinalImage::with_capacity(
+        let mut image = crate::test_support::image(
             FinalImage::default().target,
             image::FinalImageMemory {
                 data: vec![0; 0x98],
                 ..Default::default()
             },
-            Handle::invalid(),
-            1,
-            0,
-            2,
         );
-        let function = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: "private-realization".to_owned(),
-            section: FinalImageSection::Text,
-            offset: 4,
-            size: 4,
-            kind: SymbolKind::Function,
-        });
+        let function = private_function(&mut image, 4, 4);
         for offset in [0x90, 0x08] {
-            image
-                .relocation_table
-                .relocations
-                .insert(FinalImageRelocation {
-                    section: FinalImageSection::Data,
-                    offset,
-                    byte_width: 8,
-                    symbol_handle: function,
-                    addend: 0,
-                    kind: RelocationKind::Absolute64,
-                });
+            data_pointer_relocation(&mut image, offset, 0, function);
         }
 
         assert_eq!(
@@ -220,25 +235,15 @@ mod tests {
 
     #[test]
     fn rejects_non_data_or_malformed_absolute_relocations() {
-        let mut image = FinalImage::with_capacity(
+        let mut image = crate::test_support::image(
             FinalImage::default().target,
             image::FinalImageMemory {
                 text: vec![0; 8],
                 data: vec![0; 8],
                 ..Default::default()
             },
-            Handle::invalid(),
-            1,
-            0,
-            1,
         );
-        let function = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: "private-realization".to_owned(),
-            section: FinalImageSection::Text,
-            offset: 0,
-            size: 8,
-            kind: SymbolKind::Function,
-        });
+        let function = private_function(&mut image, 0, 8);
         let relocation = image
             .relocation_table
             .relocations
@@ -279,36 +284,16 @@ mod tests {
 
     #[test]
     fn preferred_pointer_replay_rejects_mutated_patched_bytes() {
-        let mut image = FinalImage::with_capacity(
+        let mut image = crate::test_support::image(
             FinalImage::default().target,
             image::FinalImageMemory {
                 text: vec![0; 8],
                 data: vec![0; 8],
                 ..Default::default()
             },
-            Handle::invalid(),
-            1,
-            0,
-            1,
         );
-        let function = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: "private-realization".to_owned(),
-            section: FinalImageSection::Text,
-            offset: 4,
-            size: 4,
-            kind: SymbolKind::Function,
-        });
-        image
-            .relocation_table
-            .relocations
-            .insert(FinalImageRelocation {
-                section: FinalImageSection::Data,
-                offset: 0,
-                byte_width: 8,
-                symbol_handle: function,
-                addend: 3,
-                kind: RelocationKind::Absolute64,
-            });
+        let function = private_function(&mut image, 4, 4);
+        data_pointer_relocation(&mut image, 0, 3, function);
         let info = macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT)
             .expect("valid internal pointer");
         let layout = FinalImageLayout {
@@ -330,35 +315,15 @@ mod tests {
 
     #[test]
     fn rejects_unknown_targets_and_duplicate_pointer_sites() {
-        let mut image = FinalImage::with_capacity(
+        let mut image = crate::test_support::image(
             FinalImage::default().target,
             image::FinalImageMemory {
                 data: vec![0; 8],
                 ..Default::default()
             },
-            Handle::invalid(),
-            1,
-            0,
-            2,
         );
-        let function = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: "private-realization".to_owned(),
-            section: FinalImageSection::Text,
-            offset: 0,
-            size: 4,
-            kind: SymbolKind::Function,
-        });
-        let first = image
-            .relocation_table
-            .relocations
-            .insert(FinalImageRelocation {
-                section: FinalImageSection::Data,
-                offset: 0,
-                byte_width: 8,
-                symbol_handle: Handle::invalid(),
-                addend: 0,
-                kind: RelocationKind::Absolute64,
-            });
+        let function = private_function(&mut image, 0, 4);
+        let first = data_pointer_relocation(&mut image, 0, 0, Handle::invalid());
         assert!(macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT).is_err());
 
         image
@@ -366,17 +331,7 @@ mod tests {
             .relocations
             .get_mut(first)
             .symbol_handle = function;
-        image
-            .relocation_table
-            .relocations
-            .insert(FinalImageRelocation {
-                section: FinalImageSection::Data,
-                offset: 0,
-                byte_width: 8,
-                symbol_handle: function,
-                addend: 0,
-                kind: RelocationKind::Absolute64,
-            });
+        data_pointer_relocation(&mut image, 0, 0, function);
         assert!(macho_rebase_info_for_segment(&image, EXECUTABLE_DATA_SEGMENT).is_err());
     }
 }

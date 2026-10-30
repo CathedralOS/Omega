@@ -142,15 +142,10 @@ impl Expansion<'_> {
                         } else {
                             LoweredScalarBranchTerminator::jump(selected, parameters(input_types))
                         };
-                        let tested = self.push(LoweredScalarBranchState {
-                            structural_parameters: Vec::new(),
-                            structural_effects: Vec::new(),
-                            parameter_types: tested_types,
-                            erased_formal_types: Vec::new(),
-                            erased_proof_formals: Vec::new(),
-                            bindings: Vec::new(),
+                        let tested = self.push(LoweredScalarBranchState::continuing(
+                            tested_types,
                             terminator,
-                        });
+                        ));
                         self.argument(
                             identities,
                             &Argument::Computation(predicate),
@@ -289,18 +284,12 @@ impl Expansion<'_> {
                 CheckedScalarDispatchPattern::Predicate(_) => {
                     return unsupported("scalar subject cannot carry a structural predicate arm");
                 }
-                CheckedScalarDispatchPattern::Wildcard => self.push(LoweredScalarBranchState {
-                    structural_parameters: Vec::new(),
-                    structural_effects: Vec::new(),
-                    parameter_types: saved_types.clone(),
-                    erased_formal_types: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    bindings: Vec::new(),
-                    terminator: LoweredScalarBranchTerminator::jump(
-                        selected,
-                        parameters(input_types),
-                    ),
-                }),
+                CheckedScalarDispatchPattern::Wildcard => {
+                    self.push(LoweredScalarBranchState::continuing(
+                        saved_types.clone(),
+                        LoweredScalarBranchTerminator::jump(selected, parameters(input_types)),
+                    ))
+                }
                 CheckedScalarDispatchPattern::Value(pattern) => {
                     let mut comparison_bindings = Vec::new();
                     let terminator = if let Some(when_false_target) = continuation {

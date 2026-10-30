@@ -10,12 +10,7 @@ use super::super::{GitBlobBytes, GitTreeEntry, GitTreeEntryKind};
 
 pub(super) fn git_batch_request_bytes(entries: &[GitTreeEntry]) -> Vec<u8> {
     let mut bytes = Vec::new();
-    for entry in entries.iter().filter(|entry| {
-        matches!(
-            &entry.kind,
-            GitTreeEntryKind::File { .. } | GitTreeEntryKind::Symlink { .. }
-        )
-    }) {
+    for entry in entries.iter().filter(|entry| entry.kind.carries_blob()) {
         bytes.extend_from_slice(entry.oid.as_bytes());
         bytes.push(b'\n');
     }
@@ -31,12 +26,7 @@ pub(crate) fn git_batch_output_limit(
     }
     let mut payload_bytes = 0_u64;
     let mut output_bytes = 0_usize;
-    for entry in entries.iter().filter(|entry| {
-        matches!(
-            &entry.kind,
-            GitTreeEntryKind::File { .. } | GitTreeEntryKind::Symlink { .. }
-        )
-    }) {
+    for entry in entries.iter().filter(|entry| entry.kind.carries_blob()) {
         payload_bytes =
             payload_bytes
                 .checked_add(entry.size)
@@ -87,12 +77,7 @@ pub(crate) fn assign_git_batch_output(
     let mut remaining = output.as_slice();
     let mut offset = 0_usize;
     let mut ranges = Vec::with_capacity(entries.len());
-    for entry in entries.iter().filter(|entry| {
-        matches!(
-            &entry.kind,
-            GitTreeEntryKind::File { .. } | GitTreeEntryKind::Symlink { .. }
-        )
-    }) {
+    for entry in entries.iter().filter(|entry| entry.kind.carries_blob()) {
         let Some(header_end) = remaining.iter().position(|byte| *byte == b'\n') else {
             return Err(git_tree_invalid(
                 entry.oid.as_bytes(),
@@ -147,12 +132,7 @@ pub(crate) fn assign_git_batch_output(
     let batch = Arc::new(output);
     for (entry, range) in entries
         .iter_mut()
-        .filter(|entry| {
-            matches!(
-                &entry.kind,
-                GitTreeEntryKind::File { .. } | GitTreeEntryKind::Symlink { .. }
-            )
-        })
+        .filter(|entry| entry.kind.carries_blob())
         .zip(ranges)
     {
         match &mut entry.kind {
