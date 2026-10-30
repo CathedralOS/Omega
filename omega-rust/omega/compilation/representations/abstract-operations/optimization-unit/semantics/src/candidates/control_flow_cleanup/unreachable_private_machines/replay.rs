@@ -18,9 +18,7 @@ pub(super) fn validate(
     else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    let PsiRewritePatch::PruneUnreachablePrivateMachines(patch) = candidate.patch_ref() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    candidate_patch!(patch, PruneUnreachablePrivateMachines, candidate);
     let expected_machines = unreachable_private_machine_complement(input);
     if candidate.predicted_cost_delta()
         != -i64::try_from(expected_machines.len()).unwrap_or(i64::MAX)
