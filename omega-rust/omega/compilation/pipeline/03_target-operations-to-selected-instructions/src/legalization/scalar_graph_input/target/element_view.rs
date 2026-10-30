@@ -33,11 +33,6 @@ impl Checker<'_> {
             source,
             self.types.iter(),
         ) else {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                eprintln!(
-                    "CHECKSITE element-audit missing-backing source={source:?} view={view:?}"
-                );
-            }
             return false;
         };
         if !matches!(
@@ -194,28 +189,6 @@ impl Checker<'_> {
                     }
                     _ => false,
                 };
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                    eprintln!(
-                        "CHECKSITE element-audit established source={source:?} argument={argument:?} actual={actual:?} backing={backing} accessible={} window={} view={view:?}",
-                        optimization_unit_semantics::descriptor_argument_accessible(
-                            self.optimized,
-                            argument,
-                            self.types,
-                            argument.access
-                        ),
-                        self.established_element_window(
-                            *root_structural_type,
-                            &argument.path,
-                            *element,
-                            *source_byte_offset,
-                            indices,
-                            *extent,
-                            *element_stride,
-                            expected_region,
-                            argument.access
-                        )
-                    );
-                }
                 *place == source
                     && access(argument.access)
                     && backing
@@ -364,11 +337,11 @@ impl Checker<'_> {
         // A block-carried borrowed descriptor backs the collection it names:
         // the edge already transported the pointer whose referent carries the
         // view's storage, the same admission an address join receives for a
-        // plain referent.
-        let descriptor_carrier = self.types.iter().any(|declaration| {
-            declaration.id == parameter.structural_type
-                && declaration.shape.is_borrowed_byte_carrier()
-        });
+        // plain referent. Classify the actual arrival's descriptor role and
+        // permission, uniformly for byte and element carriers; shape alone
+        // cannot authorize a stored descriptor's backing.
+        let descriptor_carrier =
+            terminal_semantics::view_descriptor_parameter(parameter, self.types.iter());
         let backing = parameter.access == terminal_psi::StructuralAccess::Owned
             || (block != self.optimized.entry
                 && (abstract_operations::control_flow::address_joins::is_address_join_in(
@@ -495,16 +468,6 @@ impl Checker<'_> {
         let collection = projected.shape;
         let offset = projected.offset;
         let elements = projected.elements;
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-            eprintln!(
-                "CHECKSITE element-window root={root_structural_type:?} path={path:?} collection={collection:?} offset={offset} elements={elements:?} indices={indices:?} runtime={} extent={extent:?} stride={element_stride}",
-                super::unit::runtime_indices_rejoin(
-                    indices,
-                    &elements,
-                    self.available.unwrap_or(&[])
-                )
-            );
-        }
         if !super::unit::runtime_indices_rejoin(indices, &elements, self.available.unwrap_or(&[])) {
             return false;
         }
