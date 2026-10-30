@@ -209,10 +209,7 @@ pub(super) fn event_statement_index(
         PermissionEventSource::StateExit
         | PermissionEventSource::InstructionExitDisposition { .. } => {
             program.state_by_symbol(state_symbol).map_or(0, |state| {
-                program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .len()
+                crate::flow::state_statements(program, state.statement_nodes).len()
             })
         }
     }

@@ -162,11 +162,10 @@ pub(super) fn single_head_bound_edge<T>(
     ) -> Option<T>,
 ) -> Option<T> {
     let mut found = None;
-    for (statement_index, statement) in program
-        .statement_table
-        .statements(source.statement_nodes)
-        .iter()
-        .enumerate()
+    for (statement_index, statement) in
+        crate::flow::state_statements(program, source.statement_nodes)
+            .iter()
+            .enumerate()
     {
         let Some(transition) = statement.as_transition() else {
             continue;

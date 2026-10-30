@@ -327,10 +327,7 @@ fn exact_shared_cohort_observation(
         return false;
     };
     if target_machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || !program
-            .statement_table
-            .statements(target_state.statement_nodes)
-            .is_empty()
+        || !crate::flow::state_statements(program, target_state.statement_nodes).is_empty()
         || program.state_parameters(target_state).len() != cohort.len()
         || program
             .state_parameters(target_state)

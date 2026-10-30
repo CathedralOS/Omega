@@ -1039,6 +1039,14 @@ pub(crate) fn call_flows(
     control.calls.span_or_empty(calls)
 }
 
+/// The statements a state's statement span names, in authored order.
+pub(crate) fn state_statements(
+    program: &dyn ::validation::CheckingInput,
+    statements: arena::HandleSpan<typed_trees::statement::StatementNode>,
+) -> &[typed_trees::statement::StatementNode] {
+    program.statement_table.statements(statements)
+}
+
 /// Every fact payload the active contexts carry, in span order.
 pub(super) fn active_context_facts(
     contexts: &FlowBuildContext<'_>,

@@ -224,10 +224,7 @@ pub(super) fn build_state_flow_fact<'plans>(
         &mut build.contexts.constraint_refs,
         active_constraints,
         borrow,
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .len(),
+        crate::flow::state_statements(program, state.statement_nodes).len(),
         &execution_order,
         FlowBorrowWeakeningReason::StateExit,
     );

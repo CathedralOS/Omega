@@ -1126,9 +1126,7 @@ impl InactivePlaceWrites {
             .find(|candidate| {
                 candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
             })?;
-        let statements = program
-            .statement_table
-            .statements(state.statement_nodes)
+        let statements = crate::flow::state_statements(program, state.statement_nodes)
             .iter()
             .enumerate()
             .map(|(index, statement)| {

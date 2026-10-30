@@ -157,10 +157,10 @@ pub(crate) use carried_semantic_dependencies::derive_checked_semantic_dependenci
 use constraints::{
     append_contiguous_borrow_access_constraints, append_contiguous_borrow_root_constraints,
 };
-pub(crate) use context::{active_context_handles, call_flows};
 use context::{
     FlowBuildContext, SharedFlowTables, active_context_facts, source_transfer_cases_selected,
 };
+pub(crate) use context::{active_context_handles, call_flows, state_statements};
 pub(crate) use domain::build_domain_facts;
 pub(crate) use domain::context_survives_place_mutations;
 pub(crate) use domain::filter_contexts_after_place_mutations;

@@ -32,10 +32,8 @@ impl InstructionDispositions {
         if evaluation != FlowPermissionEvaluation::Statement {
             return;
         }
-        let Some(StatementNode::AssemblyFact(assertion)) = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(statement)
+        let Some(StatementNode::AssemblyFact(assertion)) =
+            crate::flow::state_statements(program, state.statement_nodes).get(statement)
         else {
             return;
         };
@@ -560,10 +558,8 @@ fn valid_effect_tree(
             let Some(state) = program.state_by_symbol(state_symbol) else {
                 return false;
             };
-            let Some(statement) = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .get(statement_index)
+            let Some(statement) =
+                crate::flow::state_statements(program, state.statement_nodes).get(statement_index)
             else {
                 return false;
             };

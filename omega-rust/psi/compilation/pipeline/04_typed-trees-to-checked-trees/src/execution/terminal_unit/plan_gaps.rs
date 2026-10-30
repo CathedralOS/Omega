@@ -46,10 +46,7 @@ pub(crate) fn plan_gap(
         GapSite::Statement { state, index } => {
             let state_span = authored_or(declaration(state), machine_span);
             match program.state_by_symbol(state).and_then(|state| {
-                program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .get(index as usize)
+                crate::flow::state_statements(program, state.statement_nodes).get(index as usize)
             }) {
                 Some(statement) => {
                     let (coverage, span) = statement_site(program, statement);

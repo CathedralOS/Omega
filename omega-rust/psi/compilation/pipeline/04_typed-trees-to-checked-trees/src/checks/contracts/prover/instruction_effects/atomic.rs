@@ -128,20 +128,14 @@ fn store_matches(
         .statement_table
         .admitted_execution_order(state.statement_nodes);
     if !order.precedes(statement_index, statement)
-        && !(statement
-            == program
-                .statement_table
-                .statements(state.statement_nodes)
-                .len()
+        && !(statement == crate::flow::state_statements(program, state.statement_nodes).len()
             && order.position(statement_index).is_some())
     {
         return None;
     }
     let machine = program.machine_by_symbol(machine_symbol)?;
-    let authored = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)?;
+    let authored =
+        crate::flow::state_statements(program, state.statement_nodes).get(statement_index)?;
     let carrier = crate::flow::atomic_effects::release_store(program, machine, state, authored)?;
     let row = facts.flow.state_statement(flow, statement_index)?;
     let destination = facts.flow.control.operands.get(row.store_target);

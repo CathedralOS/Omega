@@ -346,10 +346,7 @@ fn append_unresolved_state_result_mapping_diagnostics(
         let Some(target_state) = validation::call_target_state(program, call.target_symbol) else {
             continue;
         };
-        if program
-            .statement_table
-            .statements(target_state.statement_nodes)
-            .is_empty()
+        if crate::flow::state_statements(program, target_state.statement_nodes).is_empty()
             || !type_carries_linear_obligation(program, target_state.return_type)
         {
             continue;

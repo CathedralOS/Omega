@@ -1186,9 +1186,7 @@ fn named_transition_arguments(
 ) -> Vec<(SymbolHandle, usize, ExpressionHandle)> {
     let mut incoming = Vec::new();
     for source in program.machine_states(machine) {
-        for (ordinal, statement) in program
-            .statement_table
-            .statements(source.statement_nodes)
+        for (ordinal, statement) in crate::flow::state_statements(program, source.statement_nodes)
             .iter()
             .enumerate()
         {

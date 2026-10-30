@@ -1643,9 +1643,7 @@ pub(super) fn check(
         let Some(state) = program.state_by_symbol(flow.state_symbol) else {
             continue;
         };
-        for (statement, node) in program
-            .statement_table
-            .statements(state.statement_nodes)
+        for (statement, node) in crate::flow::state_statements(program, state.statement_nodes)
             .iter()
             .enumerate()
         {

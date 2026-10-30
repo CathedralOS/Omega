@@ -1588,9 +1588,7 @@ fn case_payload_transfer(
             }
             let result = retained_structural_result(operation)
                 .filter(|result| result.statement_index < ordinal)?;
-            let local = program
-                .statement_table
-                .statements(source.statement_nodes)
+            let local = crate::flow::state_statements(program, source.statement_nodes)
                 .get(result.statement_index as usize)?
                 .as_local_data()?;
             (local.symbol == root && !local.is_mutable).then_some((result, local))

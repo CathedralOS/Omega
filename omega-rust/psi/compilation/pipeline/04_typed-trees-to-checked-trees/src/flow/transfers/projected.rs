@@ -328,10 +328,8 @@ pub(super) fn bound_reference_referent_place(
     let state = program.state_by_symbol(state_symbol)?;
     // The binding's own alias is recorded once the next statement begins, so
     // the prefix observed there is the one carrying the new referent.
-    let before = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index + 1)?;
+    let before =
+        crate::flow::state_statements(program, state.statement_nodes).get(statement_index + 1)?;
     let mut owned = None;
     let resolver = crate::flow::shared_call_frames_or(contexts.call_frames, program, &mut owned)?;
     // The walk records the referent beside the local's own storage entry;

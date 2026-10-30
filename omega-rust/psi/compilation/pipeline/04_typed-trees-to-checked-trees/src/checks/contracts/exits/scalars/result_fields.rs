@@ -866,10 +866,7 @@ impl ExitScalars<'_, '_> {
                     primitive_type,
                 } if !contract => {
                     let ordinal = position.checked_sub(scalar_parameters().count())?;
-                    let local = self
-                        .program
-                        .statement_table
-                        .statements(state.statement_nodes)
+                    let local = crate::flow::state_statements(self.program, state.statement_nodes)
                         .get(..self.exit.statement_index)?
                         .iter()
                         .filter_map(|node| {

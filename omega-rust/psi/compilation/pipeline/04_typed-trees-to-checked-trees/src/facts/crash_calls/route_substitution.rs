@@ -93,9 +93,7 @@ pub(crate) fn call_argument_substitution<'program>(
                 })
                 .map(|parameter| parameter.symbol)
                 .chain(
-                    program
-                        .statement_table
-                        .statements(state.statement_nodes)
+                    crate::flow::state_statements(program, state.statement_nodes)
                         .get(..before_statement)
                         .unwrap_or(&[])
                         .iter()

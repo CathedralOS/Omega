@@ -225,11 +225,7 @@ pub(crate) fn build(
     // its routes unchecked; it has no site to retain, so admit nothing.
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for statement in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-            {
+            for statement in crate::flow::state_statements(program, state.statement_nodes).iter() {
                 let Some(call) = statement.as_call() else {
                     continue;
                 };

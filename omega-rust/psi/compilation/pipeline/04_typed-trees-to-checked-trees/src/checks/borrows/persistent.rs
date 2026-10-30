@@ -148,11 +148,10 @@ fn check_stored_output_relations(
                 })
                 .flat_map(|(_, flow)| facts.flow.control.calls.span_or_empty(flow.calls));
             let calls = calls.collect::<Vec<_>>();
-            for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
+            for (statement_index, statement) in
+                crate::flow::state_statements(program, state.statement_nodes)
+                    .iter()
+                    .enumerate()
             {
                 // The normalized roster includes calls inside operands and
                 // selected patterns. A missing summary cannot erase their
@@ -295,9 +294,7 @@ fn state_transition_edges(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
 ) -> Vec<StateTransitionEdge> {
-    program
-        .statement_table
-        .statements(state.statement_nodes)
+    crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .filter_map(|statement| statement.as_transition())
         .flat_map(|transition| transition.targets())
@@ -726,9 +723,7 @@ fn exact_name_symbol(
     if path.symbol.is_valid() {
         return Some(path.symbol);
     }
-    program
-        .statement_table
-        .statements(state.statement_nodes)
+    crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .find_map(|statement| {
             let local = statement.as_local_data()?;
@@ -1045,9 +1040,7 @@ fn immutable_local_index_symbol(
         .is_valid()
         .then_some(path.head_symbol)
         .or_else(|| path.symbol.is_valid().then_some(path.symbol));
-    let mut matches = program
-        .statement_table
-        .statements(state.statement_nodes)
+    let mut matches = crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .filter_map(|statement| {
             let local = statement.as_local_data()?;
@@ -1162,9 +1155,7 @@ fn state_returns_only_static_borrows(
         found_value_exit = true;
         is_state_independent_borrow_source(program, state, expression, visiting)
     });
-    let all_static = program
-        .statement_table
-        .statements(state.statement_nodes)
+    let all_static = crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .filter_map(|statement| {
             let transition = statement.as_transition()?;

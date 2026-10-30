@@ -195,10 +195,7 @@ pub(super) fn append_statement_ownership_events(
             statement_index,
             *expression,
             if statement_index + 1
-                == program
-                    .statement_table
-                    .statements(sink.state.statement_nodes)
-                    .len()
+                == crate::flow::state_statements(program, sink.state.statement_nodes).len()
             {
                 sink.state.return_type
             } else {

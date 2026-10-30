@@ -140,10 +140,7 @@ pub(crate) fn returned_partition_invocations(
                 order.position(call.statement_index),
                 order.position(outgoing.statement_index).or_else(|| {
                     (outgoing.statement_index
-                        == program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .len())
+                        == crate::flow::state_statements(program, state.statement_nodes).len())
                     .then_some(order.indices().len())
                 }),
             ) else {

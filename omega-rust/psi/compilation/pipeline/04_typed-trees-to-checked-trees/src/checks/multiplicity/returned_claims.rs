@@ -726,10 +726,7 @@ fn stored_claims(
         .position(operand.statement_index)
         .or_else(|| {
             (operand.statement_index
-                == program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .len())
+                == crate::flow::state_statements(program, state.statement_nodes).len())
             .then_some(order.indices().len())
         })
         .ok_or("stored claim has no admitted execution coordinate")?;

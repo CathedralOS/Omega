@@ -716,9 +716,7 @@ fn constant_local_index(
 ) -> Option<usize> {
     let name = program.expression_table.name_path_node(expression)?;
     let source_state = program.state_by_symbol(state_symbol)?;
-    let local = program
-        .statement_table
-        .statements(source_state.statement_nodes)
+    let local = crate::flow::state_statements(program, source_state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
             StatementNode::LocalData(local) if local.symbol == name.symbol && !local.is_mutable => {

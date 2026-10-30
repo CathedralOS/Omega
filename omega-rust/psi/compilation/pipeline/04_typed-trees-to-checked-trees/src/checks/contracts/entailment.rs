@@ -326,9 +326,7 @@ fn entry_premises_are_preserved(
     };
     !program.machine_states(machine).is_empty()
         && program.machine_states(machine).iter().all(|state| {
-            !program
-                .statement_table
-                .statements(state.statement_nodes)
+            !crate::flow::state_statements(program, state.statement_nodes)
                 .iter()
                 .any(|statement| {
                     matches!(
@@ -462,9 +460,7 @@ fn isolated_proof_values(
     };
     program.machine_states(machine).iter().all(|state| {
         isolated_parameters(state)
-            && program
-                .statement_table
-                .statements(state.statement_nodes)
+            && crate::flow::state_statements(program, state.statement_nodes)
                 .iter()
                 .all(|statement| match statement {
                     typed_trees::statement::StatementNode::Assignment(_) => false,

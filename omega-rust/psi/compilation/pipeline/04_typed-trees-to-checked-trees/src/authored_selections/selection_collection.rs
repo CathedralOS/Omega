@@ -160,11 +160,7 @@ pub(crate) fn collect_checked_proof_view_call_selections(
     }
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for statement in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-            {
+            for statement in crate::flow::state_statements(program, state.statement_nodes).iter() {
                 let Some(fact) = statement.as_assembly_fact() else {
                     continue;
                 };

@@ -170,9 +170,7 @@ fn argument_contract(
     ) {
         return Some(argument);
     }
-    if let Some(StatementNode::LocalData(local)) = program
-        .statement_table
-        .statements(source_state.statement_nodes)
+    if let Some(StatementNode::LocalData(local)) = crate::flow::state_statements(program, source_state.statement_nodes)
         .get(result.statement_index as usize)
         && reference::is_carrier(program, local.type_reference)
         // Anonymous operand results carry their consuming statement's index,
@@ -472,10 +470,9 @@ fn argument_contract(
                     == program.normalized_type_identity(parameter.type_reference)))
         && let Some(view_symbol) = place.root.as_symbol()
     {
-        let Some(StatementNode::LocalData(local)) = program
-            .statement_table
-            .statements(source_state.statement_nodes)
-            .get(result.statement_index as usize)
+        let Some(StatementNode::LocalData(local)) =
+            crate::flow::state_statements(program, source_state.statement_nodes)
+                .get(result.statement_index as usize)
         else {
             return None;
         };
@@ -783,9 +780,7 @@ fn argument_contract(
             }
             trace.phase("call operation: result argument: local binding custody");
             let source_state = program.state_by_symbol(state)?;
-            let local = program
-                .statement_table
-                .statements(source_state.statement_nodes)
+            let local = crate::flow::state_statements(program, source_state.statement_nodes)
                 .get(usize::try_from(result.statement_index).ok()?)?
                 .as_local_data()?;
             // Authenticate the containing local independently of the selected
@@ -929,9 +924,7 @@ fn whole_local_storage_type(
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let symbol = place.root.as_symbol()?;
-    let local = program
-        .statement_table
-        .statements(source_state.statement_nodes)
+    let local = crate::flow::state_statements(program, source_state.statement_nodes)
         .get(usize::try_from(result.statement_index).ok()?)?
         .as_local_data()?;
     (place.segments.is_empty() && local.symbol == symbol).then_some(local.type_reference)

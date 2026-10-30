@@ -44,11 +44,7 @@ pub(crate) fn build_boundary_machine(
     }
     let result = boundary_result_plan(program, shapes, state.return_type, &binders, &[])
         .ok_or("boundary result has no runtime signature")?;
-    if !program
-        .statement_table
-        .statements(state.statement_nodes)
-        .is_empty()
-    {
+    if !crate::flow::state_statements(program, state.statement_nodes).is_empty() {
         return Err("boundary signature state contains executable statements");
     }
     // A static qualifier retains nominal ownership through the callable's

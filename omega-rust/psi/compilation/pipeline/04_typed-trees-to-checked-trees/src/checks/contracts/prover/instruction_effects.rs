@@ -226,10 +226,7 @@ fn evidence_inner(
                 || event_state != state_symbol
                 || !(order.precedes(statement_index, statement)
                     || (statement
-                        == program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .len()
+                        == crate::flow::state_statements(program, state.statement_nodes).len()
                         && order.position(statement_index).is_some()))
             {
                 continue;

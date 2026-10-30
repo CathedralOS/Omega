@@ -769,10 +769,7 @@ fn correspondence_root_type_reference(
         symbols::SymbolKind::Local
             if program.symbols.get(root).parent == state_symbol
                 && formation_statement_index
-                    < program
-                        .statement_table
-                        .statements(state.statement_nodes)
-                        .len() =>
+                    < crate::flow::state_statements(program, state.statement_nodes).len() =>
         {
             program
                 .state_local_declaration(state, root)
