@@ -375,25 +375,37 @@ pub(crate) fn handle_assignment<'program>(
     // A collection-predicate fact over other fields is untouched by this
     // store; its element windows are tracked separately.
     let written_field = selected_field.map(|field| field.symbol);
-    // Complete Cartesian field bounds preserve every unwritten component.
-    // Retain and re-prove the written component's original clauses; normalized
-    // intervals are not replacement source predicates or new proof premises.
-    let written_field_conjuncts = written_field
-        .filter(|_| !store_checked && place.established && !place.any_window_open())
-        .and_then(|written| {
-            Some(
-                super::data_where_field_representation_bounds(program, definition)?
-                    .into_iter()
-                    .filter(|bound| bound.field() == written)
-                    .map(|bound| typed_trees::domain::ProofFact::Expression(bound.conjunct()))
-                    .collect::<Vec<_>>(),
-            )
-        });
-    let declared_facts = match &written_field_conjuncts {
-        Some(conjuncts) => conjuncts.as_slice(),
-        None if store_checked => &[],
-        None => program.proof_facts.span_or_empty(definition.where_facts),
+    // Conjunction owns independent obligations regardless of their arithmetic
+    // spelling. Keep the exact original conjuncts, then let the declaration's
+    // read-set owner below identify what this write can invalidate. The closed
+    // region check is what preserves an untouched sibling, not recognition as
+    // an interval (which misses, for example, the bound `0 - 10 <= delta`).
+    // Fresh roots and open windows still owe every conjunct. Disjunctions and
+    // other predicates remain whole; no necessary bound replaces their converse.
+    let mut pending = if store_checked {
+        Vec::new()
+    } else {
+        program
+            .proof_facts
+            .span_or_empty(definition.where_facts)
+            .iter()
+            .rev()
+            .cloned()
+            .collect::<Vec<_>>()
     };
+    let mut declared_facts = Vec::new();
+    while let Some(fact) = pending.pop() {
+        if let Some(expression) = fact.as_expression()
+            && let Some(binary) = program.expression_table.binary_node(*expression)
+            && binary.operator == typed_trees::expression::BinaryOperator::And
+        {
+            pending.extend(
+                [binary.right, binary.left].map(typed_trees::domain::ProofFact::Expression),
+            );
+        } else {
+            declared_facts.push(fact);
+        }
+    }
     let type_facts = declared_facts
         .iter()
         .filter(|fact| fact_mentions_any_field(program, definition, fact))
