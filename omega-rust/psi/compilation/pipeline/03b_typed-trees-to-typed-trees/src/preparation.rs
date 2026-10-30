@@ -460,12 +460,18 @@ pub fn prepare_execution_applications(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     selections::retain_static_argument_contexts(program);
     loop {
+        let signatures = program.applied_callable_signatures.len();
         specialize_machine_calls(program, false)?;
-        // Dynamic finite rosters own ordinary specialized member bodies too.
-        // A generated body can expose another ordinary call or selector; close
-        // both with their existing producers before any physical-layout demand
-        // is described. Later full preparation reuses these exact instances.
-        if crate::monomorphization::generate_dynamic_family_specializations(program)? == 0 {
+        // Both declared dynamic families and ordinary public requirement
+        // applications own complete specialized provider bodies. Run the same
+        // append-only producers used by full preparation before describing
+        // physical work; a new body can expose another ordinary application.
+        let mut materialized =
+            crate::monomorphization::generate_dynamic_family_specializations(program)?;
+        crate::monomorphization::instantiate_requirement_applications(program)?;
+        materialized +=
+            crate::monomorphization::generate_requirement_provider_specializations(program)?;
+        if materialized == 0 && program.applied_callable_signatures.len() == signatures {
             break;
         }
     }

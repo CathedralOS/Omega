@@ -294,7 +294,15 @@ pub(crate) fn compute_plan_laid_layouts_in(
             ));
         }
         for owner in invocation_owners.iter().filter(|_| !targets.is_empty()) {
-            if !owner.is_valid() || execution.symbols.symbol_source_span(*owner).is_none() {
+            // A generated invocation keeps its exact symbol and complete
+            // specialization custody. Only its authored package provenance is
+            // inherited through the mandatory symbol derivation chain.
+            if !owner.is_valid()
+                || execution
+                    .symbols
+                    .symbol_provenance_source_span(*owner)
+                    .is_none()
+            {
                 return Err(fail(
                     "fixed representation invocation has an invalid source owner".into(),
                 ));
