@@ -5,8 +5,8 @@ use omega::language::core::content;
 use omega::language::core::drop;
 data Units {}
 data Payload {}
-data Region [linear] { amount: u64; }
-machine Region::drop(region: &mut Region) {}
+data Region [linear] dropped by cleanup_region { amount: u64; }
+machine cleanup_region(region: &mut Region) {}
 domain Region::Owned;
 machine Owned::content(region: &Region) -> CountedQuantity<Units>
 satisfies Content<Region, CountedQuantity<Units>>::project {
@@ -16,16 +16,17 @@ trait Transfer<T> {
     machine transfer(region: Region in Owned) -> Region in Owned
     ensures Owned::content(old(&region)) == Owned::content(&result);
 }
-machine retain(region: Region in Owned) -> Region in Owned
-satisfies Transfer<Payload>::transfer
-ensures Owned::content(old(&region)) == Owned::content(&result)
-{ drop(region); Region { amount: 28 } }
+ConservingTransfer satisfies Transfer<Payload> {
+    machine transfer(region: Region in Owned) -> Region in Owned
+    ensures Owned::content(old(&region)) == Owned::content(&result)
+    { drop(region); Region { amount: 28 } }
+}
 machine observe(region: Region in Owned) -> u64 {
     let observed: u64 = region.amount;
     drop(region);
     observed
 }
-machine returned() -> Region in Owned { retain(Region { amount: 29 }) }
+machine returned() -> Region in Owned { ConservingTransfer::transfer(Region { amount: 29 }) }
 machine exercise(select: bool) -> u64 { observe(returned()) }
 machine main() crashes Trap {
     let first: u64 = exercise(true);
