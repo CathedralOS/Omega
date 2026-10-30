@@ -1585,8 +1585,8 @@ dependencies = [
 name = "package-evidence"
 version = "0.1.0"
 dependencies = [
- "build-time-evaluation",
  "arena",
+ "build-time-evaluation",
  "calling-conventions",
  "checked-trees",
  "compilation-products",

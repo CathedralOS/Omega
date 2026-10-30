@@ -589,7 +589,7 @@ def windows_safe_target_dir(target_dir: Path) -> Path:
 def build_runner(root: Path = ROOT) -> Path:
     """Build `root`'s runner via cargo/mbx message-format JSON; return its path."""
     tool = "mbx" if shutil_which("mbx") else "cargo"
-    args = [tool, "test", "--no-run", "--message-format=json",
+    args = [tool, "test", "--no-run", "--locked", "--message-format=json",
             "-p", "compiler", "--test", "corpus_runner"]
     env = optimized_environment()
     if root != ROOT:
