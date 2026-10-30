@@ -2348,6 +2348,9 @@ fail/calls/closed_constructor_unused_mutual_divergence_unknown rejected 10500ms 
 	specification call `Point::zero` is not denotational: the selected machine is not unconditionally terminating
 fail/calls/computed_zero_requires_argument_rejected rejected 961ms expected @a92f16431042
 	machine `Main::main` state `main` value call to `Main::scale` violates required fact `divisor != 0`: the instantiated fact is structurally false (`0 != 0`)
+fail/calls/const_boundary_rejects_other_bound rejected 742ms expected @101f66e2f97e
+	cannot prove requires contract for call bound from forward: value <= Other (needs fact `value <= Other` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from forward at statement 0: result <= Available
 fail/calls/constructed_argument_wrong_nominal_type rejected 712ms expected @a92f16431042
 	argument `value` for state `entry` expects `Required<i32>`, got `struct literal`
 	argument `value` for state `read::entry` expects the `Required<i32>` data type but got `Other` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
@@ -17301,6 +17304,27 @@ fail/facts/target_family_callback_guarantee/stronger_precondition rejected 929ms
 fail/facts/target_family_callback_guarantee/target_body rejected 896ms expected @eb23675fbe3f
 	machine argument `identity` for `apply` does not refine `Callback`: its ensures facts are not a conservative refinement
 	machine argument `identity` for `apply` does not refine `Operation`: its ensures facts are not a conservative refinement
+fail/facts/target_family_open_const/call_result rejected 455ms expected @101f66e2f97e
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+fail/facts/target_family_open_const/const_name rejected 469ms expected @101f66e2f97e
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+fail/facts/target_family_open_const/field rejected 430ms expected @101f66e2f97e
+	data `Carrier` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+fail/facts/target_family_open_const/local rejected 450ms expected @101f66e2f97e
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+fail/facts/target_family_open_const/match_join rejected 505ms expected @48daa479e121
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+	exact arithmetic in machine `main` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `main` state `entry` local `fallback_remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/target_family_open_const/other_machine rejected 446ms expected @101f66e2f97e
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+fail/facts/target_family_open_const/other_state rejected 446ms expected @101f66e2f97e
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+fail/facts/target_family_open_const/parameter rejected 481ms expected @101f66e2f97e
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
+fail/facts/target_family_open_const/target_body rejected 481ms expected @101f66e2f97e
+	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
 fail/facts/target_layout_derived_constant_through_call_result_reject rejected 3663ms expected @a92f16431042
 	machine `main` state `entry` local `slack`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-1, -1] lie outside [0, 18446744073709551615]
 fail/facts/target_layout_derived_constant_through_const_name_reject rejected 4019ms expected @a92f16431042
@@ -25189,6 +25213,7 @@ pass/calls/completed_effectful_result_requirement_exit checked 1934ms check-targ
 pass/calls/computed_binding_argument_exit checked 1961ms check-target:macos_arm64 @a92f16431042
 pass/calls/computed_case_subject_slice_operands_exit checked 7137ms check-target:macos_arm64 @a92f16431042
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 6340ms check-target:macos_arm64 @a92f16431042
+pass/calls/const_boundary_uses_exact_bound checked 1121ms @101f66e2f97e
 pass/calls/constant_result_requires_argument_accepted checked 6328ms check-target:macos_arm64 @a92f16431042
 pass/calls/converted_call_value_private_arrival_exit checked 1309ms check-target:macos_arm64 @8b519ca647cd+wt
 pass/calls/copy_projection_from_borrowed_receiver checked 7265ms check-target:macos_arm64 @a92f16431042
@@ -31405,6 +31430,15 @@ pass/facts/target_family_callback_guarantee/parameter checked 3169ms check-targe
 pass/facts/target_family_callback_guarantee/sibling_helper checked 3059ms check-target:macos_arm64 @eb23675fbe3f
 pass/facts/target_family_callback_guarantee/target_body checked 3025ms check-target:macos_arm64 @eb23675fbe3f
 pass/facts/target_family_callback_guarantee/target_values checked 3057ms check-target:macos_arm64 @eb23675fbe3f
+pass/facts/target_family_open_const/call_result checked 1152ms check-target:macos_arm64 @101f66e2f97e
+pass/facts/target_family_open_const/const_name checked 1060ms check-target:macos_arm64 @101f66e2f97e
+pass/facts/target_family_open_const/field checked 1082ms check-target:macos_arm64 @101f66e2f97e
+pass/facts/target_family_open_const/local checked 1120ms check-target:macos_arm64 @101f66e2f97e
+pass/facts/target_family_open_const/match_join checked 1163ms check-target:macos_arm64 @48daa479e121
+pass/facts/target_family_open_const/other_machine checked 1110ms check-target:macos_arm64 @101f66e2f97e
+pass/facts/target_family_open_const/other_state checked 1058ms check-target:macos_arm64 @101f66e2f97e
+pass/facts/target_family_open_const/parameter checked 1151ms check-target:macos_arm64 @101f66e2f97e
+pass/facts/target_family_open_const/target_body checked 1398ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @101f66e2f97e
 pass/facts/target_layout_derived_constant_through_call_result_exit checked 4481ms check-target:macos_arm64 @a92f16431042
 pass/facts/target_layout_derived_constant_through_const_name_exit checked 4981ms check-target:macos_arm64 @a92f16431042
 pass/facts/target_layout_derived_constant_through_field_exit checked 4998ms check-target:macos_arm64 @a92f16431042
