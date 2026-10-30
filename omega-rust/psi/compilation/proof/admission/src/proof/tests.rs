@@ -12,8 +12,8 @@ use super::{
 };
 use crate::IntegerAffineWitness;
 use crate::{
-    CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness, IntegerCastChainWitness,
-    IntegerCorrelatedForbiddenRootWitness, PrimitiveJudgment,
+    CorrelatedAffineBranchWitness, IntegerCastChainWitness, IntegerCorrelatedForbiddenRootWitness,
+    PrimitiveJudgment, correlated_step,
 };
 use semantic_vocabulary::PropositionId;
 
@@ -990,24 +990,12 @@ fn correlated_division_fixture() -> (
                 dividend: CorrelatedAffineBranchWitness {
                     root: root.clone(),
                     target: dividend,
-                    steps: vec![CorrelatedAffineStepWitness {
-                        definition_axiom: 0,
-                        literal_axiom: None,
-                    }],
+                    steps: vec![correlated_step(0, None)],
                 },
                 divisor: CorrelatedAffineBranchWitness {
                     root: root.clone(),
                     target: divisor,
-                    steps: vec![
-                        CorrelatedAffineStepWitness {
-                            definition_axiom: 1,
-                            literal_axiom: None,
-                        },
-                        CorrelatedAffineStepWitness {
-                            definition_axiom: 2,
-                            literal_axiom: None,
-                        },
-                    ],
+                    steps: vec![correlated_step(1, None), correlated_step(2, None)],
                 },
                 definition_axiom_count: 3,
                 lower_bound_axiom: 3,

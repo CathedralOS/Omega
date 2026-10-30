@@ -114,6 +114,19 @@ pub(crate) fn forge_term_and_assert_rejected(denoted: &mut BoundedDenotation) ->
     evidence
 }
 
+/// One correlated affine branch step: the cited definition and the optional
+/// earlier equality landing a non-closed right sibling.
+#[cfg(test)]
+pub(crate) fn correlated_step(
+    definition_axiom: usize,
+    literal_axiom: Option<usize>,
+) -> CorrelatedAffineStepWitness {
+    CorrelatedAffineStepWitness {
+        definition_axiom,
+        literal_axiom,
+    }
+}
+
 macro_rules! debug_display {
     ($type:ty) => {
         impl std::fmt::Display for $type {

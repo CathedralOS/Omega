@@ -7,8 +7,8 @@ use std::collections::BTreeSet;
 use super::super::{Elaboration, verify_bounded_certificate_on_current_thread};
 use super::Law;
 use crate::{
-    Budget, CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness,
-    IntegerCorrelatedForbiddenRootWitness, ProofError, ProofNode, ProofRule,
+    Budget, CorrelatedAffineBranchWitness, IntegerCorrelatedForbiddenRootWitness, ProofError,
+    ProofNode, ProofRule, correlated_step,
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
@@ -142,30 +142,12 @@ fn safe_fixture() -> Fixture {
         dividend: CorrelatedAffineBranchWitness {
             root: root.clone(),
             target: dividend.clone(),
-            steps: vec![
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 1,
-                    literal_axiom: Some(0),
-                },
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 3,
-                    literal_axiom: Some(2),
-                },
-            ],
+            steps: vec![correlated_step(1, Some(0)), correlated_step(3, Some(2))],
         },
         divisor: CorrelatedAffineBranchWitness {
             root,
             target: divisor.clone(),
-            steps: vec![
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 5,
-                    literal_axiom: Some(4),
-                },
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 6,
-                    literal_axiom: None,
-                },
-            ],
+            steps: vec![correlated_step(5, Some(4)), correlated_step(6, None)],
         },
         definition_axiom_count: 7,
         lower_bound_axiom: 7,
@@ -233,24 +215,12 @@ fn negative_multiplier_fixture() -> Fixture {
         dividend: CorrelatedAffineBranchWitness {
             root: root.clone(),
             target: dividend.clone(),
-            steps: vec![CorrelatedAffineStepWitness {
-                definition_axiom: 0,
-                literal_axiom: None,
-            }],
+            steps: vec![correlated_step(0, None)],
         },
         divisor: CorrelatedAffineBranchWitness {
             root,
             target: divisor.clone(),
-            steps: vec![
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 2,
-                    literal_axiom: Some(1),
-                },
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 3,
-                    literal_axiom: None,
-                },
-            ],
+            steps: vec![correlated_step(2, Some(1)), correlated_step(3, None)],
         },
         definition_axiom_count: 4,
         lower_bound_axiom: 4,
@@ -401,24 +371,12 @@ fn forbidden_roots_out_of_interval_root_refutes_case() {
         dividend: CorrelatedAffineBranchWitness {
             root: root.clone(),
             target: dividend.clone(),
-            steps: vec![CorrelatedAffineStepWitness {
-                definition_axiom: 0,
-                literal_axiom: None,
-            }],
+            steps: vec![correlated_step(0, None)],
         },
         divisor: CorrelatedAffineBranchWitness {
             root,
             target: divisor.clone(),
-            steps: vec![
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 2,
-                    literal_axiom: Some(1),
-                },
-                CorrelatedAffineStepWitness {
-                    definition_axiom: 3,
-                    literal_axiom: None,
-                },
-            ],
+            steps: vec![correlated_step(2, Some(1)), correlated_step(3, None)],
         },
         definition_axiom_count: 4,
         lower_bound_axiom: 4,
