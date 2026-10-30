@@ -45,6 +45,32 @@ impl Builder<'_, '_> {
         self.retain_projection_selector_evaluations(owner, selectors)
     }
 
+    /// The exact declared type of `expression` at this statement.
+    pub(super) fn expression_type(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        validation::expression_type_reference_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+        )
+    }
+
+    /// The canonical place `expression` names at this statement.
+    pub(super) fn canonical_place(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<validation::CanonicalPlace> {
+        validation::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+        )
+    }
+
     /// Project a canonical place through its authored selector evaluations.
     /// The retained evaluation supplies each runtime index at this point, so
     /// the projection never re-reads the selector's original storage.
@@ -392,12 +418,7 @@ impl Builder<'_, '_> {
                     expression,
                     expected,
                 )?;
-                let place = validation::canonical_place_from_expression_in_state(
-                    self.program,
-                    self.state,
-                    self.statement_index,
-                    expression,
-                )?;
+                let place = self.canonical_place(expression)?;
                 if !matches!(place.root, facts::PlaceRoot::Expression(_)) {
                     return None;
                 }

@@ -194,12 +194,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: typed_trees::types::PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
-        let reference = validation::expression_type_reference_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )?;
+        let reference = self.expression_type(expression)?;
         let observation = self.scalar_observation_type(reference)?;
         if observation.primitive_type != expected {
             return None;
@@ -293,12 +288,7 @@ impl Builder<'_, '_> {
             // observation route. It must not be copied into another home.
             return None;
         }
-        let reference = validation::expression_type_reference_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )?;
+        let reference = self.expression_type(expression)?;
         let observation = self.scalar_observation_type(reference)?;
         // This entrance is specifically a computed reference read. Direct
         // primitive captured values use the same typed observation above.
