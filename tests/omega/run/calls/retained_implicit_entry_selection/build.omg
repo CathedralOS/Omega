@@ -1,6 +1,10 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "retained_implicit_entry_selection");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::select_provider<omega_language_std::Console, omega_language_std::NativeConsole>(builder, windows_x86_64);
+    Build::select_provider<omega_language_std::Console, omega_language_std::NativeConsole>(builder, linux_x86_64);
+    Build::select_provider<omega_language_std::Console, omega_language_std::NativeConsole>(builder, macos_arm64);
+    Build::select_provider<omega_language_std::Console, omega_language_std::NativeConsole>(builder, linux_arm64);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
