@@ -31,17 +31,21 @@ where
     Failure: From<Vec<Diagnostic>> + Send,
 {
     if ON_COMPILER_WORKER.get() {
+        phase_profile::count("compile.worker.inline", 1);
         return work();
     }
-    std::thread::scope(|scope| {
-        spawn_compile_worker(scope, work)
-            .map_err(|error| {
-                Failure::from(vec![Diagnostic::error(format!(
-                    "failed to spawn compiler thread: {error}"
-                ))])
-            })?
-            .join()
-            .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    phase_profile::count("compile.worker.spawn", 1);
+    phase_profile::scope("compile.worker.await", || {
+        std::thread::scope(|scope| {
+            spawn_compile_worker(scope, work)
+                .map_err(|error| {
+                    Failure::from(vec![Diagnostic::error(format!(
+                        "failed to spawn compiler thread: {error}"
+                    ))])
+                })?
+                .join()
+                .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+        })
     })
 }
 
@@ -58,7 +62,7 @@ where
         .stack_size(COMPILE_STACK_SIZE)
         .spawn_scoped(scope, move || {
             ON_COMPILER_WORKER.set(true);
-            work()
+            phase_profile::scope("compile.worker.body", work)
         })
 }
 

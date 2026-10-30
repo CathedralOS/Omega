@@ -20,7 +20,9 @@ impl BuildSession {
     /// Reserve one resource grant and one reusable in-memory compiler.
     /// Embedders own this lifetime and need no process-wide storage policy.
     pub fn create(workspace: &Path) -> Result<Self, CompileResolvedPackageReviewsError> {
-        let packages = PackageBuildSession::create(workspace)?;
+        let packages = phase_profile::scope("setup.package_grant", || {
+            PackageBuildSession::create(workspace)
+        })?;
         Ok(Self {
             compiler: CompilationSession::default(),
             packages,
@@ -63,8 +65,12 @@ impl BuildSession {
 /// compiler-private store before source preparation. Cache setup never admits
 /// source or prevents a cold compilation.
 pub(crate) fn compiler_session() -> CompilationSession {
-    match package_manager::retain_compiler_source_storage(None) {
-        Ok(storage) => CompilationSession::default().with_source_retention(storage),
+    match phase_profile::scope("setup.compiler_storage", || {
+        package_manager::retain_compiler_source_storage(None)
+    }) {
+        Ok(storage) => phase_profile::scope("setup.compiler_graph", || {
+            CompilationSession::default().with_source_retention(storage)
+        }),
         Err(reason) => {
             if std::env::var_os("OMEGA_PHASE_PROFILE").is_some_and(|value| value != "0") {
                 eprintln!("compiler source retention unavailable: {reason}");
