@@ -2864,7 +2864,7 @@ impl<'program> StructuralJudge<'program> {
             std::sync::Arc::make_mut(&mut self.normal_guarantees)
                 .push((left.clone(), right.clone()));
             if completed_identity {
-                self.intake_equation_fact(left, right, 0);
+                self.intake_completed_call_identity(left, right);
             } else {
                 self.intake_equation(left, right, 0);
             }

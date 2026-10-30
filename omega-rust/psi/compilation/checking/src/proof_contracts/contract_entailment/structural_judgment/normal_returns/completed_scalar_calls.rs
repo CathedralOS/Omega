@@ -38,6 +38,27 @@ impl CapturedResultEquation {
 }
 
 impl StructuralJudge<'_> {
+    /// One completed observation may have both an executable description and
+    /// its authenticated source application. Keep their common identity even
+    /// when raw fact intake retains the first capture rewrite. Reuse only an
+    /// already-established exact-payload rewrite; never evaluate either body
+    /// or derive admission from a descriptive application here.
+    pub(super) fn intake_completed_call_identity(
+        &mut self,
+        captured: StructuralTerm,
+        description: StructuralTerm,
+    ) {
+        let established = self
+            .rewrites
+            .find(&captured)
+            .filter(|(pattern, _)| pattern.same_resolution_payload(&captured))
+            .map(|(_, replacement)| replacement.clone());
+        self.intake_equation_fact(captured, description.clone(), 0);
+        if let Some(established) = established {
+            self.intake_equation_fact(description, established, 0);
+        }
+    }
+
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn completed_integer_call(
         &self,
         value: &StructuralTerm,
