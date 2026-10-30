@@ -1,0 +1,2 @@
+data `Count` literal violates the default domain
+data `Count` case `Full` literal violates the case constraint
