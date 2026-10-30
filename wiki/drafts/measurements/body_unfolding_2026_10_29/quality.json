@@ -1,0 +1,84 @@
+[
+  {
+    "fixture": "pass/calls/selected_contract_equation_reentry_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\candidate\\omega.exe",
+      "update",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\cases\\candidate-pass-calls-selected_contract_equation_reentry_exit\\input",
+      "--target",
+      "windows_x86_64"
+    ],
+    "exit": 0,
+    "seconds": 2.030632499998319,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\cases\\candidate-pass-calls-selected_contract_equation_reentry_exit\\00.txt",
+    "producer_sha256": "91fd78466448953038b0c519db16fe7fbdf4f32c9a22ffb8c65f707d5423f7a0",
+    "source_sha256": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d"
+  },
+  {
+    "fixture": "pass/calls/selected_contract_equation_reentry_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\candidate\\omega.exe",
+      "update",
+      "--resume",
+      "--project",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\cases\\candidate-pass-calls-selected_contract_equation_reentry_exit\\input"
+    ],
+    "exit": 1,
+    "seconds": 0.18669729999965057,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\cases\\candidate-pass-calls-selected_contract_equation_reentry_exit\\01.txt",
+    "producer_sha256": "91fd78466448953038b0c519db16fe7fbdf4f32c9a22ffb8c65f707d5423f7a0",
+    "source_sha256": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d"
+  },
+  {
+    "fixture": "pass/calls/selected_contract_equation_reentry_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\cases\\candidate-pass-calls-selected_contract_equation_reentry_exit\\native",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\cases\\candidate-pass-calls-selected_contract_equation_reentry_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 1.8260541999916313,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\cases\\candidate-pass-calls-selected_contract_equation_reentry_exit\\02.txt",
+    "producer_sha256": "91fd78466448953038b0c519db16fe7fbdf4f32c9a22ffb8c65f707d5423f7a0",
+    "source_sha256": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d",
+    "artifact_sha256": "3c8ff49dd9e22cfbf449f5951d6df2d709bed4f321a9c8c9c59a8481cc72cf85",
+    "native_exit": 0
+  },
+  {
+    "fixture": "pass/calls/selected_contract_equation_reentry_exit",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\candidate\\omega.exe",
+      "run",
+      "--both",
+      "--keep",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\cases\\candidate-pass-calls-selected_contract_equation_reentry_exit\\input\\main.omg"
+    ],
+    "exit": 0,
+    "seconds": 0.7104518999985885,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\cases\\candidate-pass-calls-selected_contract_equation_reentry_exit\\03.txt",
+    "producer_sha256": "91fd78466448953038b0c519db16fe7fbdf4f32c9a22ffb8c65f707d5423f7a0",
+    "source_sha256": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d"
+  },
+  {
+    "fixture": "fail/calls/selected_contract_equation_reentry_unproved_requirement",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\candidate\\omega.exe",
+      "--check",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\cases\\candidate-fail-calls-selected_contract_equation_reentry_unproved_requirement\\input\\main.omg"
+    ],
+    "exit": 1,
+    "seconds": 1.0369885000109207,
+    "transcript": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\cases\\candidate-fail-calls-selected_contract_equation_reentry_unproved_requirement\\04.txt",
+    "producer_sha256": "91fd78466448953038b0c519db16fe7fbdf4f32c9a22ffb8c65f707d5423f7a0",
+    "source_sha256": "be9246b95e2b785a7e6b3658ddf10d022781833dfaaba179031ce89c92e97868",
+    "expected": [
+      "cannot prove requires contract for call abs_i32"
+    ],
+    "matched": true
+  }
+]

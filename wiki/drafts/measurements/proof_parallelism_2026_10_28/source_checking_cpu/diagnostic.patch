@@ -1,0 +1,323 @@
+diff --git a/omega-rust/omega/application/cli/src/main.rs b/omega-rust/omega/application/cli/src/main.rs
+index 2d0d6067a37..1c4b9dc5a1e 100644
+--- a/omega-rust/omega/application/cli/src/main.rs
++++ b/omega-rust/omega/application/cli/src/main.rs
+@@ -25,6 +25,10 @@ static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+ const COMPILER_STACK_SIZE: usize = 256 * 1024 * 1024;
+ 
+ fn main() -> ExitCode {
++    #[cfg(windows)]
++    if std::env::var_os("OMEGA_SOURCE_CHECK_CPU").is_some_and(|value| value != "0") {
++        phase_profile::install_cpu_sampler(artifacts::compile_timings::check_cpu::snapshot);
++    }
+     terminal_runtime::run_native_provider_worker_if_requested();
+     let invocation = match arguments::parse(std::env::args_os().skip(1)) {
+         Ok(invocation) => invocation,
+diff --git a/omega-rust/omega/foundation/artifacts/src/compile_timings/mod.rs b/omega-rust/omega/foundation/artifacts/src/compile_timings/mod.rs
+index 844fdb15cf6..b321c24513b 100644
+--- a/omega-rust/omega/foundation/artifacts/src/compile_timings/mod.rs
++++ b/omega-rust/omega/foundation/artifacts/src/compile_timings/mod.rs
+@@ -1,6 +1,8 @@
+ //! Compile timings: the phase ladder every stage records into, and the
+ //! accumulator that carries those records to the timing report.
+ 
++#[cfg(windows)]
++pub mod check_cpu;
+ pub mod counters;
+ 
+ use std::time::Instant;
+diff --git a/omega-rust/psi/compilation/driver/src/source_checking.rs b/omega-rust/psi/compilation/driver/src/source_checking.rs
+index 90e9d74c020..7cefaddc784 100644
+--- a/omega-rust/psi/compilation/driver/src/source_checking.rs
++++ b/omega-rust/psi/compilation/driver/src/source_checking.rs
+@@ -103,14 +103,18 @@ impl CheckRequest<'_> {
+         let mut program = self.program;
+         // A retained language judgment cannot bypass final application custody.
+         // Reclosure also derives copy properties; callers cannot supply them.
+-        let representations = self.admission.representations.admit(&program)?;
++        let representations = phase_profile::scope("05.cpu.representation_admission", || {
++            self.admission.representations.admit(&program)
++        })?;
+         phase_profile::scope("05.a.source_completion", || {
+             validation::source_completion::prepare_source_completion(
+                 &mut program,
+                 self.admission.completion,
+             )
+         })?;
+-        constant_entries::retain_evaluation_entries(&mut program)?;
++        phase_profile::scope("05.cpu.constant_entries", || {
++            constant_entries::retain_evaluation_entries(&mut program)
++        })?;
+         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
+             .with_opaque_property_receipts(&representations.copy_properties)
+             .with_opaque_representation_selections(&representations.selections)
+diff --git a/omega-rust/psi/foundation/phase-profile/src/lib.rs b/omega-rust/psi/foundation/phase-profile/src/lib.rs
+index 44dc723fdcf..38988364540 100644
+--- a/omega-rust/psi/foundation/phase-profile/src/lib.rs
++++ b/omega-rust/psi/foundation/phase-profile/src/lib.rs
+@@ -57,6 +57,7 @@ fn initialize() -> bool {
+ /// Time `work` under `name` when collection is enabled.
+ #[inline]
+ pub fn scope<T>(name: &'static str, work: impl FnOnce() -> T) -> T {
++    let _cpu = CpuWindow::begin(name);
+     if !enabled() {
+         return work();
+     }
+@@ -71,6 +72,7 @@ pub fn scope<T>(name: &'static str, work: impl FnOnce() -> T) -> T {
+ pub struct Guard {
+     name: &'static str,
+     started: Option<Instant>,
++    _cpu: Option<CpuWindow>,
+ }
+ 
+ #[inline]
+@@ -78,6 +80,7 @@ pub fn guard(name: &'static str) -> Guard {
+     Guard {
+         name,
+         started: enabled().then(Instant::now),
++        _cpu: CpuWindow::begin(name),
+     }
+ }
+ 
+@@ -199,3 +202,151 @@ mod tests {
+         assert_eq!(saturated.nanos, u64::MAX);
+     }
+ }
++
++// Temporary selective CPU attribution. The host owns platform calls.
++static CPU_SAMPLER: std::sync::OnceLock<fn() -> [u64; 4]> = std::sync::OnceLock::new();
++static CPU_ORIGIN: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
++static CPU_SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
++pub fn install_cpu_sampler(sample: fn() -> [u64; 4]) {
++    assert!(CPU_SAMPLER.set(sample).is_ok());
++}
++struct CpuWindow {
++    name: &'static str,
++    start: u128,
++    ticks: [u64; 4],
++    id: u64,
++}
++impl CpuWindow {
++    fn begin(name: &'static str) -> Option<Self> {
++        let sample = CPU_SAMPLER.get()?;
++        if !matches!(
++            name,
++            "05" | "05.a.source_completion"
++                | "05.b.retained_input_clone"
++                | "05.b.retained_match"
++                | "05.c.1.pre_specialization"
++                | "05.c.2.specialization_loop"
++                | "05.c.3.a.assembly_normalize"
++                | "05.c.3.b.settle_value_destinations"
++                | "05.c.3.c.default_domain_zero"
++                | "05.c.3.d.constructed_result_types"
++                | "05.c.3.e.data_applications"
++                | "05.c.3.f.runtime_index_fields"
++                | "05.c.3.g.dynamic_call_targets"
++                | "05.c.3.h.dynamic_slots"
++                | "05.c.3.i.requirement_applications"
++                | "05.c.3.j.elaborate_new_types"
++                | "05.c.3.k.assignment_destinations"
++                | "05.c.3.l.domain_test_carriers"
++                | "05.c.3.m.assembly_admit"
++                | "05.c.3.n.mathematical_declarations"
++                | "05.c.3.post_specialization"
++                | "05.c.placement_lifecycle_plans"
++                | "05.c.prepare_typed_trees"
++                | "05.cpu.constant_entries"
++                | "05.cpu.representation_admission"
++                | "05.d.11_13.a.finalize_selections"
++                | "05.d.11_13.b.visibility_and_cleanup_selections"
++                | "05.d.11_13.c.reference_custody"
++                | "05.d.11_13.d.content_classes"
++                | "05.d.11_13.e.resolved_types"
++                | "05.d.11_13.f.state_locals"
++                | "05.d.11_13.g.provider_closed_requirements"
++                | "05.d.11_13.h.boundary_and_portable_checks"
++                | "05.d.11_13.selections_custody_types_boundaries"
++                | "05.d.2.a.1.pre_machine_validators"
++                | "05.d.2.a.1a.definition_fact_plan"
++                | "05.d.2.a.1a2.proposition_entailment"
++                | "05.d.2.a.1a2b.domains_and_signatures"
++                | "05.d.2.a.1a3.operational_and_service_reaches"
++                | "05.d.2.a.1a4.validate_conformances"
++                | "05.d.2.a.1a4b.data_and_proof_faces"
++                | "05.d.2.a.1a5.call_cycles_and_properties"
++                | "05.d.2.a.1a5b.1.constants"
++                | "05.d.2.a.1a5b.2.struct_literals"
++                | "05.d.2.a.1a5b.3.destructure"
++                | "05.d.2.a.1a5b.constants_and_literals"
++                | "05.d.2.a.1a5c.default_domain_writes"
++                | "05.d.2.a.1a5d.recasts_wire_operators"
++                | "05.d.2.a.1a6.static_machine_selections"
++                | "05.d.2.a.1b.call_frame_resolver"
++                | "05.d.2.a.2.dependency_bodies"
++                | "05.d.2.a.2.machine_loop"
++                | "05.d.2.a.3.post_machine_validators"
++                | "05.d.2.a.validate"
++                | "05.d.2.b.build_proof_plan"
++                | "05.d.2.c.check_proof_plan"
++                | "05.d.2.d.bare_boundary_trait_values"
++                | "05.d.2.prepare_typed_program"
++                | "05.d.3.a.pre_flow_facts"
++                | "05.d.3.b.flow_fixed_point"
++                | "05.d.3.b.flow_fixed_point.bind_call_spans"
++                | "05.d.3.b.flow_fixed_point.build_flow_facts"
++                | "05.d.3.b.flow_fixed_point.infer_entry_requirements"
++                | "05.d.3.b.flow_fixed_point.prepare_permission_events"
++                | "05.d.3.b.flow_fixed_point.retain_selected_receiver_loans"
++                | "05.d.3.build_check_facts"
++                | "05.d.3.c.1.scalar_and_index_plans"
++                | "05.d.3.c.2.index_compatibility"
++                | "05.d.3.c.3.cleanup_effects_and_reaches"
++                | "05.d.3.c.4.admit_prepared_program_effects"
++                | "05.d.3.c.5.post_admit_facts"
++                | "05.d.3.c.5a.termination"
++                | "05.d.3.c.5b.mutation_and_integer_writes"
++                | "05.d.3.c.5c.contract_plans"
++                | "05.d.3.c.post_flow_facts"
++                | "05.d.4_6.quotients_borrows_identities"
++                | "05.d.7.0.setup_guards_and_entailment"
++                | "05.d.7.1.bind_call_evidence_arguments"
++                | "05.d.7.2.check_flow_call_borrows"
++                | "05.d.7.2b.runtime_indices_case_fences"
++                | "05.d.7.3a.content_composition"
++                | "05.d.7.3b.check_flow_call_contracts"
++                | "05.d.7.4.check_linear_obligations"
++                | "05.d.7.5_8.crashes_content_carry_operators"
++                | "05.d.7.9.check_indexed_accesses"
++                | "05.d.7.check_checked_facts"
++                | "05.d.8_10.a.1.rank_and_terminal_machines"
++                | "05.d.8_10.a.2.structural_control_cleanups"
++                | "05.d.8_10.a.3.unit_effect_plans"
++                | "05.d.8_10.a.4.nominal_affine_cleanups"
++                | "05.d.8_10.a.finalize_execution"
++                | "05.d.8_10.b.semantic_dependencies"
++                | "05.d.8_10.c.accepted_template_identities"
++                | "05.d.8_10.finalize_execution_identities"
++                | "05.d.lower_typed_trees"
++                | "05.e.declaration_authority"
++        ) {
++            return None;
++        }
++        let origin = CPU_ORIGIN.get_or_init(Instant::now);
++        Some(Self {
++            name,
++            start: origin.elapsed().as_nanos(),
++            ticks: sample(),
++            id: CPU_SEQUENCE.fetch_add(1, Ordering::Relaxed),
++        })
++    }
++}
++impl Drop for CpuWindow {
++    fn drop(&mut self) {
++        let ticks = CPU_SAMPLER.get().unwrap()();
++        let end = CPU_ORIGIN.get().unwrap().elapsed().as_nanos();
++        eprintln!(
++            "CHECK_CPU\t{}\t{:?}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
++            self.name,
++            std::thread::current().id(),
++            self.id,
++            self.start,
++            end,
++            self.ticks[0],
++            self.ticks[1],
++            self.ticks[2],
++            self.ticks[3],
++            ticks[0],
++            ticks[1],
++            ticks[2],
++            ticks[3]
++        );
++    }
++}
+diff --git a/omega-rust/omega/foundation/artifacts/src/compile_timings/check_cpu.rs b/omega-rust/omega/foundation/artifacts/src/compile_timings/check_cpu.rs
+new file mode 100644
+--- /dev/null
++++ b/omega-rust/omega/foundation/artifacts/src/compile_timings/check_cpu.rs
+@@ -0,0 +1,85 @@
++//! Temporary host CPU snapshots; never an input to compilation.
++use std::ffi::c_void;
++#[repr(C)]
++#[derive(Default, Clone, Copy)]
++struct FileTime {
++    low: u32,
++    high: u32,
++}
++impl FileTime {
++    fn ticks(self) -> u64 {
++        (u64::from(self.high) << 32) | u64::from(self.low)
++    }
++}
++#[link(name = "kernel32")]
++unsafe extern "system" {
++    fn GetCurrentProcess() -> *mut c_void;
++    fn GetCurrentThread() -> *mut c_void;
++    fn GetProcessTimes(
++        handle: *mut c_void,
++        created: *mut FileTime,
++        exited: *mut FileTime,
++        kernel: *mut FileTime,
++        user: *mut FileTime,
++    ) -> i32;
++    fn GetThreadTimes(
++        handle: *mut c_void,
++        created: *mut FileTime,
++        exited: *mut FileTime,
++        kernel: *mut FileTime,
++        user: *mut FileTime,
++    ) -> i32;
++}
++pub fn snapshot() -> [u64; 4] {
++    let mut created = FileTime::default();
++    let mut exited = FileTime::default();
++    let mut pk = FileTime::default();
++    let mut pu = FileTime::default();
++    let mut tk = FileTime::default();
++    let mut tu = FileTime::default();
++    // Pseudohandles identify this process/thread; all output buffers are live and correctly aligned.
++    let process = unsafe {
++        GetProcessTimes(
++            GetCurrentProcess(),
++            &mut created,
++            &mut exited,
++            &mut pk,
++            &mut pu,
++        )
++    };
++    assert_ne!(
++        process,
++        0,
++        "process CPU observation failed: {}",
++        std::io::Error::last_os_error()
++    );
++    let thread = unsafe {
++        GetThreadTimes(
++            GetCurrentThread(),
++            &mut created,
++            &mut exited,
++            &mut tk,
++            &mut tu,
++        )
++    };
++    assert_ne!(
++        thread,
++        0,
++        "thread CPU observation failed: {}",
++        std::io::Error::last_os_error()
++    );
++    [pk.ticks(), pu.ticks(), tk.ticks(), tu.ticks()]
++}
++#[cfg(test)]
++mod tests {
++    #[test]
++    fn filetime_and_monotonic_snapshots() {
++        assert_eq!(
++            super::FileTime { low: 7, high: 3 }.ticks(),
++            (3u64 << 32) + 7
++        );
++        let a = super::snapshot();
++        let b = super::snapshot();
++        assert!(a.into_iter().zip(b).all(|(a, b)| b >= a));
++    }
++}

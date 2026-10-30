@@ -1664,11 +1664,11 @@ fail/borrows/returned_case_reference_live_source_write rejected 564ms expected @
 fail/borrows/returned_computed_record_parent_stays_borrowed rejected 8512ms expected @a92f16431042
 	state `write_pair` receives `view` while local borrow `leading` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	state `write_pair` receives `view` while local borrow `leading` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
-fail/borrows/returned_image_borrowed_alternative rejected 1281ms expected @7d1421067c5a
+fail/borrows/returned_image_borrowed_alternative rejected 583ms expected @04f5793fae62
 	state `mutate` receives `bytes` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 	statement 2 borrows `bytes` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 	statement 2 mutates `bytes[0]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/returned_image_replaced_backing rejected 1295ms expected @7d1421067c5a
+fail/borrows/returned_image_replaced_backing rejected 569ms expected @04f5793fae62
 	state `mutate` receives `bytes` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 borrows `bytes` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `bytes[0]` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
@@ -2367,7 +2367,7 @@ fail/calls/constructor_child_named_state_epochs_not_equal rejected 3282ms expect
 	cannot prove requires contract for call selected from main: constructor:78:package:e7b936e9e187e5e0140a0a918b00a3a76058d5c890ed1c17cf20278388ea14b0::Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.first == constructor:78:package:e7b936e9e187e5e0140a0a918b00a3a76058d5c890ed1c17cf20278388ea14b0::Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.second (needs fact `captured.first == captured.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/calls/constructor_projected_membership_precedes_repair rejected 3037ms expected @a92f16431042
 	cannot prove requires contract for call observe from main: holder.envelope.ticket in Ticket::Issued in state `entry`
-fail/calls/converted_call_value_private_arrival_rejected rejected 799ms expected @ef874b4d34bc
+fail/calls/converted_call_value_private_arrival_rejected rejected 854ms expected @8b519ca647cd+wt
 	cannot prove requires contract for call verify_wide from step: forwarded >= 300 && forwarded <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/calls/copied_argument_ensures_cannot_restore_callee_mutated_source rejected 3183ms expected @a92f16431042
 	cannot prove requires contract for call take_ascii from Main::main: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `capture`
@@ -3529,8 +3529,47 @@ fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 7262ms exp
 	machine `narrow` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/core/image_address_observation_does_not_grant rejected 2066ms expected @a92f16431042
 	cannot prove requires contract for call consume_granted from numeric_image_observation_is_not_a_root: unqualified in Extent::Granted in state `entry`
+fail/core/independent_content_contract_borrowed_input rejected 283ms expected @767215d6ee2d
+	callable `Factory::acquire` returns content-bearing custody `Region::First` sourced only from borrowed parameter `input` through a structural field; retained-after-return authority requires a consumed owned input
+	callable `Factory::acquire` returns content-bearing custody `Region::Second` sourced only from borrowed parameter `input` through a structural field; retained-after-return authority requires a consumed owned input
+	callable `Factory::acquire` returns content-bearing custody `Region::First` sourced only from borrowed parameter `input` through a structural field; retained-after-return authority requires a consumed owned input
+	callable `Factory::acquire` returns content-bearing custody `Region::Second` sourced only from borrowed parameter `input` through a structural field; retained-after-return authority requires a consumed owned input
+fail/core/independent_content_contract_input_unconserved rejected 762ms expected @767215d6ee2d
+	callable `Factory::acquire` has a structural content result without an exact conservation equation covering its owned qualified output paths from consumed inputs of the same qualification; result annotations and equal content algebras do not establish partitioned authority
 fail/core/independent_content_duplicate_owner rejected 820ms expected @a92f16431042
 	callable `partition` publishes more than one content-conservation equation for the same qualification owner and algebra (facts `First.content(old(&whole)) == separate(First.content(&result.left), First.content(&result.right))` and `First.content(old(&whole)) == separate(First.content(&result.left), First.content(&result.right))`); author one normalized equation per outcome row and qualification owner
+fail/core/independent_content_factory_borrowed rejected 306ms expected @767215d6ee2d
+	callable `Factory::acquire` returns content-bearing custody `Region::First` sourced only from borrowed parameter `source` through a structural field; retained-after-return authority requires a consumed owned input
+	callable `Factory::acquire` returns content-bearing custody `Region::Second` sourced only from borrowed parameter `source` through a structural field; retained-after-return authority requires a consumed owned input
+	callable `Factory::acquire` returns content-bearing custody `Region::First` sourced only from borrowed parameter `source` through a structural field; retained-after-return authority requires a consumed owned input
+	callable `Factory::acquire` returns content-bearing custody `Region::Second` sourced only from borrowed parameter `source` through a structural field; retained-after-return authority requires a consumed owned input
+fail/core/independent_content_factory_duplicate rejected 1260ms expected @767215d6ee2d
+	cannot use `region` in machine `SourceFactory::acquire` state `acquire` (statement 1) after `region` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `region` first
+fail/core/independent_content_factory_open_input rejected 843ms expected @767215d6ee2d
+	callable `Factory::acquire` has a structural content result without an exact conservation equation covering its owned qualified output paths from consumed inputs of the same qualification; result annotations and equal content algebras do not establish partitioned authority
+fail/core/independent_content_factory_unissued rejected 1118ms expected @767215d6ee2d
+	construction value is not proven in domain `Region::First` in SourceFactory::acquire state `acquire` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in SourceFactory::acquire state `acquire` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `IssuedBox` field `first` is not proven in domain `Region::First` in SourceFactory::acquire state `acquire` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `IssuedBox` field `first` is not proven in domain `Region::Second` in SourceFactory::acquire state `acquire` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::First` in SourceFactory::acquire state `acquire` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Region::Second` in SourceFactory::acquire state `acquire` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `IssuedBox` field `second` is not proven in domain `Region::First` in SourceFactory::acquire state `acquire` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `IssuedBox` field `second` is not proven in domain `Region::Second` in SourceFactory::acquire state `acquire` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from SourceFactory::acquire, state acquire, at statement 0: IssuedBox.first requires Region::First
+	cannot prove default-domain field requirement for return from SourceFactory::acquire, state acquire, at statement 0: IssuedBox.first requires Region::Second
+	cannot prove default-domain field requirement for return from SourceFactory::acquire, state acquire, at statement 0: IssuedBox.second requires Region::First
+	cannot prove default-domain field requirement for return from SourceFactory::acquire, state acquire, at statement 0: IssuedBox.second requires Region::Second
+fail/core/independent_content_indexed_input_unconserved rejected 848ms expected @767215d6ee2d
+	callable `Factory::acquire` has a structural content result without an exact conservation equation covering its owned qualified output paths from consumed inputs of the same qualification; result annotations and equal content algebras do not establish partitioned authority
+fail/core/independent_content_native_factory_unissued rejected 1299ms expected @767215d6ee2d
+	native provider for `named-callable(path(Factory::acquire),parameters(),result-dispatch())` cannot establish result provenance owned by another issuer; a checked provider must return the qualified value
+fail/core/independent_content_native_mixed_issuance rejected 1605ms expected @767215d6ee2d
+	native provider for `named-callable(path(Factory::acquire),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:51a2cf6ecfb49e69bfddf7b9924eb2c9e3ef21fd4439e155eb14051d0a292083\\\\\\)\\\\\\,path\\\\\\(Region\\\\\\)\\\\\\)\\)\\)\\,declared-domain\\(name\\(package:51a2cf6ecfb49e69bfddf7b9924eb2c9e3ef21fd4439e155eb14051d0a292083:product::Region::First\\)\\)\\,declared-domain\\(name\\(package:51a2cf6ecfb49e69bfddf7b9924eb2c9e3ef21fd4439e155eb14051d0a292083:product::Region::Second\\)\\)\\)\\)),result-dispatch())` cannot establish result provenance owned by another issuer; a checked provider must return the qualified value
+fail/core/independent_content_native_single_unissued rejected 1150ms expected @767215d6ee2d
+	native provider for `named-callable(path(Factory::acquire),parameters(),result-dispatch())` cannot establish result provenance owned by another issuer; a checked provider must return the qualified value
+fail/core/independent_content_native_unrelated_input rejected 1346ms expected @767215d6ee2d
+	native provider for `named-callable(path(Factory::acquire),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,constrained\\(named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:2881fce0bc468f919fddc879cdc2023f3daadea21922769110897c680dd50e93\\\\\\)\\\\\\,path\\\\\\(Region\\\\\\)\\\\\\)\\)\\)\\,declared-domain\\(name\\(package:2881fce0bc468f919fddc879cdc2023f3daadea21922769110897c680dd50e93:product::Region::Unrelated\\)\\)\\)\\)),result-dispatch())` cannot establish result provenance owned by another issuer; a checked provider must return the qualified value
 fail/core/independent_content_partition_missing_input rejected 785ms expected @a92f16431042
 	callable `partition` has an invalid content-conservation contract: projection `Second::content` requires exact qualification `Region::Second`, but `old(&whole)` is not qualified by its type or an ordinary callable contract
 	implicit domain weakening in argument `whole` for state `partition::entry` drops `Second`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
@@ -3627,7 +3666,8 @@ fail/core/qualified_integer_cast_specification_requires_representability rejecte
 	Exact integer cast in machine `premise` state `entry` from `i16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/core/resident_index_identity_mismatch_rejected rejected 1726ms expected @a92f16431042
 	index compatibility condition `index-equality:Resident:mismatch::entry:exit-0:Resident<Native, Packet>==Resident<Network, Packet>` is not established: actual `Resident<Native, Packet>` and expected `Resident<Network, Packet>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/core/scoped_integer_call_abstract_trait_operator_requires_formation rejected 4995ms expected @a92f16431042
+fail/core/scoped_integer_call_abstract_trait_operator_requires_formation rejected 5829ms expected @8b519ca647cd+wt
+	cannot form specification operator `==` in trait `ReplacementArithmetic` state `restricted` requires contract: no exact selected meaning
 	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact
 fail/core/scoped_integer_call_actual_requires_selected_meaning rejected 1877ms expected @a92f16431042
@@ -5851,38 +5891,60 @@ fail/facts/callee_saved_across_nested_calls_unproved_target_body rejected 982ms 
 	exact arithmetic in machine `run` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/captured_scalar_is_not_current_storage rejected 1648ms expected @a92f16431042
 	cannot prove requires contract for call demand_equal from main: saved == current (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/captured_window_slot_retirement_through_call_result_rejected rejected 1250ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_incoming_family_requires_its_extent_rejected rejected 770ms expected @04f5793fae62
+	cannot prove index `slot` is within unknown slice length of `windows` in retained::entry
+fail/facts/captured_window_slot_retirement_neighbor_remains_borrowed_rejected rejected 765ms expected @04f5793fae62
+	statement 7 mutates `neighbor[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 8)
+fail/facts/captured_window_slot_retirement_old_descriptor_retains_original_rejected rejected 764ms expected @04f5793fae62
+	state `check` receives `original` while local borrow `previous` is still active (borrowed at statement 5; its last use is at statement 8)
+	statement 8 borrows `original` while local borrow `previous` is still active (borrowed at statement 5; its last use is at statement 8)
+	statement 8 mutates `original[0].value` while local borrow `previous` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/captured_window_slot_retirement_overlapping_family_occurrences_rejected rejected 773ms expected @04f5793fae62
+	state `hold` receives `windows[left].values` as mutable more than once
+fail/facts/captured_window_slot_retirement_replacement_remains_borrowed_rejected rejected 760ms expected @04f5793fae62
+	statement 7 mutates `replacement[0].value` while local borrow `windows` is still active (borrowed at statement 6; its last use is at statement 8)
+fail/facts/captured_window_slot_retirement_through_call_result_rejected rejected 768ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/captured_window_slot_retirement_through_const_name_rejected rejected 1262ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_const_name_rejected rejected 782ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/captured_window_slot_retirement_through_field_rejected rejected 1264ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_field_rejected rejected 785ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 borrows `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
 	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/captured_window_slot_retirement_through_local_rejected rejected 1321ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_local_rejected rejected 771ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 borrows `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
 	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/captured_window_slot_retirement_through_match_join_rejected rejected 1252ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_match_join_rejected rejected 763ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 borrows `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
 	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/captured_window_slot_retirement_through_other_machine_rejected rejected 1228ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_other_machine_rejected rejected 767ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/captured_window_slot_retirement_through_other_state_rejected rejected 1203ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_other_state_rejected rejected 763ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/captured_window_slot_retirement_through_parameter_rejected rejected 1288ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_parameter_rejected rejected 773ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/captured_window_slot_retirement_through_target_body_rejected rejected 1285ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_target_body_rejected rejected 782ms expected @04f5793fae62
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 borrows `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 borrows `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/captured_window_slot_retirement_unknown_selector_retains_original_rejected rejected 764ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/facts/case_const_unequal_literals_subtraction_rejected rejected 508ms expected @a92f16431042
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -9459,39 +9521,24 @@ fail/facts/generic_comparison_body_through_target_body_rejected rejected 2186ms 
 	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/generic_content_transfer_through_call_result_rejected rejected 4396ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_const_name_rejected rejected 4380ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_field_rejected rejected 4358ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_local_rejected rejected 4195ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_match_join_rejected rejected 4006ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_other_machine_rejected rejected 3429ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_other_state_rejected rejected 3484ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_parameter_rejected rejected 4207ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-fail/facts/generic_content_transfer_through_target_body_rejected rejected 2599ms expected @a92f16431042
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
-	cannot prove ensures contract for exit from retain at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_call_result_rejected rejected 1054ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_const_name_rejected rejected 1084ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_field_rejected rejected 1125ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_local_rejected rejected 1049ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_match_join_rejected rejected 1092ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_other_machine_rejected rejected 1064ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_other_state_rejected rejected 1066ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_parameter_rejected rejected 1071ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
+fail/facts/generic_content_transfer_through_target_body_rejected rejected 1046ms expected @29b6d7aad7f6
+	cannot prove ensures contract for exit from ConservingTransfer::transfer at statement 1: Owned.content(old(&region)) == Owned.content(&result)
 fail/facts/guarded_line_loan_through_call_result_rejected rejected 2591ms expected @a92f16431042
 	state `receive` receives `line` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `line[0]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -9630,11 +9677,7 @@ fail/facts/independent_call_result_bound_through_parameter_rejected rejected 274
 fail/facts/independent_call_result_bound_through_target_body_rejected rejected 3218ms expected @a92f16431042
 	cannot prove ensures contract for exit from source at statement 1: result == 7
 	cannot prove ensures contract for exit from forwarded at statement 1: result == 7
-fail/facts/independent_content_partition_through_call_result_rejected rejected 3060ms expected @a92f16431042
-	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::First
-	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::Second
-	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::First
-	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::Second
+fail/facts/independent_content_partition_through_call_result_rejected rejected 1112ms expected @767215d6ee2d
 	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
@@ -9643,11 +9686,11 @@ fail/facts/independent_content_partition_through_call_result_rejected rejected 3
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
-fail/facts/independent_content_partition_through_const_name_rejected rejected 3034ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::Second
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::Second
+fail/facts/independent_content_partition_through_const_name_rejected rejected 1029ms expected @767215d6ee2d
 	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
@@ -9656,11 +9699,11 @@ fail/facts/independent_content_partition_through_const_name_rejected rejected 30
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
-fail/facts/independent_content_partition_through_field_rejected rejected 3006ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::Second
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::Second
+fail/facts/independent_content_partition_through_field_rejected rejected 1030ms expected @767215d6ee2d
 	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
@@ -9669,11 +9712,11 @@ fail/facts/independent_content_partition_through_field_rejected rejected 3006ms 
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
-fail/facts/independent_content_partition_through_local_rejected rejected 3109ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::Second
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::Second
+fail/facts/independent_content_partition_through_local_rejected rejected 1033ms expected @767215d6ee2d
 	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
@@ -9682,11 +9725,11 @@ fail/facts/independent_content_partition_through_local_rejected rejected 3109ms 
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
-fail/facts/independent_content_partition_through_match_join_rejected rejected 4447ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::Second
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::Second
+fail/facts/independent_content_partition_through_match_join_rejected rejected 1052ms expected @767215d6ee2d
 	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
@@ -9695,11 +9738,11 @@ fail/facts/independent_content_partition_through_match_join_rejected rejected 44
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
-fail/facts/independent_content_partition_through_other_machine_rejected rejected 3961ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::Second
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::Second
+fail/facts/independent_content_partition_through_other_machine_rejected rejected 1073ms expected @767215d6ee2d
 	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
@@ -9708,11 +9751,11 @@ fail/facts/independent_content_partition_through_other_machine_rejected rejected
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
-fail/facts/independent_content_partition_through_other_state_rejected rejected 4418ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::Second
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::Second
+fail/facts/independent_content_partition_through_other_state_rejected rejected 1080ms expected @767215d6ee2d
 	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
@@ -9721,11 +9764,11 @@ fail/facts/independent_content_partition_through_other_state_rejected rejected 4
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
-fail/facts/independent_content_partition_through_parameter_rejected rejected 3839ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::Second
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::Second
+fail/facts/independent_content_partition_through_parameter_rejected rejected 1073ms expected @767215d6ee2d
 	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
@@ -9734,11 +9777,11 @@ fail/facts/independent_content_partition_through_parameter_rejected rejected 383
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
-fail/facts/independent_content_partition_through_target_body_rejected rejected 3495ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::Second
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::First
 	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::Second
+fail/facts/independent_content_partition_through_target_body_rejected rejected 1023ms expected @767215d6ee2d
 	construction value is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `left` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
@@ -9747,6 +9790,10 @@ fail/facts/independent_content_partition_through_target_body_rejected rejected 3
 	construction value is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::First` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction of `Parts` field `right` is not proven in domain `Region::Second` in partition state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::First
+	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.left requires Region::Second
+	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::First
+	cannot prove default-domain field requirement for return from partition, state entry, at statement 3: Parts.right requires Region::Second
 fail/facts/index_every_width_through_call_result_rejected rejected 5407ms expected @a92f16431042
 	cannot prove index `picked_i64` is within length 4 in read_all::entry
 fail/facts/index_every_width_through_const_name_rejected rejected 3771ms expected @a92f16431042
@@ -12505,6 +12552,24 @@ fail/facts/nested_machine_joint_rank_ranged_value_parameter_rejected rejected 74
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_ranged_value_target_body_rejected rejected 751ms expected @15a66acf6a30
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_reference_payload_call_result rejected 825ms expected @e6e03afc61d6
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_reference_payload_const_name rejected 747ms expected @e6e03afc61d6
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_reference_payload_field rejected 767ms expected @e6e03afc61d6
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_reference_payload_local rejected 764ms expected @e6e03afc61d6
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_reference_payload_match_join rejected 813ms expected @e6e03afc61d6
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_reference_payload_other_machine rejected 765ms expected @e6e03afc61d6
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_reference_payload_other_state rejected 834ms expected @e6e03afc61d6
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_reference_payload_parameter rejected 750ms expected @e6e03afc61d6
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_reference_payload_target_body rejected 784ms expected @e6e03afc61d6
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_stored_case_call_result_rejected rejected 741ms expected @05d0ed3ff2df
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_stored_case_const_name_rejected rejected 769ms expected @05d0ed3ff2df
@@ -12777,6 +12842,16 @@ fail/facts/nested_machine_private_cyclic_target_body_rejected rejected 301ms exp
 	exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `consume` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_reference_payload_common_reference_overlap rejected 776ms expected @e6e03afc61d6
+	statement 2 creates local borrow `overlapping` while local borrow `payload` is still active (borrowed at statement 1; its last use is at statement 4)
+	statement 2 borrows `guard` while local borrow `payload` is still active (borrowed at statement 1; its last use is at statement 4)
+	statement 4 reads `overlapping` while local borrow `payload` is still active (borrowed at statement 1; its last use is at statement 4)
+fail/facts/nested_machine_reference_payload_reseated_payload_reference_bound rejected 770ms expected @e6e03afc61d6
+	cannot prove requires contract for call count from invoke: remaining.child.value.count <= 7 (needs fact `remaining.child.value.count <= 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_reference_payload_stale_pointer rejected 766ms expected @e6e03afc61d6
+	cannot prove requires contract for call invoke from perform_payload: payload.value.count <= 7 (needs fact `payload.value.count <= 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_reference_payload_stale_scalar rejected 733ms expected @e6e03afc61d6
+	cannot prove requires contract for call invoke from perform_payload: payload.value.count <= 7 (needs fact `payload.value.count <= 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/nested_machine_statement_completion_call_result_rejected rejected 18366ms expected @b0d06a168a00+wt
 	cannot prove ensures contract for exit from probe at statement 1: result != -1
 fail/facts/nested_machine_statement_completion_const_name_rejected rejected 13379ms expected @b0d06a168a00+wt
@@ -16728,24 +16803,28 @@ fail/facts/sixteen_variant_enum_payload_bound_through_target_body_rejected rejec
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/size_align_layout_geometry_through_call_result_rejected rejected 2613ms expected @a92f16431042
-	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_const_name_rejected rejected 3654ms expected @a92f16431042
-	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_field_rejected rejected 3137ms expected @a92f16431042
-	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_local_rejected rejected 2639ms expected @a92f16431042
-	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_match_join_rejected rejected 3888ms expected @a92f16431042
-	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_other_machine_rejected rejected 2664ms expected @a92f16431042
-	machine `query_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_other_state_rejected rejected 2993ms expected @a92f16431042
-	machine `main` state `compute` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_parameter_rejected rejected 2299ms expected @a92f16431042
-	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/size_align_layout_geometry_through_target_body_rejected rejected 3459ms expected @a92f16431042
-	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_private_arrival_calls_rejected rejected 1133ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_terminal_returns_rejected rejected 1431ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_call_result_rejected rejected 1243ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_const_name_rejected rejected 1158ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_field_rejected rejected 1144ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_local_rejected rejected 1084ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_match_join_rejected rejected 1167ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_other_machine_rejected rejected 1163ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_other_state_rejected rejected 1196ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_parameter_rejected rejected 1118ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_target_body_rejected rejected 1126ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/slice_view_element_read_bound_through_call_result_rejected rejected 3143ms expected @a92f16431042
 	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/slice_view_element_read_bound_through_const_name_rejected rejected 3517ms expected @a92f16431042
@@ -20869,15 +20948,17 @@ fail/generics/runtime_value_recipe_cannot_retag rejected 825ms expected @a9e0628
 	machine `retag` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 fail/generics/runtime_value_recipe_forged_descriptor rejected 311ms expected @a9e0628deefe+wt
 	data `Counted` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/generics/runtime_value_recipe_prior_write_overflow rejected 418ms expected @8b519ca647cd+wt
+	exact arithmetic in machine `main` state `entry` local `__value_index#2544#0` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/runtime_value_recipe_provider_wrong_projection rejected 459ms expected @a9e0628deefe+wt
 	machine `Direct::snapshot` state `snapshot` does not satisfy trait `Counting` machine `snapshot`: expected return `Counted<const source.bytes.len>`, got `Counted<const source.sibling.len>`
 fail/generics/runtime_value_recipe_qualified_unproved rejected 324ms expected @ba4c5b471bb8
 	`as ... in AtMost<10>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
 fail/generics/runtime_value_recipe_range_after_write rejected 300ms expected @ba4c5b471bb8
 	exact arithmetic in machine `invalid` state `entry` local `__value_index#1829#0` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/generics/runtime_value_recipe_typed_narrow_overflow rejected 264ms expected @a9e0628deefe+wt
+fail/generics/runtime_value_recipe_typed_narrow_overflow rejected 251ms expected @8b519ca647cd+wt
 	exact arithmetic in value argument `Count` of `Index` may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
-fail/generics/runtime_value_recipe_unused_overflow rejected 290ms expected @ba4c5b471bb8
+fail/generics/runtime_value_recipe_unused_overflow rejected 259ms expected @8b519ca647cd+wt
 	exact arithmetic in value argument `Count` of `Index` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/runtime_value_recipe_wrong_carrier rejected 275ms expected @ba4c5b471bb8
 	value parameter `Count` of `Index` requires `u64`, but runtime subject `flag` has a different carrier
@@ -21132,6 +21213,12 @@ fail/layouts/layout_arithmetic_subtract_underflow rejected 2109ms expected @a92f
 	machine `main` state `entry` local `invalid`: exact arithmetic may overflow under target `macos_arm64`: bounds [-1, -1] lie outside [0, 18446744073709551615]
 fail/layouts/layout_contract_selected_equality rejected 1369ms expected @a92f16431042
 	cannot prove requires contract for call required$specialized$c027caf142dac46a$0 from program: size_of() == 16 (needs fact `size_of() == 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/layouts/layout_query_captured_result_join_unknown rejected 1104ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-16, 18446744073709551599] lie outside [0, 18446744073709551615]
+fail/layouts/layout_query_private_arrival_child_formation rejected 1200ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/layouts/layout_query_private_arrival_unknown_input rejected 1055ms expected @8b519ca647cd+wt
+	constant checking: scalar range condition 1: bounds [-16, 18446744073709551599] lie outside [0, 18446744073709551615]
 fail/layouts/ordinary_placed_write_retires_owner_qualification rejected 1651ms expected @a92f16431042
 	cannot prove ensures contract for exit from corrupt at statement 2: words in Words::Registered
 	cannot prove ensures contract for exit from corrupt at statement 2: words.entries[1] == 41
@@ -22909,6 +22996,14 @@ fail/ranges/correlated_store_selector_retires_bound rejected 766ms expected @a92
 	machine `write` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/ranges/correlated_store_unsafe_intermediate rejected 568ms expected @a92f16431042
 	exact arithmetic in machine `write` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/ranges/guarded_case_payload_other_bound rejected 1456ms expected @2c185c80180f
+	cannot prove subslice range end bound `0..__transition_subject#13.length` is within slice length 4
+fail/ranges/guarded_case_payload_other_subject rejected 701ms expected @2c185c80180f
+	cannot form specification operator `<=` in machine `read` requires contract: no exact selected meaning
+fail/ranges/guarded_case_payload_self_justifying rejected 701ms expected @2c185c80180f
+	cannot form specification operator `<=` in data `Text` default-domain predicate: no exact selected meaning
+fail/ranges/guarded_case_payload_sibling_guard rejected 701ms expected @2c185c80180f
+	cannot form specification operator `<=` in data `Text` default-domain predicate: no exact selected meaning
 fail/ranges/index_signed_guard_below_zero rejected 3293ms expected @a92f16431042
 	cannot prove index `main.j` is non-negative (>= 0)
 fail/ranges/loop_increment_index_unbounded rejected 3213ms expected @a92f16431042
@@ -24351,7 +24446,7 @@ pass/arithmetic/runtime_call_live_remainder_recovery_exit checked 6176ms check-t
 pass/arithmetic/runtime_captured_boolean_recurrence checked 2034ms check-target:macos_arm64 @a92f16431042
 pass/arithmetic/runtime_captured_call_result_subtracts_itself_exit checked 1952ms check-target:macos_arm64 @a92f16431042
 pass/arithmetic/runtime_comparison_signedness_exit checked 5770ms check-target:macos_arm64 @a92f16431042
-pass/arithmetic/runtime_composite_bound_arrivals_exit checked 2026ms check-target:macos_arm64 @a92f16431042
+pass/arithmetic/runtime_composite_bound_arrivals_exit checked 1291ms check-target:macos_arm64 @8b519ca647cd+wt
 pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit checked 6910ms check-target:macos_arm64 @a92f16431042
 pass/arithmetic/runtime_dispatch_cast_decisions_exit checked 6343ms check-target:macos_arm64 @a92f16431042
 pass/arithmetic/runtime_domain_boundaries_exit checked 6530ms check-target:macos_arm64 @a92f16431042
@@ -25092,7 +25187,7 @@ pass/calls/computed_binding_argument_exit checked 1961ms check-target:macos_arm6
 pass/calls/computed_case_subject_slice_operands_exit checked 7137ms check-target:macos_arm64 @a92f16431042
 pass/calls/conditional_arm_tail_call_to_machine_exit checked 6340ms check-target:macos_arm64 @a92f16431042
 pass/calls/constant_result_requires_argument_accepted checked 6328ms check-target:macos_arm64 @a92f16431042
-pass/calls/converted_call_value_private_arrival_exit checked 1094ms check-target:macos_arm64 @ef874b4d34bc
+pass/calls/converted_call_value_private_arrival_exit checked 1309ms check-target:macos_arm64 @8b519ca647cd+wt
 pass/calls/copy_projection_from_borrowed_receiver checked 7265ms check-target:macos_arm64 @a92f16431042
 pass/calls/cyclic_affine_call_result_exit checked 6528ms check-target:macos_arm64 @a92f16431042
 pass/calls/cyclic_copy_arguments_exit checked 6352ms check-target:macos_arm64 @a92f16431042
@@ -25939,6 +26034,10 @@ pass/core/extent_core_surface checked 1771ms @a92f16431042
 pass/core/extent_root_provider_adapter checked 3666ms check-target:macos_arm64 @030cc694c7b9+wt
 pass/core/generic_content_distinct_applications checked 3222ms check-target:macos_arm64 @a92f16431042
 pass/core/generic_content_static_callback checked 3176ms check-target:macos_arm64 @a92f16431042
+pass/core/independent_content_checked_factory_exit checked 1565ms check-target:macos_arm64 @767215d6ee2d
+pass/core/independent_content_closed_carrier_factory_exit checked 1618ms check-target:macos_arm64 @767215d6ee2d
+pass/core/independent_content_factory_exit checked 1361ms check-target:macos_arm64 @767215d6ee2d
+pass/core/independent_content_indexed_requirement checked 1080ms check-target:macos_arm64 @767215d6ee2d
 pass/core/interrupt_obligations_surface checked 1628ms @a92f16431042
 pass/core/interval_content_length_partition_exit checked 3256ms check-target:macos_arm64 @a92f16431042
 pass/core/interval_content_partition_exit checked 3334ms check-target:macos_arm64 @a92f16431042
@@ -26879,15 +26978,22 @@ pass/facts/callee_saved_across_nested_calls_through_other_machine_exit checked 2
 pass/facts/callee_saved_across_nested_calls_through_other_state_exit checked 3420ms check-target:macos_arm64 @a92f16431042
 pass/facts/callee_saved_across_nested_calls_through_parameter_exit checked 2795ms check-target:macos_arm64 @a92f16431042
 pass/facts/callee_saved_across_nested_calls_through_target_body_exit checked 2827ms check-target:macos_arm64 @a92f16431042
-pass/facts/captured_window_slot_retirement_through_call_result_exit checked 1592ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_const_name_exit checked 1683ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_field_exit checked 1680ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_local_exit checked 1587ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_match_join_exit checked 1695ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_other_machine_exit checked 1627ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_other_state_exit checked 1755ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_parameter_exit checked 1633ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_target_body_exit checked 1718ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/captured_window_slot_retirement_arbitrary_incoming_selector_exit checked 1146ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_descriptor_restore_uses_fresh_occurrence_exit checked 1181ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_distinct_family_occurrences_exit checked 1139ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_installed_copy_retains_descriptor_identity_exit checked 1060ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_installed_selection_retains_descriptor_identity_exit checked 1129ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_nested_window_owner_exit checked 1070ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_old_descriptor_survives_replacement_exit checked 1054ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_call_result_exit checked 1089ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_const_name_exit checked 1118ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_field_exit checked 1018ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_local_exit checked 1099ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_match_join_exit checked 1050ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_other_machine_exit checked 1072ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_other_state_exit checked 1072ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_parameter_exit checked 1104ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_target_body_exit checked 1387ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @04f5793fae62
 pass/facts/case_const_equal_literals_with_predicate checked 3348ms @a92f16431042
 pass/facts/case_const_equal_literals_without_predicate checked 1637ms @a92f16431042
 pass/facts/case_const_forwarded_binder_compile checked 2047ms @a92f16431042
@@ -28133,15 +28239,15 @@ pass/facts/generic_comparison_body_through_other_machine_exit checked 2460ms che
 pass/facts/generic_comparison_body_through_other_state_exit checked 2444ms check-target:macos_arm64 @a92f16431042
 pass/facts/generic_comparison_body_through_parameter_exit checked 2409ms check-target:macos_arm64 @a92f16431042
 pass/facts/generic_comparison_body_through_target_body_exit checked 2279ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_call_result_exit checked 3764ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_const_name_exit checked 4077ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_field_exit checked 4011ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_local_exit checked 4033ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_match_join_exit checked 4069ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_other_machine_exit checked 3142ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_other_state_exit checked 2723ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_parameter_exit checked 2734ms check-target:macos_arm64 @a92f16431042
-pass/facts/generic_content_transfer_through_target_body_exit checked 2064ms check-target:macos_arm64 @a92f16431042
+pass/facts/generic_content_transfer_through_call_result_exit checked 1453ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_const_name_exit checked 1394ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_field_exit checked 1405ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_local_exit checked 1348ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_match_join_exit checked 1379ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_other_machine_exit checked 1305ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_other_state_exit checked 1385ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_parameter_exit checked 1307ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_content_transfer_through_target_body_exit checked 1435ms check-target:macos_arm64 @29b6d7aad7f6
 pass/facts/guarded_line_loan_through_call_result_exit checked 2416ms check-target:macos_arm64 @a92f16431042
 pass/facts/guarded_line_loan_through_const_name_exit checked 2390ms check-target:macos_arm64 @a92f16431042
 pass/facts/guarded_line_loan_through_field_exit checked 2390ms check-target:macos_arm64 @a92f16431042
@@ -28196,15 +28302,15 @@ pass/facts/independent_call_result_bound_through_other_machine_exit checked 3247
 pass/facts/independent_call_result_bound_through_other_state_exit checked 3030ms check-target:macos_arm64 @a92f16431042
 pass/facts/independent_call_result_bound_through_parameter_exit checked 3031ms check-target:macos_arm64 @a92f16431042
 pass/facts/independent_call_result_bound_through_target_body_exit checked 2964ms check-target:macos_arm64 @a92f16431042
-pass/facts/independent_content_partition_through_call_result_exit checked 3155ms check-target:macos_arm64 @a92f16431042
-pass/facts/independent_content_partition_through_const_name_exit checked 4047ms check-target:macos_arm64 @a92f16431042
-pass/facts/independent_content_partition_through_field_exit checked 4039ms check-target:macos_arm64 @a92f16431042
-pass/facts/independent_content_partition_through_local_exit checked 4114ms check-target:macos_arm64 @a92f16431042
-pass/facts/independent_content_partition_through_match_join_exit checked 3954ms check-target:macos_arm64 @a92f16431042
-pass/facts/independent_content_partition_through_other_machine_exit checked 3738ms check-target:macos_arm64 @a92f16431042
-pass/facts/independent_content_partition_through_other_state_exit checked 3945ms check-target:macos_arm64 @a92f16431042
-pass/facts/independent_content_partition_through_parameter_exit checked 3945ms check-target:macos_arm64 @a92f16431042
-pass/facts/independent_content_partition_through_target_body_exit checked 3721ms check-target:macos_arm64 @a92f16431042
+pass/facts/independent_content_partition_through_call_result_exit checked 1313ms check-target:macos_arm64 @767215d6ee2d
+pass/facts/independent_content_partition_through_const_name_exit checked 1398ms check-target:macos_arm64 @767215d6ee2d
+pass/facts/independent_content_partition_through_field_exit checked 1317ms check-target:macos_arm64 @767215d6ee2d
+pass/facts/independent_content_partition_through_local_exit checked 1367ms check-target:macos_arm64 @767215d6ee2d
+pass/facts/independent_content_partition_through_match_join_exit checked 1335ms check-target:macos_arm64 @767215d6ee2d
+pass/facts/independent_content_partition_through_other_machine_exit checked 1324ms check-target:macos_arm64 @767215d6ee2d
+pass/facts/independent_content_partition_through_other_state_exit checked 1467ms check-target:macos_arm64 @767215d6ee2d
+pass/facts/independent_content_partition_through_parameter_exit checked 1461ms check-target:macos_arm64 @767215d6ee2d
+pass/facts/independent_content_partition_through_target_body_exit checked 1751ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @767215d6ee2d
 pass/facts/index_every_width_through_call_result_exit checked 4716ms check-target:macos_arm64 @a92f16431042
 pass/facts/index_every_width_through_const_name_exit checked 2029ms check-target:macos_arm64 @a92f16431042
 pass/facts/index_every_width_through_field_exit checked 2805ms check-target:macos_arm64 @a92f16431042
@@ -29351,6 +29457,15 @@ pass/facts/nested_machine_joint_rank_ranged_value_other_machine_exit checked 101
 pass/facts/nested_machine_joint_rank_ranged_value_other_state_exit checked 1009ms check-target:macos_arm64 @15a66acf6a30
 pass/facts/nested_machine_joint_rank_ranged_value_parameter_exit checked 953ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/nested_machine_joint_rank_ranged_value_target_body_exit checked 960ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_reference_payload_call_result checked 1066ms check-target:macos_arm64 @e6e03afc61d6
+pass/facts/nested_machine_joint_rank_reference_payload_const_name checked 1136ms check-target:macos_arm64 @e6e03afc61d6
+pass/facts/nested_machine_joint_rank_reference_payload_field checked 1074ms check-target:macos_arm64 @e6e03afc61d6
+pass/facts/nested_machine_joint_rank_reference_payload_local checked 1004ms check-target:macos_arm64 @e6e03afc61d6
+pass/facts/nested_machine_joint_rank_reference_payload_match_join checked 1298ms check-target:macos_arm64 @e6e03afc61d6
+pass/facts/nested_machine_joint_rank_reference_payload_other_machine checked 1285ms check-target:macos_arm64 @e6e03afc61d6
+pass/facts/nested_machine_joint_rank_reference_payload_other_state checked 1083ms check-target:macos_arm64 @e6e03afc61d6
+pass/facts/nested_machine_joint_rank_reference_payload_parameter checked 1070ms check-target:macos_arm64 @e6e03afc61d6
+pass/facts/nested_machine_joint_rank_reference_payload_target_body checked 1054ms check-target:macos_arm64 @e6e03afc61d6
 pass/facts/nested_machine_joint_rank_stored_case_call_result_exit checked 1234ms check-target:macos_arm64 @05d0ed3ff2df
 pass/facts/nested_machine_joint_rank_stored_case_const_name_exit checked 1234ms check-target:macos_arm64 @05d0ed3ff2df
 pass/facts/nested_machine_joint_rank_stored_case_field_exit checked 1105ms check-target:macos_arm64 @05d0ed3ff2df
@@ -29457,6 +29572,8 @@ pass/facts/nested_machine_private_cyclic_parameter_exit checked 3389ms check-tar
 pass/facts/nested_machine_private_cyclic_root_exit checked 3288ms check-target:macos_arm64 @485a671a334e
 pass/facts/nested_machine_private_cyclic_target_body_exit checked 3349ms check-target:macos_arm64 @485a671a334e
 pass/facts/nested_machine_private_cyclic_unrelated_builtin_exit checked 3399ms check-target:macos_arm64 @485a671a334e
+pass/facts/nested_machine_reference_payload_common_reference checked 1052ms check-target:macos_arm64 @e6e03afc61d6
+pass/facts/nested_machine_reference_payload_reseated_payload_reference checked 1043ms check-target:macos_arm64 @e6e03afc61d6
 pass/facts/nested_machine_statement_completion_call_result_exit checked 15104ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_const_name_exit checked 15196ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_field_exit checked 20163ms check-target:macos_arm64 @b0d06a168a00+wt
@@ -31124,15 +31241,17 @@ pass/facts/sixteen_variant_enum_payload_bound_through_other_machine_exit checked
 pass/facts/sixteen_variant_enum_payload_bound_through_other_state_exit checked 2127ms check-target:macos_arm64 @a92f16431042
 pass/facts/sixteen_variant_enum_payload_bound_through_parameter_exit checked 2298ms check-target:macos_arm64 @a92f16431042
 pass/facts/sixteen_variant_enum_payload_bound_through_target_body_exit checked 2231ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_call_result_exit checked 2221ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_const_name_exit checked 2681ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_field_exit checked 2326ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_local_exit checked 2790ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_match_join_exit checked 2450ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_other_machine_exit checked 2485ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_other_state_exit checked 2502ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_parameter_exit checked 2026ms check-target:macos_arm64 @a92f16431042
-pass/facts/size_align_layout_geometry_through_target_body_exit checked 2417ms check-target:macos_arm64 @a92f16431042
+pass/facts/size_align_layout_geometry_private_arrival_calls_exit checked 1871ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_terminal_returns_exit checked 1853ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_call_result_exit checked 1740ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_const_name_exit checked 1769ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_field_exit checked 1921ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_local_exit checked 1949ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_match_join_exit checked 1900ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_other_machine_exit checked 1788ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_other_state_exit checked 1839ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_parameter_exit checked 1711ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/size_align_layout_geometry_through_target_body_exit checked 1874ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
 pass/facts/slice_view_element_read_bound_through_call_result_exit checked 2570ms check-target:macos_arm64 @a92f16431042
 pass/facts/slice_view_element_read_bound_through_const_name_exit checked 2065ms check-target:macos_arm64 @a92f16431042
 pass/facts/slice_view_element_read_bound_through_field_exit incomplete 2140ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
@@ -32963,6 +33082,7 @@ pass/layouts/invariant_record_layout_compile checked 2452ms @a92f16431042
 pass/layouts/layout_queries checked 2483ms @a92f16431042
 pass/layouts/mixed_alignment_layout_queries_compile checked 2427ms @a92f16431042
 pass/layouts/nested_record_layout_queries_compile checked 1372ms @a92f16431042
+pass/layouts/nested_reference_carrier_geometry_exit checked 1412ms check-target:macos_arm64 @8b519ca647cd+wt
 pass/layouts/nested_sum_member_layout_compile checked 1502ms @a92f16431042
 pass/layouts/odd_array_then_byte_layout_compile checked 1329ms @a92f16431042
 pass/layouts/placed_factory_accepts_source_interval rejected 143ms @a92f16431042
@@ -33018,7 +33138,7 @@ pass/layouts/runtime_callee_owned_local_origins_exit rejected 1476ms check-targe
 pass/layouts/runtime_captured_encoded_reference_replacement_exit rejected 1562ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/runtime_constant_layout_contract_exit checked 1899ms check-target:macos_arm64 @a92f16431042
+pass/layouts/runtime_constant_layout_contract_exit checked 1297ms check-target:macos_arm64 @8b519ca647cd+wt
 pass/layouts/runtime_encoded_physical_view_exit rejected 1457ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
@@ -33027,7 +33147,7 @@ pass/layouts/runtime_foreign_encoded_reference_exit rejected 1437ms check-target
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 pass/layouts/runtime_indexed_restricted_field_read checked 2124ms check-target:macos_arm64 @a92f16431042
 pass/layouts/runtime_large_schema_field_exit checked 1948ms check-target:macos_arm64 @a92f16431042
-pass/layouts/runtime_layout_arithmetic_value_flow_exit checked 3140ms check-target:macos_arm64 @a92f16431042
+pass/layouts/runtime_layout_arithmetic_value_flow_exit checked 2023ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
 pass/layouts/runtime_multi_origin_encoded_reference_exit rejected 1386ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
@@ -33747,7 +33867,7 @@ pass/providers/boundary_scalar_field_store checked 6248ms check-target:macos_arm
 pass/providers/build_product_adapter_frontiers_exit checked 2508ms check-target:macos_arm64 @a92f16431042
 pass/providers/calling_application_region_scopes_exit checked 2025ms check-target:macos_arm64 @a92f16431042
 pass/providers/checked_boundary_operator_const_application_alternate_exit checked 6785ms check-target:macos_arm64 @a92f16431042
-pass/providers/checked_boundary_operator_physical_custody checked 6320ms check-target:macos_arm64 @a92f16431042
+pass/providers/checked_boundary_operator_physical_custody checked 9520ms check-target:macos_arm64 boundary-provider-controls:match terminal-inspections:match @478546d89e31
 pass/providers/checked_boundary_requirement_dispatch_exit checked 7003ms check-target:macos_arm64 @a92f16431042
 pass/providers/checked_fixed_operator_dispatch_exit checked 5686ms check-target:macos_arm64 @a92f16431042
 pass/providers/checked_fixed_operator_physical_custody checked 6312ms check-target:macos_arm64 @a92f16431042
@@ -34818,8 +34938,8 @@ run/borrows/recast_mut_borrow checked 5752ms check-target:macos_arm64 @a92f16431
 run/borrows/reference_local_binding_routes checked 5429ms check-target:macos_arm64 @a92f16431042
 run/borrows/reference_result_call_binding checked 5404ms check-target:macos_arm64 @a92f16431042
 run/borrows/returned_element_from_offset_view checked 1711ms check-target:macos_arm64 @a92f16431042
-run/borrows/returned_image_nested_arrival checked 1990ms check-target:macos_arm64 @7d1421067c5a
-run/borrows/returned_image_nested_field checked 1986ms check-target:macos_arm64 @7d1421067c5a
+run/borrows/returned_image_nested_arrival checked 1013ms check-target:macos_arm64 @04f5793fae62
+run/borrows/returned_image_nested_field checked 1382ms check-target:macos_arm64 @04f5793fae62
 run/borrows/returned_indexed_case checked 2094ms check-target:macos_arm64 @efcd7fe73ad0
 run/borrows/returned_indexed_case_descriptor_field checked 2097ms check-target:macos_arm64 @efcd7fe73ad0
 run/borrows/runtime_index_bounded_borrow checked 5284ms check-target:macos_arm64 @a92f16431042
@@ -35026,6 +35146,8 @@ run/providers/target_applicable_provider_closure checked 10979ms check-target:ma
 run/providers/target_family_provider_boundary_identity_exit checked 10510ms check-target:macos_arm64 @a92f16431042
 run/ranges/borrowed_case_payload_alias checked 2774ms check-target:macos_arm64 @02f650a3c5b1
 run/ranges/borrowed_case_payload_bound checked 2823ms check-target:macos_arm64 @02f650a3c5b1
+run/ranges/guarded_case_payload_identity checked 2333ms check-target:macos_arm64 @2c185c80180f
+run/ranges/guarded_case_payload_types checked 2294ms check-target:macos_arm64 @2c185c80180f
 run/ranges/refuted_boolean_alias_dispatch checked 2899ms check-target:macos_arm64 @aab8b8443f04
 run/ranges/refuted_boolean_alias_local checked 2971ms check-target:macos_arm64 @aab8b8443f04
 run/slices/call_result_mutable_window_exit incomplete 8836ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042

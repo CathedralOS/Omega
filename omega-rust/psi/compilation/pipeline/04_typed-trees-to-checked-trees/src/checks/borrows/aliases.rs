@@ -2,7 +2,9 @@
 //! A captured place does not grant ancestry: only receivers with independently
 //! retained lineage may exempt their own parent loans from interference.
 use arena::{Handle, HandleSpan};
-use checked_trees::{BorrowFacts, BorrowLoanFact, BorrowLoanLineage, StateBorrowFact};
+use checked_trees::{
+    BorrowFacts, BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment, StateBorrowFact,
+};
 use checked_trees::{CapturedPlace, CheckFacts, FlowStateFact};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
@@ -289,6 +291,11 @@ fn resolve_descriptor_places_with_loans(
             Some(ResolvedPlace {
                 place: CapturedPlace {
                     incoming_reference: loan.incoming_reference,
+                    incoming_owner_path: facts
+                        .borrow
+                        .access_segments
+                        .span_or_empty(loan.incoming_owner_path)
+                        .to_vec(),
                     root: loan.root,
                     segments,
                 },
@@ -302,6 +309,7 @@ fn resolve_descriptor_places_with_loans(
             places.push(ResolvedPlace {
                 place: CapturedPlace {
                     incoming_reference: identity,
+                    incoming_owner_path: Vec::new(),
                     root: incoming.place_root(),
                     segments: place.segments[depth..].to_vec(),
                 },
@@ -462,4 +470,56 @@ pub(in crate::checks::borrows) fn retained_lineage(
     completed
         .into_iter()
         .find_map(|(candidate, lineage)| (candidate == handle).then_some(lineage))
+}
+
+/// Join an unchanged selected slot from the completed-storage owner to its
+/// actual incoming leaf-family permission. A declared family is not a current
+/// value inventory: only the caller holding StoredOperand::Incoming may use
+/// this join. Raw path/type lookups deliberately cannot select these rows.
+pub(in crate::checks::borrows) fn unchanged_incoming_leaf(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
+    source: &validation::CanonicalPlace,
+) -> Result<Option<Vec<ResolvedAlias>>, &'static str> {
+    let borrow = &facts.borrow;
+    let (_, state_borrow) = borrow
+        .first_state_borrow(state.machine_symbol, state.state_symbol)
+        .ok_or("the incoming descriptor has no owning borrow state")?;
+    let mut resolved = Vec::new();
+    for identity in facts.flow.incoming_reference_constraints(constraints) {
+        if !borrow.state_owns_incoming_reference(state_borrow, identity) {
+            return Err("the current descriptor roster contains a foreign incoming identity");
+        }
+        let incoming = borrow.incoming_references.get(identity);
+        let owner = borrow
+            .owner_segments
+            .span(incoming.owner_path)
+            .ok_or("the incoming descriptor has an incomplete owner path")?;
+        if incoming.place_root() != source.root
+            || !owner.contains(&BorrowLoanOwnerSegment::DynamicIndex)
+            || !crate::borrow::owner_path_selects_leaf(program, owner, &source.segments)
+        {
+            continue;
+        }
+        let selected = validation::owned_projection_type_reference(
+            program,
+            incoming.carrier_type,
+            &source.segments,
+        )
+        .ok_or("the selected incoming descriptor has no typed owner projection")?;
+        validation::reference_shell(program, selected)
+            .ok_or("the incoming selection is not a descriptor")?;
+        resolved.push(ResolvedAlias {
+            place: CapturedPlace {
+                incoming_reference: identity,
+                incoming_owner_path: source.segments.clone(),
+                root: incoming.place_root(),
+                segments: Vec::new(),
+            },
+            lineage: Vec::new(),
+        });
+    }
+    Ok((!resolved.is_empty()).then_some(resolved))
 }

@@ -114,6 +114,7 @@ pub(crate) fn borrow_access_geometry(
         // type query to recover; the receiving type cannot create its grant.
         return Some(BorrowAccessGeometry::declared(BorrowAccessPlace {
             incoming_reference: Default::default(),
+            incoming_owner_path: Default::default(),
             root: facts::PlaceRoot::Expression(expression),
             segments: Vec::new(),
         }));
@@ -193,6 +194,7 @@ pub(crate) fn borrow_access_geometry(
     )?;
     Some(BorrowAccessGeometry::declared(BorrowAccessPlace {
         incoming_reference: Default::default(),
+        incoming_owner_path: Default::default(),
         root: place.root,
         segments: place.segments,
     }))

@@ -516,6 +516,80 @@ impl<'program> StructuralJudge<'program> {
         )
     }
 
+    /// Compose bounds of completed operands, retaining their admitted producer
+    /// observations. This consumes captured values, never their source places.
+    /// Each operation entry supplies both operands before paths are joined.
+    pub(in crate::proof_contracts::contract_entailment) fn completed_integer_range_recipe(
+        &self,
+        value: &StructuralTerm,
+    ) -> Option<checked_trees::IntegerRangeRecipe> {
+        self.completed_integer_range_recipe_at(value, 0)
+    }
+
+    fn completed_integer_range_recipe_at(
+        &self,
+        value: &StructuralTerm,
+        depth: usize,
+    ) -> Option<checked_trees::IntegerRangeRecipe> {
+        use checked_trees::IntegerRangeRecipe;
+        if depth >= 64 || !self.runtime_body_values || self.case_facts_only {
+            return None;
+        }
+        let value = self
+            .resolve(self.completed_value_identity(value.clone()))
+            .into_semantic_value();
+        match value {
+            StructuralTerm::Integer(value) => {
+                Some(IntegerRangeRecipe::bounds(value.clone(), value))
+            }
+            StructuralTerm::CapturedValue { integer_range, .. } => {
+                integer_range.as_deref().cloned()
+            }
+            StructuralTerm::IntegerEmbedding { reference, value } => {
+                let primitive = self.program.primitive_type_reference(reference)?;
+                let (low, high) = primitive.integer_bounds()?;
+                let carrier =
+                    IntegerRangeRecipe::bounds(BigInt::from_i128(low), BigInt::from_i128(high));
+                Some(
+                    self.completed_integer_range_recipe_at(&value, depth + 1)
+                        .map_or_else(|| carrier.clone(), |recipe| recipe.intersect(&carrier)),
+                )
+            }
+            StructuralTerm::MathematicalBinary {
+                operator,
+                left,
+                right,
+            } => self
+                .completed_integer_range_recipe_at(&left, depth + 1)?
+                .binary(
+                    operator,
+                    &self.completed_integer_range_recipe_at(&right, depth + 1)?,
+                ),
+            StructuralTerm::ScalarBinary {
+                operator,
+                left,
+                right,
+                meaning,
+                ..
+            } if meaning
+                .iter()
+                .all(|(_, domain)| *domain == ArithmeticDomain::Exact) =>
+            {
+                self.completed_integer_range_recipe_at(&left, depth + 1)?
+                    .binary(
+                        operator,
+                        &self.completed_integer_range_recipe_at(&right, depth + 1)?,
+                    )
+            }
+            StructuralTerm::ScalarRepresentation {
+                source,
+                target,
+                value,
+            } if source == target => self.completed_integer_range_recipe_at(&value, depth + 1),
+            _ => None,
+        }
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn integer_term_fit_judgment(
         &self,
         value: StructuralTerm,

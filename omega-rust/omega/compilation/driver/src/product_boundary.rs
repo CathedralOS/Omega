@@ -1039,6 +1039,63 @@ fn selected_execution_does_not_copy_checked_programs() {
 }
 
 #[test]
+fn selected_numeric_admission_consumes_retained_declarations() {
+    let evidence = include_str!(
+        "../../realization/provider-planning/src/provider_planning/operator_provider_evidence.rs"
+    );
+    assert!(evidence.contains("numeric_providers.require_selected("));
+    assert!(!evidence.contains(".execution_identity(typed)"));
+    assert!(!evidence.contains(".intrinsic_realization_matches(typed,"));
+    let preparation = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(preparation.contains("correspondence: external_providers.correspondence()"));
+    assert!(
+        preparation.find(".require_owner(").unwrap()
+            < preparation
+                .find("bind_selected_provider_plan_facts(")
+                .unwrap()
+    );
+}
+
+#[test]
+fn boundary_application_policy_has_one_source_free_owner() {
+    let settlement = include_str!(
+        "../../pipeline/00_terminal-psi-to-abstract-operations/src/boundary_application_settlement.rs"
+    );
+    assert!(settlement.contains("provider_selection::select_boundary_applications("));
+    assert!(settlement.contains("TerminalBoundaryApplicationCoverage::new("));
+    assert!(!settlement.contains("ProviderBinding::"));
+    assert!(!settlement.contains("boundary_application_candidates"));
+    let source = include_str!("../../realization/provider-planning/src/intrinsic_requirements.rs");
+    assert!(source.contains("provider_selection::selected_external_execution("));
+    assert!(!source.contains("effects::external_providers::selected_numeric_provider("));
+}
+
+#[test]
+fn selected_boundary_admission_reads_checked_classification() {
+    let source = include_str!(
+        "../../realization/provider-planning/src/provider_planning/operator_provider_evidence.rs"
+    );
+    // Source-only selection adapters below this entrance still serve early
+    // interpretation. Product admission must not call back into typed source.
+    let admission = source.split("pub fn selected_use_plan").next().unwrap();
+    for forbidden in [
+        "typed:",
+        "typed.",
+        "IntrinsicRequirement::",
+        "schema_binds_exact_",
+        "use_site_is_generic_template(",
+    ] {
+        assert!(
+            !admission.contains(forbidden),
+            "Product admission reconstructs {forbidden}"
+        );
+    }
+    assert!(admission.contains("provider_requirements"));
+    assert!(admission.contains("operator_use.is_generic_template"));
+    assert!(admission.contains("selected_checked_operator_body(check_facts, application, plan)"));
+}
+
+#[test]
 fn terminal_consumers_call_psi_without_a_product_wrapper() {
     let manifest = include_str!("../Cargo.toml");
     assert!(!manifest.contains("terminal-production ="));

@@ -118,6 +118,10 @@ pub(crate) enum StructuralTerm {
         callable: SymbolHandle,
         occurrence: usize,
         result_type: TypeReferenceHandle,
+        // Immutable producer evidence for this exact completed observation.
+        // Snapshot comparisons include this evidence so joins cannot retain
+        // one predecessor's bounds. It never authorizes a storage reread.
+        integer_range: Option<Arc<checked_trees::IntegerRangeRecipe>>,
     },
     /// A field path on the same completed value, never a callee-local spelling.
     BoundProjection {
@@ -239,6 +243,26 @@ mod rewrite_table;
 mod term_identity;
 
 impl StructuralTerm {
+    /// Every contributing completed value must carry a recipe. The result
+    /// describes the union of those values, never one chosen predecessor.
+    pub(super) fn joined_integer_ranges<'a>(
+        values: impl IntoIterator<Item = Option<&'a StructuralTerm>>,
+    ) -> Option<Arc<checked_trees::IntegerRangeRecipe>> {
+        let mut joined: Option<checked_trees::IntegerRangeRecipe> = None;
+        for value in values {
+            let StructuralTerm::CapturedValue {
+                integer_range: Some(recipe),
+                ..
+            } = value?.semantic_value()
+            else {
+                return None;
+            };
+            joined =
+                Some(joined.map_or_else(|| recipe.as_ref().clone(), |prior| prior.union(recipe)));
+        }
+        joined.map(Arc::new)
+    }
+
     pub(super) fn is_mathematical_predicate(&self) -> bool {
         if let Self::MathematicalBinary {
             operator: BinaryOperator::And,
@@ -770,18 +794,21 @@ impl<'program> StructuralJudge<'program> {
                                 expression: e1,
                                 callable: c1,
                                 result_type: t1,
+                                integer_range: r1,
                                 ..
                             }),
                             Some(StructuralTerm::CapturedValue {
                                 expression: e2,
                                 callable: c2,
                                 result_type: t2,
+                                integer_range: r2,
                                 ..
                             }),
                         ) = (matched_current.as_ref(), other.current.as_ref())
                             && e1 == e2
                             && c1 == c2
                             && t1 == t2
+                            && r1 == r2
                         {
                             // Keep matched_current (same expression/callable/type).
                         } else {
@@ -828,6 +855,7 @@ impl<'program> StructuralJudge<'program> {
                     expression: e1,
                     callable: c1,
                     result_type: t1,
+                    integer_range: r1,
                     ..
                 } = val
                     && outcomes[1..].iter().all(|judge| {
@@ -839,8 +867,9 @@ impl<'program> StructuralJudge<'program> {
                                         expression: e2,
                                         callable: c2,
                                         result_type: t2,
+                                        integer_range: r2,
                                         ..
-                                    } if e1 == e2 && c1 == c2 && t1 == t2
+                                    } if e1 == e2 && c1 == c2 && t1 == t2 && r1 == r2
                                 )
                         })
                     })

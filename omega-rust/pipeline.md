@@ -917,6 +917,32 @@ native provider admission. Checked source retains no separate FMA association
 list: an operation in an unselected target body creates no deployment demand
 for the selected body. Exact profile and feature admission remain required for
 each realized FMA, and its ordinary target-operation record carries that custody.
+Normal Product operator/requirement admission
+borrows the checked external catalog and its exact source-to-nominal correspondence;
+it does not rescan typed numeric meaning or satisfaction edges. That catalog is
+prepared before selected plan binding, so malformed declarations may precede plan
+or qualification diagnostics; both remain pre-execution refusals. Early Build's
+typed-only comparison path remains separate until it owns checked declarations.
+Product boundary-provider admission also consumes Psi's complete requirement
+inventory and occurrence applicability. Checking records slot/package identity,
+the distinct dormant-operator versus direct-call eligibility, and whether a use
+belongs to a generic machine; admission no longer reconstructs those facts from
+typed declarations. Requirement rows exist without implementations or uses.
+Product root pruning projects direct-call rows and template applicability with
+the machine roster while preserving independent operator declarations. The
+checked-tree bridge remains: source admission still owns complete-inventory
+applicability and plan cardinality, including unused declarations and dead
+concrete uses. Those cannot be replaced by emitted-operation demand.
+`provider-selection/boundary_applications.rs` owns the canonical executable
+application operation: exact selected-row/provenance joins, checked body choice
+and numeric execution admission. Stage 00 constructs operation-bound physical
+coverage from that result. Source and canonical admission share numeric
+satisfaction and callable/package/target selection; source eligibility additionally
+checks Product, provider application and lifetime coordinates, while canonical
+admission checks nominal requirement and closed application. Neither fabricates
+the other's metadata. Unused invocation-local declarations are not forced into
+portable publication. Moving the remaining complete source-admission adapter
+behind the Psi facade is still unfinished.
 The optional reference checked interpreter prepares adapter dispatch and selected
 float executions at its own entrance. `SelectedExecution` retains no reference
 dispatch table, and ordinary Product installation does not scan source to prepare

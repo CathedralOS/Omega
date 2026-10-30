@@ -85,66 +85,52 @@ pub fn structural_window_projection<'types>(
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
 ) -> Option<StructuralWindowProjection> {
-    let declaration = |identity| {
-        let mut matches = types.clone().filter(|candidate| candidate.id == identity);
-        let selected = matches.next()?;
-        matches.next().is_none().then_some(selected)
-    };
-    let mut selected = declaration(root)?;
-    for segment in path {
-        let child = match (segment, &selected.shape) {
-            (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
-                *referent
-            }
-            (
-                StructuralPathSegment::Field(identity),
-                terminal_psi::record_or_mixed_shape_pattern!(fields),
-            ) => {
-                let mut matches = fields.iter().filter(|field| field.identity == *identity);
-                let field = matches.next()?;
-                if matches.next().is_some() || field.relevance.is_erased() {
-                    return None;
-                }
-                let child = field.field_type.as_structural()?;
-                child
-            }
-            (
-                StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray {
-                    element,
-                    length: terminal_psi::ArrayExtent::Literal(length),
-                },
-            ) if index < length => *element,
-            (
-                StructuralPathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::FixedArray { element, .. },
-            ) => *element,
-            // Bounds and authority belong to this projected descriptor, not
-            // to its containing carrier; this query resolves only its type.
-            (
-                StructuralPathSegment::RuntimeIndex { .. },
-                StructuralTypeShape::ElementView { element, .. },
-            ) => *element,
-            _ => return None,
-        };
-        selected = declaration(child)?;
-    }
+    // Share exact field/case/reference selection with the ordinary projection
+    // grammar. A final field ID is relative to the current payload namespace,
+    // never an invented record for that case.
     let mut complete = path.to_vec();
     if let Some(identity) = field {
-        let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &selected.shape else {
-            return None;
-        };
-        let mut matches = fields.iter().filter(|field| field.id == identity);
-        let field = matches.next()?;
-        if matches.next().is_some() || field.relevance.is_erased() {
-            return None;
-        }
-        let child = field.field_type.as_structural()?;
-        selected = declaration(child)?;
-        complete.push(StructuralPathSegment::Field(field.identity.clone()));
+        let field = crate::projected_field_declaration(types.clone(), root, path, identity)?;
+        field.field_type.as_structural()?;
+        complete.push(StructuralPathSegment::Field(field.identity));
     }
+    let structural_type = crate::primitive_place::projection_tip_with_policy(
+        types.clone(),
+        root,
+        &complete,
+        |current, segment| match segment {
+            StructuralPathSegment::Field(_)
+            | StructuralPathSegment::Case(_)
+            | StructuralPathSegment::Referent => true,
+            // Preserve window selection's existing collection policy. Dynamic
+            // extents require their runtime index and its separate bound proof.
+            StructuralPathSegment::FixedIndex(_) => current.is_some_and(|current| {
+                types.clone().any(|declaration| {
+                    declaration.id == current
+                        && matches!(
+                            declaration.shape,
+                            StructuralTypeShape::FixedArray {
+                                length: terminal_psi::ArrayExtent::Literal(_),
+                                ..
+                            }
+                        )
+                })
+            }),
+            StructuralPathSegment::RuntimeIndex { .. } => current.is_some_and(|current| {
+                types.clone().any(|declaration| {
+                    declaration.id == current
+                        && matches!(
+                            declaration.shape,
+                            StructuralTypeShape::FixedArray { .. }
+                                | StructuralTypeShape::ElementView { .. }
+                        )
+                })
+            }),
+            _ => false,
+        },
+    )??;
     Some(StructuralWindowProjection {
         path: complete,
-        structural_type: selected.id,
+        structural_type,
     })
 }

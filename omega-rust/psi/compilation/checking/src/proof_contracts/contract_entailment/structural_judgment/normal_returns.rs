@@ -39,6 +39,15 @@ pub(in crate::proof_contracts::contract_entailment) struct NormalReturnPath<'pro
     observation: NormalValueObservation,
 }
 
+/// Fresh normal-exit storage is installed only after the invocation retires
+/// incoming observations. Backing selectors freeze in that resulting epoch.
+#[derive(Clone)]
+pub(super) struct PostCallStorage {
+    pub(super) coordinate: super::storage_effects::CapturedStorageCoordinate,
+    pub(super) value: StructuralTerm,
+    pub(super) backing: Option<crate::machine_calls::calls::CapturedStorageReadBacking>,
+}
+
 /// Completing an address/effect traversal does not observe its stored value.
 /// This scratch status travels with the operand, independently of its demand.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1624,6 +1633,7 @@ impl<'program> StructuralJudge<'program> {
                                 callable: SymbolHandle::invalid(),
                                 occurrence: judge.capture_sequence,
                                 result_type: declared.type_reference,
+                                integer_range: None,
                             })
                         },
                     );
@@ -1853,6 +1863,9 @@ impl<'program> StructuralJudge<'program> {
                     callable,
                     occurrence: rejoined.capture_sequence,
                     result_type,
+                    integer_range: StructuralTerm::joined_integer_ranges(
+                        outcomes.iter().map(|path| Some(&path.value)),
+                    ),
                 };
                 return Some(vec![
                     NormalReturnPath::observed(captured, rejoined)
@@ -1938,9 +1951,21 @@ impl<'program> StructuralJudge<'program> {
         scope: ValueScope<'_>,
     ) -> Option<StructuralTerm> {
         self.capture_sequence += 1;
+        let primitive = self
+            .normal_value_type_reference(expression, scope)
+            .and_then(|reference| self.program.primitive_type_reference(reference));
+        let integer_range =
+            crate::proof_contracts::arithmetic_domains::deferred_integer_observation(
+                self.program,
+                scope.0.symbol,
+                expression,
+                primitive,
+            )
+            .map(std::sync::Arc::new);
         let value = StructuralTerm::CapturedValue {
             expression,
             callable: SymbolHandle::invalid(),
+            integer_range,
             occurrence: self.capture_sequence,
             result_type: self
                 .normal_value_type_reference(expression, scope)
@@ -2213,10 +2238,67 @@ impl<'program> StructuralJudge<'program> {
         let post_storage =
             self.capture_normal_call(expression, actuals, environment, scope, writes);
         self.observe_storage_effects(scope.1, writes.complete_paths())?;
-        for (coordinate, value) in post_storage.into_iter().flatten() {
-            self.retain_storage_value(coordinate, value, false);
+        for storage in post_storage.into_iter().flatten() {
+            self.install_post_call_storage(scope.1, storage);
         }
         Some(())
+    }
+
+    /// The ordinary return-range owner consumes the immutable scalar actuals
+    /// already captured by this call. It owns complete return-path joins and
+    /// effects; no caller initializer or post-call storage is reconstructed.
+    fn completed_call_integer_range(
+        &self,
+        owner: &SelectedCallContract<'program>,
+        call: &typed_trees::expression::TableCallExpression,
+        parameters: &[typed_trees::signature::StateParameter],
+        actuals: &[StructuralTerm],
+        result_type: TypeReferenceHandle,
+    ) -> Option<checked_trees::IntegerRangeRecipe> {
+        let SelectedCallContract::Concrete(machine, entry) = owner else {
+            return None;
+        };
+        if !call.selects_only_nominal_route()
+            || !call.machine_arguments.is_empty()
+            || !self.program.machine_type_parameters(machine).is_empty()
+        {
+            return None;
+        }
+        let primitive = self.program.primitive_type_reference(result_type)?;
+        primitive.integer_bounds()?;
+        let actuals = parameters
+            .iter()
+            .zip(actuals)
+            .filter_map(|(parameter, value)| {
+                if parameter.is_mutable || parameter.is_const {
+                    return None;
+                }
+                let primitive = self
+                    .program
+                    .primitive_type_reference(parameter.type_reference)?;
+                let (low, high) = primitive.integer_bounds()?;
+                let value = StructuralTerm::IntegerEmbedding {
+                    reference: parameter.type_reference,
+                    value: Box::new(value.clone()),
+                };
+                Some((
+                    parameter.symbol,
+                    crate::proof_contracts::arithmetic_domains::Interval {
+                        low: i64::try_from(low).ok(),
+                        high: i64::try_from(high).ok(),
+                    },
+                    self.completed_integer_range_recipe(&value),
+                ))
+            })
+            .collect::<Vec<_>>();
+        crate::proof_contracts::arithmetic_domains::infer_return_interval(
+            self.program,
+            machine,
+            entry,
+            Some(primitive),
+            &actuals,
+        )
+        .and_then(|(_, recipe)| recipe)
     }
 
     fn capture_normal_call(
@@ -2226,12 +2308,7 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
         writes: &NormalizedWriteFrame,
-    ) -> Option<
-        Vec<(
-            super::storage_effects::CapturedStorageCoordinate,
-            StructuralTerm,
-        )>,
-    > {
+    ) -> Option<Vec<PostCallStorage>> {
         let program = self.program;
         let node = program.expression_table.expression(expression);
         let ExpressionNode::Call(call) = node else {
@@ -2437,6 +2514,7 @@ impl<'program> StructuralJudge<'program> {
                 callable: owner_symbol(&owner),
                 occurrence: self.capture_sequence,
                 result_type: subject.entry.type_reference,
+                integer_range: None,
             };
             let mut observed = if program
                 .primitive_type_reference(subject.entry.type_reference)
@@ -2479,7 +2557,11 @@ impl<'program> StructuralJudge<'program> {
             } else {
                 bindings.push((subject.entry.parameter, observed));
             }
-            post_storage.push((coordinate, value));
+            post_storage.push(PostCallStorage {
+                coordinate,
+                value,
+                backing: None,
+            });
         }
         let callable = match owner {
             SelectedCallContract::Concrete(machine, _) => machine.symbol,
@@ -2520,6 +2602,23 @@ impl<'program> StructuralJudge<'program> {
                 occurrence: self.capture_sequence,
                 callable,
                 result_type: presentation.type_reference,
+                integer_range:
+                    crate::proof_contracts::arithmetic_domains::deferred_integer_observation(
+                        program,
+                        scope.0.symbol,
+                        expression,
+                        program.primitive_type_reference(presentation.type_reference),
+                    )
+                    .or_else(|| {
+                        self.completed_call_integer_range(
+                            &owner,
+                            call,
+                            parameters,
+                            actuals,
+                            presentation.type_reference,
+                        )
+                    })
+                    .map(std::sync::Arc::new),
             }
         });
         if super::super::struct_trace() {
@@ -2530,6 +2629,10 @@ impl<'program> StructuralJudge<'program> {
         // An overwritten referent supplies no stable input observation, but
         // does not erase independent guarantees about this returned value.
         // Equations requiring an omitted formal fail exact substitution.
+        if let Some(captured) = &captured {
+            post_storage
+                .extend(self.stage_completed_result_reads(scope.0, scope.1, expression, captured));
+        }
         let guarantees = self.selected_guarantees(
             &owner,
             &entry_bindings,

@@ -135,6 +135,32 @@ fn apply_fact_pruning(
         .operators
         .symbolic_boundary_applications
         .retain(|row| retained.contains(&row.machine_symbol));
+    // Occurrence arenas retain dead evidence. Template applicability used to
+    // query the projected machine roster; retain that same meaning explicitly.
+    let retained_template = |origin: checked_trees::CheckedValueOrigin| {
+        origin
+            .machine_symbol()
+            .is_some_and(|machine| retained.contains(&machine))
+    };
+    facts.operators.uses.for_each_mut(|_, operator_use| {
+        operator_use.is_generic_template &= retained_template(operator_use.origin);
+    });
+    facts.operators.named_uses.for_each_mut(|_, operator_use| {
+        operator_use.is_generic_template &= retained_template(operator_use.origin);
+    });
+    let mut requirements = arena::Arena::new();
+    requirements.insert_many(facts.operators.provider_requirements.iter().filter_map(
+        |(_, requirement)| {
+            // Operator roots are not pruned with the machine roster. A direct-call
+            // classification, including a token machine's, follows its machine.
+            (matches!(
+                requirement.kind,
+                checked_trees::CheckedProviderRequirementKind::Operator { .. }
+            ) || retained.contains(&requirement.symbol))
+            .then(|| requirement.clone())
+        },
+    ));
+    facts.operators.provider_requirements = requirements;
     facts
         .nominal_machine_uses
         .uses

@@ -1808,6 +1808,7 @@ name = "provider-selection"
 version = "0.1.0"
 dependencies = [
  "backend-plan",
+ "boundary-applications",
  "component-description",
  "diagnostics",
  "effects",
@@ -2577,6 +2578,7 @@ dependencies = [
  "optimization-unit-semantics",
  "program-entry-plan",
  "proof-admission",
+ "provider-selection",
  "runtime-abi",
  "semantic-vocabulary",
  "source",
