@@ -46,7 +46,9 @@ pub fn project_checked_package_policy<'a>(
     let input = input.into();
     let queries = PolicyCheckingContexts::new(input.program, input.custody);
     let numeric_realizations = input.project_numeric_realizations()?;
+    let services = input.project_service_declarations();
     let compilation = &PackageReviewInput {
+        service_declarations: Some(&services),
         numeric_realizations: Some(&numeric_realizations),
         checking_input: &queries.candidate,
         custody_checking_input: &queries.custody,

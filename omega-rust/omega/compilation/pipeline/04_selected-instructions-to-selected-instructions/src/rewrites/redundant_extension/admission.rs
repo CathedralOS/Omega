@@ -200,12 +200,8 @@ pub(super) fn admit<'source>(
     let row = environment
         .constraint(extension_instruction.constraint)
         .ok_or(RedundantExtensionError::ConstraintMismatch)?;
-    if row.operands.len() != 2
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
+    if !crate::rewrites::declares_pair(row, RegisterOperandAccess::Use, RegisterOperandAccess::Def)
         || row.operands[0].class != value_register.class
-        || row.operands[1].operand != 1
-        || row.operands[1].access != RegisterOperandAccess::Def
         || row.operands[1].class != output_register.class
     {
         return Err(RedundantExtensionError::ConstraintMismatch);

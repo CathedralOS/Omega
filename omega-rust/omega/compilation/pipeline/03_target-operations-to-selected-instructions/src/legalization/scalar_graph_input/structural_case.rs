@@ -423,7 +423,11 @@ fn byte_carrier_leaf_copy(
     let Some(declaration) = find_structural_type(declarations, parent) else {
         return false;
     };
-    let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+    let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = &declaration.shape
+    else {
         return false;
     };
     let byte_type =
@@ -464,7 +468,7 @@ pub(super) fn validate(
         if edge.psi_edge != case.psi_edge
             || edge.target != case.target
             || !edge.bindings.is_empty()
-            || !edge.structural_bindings.is_empty()
+            || edge.structural_bindings != case.structural_bindings
             || edge.cleanup_actions != case.cleanup_actions
             || edge.provenance != [PsiProvenance::Edge(case.psi_edge)]
             || edge.fuel.is_empty()

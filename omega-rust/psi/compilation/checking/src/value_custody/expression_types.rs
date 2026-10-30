@@ -166,6 +166,33 @@ pub(crate) fn completed_value_type_matches(
             && reference_values::reference_type_matches(program, actual, required, &[], &[]))
 }
 
+/// A completed operand selects a callable using its actual type. The ordinary
+/// argument validator deliberately defers scalar compatibility to other checks;
+/// its permissive syntax cases cannot distinguish overload parameter families.
+/// Reference correspondence retains the same access direction and referent
+/// identity as completed value delivery, under the callee's exact application.
+pub(crate) fn completed_call_operand_matches(
+    program: &dyn crate::CheckingInput,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    actual.is_valid()
+        && required.is_valid()
+        && (program.type_identity(TypeIdentityRequest::ordinary(actual))
+            == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                substitutions: required_substitutions,
+                ..TypeIdentityRequest::ordinary(required)
+            })
+            || reference_values::reference_type_matches(
+                program,
+                actual,
+                required,
+                &[],
+                required_substitutions,
+            ))
+}
+
 /// Declaration-backed correspondence under an exact simultaneous telescope.
 /// This does not establish proof facts, conversions, or borrowing authority.
 pub(crate) fn argument_matches_type_reference_with_substitutions(
@@ -451,6 +478,7 @@ fn argument_matches_type_reference_using(
         if delivered_types::delivered_carrier_conflict(
             program,
             scope,
+            argument,
             actual.reference,
             &actual.substitutions,
             type_reference,
@@ -1068,6 +1096,7 @@ pub(crate) fn expression_type_name_handle(
             typed_trees::expression::UnaryOperator::BitwiseNot => "integer",
             typed_trees::expression::UnaryOperator::LogicalNot => "bool",
         },
+        ExpressionNode::TypeExpression(_) => "static type operand",
         ExpressionNode::ZeroValue(_) => "zero-value representation observation",
     }
 }

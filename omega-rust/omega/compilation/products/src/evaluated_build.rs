@@ -20,11 +20,7 @@ pub struct EvaluatedBuild {
     pub retained_check: Option<psi_compiler::RetainedCheck>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ServiceAuditRegistration {
-    pub identity: String,
-    pub name: String,
-}
+pub use build_time_evaluation::product_declarations::ServiceAuditRegistration;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BuildConfig {

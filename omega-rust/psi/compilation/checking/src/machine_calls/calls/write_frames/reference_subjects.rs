@@ -2,9 +2,9 @@
 use super::place_paths::{push_unique_origin, single_place_origin};
 use super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
-    FrameSourcePlace, Machine, MachineSymbols, State, StateParameter, StatementNode,
-    StoredLocalOrigins, SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode,
-    caller_aliases, frame_place_path, local_aliases, reference_origins, stored_origins,
+    FrameSourcePlace, Machine, State, StateParameter, StatementNode, StoredLocalOrigins,
+    SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode, caller_aliases,
+    frame_place_path, local_aliases, reference_origins, stored_origins,
     type_is_caller_isolated_local, type_may_carry_write, type_reference_is_reference,
 };
 use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origins;
@@ -309,6 +309,76 @@ pub(super) fn expression_origins_before_statement(
         .collect()
 }
 
+/// A coordinate is supplied by the consumer, never manufactured as a source
+/// expression. Authenticate its declaration and each retained descriptor load
+/// against this prefix's inventory. Spatial resolution by itself is insufficient:
+/// it may return an unchanged path when no stored slot matched. Missing inner
+/// loads therefore stay unknown, even when the full path has scalar geometry.
+pub(super) fn coordinate_sources_before_statement(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    symbols: &TopLevelSymbols<'_>,
+    index: usize,
+    source: &FrameSourcePlace,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
+) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
+    let root = source.root;
+    let path = source.segments.as_slice();
+    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
+    validate_source_projection(program, machine, state, index, source, &prefix.stored)?;
+    carrier_storage_type(program, source_root_type(program, state, index, root)?)?;
+    if let Some(record) = prefix
+        .stored
+        .iter()
+        .find(|record| record.local_symbol == root)
+    {
+        for leaf in &record.references {
+            if !path.starts_with(&leaf.local_segments) {
+                continue;
+            }
+            let stored_origins::StoredOriginKind::Reference(access) = leaf.kind else {
+                return None;
+            };
+            if !access.is_readable() || leaf.origin.is_none() {
+                return None;
+            }
+            let sources =
+                stored_origins::selected_slot_sources(record, &leaf.local_segments, None)?;
+            for source in sources {
+                if source.lifetime_access.is_some()
+                    || source.origin.precision != FramePathPrecision::Exact
+                    || source.origin.source.output_identity().is_some()
+                {
+                    return None;
+                }
+            }
+        }
+    }
+    let origin = FramePlaceOrigin {
+        path: super::frame_coordinate_path(program, root, path)?,
+        precision: FramePathPrecision::Exact,
+        source: source.clone(),
+    };
+    stored_origins::canonical_reference_sources(
+        program,
+        &Some(origin),
+        &prefix.aliases,
+        &prefix.stored,
+    )
+    .into_iter()
+    .map(|source| {
+        let source = source?;
+        (source.lifetime_access.is_none()
+            && source.origin.precision == FramePathPrecision::Exact
+            && source.origin.source.output_identity().is_none())
+        .then(|| source.origin.into())
+    })
+    .collect()
+}
+
 /// Complete backing footprints for invalidation, independent of exact identity.
 /// A window may conservatively observe its whole collection. Reuse the backing
 /// origin judgment: it authenticates frozen descriptor boundaries and builtin
@@ -554,14 +624,14 @@ pub(super) fn value_origins(
     )?;
     let mut captured = Vec::new();
     for origin in origins {
-        for origin in captured_value_origins(program, expression, &origin, aliases, stored) {
-            let origin = origin?;
-            if origin.precision != FramePathPrecision::Exact {
-                return None;
-            }
-            validate_source_projection(program, machine, state, index, &origin.source, stored)?;
-            push_unique_origin(&mut captured, origin);
+        // The initializer owner completed the load at this prefix. Validation
+        // must not read another slot merely because its captured backing has
+        // the same coordinates as a descriptor which has since been replaced.
+        if origin.precision != FramePathPrecision::Exact {
+            return None;
         }
+        validate_source_projection(program, machine, state, index, &origin.source, stored)?;
+        push_unique_origin(&mut captured, origin);
     }
     (!captured.is_empty()).then_some(captured)
 }
@@ -648,33 +718,23 @@ pub(super) fn backing_origins(
     )?;
     let mut captured = Vec::new();
     for origin in origins {
-        for origin in captured_value_origins(program, expression, &origin, aliases, stored) {
-            let origin = origin?;
-            if (!origin.source.root.is_valid() && !origin.source.is_static())
-                || !origin.source.builtin_coordinates
-            {
-                return None;
-            }
-            if !origin.source.is_static() {
-                // Exact aliases retain the declared-value checks used by
-                // singleton consumers. Captured alternatives never weaken
-                // loaded-reference or nominal-selector authentication.
-                if origin.precision == FramePathPrecision::Exact {
-                    declared_initializer_origins(
-                        program, machine, expression, symbols, inference, false, aliases, stored,
-                    )?;
-                }
-                validate_backing_projection(
-                    program,
-                    machine,
-                    state,
-                    index,
-                    &origin.source,
-                    stored,
+        if (!origin.source.root.is_valid() && !origin.source.is_static())
+            || !origin.source.builtin_coordinates
+        {
+            return None;
+        }
+        if !origin.source.is_static() {
+            // Exact aliases retain the declared-value checks used by
+            // singleton consumers. Captured alternatives never weaken
+            // loaded-reference or nominal-selector authentication.
+            if origin.precision == FramePathPrecision::Exact {
+                declared_initializer_origins(
+                    program, machine, expression, symbols, inference, false, aliases, stored,
                 )?;
             }
-            push_unique_origin(&mut captured, origin);
+            validate_backing_projection(program, machine, state, index, &origin.source, stored)?;
         }
+        push_unique_origin(&mut captured, origin);
     }
     (!captured.is_empty()).then_some(captured)
 }

@@ -1,1 +1,1 @@
-exact arithmetic in machine `target_probe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation).
+exact arithmetic in machine `X86Probe::target_probe` state `target_probe` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation).

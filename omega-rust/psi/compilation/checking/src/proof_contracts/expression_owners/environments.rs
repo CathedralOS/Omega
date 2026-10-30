@@ -221,6 +221,22 @@ pub(super) fn exact_owner_environments(
                 reached.contains(&expression).then_some(environment)
             }),
     );
+    for declaration in program.const_declarations() {
+        if [
+            declaration.authored_initializer,
+            declaration.materialized_initializer,
+        ]
+        .into_iter()
+        .any(|root| {
+            program.expression_table.expression_is_valid(root)
+                && super::expression_contains(program, root, expression)
+        }) {
+            environments.push(TypeEnvironment {
+                owner: declaration.symbol,
+                ..Default::default()
+            });
+        }
+    }
     collect_ranking_environments(program, expression, &mut environments);
     collect_executable_environments(program, expression, &mut environments)?;
     (!environments.is_empty()).then_some(environments)

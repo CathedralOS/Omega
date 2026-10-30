@@ -15,7 +15,7 @@ use typed_trees::machine::Machine;
 
 mod cycles;
 mod scope;
-pub(crate) use scope::{ClosedArrivals, ProgramPrivateArrivalIndex};
+pub(crate) use scope::{ClosedArrivals, ProgramPrivateArrivalIndex, private_invocation_index};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Arrival {
@@ -47,7 +47,7 @@ where
     let classification = crate::proof_only_classification(program);
     // Erased proof recursion retains its existing ranked induction owner.
     // These fresh runtime intervals cannot license another theorem's IH.
-    if arrivals.cycle_entries.iter().any(|symbol| {
+    if arrivals.entry_boundaries.iter().any(|symbol| {
         program
             .machine_by_symbol(*symbol)
             .is_none_or(|entry| classification.is_proof_machine(program, entry))
@@ -59,7 +59,7 @@ where
         .iter()
         .filter(|candidate| {
             scope::is_root(program, candidate, root)
-                || arrivals.cycle_entries.contains(&candidate.symbol)
+                || arrivals.entry_boundaries.contains(&candidate.symbol)
         })
         .collect::<Vec<_>>();
     // Each cached frontier replaces every non-anchor owner with all of its

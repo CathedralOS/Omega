@@ -433,7 +433,9 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         )
         .ok_or_else(|| refuse("native target is outside the catalog"))?;
         let widths = call
-            .locator_widths
+            .native_locator
+            .as_ref()
+            .map(|locator| locator.widths)
             .ok_or_else(|| refuse("native binding lost its exact const application"))?;
         let locator =
             language_semantics::declaration_selection::decode_native_binding_value(&value, widths)
@@ -712,6 +714,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                     ));
                 }
                 ExecutedBuildSelection::Declaration(ExecutedProductSelection {
+                    static_environment: call.static_environment.clone(),
                     request: request.clone(),
                     selecting_machine: call.selecting_machine,
                     target,

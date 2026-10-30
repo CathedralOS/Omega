@@ -1,0 +1,89 @@
+{
+  "stack32": {
+    "A": {
+      "wall_median_ms": 2693.978450000486,
+      "wall_range_ms": [
+        2625.2201000006608,
+        2730.7574999995268
+      ],
+      "checking_median_ms": 1237.339,
+      "checking_range_ms": [
+        1220.849,
+        1267.124
+      ],
+      "peak_memory_median_bytes": 1329045504.0
+    },
+    "B": {
+      "wall_median_ms": 2644.269350000286,
+      "wall_range_ms": [
+        2615.640199999689,
+        2700.1977999998417
+      ],
+      "checking_median_ms": 1219.7685000000001,
+      "checking_range_ms": [
+        1205.658,
+        1262.353
+      ],
+      "peak_memory_median_bytes": 1319206912.0
+    },
+    "wall_reduction_percent": 1.845192933900086
+  },
+  "length": {
+    "A": {
+      "wall_median_ms": 2020.2296000006754,
+      "wall_range_ms": [
+        2014.1701000002286,
+        2227.08430000057
+      ],
+      "checking_median_ms": 1097.6955,
+      "checking_range_ms": [
+        1058.42,
+        1172.833
+      ],
+      "peak_memory_median_bytes": 1260199936.0
+    },
+    "B": {
+      "wall_median_ms": 2060.8738000000812,
+      "wall_range_ms": [
+        1978.6853000005067,
+        2267.143200000646
+      ],
+      "checking_median_ms": 1071.826,
+      "checking_range_ms": [
+        1053.62,
+        1181.189
+      ],
+      "peak_memory_median_bytes": 1294258176.0
+    },
+    "wall_reduction_percent": -2.0118604340512602
+  },
+  "dispatch": {
+    "A": {
+      "wall_median_ms": 2032.9290499998933,
+      "wall_range_ms": [
+        1996.9263000002684,
+        2084.250599999905
+      ],
+      "checking_median_ms": 1081.2715,
+      "checking_range_ms": [
+        1063.373,
+        1097.61
+      ],
+      "peak_memory_median_bytes": 1276674048.0
+    },
+    "B": {
+      "wall_median_ms": 2017.1454999999696,
+      "wall_range_ms": [
+        1992.482999999993,
+        2084.265200000118
+      ],
+      "checking_median_ms": 1074.12,
+      "checking_range_ms": [
+        1061.382,
+        1128.786
+      ],
+      "peak_memory_median_bytes": 1277321216.0
+    },
+    "wall_reduction_percent": 0.7763945328010613
+  }
+}

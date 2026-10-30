@@ -201,6 +201,7 @@ fn completed_bound_domain_judgment(
                     expression,
                     &bindings,
                     &[],
+                    &[],
                     Some((machine, state)),
                 );
                 judgment.proven &= matches!(predicate_judgment, StructuralJudgment::Proven);

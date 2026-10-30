@@ -31,4 +31,5 @@ machine main() crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-const BAD: u64 [0..=3] = size_of<Main>() + 1u64;
+machine bounded_layout(value: u64) -> u64 requires value <= 3 { value }
+const BAD: u64 = bounded_layout(size_of<Main>() + 1u64);

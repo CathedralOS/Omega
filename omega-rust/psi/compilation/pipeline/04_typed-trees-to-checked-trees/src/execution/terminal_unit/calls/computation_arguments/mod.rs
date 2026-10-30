@@ -10,7 +10,7 @@ use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::PrimitiveType;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, base_type_identity, borrowed_slice_view_element, dense_scalar_parameter_index,
+    base_type_identity, borrowed_slice_view_element, dense_scalar_parameter_index,
     dense_structural_parameter_index, parameter_qualifications,
     structural_access_for_type_reference,
 };
@@ -26,6 +26,7 @@ use crate::execution::terminal_unit::calls::view_subslice::{ViewKind, view_ident
 
 pub(crate) fn structural_computation_argument(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     facts: crate::flow::CapturedSubjectFacts<'_>,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -94,7 +95,7 @@ pub(crate) fn structural_computation_argument(
             | CheckedStructuralAccess::MutableBorrow
             | CheckedStructuralAccess::WriteOnlyBorrow
     ) && let Some(argument) = borrowed_storage_argument(
-        program, borrow, machine, state, call, &place, target, selectors,
+        program, shapes, borrow, machine, state, call, &place, target, selectors,
     ) {
         return Some(argument);
     }
@@ -112,6 +113,7 @@ pub(crate) fn structural_computation_argument(
         // subtree; ownership events separately supply its live claims.
         return owned_argument(
             program,
+            shapes,
             machine,
             state,
             call.statement_index,
@@ -183,6 +185,7 @@ pub(crate) fn structural_computation_argument(
 /// ordinals, which exclude the implicit receiver.
 pub(crate) fn subslice_computation_argument(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     operators: &checked_trees::CheckedOperatorFacts,
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
@@ -224,13 +227,7 @@ pub(crate) fn subslice_computation_argument(
     } else if owner.attached_data.is_some() {
         super::ambient_self_scalar_signature(program, state)?.0
     } else {
-        super::free_structural_scalar_signature(
-            program,
-            &mut ShapeCollector::new(program),
-            state,
-            &[],
-        )?
-        .0
+        super::free_structural_scalar_signature(program, shapes, state, &[])?.0
     };
     let subslice = super::view_subslice::admit_resolved(
         program,
@@ -302,6 +299,7 @@ fn exact_actual(
 /// rejoins this symbol to its dominating structural establishment.
 pub(crate) fn borrowed_storage_argument(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
@@ -421,7 +419,6 @@ pub(crate) fn borrowed_storage_argument(
             source,
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
         );
-    let mut shapes = ShapeCollector::new(program);
     let whole_storage_type = reference;
     let whole_storage_identity = if whole_storage {
         shapes.add_stored_type(reference, &[], &[])?
@@ -544,7 +541,7 @@ pub(crate) fn borrowed_storage_argument(
     // neither copies nor transfers its obligation. Register its receiving
     // qualification theories independently of backing and exact loan access;
     // this shapes their carriers without introducing any membership evidence.
-    parameter_qualifications(program, &mut shapes, reference, &[])?;
+    parameter_qualifications(program, shapes, reference, &[])?;
     if !borrowed_referent {
         return None;
     }
@@ -712,6 +709,7 @@ pub(in crate::execution) fn borrowed_view_argument(
 /// Neither operation acquires disposal authority from its storage classification.
 fn owned_argument(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -780,14 +778,13 @@ fn owned_argument(
     }) {
         return None;
     }
-    let mut shapes = ShapeCollector::new(program);
     for reference in [selected_type, target.type_reference] {
         // Calls transport established values, including linear obligations and
         // nominal cleanup. Plain-content classifications grant different
         // operations and reject those carriers. Collect their stored shape and
         // qualifications here; the checked call and exact transfer roster own
         // membership, loans and consumption, just as for statement calls.
-        parameter_qualifications(program, &mut shapes, reference, &[])?;
+        parameter_qualifications(program, shapes, reference, &[])?;
         shapes.add_stored_type(reference, &[], &[])?;
         let storage = validation::peel_declared_constraints(program, reference);
         if program.primitive_type_reference(storage).is_some()

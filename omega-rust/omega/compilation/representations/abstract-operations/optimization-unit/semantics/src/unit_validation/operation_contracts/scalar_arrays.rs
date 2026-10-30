@@ -137,7 +137,11 @@ pub(crate) fn structural_array_establishment_matches(
         return false;
     };
     let Some(terminal_psi::StructuralTypeDeclaration {
-        shape: terminal_psi::StructuralTypeShape::FixedArray { element, length },
+        shape:
+            terminal_psi::StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            },
         ..
     }) = types.get(&result.structural_type).copied()
     else {

@@ -61,6 +61,7 @@ impl BoundaryRequirement<'_> {
 /// presentation; selection never weakens that signature.
 pub(super) fn build(
     program: &dyn ::validation::CheckingInput,
+    shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -392,6 +393,7 @@ pub(super) fn build(
             };
             structural_arguments.push(result_arguments::argument(
                 program,
+                shapes,
                 facts,
                 machine.symbol,
                 state.symbol,
@@ -445,6 +447,7 @@ pub(super) fn build(
         receiving_parameter.type_reference = formal;
         if let Some(argument) = super::computation_arguments::borrowed_storage_argument(
             program,
+            shapes,
             &facts.borrow,
             machine.symbol,
             state,

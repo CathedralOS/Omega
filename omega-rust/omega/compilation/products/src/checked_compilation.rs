@@ -19,7 +19,9 @@ use std::sync::Arc;
 mod report;
 mod terminal;
 
-pub use report::{CheckedProductReport, ProductReportPlan, ProductReportRequest};
+pub use report::{
+    CheckedProductReport, CompileReportSettlement, ProductReportPlan, ProductReportRequest,
+};
 
 /// Invocation-local language judgments retained by the compiler session. Build
 /// and Product are independent checked programs; neither judgment carries
@@ -60,9 +62,9 @@ pub struct CheckedCompilationInputs {
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub providers: ProviderSettlement,
-    /// Completed independent dependency products from this invocation. These
-    /// retain source-free production inputs, not installed provider authority.
-    pub independent_components: Vec<Arc<crate::IndependentComponentProduct>>,
+    /// Completed independent producing joins, or the native-only reason their
+    /// roster is unavailable. Neither state grants installed provider authority.
+    pub independent_components: Result<Vec<crate::SelectedIndependentComponent>, String>,
     /// Identity-bearing checked-tree product selection evidence, present only
     /// when the effective build selection named `CheckedTreeProductPruning`.
     /// `None` means the checked-tree phase ran as the identity boundary. The
@@ -189,8 +191,11 @@ impl CheckedCompilation {
         &self.execution.providers
     }
 
-    pub fn independent_component_products(&self) -> &[Arc<crate::IndependentComponentProduct>] {
-        &self.execution.independent_components
+    /// Release checked source while transferring the source-free native joins.
+    pub fn into_independent_components(
+        self,
+    ) -> Result<Vec<crate::SelectedIndependentComponent>, String> {
+        self.execution.independent_components
     }
 
     /// The exact physical/generated source closure sealed against this
@@ -210,7 +215,12 @@ impl CheckedCompilation {
             &self.typed,
             self,
             &self.build().config.root_grant_selectors(),
-            &self.providers().provider_plans,
+            &self
+                .providers()
+                .provider_candidates
+                .iter()
+                .map(provider_planning::ProviderPlanCandidate::plan)
+                .collect::<Vec<_>>(),
             &self.execution().selected_provider_plan_facts,
             &self.execution().accepted_template_classifications,
             self.sources.package_subject().is_some(),

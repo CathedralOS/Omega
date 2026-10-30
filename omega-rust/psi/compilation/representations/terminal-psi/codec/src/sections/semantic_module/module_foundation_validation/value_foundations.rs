@@ -591,7 +591,10 @@ pub(super) fn validate_establish_structural_array(
     else {
         return malformed("structural array result is not a fixed array");
     };
-    if u64::try_from(elements.len()).ok() != Some(*length) {
+    let Some(length) = length.literal() else {
+        return malformed("array construction requires a closed element count");
+    };
+    if u64::try_from(elements.len()).ok() != Some(length) {
         return malformed("array element count differs");
     }
     for argument in elements {

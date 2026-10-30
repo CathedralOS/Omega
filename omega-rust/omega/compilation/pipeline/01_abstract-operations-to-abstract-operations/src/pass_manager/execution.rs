@@ -148,32 +148,15 @@ fn run_registries_inner(
             ExternalDecisionReplayError::ReconstructedLogMismatch,
         ));
     }
-    let transformation_ledger = PsiTransformationLedger::new(
-        psi,
-        fuel_schedule,
-        initial_identity,
-        unit.identity,
-        commits
-            .iter()
-            .map(|commit| PsiTransformationRecord {
-                rule: commit.rule,
-                candidate: commit.candidate,
-                validator: commit.validator,
-                input: commit.input,
-                output: commit.output,
-                pruned_machines: commit.pruned_machines.clone(),
-                provenance: commit.provenance.clone(),
-            })
-            .collect(),
-    )
-    .map_err(OptimizationRunError::InvalidTransformationLedger)?;
+    let output = unit.identity;
+    let ledger = chain_ledger(psi, fuel_schedule, initial_identity, output, &commits)?;
     let identity_bundle = OptimizationIdentityBundle::new(
         selections.identity(),
         ordered_rule_set,
         baseline_psi_cost_model_identity(),
         Some(decisions.identity),
         None,
-        transformation_ledger.identity(),
+        ledger.identity(),
     );
     let session = VerifiedPsiOptimizationSession::from_transformed(session.input, unit)
         .map_err(OptimizationRunError::CandidateValidation)?;
@@ -188,7 +171,7 @@ fn run_registries_inner(
         decisions,
         external_decisions,
         pass_manifests,
-        transformation_ledger,
+        transformation_ledger: ledger,
         identity_bundle,
     })
 }
@@ -343,33 +326,9 @@ fn run_unit_inner_with_retention(
                 &candidate_decisions,
                 usage,
             )?;
-            let transformation_ledger = PsiTransformationLedger::new(
-                psi,
-                fuel_schedule,
-                initial_identity,
-                unit.identity,
-                commits
-                    .iter()
-                    .map(|commit| PsiTransformationRecord {
-                        rule: commit.rule,
-                        candidate: commit.candidate,
-                        validator: commit.validator,
-                        input: commit.input,
-                        output: commit.output,
-                        pruned_machines: commit.pruned_machines.clone(),
-                        provenance: commit.provenance.clone(),
-                    })
-                    .collect(),
-            )
-            .map_err(OptimizationRunError::InvalidTransformationLedger)?;
-            return Ok((
-                unit,
-                commits,
-                usage,
-                decisions,
-                pass_manifest,
-                transformation_ledger,
-            ));
+            let output = unit.identity;
+            let ledger = chain_ledger(psi, fuel_schedule, initial_identity, output, &commits)?;
+            return Ok((unit, commits, usage, decisions, pass_manifest, ledger));
         };
         let input_identity = unit.identity;
         let validator = validated.validator();
@@ -589,6 +548,36 @@ fn run_loop_invariant_scalar_motion_step(
     }
 }
 
+/// Chain commits into the transformation ledger a pass seals: one row per
+/// commit, in the revision order the commits already established.
+fn chain_ledger(
+    psi: terminal_psi::TerminalPsiIdentity,
+    fuel_schedule: terminal_fuel::FuelScheduleIdentity,
+    initial_identity: OptimizationUnitIdentity,
+    output: OptimizationUnitIdentity,
+    commits: &[PsiOptimizationCommit],
+) -> Result<PsiTransformationLedger, OptimizationRunError> {
+    PsiTransformationLedger::new(
+        psi,
+        fuel_schedule,
+        initial_identity,
+        output,
+        commits
+            .iter()
+            .map(|commit| PsiTransformationRecord {
+                rule: commit.rule,
+                candidate: commit.candidate,
+                validator: commit.validator,
+                input: commit.input,
+                output: commit.output,
+                pruned_machines: commit.pruned_machines.clone(),
+                provenance: commit.provenance.clone(),
+            })
+            .collect(),
+    )
+    .map_err(OptimizationRunError::InvalidTransformationLedger)
+}
+
 /// Seal the relocation step: finish the baseline decision log, build the
 /// pass manifest, chain the step-local transformation ledger, and release
 /// the session back to the caller's unit custody.
@@ -604,42 +593,18 @@ fn finish_loop_invariant_scalar_motion_step(
     recorded_decisions: BaselineDecisionLogBuilder,
 ) -> Result<OptimizationRunOutput, OptimizationRunError> {
     let decisions = recorded_decisions.finish();
+    let output = session.unit().identity;
     let pass_manifest = build_pass_manifest(
         step,
         initial_identity,
-        session.unit().identity,
+        output,
         &commits,
         &candidate_decisions,
         usage,
     )?;
-    let transformation_ledger = PsiTransformationLedger::new(
-        psi,
-        fuel_schedule,
-        initial_identity,
-        session.unit().identity,
-        commits
-            .iter()
-            .map(|commit| PsiTransformationRecord {
-                rule: commit.rule,
-                candidate: commit.candidate,
-                validator: commit.validator,
-                input: commit.input,
-                output: commit.output,
-                pruned_machines: commit.pruned_machines.clone(),
-                provenance: commit.provenance.clone(),
-            })
-            .collect(),
-    )
-    .map_err(OptimizationRunError::InvalidTransformationLedger)?;
+    let ledger = chain_ledger(psi, fuel_schedule, initial_identity, output, &commits)?;
     let (_, unit) = session.into_parts();
-    Ok((
-        unit,
-        commits,
-        usage,
-        decisions,
-        pass_manifest,
-        transformation_ledger,
-    ))
+    Ok((unit, commits, usage, decisions, pass_manifest, ledger))
 }
 
 /// The relocation step's convergence measure: the number of nodes still

@@ -402,7 +402,9 @@ fn expression_depends_on_any(
             let right = depends(binary.right)?;
             Ok(left || right)
         }
-        typed_trees::spelled_literal_expression_pattern!() => Ok(false),
+        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {
+            Ok(false)
+        }
         ExpressionNode::Cast(cast) => depends(cast.value),
         ExpressionNode::Call(call) => {
             let receiver_depends = if call.receiver.is_valid() {

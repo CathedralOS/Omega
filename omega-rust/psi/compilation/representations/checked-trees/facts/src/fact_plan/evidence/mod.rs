@@ -481,15 +481,7 @@ impl QualificationPayloadIdentity {
     }
 }
 
-/// Target-neutral mathematical value of an already-rendered scalar. Unknown
-/// is the zero arena entry and never supplies a proof premise.
-#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-pub enum ScalarValue {
-    #[default]
-    Unknown,
-    Integer(numerics::bignum::BigInt),
-    Boolean(bool),
-}
+pub use numerics::scalar_predicates::ScalarValue;
 
 /// Inclusive mathematical integer bounds. The consumer must establish both
 /// endpoint ordering and the source of the bounds before using this vocabulary.

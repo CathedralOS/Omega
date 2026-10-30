@@ -16,7 +16,7 @@ fn schema_and_named_provider_queries_resume_the_original_build() {
         .begin_package_build(CheckedCompileRequest::new(&root, None))
         .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
     let mut queries = invocation.product_queries();
-    let mut host = invocation.execution().unwrap().host().unwrap();
+    let host = invocation.execution().unwrap().host().unwrap();
     let mut activation = host.start().unwrap();
     let mut queried = Vec::new();
     loop {
@@ -126,7 +126,7 @@ fn admitted_build_helpers_keep_their_lexical_product_scope() {
             .begin_package_build(request)
             .unwrap_or_else(|failure| panic!("{fixture}: {:?}", failure.into_diagnostics()));
         let mut queries = invocation.product_queries();
-        let mut host = invocation.execution().unwrap().host().unwrap();
+        let host = invocation.execution().unwrap().host().unwrap();
         let mut activation = host.start().unwrap();
         let pending = loop {
             let step = activation.advance(1024).unwrap();
@@ -177,7 +177,7 @@ fn authored_product_query_retains_lexical_occurrence_and_pauses() {
         .begin_package_build(CheckedCompileRequest::new(&root, None))
         .expect("admit authored Build without completing Product sources");
     let execution = invocation.execution().expect("authored Build execution");
-    let mut host = execution.host().expect("Terminal Build host");
+    let host = execution.host().expect("Terminal Build host");
     let mut activation = host.start().expect("one Build activation");
     let request = loop {
         let step = activation.advance(1024).expect("execute Build to query");

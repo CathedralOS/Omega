@@ -38,8 +38,12 @@ satisfaction is a named conformance), and `terminates [by subjects [->
 View]];`, whose subjects are one expression or a parenthesized list and whose
 view is a path or an argumented view call; a bare `terminates` may end at
 the body's `{`. A machine's return type may follow its clauses, further
-clauses continuing the same run. Bodies hold entry statements and
-then `state name [(parameters)] [-> Type] [requires fact]* { ... }` members. A
+clauses continuing the same run. Bodies hold their executable statements followed
+by nested `machine` declarations.
+Every declaration has its own complete signature, result (Unit when omitted),
+contracts and exact body ranges. A stable parent handle scopes names and static
+binders at arbitrary nesting depth; children need not occupy contiguous rows.
+Once trailing declarations begin, executable statements cannot resume. A
 bodyless machine ends at `;`; a `;` that ends a contract fact, a
 satisfaction, a termination or an operational clause belongs to the clause
 only while the declaration continues after it with `{`, another clause or
@@ -136,9 +140,9 @@ requester-local dependency edges and 128 units, each unit belonging to a
 package and to the module its path names there (`a::b`), parsed into the
 shared syntax tables, with its position as its source id. Those tables are
 whole-program, sized above what the psi package fills: 4,096 roots, 1,024
-uses, 2,048 machines, 1,024 fields, 1,536 cases and 2,048 data members,
+uses, 10,240 machines, 1,024 fields, 1,536 cases and 2,048 data members,
 2,048 clauses, 4,096 construction fields, 32,768 parameters, 16,384
-statements, 8,192 states and transition arms, 65,536 type references and
+statements and 8,192 transition arms, 65,536 type references and
 call arguments, and 131,072 expressions; resolution's and
 typing's rows indexed by machine, type-reference and expression handles share
 those bounds. A `use` path's first member selects a package
@@ -192,10 +196,11 @@ rejects as unsupported. A `terminates by` witness's subjects bind in the
 body's parameter scope, and its view names the compiler's ranking vocabulary
 by spelling, not a declaration (`Nat::Descending`, `Nat::BoundedDistance`,
 `Slice::Length`, and `Nat::IncreasingTo(limit)`, whose limit binds as a
-subject does), recorded per clause; each state parameter of a ranked machine
-records the entry parameter of its spelling it carries
-([`resolve/clauses.omg`](resolve/clauses.omg)). Another view rejects as
-unsupported.
+subject does), recorded per clause
+([`resolve/clauses.omg`](resolve/clauses.omg)). Each declaration resolves its own
+witness against its own parameters and lexical static context; no positional
+parent-rank carrier is synthesized. Declared measures retain their exact machine
+identity. Another unsupported view rejects.
 Data
 declarations, traits and named conformances share one type namespace per
 module, constants (by owner and name) and propositions their own; a later root
@@ -233,8 +238,8 @@ parameters standing for any type; two such domains reject as ambiguous. A
 path qualifier `in Owner::Name` names what a membership's path names, a case
 of data `Owner` or the domain `Name` over the type `Owner` names, and that
 domain must qualify the qualified type. Last,
-it rejects duplicate parameter names within a signature, duplicate state names
-within a machine, and a machine that repeats an earlier one of its module's
+it rejects duplicate parameter names within a signature and a machine that
+repeats an earlier declaration in the same lexical scope, with the same
 path (owner and name, a member's owner being its container), generic parameter
 kinds and parameter types, compared run by run with generic parameters by
 position (machines may otherwise overload). Distinct implementations retain
@@ -248,17 +253,23 @@ a requirement or machine, and an alias's constituents to domains, bare ones
 over the alias's own carrier. Then every name and path in a machine body or a
 constant's value binds ([`resolve/names.omg`](resolve/names.omg)) in the
 language's resolution order: an earlier `let` of the same body, the enclosing
-arm's pattern binders, the body's own parameters (a state never sees the
-entry's), then the machine's value binders (`Count: u32`, `const N: u64`), a
+arm's pattern binders, the body's own parameters, then its lexical static
+binders (never another invocation's parameters or locals), then the machine's
+value binders (`Count: u32`, `const N: u64`), a
 member's own before its container's, then a constant. A callee names a machine
-binder (`machine F`), then a fellow member of the enclosing trait or
-conformance, then a machine or a proposition (both of one spelling are
-ambiguous); a callee path `Owner::name` names the machine of
+binder (`machine F`), then declarations at the nearest visible lexical tier,
+including forward siblings and visible ancestor declarations, then a fellow
+member of the enclosing trait or conformance, then a machine or a proposition
+(both of one spelling are ambiguous); a callee path `Owner::name` names the
+machine of
 that path, so `Trait::requirement` and `Conformance::member`, or, for a
 conformance declaring no such member, the machine its reference row or its
-trait supplies for that requirement. A call-shaped transition target names a
-state of its machine before any callee, a construction or case pattern a data
-declaration or `Type::Case`, and a value path a case, an owned constant or an
+trait supplies for that requirement. Ordinary and terminal calls use the same
+exact machine lookup; qualification
+cannot expose a sibling's private descendants or export a nested helper. Static
+machine arguments use that same lexical lookup. A construction or case pattern
+names a data declaration or `Type::Case`, and a value path a case, an owned
+constant or an
 owned machine; a terminal value target binds as any value, as do a
 value-position match's subject, value patterns and values, and an unknown name
 rejects. A pattern field renamed `field as name` binds as `name`, and a waived
@@ -267,8 +278,8 @@ whose implied domain it names; `value in Carrier::Name` binds the domain the
 carrier type selects, and a bare `value in Name` the one visible domain of
 that name, in the path bindings (a case and a domain of one path, or several
 bare candidates, or several domains at once reject). These value bindings are
-indexed by expression handle. A machine's `requires` and `ensures` facts and
-a state's `requires` facts bind in their body's parameter scope, `result` in
+indexed by expression handle. Every machine's `requires` and `ensures` facts
+bind in its own parameter scope, `result` in
 an `ensures` fact naming the returned value unless a parameter spells it, and
 a data declaration's `where` facts bind its fields bare, and a case's own
 `where` facts that case's payload fields first, then the declaration's
@@ -288,7 +299,7 @@ Typing follows resolution ([`typing/typer.omg`](typing/typer.omg)) and
 records its results in [`types/types.omg`](types/types.omg): an interned
 type table, where equal types share one handle and a type's children precede
 it, and annotations indexed by syntax handles (a type per type-reference row,
-expression and pattern binder; each call's selected machine or state target
+expression and pattern binder; each call's selected machine
 and each `.field`'s declaration; each expression's adaptation and anonymous
 value). Every written type interns first, row by row
 ([`typing/references.omg`](typing/references.omg)): a builtin with its `in`
@@ -337,9 +348,12 @@ match's arms cover its subject
 `true`, they name both Booleans of a Boolean subject or every case of its
 data, or two guards compare one expression with `true` and with `false`, or
 one pair of structurally equal sides with `==` and with `!=`; any other
-ladder closes with `_`. A transition target supplies its state's parameters,
-and a terminal call or value meets the body's result (a state without its own
-`-> T` takes its machine's). An unsuffixed decimal literal is an anonymous
+ladder closes with `_`. Every call supplies its selected declaration's own
+parameters. A terminal call or value meets the current invocation's result; a
+normal call resumes its continuation. An omitted result is independently Unit.
+Every normal completion, including implicit fallthrough and explicit Unit arms,
+must meet that result; bodyless signatures make no executable completion claim.
+An unsuffixed decimal literal is an anonymous
 float: anonymous arithmetic involving one stays anonymous, and the tree lands
 once, by one rounding, at an `f32` or `f64` destination, where an anonymous
 integer may land too. Float arithmetic, negation and IEEE comparisons take
@@ -390,8 +404,8 @@ qualifications of one carrier. A domain's predicates type over its carrier,
 and a byte predicate applies to one `u8` view
 ([`typing/admission.omg`](typing/admission.omg)).
 Facts type too ([`typing/facts.omg`](typing/facts.omg)): each machine's
-`requires` and `ensures` fact and each state's `requires` fact over its
-parameters (`result` has the machine's result type), each `where machine`
+`requires` and `ensures` fact over its own parameters (`result` has the
+machine's result type), each `where machine`
 contract's `requires` fact over its own parameters, and each data
 declaration's `where` fact over its fields, and each case's own `where` fact
 over its payload fields and those fields, is a Boolean. A proposition
@@ -457,15 +471,22 @@ integer tree is that value
 everything inside it, and a machine call, below each exclusive argument,
 what its callee's write frame may change: everything when the callee may
 replace the whole referent or its writes are unknown, else the field places
-whose fields it, its callees or its states store
+whose fields it or its callees store
 ([`checking/frames.omg`](checking/frames.omg), derived before any body is
 checked). An operand evaluated before such a call keeps what it read: before
 the call forgets a place, each earlier operand and its evaluated children
 reading it move to a snapshot, a scalar to a fresh subject equal to the one it read and a
 record to a place holding the fields known of it
-([`checking/snapshots.omg`](checking/snapshots.omg)). Scalar reads through
+([`checking/snapshots.omg`](checking/snapshots.omg)). The captured scalar retains
+its admitted read type even when its storage path is a synthetic length. An
+overlapping assignment captures its completed RHS before forgetting destination
+storage, preserving old-subject equality without changing write authority.
+Scalar reads through
 references carry typing's `Read` adaptation; a reference passed as a
-reference keeps its live storage identity. An assignment follows the
+reference keeps its live storage identity. An admitted shared reborrow records
+shared access even when its existing descriptor has mutable type. Joins and
+ordinary expression roots retain that adaptation; a write-only reference cannot
+obtain read authority through an array-to-slice view. An assignment follows the
 [destination-first schedule](../../wiki/spec/language/expressions.md#evaluation-schedule):
 its target is evaluated first, proving its bounds and fixing its place with
 the selectors as they are, then its value, then the value is stored at that
@@ -480,12 +501,15 @@ Local references capture their initializer's canonical storage origin
 same origin, and replacing a mutable shared-reference binding does not
 redirect an earlier alias. Shared-reference copies retain their captured
 loans; assignment captures the replacement's loans before retiring the old
-binding's loans, preserving independent aliases and referent restrictions.
+binding's loans, preserving independent aliases and referent restrictions. Derived loans retain the lender's
+complete backing roster before their own access route, including exact places,
+exclusivity and body-owned storage; chained local reborrows cannot hide those
+backings from overlap or escape checks.
 Reference-bearing local values and their owned projections transport the
 root carrier's captured loans, and escape checks reject captured backing
 owned by the body. Projection currently retains all root loans, including
 sibling loans, because held-loan rows do not distinguish payload paths.
-Origins reset for each body and state. Returned
+Origins reset for each invocation body. Returned
 references, reference fields and selected reference values have no modeled
 origin yet; a nonempty write through one rejects `UnsupportedCheck`. A
 complete empty call frame remains allowed. Scalar reference parameters have
@@ -509,15 +533,14 @@ qualification ([`checking/matches.omg`](checking/matches.omg)). A body assumes i
 facts, and an established value's `where` facts hold of its fields
 ([`checking/domains.omg`](checking/domains.omg)), installed field by field as
 the fields become places, in every zone a join or restore may later meet. A
-state's facts are the join of what every reached jump projects onto its
-integer parameters and up to 40 field paths below its other arguments
-([`checking/arrivals.omg`](checking/arrivals.omg)): the paths its own reads,
-the states it jumps to and its callees' `requires` facts demand, with the
-fields a `where` fact names beside a demanded one
-([`checking/demand.omg`](checking/demand.omg)), gathered to a
-fixed point and widened when a join keeps loosening around a cycle; a state
-no jump reaches arrives with its parameters' carrier ranges and its own
-`requires` facts alone. Every body is then walked once more: an
+private declaration's incoming facts are the join of every reached invocation's
+exact actuals projected onto its parameters and up to 40 demanded field paths
+([`checking/arrivals.omg`](checking/arrivals.omg)). Its reads and downstream
+requirements determine those paths
+([`checking/demand.omg`](checking/demand.omg)); joins settle to a fixed point,
+widening where needed. Unreached declarations start with their admitted parameter
+types and own requirements. Lexical ancestry supplies no runtime facts.
+Every body is then walked once more: an
 index lies in `0..len`, a range slice's start is at most its exclusive end
 and that end at most the length (an inclusive end is a valid index, not
 negative), an Exact (unqualified) operation's result fits its
@@ -547,22 +570,31 @@ or a satisfier with `requires` facts, rejects as unsupported rather than
 passing unrefined; each static machine argument must publish only crash
 causes its binder's contract declares, and one with `requires` facts of its
 own rejects as unsupported ([`checking/supply.omg`](checking/supply.omg)).
-Termination ([`checking/termination.omg`](checking/termination.omg)): the
-fact-gathering walks record each body's local control graph (the entry and
-its states, a jump or self call an edge), closed into reachability before
-the checking walk. A `terminates by` witness strictly descends on every
-cyclic edge: one unsigned integer subject as a natural, one slice by its
-length (a range slice's from its endpoints), two subjects by their bounded
-distance and `Nat::IncreasingTo` up to its limit, each subject read in the
-source as the state formal of its name and after the edge as the argument
-its target formal receives. A bare `terminates;`, or a satisfied
-requirement's, promises termination: its body's cycles need a witness, and
-once crash routes settle termination settles over the call graph as a
-least fixed point (a bodyless machine as it promises, a body once acyclic
-or ranked, calling no machine binder and only terminating machines besides
-itself), so a promising body reaching a non-terminating callee or a call
-cycle rejects; a witness on a bodyless declaration ranks nothing and
-rejects. A whole membership fact `value in Domain` decides as the domain's
+Invocation topology ([`checking/invocations.omg`](checking/invocations.omg))
+records every selected call by exact declaration owner, expression and concrete
+machine or opaque binder. Sparse forward/reverse edges form one sealed global
+SCC graph; missing observations fail closed. Completion inference
+([`checking/completions.omg`](checking/completions.omg)) walks independent own
+entries in callee-before-caller order and joins all feasible normal returns.
+Intra-component calls use declared cuts, never an uncompleted recursive summary.
+Completed scalar intervals carry no callee storage identity; authored
+postconditions are checked separately.
+
+Termination ([`checking/ranking.omg`](checking/ranking.omg), with the shared
+witness operations in [`checking/termination.omg`](checking/termination.omg))
+compares a source invocation's immutable entry rank with the selected callee's
+rank under the already evaluated exact actuals. Natural, slice-length,
+increasing and distance views, declared scalar measures and full lexicographic
+component rosters share that query. Pending admitted data-domain facts settle
+before proving naturalness and ranges; entry endpoints stay pinned to their
+captured identities. Every feasible visit to an internal SCC edge must be
+non-increasing, and removing strict edges must leave an acyclic residual graph.
+A repeated preserving visit cannot inherit another visit's strictness. Own
+initial and backedge input/range obligations remain independent, and declaration
+order grants no proof permission. Bare termination promises still require their
+actual bodies and downstream calls to terminate.
+
+A whole membership fact `value in Domain` decides as the domain's
 predicates of the value, proved unless the value carries the
 qualification; a case membership that must hold rejects as unsupported,
 and a membership inside a larger fact is an unknown Boolean. A domain's
@@ -602,7 +634,7 @@ containing it rejects; a by-value use of an affine or linear place moves
 it, and one reached through a reference or bound from a borrowed subject
 rejects as a move out of a loan. Assigning a moved place re-establishes
 it, and overwriting a live linear place rejects. Every exit must have moved
-each owed linear place whole (a jump's arguments move into its state), and
+each owed linear place whole (terminal arguments move into the selected invocation), and
 a linear value discarded, or moved on only some paths of an `&&`/`||` or a
 match, rejects. A transition's and a match's arms are separate paths, and a
 match's join holds what any arm moved. A call holds each place an argument
@@ -663,7 +695,8 @@ and span and each machine's declared and derived crash causes, exits 247 with
 an observation when checking rejects, and exits without one when an earlier
 phase rejects. Each case pins one judgment with an accepted program and its
 invalid twin. It requires the whole psi package to reach a checking verdict
-and prints every rejection there; the package checks with none.
+and prints every rejection there. Reaching checking is distinct from the
+whole product proving every existing body; this gate allows a checking refusal.
 
 [`tests/psi/resolver/test-resolver.sh`](../../tests/psi/resolver/test-resolver.sh)
 does the same for name resolution. Its input is a source set framed like
@@ -676,15 +709,16 @@ and value binding. Lexical or parse rejection exits without an observation. Capa
 edges one unit's 65,536 tokens cannot reach (expressions, parameters, type
 references and call arguments) run here as multi-unit source sets.
 
-On macOS ARM64 the three gates build their harnesses natively from a fresh
-CLI: all 456 parser cases, all 229 resolver cases and all 61 typing cases
-pass. Each gate counts each distinct source it runs as one case. No cached
-executable may stand in for that run. Linux and Windows hosts have run none of
-them.
+The gates execute native Omega-written artifacts and retain their source and
+producer identities, target, optimized comparator profile and exact oracles.
+Focused iteration may reuse a verified immutable artifact when its exercised
+implementation closure is unchanged; runtime input and harness changes retain
+separate captures. Record actual case counts and engine observations in the
+qualification evidence. Other-host execution is a separate observation.
 
 The lexer keeps its one canonical `Token` stream of semantic tokens
 (whitespace and comments separate tokens but are not stored); the parser
-observes it through a shared borrow forwarded along its state edges. There is
+observes it through a shared borrow forwarded through explicit terminal calls. There is
 no `TokenObservation`, numeric token array, per-token handoff, raw parser
 ordinal, or scalar tag/span cache. Structural parser serialization lives only
 in the gate-owned Omega harness; the exact product entrypoint retains phase

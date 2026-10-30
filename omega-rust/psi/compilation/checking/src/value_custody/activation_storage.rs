@@ -244,47 +244,13 @@ fn valid_header<'a>(
     machine: &'a Machine,
     operation: ActivationStorageOperation,
 ) -> Option<&'a typed_trees::state::State> {
-    // Specialization clones are executable implementation details and are
-    // deliberately private. Visibility belongs to the authenticated authored
-    // template, while the rest of this signature belongs to the selected body.
-    let declaration = program
-        .machine_specialization(machine.symbol)
-        .map_or(machine.symbol, |application| application.template);
-    let public_declaration = program
-        .machines()
-        .iter()
-        .find(|candidate| candidate.symbol == declaration)
-        .is_some_and(|candidate| candidate.is_public);
-    if !public_declaration
-        || machine.body_is_present
-        || machine.supply_mode != MachineSupplyMode::Boundary
-        || !machine.lifetime_parameters.is_empty()
-        || machine.spelling.is_some()
-        || !program.machine_trait_conformances(machine).is_empty()
-        || !machine.contracts.is_empty()
-        || machine.suspends
-        || machine.blocks
-        || !machine.conformance_bounds.is_empty()
-        || !machine.invokes.is_empty()
-        || machine.target.is_some()
-        || machine.authored_target.is_some()
-        || machine.target_family_interface
-        || machine.purpose != typed_trees::machine::MachinePurpose::Runtime
-        || !machine.owned_data.is_empty()
-        || machine.service_reach_is_installation_bound
-    {
-        return None;
-    }
-    let [state] = program.machine_states(machine) else {
-        return None;
-    };
+    let state = common_boundary_state(program, machine)?;
     let [parameter] = program.state_parameters(state) else {
         return None;
     };
     if parameter.is_const
         || (parameter.is_mutable && operation != ActivationStorageOperation::BorrowBytes)
         || parameter.relevance.is_erased()
-        || !state.contracts.is_empty()
     {
         return None;
     }
@@ -439,6 +405,9 @@ fn split_merge_contract(
     })
 }
 
+/// Specialization clones are executable implementation details and are
+/// deliberately private. Visibility belongs to the authenticated authored
+/// template, while the rest of this signature belongs to the selected body.
 fn common_boundary_state<'a>(
     program: &'a dyn crate::CheckingInput,
     machine: &'a Machine,
@@ -462,9 +431,6 @@ fn common_boundary_state<'a>(
         || machine.blocks
         || !machine.conformance_bounds.is_empty()
         || !machine.invokes.is_empty()
-        || machine.target.is_some()
-        || machine.authored_target.is_some()
-        || machine.target_family_interface
         || machine.purpose != typed_trees::machine::MachinePurpose::Runtime
         || !machine.owned_data.is_empty()
         || machine.service_reach_is_installation_bound

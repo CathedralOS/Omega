@@ -447,22 +447,6 @@ fn prepare_invocations(
     Ok(invocations)
 }
 
-fn prepared_occurrence(
-    invocations: &[PreparedInvocation],
-    site: super::super::CallSite,
-    owner: SymbolHandle,
-) -> Result<&InvocationTuple, Vec<Diagnostic>> {
-    invocations
-        .iter()
-        .find(|invocation| invocation.site == site && invocation.owner == owner)
-        .map(|invocation| &invocation.tuple)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "requirement call lost its prepared invocation",
-            )]
-        })
-}
-
 /// Static calls instantiate their own complete invocation tuples. These rows
 /// are public contract applications, never a finite dynamic-dispatch roster.
 pub(super) fn invocation_tuples<'p>(

@@ -1540,7 +1540,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     if outcomes.len() > 1
                         && outcomes
                             .iter()
-                            .all(|outcome| outcome.has_no_new_effects_or_guarantees_since(&judge))
+                            .all(|outcome| outcome.has_no_new_effects_or_guarantees_since(judge))
                     {
                         let judge_refs: Vec<_> = outcomes.iter().collect();
                         let rejoined = judge.rejoin_pure_outcomes(&judge_refs, Some(*expression));
@@ -1864,10 +1864,14 @@ fn recognize_structural_state_leaves_from<'a>(
                             taken
                         }
                     };
-                    if let Some(StructuralTerm::Variable(raw_name)) = &raw_subject {
-                        let (_, binding) = branch_environment
+                    // A symbolic proposition need not name a runtime local.
+                    // The taken judge already retains its observed truth;
+                    // update a value binding only when this frame owns one.
+                    if let Some(StructuralTerm::Variable(raw_name)) = &raw_subject
+                        && let Some((_, binding)) = branch_environment
                             .iter_mut()
-                            .find(|(name, _)| name == raw_name)?;
+                            .find(|(name, _)| name == raw_name)
+                    {
                         *binding = constructor.clone();
                     }
                     selected_paths.push((
@@ -2049,6 +2053,9 @@ fn recognize_structural_state_leaves_from<'a>(
                     if requirement.is_some() && matches!(target, TransitionTargetNode::Value(_)) {
                         continue;
                     }
+                    let mut branch_judge =
+                        structural_arm_judge(program, judge, &branch_hypotheses, &branch_equations);
+                    let judge = &mut branch_judge;
                     let completions = judge.terminal_completion_paths(
                         target,
                         &branch_environment,

@@ -36,8 +36,12 @@ The crate-internal `produce_products` operation starts from checked source and
 selected target inputs, producing Terminal when required and then the requested
 outputs. It is not a second public entrypoint for compiling an existing Terminal
 artifact. That source-free operation is
-[`native_production::compile`](../native-production/src/compiler.rs),
-which takes a retained Terminal artifact and explicit realization inputs.
+[`native_production::prepare`](../native-production/src/preparation.rs), followed
+by canonical scalar completion and
+[`native_production::compile`](../native-production/src/compiler.rs). Preparation
+retains the Terminal artifact and explicit realization inputs; compilation consumes
+that same prepared work after its scalar demands have been completed. The native
+compiler does not call an interpreter or reopen source.
 `cargo run -p compiler --example terminal_sharing` exercises two native targets
 through this route and checks actual production counts and shared backing
 storage. It does not execute a foreign-host image.
@@ -47,11 +51,25 @@ tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg
 windows_x86_64 linux_arm64 macos_arm64`: the missing entry rejects without
 discarding either successful sibling.
 
+Product constants and declaration conditions now travel in the shared Terminal
+artifact rather than closing a checked-tree copy for each target. Scalar completion
+retains exact provider/target inputs and evaluation charges. `--check` publishes
+rootless declarations when scalar obligations require completion, and otherwise
+stops before Terminal production. `--compare-single-targets --run` additionally
+compares shared-product bytes with independent compilation and executes the host
+image and reloaded Terminal artifact. Build-helper production in
+[package compilation](src/checked/package_compilation.rs) publishes the same
+checked source without private constant replay. The waiting Build activation
+owns exact slot admission, canonical scalar completion and component installation
+in [provider installation](../build-evaluation/src/terminal_execution/provider_installation.rs).
+Its live account pays the evaluation, and installed components retain completed
+scalar inputs for the rest of that invocation.
+
 The coordinator retains an ordered roster of completed outputs, errors and
 pending Terminal work. It borrows only the pending work for shared production,
 then finishes each application in that same order; no indexed output holes or
 parallel pending/result tables are reconstructed. [Product execution](src/product_execution.rs)
-owns one application's stop, permission admission, installation and output.
+owns one application's stop, permission admission, artifact completion and output.
 [Product report planning](../products/src/checked_compilation/report.rs) owns
 the requested output together with native production inputs, and settles the
 optimization rollback once. The same choices feed Terminal, native production
@@ -107,6 +125,13 @@ continuation. Component destinations travel with their checked products. These
 batches restore authored ordering before returning, without parallel metadata
 arrays or indexed empty result slots. Component publication borrows ready work
 for shared Terminal production and retains refusals in the same ordered roster.
+Each admitted application prepares its target-provider candidate declarations
+before Terminal production. The emitted artifact then supplies demand to the
+ordinary whole-provider selector and canonical roster join, without reopening
+typed source. Unused alternatives remain unselected, family completeness stays
+checked against the selected roster, and sibling-target failures remain proposal
+rows. Equal Terminal storage does not substitute another application's Build
+defaults, overrides or assumed bindings.
 This is work partitioning within the submitted batch, not a historical cache.
 Opaque pending evaluation authorities must be the same retained authority;
 matching paths or settings alone never establish interchangeable continuations.
@@ -164,10 +189,17 @@ permissions with the exact root Product consent before native production,
 using the independent package-evidence projection owner. Inspection is an
 explicit product with no native authority. Standalone inspection and corpus
 production submit the same `CompilationProduct` through `omega_build::produce_source`;
-source checking returns selected provider custody internally. Standalone and
-package products both produce Terminal before installation; there is no
-already-installed checked-to-product continuation. Check-only and artifact-only
-requests stop without Terminal production. Review descriptions borrow the same
+named inspection joins shared Terminal production and completes declaration
+conditions against that artifact, rather than producing a disposable check
+artifact first. Same-name requests share code and exact Build companions;
+different inspected roots retain distinct products. Source checking returns
+selected provider custody internally. Standalone and
+package products both complete source-side provider preparation before Terminal,
+then admit receiving permissions and complete artifact proposals. There is no
+late source installation phase or alternate checked-to-product continuation. Check-only and artifact-only
+requests stop at their requested boundary; scalar-bearing Check still produces
+its rootless declaration artifact, and artifact-only requests do not emit native
+images. Review descriptions borrow the same
 Terminal production inputs without making the producer branch on review history.
 
 Checked-only consumers supply `CheckedCompileRequest` to `omega_build::check_source`.
@@ -201,7 +233,7 @@ Scratch never publishes, and a failed compilation returns no successful set. See
 The [checked entrance](src/checked/checking.rs) shows the lifecycle:
 [evaluate Build and continue generated source](src/checked/checking/build_continuation.rs),
 [check Product and seal source custody](src/checked/checking/source_checking.rs),
-then [select and install each target](src/execution_settlement.rs).
+then [prepare each target's complete selected execution](src/execution_settlement.rs).
 The Build coordinator calls the [Psi source continuation](../../../psi/compilation/driver/src/source_compilation.rs)
 for resolution, typing and generated-source completion. It owns package admission
 and Build authority, not the resolver/typing fixed points or their paired arenas.
@@ -316,7 +348,7 @@ Package installation and update belong to the separate
 The [Terminal coordinator](src/terminal/terminal_artifact.rs) admits composition
 and exact-entry selection, then asks the Psi facade for one shared program and
 per-application entry receipts. Psi runs authored exclusion admission before
-optimization. Provider installation and native-proposal construction follow
+optimization. Native permission admission and proposal construction follow
 production; neither restarts Psi or independently verifies its fresh output.
 Callback placements stay in Omega rather than travelling through
 Psi as an opaque payload. One effective Psi optimization selection governs the
@@ -439,27 +471,42 @@ Language-only probes do not issue runtime installation authority.
 once, admits representation properties and seals source custody before target
 settlement. Targets share both the checked arenas and sealed custody.
 [Provider binding](../realization/selected-dispatch/src/provider_binding.rs)
-belongs to Omega realization. It binds callback placements and provider grants
-without preparing or rewriting Psi's checked result. Psi
+belongs to Omega realization. It binds callback placements and provider grants,
+closes selected review and accepted service roles, and constructs direct-call
+supplies without rewriting Psi's checked result. Psi
 derives candidate specializations from authored conformances independently of
-runtime provider selection. `CheckedProviderProgram` retains the resulting program
-and exact review records; the coordinator does not reconstruct them.
+runtime provider selection. `SelectedExecution` retains the resulting program,
+target custody and complete review records; the coordinator does not reconstruct
+them. Terminal production borrows this completed result, and conversion to a
+checked compilation is infallible custody assembly, not a late source phase.
+
+Native proposal construction replaces checked-adapter specialization rows with
+Terminal's complete candidate associations. It uses the same exact selecting
+owner, package, template and closed-coordinate join as target-provider publication;
+unused inherited instances remain part of that roster. Native authority review,
+callback settlement and emitted evidence consume this normalized selection.
+Private native-input records omit source-issued checked specialization rows and
+reload reconstructs them from Terminal. Source checking, review and the optional
+checked interpreter retain their own source-side facts; external applications,
+intrinsic leaves and installation reach are separate custody.
 
 Provider-dependent Product constants currently reject with an explicit
 `unimplemented:` diagnostic. Portable symbolic recipes must cross Psi before
 realization closes them; selected runtime values cannot be folded into shared
 source. Admitted Build evaluation retains its separate evaluation authority.
-Selected execution preparation belongs to Psi: one Omega authority pass joins
+Target-neutral execution plans belong to Psi: one Omega authority pass joins
 each source requirement to an exact intrinsic or checked adapter and plan
 commitment. Psi derives the Float operation and carriers or provider entry,
 then independently validates source selection, operands, arithmetic policy,
 signature, conformance, and invocation admission. The coordinator does not
 classify Float meaning or rebuild separate fact lists for these two supplies.
 
-[Execution settlement](../realization/selected-dispatch/src/execution_settlement.rs)
-produces `SelectedExecution`: accepted-service provenance and task activations.
-It retains Psi's checked
-execution plans instead of re-entering Psi to rebuild them. This is still a
+[Selected execution](../realization/selected-dispatch/src/selected_execution.rs)
+retains Psi's checked execution plans instead of re-entering Psi to rebuild them.
+Checking-only task validation stays separate from artifact-based native task
+demand. Source and role errors now precede Terminal/task errors when both exist;
+native-source refusals stay deferred, and native permission/trust admission stays
+after production. This is still a
 checked-tree realization seam; moving it out of the coordinator does not
 complete the separate task of installing providers behind Terminal Psi.
 

@@ -17,7 +17,7 @@ use terminal_interpreter::{
     TerminalStructuralInputs, TerminalStructuralValue,
 };
 
-fn produce(machine: &str) -> CanonicalTerminalArtifact {
+fn produce(machine: &str) -> std::sync::Arc<CanonicalTerminalArtifact> {
     let root = repo_root().join("tests/omega/pass/layouts/placed_view_call_custody/main.omg");
     let prepared =
         reviewed_repository_fixture_package_inputs(&root, None).expect("sealed fixture inputs");
@@ -29,11 +29,7 @@ fn produce(machine: &str) -> CanonicalTerminalArtifact {
         CompilationProduct::Inspection(machine.to_owned()),
     )
     .and_then(compiler::CompilationOutput::into_inspection)
-    .map(|produced| {
-        produced
-            .into_artifact()
-            .expect("portable inspection product")
-    })
+    .map(|produced| std::sync::Arc::clone(produced.artifact()))
     .unwrap_or_else(|error| panic!("{machine}: {error:?}"))
 }
 
@@ -160,8 +156,15 @@ fn qualify_helper(machine: &str, writes: bool) {
         terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(
             &artifact,
             target::TargetProfile::host(),
-            module.entry,
+            module.entry.expect("fixture default entry"),
             std::slice::from_ref(&establishment),
+            &terminal_psi_to_abstract_operations::NativeExecutionSelection {
+                scalar_applications: None,
+                providers: &[],
+                plans: &effects::SelectedProviderPlanFacts::default(),
+                callbacks: &[],
+                entry_call: None,
+            },
         )
         .expect("native input retains the exact placed entry establishment");
     }

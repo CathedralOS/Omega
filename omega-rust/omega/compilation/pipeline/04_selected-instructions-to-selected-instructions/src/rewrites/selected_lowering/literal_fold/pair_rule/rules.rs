@@ -541,35 +541,35 @@ impl SelectedInstructionPairRule {
         Self::BITWISE_AND_ZERO_LEFT_MATERIALIZE,
     ];
 
+    /// Shared base of the isolated zero-identity folds: `MaterializeI64`
+    /// feeding the operand-1 `Use` of a commutative bitwise or wrapping
+    /// consumer when the literal is exactly zero rewrites to a `CopyI64`
+    /// of the surviving operand-0 register at the consumer's result
+    /// register. Neither side pins or binds an operand, so the ordinary
+    /// [`Isolated`](PairMachineEffects::ISOLATED) and
+    /// [`Isolated`](PairUnitEffects::ISOLATED) surfaces apply. `consumer`
+    /// is a placeholder each concrete rule overrides.
+    const ISOLATED_ZERO_IDENTITY_COPY: Self = Self {
+        producer: MachineSemanticKind::MaterializeI64,
+        consumer: MachineSemanticKind::MaterializeI64,
+        rewritten: MachineSemanticKind::CopyI64,
+        operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
+        immediate_bound: PairImmediateBound::Exactly(0),
+        result: PairResultDisposition::ScalarRegister,
+        unit_effects: PairUnitEffects::ISOLATED,
+        machine_effects: PairMachineEffects::ISOLATED,
+    };
+
     /// Eliminate `MaterializeI64` feeding the operand-1 `Use` of
     /// `BitwiseXorI64` when the literal is exactly zero: zero is the
     /// bitwise-xor identity element — `x ^ 0` is `x` for every `x` — so
-    /// the rewrite is a `CopyI64` of the surviving operand-0 register at
-    /// the consumer's result register. Both forms are effect-isolated on
-    /// every target — the consumer's flag clobber, where one is declared,
-    /// dies with the folded form — and neither side pins or binds an
-    /// operand, so the ordinary
-    /// [`Isolated`](PairMachineEffects::ISOLATED) and
-    /// [`Isolated`](PairUnitEffects::ISOLATED) surfaces apply. The
-    /// operand-0 `Use` survives under the ordinary
-    /// [`BINARY_RIGHT_LITERAL`](PairOperandShape::BINARY_RIGHT_LITERAL)
-    /// grammar: the rewritten row binds it as its `Use` operand.
-    pub(crate) const BITWISE_XOR_ZERO_COPY: Self = {
-        let rule = Self {
-            producer: MachineSemanticKind::MaterializeI64,
-            consumer: MachineSemanticKind::BitwiseXorI64,
-            rewritten: MachineSemanticKind::CopyI64,
-            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
-            immediate_bound: PairImmediateBound::Exactly(0),
-            result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::ISOLATED,
-            machine_effects: PairMachineEffects::ISOLATED,
-        };
-        assert!(
-            matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
-            "the identity fold holds only for the literal zero"
-        );
-        rule
+    /// the rewrite is the isolated identity copy
+    /// [`ISOLATED_ZERO_IDENTITY_COPY`](Self::ISOLATED_ZERO_IDENTITY_COPY)
+    /// with the xor consumer, whose flag clobber, where one is declared,
+    /// dies with the folded form.
+    pub(crate) const BITWISE_XOR_ZERO_COPY: Self = Self {
+        consumer: MachineSemanticKind::BitwiseXorI64,
+        ..Self::ISOLATED_ZERO_IDENTITY_COPY
     };
 
     /// The left-operand identity fold: `MaterializeI64` feeding the
@@ -596,33 +596,13 @@ impl SelectedInstructionPairRule {
     /// Eliminate `MaterializeI64` feeding the operand-1 `Use` of
     /// `WrappingAddI64` when the literal is exactly zero: zero is the
     /// additive identity under modulo-2^64 wrap — `x + 0` is `x` for
-    /// every `x` — so the rewrite is a `CopyI64` of the surviving
-    /// operand-0 register at the consumer's result register. Both forms
-    /// are effect-isolated on every target — the wrapping-add consumer
-    /// binds the flag-transparent add row, so unlike the bitwise forms
-    /// there is no flag clobber to retire — and neither side pins or
-    /// binds an operand, so the ordinary
-    /// [`Isolated`](PairMachineEffects::ISOLATED) and
-    /// [`Isolated`](PairUnitEffects::ISOLATED) surfaces apply. The
-    /// operand-0 `Use` survives under the ordinary
-    /// [`BINARY_RIGHT_LITERAL`](PairOperandShape::BINARY_RIGHT_LITERAL)
-    /// grammar: the rewritten row binds it as its `Use` operand.
-    pub(crate) const WRAPPING_ADD_ZERO_COPY: Self = {
-        let rule = Self {
-            producer: MachineSemanticKind::MaterializeI64,
-            consumer: MachineSemanticKind::WrappingAddI64,
-            rewritten: MachineSemanticKind::CopyI64,
-            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
-            immediate_bound: PairImmediateBound::Exactly(0),
-            result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::ISOLATED,
-            machine_effects: PairMachineEffects::ISOLATED,
-        };
-        assert!(
-            matches!(rule.immediate_bound, PairImmediateBound::Exactly(0)),
-            "the identity fold holds only for the literal zero"
-        );
-        rule
+    /// every `x` — so the rewrite is the isolated identity copy
+    /// [`ISOLATED_ZERO_IDENTITY_COPY`](Self::ISOLATED_ZERO_IDENTITY_COPY)
+    /// with the wrapping-add consumer, which binds the flag-transparent
+    /// add row and so has no flag clobber to retire.
+    pub(crate) const WRAPPING_ADD_ZERO_COPY: Self = Self {
+        consumer: MachineSemanticKind::WrappingAddI64,
+        ..Self::ISOLATED_ZERO_IDENTITY_COPY
     };
 
     /// The left-operand identity fold: `MaterializeI64` feeding the

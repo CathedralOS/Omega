@@ -149,22 +149,24 @@ impl TypedTrees {
         use crate::static_applications::StaticMachineBindingValue;
         match (kind, value) {
             (TypeParameterKind::Type, StaticMachineBindingValue::Type(actual)) => {
-                let expected = if argument.type_reference.is_valid() {
-                    Some(argument.type_reference)
-                } else {
-                    self.type_reference_table
-                        .find_named_type_reference(argument.symbol)
-                };
-                expected.is_some_and(|expected| {
-                    crate::type_identity::applied_type_identity(self, expected, source_owner, &[])
-                        .zip(crate::type_identity::applied_type_identity(
-                            self,
-                            *actual,
-                            binding_owner,
-                            &[],
-                        ))
-                        .is_some_and(|(expected, actual)| expected == actual)
-                })
+                // Source operands can retain a structural type reference or
+                // its complete static application. Both use the same scoped
+                // type grammar; looking up only the outer symbol discards
+                // nested arguments and their independently supplied regions.
+                use crate::type_identity::{IndexIdentityArgument, applied_index_identity};
+                applied_index_identity(
+                    self,
+                    IndexIdentityArgument::StaticArgument(argument),
+                    source_owner,
+                    &[],
+                )
+                .zip(applied_index_identity(
+                    self,
+                    IndexIdentityArgument::TypeArgument(*actual),
+                    binding_owner,
+                    &[],
+                ))
+                .is_some_and(|(expected, actual)| expected == actual)
             }
             (
                 TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },

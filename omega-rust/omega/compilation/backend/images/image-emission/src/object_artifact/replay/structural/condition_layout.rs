@@ -106,14 +106,16 @@ fn replay_structural_shape(
         }
         // An empty array is the canonical zero-byte value with alignment one,
         // as the lowering layout walk defines it; it needs no element layout.
-        terminal_psi::StructuralTypeShape::FixedArray { length: 0, .. } => {
-            ValueShape::integer(0, 1)
-        }
+        terminal_psi::StructuralTypeShape::FixedArray {
+            length: terminal_psi::ArrayExtent::Literal(0),
+            ..
+        } => ValueShape::integer(0, 1),
         terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
+            let length = length.literal()?;
             let element = replay_structural_shape(*element, declarations, cache, active)?;
             let stride = checked_align_up(element.byte_size, u32::from(element.alignment))?;
             let byte_size = u64::from(stride)
-                .checked_mul(*length)
+                .checked_mul(length)
                 .and_then(|size| u32::try_from(size).ok())?;
             ValueShape::integer(byte_size, element.alignment)
         }
@@ -275,8 +277,10 @@ pub(crate) fn replay_structural_projection(
             }
             terminal_psi::StructuralPathSegment::FixedIndex(index) => {
                 let declaration = declarations.get(&structural_type)?;
-                let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
-                    declaration.shape
+                let terminal_psi::StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } = declaration.shape
                 else {
                     return None;
                 };
@@ -317,8 +321,10 @@ pub(crate) fn replay_runtime_projection(
     while let Some(segment) = segments.next() {
         if let terminal_psi::StructuralPathSegment::RuntimeIndex { .. } = segment {
             let declaration = terminal_psi::find_structural_type(declarations, structural_type)?;
-            let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
-                declaration.shape
+            let terminal_psi::StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } = declaration.shape
             else {
                 return None;
             };
@@ -351,80 +357,50 @@ pub(crate) fn replay_runtime_projection(
 /// directly; prefix segments resolve through records and fixed arrays exactly
 /// as `replay_structural_projection` does.
 pub(crate) fn replay_bounded_byte_field(
-    mut structural_type: StructuralTypeId,
+    structural_type: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
     declarations: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Option<(u32, u64)> {
     let declaration_count = declarations.len();
-    let declarations = declarations
+    let by_id = declarations
         .iter()
         .map(|declaration| (declaration.id, declaration))
         .collect::<std::collections::BTreeMap<_, _>>();
-    if declarations.len() != declaration_count {
+    if by_id.len() != declaration_count {
         return None;
     }
-    let mut cache = std::collections::BTreeMap::new();
-    let mut active = std::collections::BTreeSet::new();
     let (last, prefix) = path.split_last()?;
     let terminal_psi::StructuralPathSegment::Field(identity) = last else {
         return None;
     };
-    let mut total_offset = 0_u32;
-    for segment in prefix {
-        let declaration = declarations.get(&structural_type)?;
-        let (selected_type, local_offset) = match (segment, &declaration.shape) {
-            (
-                terminal_psi::StructuralPathSegment::Field(identity),
-                terminal_psi::StructuralTypeShape::Record { fields, .. },
-            ) => {
-                let mut field_offset = 0_u32;
-                let mut selected = None;
-                for field in fields.iter().filter(|field| layout_field(field)) {
-                    let shape = replay_structural_field_shape(
-                        &field.field_type,
-                        &declarations,
-                        &mut cache,
-                        &mut active,
-                    )?;
-                    field_offset = replay_field_offset(field, shape, field_offset)?;
-                    if field.identity == *identity {
-                        let nested = field.field_type.as_structural()?;
-                        selected = Some((nested, field_offset));
-                        break;
-                    }
-                    field_offset = field_offset.checked_add(shape.byte_size)?;
-                }
-                selected?
-            }
-            (
-                terminal_psi::StructuralPathSegment::FixedIndex(index),
-                terminal_psi::StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => {
-                let shape =
-                    replay_structural_shape(*element, &declarations, &mut cache, &mut active)?;
-                let stride = checked_align_up(shape.byte_size, u32::from(shape.alignment))?;
-                let offset = u64::from(stride)
-                    .checked_mul(*index)
-                    .and_then(|offset| u32::try_from(offset).ok())?;
-                (*element, offset)
-            }
-            _ => return None,
-        };
-        total_offset = total_offset.checked_add(local_offset)?;
-        structural_type = selected_type;
+    // Only the records and fixed arrays the projection resolves have a
+    // bounded-byte prefix reading; a case selection does not.
+    if !prefix.iter().all(|segment| {
+        matches!(
+            segment,
+            terminal_psi::StructuralPathSegment::Field(_)
+                | terminal_psi::StructuralPathSegment::FixedIndex(_)
+        )
+    }) {
+        return None;
     }
-    let declaration = declarations.get(&structural_type)?;
+    let (structural_type, total_offset) = if prefix.is_empty() {
+        (structural_type, 0)
+    } else {
+        let (selected, _, prefix_offset) =
+            replay_structural_projection(structural_type, prefix, declarations)?;
+        (selected, prefix_offset)
+    };
+    let declaration = by_id.get(&structural_type)?;
     let Some(fields) = declaration.shape.record_fields() else {
         return None;
     };
+    let mut cache = std::collections::BTreeMap::new();
+    let mut active = std::collections::BTreeSet::new();
     let mut field_offset = 0_u32;
     for field in fields.iter().filter(|field| layout_field(field)) {
-        let shape = replay_structural_field_shape(
-            &field.field_type,
-            &declarations,
-            &mut cache,
-            &mut active,
-        )?;
+        let shape =
+            replay_structural_field_shape(&field.field_type, &by_id, &mut cache, &mut active)?;
         field_offset = replay_field_offset(field, shape, field_offset)?;
         if field.identity == *identity {
             let Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) =

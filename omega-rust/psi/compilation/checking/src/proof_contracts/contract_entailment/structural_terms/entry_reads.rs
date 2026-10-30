@@ -257,15 +257,25 @@ fn immutable_formal_expression(
                 indexed.collection,
                 depth + 1,
             )?;
-            let selector =
-                immutable_formal_expression(program, machine, state, indexed.index, depth + 1)?;
-            if !program
-                .primitive_type_reference(selector)?
-                .is_fixed_integer()
-                || program.arithmetic_domain_for_type_reference(selector)
-                    != numerics::arithmetic::ArithmeticDomain::Exact
-            {
-                return None;
+            // An unsuffixed literal gets its count meaning from the admitted
+            // builtin indexing operation. It has no standalone landed runtime
+            // type yet. Keep the original read/selector in the structural term;
+            // neither this identity nor the literal grants its bounds proof.
+            let contextual_count = program
+                .expression_table
+                .integer_node(indexed.index)
+                .is_some_and(|literal| literal.landing().is_none());
+            if !contextual_count {
+                let selector =
+                    immutable_formal_expression(program, machine, state, indexed.index, depth + 1)?;
+                if !program
+                    .primitive_type_reference(selector)?
+                    .is_fixed_integer()
+                    || program.arithmetic_domain_for_type_reference(selector)
+                        != numerics::arithmetic::ArithmeticDomain::Exact
+                {
+                    return None;
+                }
             }
             let collection =
                 crate::value_custody::places::unwrapped_type_reference(program, collection)?;

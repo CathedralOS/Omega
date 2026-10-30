@@ -92,6 +92,8 @@ pub(crate) struct Expansion<'a> {
     /// from the enclosing emission's one place namespace.
     next_place: &'a mut u64,
     checked: &'a CheckedTrees,
+    scalar_applications:
+        &'a crate::unit::attached_unit::scalar_applications::SourceScalarApplications,
     structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
     qualifications: &'a PreparedScalarQualifications,
     /// Authored owner of the current source state. Fused graphs retain each
@@ -136,6 +138,7 @@ impl<'a> Expansion<'a> {
 
     pub(crate) fn new(
         checked: &'a CheckedTrees,
+        scalar_applications: &'a crate::unit::attached_unit::scalar_applications::SourceScalarApplications,
         qualifications: &'a PreparedScalarQualifications,
         machine: symbols::SymbolHandle,
         base: usize,
@@ -144,6 +147,7 @@ impl<'a> Expansion<'a> {
         Self {
             next_place,
             checked,
+            scalar_applications,
             structural_types: &[],
             qualifications,
             machine,
@@ -849,16 +853,35 @@ impl<'a> Expansion<'a> {
                 active,
             )?,
             CheckedScalarComputationKind::RetainedConstant { expression } => {
-                let Some(literal) = self.checked.landed_integer_constant(expression) else {
-                    return unsupported("retained scalar constant is not closed for the target");
-                };
-                let expression = site.bindings.expression(
-                    identities,
-                    &self.checked.facts.proven_scalar_indexes,
-                    &checked_trees::CheckedScalarExpression::IntegerLiteral {
-                        literal: literal.clone(),
-                    },
-                )?;
+                let expression =
+                    if let Some(literal) = self.checked.landed_integer_constant(expression) {
+                        site.bindings.expression(
+                            identities,
+                            &self.checked.facts.proven_scalar_indexes,
+                            &checked_trees::CheckedScalarExpression::IntegerLiteral {
+                                literal: literal.clone(),
+                            },
+                        )?
+                    } else {
+                        let application = self
+                            .scalar_applications
+                            .expression_in(expression, self.machine)
+                            .ok_or(LoweringError::Unsupported(
+                                "retained scalar constant has no portable application",
+                            ))?;
+                        let scalar_type = self.scalar_applications.scalar_type(application).ok_or(
+                            LoweringError::Unsupported(
+                                "retained scalar application lost its result carrier",
+                            ),
+                        )?;
+                        LoweredDirectExpression::ScalarApplication {
+                            application,
+                            scalar_type,
+                        }
+                    };
+                if expression.value_type(input_types)? != result_type {
+                    return unsupported("retained scalar application carrier disagrees");
+                }
                 self.binding(
                     input_types,
                     input_types.len(),

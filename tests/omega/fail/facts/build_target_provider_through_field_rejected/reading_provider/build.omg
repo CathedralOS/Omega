@@ -1,11 +1,11 @@
 machine build(builder: &mut Build) {
     Build::package(builder, "reading_provider");
-    configure<true>(builder);
+    configure<true, (8u64 + 9u64)>(builder);
 }
-machine configure<const Flag: bool>(builder: &mut Build) {
-    Build::select_provider<Reading, FirstReading>(builder, windows_x86_64);
-    Build::select_provider<Reading, FirstReading>(builder, macos_x86_64);
-    Build::select_provider<Reading, FirstReading>(builder, linux_x86_64);
-    Build::select_provider<Reading, SecondReading>(builder, macos_arm64);
-    Build::select_provider<Reading, SecondReading>(builder, linux_arm64);
+machine configure<const Flag: bool, const Tag: u64>(builder: &mut Build) {
+    Build::select_provider<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, windows_x86_64);
+    Build::select_provider<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, macos_x86_64);
+    Build::select_provider<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);
+    Build::select_provider<Reading<Tag>, SecondReading<[Holder<u32>; 2], Tag>>(builder, macos_arm64);
+    Build::select_provider<Reading<Tag>, SecondReading<[Holder<u32>; 2], Tag>>(builder, linux_arm64);
 }

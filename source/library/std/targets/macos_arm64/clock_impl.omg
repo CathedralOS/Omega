@@ -21,7 +21,7 @@ data ClockPollImport { }
 
 // Each wait is one poll with no descriptors, a bounded wait of its timeout.
 // poll reads its timeout as a signed `int`, where -1 waits without bound and
-// any other negative count is invalid, so a count above `i32::MAX` waits in
+// any other negative count is invalid, so a count above `i32 maximum` waits in
 // three equal parts and the remainder; every part fits the signed range.
 
 

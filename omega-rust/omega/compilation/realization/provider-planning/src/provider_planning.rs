@@ -9,24 +9,22 @@
 //! `selected_plan_bindings.rs` carries selected facts and grants;
 //! `operator_provider_evidence.rs` plans selected operator provider
 //! evidence, `synchronous_cycles.rs` validates synchronous invocation
-//! cycles, `selection_provenance.rs` carries selection keys, provenance
-//! and slot resolution, and `independent_components.rs` joins each
-//! `Independent` selection to exactly one verified component description;
+//! cycles, and `selection_provenance.rs` projects exact source correspondence
+//! into the shared source-free `provider-selection` owner for whole-map choice
+//! and independent-component admission;
 //! `qualification_grants.rs` checks exact source requirements against grants.
 //! Intrinsic execution identities and labels are queries on
 //! `crate::IntrinsicRequirement`.
 
-pub(crate) mod direct_boundary_leaves;
-mod external_binding_rows;
+pub(crate) mod external_binding_rows;
 mod external_requirements;
-mod independent_components;
 mod installation_reach;
-pub(crate) mod native_catalogue_backing;
-mod native_plan_derivation;
 mod operator_provider_evidence;
 mod provenance_replay;
+pub(crate) mod provider_rows;
 mod qualification_grants;
 mod selected_plan_bindings;
+pub(crate) mod selection_declarations;
 mod selection_provenance;
 mod synchronous_cycles;
 
@@ -42,9 +40,9 @@ pub(crate) use provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
 };
 pub use provenance_replay::{
-    ProviderPlanDerivation, ProviderRowOrigin, ProviderSchemaDeclaration, derive_satisfies_plans,
-    exact_checked_adapter, same_semantic_name, satisfies_plan_name,
-    selected_requirement_checked_adapter,
+    ProviderPlanDerivation, ProviderSchemaDeclaration, derive_satisfies_plans,
+    exact_checked_adapter, project_checked_provider_instances, same_semantic_name,
+    satisfies_plan_name, selected_requirement_checked_adapter,
 };
 pub(crate) use selected_plan_bindings::SelectedProviderPlanBinding;
 pub use selection_provenance::{
@@ -60,7 +58,6 @@ use effects::provider_grants::AuthoredRootGrant;
 use effects::provider_grants::resolve_selected_provider_grants;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 
-use crate::provider_planning::selection_provenance::select_provider_plan_indices;
 use installation_reach::derive_selected_installation_reach_resolutions;
 
 /// Build the exact Omega-owned selection sidecar without changing checked Psi.
@@ -69,7 +66,7 @@ use installation_reach::derive_selected_installation_reach_resolutions;
 pub fn bind_selected_provider_plan_facts(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
-    candidates: &[ProviderPlan],
+    candidates: &[&ProviderPlan],
     facts: effects::SelectedProviderPlanFacts,
     provenance: &[SelectedProviderReviewProvenance],
     root_grants: &[String],
@@ -100,7 +97,7 @@ pub fn bind_selected_provider_plan_facts(
     let (installation_reach_resolutions, installation_reach_identities) =
         derive_selected_installation_reach_resolutions(typed, check_facts, &facts)?;
     let (specialized_requirement_rows, specialized_identities) =
-        provenance_replay::derive_selected_requirement_specializations(typed, check_facts, &facts)?;
+        provenance_replay::derive_leaf_requirement_specializations(typed, &facts)?;
     let (external_applications, external_identities) =
         external_requirements::derive(typed, &facts, provenance)
             .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
@@ -135,19 +132,30 @@ pub fn select_derived_provider_plans(
     defaults: &[crate::ProviderSelection],
     requested: &[crate::ProviderSelection],
 ) -> Result<Vec<SelectedProviderPlanWithProvenance>, Vec<diagnostics::Diagnostic>> {
-    let plans = derived
+    let candidates = derived
         .iter()
-        .map(|derived| derived.plan.clone())
+        .cloned()
+        .map(selection_declarations::source_candidate)
+        .collect();
+    let defaults = defaults
+        .iter()
+        .map(selection_declarations::project_source_declaration)
         .collect::<Vec<_>>();
-    select_provider_plan_indices(&plans, selected_target, defaults, requested).map(|selected| {
-        selected
-            .into_iter()
-            .map(|selected| SelectedProviderPlanWithProvenance {
-                derived: derived[selected.candidate].clone(),
-                selected_by: selected.selected_by,
-            })
-            .collect()
-    })
+    let requested = requested
+        .iter()
+        .map(selection_declarations::project_source_declaration)
+        .collect::<Vec<_>>();
+    let selected = provider_selection::choose(candidates, selected_target, &defaults, &requested)?;
+    Ok(selected
+        .into_iter()
+        .map(|selected| SelectedProviderPlanWithProvenance {
+            derived: DerivedProviderPlan {
+                plan: selected.candidate.plan,
+                provenance: selected.candidate.owner,
+            },
+            selected_by: selection_declarations::restore_provenance(selected.selected_by),
+        })
+        .collect())
 }
 
-pub(crate) use selection_provenance::validate_provider_default_declarations;
+pub use provenance_replay::ProviderRowRealization;

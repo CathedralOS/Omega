@@ -47,9 +47,9 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> Result<MachineEffectDeclaration, X86_64SelectedFormEncodingError> {
-    Ok(super::alternative_declaration(
-        constraint,
+    Ok(MachineEffectDeclaration::single(
         MachineSemanticKind::HostedExitProcessI32,
+        constraint,
         MachineMemoryEffect::NoneV1,
         MachineTrapBehavior::HostedExitReturnedV1,
         MachineBarrier::ExternalEffect,

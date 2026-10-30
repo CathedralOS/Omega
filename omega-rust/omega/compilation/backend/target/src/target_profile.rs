@@ -74,19 +74,7 @@ impl TargetProfileIdentity {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramEntrySchema {
-    /// Hosted launch hides physical image/storage arrival from source.
-    HostedApplication,
-    /// Freestanding launch exposes the image and initial-storage roots.
-    ProgramStorageApplication,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramEntryVisibleParameters {
-    None,
-    ImageAndInitialStorage,
-}
+pub use semantic_vocabulary::{ProgramEntrySchema, ProgramEntryVisibleParameters};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgramEntryCallingConvention {
@@ -248,6 +236,46 @@ pub struct ProgramEntrySlotDeclaration {
     /// when both currently select Microsoft x64.
     pub semantic_calling_convention: Option<ProgramEntryCallingConvention>,
     pub visible_parameters: ProgramEntryVisibleParameters,
+}
+
+/// The existing target-profile catalog exposes source requirements without
+/// receiving source trees or participating in source compatibility checking.
+pub struct ProgramEntrySlots;
+
+impl semantic_vocabulary::ProgramEntrySourceCatalog for ProgramEntrySlots {
+    fn source_contract(
+        &self,
+        slot: &str,
+    ) -> Result<semantic_vocabulary::ProgramEntrySourceContract, String> {
+        let (owner, name) = slot.rsplit_once("::").ok_or_else(|| {
+            format!("root slot `{slot}` is not target-qualified; expected `target::ProgramEntry`")
+        })?;
+        let profile = TargetProfile::from_root_slot_owner(owner).map_err(|_| {
+            format!("root slot `{slot}` belongs to unknown target profile `{owner}`")
+        })?;
+        let required = profile.required_root_slot(name).ok_or_else(|| {
+            format!(
+                "target profile `{}` declares no required root slot `{slot}`",
+                profile.target_name()
+            )
+        })?;
+        let slot = required.program_entry().ok_or_else(|| {
+            format!("root slot `{slot}` does not have a supported ProgramEntry signature")
+        })?;
+        Ok(slot.source_contract())
+    }
+}
+
+impl ProgramEntrySlotDeclaration {
+    pub const fn source_contract(self) -> semantic_vocabulary::ProgramEntrySourceContract {
+        semantic_vocabulary::ProgramEntrySourceContract {
+            owner: self.owner.root_slot_owner_name(),
+            slot_name: self.slot_name,
+            schema: self.schema,
+            semantic_arrival_requirement: self.semantic_arrival_requirement,
+            visible_parameters: self.visible_parameters,
+        }
+    }
 }
 
 /// One build-bound environment-to-program root required by a target profile.

@@ -773,6 +773,26 @@ impl SelectedBlocks {
             .max()
             .unwrap_or(0)
     }
+    /// `block_index`'s cached lookup and body length, provided the body is
+    /// non-empty and `register` appears among the entry's referenced register bits.
+    fn referenced_register_lookup(
+        &self,
+        block_index: usize,
+        register: VirtualRegisterId,
+    ) -> Option<(&BlockLookup, usize)> {
+        let entry = self.0.get(block_index)?;
+        let len = entry.block.instructions.len();
+        if len == 0 {
+            return None;
+        }
+        let lookup = entry.lookup();
+        let word = (register.0 as usize) >> 6;
+        lookup
+            .referenced_register_bits
+            .get(word)
+            .is_some_and(|&w| (w & (1u64 << (register.0 & 63))) != 0)
+            .then_some((lookup, len))
+    }
     /// Inclusive `(first_instruction_index, last_instruction_index)` in `block_index`'s
     /// body instructions where `register` appears as an operand, or `None` when no
     /// body instruction in `block_index` references `register`.
@@ -781,32 +801,12 @@ impl SelectedBlocks {
         block_index: usize,
         register: VirtualRegisterId,
     ) -> Option<(usize, usize)> {
-        let entry = self.0.get(block_index)?;
-        let len = entry.block.instructions.len();
-        if len == 0 {
-            return None;
+        let (lookup, len) = self.referenced_register_lookup(block_index, register)?;
+        if len < 64 {
+            return Some((0, len - 1));
         }
-        let lookup = entry.lookup();
-        let word = (register.0 as usize) >> 6;
-        if !lookup
-            .referenced_register_bits
-            .get(word)
-            .is_some_and(|&w| (w & (1u64 << (register.0 & 63))) != 0)
-        {
-            return None;
-        }
-        if len >= 64 {
-            let &(first, last) = lookup
-                .register_instruction_spans
-                .get(register.0 as usize)?;
-            if first == u32::MAX {
-                None
-            } else {
-                Some((first as usize, (last & 0x7FFF_FFFF) as usize))
-            }
-        } else {
-            Some((0, len - 1))
-        }
+        let &(first, last) = lookup.register_instruction_spans.get(register.0 as usize)?;
+        (first != u32::MAX).then(|| (first as usize, (last & 0x7FFF_FFFF) as usize))
     }
     /// First and last body instruction indices in `block_index` that reference
     /// `register`, together with whether `register` is referenced by any
@@ -816,33 +816,18 @@ impl SelectedBlocks {
         block_index: usize,
         register: VirtualRegisterId,
     ) -> Option<(usize, usize, bool)> {
-        let entry = self.0.get(block_index)?;
-        let len = entry.block.instructions.len();
-        if len == 0 {
-            return None;
+        let (lookup, len) = self.referenced_register_lookup(block_index, register)?;
+        if len < 64 {
+            return Some((0, len - 1, true));
         }
-        let lookup = entry.lookup();
-        let word = (register.0 as usize) >> 6;
-        if !lookup
-            .referenced_register_bits
-            .get(word)
-            .is_some_and(|&w| (w & (1u64 << (register.0 & 63))) != 0)
-        {
-            return None;
-        }
-        if len >= 64 {
-            let &(first, last) = lookup
-                .register_instruction_spans
-                .get(register.0 as usize)?;
-            if first == u32::MAX {
-                None
-            } else {
-                let has_interior = (last & 0x8000_0000) != 0;
-                Some((first as usize, (last & 0x7FFF_FFFF) as usize, has_interior))
-            }
-        } else {
-            Some((0, len - 1, true))
-        }
+        let &(first, last) = lookup.register_instruction_spans.get(register.0 as usize)?;
+        (first != u32::MAX).then(|| {
+            (
+                first as usize,
+                (last & 0x7FFF_FFFF) as usize,
+                (last & 0x8000_0000) != 0,
+            )
+        })
     }
     /// Replace `index`'s instructions and terminator without cloning the old
     /// `SelectedBlock` when the entry is shared, optionally retaining the first

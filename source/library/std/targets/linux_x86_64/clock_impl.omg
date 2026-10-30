@@ -21,7 +21,7 @@ data LinuxClockPoll { }
 
 // Negative poll timeouts wait indefinitely. Divide large u32 durations into
 // three signed-range parts and the remainder, preserving the full duration
-// without converting a value above i32::MAX to a negative timeout. As with
+// without converting a value above i32 maximum to a negative timeout. As with
 // the Darwin adapter, a delivered signal may interrupt an individual wait.
 
 

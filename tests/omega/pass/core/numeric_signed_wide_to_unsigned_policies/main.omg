@@ -1,7 +1,7 @@
 // Signed-to-unsigned conversion through the public numeric_conversion
 // surface for i32 and i64 sources into every unsigned target, under Exact,
 // Wrapping, Saturating and Trapping. Negative sources wrap modulo the
-// target width (i64::MIN -> u64 2^63, above i64::MAX) and saturate to 0;
+// target width (i64 minimum -> u64 2^63, above i64 maximum) and saturate to 0;
 // positive sources saturate at the target maximum. `literal_checks` passes
 // constants, `runtime_checks` reads the boundaries through a borrowed
 // record, and `named_conversion_checks` checks conversions on typed literals

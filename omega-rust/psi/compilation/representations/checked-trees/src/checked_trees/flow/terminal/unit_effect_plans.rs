@@ -53,6 +53,8 @@ pub struct CheckedUnitEffectPlans {
     /// exit cleanup. Action spans never refer to a temporary collector's arena.
     pub cleanup_control: crate::CheckedCleanupControlPlans,
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
+    /// Query subjects retain the same lexical normalization as their shapes.
+    pub layout_observations: Vec<CheckedLayoutObservation>,
     pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub boundary_machines: Vec<CheckedBoundaryMachinePlan>,
     /// The call shape of every instantiated selector-call slot.
@@ -67,6 +69,16 @@ pub struct CheckedUnitEffectPlans {
     /// lowering or entry establishment demands that body
     /// ([`Self::gap_diagnostic`]); it grants nothing and selects no fallback.
     pub gaps: Vec<CheckedUnitPlanGap>,
+}
+
+/// Exact checked source-to-structural identity join for a retained query.
+/// This records a subject, not selected geometry or a completed value.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedLayoutObservation {
+    pub owner: SymbolHandle,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    pub subject: TypeIdentityId,
+    pub measurement: language_core::data_layout_queries::DataLayoutQueryKind,
 }
 
 /// Why one checked-body machine has no executable Unit plan. `machine` never
@@ -1081,7 +1093,7 @@ pub struct CheckedUnitEffectMachinePlan {
     /// A body with no normal completion still retains its complete signature.
     pub result: super::CheckedControlResultPlan,
     /// Source-owned normal exits, selected individually by scalar control completion.
-    pub normal_exit_cleanups: arena::HandleSpan<super::CheckedNormalExitCleanupPlan>,
+    pub normal_exit_cleanups: super::CheckedNormalExitCleanups,
     /// Final ordinary scalar binding, mutually exclusive with the other completions.
     pub scalar_result: Option<CheckedUnitScalarResultBindingPlan>,
     /// Scalar control completion, mutually exclusive with either result binding.

@@ -160,6 +160,12 @@ pub(crate) fn reject_runtime_bound_static_occurrences(
         return Ok(());
     }
     let mut roots = Vec::new();
+    for &predicate in program
+        .expression_table
+        .expression_handles(cloned.declared_type_predicates)
+    {
+        collect_expression_type_roots(program, predicate, &mut roots);
+    }
     for equation in program
         .declared_type_equations
         .span_or_empty(cloned.declared_type_equations)
@@ -360,7 +366,10 @@ pub(crate) fn cloned_expression_roots(
     program: &dyn ::validation::CheckingInput,
     cloned: &typed_trees::machine::Machine,
 ) -> Vec<ExpressionHandle> {
-    let mut roots = Vec::new();
+    let mut roots = program
+        .expression_table
+        .expression_handles(cloned.declared_type_predicates)
+        .to_vec();
     for equation in program
         .declared_type_equations
         .span_or_empty(cloned.declared_type_equations)
@@ -452,7 +461,8 @@ pub(crate) fn collect_expression_type_roots(
                     collect_static_argument_type_roots(std::slice::from_ref(&query.operand), roots);
                 }
             }
-            ExpressionNode::ZeroValue(type_reference) => roots.push(*type_reference),
+            ExpressionNode::TypeExpression(type_reference)
+            | ExpressionNode::ZeroValue(type_reference) => roots.push(*type_reference),
             _ => {}
         }
     }

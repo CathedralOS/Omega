@@ -211,7 +211,7 @@ pub fn build_product_request_intrinsic(
     else {
         return Ok(None);
     };
-    request.validate_shape().map_err(str::to_owned)?;
+    request.validate_shape()?;
     // The source issuer selects an exact compiler-owned requirement. Annotation
     // alone cannot turn a user machine into an admitted recording operation.
     let owner = program

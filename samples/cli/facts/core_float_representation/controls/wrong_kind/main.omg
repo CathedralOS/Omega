@@ -1,0 +1,2 @@
+use omega::language::core::float;
+machine main() { _ = float::quiet_nan<f32>(float::NaNKind::Quiet {}, 1u32); }

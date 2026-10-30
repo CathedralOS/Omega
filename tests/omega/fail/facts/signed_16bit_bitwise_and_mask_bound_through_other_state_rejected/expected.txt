@@ -1,1 +1,1 @@
-cannot prove requires contract for call verify_masked from main: forwarded >= 40 && forwarded <= 63
+cannot prove requires contract for call verify_masked from step: forwarded >= 40 && forwarded <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

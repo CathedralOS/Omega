@@ -324,6 +324,7 @@ impl Builder<'_, '_> {
                     right.value,
                     right.domain,
                     self.operators.formation_is_decided(expression),
+                    self.operators.is_trap_free(expression),
                 )?;
                 let CheckedScalarExpression::IntegerBinary {
                     kind,
@@ -331,6 +332,7 @@ impl Builder<'_, '_> {
                     left: landed_left,
                     right: landed_right,
                     formation_decided,
+                    trap_free,
                 } = value
                 else {
                     return None;
@@ -351,6 +353,7 @@ impl Builder<'_, '_> {
                         left: Box::new(parameter(0, left_type)),
                         right: Box::new(parameter(1, right_type)),
                         formation_decided,
+                        trap_free,
                     },
                     domain,
                     [left, right],

@@ -4,17 +4,7 @@
 use crate::provider_plan::{ProviderPlan, ProviderPlanDigest};
 use diagnostics::Diagnostic;
 
-/// One executed root grant and its exact authored custody.
-///
-/// Selection strings remain transitional compiler input. The machine and span
-/// prevent package review from rediscovering authority from a spelling after
-/// the typed build program has been consumed.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AuthoredRootGrant {
-    pub selector: String,
-    pub selecting_machine: symbols::SymbolHandle,
-    pub source_span: source::SourceSpan,
-}
+pub use language_semantics::declaration_selection::AuthoredRootGrant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderGrantSelectorKind {
@@ -73,7 +63,7 @@ impl ResolvedSelectedProviderGrant {
 /// Resolve trust selectors against the complete candidate inventory and the
 /// already-selected provider closure.
 pub fn resolve_selected_provider_grants(
-    candidates: &[ProviderPlan],
+    candidates: &[&ProviderPlan],
     selected: &crate::SelectedProviderPlanFacts,
     root_grants: &[String],
 ) -> Result<Vec<ResolvedSelectedProviderGrant>, Diagnostic> {
@@ -149,7 +139,7 @@ pub fn resolve_selected_provider_grants(
         };
         let exact_candidate_matches = candidates
             .iter()
-            .filter(|candidate| *candidate == plan)
+            .filter(|candidate| **candidate == plan)
             .count();
         if exact_candidate_matches != 1 {
             return Err(Diagnostic::error(format!(
@@ -171,7 +161,7 @@ pub fn resolve_selected_provider_grants(
 /// Resolve provenance-bearing authored grants without weakening the existing
 /// exact selected-plan replay performed by [`resolve_selected_provider_grants`].
 pub fn resolve_authored_selected_provider_grants(
-    candidates: &[ProviderPlan],
+    candidates: &[&ProviderPlan],
     selected: &crate::SelectedProviderPlanFacts,
     authored_grants: &[AuthoredRootGrant],
 ) -> Result<Vec<ResolvedAuthoredSelectedProviderGrant>, Diagnostic> {

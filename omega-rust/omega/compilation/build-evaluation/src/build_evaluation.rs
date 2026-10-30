@@ -246,6 +246,7 @@ pub fn prepare_build_evaluation(
         selected_machine,
         &filesystem_scope,
         evaluation_sponsor.as_ref(),
+        execution_profile,
         artifact_only,
     )?;
     let restricted_build_requests = admitted.restricted_build_requests();

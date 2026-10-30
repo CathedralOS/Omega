@@ -32,7 +32,7 @@ pub(crate) use projection::validate_static_dependency_source;
 /// Selection is request custody, not source or package identity. Omitting the
 /// source field normalizes to the zero case, `Root`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageSelection {
+pub(crate) enum PackageSelection {
     Root,
     Named(PackageName),
 }
@@ -261,14 +261,6 @@ impl BuildDependencyProjection {
             declaration,
             dependencies,
         }
-    }
-
-    pub fn build_dependencies(&self) -> &[DependencySourceRequest] {
-        self.dependencies.requests(DependencyPurpose::Build)
-    }
-
-    pub const fn dependency_projections(&self) -> &DependencyProjections {
-        &self.dependencies
     }
 
     pub fn into_parts(self) -> (BuildDeclaration, DependencyProjections) {

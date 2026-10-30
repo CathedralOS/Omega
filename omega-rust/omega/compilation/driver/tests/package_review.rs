@@ -15,7 +15,7 @@ fn execute_build(
         .begin_package_build(request)
         .expect("admit package Build");
     let returned = invocation.execution().map(|execution| {
-        let mut host = execution.host().expect("Build host");
+        let host = execution.host().expect("Build host");
         let mut activation = host.start().expect("Build activation");
         while !activation.advance(1024).expect("Build step").returned {}
         activation.complete().expect("normal Build return")
@@ -23,6 +23,69 @@ fn execute_build(
     session
         .complete_package_build(invocation, returned)
         .expect("complete package Build")
+}
+
+#[test]
+fn review_retains_installation_reach_across_staggered_dependency_resolution() {
+    let target = "macos_arm64";
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/providers/staggered_installation_reach_exit/main.omg");
+    let prepared =
+        fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
+            .expect("installation reach fixture inputs");
+    let mut session = CompilationSession::default();
+    let build = execute_build(
+        &mut session,
+        CheckedCompileRequest {
+            package_inputs: prepared.package_inputs.clone(),
+            ..CheckedCompileRequest::new(&prepared.root_path, Some(target))
+        },
+    );
+    let checked = session
+        .check_package_build(build)
+        .expect("checked installation closure");
+    let selected = &checked.execution().selected_provider_plan_facts;
+    let reach = |provider: &str| {
+        let plan = selected
+            .plans()
+            .iter()
+            .find(|plan| plan.provider_type == provider)
+            .expect("selected named provider");
+        &selected
+            .installation_reach_resolutions()
+            .iter()
+            .find(|row| row.provider_plan_report_identity == plan.report_fingerprint())
+            .expect("selected installation row")
+            .resolved_row
+    };
+    let first = reach("BProvider");
+    let last = reach("DProvider");
+    assert_eq!(first.len(), 1);
+    assert_eq!(last.len(), 1);
+    assert_ne!(
+        first, last,
+        "different children must expose a lost contribution"
+    );
+    let mut expected = first.clone();
+    expected.extend(last.iter().cloned());
+    expected.sort();
+    expected.dedup();
+    assert_eq!(reach("CProvider"), last);
+    assert_eq!(
+        reach("AProvider"),
+        &expected,
+        "a child resolved in an earlier round remains in the union"
+    );
+    let build = execute_build(
+        &mut session,
+        CheckedCompileRequest {
+            package_inputs: prepared.package_inputs,
+            ..CheckedCompileRequest::new(&prepared.root_path, Some(target))
+        },
+    );
+    session
+        .review_package_build(build, usize::MAX)
+        .expect("exact installed reach remains reviewable");
 }
 
 #[test]

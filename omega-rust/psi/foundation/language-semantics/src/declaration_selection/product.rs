@@ -240,27 +240,27 @@ pub struct ProductDeclarationOperand {
 }
 
 impl ProductDeclarationRequest {
-    pub fn validate_shape(&self) -> Result<(), &'static str> {
+    pub fn validate_shape(&self) -> Result<(), String> {
         if !self
             .operation
             .product_operand_count_valid(self.operands.len())
         {
-            return Err("Build product request has the wrong declaration operand count");
+            return Err("Build product request has the wrong declaration operand count".into());
         }
         if self.source_span.span.start >= self.source_span.span.end {
-            return Err("Build product request has no authored occurrence");
+            return Err("Build product request has no authored occurrence".into());
         }
         for (position, operand) in self.operands.iter().enumerate() {
             if operand.path.is_empty()
                 || operand.source_span.span.start >= operand.source_span.span.end
             {
-                return Err("Build product operand has no authored declaration locator");
+                return Err("Build product operand has no authored declaration locator".into());
             }
             if self.operation.product_operand_role(position)
                 == Some(ProductOperandRole::WireCompatibilityFact)
             {
                 let fact = crate::wire::WireCompatibilityFact::from_name(&operand.path)
-                    .ok_or("Build wire demand names an unknown compatibility fact")?;
+                    .ok_or_else(|| format!("unknown wire compatibility fact `{}`", operand.path))?;
                 if self.operands[..position]
                     .iter()
                     .enumerate()
@@ -271,7 +271,10 @@ impl ProductDeclarationRequest {
                                 == Some(fact)
                     })
                 {
-                    return Err("Build wire demand repeats a compatibility fact");
+                    return Err(format!(
+                        "wire compatibility fact `{}` is requested twice",
+                        operand.path
+                    ));
                 }
             }
         }
@@ -302,6 +305,10 @@ pub enum ExecutedBuildSelection {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedProductSelection {
+    /// Actuals belong to the exact reached helper specialization, independently
+    /// of the original source recipe and its lexical author.
+    pub static_environment:
+        Option<std::sync::Arc<super::product_operands::ProductStaticEnvironment>>,
     /// Exact evaluated deployment key; only provider choices carry a target.
     pub target: Option<super::ProductTarget>,
     pub request: std::sync::Arc<ProductDeclarationRequest>,
@@ -441,5 +448,109 @@ impl ProductDeclarationOperand {
                         .iter()
                         .any(|(_, expression)| contains(expression.source_span))
             })
+    }
+}
+
+/// Stable source coordinates of one reached or declared package-owned native
+/// operation. Captured from checked Build code, never from locator arguments.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeBindingProducer {
+    pub package: semantic_vocabulary::PackageKeyIdentity,
+    pub declaration_path: String,
+    pub callable_identity: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapturedNativeDeclaration {
+    pub producer: NativeBindingProducer,
+    pub requirement_path: String,
+    pub source_occurrence_digest: [u8; 32],
+    pub resolution_stratum: source::SourceResolutionStratum,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapturedNativeIntent {
+    pub declaration: u32,
+    pub target: ProductTarget,
+    pub locator: semantic_vocabulary::NativeBindingLocator,
+}
+
+/// Source coordinates captured while checked Build bodies still exist. The
+/// completed output owner seals anonymous root scope only after Build declares
+/// its immutable package. This is inert companion data, not portable authority.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct NativeBindingFormation {
+    pub request: std::sync::Arc<ProductDeclarationRequest>,
+    pub author: source::SourceSpan,
+    pub author_package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub root_scope: bool,
+    pub declaration_path: String,
+    pub callable_identity: String,
+    pub source_occurrence_digest: [u8; 32],
+    pub resolution_stratum: source::SourceResolutionStratum,
+}
+impl NativeBindingFormation {
+    pub fn seal(
+        &self,
+        package: semantic_vocabulary::PackageKeyIdentity,
+    ) -> Result<CapturedNativeDeclaration, String> {
+        if self.author_package.is_some_and(|owner| owner != package) || !self.root_scope {
+            return Err(
+                "native output cannot substitute another checked Build package's scope".into(),
+            );
+        }
+        let [operand] = self.request.operands.as_ref() else {
+            return Err("native formation lost its requirement".into());
+        };
+        Ok(CapturedNativeDeclaration {
+            producer: NativeBindingProducer {
+                package,
+                declaration_path: self.declaration_path.clone(),
+                callable_identity: self.callable_identity.clone(),
+            },
+            requirement_path: operand.path.clone(),
+            source_occurrence_digest: self.source_occurrence_digest,
+            resolution_stratum: self.resolution_stratum,
+        })
+    }
+}
+
+#[cfg(test)]
+mod native_formation_tests {
+    use super::*;
+    #[test]
+    fn native_output_never_crosses_checked_package_scope() {
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap();
+        let other = semantic_vocabulary::PackageKeyIdentity::from_digest([8; 32]).unwrap();
+        let mut formation = NativeBindingFormation {
+            request: std::sync::Arc::new(ProductDeclarationRequest {
+                source_span: Default::default(),
+                operation: BuildOperation::NativeBinding,
+                operands: vec![ProductDeclarationOperand {
+                    application: None,
+                    path: "Raw::read".into(),
+                    source_span: Default::default(),
+                }]
+                .into_boxed_slice(),
+            }),
+            author: Default::default(),
+            author_package: Some(package),
+            root_scope: true,
+            declaration_path: "build".into(),
+            callable_identity: "build(&mut Build)".into(),
+            source_occurrence_digest: [9; 32],
+            resolution_stratum: source::SourceResolutionStratum::Base,
+        };
+        assert_eq!(formation.seal(package).unwrap().producer.package, package);
+        // Equal immutable package identity does not identify another checked
+        // instance (e.g. a Build-purpose helper) as this root's lexical scope.
+        formation.root_scope = false;
+        assert!(formation.seal(package).is_err());
+        formation.root_scope = true;
+        assert!(formation.seal(other).is_err());
+        formation.author_package = None;
+        assert!(formation.seal(package).is_ok());
+        formation.root_scope = false;
+        assert!(formation.seal(package).is_err());
     }
 }

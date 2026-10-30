@@ -70,7 +70,8 @@ mod retention;
 mod activation_storage;
 mod numeric_realization_declarations;
 pub use numeric_realization_declarations::{
-    NumericRealizationDeclarations, project_numeric_realization_declarations,
+    NumericRealizationDeclarations, PreparedNumericRealizationDeclarations,
+    project_numeric_realization_declarations,
 };
 mod task_activation;
 pub use task_activation::lower_task_activation_demands;

@@ -206,15 +206,40 @@ pub(super) fn retained_machines_with_roots(
 /// their named machine regardless of call reachability.
 fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
     let mut roots = BTreeSet::new();
+    // Evaluation entries need executable bodies. Proof-condition owners live
+    // in the independent declaration catalog and do not root executable code.
+    for application in module.scalar_applications.declarations() {
+        if let terminal_psi::ScalarApplication::Evaluate {
+            entry: terminal_psi::TargetMachineCallable::Machine(machine),
+            ..
+        } = application
+        {
+            roots.insert(*machine);
+        }
+    }
+    for observation in module.scalar_applications.conditions.observations() {
+        if let terminal_psi::ScalarRangeObservation::EntryResult { machine, .. } = observation {
+            roots.insert(*machine);
+        }
+    }
     for operation in &module.quotients.operations {
         roots.insert(operation.public_machine);
         roots.insert(operation.representative_machine);
     }
     roots.extend(module.quotients.adaptations.iter().map(|row| row.machine));
 
-    if let terminal_psi::TargetMachineCallable::Machine(entry) = module.entry {
+    if let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry {
         roots.insert(entry);
     }
+    // Published dispatch tables retain their callees without a direct call edge.
+    roots.extend(
+        module
+            .dynamic_dispatch
+            .tables
+            .iter()
+            .flat_map(|table| table.rows.iter().flatten())
+            .copied(),
+    );
     roots.extend(module.target_machine_families.iter().flat_map(|family| {
         family
             .members
@@ -324,28 +349,25 @@ fn machine_retention_roots(module: &TerminalModule) -> BTreeSet<MachineId> {
 }
 
 /// Machines a retained machine keeps alive through its surviving contents:
-/// every direct call callee, each selected-evidence use target, each nominal
+/// every ordinary invocation callee, each selected-evidence use target, each nominal
 /// cleanup machine, and each callee the closed reach application selects.
 /// Blocks already removed by the rewrite no longer carry their callees.
 fn machine_transitions(machine: &terminal_psi::TerminalMachine) -> Vec<MachineId> {
     let mut targets = Vec::new();
     for block in &machine.blocks {
+        // A no-normal invocation lives on the final edge, not in the operation
+        // list. Retention follows the same invocation inventory as contracts;
+        // whether a callee returns cannot decide whether its body must survive.
+        targets.extend(block.module_invocations().map(|call| call.inputs.callee));
         for operation in &block.operations {
-            match &operation.kind {
-                terminal_psi::OperationKind::Call { callee, .. }
-                | terminal_psi::OperationKind::CallUnit { callee, .. }
-                | terminal_psi::OperationKind::CallStructuralScalar { callee, .. } => {
-                    targets.push(*callee)
-                }
-                terminal_psi::call_structural_pair_pattern!(callee, selected_evidence, ..) => {
-                    targets.push(*callee);
-                    for evidence in selected_evidence {
-                        for evidence_use in &evidence.uses {
-                            targets.push(evidence_use.target);
-                        }
+            if let terminal_psi::call_structural_pair_pattern!(selected_evidence, ..) =
+                &operation.kind
+            {
+                for evidence in selected_evidence {
+                    for evidence_use in &evidence.uses {
+                        targets.push(evidence_use.target);
                     }
                 }
-                _ => {}
             }
         }
         targets.extend(

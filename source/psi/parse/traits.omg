@@ -405,7 +405,7 @@ crashes Trap
 {
     let token: Token = input.tokens[parser.current_index];
     parser.machine_start = token.start;
-    transition parser.output.machine_count < 2048 {
+    transition parser.output.machine_count < 10240 {
         true -> keyword(parser, input)
         _ -> reject(parser, input, ParseDiagnosticCode::MachineCapacityExceeded)
     }
@@ -476,7 +476,7 @@ crashes Trap
     }
 
     machine capacity(parser: &mut Parser, input: &TokenStream, every: bool, end: u64 in Trapping) {
-        transition parser.output.machine_count < 2048 {
+        transition parser.output.machine_count < 10240 {
             true -> retain(parser, input, every, end)
             _ -> reject(parser, input, ParseDiagnosticCode::MachineCapacityExceeded)
         }
@@ -499,8 +499,7 @@ crashes Trap
             clause_count: clause_count,
             first_statement: parser.output.statement_count as u64 in Trapping,
             statement_count: 0,
-            first_state: parser.output.state_count as u64 in Trapping,
-            state_count: 0,
+            parent: 0,
             has_body: false,
             first_expression: parser.machine_first_expression,
             expression_count: (parser.output.expression_count as u64 in Trapping) - parser.machine_first_expression,

@@ -52,6 +52,39 @@ pub(super) struct SuppliedArgument {
 }
 
 impl Lower<'_> {
+    /// Resolve a real original token in its exact declaration telescope. A
+    /// reached helper's receiving scope differs from its supplying caller.
+    pub(super) fn lexical_static_parameter(
+        &self,
+        owner: SymbolHandle,
+        name: &ProductOperandName,
+        path: &str,
+    ) -> Result<Option<SymbolHandle>, Vec<Diagnostic>> {
+        let Some(machine) = self.program.machine_declaration_for_lexical_scope(owner) else {
+            return Ok(None);
+        };
+        let (parameters, _) = self
+            .program
+            .machine_type_reference_scope(machine, |left, right| left.name == right.name);
+        let mut matching = parameters
+            .iter()
+            .filter(|parameter| {
+                parameter.name.as_str() == path
+                    && name.declaration.is_none_or(|declaration| {
+                        self.program
+                            .symbols
+                            .symbol_provenance_source_span(parameter.symbol)
+                            == Some(self.program.symbols.rejoin_product_occurrence(declaration))
+                    })
+            })
+            .map(|parameter| parameter.symbol);
+        let selected = matching.next();
+        if matching.next().is_some() {
+            return Err(self.error("designated static input has ambiguous lexical binders"));
+        }
+        Ok(selected)
+    }
+
     pub(super) fn environment_argument(
         &mut self,
         name: Handle<ProductOperandName>,
@@ -59,8 +92,29 @@ impl Lower<'_> {
         let Some(environment) = self.static_environment else {
             return Ok(None);
         };
-        let Some(parameter) = self.graph.names.get(name).declaration else {
-            return Ok(None);
+        let source_name = self.graph.names.get(name);
+        let parameter = match source_name.declaration {
+            Some(parameter) => parameter,
+            None if !std::ptr::eq(self.graph, &environment.graph) => {
+                let template = rejoin_owner(
+                    self.program,
+                    environment.template.ok_or_else(|| {
+                        self.error("static helper environment lost its original source template")
+                    })?,
+                )?;
+                let Some(parameter) =
+                    self.lexical_static_parameter(template, source_name, &source_name.text)?
+                else {
+                    return Ok(None);
+                };
+                self.program
+                    .symbols
+                    .symbol_provenance_source_span(parameter)
+                    .ok_or_else(|| {
+                        self.error("static helper binder lost its original declaration coordinate")
+                    })?
+            }
+            None => return Ok(None),
         };
         let parameter = self.program.symbols.rejoin_product_occurrence(parameter);
         let mut selected = environment

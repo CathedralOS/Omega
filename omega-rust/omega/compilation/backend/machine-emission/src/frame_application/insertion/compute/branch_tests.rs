@@ -10,7 +10,6 @@ use machine_code::{
     FunctionFragmentInternalMachineFixupState,
 };
 use optimization_core::FunctionFragmentEmissionManifestIdentity;
-use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, SelectedBlockId, SelectedInstructionId,
     SelectedInstructionProvenance,

@@ -63,7 +63,10 @@ pub(crate) use dynamic::{
 };
 pub use named_implementations::revalidate_named_implementation;
 pub(crate) use named_implementations::validate_conformances;
-pub use provider_regions::{ProviderRegionCorrespondence, provider_region_correspondence};
+pub use provider_regions::{
+    ProviderRegionCorrespondence, closed_provider_region_correspondence,
+    provider_region_correspondence,
+};
 pub(crate) use requirements::validate_trait_requirements;
 
 /// The trait `symbol` declares, or `None` for an invalid symbol or a symbol

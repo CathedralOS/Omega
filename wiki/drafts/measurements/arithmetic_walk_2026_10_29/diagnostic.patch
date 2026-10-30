@@ -1,0 +1,44 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs
+index f69326ce89e..bacdf83edee 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs
+@@ -55,0 +56 @@ impl Analysis {
++    let _profile = phase_profile::guard("05.walk.recipe");
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs
+index 5a042a7c95b..4231c630609 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs
+@@ -41,0 +42 @@ pub(super) fn analyze(
++    let _profile = phase_profile::guard("05.walk.binary");
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/call.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/call.rs
+index ba6dbd3050d..3a4f36cb2f1 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/call.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/call.rs
+@@ -30,0 +31 @@ pub(super) fn analyze(
++    let _profile = phase_profile::guard("05.walk.call");
+@@ -274,0 +276 @@ fn declared_return_range(
++    let _profile = phase_profile::guard("05.walk.call.declared");
+@@ -438,0 +441 @@ fn exact_ordinary_actual_intervals(
++    let _profile = phase_profile::guard("05.walk.call.actuals");
+@@ -509,0 +513 @@ fn inferred_return_range(
++    let _profile = phase_profile::guard("05.walk.call.inferred");
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/folded_values.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/folded_values.rs
+index 8e026726b24..4533fc4861b 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/folded_values.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/folded_values.rs
+@@ -22,0 +23 @@ pub(super) fn analyze(
++    let _profile = phase_profile::guard("05.walk.folded");
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/place.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/place.rs
+index 3f70fc2351e..3553fdc75d9 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/place.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/place.rs
+@@ -18,0 +19 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
++    let _profile = phase_profile::guard("05.walk.place");
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/scope.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/scope.rs
+index 5ac99d709de..f7a98bc6260 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/scope.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/scope.rs
+@@ -37,0 +38 @@ impl ExpressionWalk<'_> {
++    let _profile = phase_profile::guard("05.walk.declared_type");
+@@ -44,0 +46 @@ impl ExpressionWalk<'_> {
++    let _profile = phase_profile::guard("05.walk.builtin_binary");

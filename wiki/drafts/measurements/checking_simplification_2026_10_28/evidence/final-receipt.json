@@ -1,0 +1,18 @@
+{
+  "fixed_base": "7635e6e61287a9e2c67fb5a85b5debbc064a0b7d",
+  "workflow_repair": "128412f345d",
+  "files": {
+    "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values.rs": "c23fee1ec15eb46ffcbc44b1adb8fde190675853a98f58322201671dc922e900",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence/difference_graph/tests.rs": "60f10e9ae4e51795379a362b7493742983c9d4e165b58c93dd022d04b81c5fdc",
+    "tools/benchmark/benchmark.py": "7fdb44ed7364499cab5c728a1638bcf3dc6456e36e077b06d43d14fbabd1e01d",
+    "tools/tests/test_benchmark.py": "59991b24beb3fa31a4b03f1222bb78843c289870f3e095e67985b8dd24118784",
+    "wiki/drafts/measurements/checking_simplification_2026_10_28/compare.py": "4f1349a3acd9cbfa56185963edac95210a3ec18f00a0308a36f0320a119983c3",
+    "wiki/drafts/measurements/checking_simplification_2026_10_28/validate.py": "f63dab642a7031642e0822edebc3392ece2b456361c43865628128891241c4bb"
+  },
+  "final_validation_exit": 0,
+  "behavioral_observations": 60,
+  "isolated_compile_run_observations": 36,
+  "rust_tests": 5,
+  "review_tests": 6,
+  "published": false
+}

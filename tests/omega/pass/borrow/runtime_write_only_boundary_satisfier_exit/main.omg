@@ -1,0 +1,45 @@
+// `&write` calls routed through declared-foreign boundary requirements are
+// admitted when every satisfier of the requirement supplies a checked Omega
+// body: the `satisfies` binding is the non-observation receipt bound to the
+// selected implementation. `Sink::write` is a boundary-trait requirement and
+// `Store::write` is a top-level `boundary requirement`; both satisfiers store
+// through write-only views and the caller reads both stored values back, so
+// the program exits 0.
+boundary trait Sink {
+    machine write(value: &write i32) reaches;
+}
+
+data NativeSink {
+}
+
+machine NativeSink::write(value: &write i32) satisfies Sink::write {
+    value = 7;
+}
+
+data Store {
+}
+
+boundary requirement Store::write(value: &write i32);
+
+data Provider {
+}
+
+machine Provider::write(value: &write i32) satisfies Store::write {
+    value = 3;
+}
+
+machine main() crashes Trap {
+    let mut slot: i32;
+    let mut other: i32;
+    Sink::write(&write slot);
+    Store::write(&write other);
+    transition slot == 7 && other == 3 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {
+    }
+    machine bad() {
+        crash Trap;
+    }
+}

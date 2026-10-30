@@ -131,6 +131,7 @@ fn collect_inputs(
                 | Binding::CheckedConformance),
             ) => {
                 push_consistent_resolution(
+                    typed,
                     resolutions,
                     AuthoredSelectionResolution {
                         occurrence,

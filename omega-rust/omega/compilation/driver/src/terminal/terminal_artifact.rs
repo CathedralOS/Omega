@@ -26,6 +26,7 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
 /// producer does not branch on the caller's installation history.
 pub(crate) struct TerminalProductionView<'a> {
     program: &'a Arc<checked_trees::CheckedTrees>,
+    external_declarations: &'a psi_compiler::PreparedNumericRealizationDeclarations,
     sources: &'a package_compilation::CheckedSourceCustody,
     build: &'a compilation_products::ComputedBuildConfig,
     provider_defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
@@ -34,31 +35,35 @@ pub(crate) struct TerminalProductionView<'a> {
     entry: Option<&'a provider_planning::program_entry::SelectedCompilerProgramEntry>,
     provenance: &'a [provider_planning::SelectedProviderReviewProvenance],
     plan_facts: &'a effects::SelectedProviderPlanFacts,
+    native_sources: &'a Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     callbacks: &'a [provider_planning::calling_policy_plans::SelectedCallbackPlacement],
     timings: &'a mut CompileTimings,
-    native_components: Option<&'a [Arc<compilation_products::IndependentComponentProduct>]>,
-    component_verdicts: &'a [Arc<component_description::VerifiedComponent>],
+    native_components:
+        Option<&'a Result<Vec<compilation_products::SelectedIndependentComponent>, String>>,
 }
 
 impl<'a> TerminalProductionView<'a> {
     pub(crate) fn selection(
         selection: &'a mut SelectedProviderCustody,
-        native_components: Option<&'a [Arc<compilation_products::IndependentComponentProduct>]>,
+        native_components: Option<
+            &'a Result<Vec<compilation_products::SelectedIndependentComponent>, String>,
+        >,
     ) -> Self {
         Self {
-            program: &selection.checked.program,
+            program: &selection.execution.program,
+            external_declarations: &selection.execution.numeric_realizations,
             sources: &selection.sources,
             build: &selection.build,
             provider_defaults: &selection.provider_defaults,
             provider_settlement: &selection.settlement,
-            selected_target_profile: selection.selected_target_profile,
-            entry: selection.selected_program_entry.as_ref(),
-            provenance: &selection.selected_provider_provenance,
-            plan_facts: &selection.checked.selected_provider_plan_facts,
-            callbacks: &selection.checked.callback_placements,
+            selected_target_profile: selection.execution.selected_target_profile,
+            entry: selection.execution.selected_program_entry.as_ref(),
+            provenance: &selection.execution.selected_provider_provenance,
+            plan_facts: &selection.execution.selected_provider_plan_facts,
+            native_sources: &selection.execution.native_provider_sources,
+            callbacks: &selection.execution.callback_placements,
             timings: &mut selection.timings,
             native_components,
-            component_verdicts: &selection.settlement.verified_independent_components,
         }
     }
 
@@ -68,6 +73,7 @@ impl<'a> TerminalProductionView<'a> {
     ) -> Self {
         Self {
             program: &checked.execution().program,
+            external_declarations: &checked.execution().numeric_realizations,
             sources: checked.sources(),
             build: checked.build(),
             provider_defaults: checked.provider_defaults(),
@@ -76,10 +82,10 @@ impl<'a> TerminalProductionView<'a> {
             entry: checked.execution().selected_program_entry.as_ref(),
             provenance: &checked.execution().selected_provider_provenance,
             plan_facts: &checked.execution().selected_provider_plan_facts,
+            native_sources: &checked.execution().native_provider_sources,
             callbacks: &checked.execution().callback_placements,
             timings,
             native_components: None,
-            component_verdicts: &checked.providers().verified_independent_components,
         }
     }
 }
@@ -87,37 +93,107 @@ impl<'a> TerminalProductionView<'a> {
 pub(crate) struct TerminalProductRequest<'a> {
     pub view: TerminalProductionView<'a>,
     pub selections: &'a OptimizationSelections,
+    pub use_kind: TerminalProductUse<'a>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TerminalProductUse<'a> {
+    Declarations,
+    Inspection(&'a str),
+    Application,
+}
+
+pub(crate) enum ProducedTerminalProduct {
+    Descriptive {
+        program: Arc<psi_compiler::PortableTerminalProgram>,
+        proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
+    },
+    Application(TerminalApplication),
+}
+
+impl ProducedTerminalProduct {
+    pub(crate) fn module(&self) -> &terminal_psi::TerminalModule {
+        match self {
+            Self::Descriptive { program, .. } => program.artifact().view().module(),
+            Self::Application(application) => application.artifact.view().module(),
+        }
+    }
+
+    pub(crate) fn into_application(self) -> Result<TerminalApplication, Vec<Diagnostic>> {
+        match self {
+            Self::Application(application) => Ok(application),
+            Self::Descriptive { .. } => Err(vec![Diagnostic::error(
+                "declaration checking produced no executable application",
+            )]),
+        }
+    }
+
+    pub(crate) fn check_conditions(
+        &self,
+        selection: &mut SelectedProviderCustody,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let (artifact, proposals) = match self {
+            Self::Descriptive { program, proposals } => (program.artifact(), proposals),
+            Self::Application(_) => {
+                return Err(vec![Diagnostic::error(
+                    "declaration checking received an executable application",
+                )]);
+            }
+        };
+        let target = selection
+            .execution
+            .selected_target_profile
+            .unwrap_or_else(target::TargetProfile::host);
+        build_evaluation::scalar_completion::complete(
+            artifact,
+            target.target_name(),
+            &[],
+            proposals,
+            &mut selection.source_completion_accounting,
+        )
+        .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])?;
+        Ok(())
+    }
 }
 
 /// Admission retains the request's entry and composition policy together.
 /// The position is only for restoring caller order after source-cohort work;
 /// it never indexes another table to recover semantic identity.
-struct AdmittedTerminalApplication<'a> {
+struct AdmittedTerminalProduct<'a> {
     position: usize,
     request: TerminalProductRequest<'a>,
     selected_machine: symbols::SymbolHandle,
-    signature_identity: [u8; 32],
+    signature_identity: Option<[u8; 32]>,
     admission_roots: Vec<symbols::SymbolHandle>,
     policy: Option<TerminalBehaviorExclusions<'a>>,
+    provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication,
 }
 
-impl<'a> AdmittedTerminalApplication<'a> {
+impl<'a> AdmittedTerminalProduct<'a> {
     fn admit(
         position: usize,
         request: TerminalProductRequest<'a>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let view = &request.view;
-        let entry = admit_terminal_production(
-            view.entry,
-            view.provenance,
-            view.native_components,
-            view.component_verdicts,
-        )?;
+        if request.use_kind != TerminalProductUse::Application {
+            let provider_publication = prepare_target_provider_publication(view);
+            return Ok(Self {
+                position,
+                request,
+                selected_machine: Default::default(),
+                signature_identity: None,
+                admission_roots: Vec::new(),
+                policy: None,
+                provider_publication,
+            });
+        }
+        let entry = admit_terminal_production(view.entry, view.provenance, view.native_components)?;
         let selected_machine = entry.machine_symbol();
         let signature_identity = entry.source_signature().identity().bytes();
         let policy = TerminalBehaviorExclusions::new(
             view.build.config.behavior_exclusions.as_slice(),
             view.plan_facts,
+            view.native_sources,
             entry.source_signature().target_slot().owner,
         );
         // Firmware starts in the selected adapter, not the semantic continuation.
@@ -128,31 +204,32 @@ impl<'a> AdmittedTerminalApplication<'a> {
             .map(|placement| placement.selected_machine)
             .chain(entry.physical_adapter())
             .collect();
+        let provider_publication = prepare_target_provider_publication(view);
         Ok(Self {
             position,
             request,
             selected_machine,
-            signature_identity,
+            signature_identity: Some(signature_identity),
             admission_roots,
             policy,
+            provider_publication,
         })
     }
 
     fn shares_production(&self, other: &Self) -> bool {
-        crate::execution_settlement::same_checked_program(
-            self.request.view.program,
-            other.request.view.program,
-        ) && self.request.view.sources == other.request.view.sources
+        self.request.use_kind == other.request.use_kind
+            && Arc::ptr_eq(self.request.view.program, other.request.view.program)
+            && self.request.view.sources == other.request.view.sources
             && self.request.selections.project_psi() == other.request.selections.project_psi()
     }
 
     fn custody(&self) -> TerminalApplicationCustody<'_> {
         TerminalApplicationCustody {
             admission_roots: &self.admission_roots,
-            entry_identity: Some(self.signature_identity),
-            entry_machine: Some(psi_compiler::TerminalMachineSelection::Symbol(
-                self.selected_machine,
-            )),
+            entry_identity: self.signature_identity,
+            entry_machine: self.selected_machine.is_valid().then_some(
+                psi_compiler::TerminalMachineSelection::Symbol(self.selected_machine),
+            ),
             admission: self
                 .policy
                 .as_ref()
@@ -166,11 +243,11 @@ impl<'a> AdmittedTerminalApplication<'a> {
 /// keeps each request with its policy; cohorts own applications, not indices.
 pub(crate) fn produce_retained_terminal_artifacts(
     requests: Vec<TerminalProductRequest<'_>>,
-) -> Vec<Result<TerminalApplication, Vec<Diagnostic>>> {
+) -> Vec<Result<ProducedTerminalProduct, Vec<Diagnostic>>> {
     let mut outcomes = Vec::with_capacity(requests.len());
-    let mut cohorts: Vec<Vec<AdmittedTerminalApplication<'_>>> = Vec::new();
+    let mut cohorts: Vec<Vec<AdmittedTerminalProduct<'_>>> = Vec::new();
     for (position, request) in requests.into_iter().enumerate() {
-        let application = match AdmittedTerminalApplication::admit(position, request) {
+        let application = match AdmittedTerminalProduct::admit(position, request) {
             Ok(application) => application,
             Err(diagnostics) => {
                 outcomes.push((position, Err(diagnostics)));
@@ -205,6 +282,36 @@ pub(crate) fn produce_retained_terminal_artifacts(
                 .timings
                 .add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
         }
+        // Descriptive consumers borrow one portable owner. Inspection also
+        // consumes its exact source-issued Build companions; checking borrows
+        // only the artifact. Neither creates an application receipt.
+        if cohort[0].request.use_kind != TerminalProductUse::Application {
+            match produced.and_then(|program| {
+                program
+                    .into_shared_portable()
+                    .map_err(|error| vec![Diagnostic::error(error.to_string())])
+            }) {
+                Err(diagnostics) => {
+                    for application in cohort {
+                        outcomes.push((application.position, Err(diagnostics.clone())));
+                    }
+                }
+                Ok(program) => {
+                    let program = Arc::new(program);
+                    for application in cohort {
+                        let outcome = Ok(ProducedTerminalProduct::Descriptive {
+                            proposals: application.provider_publication.publish(
+                                program.artifact().view(),
+                                application.request.selections.identity(),
+                            ),
+                            program: Arc::clone(&program),
+                        });
+                        outcomes.push((application.position, outcome));
+                    }
+                }
+            }
+            continue;
+        }
         match produced.and_then(|produced| {
             produced
                 .into_parts()
@@ -226,21 +333,20 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                     "terminal-artifact production retained no checked ProgramEntry receipt",
                                 )]
                             })?;
-                            Ok(TerminalApplication {
+                            Ok(ProducedTerminalProduct::Application(TerminalApplication {
                                 physical_entry_adapter: application
                                     .request
                                     .view
                                     .entry
                                     .and_then(|entry| entry.physical_adapter())
                                     .is_some(),
-                                provider_proposals: produce_target_provider_proposals(
-                                    &application.request.view,
-                                    &artifact,
-                                    application.request.selections,
+                                provider_proposals: application.provider_publication.publish(
+                                    artifact.view(),
+                                    application.request.selections.identity(),
                                 ),
                                 artifact: Arc::clone(&artifact),
                                 receipt,
-                            })
+                            }))
                         }),
                         None => Err(vec![Diagnostic::error(
                             "Terminal production lost an application outcome",
@@ -260,39 +366,33 @@ pub(crate) fn produce_retained_terminal_artifacts(
 /// Produce one nonempty source cohort. Application-specific admission borrows
 /// each member's retained policy; portable roots and optimization are shared.
 fn produce_shared_terminal(
-    cohort: &[AdmittedTerminalApplication<'_>],
+    cohort: &[AdmittedTerminalProduct<'_>],
     timings: &mut CompileTimings,
 ) -> Result<psi_compiler::ProducedTerminalProgram, Vec<Diagnostic>> {
     let first = &cohort[0];
     let view = &first.request.view;
     let checked_program = view.program;
     let typed = &checked_program.typed;
-    let context =
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
-    let mut boundary_roots = provider_planning::target_machines::provider_selection_roots(
-        context,
-        view.provider_defaults
-            .iter()
-            .flat_map(|row| &row.selections)
-            .chain(&view.build.config.provider_selections),
-    )?;
-    // Nonexecuting assumption operands retain both declarations, including
-    // intermediate links. Installation owns runtime supply and root consent.
-    for relationship in &view.build.config.assumed_bindings {
-        boundary_roots.extend([relationship.required, relationship.supplied]);
+    let boundary_roots = retained_boundary_roots(view)?;
+    if first.request.use_kind != TerminalProductUse::Application {
+        let machine = match first.request.use_kind {
+            TerminalProductUse::Inspection(name) => {
+                psi_compiler::TerminalMachineSelection::Name(name)
+            }
+            _ => psi_compiler::TerminalMachineSelection::Declarations,
+        };
+        return produce_terminal(
+            view,
+            first.request.selections,
+            machine,
+            psi_compiler::TerminalProgramRoots {
+                machines: &[],
+                boundaries: &boundary_roots,
+            },
+            &[],
+            timings,
+        );
     }
-    // Folded uses may be the last reference to these requirements. Retain their
-    // catalog custody without inventing calls.
-    boundary_roots.extend(
-        typed
-            .constant_recipe_closure
-            .receipts
-            .iter()
-            .filter(|receipt| receipt.provider_machine.is_valid())
-            .map(|receipt| receipt.requirement),
-    );
-    boundary_roots.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-    boundary_roots.dedup();
     let mut machines = view.build.config.program_roots();
     if machines.is_empty() {
         machines.push(first.selected_machine);
@@ -324,23 +424,73 @@ fn produce_shared_terminal(
         .map_or(default, |family| family.canonical);
     let applications = cohort
         .iter()
-        .map(AdmittedTerminalApplication::custody)
+        .map(AdmittedTerminalProduct::custody)
         .collect::<Vec<_>>();
-    psi_compiler::TerminalProductionRequest {
-        publication: terminal_codec::TerminalPublication::Portable,
-        checked: checked_program,
-        exact_toolchain_sources: view.sources.exact_toolchain_sources(),
-        machine: psi_compiler::TerminalMachineSelection::Symbol(default),
-        roots: psi_compiler::TerminalProgramRoots {
+    produce_terminal(
+        view,
+        first.request.selections,
+        psi_compiler::TerminalMachineSelection::Symbol(default),
+        psi_compiler::TerminalProgramRoots {
             machines: &machines,
             boundaries: &boundary_roots,
         },
-        optimization_selections: first.request.selections.project_psi().selections().clone(),
+        &applications,
+        timings,
+    )
+}
+
+fn retained_boundary_roots(
+    view: &TerminalProductionView<'_>,
+) -> Result<Vec<symbols::SymbolHandle>, Vec<Diagnostic>> {
+    let typed = &view.program.typed;
+    let context =
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+    let mut boundary_roots = provider_planning::target_machines::provider_selection_roots(
+        context,
+        view.provider_defaults
+            .iter()
+            .flat_map(|row| &row.selections)
+            .chain(&view.build.config.provider_selections),
+    )?;
+    // Nonexecuting assumption operands retain both declarations, including
+    // intermediate links. Installation owns runtime supply and root consent.
+    for relationship in &view.build.config.assumed_bindings {
+        boundary_roots.extend([relationship.required, relationship.supplied]);
+    }
+    // Folded uses may be the last reference to these requirements. Retain their
+    // catalog custody without inventing calls.
+    boundary_roots.extend(
+        typed
+            .constant_recipe_closure
+            .receipts
+            .iter()
+            .filter(|receipt| receipt.provider_machine.is_valid())
+            .map(|receipt| receipt.requirement),
+    );
+    boundary_roots.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    boundary_roots.dedup();
+    Ok(boundary_roots)
+}
+
+fn produce_terminal(
+    view: &TerminalProductionView<'_>,
+    selections: &OptimizationSelections,
+    machine: psi_compiler::TerminalMachineSelection<'_>,
+    roots: psi_compiler::TerminalProgramRoots<'_>,
+    applications: &[TerminalApplicationCustody<'_>],
+    timings: &mut CompileTimings,
+) -> Result<psi_compiler::ProducedTerminalProgram, Vec<Diagnostic>> {
+    psi_compiler::TerminalProductionRequest {
+        publication: terminal_codec::TerminalPublication::Portable,
+        checked: view.program,
+        external_declarations: Some(view.external_declarations),
+        exact_toolchain_sources: view.sources.exact_toolchain_sources(),
+        machine,
+        roots,
+        optimization_selections: selections.project_psi().selections().clone(),
     }
     .produce(
-        TerminalProductionCustody {
-            applications: &applications,
-        },
+        TerminalProductionCustody { applications },
         &mut PsiStageTimings::new(timings),
     )
     .map_err(|error| error.diagnostics())
@@ -355,47 +505,14 @@ fn admit_terminal_production<'a>(
         &'a provider_planning::program_entry::SelectedCompilerProgramEntry,
     >,
     provenance: &[provider_planning::SelectedProviderReviewProvenance],
-    native_components: Option<&[Arc<compilation_products::IndependentComponentProduct>]>,
-    verdicts: &[Arc<component_description::VerifiedComponent>],
+    native_components: Option<
+        &Result<Vec<compilation_products::SelectedIndependentComponent>, String>,
+    >,
 ) -> Result<&'a provider_planning::program_entry::SelectedCompilerProgramEntry, Vec<Diagnostic>> {
     if let Some(products) = native_components {
-        for selected in provenance {
-            let mode = selected
-                .selected_by
-                .composition_mode()
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            if mode == provider_planning::CompositionMode::Fused {
-                continue;
-            }
-            let mut candidates = verdicts
-                .iter()
-                .filter(|component| component.realizes_selected_plan(&selected.plan).is_ok());
-            let component = candidates.next().ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "independent native production has no exact verified component",
-                )]
-            })?;
-            if candidates.next().is_some() {
-                return Err(vec![Diagnostic::error(
-                    "independent native production has competing component verdicts",
-                )]);
-            }
-            let mut matching = products.iter().filter(|product| {
-                product.description().expected_subject() == component.subject()
-                    && product.retained().artifact() == component.artifact()
-                    && product
-                        .retained()
-                        .native_realization_proposal()
-                        .is_some_and(|proposal| {
-                            proposal.target_profile().target_name() == selected.plan.target
-                        })
-            });
-            if matching.next().is_none() || matching.next().is_some() {
-                return Err(vec![Diagnostic::error(
-                    "independent native production requires exactly one complete retained producing product",
-                )]);
-            }
-        }
+        products
+            .as_ref()
+            .map_err(|reason| vec![Diagnostic::error(reason.clone())])?;
     } else {
         provider_planning::verify_selected_compositions_are_realized(provenance)?;
     }
@@ -408,15 +525,13 @@ fn admit_terminal_production<'a>(
     })
 }
 
-/// Complete the Build companion against the exact emitted demand catalog while
-/// the source-producing operation still owns checked custody. This must follow
-/// Psi production: selecting against every source candidate would demand unused
-/// providers. Retain unavailable targets as refusal rows, never cohort failures.
-fn produce_target_provider_proposals(
+/// Prepare the Build companion while checked custody is available. Selection
+/// waits for the emitted demand catalog: selecting every source candidate here
+/// would demand unused providers. Preparation retains unavailable targets as
+/// deferred refusal rows, never cohort failures.
+fn prepare_target_provider_publication(
     source: &TerminalProductionView<'_>,
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    selections: &OptimizationSelections,
-) -> Vec<backend_plan::TerminalTargetProviderProposal> {
+) -> provider_planning::target_machines::PreparedTargetProviderPublication {
     let mut targets = source
         .provider_defaults
         .iter()
@@ -448,21 +563,77 @@ fn produce_target_provider_proposals(
             .target_name()
             .to_owned(),
     );
+    targets.extend(
+        checked_trees::ProofApplications::new(
+            &source.program.facts.proof_applications,
+            &source.program.facts.operational,
+        )
+        .scopes(
+            source
+                .selected_target_profile
+                .unwrap_or_else(target::TargetProfile::host)
+                .target_name(),
+        )
+        .into_iter()
+        .map(str::to_owned),
+    );
     targets.sort();
     targets.dedup();
-    provider_planning::target_machines::TargetProviderPublicationRequest {
+    let inventory = provider_planning::target_machines::TargetProviderInventoryRequest {
         context: provider_planning::ProviderPlanningContext::new(
             &source.program.typed,
             source::DependencyScope::Product,
         ),
-        artifact: artifact.view(),
-        exact_toolchain_sources: source.sources.exact_toolchain_sources(),
         defaults: source.provider_defaults,
+        settlement: source.provider_settlement,
+    };
+    let targets = targets
+        .into_iter()
+        .map(|target| {
+            let prepared = inventory.prepare(&target);
+            (target, prepared)
+        })
+        .collect::<Vec<_>>();
+    provider_planning::target_machines::TargetProviderPreparationRequest {
+        context: provider_planning::ProviderPlanningContext::new(
+            &source.program.typed,
+            source::DependencyScope::Product,
+        ),
+        exact_toolchain_sources: source.sources.exact_toolchain_sources(),
         overrides: &source.build.config.provider_selections,
         assumed_bindings: source.plan_facts.assumed_bindings(),
-        settlement: source.provider_settlement,
         targets: &targets,
-        optimization_selection: selections.identity(),
     }
-    .publish()
+    .prepare()
+}
+
+/// Check declarations through the ordinary Terminal producer without inventing
+/// an executable product entry. Only the retained conditions demand evaluation.
+pub(crate) fn check_terminal_conditions(
+    selection: &mut SelectedProviderCustody,
+) -> Result<Option<ProducedTerminalProduct>, Vec<Diagnostic>> {
+    if !selection
+        .execution
+        .program
+        .facts
+        .proof_applications
+        .has_obligations
+    {
+        return Ok(None);
+    }
+    let selections = OptimizationSelections::default();
+    let request = TerminalProductRequest {
+        view: TerminalProductionView::selection(selection, None),
+        selections: &selections,
+        use_kind: TerminalProductUse::Declarations,
+    };
+    let produced = produce_retained_terminal_artifacts(vec![request])
+        .pop()
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "declaration checking lost its production",
+            )]
+        })??;
+    produced.check_conditions(selection)?;
+    Ok(Some(produced))
 }

@@ -1,0 +1,21 @@
+// Expected rejection: below32 computes greater-than but promises less-than.
+machine threshold<T>() -> T
+requires T == u32 || T == u64
+{
+    transition T == u32 { true -> (37u32) _ -> (73u64) }
+}
+machine below32(value: u32) -> bool
+ensures result == value < threshold<u32>()
+{ value > threshold<u32>() }
+machine below64(value: u64) -> bool
+ensures result == value < threshold<u64>()
+{ value < threshold<u64>() }
+machine main() crashes Trap {
+    transition below32(36u32) && !below32(38u32)
+        && below64(72u64) && !below64(74u64) {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

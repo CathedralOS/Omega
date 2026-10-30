@@ -7,36 +7,75 @@
 //! invalid authored body. Host effects and provider dispatch are not inputs.
 
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::{
+    ExecutedProductSelection, ProductDeclarationRequest,
+};
 use representation_selections::OpaqueRepresentationSelection;
 use std::sync::Arc;
 
-mod constant_closure;
-mod layout_closure;
-pub use constant_closure::{
-    ConstantProofApplication, ConstantProofClosure, target_application_declarations,
-};
-pub use layout_closure::check_closed_layout_applications;
+mod constant_entries;
 
 pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedCheck};
 
-/// Evaluated source permissions and representation facts for this invocation.
+/// Evaluated source permissions and representation custody for this invocation.
 /// These are not provider selections or execution authority.
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
     pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
     pub catalogues: validation::source_catalogues::SourceCatalogueAdmission<'request>,
-    pub opaque_properties: &'request [validation::OpaqueDataPropertyReceipt],
-    pub opaque_representations: &'request [OpaqueRepresentationSelection],
+    pub representations: ProductRepresentationInput<'request>,
     pub asm_authority: Option<validation::AsmAuthorityAdmission>,
     pub wire_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
     pub declarations: Option<&'request dyn validation::DeclarationSelectionAuthority>,
+}
+
+/// Retained execution custody, not permission to mint semantic-copy facts.
+/// Authored and generated source may have completed since Build selected these
+/// applications; checking must reclose them against the final typed graph.
+#[derive(Default)]
+pub struct ProductRepresentationInput<'request> {
+    pub activation: Option<symbols::SymbolHandle>,
+    pub declared: &'request [Arc<ProductDeclarationRequest>],
+    pub executed: &'request [ExecutedProductSelection],
+    pub retained: &'request [OpaqueRepresentationSelection],
+}
+
+struct AdmittedRepresentations {
+    selections: Vec<OpaqueRepresentationSelection>,
+    copy_properties: Vec<validation::OpaqueDataPropertyReceipt>,
+}
+
+impl ProductRepresentationInput<'_> {
+    fn admit(
+        &self,
+        program: &typed_trees::TypedTrees,
+    ) -> Result<AdmittedRepresentations, Vec<Diagnostic>> {
+        let selections = representation_planning::rederive_opaque_representation_selections(
+            program,
+            self.activation,
+            self.declared,
+            self.executed,
+            self.retained,
+        )?;
+        let copy_properties = selections
+            .iter()
+            .filter(|selection| {
+                selection.copy_disposition()
+                    == representation_selections::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
+            })
+            .map(|selection| validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
+            .collect();
+        Ok(AdmittedRepresentations {
+            selections,
+            copy_properties,
+        })
+    }
 }
 
 /// Consume a complete typed program. Previous judgments belong to the same
 /// invocation; the first is the incremental predecessor, followed by siblings.
 pub struct CheckRequest<'request> {
     pub program: typed_trees::TypedTrees,
-    pub pending_constants: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub admission: SourceAdmission<'request>,
     pub previous: &'request [&'request RetainedCheck],
     pub retain: bool,
@@ -45,7 +84,6 @@ pub struct CheckRequest<'request> {
 /// Successful language judgment, before optional whole-product root selection.
 pub struct CheckedSource {
     pub program: Arc<checked_trees::CheckedTrees>,
-    pub constants: Option<build_time_evaluation::RetainedConstantEvaluation>,
     pub retained: Option<RetainedCheck>,
     pub reused: bool,
 }
@@ -54,7 +92,6 @@ pub struct CheckedSource {
 #[derive(Clone)]
 pub struct SelectedCheckedSource {
     pub program: Arc<checked_trees::CheckedTrees>,
-    pub constants: Option<build_time_evaluation::RetainedConstantEvaluation>,
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub retained: Option<RetainedCheck>,
@@ -66,6 +103,9 @@ impl CheckRequest<'_> {
         let _profile = phase_profile::guard("05");
         let mut program = self.program;
         validation::execution_projection::trace_generated_call_membership(&program, "source_input");
+        // A retained language judgment cannot bypass final application custody.
+        // Reclosure also derives copy properties; callers cannot supply them.
+        let representations = self.admission.representations.admit(&program)?;
         phase_profile::scope("05.a.source_completion", || {
             validation::source_completion::prepare_source_completion(
                 &mut program,
@@ -78,34 +118,18 @@ impl CheckRequest<'_> {
                 &self.admission.catalogues,
             )
         })?;
-        // Deferred evaluation retains this invocation's freshly admitted
-        // source roles as well as its authored expressions. Capture before
-        // executable preparation, but never before authority is reconstructed.
-        let mut constants = build_time_evaluation::RetainedConstantEvaluation::capture(
-            &program,
-            self.pending_constants,
-        );
-        let deferred_layout_applications = if constants.is_some() {
-            typed_trees::references::collect_program_type_occurrences(&program)
-                .into_iter()
-                .filter_map(|occurrence| program.layout_storage_arguments(occurrence.reference))
-                .filter(|storage| {
-                    program
-                        .closed_data_field_definition(storage.semantic_type)
-                        .is_some()
-                        && program
-                            .plan_laid_layout_for_type(storage.application)
-                            .is_none()
-                })
-                .map(|storage| storage.application)
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        };
+        let deferred_layout_applications = typed_trees::references::collect_program_type_occurrences(&program)
+            .into_iter()
+            .filter_map(|occurrence| program.layout_storage_arguments(occurrence.reference))
+            .filter(|storage| program.closed_data_field_definition(storage.semantic_type).is_some()
+                && program.plan_laid_layout_for_type(storage.application).is_none())
+            .map(|storage| storage.application)
+            .collect::<Vec<_>>();
+        constant_entries::retain_evaluation_entries(&mut program)?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
             .with_deferred_layout_applications(&deferred_layout_applications)
-            .with_opaque_property_receipts(self.admission.opaque_properties)
-            .with_opaque_representation_selections(self.admission.opaque_representations)
+            .with_opaque_property_receipts(&representations.copy_properties)
+            .with_opaque_representation_selections(&representations.selections)
             .with_wire_compatibility_demands(self.admission.wire_demands);
         if let Some(authority) = self.admission.asm_authority {
             preparation = preparation.with_asm_authority(authority);
@@ -113,10 +137,6 @@ impl CheckRequest<'_> {
         let checking = typed_trees_to_checked_trees::CheckingRequest::new()
             .with_declaration_authority(self.admission.declarations);
         let admission = preparation.admission();
-        if !deferred_layout_applications.is_empty() {
-            constants = constants
-                .map(|continuation| continuation.with_layout_preparation(admission.clone()));
-        }
         let matching = phase_profile::scope("05.b.retained_match", || {
             self.previous
                 .iter()
@@ -170,7 +190,6 @@ impl CheckRequest<'_> {
         };
         Ok(CheckedSource {
             program: outcome.checked,
-            constants,
             retained: outcome.retained,
             reused: outcome.took_prior,
         })
@@ -199,7 +218,6 @@ impl CheckedSource {
             typed_trees_to_checked_trees::select_checked_tree_product(self.program, roots)?;
         Ok(SelectedCheckedSource {
             program,
-            constants: self.constants,
             provider_defaults: provider_defaults.into(),
             retained: self.retained,
             selection,
@@ -235,21 +253,14 @@ impl ProductSelections {
         {
             let mut selected = prior.output.clone();
             selected.retained = checked.retained;
-            // Sharing a checked judgment does not reuse the prior invocation's
-            // deferred work or its authored evaluation storage.
-            selected.constants = checked.constants;
             return Ok(selected);
         }
         let input = checked.program.clone();
         let output = checked.select_product(roots.clone())?;
-        let mut cached = output.clone();
-        // Root selection retains its checked output, not another owner's
-        // authored forest or execution continuation.
-        cached.constants = None;
         self.entries.push(SelectedProduct {
             input,
             roots,
-            output: cached,
+            output: output.clone(),
         });
         Ok(output)
     }

@@ -31,6 +31,8 @@ mod static_members;
 mod table_copies;
 mod tree_conversion;
 
+pub use table_copies::ExpressionCopy;
+
 pub use display::{display_call_label, display_match_pattern, display_name_path};
 pub use index_authority::{
     IndexExpressionAuthority, OpenIndexNormalization, OpenIndexOperationSelection,
@@ -57,6 +59,7 @@ impl StoredAuthoredSelectionOccurrenceId {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
+    TypeExpression(crate::types::TypeReferenceHandle),
     Match(Box<MatchExpression>),
     ArrayLiteral(Arc<[Expression]>),
     Atomic(Box<AtomicExpression>),
@@ -847,8 +850,10 @@ impl ExpressionTable {
     /// Attach exact authored-selection occurrence identities to an expression.
     ///
     /// Associations are arena-backed and keyed by the expression handle. The
-    /// occurrence identity is semantic custody; source spans remain diagnostic
-    /// metadata and are never used to reconstruct this association.
+    /// occurrence identity is semantic custody; diagnostic spans alone never
+    /// reconstruct this association. A separately joined Product graph first
+    /// rejoins producer-issued coordinates through the current source ledger,
+    /// then attaches those receiving-world IDs here.
     pub fn attach_authored_selection_occurrences(
         &mut self,
         handle: ExpressionHandle,
@@ -1416,6 +1421,8 @@ impl Default for ExpressionTable {
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ExpressionNode {
+    /// Exact type operand for static predicates, never an executable value.
+    TypeExpression(crate::types::TypeReferenceHandle),
     Match(TableMatchExpression),
     /// Read the exact completed subject of an enclosing dispatch. Type
     /// dependencies do not imply reevaluating the captured source at runtime.
@@ -1558,6 +1565,9 @@ pub struct TableMemberExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallExpression {
+    /// Exact source-issued Call occurrence, independent of diagnostic spans.
+    pub authored_call_selection:
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
     pub authored_call_binding:
         Option<language_semantics::declaration_selection::ResolvedAuthoredCallBinding>,
     pub exact_coercion_target: crate::types::TypeReferenceHandle,
@@ -1573,6 +1583,9 @@ pub struct CallExpression {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableCallExpression {
     /// Original declaration correspondence certified by source resolution.
+    /// Exact source-issued Call occurrence, independent of diagnostic spans.
+    pub authored_call_selection:
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
     pub authored_call_binding:
         Option<language_semantics::declaration_selection::ResolvedAuthoredCallBinding>,
     /// Source-issued selection carried by an ordinary Build boundary call.

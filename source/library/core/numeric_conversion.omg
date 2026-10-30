@@ -57,7 +57,7 @@ requires
 
 public machine narrow_u16_to_u8_wrapping(value: u16) -> u8 {
     let bits: u64 = value as u64;
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     narrowed
 }
 
@@ -108,7 +108,7 @@ requires
 
 public machine narrow_u32_to_u8_wrapping(value: u32) -> u8 {
     let bits: u64 = value as u64;
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     narrowed
 }
 
@@ -139,7 +139,7 @@ requires
 
 public machine narrow_u32_to_u16_wrapping(value: u32) -> u16 {
     let bits: u64 = value as u64;
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     narrowed
 }
 
@@ -184,7 +184,7 @@ requires
 
 public machine narrow_u64_to_u8_wrapping(value: u64) -> u8 {
     let bits: u64 = value as u64;
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     narrowed
 }
 
@@ -215,7 +215,7 @@ requires
 
 public machine narrow_u64_to_u16_wrapping(value: u64) -> u16 {
     let bits: u64 = value as u64;
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     narrowed
 }
 
@@ -246,7 +246,7 @@ requires
 
 public machine narrow_u64_to_u32_wrapping(value: u64) -> u32 {
     let bits: u64 = value as u64;
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     narrowed
 }
 
@@ -286,7 +286,7 @@ requires
 
 public machine narrow_i16_to_i8_wrapping(value: i16) -> i8 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     numeric_conversion_signed_8(narrowed)
 }
 
@@ -333,7 +333,7 @@ requires
 
 public machine narrow_i32_to_i8_wrapping(value: i32) -> i8 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     numeric_conversion_signed_8(narrowed)
 }
 
@@ -366,7 +366,7 @@ requires
 
 public machine narrow_i32_to_i16_wrapping(value: i32) -> i16 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     numeric_conversion_signed_16(narrowed)
 }
 
@@ -409,7 +409,7 @@ requires
 
 public machine narrow_i64_to_i8_wrapping(value: i64) -> i8 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     numeric_conversion_signed_8(narrowed)
 }
 
@@ -442,7 +442,7 @@ requires
 
 public machine narrow_i64_to_i16_wrapping(value: i64) -> i16 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     numeric_conversion_signed_16(narrowed)
 }
 
@@ -475,7 +475,7 @@ requires
 
 public machine narrow_i64_to_i32_wrapping(value: i64) -> i32 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     numeric_conversion_signed_32(narrowed)
 }
 
@@ -521,7 +521,7 @@ requires
 
 public machine narrow_u8_to_i8_wrapping(value: u8) -> i8 {
     let bits: u64 = value as u64;
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     numeric_conversion_signed_8(narrowed)
 }
 
@@ -570,7 +570,7 @@ requires
 
 public machine narrow_u16_to_i8_wrapping(value: u16) -> i8 {
     let bits: u64 = value as u64;
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     numeric_conversion_signed_8(narrowed)
 }
 
@@ -601,7 +601,7 @@ requires
 
 public machine narrow_u16_to_i16_wrapping(value: u16) -> i16 {
     let bits: u64 = value as u64;
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     numeric_conversion_signed_16(narrowed)
 }
 
@@ -644,7 +644,7 @@ requires
 
 public machine narrow_u32_to_i8_wrapping(value: u32) -> i8 {
     let bits: u64 = value as u64;
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     numeric_conversion_signed_8(narrowed)
 }
 
@@ -675,7 +675,7 @@ requires
 
 public machine narrow_u32_to_i16_wrapping(value: u32) -> i16 {
     let bits: u64 = value as u64;
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     numeric_conversion_signed_16(narrowed)
 }
 
@@ -706,7 +706,7 @@ requires
 
 public machine narrow_u32_to_i32_wrapping(value: u32) -> i32 {
     let bits: u64 = value as u64;
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     numeric_conversion_signed_32(narrowed)
 }
 
@@ -743,7 +743,7 @@ requires
 
 public machine narrow_u64_to_i8_wrapping(value: u64) -> i8 {
     let bits: u64 = value as u64;
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     numeric_conversion_signed_8(narrowed)
 }
 
@@ -774,7 +774,7 @@ requires
 
 public machine narrow_u64_to_i16_wrapping(value: u64) -> i16 {
     let bits: u64 = value as u64;
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     numeric_conversion_signed_16(narrowed)
 }
 
@@ -805,7 +805,7 @@ requires
 
 public machine narrow_u64_to_i32_wrapping(value: u64) -> i32 {
     let bits: u64 = value as u64;
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     numeric_conversion_signed_32(narrowed)
 }
 
@@ -868,7 +868,7 @@ requires
 
 public machine narrow_i8_to_u8_wrapping(value: i8) -> u8 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     narrowed
 }
 
@@ -899,7 +899,7 @@ requires
 
 public machine narrow_i8_to_u16_wrapping(value: i8) -> u16 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     narrowed
 }
 
@@ -930,7 +930,7 @@ requires
 
 public machine narrow_i8_to_u32_wrapping(value: i8) -> u32 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     narrowed
 }
 
@@ -991,7 +991,7 @@ requires
 
 public machine narrow_i16_to_u8_wrapping(value: i16) -> u8 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     narrowed
 }
 
@@ -1024,7 +1024,7 @@ requires
 
 public machine narrow_i16_to_u16_wrapping(value: i16) -> u16 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     narrowed
 }
 
@@ -1055,7 +1055,7 @@ requires
 
 public machine narrow_i16_to_u32_wrapping(value: i16) -> u32 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     narrowed
 }
 
@@ -1116,7 +1116,7 @@ requires
 
 public machine narrow_i32_to_u8_wrapping(value: i32) -> u8 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     narrowed
 }
 
@@ -1149,7 +1149,7 @@ requires
 
 public machine narrow_i32_to_u16_wrapping(value: i32) -> u16 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     narrowed
 }
 
@@ -1182,7 +1182,7 @@ requires
 
 public machine narrow_i32_to_u32_wrapping(value: i32) -> u32 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     narrowed
 }
 
@@ -1243,7 +1243,7 @@ requires
 
 public machine narrow_i64_to_u8_wrapping(value: i64) -> u8 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u8 = (bits & 255) as u8;
+    let narrowed: u8 = (bits & 0xFF) as u8;
     narrowed
 }
 
@@ -1276,7 +1276,7 @@ requires
 
 public machine narrow_i64_to_u16_wrapping(value: i64) -> u16 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u16 = (bits & 65535) as u16;
+    let narrowed: u16 = (bits & 0xFFFF) as u16;
     narrowed
 }
 
@@ -1309,7 +1309,7 @@ requires
 
 public machine narrow_i64_to_u32_wrapping(value: i64) -> u32 {
     let bits: u64 = numeric_conversion_signed_bits(value as i64);
-    let narrowed: u32 = (bits & 4294967295) as u32;
+    let narrowed: u32 = (bits & 0xFFFF_FFFF) as u32;
     narrowed
 }
 

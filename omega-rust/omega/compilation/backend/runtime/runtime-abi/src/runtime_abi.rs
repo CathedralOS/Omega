@@ -23,10 +23,15 @@
 //! applying a slice operation to a dynamic value is a compile error rather than
 //! a question for a layout type.
 //!
-//! `layout` is the only consumer of this geometry, through
-//! `sizing.rs::fat_descriptor_layout`.
+//! Source-aware layout and canonical scalar layout observations consume this
+//! geometry; Psi receives only the explicit carrier description, not native ABI
+//! execution types.
 
 use target::NativeTarget;
+
+/// The conventional closed-sum discriminant used by the supported native ABIs.
+pub const CASE_TAG_BYTE_SIZE: u64 = 4;
+pub const CASE_TAG_BYTE_ALIGNMENT: u64 = 4;
 
 /// Byte size and alignment of the two-word descriptor shape
 /// `{ first word @ 0, second word @ pointer_size }`.
@@ -42,6 +47,22 @@ pub const fn fat_descriptor_layout(target: NativeTarget) -> FatDescriptorLayout 
     FatDescriptorLayout {
         byte_size: target.pointer_size.saturating_mul(2),
         alignment: target.pointer_alignment,
+    }
+}
+
+/// Supply source-visible carrier geometry without exposing native ABI types
+/// to Psi. Internal scalar-loan codec descriptors are not source references.
+pub const fn target_carrier_layout(
+    target: NativeTarget,
+) -> semantic_vocabulary::TargetCarrierLayout {
+    let descriptor = fat_descriptor_layout(target);
+    semantic_vocabulary::TargetCarrierLayout {
+        pointer_byte_size: target.pointer_size as u64,
+        pointer_byte_alignment: target.pointer_alignment as u64,
+        descriptor_byte_size: descriptor.byte_size as u64,
+        descriptor_byte_alignment: descriptor.alignment as u64,
+        case_tag_byte_size: CASE_TAG_BYTE_SIZE,
+        case_tag_byte_alignment: CASE_TAG_BYTE_ALIGNMENT,
     }
 }
 

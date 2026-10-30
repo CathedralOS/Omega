@@ -157,14 +157,14 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and private helper coordinates for
-    ranged/structural joint SCC measures without ambient parent entry facts).
+    case projections beyond independently classified inline payloads, further
+    independently captured reference loads, and declared-view or
+    dependent-distance joint SCC measures without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
     live backing accounted for.
-  - Migrate affected bundled/product Omega source, samples, and fixtures and
-    delete the retired `state` parser/declaration/dispatch paths.
-    The Omega-written parser/resolver and linked application repositories still
-    need the corresponding declaration-model migration.
+  - Complete the corresponding declaration-model migration in linked
+    application repositories.
   Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)
   for three-level nesting, ordinary helper call with continuation,
   sibling/ancestor terminal cycles, generic enclosing declaration context and
@@ -184,18 +184,17 @@ retired-syntax deletions to completion.
   customers migrate.
   - Carry field/case propositions through construction
     (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
-    nonliteral and indexed writes, reads, calls, state joins,
+    nonliteral and indexed writes, remaining record-field and owned-array
+    predicate handback with current storage versions,
+    reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
     [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md)
     and running `pass/float/named_integer_conversion_source_proofs_exit` (exit 78)
     on Linux/Windows without rebuilding `proven_predicates_grant_domain`
     (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/calls.rs`).
-  - Migrate the 16 recursive filesystem parameter suffixes with
-    **FILESYSTEM-PLATFORM-SERVICES**, and qualify remaining collection/slice
-    view and capture compositions (`samples/cli/probes/slice_view_whole/main.omg`,
-    `pass/dependent/runtime_symbolic_slice_{cell_theorem,predicate_store}_exit`,
-    and `samples/cli/facts/ieee_guard_i32_from_f64`).
+  - Qualify the applicable migrated filesystem customers' native/Terminal
+    oracles with **FILESYSTEM-PLATFORM-SERVICES**.
   Acceptance: spec/guide/compiler docs, bundled libraries, samples, `source/psi`,
   the corpus, `bootstrap/5_omega/parser.epsilon` and
   `tests/bootstrap/omega-parser` are migrated and each customer's native/Terminal
@@ -209,8 +208,8 @@ retired-syntax deletions to completion.
   [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
   and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
   - Complete fixed logical `self` parsing/resolution and retire authored domain
-    subject binders in the Omega-written Psi producer, including data-`where self`
-    resolution. Remove case-level `where` with its parallel internal predicate paths; migrate their library,
+    subject binders in the Omega-written Psi producer, including data-`requires self`
+    resolution. Remove case-local predicate clauses and their parallel internal paths; migrate their library,
     sample and fixture users in the same change. Repair nested/inherited scalar
     domain result establishment, including qualified constant destinations.
   - Carry one general predicate representation through formation, construction,
@@ -474,13 +473,17 @@ narrows realization only.
   `omega-rust/psi/compilation/driver/`,
   `omega-rust/omega/compilation/native-production/`, and workspace architecture
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
-  - Implement pre-execution dependency input assignment and shared-node conflict
-    checks at dependency activation admission without inheriting the root's
-    slots (keeping required-output path byte results refused).
+  - Admit each dependency occurrence under its exact delegated execution context
+    before effects, without inheriting root authority, combining grants or
+    reusing an inapplicable result, under
+    [execution contexts and reuse](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)
+    (keeping required-output path byte results refused).
   - Carry foreign-helper Product query fixtures through ordinary dependency discovery,
-    not only pre-admitted package contexts. The old direct-import fixture shape
-    is retired by explicit readiness; shared non-core interface admission before
-    the first Build needs the decision in [Q2](OWNER_QUESTIONS.md#q2-shared-interfaces-known-before-the-first-build-activation).
+    not only pre-admitted package contexts. Use explicit preparation and
+    [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages)
+    to admit shared non-core interfaces before their dependent continuations
+    execute; do not restore pre-known-only import checking or the retired
+    direct-import fixture shape.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
@@ -514,10 +517,10 @@ narrows realization only.
   Owners: `omega-rust/omega/compilation/driver/src/execution_settlement.rs`,
   `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/{boundary_application_settlement.rs,provider_admission/compiler_builtins.rs}`,
   and `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical/derivation/evidence.rs`.
-  - Convert the remaining install-phase joins in `execution_settlement.rs`
-    (selected dispatch, component progress, intrinsic review,
-    and deferred constant recipes for
-    arrays/const-generics) from typed/checked records to canonical Terminal Psi
+  - Convert source-side preparation in `execution_settlement.rs` and
+    `selected-dispatch/src/provider_binding.rs` (selected dispatch, component
+    progress, intrinsic review and deferred array/const-generic recipes)
+    from typed/checked records to canonical Terminal Psi
     plus target Build rows, and replace provisional completion-role nomination
     so unused external candidates do not make selected returning implementations
     fail closed.
@@ -698,8 +701,8 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   and Psi compile-time admission.
   - Connect admitted Build operations, remaining live-storage accounting,
     remaining host operations (including an admitted loan-carrier interface for
-    explicit host loan returns), and `suspend Build::await_provider<R, Backing>(builder)`
-    park/resume to the production Build scheduler, replacing checked-tree Build
+    explicit host loan returns), and the staged dependency preparation/provider
+    park/resume contract to the production Build scheduler, replacing checked-tree Build
     evaluation and static syntax projection in
     `omega-rust/omega/packages/build-declarations`.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
@@ -710,7 +713,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     `fail/build/{product_entry_*,program_entry_binding_outside_build,root_binding_foreign_helper_private_entry}`).
   - **TERMINAL-BUILD-EFFECTS / BUILD-ADMISSION-CHECKPOINT /
     BUILD-SNAPSHOT-OUTPUTS:** join restricted-build requests and lock decisions
-    before any Build effect
+    before each affected Build stage's restricted effects
     (`omega-rust/omega/packages/package-manager/src/review/restricted_build_grants.rs`),
     and stage generated sources, nested dependencies, and committed outputs with
     atomic capture/recapture isolation
@@ -776,6 +779,92 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
+- **REQUIRES-UNIFICATION.** Implement the owner-ratified
+  [unified requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses)
+  end to end and retire `where` from Omega source syntax, without a permanent
+  compatibility spelling or weaker proof obligations.
+  - Implement `requires` for data/default-domain predicates, generic predicates
+    and type equations, and structural/nominal `requires machine` contracts in
+    both Rust and Omega producers. Preserve logical `self`, binder-kind
+    inference, static/runtime distinctions, specialization and exact subjects;
+    repeated predicates conjoin only within their owning scope. Keep a nested
+    callable's complete contract and terminating semicolon distinct from its
+    enclosing declaration's requirements and guarantees, including higher-order
+    and logical-evidence requirements.
+  - Parse body-level assembly `requires`, `ensures` and `clobbers` directly
+    after `asm`, including headers without predicates. Preserve label scopes,
+    incoming-edge and exit proofs, exact clobbers, instruction-catalog checks
+    and authority; removing the grouping word cannot turn assertions into
+    admissions or remove required effects.
+  - Migrate bundled/product sources, Build declarations, samples, corpus and
+    compiler-input literals, source tooling and highlighting, and affected
+    customer programs. Update the Omega parser in `bootstrap/5_omega/` and its
+    tests where it implements the retired surface; other bootstrap languages
+    keep their own syntax. Delete the old keyword, grammar, recommending
+    diagnostics and compatibility paths, not just their documentation.
+  Acceptance: both producers accept the new data, generic, callable and assembly
+  forms; all affected authored sources migrate without changing their result or
+  refusal obligation. Existing applicable fact rows and their sensitive reject
+  twins retain native/Terminal agreement (`omega run --both`). Exercise repeated
+  predicates, mixed generic/call-entry constraints, nested callable contracts
+  followed by outer clauses, and assembly with and without entry predicates.
+  Reject each retired `where` form, unsatisfied predicates, wrong callable scope
+  or kind, unjustified static specialization, invalid default-domain formation,
+  and unproved assembly assertions or incorrect clobbers. No old parser mode or
+  source-shape fallback remains.
+
+- **STAGED-BUILD-CAPABILITIES.** Implement the owner-ratified
+  [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages)
+  and ordinary filesystem capability delegation end to end. Deprecate the old
+  flows immediately with actionable diagnostics, migrate their customers, then
+  delete the superseded authoring, scheduling and injected-facet paths in this
+  same outcome; do not retain a legacy mode or a second filesystem API.
+  - Implement configured dependency descriptions and atomic product/Build
+    registrations with immutable exact source, purpose, alias and delegated
+    context. Retire depend/depend_as/build_depend/build_depend_as, alias setter
+    side effects after registration, import-triggered acquisition and host-path
+    fallback. Preserve normal package/source visibility and explicit readiness.
+  - Implement inert deferred Build imports and explicit preparation, with
+    syntax/local obligations checked up front and each dependent continuation
+    resolved, checked and admitted before effects. Preserve one live Terminal
+    activation, exact declaration identities, facts, loans/resources and
+    no-replay behavior. Cover branch-local dependencies, joins, unused imports,
+    bootstrap cycles, later-stage failure and immutable earlier meanings without
+    pretending untaken unresolved continuations were fully checked.
+  - Supply ordinary filesystem backing/implementation arguments, subtree and
+    read-only attenuation, snapshots, private/CoW views, changeset inspection
+    and checked destination application. A dependency cannot bypass its granted
+    view through another provider, imported raw host call, fabricated handle,
+    child lock or resolver credentials; retain explicit resource sponsorship.
+  - Replace named Build input maps and global incoming-map agreement with exact
+    delegated execution-context identities and separate occurrences for different
+    views. Carry identity through review, scheduling, retained artifacts and
+    caches; include negative reads and directory membership, reject grant unions
+    and stale reuse, and decline live/mutable result reuse without adequate
+    observation custody. Keep acquisition, compiled code and result reuse distinct.
+  - Preserve explicit product-reference and generated-source handoff, ordinary
+    artifact completion, failure and export boundaries. Build requests and adds
+    restrictions; locks retain accepted decisions; invocations supply real
+    backing. Retire BuildInputs/BuildSource/BuildOutput filesystem operations,
+    unimplemented with_dependency_inputs design remnants and preknown-only
+    initial-check restrictions, while retaining necessary internal capture,
+    provider admission and immutable-publication mechanisms.
+  - Migrate Rust and Omega producers, Build preludes/protocols, CLI/package
+    review, library Build files, samples, fixtures and authored-input literals.
+    Update semantic/codec identities rather than reinterpret legacy records;
+    source and retained-form retirement controls must reject the old paths after
+    migration. Reuse TERMINAL-BUILD-SEED, not a parallel interpreter or coordinator.
+  Acceptance: root and dependency Builds, a reusable generator and an independently
+  authored filesystem provider execute through the ordinary Terminal pipeline
+  with exact output/diagnostic oracles on supported hosts. The same generator
+  works under real-authorized and virtual attenuated backing without knowing
+  which it received. Mixed source/Build scopes and each new transport mechanism
+  have complete fact rows with meaningful invalid controls. Verify no acquisition
+  for unused imports, no replay, no alias retarget, no unchecked stage effects,
+  no host escape, no partial successful artifact after failure and no wrong-view
+  cache reuse. Matching-host files/changeset observations and all affected
+  existing customer oracles pass; deprecation paths are deleted, not merely hidden.
+
 - **LIBRARY-REPRESENTATION-FAMILIES.** Implement the ratified
   [representation applications](wiki/spec/layouts/plans.md#representation-applications),
   [transparent generic aliases](wiki/spec/language/generics.md#transparent-type-aliases)
@@ -816,6 +905,49 @@ helper that passes does not close an item.
   value facts and widened storage authority reject. Matching-host C ABI and
   conversion observations meet their authored oracles; unrelated source/data
   names or imports cannot change selections.
+
+- **DATA-DECOMPOSITION.** Implement the ratified
+  [separate data and case decomposition](wiki/spec/language/patterns.md#data-and-case-decomposition)
+  end to end, including source migration and retirement of flattened case
+  patterns, without a compatibility dialect or altered physical layout.
+  - Enforce common fields followed by consecutive inline cases in both Rust and
+    Omega producers. Implement named outer patterns with `case as binding` and
+    positional outer patterns in authored field order plus one final case-only
+    component, with arbitrary binding names, exact component coverage and
+    explicit rest/ignore forms. Case patterns bind payload fields only; pure
+    sums remain directly matchable. Preserve case-literal construction and
+    schema/member identities without adding a case-group field or discriminator.
+  - Implement named and positional `let Pattern = expression;` with the same
+    pattern semantics and proved irrefutability under the checked input type and
+    live facts. Retain one initializer evaluation, lexical binding scope, normal
+    owned move/copy/cleanup and borrowed-field copy eligibility; case views keep
+    their backing loans. Keep ordinary match/transition forms, and introduce no
+    hidden branch, trap, fallback or special match-as header syntax.
+  - Carry the case view's exact original subject and static arguments, snapshots,
+    mutation invalidation, GADT/default-domain facts, borrowing, access and
+    ownership through nested expression matches and transitions, Terminal Psi,
+    interpretation and native lowering. Keep independent coverage, single subject
+    evaluation, scoped bindings, move/cleanup partitioning and backing lifetimes;
+    no detached view may drop common-field obligations or widen authority.
+  - Migrate maintained documentation, product/library/application sources,
+    samples, corpus and compiler-input literals, source tooling and affected
+    customers. Remove interleaved-declaration and flattened-pattern parser,
+    checker, IR/codec and lowering assumptions rather than retaining source-shape
+    fallbacks. Layout policies still choose physical placement; do not silently
+    change an authored external layout while rearranging source.
+  Acceptance: named and positional decomposition agree through applicable
+  nine-place fact rows and fact-sensitive reject twins under `omega run --both`.
+  Exercise multiple common fields, payload-free and payload-bearing cases,
+  renamed bindings, explicit rests, irrefutable local bindings, nested matches
+  and mixed-data GADT results;
+  observe single evaluation with side effects and exact owned/borrowed cleanup.
+  Reject fields after inline cases, common fields in case patterns, wrong arity,
+  refutable let patterns, implicit moves from borrowed storage,
+  unknown/duplicate component selectors or bindings, missing coverage, stale
+  facts, invalid view escape,
+  duplicated linear custody and abandoned restoration. Existing case-literal
+  construction, matching-host layout/ABI and customer oracles remain unchanged;
+  no retired syntax acceptance path remains.
 
 - **PREFIX-CASE-IDENTITIES.** Implement the ratified
   [identity-before-case syntax](wiki/spec/language/data_and_literals.md#construction-and-case-identity)
@@ -1205,6 +1337,8 @@ defines the complete product bar.
   missing or substituted relations, locations, orderings or outcomes reject in
   checking; concurrent witnesses run once **TR3-TR8** lands.
 
+<a id="checked-assembly-control-flow"></a>
+
 - **CHECKED-ASM-LABEL-CONTRACTS.** (also covers **ASM-INSTRUCTION-CATALOG-EXPANSION**,
   **PRIVILEGED-PORT-EFFECT-SETTLEMENTS**, and **INTERPRETED-ASSEMBLY**)
   Implement the ratified checked-assembly control-flow, catalog, effect-settlement,
@@ -1219,9 +1353,27 @@ defines the complete product bar.
   admission, `image-emission/src/function_fragments/{production,validation}.rs`,
   `native-artifact/src/physical/derivation/provider_custody.rs`, and the
   shared Terminal/native execution paths.
+  - Implement explicit `asm machine` bodies and nested basic-block declarations
+    in both producers; retire colon labels and implicit conditional successors
+    across source, libraries, samples, fixtures and tooling. Conditional jumps
+    terminate their block with an explicit not-taken `transition`; adjacency
+    transitions emit no instruction and reject unrealizable layouts.
+  - Preserve exact incoming register/flag state, nested entry/exit contracts
+    and local clobber footprints; initialize working registers once from the
+    complete incoming values without overlapping-register setup corruption.
+    Local edges must not introduce frames, prologues or repeated initialization.
+  - Drive checked returns and multi-component/indirect results from the selected
+    calling plan, with no separate `outputs` interface; retain exact storage
+    relationships through pointer lanes, copies, offsets and joins, including
+    hidden result destinations and slice bounds/loans. Carry ordinary generic
+    machine satisfaction through assembly callbacks.
+  - Implement value-location `align_of(value)` for addressable storage,
+    references and nonempty slices, with static/runtime observation, exact
+    location validity and admitted interpreted geometry; preserve the separate
+    type-layout meaning of `align_of<T>()`.
   - Complete remaining flag-producing instructions, remaining AArch64 register
     views, and checked hardware-effect retirement of exact linear obligations on
-    every normal exit (`asm where` and label `ensures` are proof goals, never
+    every normal exit (assembly body contracts and label `ensures` are proof goals, never
     admissions).
   - Complete checked transitive machine plans, lowering, Terminal encoding,
     target realization, and final-span evidence across shared/device fence
@@ -1254,7 +1406,11 @@ defines the complete product bar.
   provider; wrong-edge invariants, unmodeled memory, wrong controller/port/target
   coordinates, missing effects/order/clobbers, live linear exits, and
   forged/replayed/double-completion controls reject (existing `fail/inline_asm/*`
-  stay rejected).
+  stay rejected). The machine-body and value-alignment witnesses additionally
+  pin missing conditional successors, nonadjacent zero-cost transitions, wrong
+  return lanes or uninitialized result fields, stale pointer/alignment facts,
+  empty-slice location queries, implicit clobbers and corrupted setup inputs as
+  rejecting controls; both producers, Terminal and native retain those contracts.
 
 - **SAMPLE-CORPUS.** Close every maintained `samples/cli|gui|uefi` project
   through checked semantics, native publication for its authored targets, and
@@ -1758,39 +1914,6 @@ defines the complete product bar.
   shared native/interpreted algorithms.
 
 ## Parallel language and compiler lanes
-
-- **CORE-INTEGER-FLOAT-APIS.** Implement the ratified ordinary checked
-  `omega::language::core::integer` and `omega::language::core::float` surfaces
-  under [numeric values](wiki/spec/language/numeric_values.md#core-integer-and-float-apis),
-  replacing primitive-member limit spellings and name-specific compiler rules.
-  - Supply integer extrema/width/signedness and float finite extrema, normal/
-    subnormal boundaries, epsilon, exponent/precision/decimal metadata and fixed
-    special values as ordinary library machines. Complete general exact type
-    refinement and semantic evaluation needed to return the correctly typed
-    carrier result; do not introduce name hooks, implicit conformance search,
-    layout-derived semantic widths, or arbitrary-domain extrema inference.
-  - Supply checked scalar bit wrappers, classification with exact sign/kind/
-    unsigned payload, bounded NaN convenience construction, and explicit quieting
-    and canonicalization. Preserve every presented representation bit where
-    promised, including signaling NaNs and signed zeros; keep proof-only
-    FloatMeaning erasure, masked controls and computed-NaN observation fences.
-    Payload convenience APIs are not permanent compiler mechanisms; arbitrary
-    width integers and general owned aggregate casts remain separate decisions.
-  - Remove the proof/checker spelling recognizers for `u32::MAX` and related
-    primitive-member aliases; migrate guides, library consumers, samples and
-    fixtures without changing their authored numeric results or reject oracles.
-    Core result facts must flow from checked definitions/contracts and exact
-    declaration identity, including through imports and differently named calls.
-  - Pin representative query-result and representation-transport facts across
-    all nine places, with obligation-sensitive reject twins. Cover all admitted
-    carrier endpoints/formats with focused exact vectors rather than duplicate
-    width-only fact rows; retain hexadecimal literal value and suffix behavior.
-  Acceptance: integer/float APIs pass `omega run --both` with exact authored
-  values and bit round trips on matching hosts. IEEE boundary and canonical-NaN
-  vectors agree; invalid payloads, wrong kinds, unsupported/qualified carriers,
-  false endpoint claims from same-spelling user machines and unfixed computed-NaN bit observations reject
-  for their own obligations. No primitive-member magic, per-API intrinsic, or
-  compatibility alias remains, and existing arithmetic/NaN oracles are unchanged.
 
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Produce reviewed native artifacts
   without receiver input under the

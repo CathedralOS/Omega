@@ -57,8 +57,8 @@ fn parses_domain_definition_surface() {
     assert_eq!(domains[0].name.as_str(&parsed), "Player::Alive");
     assert!(domains[0].target_type.is_valid());
     assert_eq!(
-        domains[0].predicate_body,
-        language_core::DomainPredicateBody::Present
+        domains[0].predicate_presence,
+        language_core::DomainPredicatePresence::Present
     );
     assert_eq!(parsed.items.proof_facts(domains[0].facts).len(), 2);
     assert!(domains[0].semantic_clause_token_count > 3);
@@ -101,8 +101,8 @@ fn parses_domain_requires_and_requirement_routes_independently() {
     let domain = super::root_domain(&parsed, "domain");
 
     assert_eq!(
-        domain.predicate_body,
-        language_core::DomainPredicateBody::Present
+        domain.predicate_presence,
+        language_core::DomainPredicatePresence::Present
     );
     assert_eq!(parsed.items.proof_facts(domain.facts).len(), 1);
     assert_eq!(
@@ -240,6 +240,42 @@ fn rejects_legacy_domain_body_predicates_with_migration_guidance() {
 }
 
 #[test]
+fn rejects_empty_domain_bodies_with_migration_guidance() {
+    for source in [
+        "domain u64::Tagged {}",
+        "domain u64::Positive requires self > 0 { }",
+        "domain<T> T::Tagged {}",
+    ] {
+        let error = super::parse_source_error(
+            source,
+            "tokenize should succeed",
+            "empty domain bodies must be retired",
+        );
+        super::expect_error(&error, "empty domain bodies are retired");
+        assert!(error.message.contains("end the declaration with `;`"));
+    }
+}
+
+#[test]
+fn domain_semicolon_preserves_following_mathematical_declarations() {
+    for following in [
+        "proposition same(value: u64) = value == value;",
+        "let identity(value: u64): u64 = value;",
+    ] {
+        let source = format!("domain u64::Positive requires self > 0;\n{following}");
+        let parsed = super::parse_source(&source, "each declaration owns its semicolon");
+        let domain = parsed
+            .root_items()
+            .find_map(|item| match item {
+                syntax_trees::item::Item::Domain(domain) => Some(domain),
+                _ => None,
+            })
+            .expect("domain declaration remains present");
+        assert_eq!(parsed.items.proof_facts(domain.facts).len(), 1);
+    }
+}
+
+#[test]
 fn rejects_nested_domain_operators_with_top_level_home_guidance() {
     let source = r#"
         domain i32::Degrees {
@@ -264,7 +300,7 @@ fn rejects_nested_domain_operators_with_top_level_home_guidance() {
 }
 
 #[test]
-fn parses_equivalent_bodyless_domain_spellings_distinct_from_true_predicate() {
+fn parses_domain_predicate_absence_distinct_from_true_predicate() {
     let source = r#"
         domain Reservation::Issued;
         domain Reservation::Recorded;
@@ -285,15 +321,15 @@ fn parses_equivalent_bodyless_domain_spellings_distinct_from_true_predicate() {
     assert_eq!(domains.len(), 3);
     for domain in &domains[..2] {
         assert_eq!(
-            domain.predicate_body,
-            language_core::DomainPredicateBody::Bodyless
+            domain.predicate_presence,
+            language_core::DomainPredicatePresence::Absent
         );
         assert!(domain.facts.is_empty());
         assert_eq!(domain.semantic_clause_token_count, 0);
     }
     assert_eq!(
-        domains[2].predicate_body,
-        language_core::DomainPredicateBody::Present
+        domains[2].predicate_presence,
+        language_core::DomainPredicatePresence::Present
     );
     assert_eq!(parsed.items.proof_facts(domains[2].facts).len(), 1);
     assert!(domains[2].semantic_clause_token_count > 0);
@@ -326,8 +362,8 @@ fn parses_transparent_domain_alias_as_an_independent_record() {
         .collect::<Vec<_>>();
     assert_eq!(paths, ["Socket::Connected", "Socket::Authenticated"]);
     assert_eq!(
-        domain.predicate_body,
-        language_core::DomainPredicateBody::Bodyless
+        domain.predicate_presence,
+        language_core::DomainPredicatePresence::Absent
     );
     assert!(domain.facts.is_empty());
     assert!(domain.operators.is_empty());

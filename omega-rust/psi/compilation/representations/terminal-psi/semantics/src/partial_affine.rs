@@ -96,7 +96,10 @@ fn visit(
             }
             count = fields_residuals(types, fields, moved, prefix, max_residuals, residuals, emit)?;
         }
-        StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } if *length != 0 => {
             let mut touched = moved
                 .iter()
                 .map(|path| match path.first()? {

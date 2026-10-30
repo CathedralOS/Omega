@@ -72,11 +72,11 @@ pub(crate) fn placed_field_leaf(
             (
                 StructuralTypeShape::FixedArray {
                     element: source_element,
-                    length: source_length,
+                    length: terminal_psi::ArrayExtent::Literal(source_length),
                 },
                 StructuralTypeShape::FixedArray {
                     element: view_element,
-                    length: view_length,
+                    length: terminal_psi::ArrayExtent::Literal(view_length),
                 },
             ) if source_length == view_length && *source_length != 0 => {
                 let element = declarations
@@ -536,7 +536,7 @@ pub fn contains_placed_carrier_in_catalog(
                     fields.extend(&case.fields);
                 }
             }
-            StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
+            StructuralTypeShape::FixedArray { element, length } if length.literal() != Some(0) => {
                 pending.push(*element)
             }
             _ => {}

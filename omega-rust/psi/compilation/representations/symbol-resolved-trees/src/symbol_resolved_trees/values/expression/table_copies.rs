@@ -301,6 +301,9 @@ impl ExpressionTable {
                     operand,
                 }))
             }
+            ExpressionNode::TypeExpression(type_reference) => {
+                self.insert(ExpressionNode::TypeExpression(type_reference))
+            }
             ExpressionNode::ZeroValue(type_reference) => {
                 self.insert(ExpressionNode::ZeroValue(type_reference))
             }

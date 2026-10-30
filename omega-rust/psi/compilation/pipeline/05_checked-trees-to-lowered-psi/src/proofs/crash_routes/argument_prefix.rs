@@ -2,12 +2,10 @@
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
-use crate::unit::attached_unit::primitive_locals::PrimitiveLocal;
-use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralPlaceKind};
+use semantic_vocabulary::CanonicalStructuralPathSegment;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralFieldType,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
 };
 
 /// A reference operand's physical descriptor is not its observed backing.
@@ -211,61 +209,6 @@ fn observed_referent(
     Ok(observed)
 }
 
-pub(crate) fn structural_crash_argument_type(
-    argument: &StructuralArgument,
-    parameters: &[StructuralParameterDeclaration],
-    trivial_affine_locals: &[StructuralPlaceDeclaration],
-    structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
-    primitive_locals: &[PrimitiveLocal],
-    operations: &[terminal_psi::Operation],
-) -> Result<semantic_vocabulary::StructuralTypeId, LoweringError> {
-    parameters
-        .iter()
-        .find(|parameter| parameter.place == argument.place)
-        .map(|parameter| parameter.structural_type)
-        .or_else(|| {
-            trivial_affine_locals.iter().find_map(|local| {
-                (local.id == argument.place)
-                    .then_some(match local.kind {
-                        StructuralPlaceKind::TrivialAffineLocal {
-                            structural_type, ..
-                        } => Some(structural_type),
-                        _ => None,
-                    })
-                    .flatten()
-            })
-        })
-        .or_else(|| {
-            structural_results
-                .iter()
-                .filter_map(|(place, _)| place.as_ref())
-                // These are the established caller referents, with their original producers.
-                .chain(primitive_locals.iter().map(|local| &local.declaration))
-                .find_map(|local| {
-                    (local.id == argument.place)
-                        .then_some(match local.kind {
-                            StructuralPlaceKind::OperationResult {
-                                structural_type, ..
-                            } => Some(structural_type),
-                            _ => None,
-                        })
-                        .flatten()
-                })
-        })
-        .or_else(|| {
-            operations.iter().find_map(|operation| {
-                operation
-                    .result
-                    .structural()
-                    .filter(|result| result.place == argument.place)
-                    .map(|result| result.structural_type)
-            })
-        })
-        .ok_or(LoweringError::Unsupported(
-            "structural crash route argument has no caller structural source",
-        ))
-}
-
 pub(crate) fn structural_crash_route_prefix_from_type(
     argument: &StructuralArgument,
     mut structural_type: semantic_vocabulary::StructuralTypeId,
@@ -364,7 +307,11 @@ pub(crate) fn structural_crash_route_prefix_from_type(
                 }
             }
             StructuralPathSegment::FixedIndex(index) => {
-                let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+                let StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } = declaration.shape
+                else {
                     return unsupported(
                         "structural crash route argument fixed index receiver is not an array",
                     );

@@ -9,6 +9,7 @@
 // All four correct -> exit 70.
 
 use omega_language_std::console;
+use omega::language::core::integer;
 
 data Main {
     i32sat: i32 in Saturating;
@@ -18,13 +19,13 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.i32sat = 2147483647;
-    main.i32sat = main.i32sat + 1;          // saturates to i32::MAX
+    main.i32sat = integer::max<i32>() as i32 in Saturating;
+    main.i32sat = main.i32sat + 1;          // saturates to i32 maximum
 
-    main.i32wrap = 2147483647;
-    main.i32wrap = main.i32wrap + 1;        // wraps to i32::MIN
+    main.i32wrap = integer::max<i32>() as i32 in Wrapping;
+    main.i32wrap = main.i32wrap + 1;        // wraps to i32 minimum
 
-    main.u8sat = 255;
+    main.u8sat = integer::max<u8>() as u8 in Saturating;
     main.u8sat = main.u8sat + 1;            // saturates to 255
 
     main.u8wrap = 0;

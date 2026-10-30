@@ -126,15 +126,26 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub load32: Option<RegisterConstraintKey>,
     pub load8_indexed: Option<RegisterConstraintKey>,
     pub copy_bytes: Option<RegisterConstraintKey>,
+    /// Bulk zero fill: two preserved inputs (destination, count) and one
+    /// early-clobber cursor scratch register.
     pub zero_bytes: Option<RegisterConstraintKey>,
+    /// Byte-sequence predicate scan: two preserved inputs (base, count), two
+    /// early-clobber scratch registers, one defined 0/1 result operand.
     pub scan_byte_sequence: Option<RegisterConstraintKey>,
+    /// Exact codec-selected read: preserved address/codec, four early-clobber homes.
     pub load_encoded_scalar: Option<RegisterConstraintKey>,
+    /// Exact codec-selected write: preserved address/codec/value, three early-clobber homes.
     pub store_encoded_scalar: Option<RegisterConstraintKey>,
+    /// Byte-sequence content compare: four preserved inputs (left base/left
+    /// count/right base/right count), three early-clobber scratch registers,
+    /// one defined 0/1 result operand.
     pub compare_byte_sequences: Option<RegisterConstraintKey>,
     pub store: Option<RegisterConstraintKey>,
     pub address_offset: Option<RegisterConstraintKey>,
     pub store64: Option<RegisterConstraintKey>,
     pub frame_address: Option<RegisterConstraintKey>,
+    /// PC-relative byte-literal image address; absent where the target has no
+    /// read-only image storage to name.
     pub byte_literal_image_address: Option<RegisterConstraintKey>,
     pub hosted_read_byte: Option<RegisterConstraintKey>,
     pub hosted_write_byte_i32: Option<RegisterConstraintKey>,
@@ -144,16 +155,22 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     /// Target-owned resultless call keys indexed by argument count, including zero.
     /// Empty means this environment supplies no Unit register-call form.
     pub call_unit: Vec<RegisterConstraintKey>,
+    /// Canonical mixed integer/FP register call rows, independently matched to
+    /// the ABI placements.
     pub call_unit_mixed: Vec<RegisterConstraintKey>,
     /// Target-owned register-call keys indexed by argument count, including zero.
-    /// Empty means this environment supplies no scalar register-call form.
+    /// The legacy integer-only prefix retains its arity order; appended rows
+    /// include FP. Empty means this environment supplies no scalar register-call
+    /// form.
     pub call_scalar: Vec<RegisterConstraintKey>,
-    /// Argument-count-major rows, with one- and two-fragment results per count.
-    /// Empty means direct aggregate calls are unsupported in this environment.
+    /// Argument-count-major rows matched by their complete ABI operand roster,
+    /// with one- and two-fragment results per count. Empty means direct
+    /// aggregate calls are unsupported in this environment.
     pub call_aggregate: Vec<RegisterConstraintKey>,
     /// Per-plan normalized foreign call rows, matched against the evaluated
-    /// boundary-entry plan's complete fixed ABI operand views. Empty means
-    /// this environment supplies no foreign call forms.
+    /// boundary-entry plan's complete fixed ABI operand views. The roster
+    /// carries result-bearing and Unit-result arities alike. Empty means this
+    /// environment supplies no foreign call forms.
     pub call_normalized_foreign: Vec<RegisterConstraintKey>,
     /// Direct returns indexed by fragment count minus one; no hidden pointer ABI.
     pub return_aggregate: Vec<RegisterConstraintKey>,
@@ -164,10 +181,21 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub float64_to_bits: Option<RegisterConstraintKey>,
     pub bits_to_float32: Option<RegisterConstraintKey>,
     pub bits_to_float64: Option<RegisterConstraintKey>,
+    /// Nearest-even IEEE arithmetic on general-register payloads: two inputs
+    /// and one result, with fixed scratch floating registers clobbered.
     pub ieee_float_arithmetic: Option<RegisterConstraintKey>,
+    /// Explicit binary rounding with exact local control preservation. An ISA
+    /// may share the ordinary row when its existing scratch suffices.
     pub ieee_float_directed_binary: Option<RegisterConstraintKey>,
+    /// Explicit unary rounding (directed square root) with the same local
+    /// control preservation and one general-register input. An ISA may share
+    /// the ordinary unary row when its existing scratch suffices.
     pub ieee_float_directed_unary: Option<RegisterConstraintKey>,
+    /// The same IEEE forms with one general-register input (negation, square
+    /// root and conversions) and one result.
     pub ieee_float_unary: Option<RegisterConstraintKey>,
+    /// Unary IEEE integer conversions whose target encoding also clobbers
+    /// control state such as x86-64 RFLAGS.
     pub ieee_float_conversion_control: Option<RegisterConstraintKey>,
     pub ieee_float_ternary: Option<RegisterConstraintKey>,
     pub add_i64: RegisterConstraintKey,
@@ -187,14 +215,37 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub saturating_add_clamped: RegisterConstraintKey,
     pub saturating_subtract_clamped: RegisterConstraintKey,
     pub saturating_divide_signed: RegisterConstraintKey,
+    /// Saturating multiplication of every carrier but u64: two inputs, an
+    /// early-clobber result, and an early-clobber scratch (the clamp bound, or
+    /// the i64 product's high half or saturated value).
     pub saturating_multiply_clamped: RegisterConstraintKey,
+    /// Saturating u64 multiplication: the full product's high half decides
+    /// overflow, so x86-64 pins `MUL` to RAX:RDX (right operand in RCX) while
+    /// AArch64 keeps the clamped four-operand shape for `UMULH`.
     pub saturating_multiply_u64: RegisterConstraintKey,
+    /// Trapping add, subtract and multiply (every carrier but the x86-64 u64
+    /// multiply): two inputs, an early-clobber result, and an early-clobber
+    /// scratch for the narrow range check or the i64 product's high half.
     pub trapping_binary: RegisterConstraintKey,
+    /// Trapping divide and remainder at every carrier, and the u64 multiply.
+    /// x86-64 pins the dividend and result to RAX, the divisor or right operand
+    /// to RCX, and the scratch to RDX (`IDIV`/`DIV`/`MUL`); AArch64 keeps the
+    /// allocatable four-operand shape of `trapping_binary`.
     pub trapping_fixed_pair: RegisterConstraintKey,
+    /// Trapping shifts: value and count read, early-clobber result and scratch
+    /// defined. x86-64 pins the count to RCX for `CL`.
     pub trapping_shift: RegisterConstraintKey,
+    /// Trapping conversion: one input, an early-clobber result, and an
+    /// early-clobber scratch for the representability check.
     pub trapping_convert: RegisterConstraintKey,
     /// Post-call IEEE adapters over one raw result or two inputs plus raw result.
+    /// The trapping form is a completed raw result followed by its result
+    /// definition; target predicates declare their actual scratch and control
+    /// clobbers separately.
     pub float_result_trapping: Option<RegisterConstraintKey>,
+    /// The saturating form takes the original left, right, and completed raw
+    /// IEEE result, then the output. No arithmetic is repeated and no
+    /// floating-control read is implied.
     pub float_result_saturating: Option<RegisterConstraintKey>,
     pub subtract_i64_immediate: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,
@@ -232,6 +283,19 @@ impl RegisterOperandAccess {
             Self::UseDef => 2,
         }
     }
+}
+
+/// The operand views annotated with exactly `access`, in request order.
+pub fn views_with_access(
+    views: &[RegisterViewId],
+    accesses: &[RegisterOperandAccess],
+    access: RegisterOperandAccess,
+) -> Vec<RegisterViewId> {
+    views
+        .iter()
+        .zip(accesses)
+        .filter_map(|(view, actual)| (*actual == access).then_some(*view))
+        .collect()
 }
 
 /// Allocation constraints for one explicit instruction operand.
@@ -303,6 +367,26 @@ impl RegisterConstraintCatalog {
     /// The constraint row keyed `key`, when the catalog defines it.
     pub fn constraint(&self, key: RegisterConstraintKey) -> Option<&RegisterInstructionConstraint> {
         find_register_constraint(&self.constraints, key)
+    }
+
+    /// The row among `keys` whose declared operand views and accesses match
+    /// `views` and `accesses` positionally, when one exists.
+    pub fn row_matching(
+        &self,
+        keys: &[RegisterConstraintKey],
+        views: &[RegisterViewId],
+        accesses: &[RegisterOperandAccess],
+    ) -> Option<&RegisterInstructionConstraint> {
+        self.constraints.iter().find(|row| {
+            keys.contains(&row.key)
+                && row.operands.len() == views.len()
+                && row.operands.len() == accesses.len()
+                && row.operands.iter().zip(views.iter().zip(accesses)).all(
+                    |(operand, (view, access))| {
+                        operand.fixed_view == Some(*view) && operand.access == *access
+                    },
+                )
+        })
     }
 }
 

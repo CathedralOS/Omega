@@ -823,6 +823,10 @@ fn expression_identity(program: &IdentityContext<'_>, expression: ExpressionHand
             unary_operator_tag(node.operator),
             [expression_identity(program, node.operand)],
         ),
+        ExpressionNode::TypeExpression(type_reference) => atom(
+            "type",
+            program.package_qualified_type_identity_text(*type_reference),
+        ),
         ExpressionNode::ZeroValue(type_reference) => atom(
             "zero",
             program.package_qualified_type_identity_text(*type_reference),

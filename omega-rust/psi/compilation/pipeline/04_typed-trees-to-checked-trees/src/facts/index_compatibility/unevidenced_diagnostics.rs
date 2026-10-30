@@ -91,5 +91,5 @@ pub(super) fn is_bodyless_domain_family(
 ) -> bool {
     program
         .domain_definition(family)
-        .is_some_and(|domain| !domain.predicate_body.is_present())
+        .is_some_and(|domain| !domain.predicate_presence.is_present())
 }

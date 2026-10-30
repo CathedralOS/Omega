@@ -24,7 +24,7 @@ pub struct DomainDefinition {
     /// Explicit closed classification copied from the resolved declaration.
     pub classification: Option<language_semantics::DomainClassification>,
     /// Explicit predicate-body presence copied from the resolved theory.
-    pub predicate_body: language_semantics::DomainPredicateBody,
+    pub predicate_presence: language_semantics::DomainPredicatePresence,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub semantic_clause_token_count: usize,
@@ -54,7 +54,7 @@ impl Default for DomainDefinition {
             cleanup_selection: None,
             alias: None,
             classification: None,
-            predicate_body: language_semantics::DomainPredicateBody::Bodyless,
+            predicate_presence: language_semantics::DomainPredicatePresence::Absent,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
             semantic_clause_token_count: 0,
@@ -677,8 +677,19 @@ pub fn index_argument_is_closed(
     program: &TypedTrees,
     reference: crate::types::TypeReferenceHandle,
 ) -> bool {
+    index_argument_is_closed_with_substitutions(program, reference, &[])
+}
+
+/// Closure under an exact proposed static telescope. This derives no call
+/// permission or where premise: replacements must themselves be closed.
+pub fn index_argument_is_closed_with_substitutions(
+    program: &TypedTrees,
+    reference: crate::types::TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
+) -> bool {
     struct Closure<'a> {
         program: &'a TypedTrees,
+        substitutions: &'a [(symbols::SymbolHandle, crate::types::TypeReferenceHandle)],
         types: std::collections::HashSet<crate::types::TypeReferenceHandle>,
         expressions: std::collections::HashSet<crate::expression::ExpressionHandle>,
         open: bool,
@@ -689,6 +700,13 @@ pub fn index_argument_is_closed(
                 .into_iter()
                 .filter(|symbol| symbol.is_valid())
                 .any(|symbol| {
+                    if let Some((_, actual)) = self
+                        .substitutions
+                        .iter()
+                        .find(|(formal, _)| *formal == symbol)
+                    {
+                        return !index_argument_is_closed(self.program, *actual);
+                    }
                     matches!(
                         self.program.symbols.get(symbol).kind,
                         symbols::SymbolKind::TypeParameter
@@ -711,6 +729,7 @@ pub fn index_argument_is_closed(
     }
     let mut closure = Closure {
         program,
+        substitutions,
         types: Default::default(),
         expressions: Default::default(),
         open: false,

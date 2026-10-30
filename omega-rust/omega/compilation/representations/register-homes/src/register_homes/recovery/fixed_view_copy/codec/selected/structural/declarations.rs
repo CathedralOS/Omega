@@ -26,6 +26,8 @@ use crate::register_homes::recovery::fixed_view_copy::codec::{
     },
     values::{decode_bool, decode_scalar, encode_scalar},
 };
+use legalized_operations::identity::encode_authored_field_storage;
+pub(super) use legalized_operations::identity::encode_structural_place as encode_place;
 use legalized_operations::{encode_placement, encode_shape};
 
 mod bounded_integer;
@@ -131,7 +133,16 @@ pub(super) fn encode_type(
         StructuralTypeShape::FixedArray { element, length } => {
             bytes.push(3);
             crate::codec_bytes::push_encoded(bytes, element.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, length.to_le_bytes());
+            match length {
+                terminal_psi::ArrayExtent::Literal(length) => {
+                    bytes.push(0);
+                    crate::codec_bytes::push_encoded(bytes, length.to_le_bytes());
+                }
+                terminal_psi::ArrayExtent::Application(application) => {
+                    bytes.push(1);
+                    crate::codec_bytes::push_encoded(bytes, application.get().to_le_bytes());
+                }
+            }
         }
         StructuralTypeShape::Sum { cases } => {
             bytes.push(4);
@@ -220,7 +231,14 @@ pub(super) fn decode_type(
         }
         3 => StructuralTypeShape::FixedArray {
             element: decode_id(cursor, StructuralTypeId::new)?,
-            length: cursor.u64()?,
+            length: match cursor.byte()? {
+                0 => terminal_psi::ArrayExtent::Literal(cursor.u64()?),
+                1 => terminal_psi::ArrayExtent::Application(decode_id(
+                    cursor,
+                    semantic_vocabulary::ScalarApplicationId::new,
+                )?),
+                tag => return Err(FixedViewCopyDecodeError::UnknownArrayExtent(tag)),
+            },
         },
         4 => StructuralTypeShape::Sum {
             cases: decode_cases(cursor)?,
@@ -256,55 +274,6 @@ pub(super) fn decode_type(
         identity,
         shape,
     })
-}
-
-fn encode_authored_field_storage(
-    bytes: &mut Vec<u8>,
-    storage: Option<&semantic_vocabulary::AuthoredFieldStorage>,
-) {
-    use semantic_vocabulary::AuthoredFieldStorage;
-    match storage {
-        None => bytes.push(0),
-        Some(AuthoredFieldStorage::Scalar {
-            byte_offset,
-            stored_scalar,
-        }) => {
-            bytes.push(if stored_scalar.is_some() { 2 } else { 1 });
-            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
-            if let Some(scalar) = stored_scalar {
-                encode_scalar(bytes, *scalar);
-            }
-        }
-        Some(AuthoredFieldStorage::Repeated {
-            byte_offset,
-            element_stride,
-        }) => {
-            bytes.push(3);
-            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, element_stride.to_le_bytes());
-        }
-        Some(AuthoredFieldStorage::Direct { byte_offset }) => {
-            bytes.push(4);
-            crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
-        }
-        Some(AuthoredFieldStorage::Fragmented(recipe)) => {
-            bytes.push(6);
-            length(bytes, recipe.fragments().len());
-            for fragment in recipe.fragments() {
-                crate::codec_bytes::push_encoded(
-                    bytes,
-                    fragment.container_byte_offset.to_le_bytes(),
-                );
-                crate::codec_bytes::push_encoded(
-                    bytes,
-                    fragment.container_width_bits.to_le_bytes(),
-                );
-                crate::codec_bytes::push_encoded(bytes, fragment.destination_lsb.to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, fragment.source_lsb.to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, fragment.width.to_le_bytes());
-            }
-        }
-    }
 }
 
 fn decode_authored_field_storage(
@@ -602,64 +571,6 @@ pub(super) fn decode_target_argument(
         source: decode_argument_source(cursor)?,
         destination: decode_placement(cursor)?,
     })
-}
-
-pub(super) fn encode_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclaration) {
-    crate::codec_bytes::push_encoded(bytes, place.id.get().to_le_bytes());
-    match place.kind {
-        StructuralPlaceKind::Parameter { position } => {
-            bytes.push(1);
-            crate::codec_bytes::push_encoded(bytes, position.to_le_bytes());
-        }
-        StructuralPlaceKind::BlockParameter { block, position } => {
-            bytes.push(8);
-            crate::codec_bytes::push_encoded(bytes, block.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, position.to_le_bytes());
-        }
-        StructuralPlaceKind::Result => bytes.push(2),
-        StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        } => {
-            bytes.push(3);
-            crate::codec_bytes::push_encoded(bytes, producer.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
-        }
-        StructuralPlaceKind::ByteSequenceLiteral {
-            declaration_ordinal,
-            structural_type,
-        } => {
-            bytes.push(4);
-            crate::codec_bytes::push_encoded(bytes, declaration_ordinal.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
-        }
-        StructuralPlaceKind::ProviderAttachment {
-            attachment,
-            field,
-            boundary,
-        } => {
-            bytes.push(5);
-            crate::codec_bytes::push_encoded(bytes, attachment.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, field.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
-        }
-        StructuralPlaceKind::TrivialAffineLocal {
-            declaration_ordinal,
-            structural_type,
-            construction,
-        } => {
-            bytes.push(if construction.is_some() { 7 } else { 6 });
-            crate::codec_bytes::push_encoded(bytes, declaration_ordinal.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
-            if let Some(construction) = construction {
-                crate::codec_bytes::push_encoded(
-                    bytes,
-                    construction.root_structural_type.get().to_le_bytes(),
-                );
-                crate::codec_bytes::push_encoded(bytes, construction.index.to_le_bytes());
-            }
-        }
-    }
 }
 
 pub(super) fn decode_place(

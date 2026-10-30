@@ -1,0 +1,41 @@
+// A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.
+// Expected exit: 0
+
+data Holder { before: u64; items: [u64; 2]; after: u64; }
+machine kept(values: &[u64; 2]) -> bool { values[0] == 7 }
+machine preserve(holder: &mut Holder)
+requires kept(&holder.items) == true
+ensures kept(&holder.items) == true
+{
+    let mut copied: [u64; 2] = holder.items;
+    copied[0] = 4;
+    holder.items[0] = copied[0];
+}
+machine agree(observed: u64, current: u64) -> u64
+requires observed == current && observed == 7
+ensures result == observed
+{ observed }
+boundary trait HostedObservation {
+    machine observe(holder: &mut Holder) -> u64 reaches
+    requires kept(&holder.items) == true
+    ensures result == holder.items[0] && result == 7;
+}
+HostedObservationBody satisfies HostedObservation {
+    machine observe(holder: &mut Holder) -> u64
+    requires kept(&holder.items) == true
+    ensures result == holder.items[0] && result == 7
+    {
+        let saved: u64 = holder.items[0];
+        preserve(holder);
+        agree(saved, holder.items[0])
+    }
+}
+machine main() crashes Trap {
+    let mut holder: Holder = Holder { before: 11, items: [7, 1], after: 13 };
+    transition HostedObservation::observe(&mut holder) == 7 && holder.items[0] == 7 && holder.items[1] == 4 && holder.before == 11 && holder.after == 13 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

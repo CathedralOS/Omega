@@ -1,0 +1,49 @@
+diff --git a/omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs b/omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs
+index c65faf13537..71123e6ea0b 100644
+--- a/omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs
++++ b/omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs
+@@ -618,0 +619,14 @@ impl<'ranges> FailedDomain<'ranges> {
++        // A failed component occupied no proposed home, so rewriting it frees
++        // none for its neighbours. Keep their pressure until fresh placement.
++        if self.members.binary_search(&victim).is_ok() {
++            phase_profile::scope("06.1.d.05.pressure.unplaced_victim", || {
++                pending.retain(|failure| match failure {
++                    crate::RegisterHomeError::NoCompatibleHome { function, register } => {
++                        *function == self.function
++                            && components.leader(VirtualRegisterId(*register)) != component
++                    }
++                    _ => false,
++                });
++            });
++            return;
++        }
+diff --git a/omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery/candidate_tests.rs b/omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery/candidate_tests.rs
+index e2cef4eff87..7e8b44804dd 100644
+--- a/omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery/candidate_tests.rs
++++ b/omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery/candidate_tests.rs
+@@ -273,0 +274,25 @@ fn pressure_batch_defers_shared_and_interfering_regions_but_keeps_disjoint_ones(
++
++#[test]
++fn rewriting_unplaced_component_retains_interfering_pressure_in_order() {
++    use super::BatchFunctionIndex;
++    let ranges = split_ranges(&[(0, 1), (7, 8)], &[], &[(1, 7)]);
++    let index = BatchFunctionIndex::new(&ranges);
++    let domains = [
++        FailedDomain::in_function(2, &ranges, VirtualRegisterId(0)),
++        FailedDomain::in_function_indexed(2, &ranges, &index, VirtualRegisterId(0)),
++    ];
++    for domain in domains {
++        let mut pending = vec![
++            pressure(2, 7),
++            pressure(2, 1),
++            pressure(3, 20),
++            pressure(2, 8),
++            pressure(2, 20),
++        ];
++        domain.retain_unrelieved(VirtualRegisterId(1), &mut pending);
++        assert_eq!(
++            pending,
++            vec![pressure(2, 7), pressure(2, 8), pressure(2, 20)]
++        );
++    }
++}

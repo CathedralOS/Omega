@@ -190,17 +190,33 @@ pub fn scoped_operator_application<'program>(
             selected_symbol,
         };
     }
-    let declared = typed_trees::operator::resolve_spelling_for_operands(
-        program,
-        spelling,
-        operand_types,
-        program.expression_table.source_span(expression),
-    );
-    let operands = program
-        .expression_table
-        .binary_node(expression)
-        .map(|binary| vec![binary.left, binary.right])
-        .unwrap_or_default();
+    let use_site = program.expression_table.source_span(expression);
+    let declared = if matches!(spelling, OperatorSpelling::Index | OperatorSpelling::Range) {
+        typed_trees::operator::resolve_indexed_spelling_for_operands(
+            program,
+            spelling,
+            operand_types,
+            use_site,
+        )
+    } else {
+        typed_trees::operator::resolve_spelling_for_operands(
+            program,
+            spelling,
+            operand_types,
+            use_site,
+        )
+    };
+    let operands = match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
+        typed_trees::expression::ExpressionNode::Indexed(indexed) => {
+            if let Some(range) = program.expression_table.range_node(indexed.index) {
+                vec![indexed.collection, range.start, range.end]
+            } else {
+                vec![indexed.collection, indexed.index]
+            }
+        }
+        _ => Vec::new(),
+    };
     let active = |domain| {
         operands
             .iter()
@@ -245,15 +261,46 @@ pub fn scoped_operator_application<'program>(
         operand_types,
         program.expression_table.source_span(expression),
     );
+    let builtin_indexed = program.expression_table.indexed_node(expression).is_some()
+        && matches!(spelling, OperatorSpelling::Index | OperatorSpelling::Range)
+        && operand_types
+            .first()
+            .copied()
+            .flatten()
+            .and_then(|reference| crate::unwrapped_type_reference(program, reference))
+            .is_some_and(|reference| {
+                matches!(
+                    program.type_reference_table.type_reference(reference),
+                    typed_trees::types::TypeReferenceNode::FixedArray { .. }
+                        | typed_trees::types::TypeReferenceNode::Slice { .. }
+                )
+            })
+        && if spelling == OperatorSpelling::Index {
+            typed_trees::operator::builtin_index_read_is_spelled(
+                program,
+                scope.owner,
+                expression,
+                operand_types,
+            )
+        } else {
+            typed_trees::operator::has_builtin_spelled_expression_meaning(
+                program,
+                scope.owner,
+                expression,
+                spelling,
+                operand_types,
+            )
+        };
     let builtin = canonical.is_empty()
-        && carriers
-        && typed_trees::operator::has_builtin_spelled_expression_meaning(
-            program,
-            scope.owner,
-            expression,
-            spelling,
-            operand_types,
-        );
+        && (builtin_indexed
+        || (carriers
+            && typed_trees::operator::has_builtin_spelled_expression_meaning(
+                program,
+                scope.owner,
+                expression,
+                spelling,
+                operand_types,
+            )));
     let domain_builtin = carriers
         && typed_trees::closed_numeric::has_builtin_anonymous_operands(
             program, expression, spelling,

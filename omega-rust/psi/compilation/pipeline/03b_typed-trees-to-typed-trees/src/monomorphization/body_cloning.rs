@@ -1,4 +1,6 @@
 //! Fresh instance storage, lexical symbol remapping, and retained source custody.
+mod constant_roots;
+
 use symbols::JoinedPath;
 use validation::collect_statement_expression_trees;
 
@@ -97,6 +99,66 @@ pub(super) fn clone_single_specialized_machine(
         .map_err(|diagnostic| vec![diagnostic])?;
     let source_machine =
         source.unwrap_or(program).machines()[candidate.template.machine_index].clone();
+    // Preparation can complete an earlier selection before typed overload
+    // resolution chooses this declaration. Its pending flag is not admission
+    // of this actual tuple. Check every retained predicate before body
+    // substitution; a formal's where definition cannot justify its actual.
+    let predicates_closed = {
+        let input = source.unwrap_or(program);
+        let substitutions = candidate
+            .template
+            .type_parameters
+            .iter()
+            .zip(&candidate.type_bindings)
+            .filter_map(|((formal, _), actual)| actual.map(|actual| (*formal, actual)))
+            .chain(
+                candidate
+                    .template
+                    .const_parameters
+                    .iter()
+                    .zip(&candidate.const_bindings)
+                    .filter_map(|((formal, _, _), actual)| actual.map(|actual| (*formal, actual))),
+            )
+            .collect::<Vec<_>>();
+        let predicates = input
+            .expression_table
+            .expression_handles(source_machine.declared_type_predicates);
+        let mut complete = true;
+        for &predicate in predicates {
+            match input.applied_static_type_predicate_value(predicate, &substitutions) {
+                Some(true) => {}
+                Some(false) => return Err(vec![Diagnostic::error(format!(
+                    "machine `{}` where type predicate does not hold for the supplied arguments", source_machine.name
+                )).with_source_span(input.expression_table.source_span(predicate))]),
+                None => complete = false,
+            }
+        }
+        // A closed static entry requirement must admit this exact tuple before
+        // it acquires executable storage. Otherwise an impossible application
+        // reaches body checking and produces unrelated postcondition failures.
+        // Unknown/runtime requirements still belong to ordinary call checking;
+        // the shared static judgment forms every operand before deciding.
+        for contract in input.machine_contracts(&source_machine) {
+            if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
+                continue;
+            }
+            for fact in input.proof_facts.span_or_empty(contract.facts) {
+                let typed_trees::domain::ProofFact::Expression(predicate) = fact else {
+                    continue;
+                };
+                if input.applied_static_type_predicate_value(*predicate, &substitutions)
+                    == Some(false)
+                {
+                    return Err(vec![Diagnostic::error(format!(
+                        "machine `{}` requires type predicate does not hold for the supplied arguments",
+                        source_machine.name
+                    ))
+                    .with_source_span(input.expression_table.source_span(*predicate))]);
+                }
+            }
+        }
+        complete
+    };
     let source_states = source
         .unwrap_or(program)
         .machine_states(&source_machine)
@@ -337,6 +399,7 @@ pub(super) fn clone_single_specialized_machine(
     }
 
     let mut cloned = source_machine.clone();
+    cloned.structural_type_equations_pending = !predicates_closed;
     // Published progress premises are declaration-owned identities, like
     // ordinary requires/ensures subjects. The fresh specialization cannot
     // retain its template's entry formals. External field symbols stay exact.
@@ -417,6 +480,19 @@ pub(super) fn clone_single_specialized_machine(
         })
         .collect::<Vec<_>>();
     cloned.declared_type_equations = program.declared_type_equations.insert_many(equations);
+    let predicates = source
+        .unwrap_or(program)
+        .expression_table
+        .expression_handles(source_machine.declared_type_predicates)
+        .to_vec();
+    let predicates = predicates
+        .into_iter()
+        .map(|expression| copy_expression(source, program, expression, &symbol_map))
+        .collect::<Vec<_>>();
+    cloned.declared_type_predicates = program
+        .expression_table
+        .insert_expression_handles(predicates);
+
     if capture.is_none() {
         cloned.conformance_bounds.clear();
     } else {
@@ -535,7 +611,7 @@ pub(super) fn clone_single_specialized_machine(
         .machine_contracts(&source_machine)
         .to_vec()
     {
-        let contract = copy_signature_contract(source, program, contract.clone(), &symbol_map);
+        let contract = copy_signature_contract(source, program, contract.clone(), &symbol_map)?;
         // A machine-level contract reads entry-state parameters, so a
         // runtime-bound `Value` binder inside its fact expressions denotes the
         // entry state's realized trailing parameter.
@@ -665,7 +741,7 @@ pub(super) fn clone_single_specialized_machine(
             .state_contracts(source_state)
             .to_vec()
         {
-            let contract = copy_signature_contract(source, program, contract.clone(), &symbol_map);
+            let contract = copy_signature_contract(source, program, contract.clone(), &symbol_map)?;
             // A state-level contract reads this state's parameters; a
             // runtime-bound `Value` binder inside its fact expressions denotes
             // this state's realized trailing parameter.
@@ -927,12 +1003,7 @@ pub(super) fn clone_single_specialized_machine(
         .collect::<Vec<_>>();
     program.evidence_forwardings.extend(evidence_forwardings);
     program.push_machine(cloned);
-    // Static targets were remapped with the body. Only service calls whose
-    // types have just closed need binding, within this producer's new instance.
-    // Preserve every diagnostic rather than flattening a failed binding into a
-    // provisional target for a later whole-roster repair.
     let instance = typed_trees::references::DeclarationSelection::from_symbols([instance_symbol]);
-    validation::resolve_selected_dynamic_call_targets(program, &instance)?;
     let operator_realizations = closed_operator_realizations_for_machine(program, instance_symbol)
         .map_err(|diagnostic| vec![diagnostic])?;
     let binding_application = if capture.is_some() {
@@ -972,6 +1043,12 @@ pub(super) fn clone_single_specialized_machine(
             });
     }
 
+    // Binding a copied requirement needs the complete source-to-instance
+    // derivation, including an invocation layered over a map capture. Publish
+    // that receipt first; otherwise a lexical sibling can lose its selecting
+    // application while the new body's types are already closed.
+    validation::resolve_selected_dynamic_call_targets(program, &instance)?;
+
     // Exact type/const/evidence substitution and retained tuple copying are
     // complete. Publish canonical domain identities with the whole instance,
     // including its metadata, not at a later whole-roster sweep.
@@ -1008,14 +1085,11 @@ pub(super) fn copy_expression(
     if !expression.is_valid() {
         return ExpressionHandle::invalid();
     }
-    let copied = if let Some(source) = source {
-        program
+    let copied = match source {
+        Some(source) => program
             .expression_table
-            .copy_from(&source.expression_table, expression)
-    } else {
-        let mut staging = typed_trees::expression::ExpressionTable::default();
-        let staged = staging.copy_from(&program.expression_table, expression);
-        program.expression_table.copy_from(&staging, staged)
+            .copy_from(&source.expression_table, expression),
+        None => program.expression_table.insert_copy(expression),
     };
     program.expression_table.remap_symbols_in(copied, symbols);
     copied
@@ -1182,7 +1256,9 @@ pub(super) fn copy_cloned_expression_type_payloads(
         .expression_table
         .iter_expressions_from(expression_start)
         .filter_map(|(handle, expression)| {
-            let ExpressionNode::ZeroValue(type_reference) = expression else {
+            let (ExpressionNode::ZeroValue(type_reference)
+            | ExpressionNode::TypeExpression(type_reference)) = expression
+            else {
                 return None;
             };
             Some((handle, *type_reference))
@@ -1190,7 +1266,8 @@ pub(super) fn copy_cloned_expression_type_payloads(
         .collect::<Vec<_>>();
     for (handle, type_reference) in zero_values {
         let type_reference = copy_type_reference(source, program, type_reference, symbols);
-        let ExpressionNode::ZeroValue(current) = program.expression_table.expression_mut(handle)
+        let (ExpressionNode::ZeroValue(current) | ExpressionNode::TypeExpression(current)) =
+            program.expression_table.expression_mut(handle)
         else {
             unreachable!("collected zero-value expression changed kind")
         };
@@ -1332,7 +1409,7 @@ pub(super) fn copy_signature_contract(
     program: &mut TypedTrees,
     contract: typed_trees::signature::SignatureContract,
     symbols: &[(SymbolHandle, SymbolHandle)],
-) -> typed_trees::signature::SignatureContract {
+) -> Result<typed_trees::signature::SignatureContract, Vec<Diagnostic>> {
     let original_facts = contract.facts;
     let mut copied = contract;
     copied.facts = HandleSpan::empty();
@@ -1357,12 +1434,12 @@ pub(super) fn copy_signature_contract(
             .proof_fact_source_span(source_fact);
         let fact = match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {
-                typed_trees::domain::ProofFact::Expression(copy_expression(
+                typed_trees::domain::ProofFact::Expression(constant_roots::copy_expression(
                     source,
                     program,
                     *expression,
                     symbols,
-                ))
+                )?)
             }
             typed_trees::domain::ProofFact::Membership(membership) => {
                 let source_arguments = source
@@ -1390,7 +1467,12 @@ pub(super) fn copy_signature_contract(
                 };
                 typed_trees::domain::ProofFact::Membership(
                     typed_trees::domain::ProofMembershipFact {
-                        value: copy_expression(source, program, membership.value, symbols),
+                        value: constant_roots::copy_expression(
+                            source,
+                            program,
+                            membership.value,
+                            symbols,
+                        )?,
                         domain: {
                             let members = source
                                 .unwrap_or(program)
@@ -1412,8 +1494,10 @@ pub(super) fn copy_signature_contract(
                     .expression_handles(application.arguments)
                     .to_vec()
                     .into_iter()
-                    .map(|argument| copy_expression(source, program, argument, symbols))
-                    .collect::<Vec<_>>();
+                    .map(|argument| {
+                        constant_roots::copy_expression(source, program, argument, symbols)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 let arguments = program
                     .expression_table
                     .insert_expression_handles(arguments);
@@ -1445,7 +1529,7 @@ pub(super) fn copy_signature_contract(
             program.set_proof_fact_source_span(copied_fact, source_span);
         }
     }
-    copied
+    Ok(copied)
 }
 
 /// Retarget a copied contract's fact value expressions from each runtime-bound

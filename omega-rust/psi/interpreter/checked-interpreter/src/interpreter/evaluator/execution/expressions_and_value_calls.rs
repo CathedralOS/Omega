@@ -45,6 +45,21 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Value> {
         self.tick()?;
+        if self
+            .program
+            .static_type_predicate_operands(handle)
+            .is_some()
+        {
+            return self
+                .program
+                .static_type_predicate_value(handle)
+                .map(Value::Bool)
+                .ok_or_else(|| {
+                    Halt::Unsupported(
+                        "static type predicate remains unbound during execution".to_owned(),
+                    )
+                });
+        }
         let node = self.program.expression_table.expression(handle).clone();
         if matches!(
             &node,
@@ -432,6 +447,9 @@ impl<'program> Evaluator<'program> {
             // position are parse errors (probed in tests/coverage.rs). Decline defensively
             // in case a future frontend starts emitting them elsewhere.
             ExpressionNode::Range(_) => unsupported("range expression outside index position"),
+            ExpressionNode::TypeExpression(_) => {
+                unsupported("unresolved static type operand reached runtime evaluation")
+            }
             ExpressionNode::StructLiteral(literal) => {
                 self.eval_struct_literal(handle, &literal, frame)
             }

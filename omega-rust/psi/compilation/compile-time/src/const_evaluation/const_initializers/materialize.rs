@@ -103,15 +103,11 @@ pub(super) fn literal(
                         BuildTimeValue::Float(value),
                     ) => {
                         let (format, bits) = floating_bits(primitive, *value)?;
-                        let spelling = match format {
-                            numerics::literals::FloatFormat::F32 => {
-                                format!("{:?}f32", f32::from_bits(bits as u32))
-                            }
-                            numerics::literals::FloatFormat::F64 => {
-                                format!("{:?}f64", f64::from_bits(bits))
-                            }
-                        };
-                        ExpressionNode::Float(syntax_trees::FloatSpelling::new(spelling, reference))
+                        let literal = numerics::literals::FloatLiteral::from_bits(format, bits)
+                            .ok_or("invalid floating representation")?;
+                        ExpressionNode::Float(syntax_trees::FloatSpelling::materialized(
+                            literal, reference,
+                        ))
                     }
                     _ => {
                         return Err(
@@ -504,16 +500,15 @@ fn floating_bits(
     value: f64,
 ) -> Result<(numerics::literals::FloatFormat, u64), String> {
     use numerics::literals::FloatFormat;
-    if value.is_nan() {
-        return Err("constant result is NaN without an exact raw-NaN realization".into());
-    }
-    match primitive {
-        PrimitiveType::F32 if f64::from(value as f32).to_bits() == value.to_bits() => {
-            Ok((FloatFormat::F32, u64::from((value as f32).to_bits())))
-        }
-        PrimitiveType::F64 => Ok((FloatFormat::F64, value.to_bits())),
-        _ => Err("constant result does not retain one exact binary32 value".into()),
-    }
+    let format = match primitive {
+        PrimitiveType::F32 => FloatFormat::F32,
+        PrimitiveType::F64 => FloatFormat::F64,
+        _ => return Err("constant result has no floating carrier".into()),
+    };
+    let bits = format
+        .capture_wide_representation(value)
+        .ok_or("constant result does not retain one exact floating representation")?;
+    Ok((format, bits))
 }
 
 /// The declared variant member carrying `name`, when the owner lists one.

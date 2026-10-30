@@ -54,6 +54,12 @@ pub(crate) fn selector_bound_is_decided(
     selector: &checked_trees::CheckedScalarSelector,
     proven_indexes: &[checked_trees::expression::ExpressionHandle],
 ) -> bool {
+    // Entry-coordinate formation was proved before source rank admission and
+    // retained on that exact selector/collection plan. It has no authored []
+    // occurrence to consult. Ordinary source reads retain occurrence custody.
+    if selector.entry_bound.is_some() {
+        return !selector.occurrence.is_valid();
+    }
     selector.occurrence.is_valid()
         && proven_indexes
             .binary_search_by_key(
@@ -100,6 +106,9 @@ impl<'a> PreparedExpressionContext<'a> {
         expression: &CheckedScalarExpression,
     ) -> Result<LoweredDirectExpression, LoweringError> {
         match expression {
+            CheckedScalarExpression::ConstantApplication { .. } => Err(LoweringError::Unsupported(
+                "pending contract constant cannot be emitted as an executable value",
+            )),
             CheckedScalarExpression::StructuralSequenceLength { root, path } => self
                 .sequence_observation(
                     identities,
@@ -169,6 +178,16 @@ impl<'a> PreparedExpressionContext<'a> {
                 ..
             } => {
                 let scalar_type = terminal_scalar_type(*primitive_type)?;
+                if let Some(bindings) = self.scalar_bindings
+                    && let Some(observation) = bindings.captured_field_observation(
+                        identities,
+                        *parameter_position,
+                        path,
+                        scalar_type,
+                    )?
+                {
+                    return Ok(observation);
+                }
                 // Carrier type does not choose the storage path. Case payloads,
                 // indexed elements and inline fields retain the same authority
                 // and geometry for every scalar format.
@@ -228,6 +247,7 @@ impl<'a> PreparedExpressionContext<'a> {
                 left,
                 right,
                 formation_decided,
+                ..
             } => {
                 let scalar_type = terminal_scalar_type(*primitive_type)?;
                 let left = self.lower_scalar(identities, left)?;
@@ -503,6 +523,17 @@ impl<'a> PreparedExpressionContext<'a> {
                 path,
                 ..
             } => {
+                if let Some(bindings) = self.scalar_bindings
+                    && let Some(observation) = bindings.captured_field_observation(
+                        identities,
+                        *parameter_position,
+                        path,
+                        semantic_vocabulary::ScalarType::Boolean,
+                    )?
+                {
+                    return Ok(crate::expression_preparation::bindings::structural_fields::boolean_observation(observation));
+                }
+
                 if !self.structural_fields.is_empty()
                     && matches!(
                         path.first(),

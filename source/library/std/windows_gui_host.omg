@@ -21,7 +21,7 @@ public machine WindowsMessage::window(message: &WindowsMessage) -> u64 {
     message.words[0]
 }
 public machine WindowsMessage::kind(message: &WindowsMessage) -> u64 {
-    message.words[1] & 4294967295
+    message.words[1] & 0xFFFF_FFFF
 }
 public machine WindowsMessage::word_parameter(message: &WindowsMessage) -> u64 {
     message.words[2]

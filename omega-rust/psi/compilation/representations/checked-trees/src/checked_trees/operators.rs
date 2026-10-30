@@ -27,13 +27,13 @@ use typed_trees::types::TypeReferenceHandle;
 
 pub use numerics::arithmetic::ArithmeticPolicyAdapter as CheckedArithmeticPolicyAdapter;
 
-/// Collision-resistant commitment to the exact selected ProviderPlan.
-///
-/// Psi owns this opaque byte carrier so checked operator evidence can retain
-/// Omega's plan digest without introducing an upward dependency on
-/// `effects`. The provider-planning boundary is responsible for copying
-/// the digest from the exact selected plan.
 typed_trees::digest_commitment! {
+    /// Collision-resistant commitment to the exact selected ProviderPlan.
+    ///
+    /// Psi owns this opaque byte carrier so checked operator evidence can retain
+    /// Omega's plan digest without introducing an upward dependency on
+    /// `effects`. The provider-planning boundary is responsible for copying
+    /// the digest from the exact selected plan.
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
     CheckedProviderPlanCommitment
 }
@@ -569,6 +569,7 @@ pub struct CheckedOperatorFacts {
     /// operation it emits for each one, so the proof pass consumes the
     /// decision instead of searching for a certificate.
     pub decided_formations: Vec<ExpressionHandle>,
+    pub trap_free_expressions: Vec<ExpressionHandle>,
     /// Executions admitted for the separate Build evaluation program.
     /// Product provider associations belong to selected execution, not these
     /// immutable source facts. Source classification never populates this roster.
@@ -648,6 +649,7 @@ impl std::fmt::Debug for CheckedOperatorFacts {
             .field("uses", &self.uses)
             .field("exact_integer_casts", &self.exact_integer_casts)
             .field("decided_formations", &self.decided_formations)
+            .field("trap_free_expressions", &self.trap_free_expressions)
             .field(
                 "selected_float_comparisons",
                 &self.selected_float_comparisons,
@@ -707,6 +709,14 @@ impl CheckedOperatorFacts {
             .is_ok()
     }
 
+    pub fn is_trap_free(&self, expression: ExpressionHandle) -> bool {
+        self.trap_free_expressions
+            .binary_search_by_key(&handle_position(expression), |source| {
+                handle_position(*source)
+            })
+            .is_ok()
+    }
+
     /// The actually selected occurrences that require operator crash replay,
     /// identified by their exact arena rows. Candidate contracts survive
     /// provider adapter rewrites of expression nodes. Named calls select
@@ -758,6 +768,7 @@ impl CheckedOperatorFacts {
             uses,
             exact_integer_casts: Vec::new(),
             decided_formations: Vec::new(),
+            trap_free_expressions: Vec::new(),
             selected_float_comparisons: Arena::new(),
             named_uses,
             named_requirement_uses: Arena::new(),

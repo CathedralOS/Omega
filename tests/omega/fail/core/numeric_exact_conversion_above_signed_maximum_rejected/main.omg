@@ -1,4 +1,4 @@
-// u64 9223372036854775808 (2^63) is the first value above i64::MAX, so the
+// u64 9223372036854775808 (2^63) is the first value above i64 maximum, so the
 // Exact conversion's requirement `value <= 9223372036854775807` is false for
 // it. The requirement is about the unsigned value: reading the same bits as
 // a signed integer would see a negative number and wrongly satisfy it.

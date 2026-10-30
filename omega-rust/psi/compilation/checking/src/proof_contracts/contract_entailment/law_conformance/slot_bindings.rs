@@ -327,6 +327,16 @@ pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
         StructuralTerm::BoundProjection { subject, path } => {
             format!("<completed value {subject:?}>.{path}")
         }
+        StructuralTerm::ScalarRepresentation {
+            source,
+            target,
+            value,
+        } => format!(
+            "representation<{}, {}>({})",
+            source.name(),
+            target.name(),
+            display_structural_term(value)
+        ),
         StructuralTerm::Integer(value) => value.to_string(),
         StructuralTerm::IntegerEmbedding { value, .. } => {
             format!("embed({})", display_structural_term(value))

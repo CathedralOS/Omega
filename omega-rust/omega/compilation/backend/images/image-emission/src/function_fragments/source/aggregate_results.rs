@@ -236,7 +236,7 @@ pub(super) fn operation(
             graph.structural_types.iter().any(|declaration|
                 declaration.id == result.structural_type
                     && matches!(declaration.shape,
-                        terminal_psi::StructuralTypeShape::FixedArray { length, .. }
+                        terminal_psi::StructuralTypeShape::FixedArray { length: terminal_psi::ArrayExtent::Literal(length), .. }
                             if u64::try_from(elements.len()).ok() == Some(length)))
                 && graph.operations().filter(|row| matches!(row,
                     TargetUnitOperation::EstablishStructuralArray { psi_operation: retained, result_home, elements: retained_elements }

@@ -149,6 +149,8 @@ enum LoanSource {
     Parameter(u32),
     /// A projection below the emitting state's parameter at a dense index.
     ProjectedParameter(u32),
+    /// An admitted incoming permission whose referent has no local owner.
+    Foreign,
     /// Anything else: a projected local, the receiver, a copy, a literal.
     Other,
 }
@@ -272,96 +274,115 @@ impl LoanChains {
                     .enumerate()
                 {
                     let destination = node(target, dense as u32);
-                    match loan_source(checked, transfer, &state.operations, values) {
-                        LoanSource::Local {
-                            binding,
-                            requires_stable_home,
-                        } => {
-                            if let Some(destination) = destination {
-                                arrivals[destination].push(Arrival::Local {
-                                    lender: source,
-                                    source: HomeSource::Local {
-                                        binding,
-                                        completed: None,
-                                    },
-                                    requires_stable_home,
-                                });
-                            }
-                            if !block_owned(source)
-                                && matches!(
-                                    parameter.access,
-                                    checked_trees::checked_borrowed_access_pair_pattern!()
-                                )
-                            {
-                                entry_loans.entry(binding).or_default().push(destination);
-                            }
-                        }
-                        LoanSource::Completed {
-                            binding,
-                            requires_stable_home,
-                        } => {
-                            if let Some(destination) = destination {
-                                arrivals[destination].push(Arrival::Local {
-                                    lender: source,
-                                    source: HomeSource::Local {
-                                        binding,
-                                        completed: Some((edge_index, dense)),
-                                    },
-                                    requires_stable_home,
-                                });
-                            }
-                        }
-                        LoanSource::Parameter(index) | LoanSource::ProjectedParameter(index)
-                            if plan.states[source]
-                                .structural_parameters
-                                .get(index as usize)
-                                .is_some_and(|parameter| {
-                                    parameter.access == CheckedStructuralAccess::Owned
-                                }) =>
-                        {
-                            if let Some(destination) = destination {
-                                arrivals[destination].push(Arrival::Local {
-                                    lender: source,
-                                    source: HomeSource::Parameter(index),
-                                    requires_stable_home: true,
-                                });
-                            }
-                        }
-                        LoanSource::Parameter(index) => match (node(source, index), destination) {
-                            (Some(origin), Some(destination)) => {
-                                link(&mut links, origin, destination);
-                                arrivals[destination].push(Arrival::Forward);
-                            }
-                            (Some(origin), None) => escapes[origin] = true,
-                            (None, Some(destination)) => {
-                                arrivals[destination].push(Arrival::Foreign);
-                            }
-                            (None, None) => {}
-                        },
-                        LoanSource::ProjectedParameter(index) => {
-                            match (node(source, index), destination) {
-                                (Some(origin), Some(destination)) => {
-                                    link(&mut links, origin, destination);
-                                    arrivals[destination].push(Arrival::Projected);
+                    for source_loan in loan_sources(
+                        checked,
+                        state,
+                        edge.statement_ordinal,
+                        edge.target_state,
+                        parameter.position,
+                        transfer,
+                        &state.operations,
+                        values,
+                    ) {
+                        match source_loan? {
+                            LoanSource::Local {
+                                binding,
+                                requires_stable_home,
+                            } => {
+                                if let Some(destination) = destination {
+                                    arrivals[destination].push(Arrival::Local {
+                                        lender: source,
+                                        source: HomeSource::Local {
+                                            binding,
+                                            completed: None,
+                                        },
+                                        requires_stable_home,
+                                    });
                                 }
-                                (Some(origin), None) => escapes[origin] = true,
-                                (None, Some(destination)) => {
+                                if !block_owned(source)
+                                    && matches!(
+                                        parameter.access,
+                                        checked_trees::checked_borrowed_access_pair_pattern!()
+                                    )
+                                {
+                                    entry_loans.entry(binding).or_default().push(destination);
+                                }
+                            }
+                            LoanSource::Completed {
+                                binding,
+                                requires_stable_home,
+                            } => {
+                                if let Some(destination) = destination {
+                                    arrivals[destination].push(Arrival::Local {
+                                        lender: source,
+                                        source: HomeSource::Local {
+                                            binding,
+                                            completed: Some((edge_index, dense)),
+                                        },
+                                        requires_stable_home,
+                                    });
+                                }
+                            }
+                            LoanSource::Parameter(index)
+                            | LoanSource::ProjectedParameter(index)
+                                if plan.states[source]
+                                    .structural_parameters
+                                    .get(index as usize)
+                                    .is_some_and(|parameter| {
+                                        parameter.access == CheckedStructuralAccess::Owned
+                                    }) =>
+                            {
+                                if let Some(destination) = destination {
+                                    arrivals[destination].push(Arrival::Local {
+                                        lender: source,
+                                        source: HomeSource::Parameter(index),
+                                        requires_stable_home: true,
+                                    });
+                                }
+                            }
+                            LoanSource::Parameter(index) => {
+                                match (node(source, index), destination) {
+                                    (Some(origin), Some(destination)) => {
+                                        link(&mut links, origin, destination);
+                                        arrivals[destination].push(Arrival::Forward);
+                                    }
+                                    (Some(origin), None) => escapes[origin] = true,
+                                    (None, Some(destination)) => {
+                                        arrivals[destination].push(Arrival::Foreign);
+                                    }
+                                    (None, None) => {}
+                                }
+                            }
+                            LoanSource::ProjectedParameter(index) => {
+                                match (node(source, index), destination) {
+                                    (Some(origin), Some(destination)) => {
+                                        link(&mut links, origin, destination);
+                                        arrivals[destination].push(Arrival::Projected);
+                                    }
+                                    (Some(origin), None) => escapes[origin] = true,
+                                    (None, Some(destination)) => {
+                                        arrivals[destination].push(Arrival::Foreign);
+                                    }
+                                    (None, None) => {}
+                                }
+                            }
+                            LoanSource::Foreign => {
+                                if let Some(destination) = destination {
                                     arrivals[destination].push(Arrival::Foreign);
                                 }
-                                (None, None) => {}
                             }
-                        }
-                        LoanSource::Other => {
-                            if let Some(destination) = destination {
-                                arrivals[destination].push(Arrival::Foreign);
-                            }
-                            // A projected loan of an entry local retains its
-                            // home exactly as a whole shared loan does.
-                            if !block_owned(source)
-                                && let Some(binding) =
-                                    projected_local(&transfer.source, &state.operations, values)
-                            {
-                                entry_loans.entry(binding).or_default().push(None);
+                            LoanSource::Other => {
+                                if let Some(destination) = destination {
+                                    arrivals[destination].push(Arrival::Foreign);
+                                }
+                                // A projected loan of an entry local retains its
+                                // home exactly as a whole shared loan does.
+                                if !block_owned(source)
+                                    && let Some(binding) =
+                                        projected_local(&transfer.source, &state.operations, values)
+                                {
+                                    entry_loans.entry(binding).or_default().push(None);
+                                }
                             }
                         }
                     }
@@ -869,6 +890,187 @@ fn end_on_lender_exits(
     Ok(())
 }
 
+/// Incoming provenance is independent of the actual emitted descriptor. A
+/// reference moved into a local still denotes the original ingress; its local
+/// carrier is not a new owner of that referent. Every alternative participates.
+fn loan_sources<'a>(
+    checked: &'a checked_trees::CheckedTrees,
+    state: &'a checked_trees::CheckedComposedUnitControlStatePlan,
+    statement: u32,
+    target: symbols::SymbolHandle,
+    argument: u32,
+    transfer: &'a checked_trees::CheckedStructuralControlTransferPlan,
+    operations: &'a [checked_trees::CheckedUnitEffectOperationPlan],
+    values: &'a checked_trees::CheckedStructuralValuePlans,
+) -> impl Iterator<Item = Result<LoanSource, LoweringError>> + 'a {
+    let legacy = transfer
+        .incoming_loan_resources
+        .is_empty()
+        .then(|| Ok(loan_source(checked, transfer, operations, values)));
+    transfer
+        .incoming_loan_resources
+        .iter()
+        .map(move |handle| {
+            if transfer.retained_loan_backing.is_some() {
+                return Err(LoweringError::Unsupported(
+                    "state loan ingress disagrees with owned backing",
+                ));
+            }
+            let facts = &checked.facts;
+            if !facts.borrow.call_loan_resources.is_valid(*handle) {
+                return Err(LoweringError::Unsupported(
+                    "state loan ingress resource is stale",
+                ));
+            }
+            let resource = facts.borrow.call_loan_resources.get(*handle);
+            if resource.state_symbol != state.state
+                || !resource.owner_path.is_empty()
+                || !facts.flow.control.calls.is_valid(resource.call)
+            {
+                return Err(LoweringError::Unsupported(
+                    "state loan ingress has no exact current namespace",
+                ));
+            }
+            let call = facts.flow.control.calls.get(resource.call);
+            let namespace = facts
+                .flow
+                .control
+                .state(resource.machine_symbol, state.state)
+                .is_some_and(|flow| flow.calls.handles().any(|handle| handle == resource.call));
+            if !namespace
+                || call.target_symbol != target
+                || call.statement_index != statement as usize
+                || call.argument_operands().handles().nth(argument as usize)
+                    != Some(resource.owner_operand)
+            {
+                return Err(LoweringError::Unsupported(
+                    "state loan ingress belongs to another captured operand",
+                ));
+            }
+            let path = if resource.backing_path.is_empty() {
+                &[][..]
+            } else {
+                facts
+                    .borrow
+                    .call_loan_backing_paths
+                    .span(resource.backing_path)
+                    .ok_or(LoweringError::Unsupported(
+                        "state loan ingress backing path is stale",
+                    ))?
+            };
+            let (symbol, projected) = if resource.backing_incoming_reference.is_valid() {
+                if !facts
+                    .borrow
+                    .incoming_references
+                    .is_valid(resource.backing_incoming_reference)
+                {
+                    return Err(LoweringError::Unsupported(
+                        "state loan ingress identity is stale",
+                    ));
+                }
+                let incoming = facts
+                    .borrow
+                    .incoming_references
+                    .get(resource.backing_incoming_reference);
+                if incoming.machine_symbol != resource.machine_symbol
+                    || incoming.state_symbol != state.state
+                {
+                    return Err(LoweringError::Unsupported(
+                        "state loan ingress origin belongs to another invocation",
+                    ));
+                }
+                let owner = if incoming.owner_path.is_empty() {
+                    &[][..]
+                } else {
+                    facts
+                        .borrow
+                        .owner_segments
+                        .span(incoming.owner_path)
+                        .ok_or(LoweringError::Unsupported(
+                            "state loan ingress owner path is stale",
+                        ))?
+                };
+                let symbol = match incoming.origin {
+                    checked_trees::IncomingReferenceOrigin::ParameterReferent { symbol }
+                    | checked_trees::IncomingReferenceOrigin::Parameter { symbol } => symbol,
+                    checked_trees::IncomingReferenceOrigin::Invocation { .. }
+                    | checked_trees::IncomingReferenceOrigin::Output { .. } => {
+                        return Ok(LoanSource::Foreign);
+                    }
+                };
+                (symbol, !path.is_empty() || !owner.is_empty())
+            } else {
+                let symbol =
+                    resource
+                        .parent_lifetime
+                        .root
+                        .as_symbol()
+                        .ok_or(LoweringError::Unsupported(
+                            "ordinary state loan ingress has no formal root",
+                        ))?;
+                let (machine, typed_state) = validation::find_state(&checked.typed, state.state)
+                    .ok_or(LoweringError::Unsupported(
+                        "ordinary state loan ingress state is absent",
+                    ))?;
+                let parameter = checked
+                    .typed
+                    .state_parameter_by_symbol(typed_state, symbol)
+                    .ok_or(LoweringError::Unsupported(
+                        "ordinary state loan ingress formal is absent",
+                    ))?;
+                if validation::reference_shell(&checked.typed, parameter.type_reference).is_none()
+                    || !validation::state_reference_parameter_binding_is_stable(
+                        &checked.typed,
+                        machine,
+                        typed_state,
+                        symbol,
+                    )
+                {
+                    return Err(LoweringError::Unsupported(
+                        "ordinary state loan ingress binding is not established",
+                    ));
+                }
+                (symbol, !path.is_empty())
+            };
+            let typed_state =
+                checked
+                    .typed
+                    .state_by_symbol(state.state)
+                    .ok_or(LoweringError::Unsupported(
+                        "state loan ingress state is absent",
+                    ))?;
+            let position = checked
+                .typed
+                .state_parameters(typed_state)
+                .iter()
+                .position(|parameter| parameter.symbol == symbol)
+                .ok_or(LoweringError::Unsupported(
+                    "state loan ingress formal is absent",
+                ))?;
+            let dense = state
+                .structural_parameters
+                .iter()
+                .position(|parameter| parameter.position as usize == position)
+                .ok_or(LoweringError::Unsupported(
+                    "state loan ingress has no structural formal",
+                ))?;
+            // An input carrier may own a stored descriptor without owning its
+            // referent. Such provenance is foreign, never a lender home.
+            if state.structural_parameters[dense].access == CheckedStructuralAccess::Owned {
+                return Ok(LoanSource::Foreign);
+            }
+            let dense = u32::try_from(dense).map_err(|_| {
+                LoweringError::Unsupported("state loan ingress formal index overflows")
+            })?;
+            Ok(if projected {
+                LoanSource::ProjectedParameter(dense)
+            } else {
+                LoanSource::Parameter(dense)
+            })
+        })
+        .chain(legacy)
+}
+
 /// The successor argument's relation to a retained whole home.
 fn loan_source(
     checked: &checked_trees::CheckedTrees,
@@ -1108,7 +1310,12 @@ impl ChainExit<'_> {
             }
             Terminator::StructuralCase { cases, .. } => {
                 for arm in cases {
-                    self.leave(arm.target, &[], &mut arm.cleanup_actions, next_obligation)?;
+                    self.leave(
+                        arm.target,
+                        &arm.structural_arguments,
+                        &mut arm.cleanup_actions,
+                        next_obligation,
+                    )?;
                 }
                 Ok(())
             }

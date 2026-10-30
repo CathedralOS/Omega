@@ -72,3 +72,32 @@ requires valid_values(values) == true
     requires valid_values(values) == true
     {}
 }
+
+// Every terminal arrival owes the caller's whole postcondition. Executing
+// the good arm cannot hide an actual invalid store on the other arm.
+machine nested_store_bad_branch(values: &mut [i32], selected: u64, spoil: bool)
+requires selected < values.len
+requires valid_values(values) == true
+ensures valid_values(values) == true
+{
+    transition spoil { true -> bad(values, selected) false -> good(values, selected) }
+    machine bad(destination: &mut [i32], coordinate: u64)
+    requires coordinate < destination.len
+    { destination[coordinate] = 300; }
+    machine good(destination: &mut [i32], coordinate: u64)
+    requires coordinate < destination.len
+    { destination[coordinate] = 40; }
+}
+
+// Explicit forwarding identifies the written storage. A successful store in
+// another collection cannot establish the requested collection's predicate.
+machine nested_store_wrong_storage(values: &mut [i32], other: &mut [i32], selected: u64)
+requires selected < values.len && selected < other.len
+requires valid_values(values) == true
+ensures valid_values(other) == true
+{
+    transition { _ -> store(values, selected) }
+    machine store(destination: &mut [i32], coordinate: u64)
+    requires coordinate < destination.len
+    { destination[coordinate] = 40; }
+}

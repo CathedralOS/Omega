@@ -1,0 +1,2 @@
+data `Bounded<10>`'s default domain is still FALSE at state exit
+invariant window opened on `target` must close first

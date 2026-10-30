@@ -1,3 +1,5 @@
+// Expected exit: 0
+use omega::language::core::float;
 use omega_language_std::console;
 use omega::language::core::float_operations;
 use numerics::complex::complex_carrier_ops::Complex;
@@ -92,7 +94,7 @@ machine Main::main(main: &mut Main) reaches Console {
         transition outcome { ComplexMagnitude::NonFiniteInput -> overflow(main) _ -> bad(main) }
     }
     machine overflow(main: &mut Main) {
-        main.exceptional = Complex { real: 3.4028234663852886e38, imaginary: 3.4028234663852886e38 };
+        main.exceptional = Complex { real: float::max<f32>(), imaginary: float::max<f32>() };
         let outcome: ComplexMagnitude<f32> = ComplexF32::try_magnitude(&main.exceptional);
         transition outcome { ComplexMagnitude::Overflow -> good(main) _ -> bad(main) }
     }

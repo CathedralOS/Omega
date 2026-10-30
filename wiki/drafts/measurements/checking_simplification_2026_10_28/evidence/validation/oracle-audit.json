@@ -1,0 +1,103 @@
+{
+  "observations": 60,
+  "unchanged_source_and_build": true,
+  "producers_unchanged": true,
+  "negative_control_oracles": [
+    {
+      "case": "fail-arithmetic-checked_flag_proof_wrapping_cast_overflow",
+      "variant": "A",
+      "fragments": [
+        "cannot land exactly in cast target `u8`"
+      ],
+      "expected_sha256": "905e79ff78230a5e70fd8ee66db861a5df6eb2b4a1513fe4dbaa8199f6e48714"
+    },
+    {
+      "case": "fail-arithmetic-checked_flag_proof_wrapping_cast_overflow",
+      "variant": "B",
+      "fragments": [
+        "cannot land exactly in cast target `u8`"
+      ],
+      "expected_sha256": "905e79ff78230a5e70fd8ee66db861a5df6eb2b4a1513fe4dbaa8199f6e48714"
+    },
+    {
+      "case": "fail-arithmetic-checked_flag_proof_saturating_cast_overflow",
+      "variant": "A",
+      "fragments": [
+        "cannot land exactly in cast target `u8`"
+      ],
+      "expected_sha256": "905e79ff78230a5e70fd8ee66db861a5df6eb2b4a1513fe4dbaa8199f6e48714"
+    },
+    {
+      "case": "fail-arithmetic-checked_flag_proof_saturating_cast_overflow",
+      "variant": "B",
+      "fragments": [
+        "cannot land exactly in cast target `u8`"
+      ],
+      "expected_sha256": "905e79ff78230a5e70fd8ee66db861a5df6eb2b4a1513fe4dbaa8199f6e48714"
+    },
+    {
+      "case": "fail-arithmetic-short_circuit_cast_wrong_path",
+      "variant": "A",
+      "fragments": [
+        "Exact integer cast"
+      ],
+      "expected_sha256": "17c49483a96bde90f254033ad90b75517c1de796df54d28b48ae07151e5ffeee"
+    },
+    {
+      "case": "fail-arithmetic-short_circuit_cast_wrong_path",
+      "variant": "B",
+      "fragments": [
+        "Exact integer cast"
+      ],
+      "expected_sha256": "17c49483a96bde90f254033ad90b75517c1de796df54d28b48ae07151e5ffeee"
+    },
+    {
+      "case": "fail-arithmetic-short_circuit_cast_mutated_subject",
+      "variant": "A",
+      "fragments": [
+        "Exact integer cast"
+      ],
+      "expected_sha256": "17c49483a96bde90f254033ad90b75517c1de796df54d28b48ae07151e5ffeee"
+    },
+    {
+      "case": "fail-arithmetic-short_circuit_cast_mutated_subject",
+      "variant": "B",
+      "fragments": [
+        "Exact integer cast"
+      ],
+      "expected_sha256": "17c49483a96bde90f254033ad90b75517c1de796df54d28b48ae07151e5ffeee"
+    },
+    {
+      "case": "fail-arithmetic-wrapping_guard_does_not_bound_original",
+      "variant": "A",
+      "fragments": [
+        "assignment stores a value not provably within its data's `where` facts"
+      ],
+      "expected_sha256": "3c16097ebbf8b36bd4e3025d933efe540bcb2abec153af574efc30985fba949c"
+    },
+    {
+      "case": "fail-arithmetic-wrapping_guard_does_not_bound_original",
+      "variant": "B",
+      "fragments": [
+        "assignment stores a value not provably within its data's `where` facts"
+      ],
+      "expected_sha256": "3c16097ebbf8b36bd4e3025d933efe540bcb2abec153af574efc30985fba949c"
+    },
+    {
+      "case": "fail-arithmetic-implicit_integer_policy_erasure_rejected",
+      "variant": "A",
+      "fragments": [
+        "implicitly converts `u32 in Wrapping` to `u32`"
+      ],
+      "expected_sha256": "1fb2524d2b31c1f6bcecf67ab4e8cb453737ad10b055f7b9ec76e772f66a6f9d"
+    },
+    {
+      "case": "fail-arithmetic-implicit_integer_policy_erasure_rejected",
+      "variant": "B",
+      "fragments": [
+        "implicitly converts `u32 in Wrapping` to `u32`"
+      ],
+      "expected_sha256": "1fb2524d2b31c1f6bcecf67ab4e8cb453737ad10b055f7b9ec76e772f66a6f9d"
+    }
+  ]
+}

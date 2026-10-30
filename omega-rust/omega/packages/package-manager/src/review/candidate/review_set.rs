@@ -144,9 +144,9 @@ pub(crate) struct CompilerIssuedPackageReviewSet {
     pub(super) reviews: Vec<CompilerIssuedPackageReview>,
 }
 
+/// Which verification step refused a compiled review's retained source custody.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PackageSourceVerificationPhase {
-    BeforeCompilation,
+pub enum PackageSourceVerificationPhase {
     AfterCompilation,
 }
 

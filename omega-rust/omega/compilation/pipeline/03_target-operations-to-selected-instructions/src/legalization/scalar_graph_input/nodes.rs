@@ -349,6 +349,21 @@ fn valid_literal(scalar: ScalarType, value: semantic_vocabulary::IntegerValue) -
     }
     false
 }
+/// A subslice observes the descriptor of its own family: the source must read
+/// as a view and select a declaration of exactly the shape it slices.
+fn subslice_geometry(
+    optimized: &PsiOptimizationFunction,
+    source: &terminal_psi::StructuralArgument,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    shape: fn(&terminal_psi::StructuralTypeShape) -> bool,
+) -> bool {
+    super::element_views::descriptor_geometry(optimized, source, types).is_some_and(|geometry| {
+        geometry.readable
+            && types
+                .iter()
+                .any(|declaration| declaration.id == geometry.selected && shape(&declaration.shape))
+    })
+}
 pub(super) fn validate(
     block: &OptimizationBlock,
     optimized: &PsiOptimizationFunction,
@@ -449,37 +464,17 @@ pub(super) fn validate(
             }
             continue;
         }
+        // Both subslice families publish the descriptor of their own shape: a
+        // readable source selecting a declaration of exactly that shape, and
+        // a u64 offset triple. Only the sliced shape distinguishes them.
         if let AbstractOperation::ByteSequenceSubslice {
             source,
             start,
             end,
             length,
             ..
-        } = &node.operation
-        {
-            if result.is_some()
-                || !node.definitions.is_empty()
-                || !super::element_views::descriptor_geometry(optimized, source, types).is_some_and(
-                    |geometry| {
-                        geometry.readable
-                            && types.iter().any(|declaration| {
-                                declaration.id == geometry.selected
-                                    && matches!(
-                                        declaration.shape,
-                                        terminal_psi::StructuralTypeShape::ByteSequence(_)
-                                    )
-                            })
-                    },
-                )
-                || [start, end, length].iter().any(|value| {
-                    value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
-                })
-            {
-                return Err(LegalizationError::custody());
-            }
-            continue;
         }
-        if let AbstractOperation::ElementViewSubslice {
+        | AbstractOperation::ElementViewSubslice {
             source,
             start,
             end,
@@ -487,20 +482,17 @@ pub(super) fn validate(
             ..
         } = &node.operation
         {
+            let family: fn(&terminal_psi::StructuralTypeShape) -> bool = if matches!(
+                node.operation,
+                AbstractOperation::ByteSequenceSubslice { .. }
+            ) {
+                |shape| matches!(shape, terminal_psi::StructuralTypeShape::ByteSequence(_))
+            } else {
+                |shape| matches!(shape, terminal_psi::StructuralTypeShape::ElementView { .. })
+            };
             if result.is_some()
                 || !node.definitions.is_empty()
-                || !super::element_views::descriptor_geometry(optimized, source, types).is_some_and(
-                    |geometry| {
-                        geometry.readable
-                            && types.iter().any(|declaration| {
-                                declaration.id == geometry.selected
-                                    && matches!(
-                                        declaration.shape,
-                                        terminal_psi::StructuralTypeShape::ElementView { .. }
-                                    )
-                            })
-                    },
-                )
+                || !subslice_geometry(optimized, source, types, family)
                 || [start, end, length].iter().any(|value| {
                     value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
                 })

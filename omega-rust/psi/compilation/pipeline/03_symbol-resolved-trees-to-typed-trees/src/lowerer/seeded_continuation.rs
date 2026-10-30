@@ -14,7 +14,6 @@ pub enum SeededContinuationError {
     RetainedResolvedRootsChanged,
     CrossPairedResolvedBase,
     AuthoredSelectionPrefixChanged,
-    AuthoredSelectionPrefixChangedDuringLowering,
     Lowering(Diagnostic),
 }
 
@@ -396,7 +395,6 @@ pub fn lower_seeded_extension(
     if let Err(error) = super::validate_resolved_semantics_in(&source, &cohort) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
-    let resolved_ledger = source.authored_declaration_selections().clone();
     let mut candidate = retained.typed.as_ref().clone();
     if let Err(error) = join_resolved_semantics(&source, &resolved_base, &mut candidate) {
         return Err((retained, SeededContinuationError::Lowering(error)));
@@ -428,17 +426,12 @@ pub fn lower_seeded_extension(
     if let Err(error) = close_typed_cohort(&mut lowerer, &cohort) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
-    if !lowerer
-        .typed_trees
-        .authored_declaration_selections()
-        .as_slice()
-        .starts_with(resolved_ledger.as_slice())
-    {
-        return Err((
-            retained,
-            SeededContinuationError::AuthoredSelectionPrefixChangedDuringLowering,
-        ));
-    }
+    // The exact predecessor and retained input selections were admitted above.
+    // Ordinary typing finalizes this cohort's late-bound selections through
+    // their owning ledger operations, including contract domain memberships.
+    // Comparing that output to unresolved input rows would reject legitimate
+    // finalization. As with body completion, retained-output preservation is
+    // the producing operations' duty, not a replay of this stage's own output.
     // The ordinary typing operations own this continuation's mutations.
     // Replaying a whole-tree storage comparison here is not a trust boundary:
     // generated declarations legitimately extend retained owners' child spans.

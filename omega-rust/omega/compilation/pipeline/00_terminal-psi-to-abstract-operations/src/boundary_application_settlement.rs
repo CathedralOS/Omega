@@ -19,6 +19,7 @@ impl BoundaryApplicationSettlement<'_> {
     pub fn settle(
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
+        selected: &effects::SelectedProviderPlanFacts,
     ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
         let demands = boundary_applications::TerminalBoundaryApplicationDemands::new(
             artifact.manifest().semantic(),
@@ -30,6 +31,7 @@ impl BoundaryApplicationSettlement<'_> {
         .map_err(|message| vec![Diagnostic::error(message)])?;
         let realizations = project_terminal_boundary_application_realizations(
             self,
+            selected,
             artifact.semantic_module(),
             &demands,
         )?;
@@ -44,13 +46,14 @@ impl BoundaryApplicationSettlement<'_> {
 
 fn project_terminal_boundary_application_realizations(
     settlement: &BoundaryApplicationSettlement<'_>,
+    selected: &effects::SelectedProviderPlanFacts,
     module: &terminal_psi::TerminalModule,
     demands: &boundary_applications::TerminalBoundaryApplicationDemands,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationRealizations, Vec<Diagnostic>> {
     use boundary_applications::BoundaryApplicationRealization as Realization;
     use effects::provider_plan::ProviderBinding;
     let error = |message| vec![Diagnostic::error(message)];
-    let plans = settlement.selected_provider_plans.plans();
+    let plans = selected.plans();
     let provenance = &settlement.selected_provider_provenance;
     if plans.len() != provenance.len() {
         return Err(error(
@@ -61,52 +64,37 @@ fn project_terminal_boundary_application_realizations(
     // never revisits checked expressions or rederives an intrinsic's meaning.
     let mut selected_rows = Vec::new();
     for (plan, retained) in plans.iter().zip(provenance) {
-        if plan != retained.plan || plan.rows.len() != retained.row_executions.len() {
+        if plan != retained.plan
+            || plan.rows.len() != retained.row_executions.len()
+            || plan.rows.len() != retained.row_numeric_realizations.len()
+        {
             return Err(error(
                 "boundary applications have substituted or incomplete selected rows",
             ));
         }
-        for (row, execution) in plan.rows.iter().zip(retained.row_executions) {
-            selected_rows.push((plan, row, *execution));
+        for ((row, execution), realization) in plan
+            .rows
+            .iter()
+            .zip(retained.row_executions)
+            .zip(retained.row_numeric_realizations)
+        {
+            selected_rows.push((plan, row, *execution, realization.as_deref()));
         }
     }
     let mut rows = Vec::with_capacity(demands.rows().len());
     for demand in demands.rows() {
         let requirement = demand.requirement();
-        let mut matching = selected_rows.iter().filter(|(plan, row, _)| {
+        let mut matching = selected_rows.iter().filter(|(plan, row, _, _)| {
             plan.schema.identity_text(plan.schema.trait_name) == requirement.overload()
                 && plan.schema.trait_package_identity == requirement.package()
                 && plan.identities.text(row.requirement_identity) == requirement.overload()
         });
-        let (Some((plan, row, execution)), None) = (matching.next(), matching.next()) else {
-            let matching_count = selected_rows
-                .iter()
-                .filter(|(plan, row, _)| {
-                    plan.schema.identity_text(plan.schema.trait_name) == requirement.overload()
-                        && plan.schema.trait_package_identity == requirement.package()
-                        && plan.identities.text(row.requirement_identity) == requirement.overload()
-                })
-                .count();
-            let selected = selected_rows
-                .iter()
-                .take(12)
-                .map(|(plan, row, _)| {
-                    format!(
-                        "schema={}, requirement={}, package={:?}",
-                        plan.schema.identity_text(plan.schema.trait_name),
-                        plan.identities.text(row.requirement_identity),
-                        plan.schema.trait_package_identity
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("; ");
-            return Err(error(&format!(
-                "Terminal boundary application has no unique exact selected row: requirement={}, package={:?}, matching={matching_count}, selected rows={} [{}]",
-                requirement.overload(),
-                requirement.package(),
-                selected_rows.len(),
-                selected,
-            )));
+        let (Some((plan, row, execution, external_realization)), None) =
+            (matching.next(), matching.next())
+        else {
+            return Err(error(
+                "Terminal boundary application has no unique exact selected row",
+            ));
         };
         let realization = match &row.binding {
             ProviderBinding::CompilerIntrinsic { .. } => {
@@ -117,8 +105,9 @@ fn project_terminal_boundary_application_realizations(
                     plan,
                     row,
                     *execution,
+                    *external_realization,
                 )
-                .map_err(error)?;
+                .map_err(|message| vec![Diagnostic::error(message)])?;
                 Realization::ExactCompilerIntrinsic {
                     execution: execution.ok_or_else(|| {
                         error("selected intrinsic has no canonical or admitted execution identity")

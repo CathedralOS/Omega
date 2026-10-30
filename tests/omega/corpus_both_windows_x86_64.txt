@@ -1213,8 +1213,7 @@ pass/contracts/nested_call_outer_preserves_storage_fact built 2904ms exit:0 inte
 pass/contracts/opaque_call_preserves_model rejected 2235ms interpreter:unchecked @5f668826adf3+wt
 	cannot prove requires contract for call exact_seven from after_call: saved == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/contracts/policy_field_ensures checked 4405ms @5f668826adf3+wt
-pass/contracts/proof_fact_indexed_domain_application rejected 2345ms @5f668826adf3+wt
-	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/contracts/proof_fact_indexed_domain_application checked 1458ms @ad7c6890a897+wt
 pass/contracts/range_requires_discharge checked 5611ms @5f668826adf3+wt
 pass/contracts/recurrent_call_prefix_preserves_model built 4964ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/contracts/requires_narrow_ceiling_unproven built 19545ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
@@ -1321,7 +1320,7 @@ pass/control_flow/owned_array_state_transfer_exit built 10994ms exit:70 interpre
 pass/control_flow/projected_case_subject_root_forwarding_exit built 10919ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/control_flow/projected_field_exhaustive_case_dispatch_exit built 11898ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/control_flow/projected_loan_state_argument_exit built 10962ms exit:11 interpreter-exit:11 interpreter:agrees @5f668826adf3+wt
-pass/control_flow/qualified_case_payload_copy_exit built 5526ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/control_flow/qualified_case_payload_copy_exit built 2271ms exit:0 interpreter-exit:0 interpreter:agrees @f68e855c45d4+wt
 pass/control_flow/qualified_param_subject_compile checked 5285ms @5f668826adf3+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit built 10203ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/control_flow/record_result_dispatch_compile checked 2882ms @5f668826adf3+wt
@@ -1614,12 +1613,14 @@ pass/dependent/zero_gated_record_field_store_exit built 9673ms exit:70 interpret
 pass/dependent/zero_valid_qualified_storage checked 5418ms @5f668826adf3+wt
 pass/dependent/zeroed_record_member_sum_elision built 9157ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/domains/bitwise_live_membership_exit built 3864ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/domains/bodyless_owner_establishment rejected 1976ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/bodyless_owner_establishment checked 1639ms @0cea3356c5b0+wt
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 3370ms @5f668826adf3+wt
 pass/domains/call_requires_domain_intersection_preserved checked 2303ms @5f668826adf3+wt
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 1858ms @5f668826adf3+wt
 pass/domains/captured_predicate_readonly_call_exit built 2922ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/domains/carried_indexed_payload_qualification built 2162ms exit:0 interpreter-exit:0 interpreter:agrees @f68e855c45d4+wt
+pass/domains/carried_nested_payload_qualification built 1887ms exit:0 interpreter-exit:0 interpreter:agrees @4f49785bc6c0+wt
+pass/domains/carried_runtime_index_payload_qualification built 2184ms exit:0 interpreter-exit:0 interpreter:agrees @f68e855c45d4+wt
 pass/domains/case_payload_call_restore_exit built 9158ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/domains/case_payload_guarded_domain_exit built 2846ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/domains/case_payload_predicate_domain_member_exit built 7738ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
@@ -1628,8 +1629,7 @@ pass/domains/copied_array_domain_survives_original_mutation_exit built 2672ms ex
 pass/domains/dependent_coordinate_sum_rational_bound checked 2174ms @5f668826adf3+wt
 pass/domains/dependent_coordinate_sum_upper_bound checked 2122ms @5f668826adf3+wt
 pass/domains/domain_axis_cast checked 2542ms @5f668826adf3+wt
-pass/domains/domain_established_by rejected 2038ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/domain_established_by checked 2015ms @0cea3356c5b0+wt
 pass/domains/domain_family_result checked 3434ms @5f668826adf3+wt
 pass/domains/domain_intersection checked 3386ms @5f668826adf3+wt
 pass/domains/domain_operator_add checked 3423ms @5f668826adf3+wt
@@ -1643,12 +1643,11 @@ pass/domains/established_by_domain checked 4414ms @5f668826adf3+wt
 pass/domains/executable_domain_membership_expression_exit incomplete 15188ms interpreter:unchecked @5f668826adf3+wt
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `Main::main::main`, statement 2
 pass/domains/executable_domain_membership_union_guard_exit built 15912ms exit:241 interpreter-exit:241 interpreter:agrees @5f668826adf3+wt
-pass/domains/explicit_domain_erasure rejected 2803ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/explicit_domain_erasure checked 1641ms @0cea3356c5b0+wt
 pass/domains/guard_predicate_establishes_domain checked 2275ms @5f668826adf3+wt
 pass/domains/inactive_impossible_payload_exit built 2883ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/domains/indexed_domain_fact rejected 1848ms @5f668826adf3+wt
-	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/domains/indexed_domain_fact checked 1933ms @ad7c6890a897+wt
+pass/domains/indexed_domain_known_disjoint_call_exit built 1852ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @f1058703209f+wt
 pass/domains/indexed_membership_follows_completed_values built 2878ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/domains/intersected_qualifiers checked 2259ms @5f668826adf3+wt
 pass/domains/issued_indexed_subject_predicate checked 1888ms @5f668826adf3+wt
@@ -1660,13 +1659,7 @@ pass/domains/match_domain_results checked 2714ms @5f668826adf3+wt
 pass/domains/match_join_alias_domain_transfer checked 1902ms @5f668826adf3+wt
 pass/domains/module_domain_narrow_import_spelling checked 1903ms @5f668826adf3+wt
 pass/domains/moved_payload_uses_current_membership_exit built 2717ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/domains/named_const_subject_binding rejected 4591ms interpreter:unchecked regressed-from:built+exit:3+interpreter-exit:3+interpreter:agrees @5f668826adf3+wt
-	cannot prove scalar result domain for return from @const-qualification-SCALAR-0 at statement 0: u64::Nested
-	cannot prove scalar result domain for return from @const-qualification-INHERITED-1 at statement 0: u64::Small::Inherited
-	cannot prove scalar result domain for return from @const-qualification-QUALIFIED-2 at statement 0: u64::Small::Inherited
-	cannot prove scalar result domain for return from @const-qualification-EXPLICIT-3 at statement 0: u64::Small::Explicit
-	cannot prove default-domain field requirement for return from @const-qualification-ARRAY-5, state @const-qualification-ARRAY-5, at statement 0: [99, 3] requires SmallAt
-	construction value is not proven in domain `SmallAt` in @const-qualification-ARRAY-5 state `@const-qualification-ARRAY-5` at statement 0; a construction value must establish the domain's predicates and any required provenance
+pass/domains/named_const_subject_binding built 11852ms exit:3 interpreter-exit:3 interpreter:agrees @9947836a76ba
 pass/domains/named_subject_capacity_identity_exit built 9017ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/domains/policy_plan_shapes checked 2146ms @5f668826adf3+wt
 pass/domains/predicate_domain_param checked 2724ms @5f668826adf3+wt
@@ -1690,8 +1683,7 @@ pass/domains/record_literal_view_member_store_exit incomplete 10324ms interprete
 pass/domains/record_predicate_domain_member_exit built 9677ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/domains/referent_field_byte_store_keeps_fixed_array_domain checked 2618ms @5f668826adf3+wt
 pass/domains/refinement_chain_predicates checked 2543ms @5f668826adf3+wt
-pass/domains/refinement_chain_routed_provenance rejected 2056ms @5f668826adf3+wt
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/refinement_chain_routed_provenance checked 1626ms @0cea3356c5b0+wt
 pass/domains/retained_routed_qualification_cast checked 2270ms @5f668826adf3+wt
 pass/domains/routed_record_capture_before_sibling_mutation checked 1666ms @5f668826adf3+wt
 pass/domains/routed_selected_copy_exit built 3685ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -4734,6 +4726,15 @@ pass/facts/reference_arrival_handoff_through_other_machine_exit built 2499ms exi
 pass/facts/reference_arrival_handoff_through_other_state_exit built 2500ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/reference_arrival_handoff_through_parameter_exit built 2440ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/reference_arrival_handoff_through_target_body_exit built 2315ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/reference_recast_backing_footprint_through_call_result_exit built 2905ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_const_name_exit built 3004ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_field_exit built 3084ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_local_exit built 2965ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_match_join_exit built 2945ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_other_machine_exit built 2925ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_other_state_exit built 3051ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_parameter_exit built 2984ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/reference_recast_backing_footprint_through_target_body_exit built 3024ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
 pass/facts/register_stack_arg_calling_plan_through_call_result_exit built 2111ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/register_stack_arg_calling_plan_through_const_name_exit built 2942ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/register_stack_arg_calling_plan_through_field_exit built 2094ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -4761,15 +4762,6 @@ pass/facts/replaced_field_loan_through_other_machine_exit built 2189ms exit:0 in
 pass/facts/replaced_field_loan_through_other_state_exit built 2023ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/replaced_field_loan_through_parameter_exit built 1948ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/replaced_field_loan_through_target_body_exit built 1782ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/facts/repro_through_call_result_exit built 4763ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/facts/repro_through_const_name_exit built 4627ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/facts/repro_through_field_exit built 7731ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/facts/repro_through_local_exit built 7910ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/facts/repro_through_match_join_exit built 7704ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/facts/repro_through_other_machine_exit built 7757ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/facts/repro_through_other_state_exit built 7783ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/facts/repro_through_parameter_exit built 7833ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/facts/repro_through_target_body_exit built 7808ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/result_cleanup_guarantee_through_call_result_exit built 1810ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/result_cleanup_guarantee_through_const_name_exit built 4314ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/result_cleanup_guarantee_through_field_exit built 2595ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -4851,6 +4843,15 @@ pass/facts/saved_observation_snapshot_through_other_machine_exit built 5083ms ex
 pass/facts/saved_observation_snapshot_through_other_state_exit built 6158ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/saved_observation_snapshot_through_parameter_exit built 6288ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/saved_observation_snapshot_through_target_body_exit built 5096ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/scalar_array_row_construction_through_call_result_exit built 2967ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_const_name_exit built 3005ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_field_exit built 2949ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_local_exit built 3041ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_match_join_exit built 3023ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_other_machine_exit built 3069ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_other_state_exit built 2927ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_parameter_exit built 3130ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
+pass/facts/scalar_array_row_construction_through_target_body_exit built 2986ms exit:0 interpreter-exit:0 interpreter:agrees @5722ff9ddde2+wt
 pass/facts/scalar_boundary_parameter_through_call_result_exit built 5876ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/scalar_boundary_parameter_through_const_name_exit built 5222ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/scalar_boundary_parameter_through_field_exit built 4814ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -8266,19 +8267,12 @@ pass/slices/runtime_machine_entry_view_requires_index_exit built 9858ms exit:70 
 pass/slices/runtime_matched_window_coordinate_capture_exit built 2770ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/slices/runtime_matched_window_length built 2656ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/slices/runtime_mutable_byte_view_loop_write_exit built 9571ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
-pass/slices/runtime_mutable_record_slice_result_reborrow_exit rejected 1917ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/slices/runtime_mutable_record_slice_result_reborrow_exit built 2553ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
 pass/slices/runtime_mutable_slice_element_write_exit built 8843ms exit:21 interpreter-exit:21 interpreter:agrees @5f668826adf3+wt
-pass/slices/runtime_mutable_slice_result_nested_reborrow_exit rejected 1767ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/slices/runtime_mutable_slice_result_reborrow_exit rejected 2228ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/slices/runtime_mutable_slice_result_shared_observation_exit rejected 2167ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove requires contract for call read from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call read from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/slices/runtime_mutable_slice_result_whole_forward_exit rejected 2030ms interpreter:unchecked @5f668826adf3+wt
-	cannot prove requires contract for call write from main: selected.len > 0 (needs fact `items.len > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/slices/runtime_mutable_slice_result_nested_reborrow_exit built 2036ms exit:0 interpreter-exit:0 interpreter:agrees @557e78cac57a+wt
+pass/slices/runtime_mutable_slice_result_reborrow_exit built 2494ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
+pass/slices/runtime_mutable_slice_result_shared_observation_exit built 2471ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
+pass/slices/runtime_mutable_slice_result_whole_forward_exit built 2573ms exit:0 interpreter-exit:0 interpreter:agrees @abace2497e25+wt
 pass/slices/runtime_mutable_subslice_state_forwarding_exit built 4006ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/slices/runtime_namespace_range_contract_exit built 3444ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/slices/runtime_nested_descriptor_scalar_store_exit built 4079ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

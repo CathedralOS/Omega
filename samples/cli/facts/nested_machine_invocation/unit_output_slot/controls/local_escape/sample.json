@@ -1,0 +1,5 @@
+{
+  "rejection_contains": [
+    "machine `finish` stores a borrowed value without a complete normal-exit backing relation"
+  ]
+}

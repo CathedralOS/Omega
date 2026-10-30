@@ -59,29 +59,17 @@ pub(in crate::selection) fn prepare(
                 || (Vec::new(), Vec::new()),
                 |work| (work.preparation, work.cleanup),
             );
-            if successor.structural_case.is_some() {
-                if !preparation.is_empty() {
-                    return Err(invalid(function_index));
-                }
-                if let Some(bridge) = structural_case::prepare(
-                    function_index,
-                    successor,
-                    source_count + bridges.len(),
-                    &mut function.virtual_registers,
-                    &mut function.memory_accesses,
-                    &function.local_storage_slots,
-                    &mut next_instruction,
-                    constraints,
-                    catalog,
-                    environment,
-                    cleanup.clone(),
-                )? {
-                    bridges.push(bridge);
-                    continue;
-                }
-                // A case with no payload work still needs the same physical
-                // fallthrough ordering as every other conditional edge.
+            // Scalar payloads are produced by the selected case edge rather
+            // than listed as SSA arguments. They share the ordinary edge's
+            // capture frontier and never justify extra arrival authority.
+            if successor.structural_case.is_some() && !successor.bindings.is_empty() {
+                return Err(invalid(function_index));
             }
+            let payload_work = successor.structural_case.as_ref().is_some_and(|case| {
+                case.payloads.iter().any(|payload| {
+                    payload.transport != selected_instructions::SelectedCasePayloadTransport::Unused
+                })
+            });
             let active = successor
                 .bindings
                 .iter()
@@ -96,6 +84,7 @@ pub(in crate::selection) fn prepare(
             if preparation.is_empty()
                 && cleanup.is_empty()
                 && active.is_empty()
+                && !payload_work
                 && successor.structural_bindings.iter().all(|binding| {
                     binding.transport == selected_instructions::SelectedStructuralTransport::Unused
                 })
@@ -178,6 +167,26 @@ pub(in crate::selection) fn prepare(
             continuation.role = SelectedSuccessorRole::EdgeTransferContinuation;
             continuation.fuel.clear();
             let mut instructions = preparation;
+            if continuation.structural_case.is_some() {
+                structural_case::snapshot(
+                    function_index,
+                    &mut continuation,
+                    &mut function.virtual_registers,
+                    &mut function.memory_accesses,
+                    &function.local_storage_slots,
+                    &mut next_instruction,
+                    constraints,
+                    catalog,
+                    environment,
+                    &mut instructions,
+                )?;
+                continuation
+                    .structural_case
+                    .as_mut()
+                    .ok_or_else(|| invalid(function_index))?
+                    .cleanup_actions
+                    .clear();
+            }
             let mut snapshots = Vec::new();
             let mut transfers = Vec::new();
             let mut descriptors = Vec::new();
@@ -313,6 +322,11 @@ pub(in crate::selection) fn prepare(
             }
             for binding in &mut successor.structural_bindings {
                 binding.transport = selected_instructions::SelectedStructuralTransport::Unused;
+            }
+            if let Some(case) = &mut successor.structural_case {
+                for payload in &mut case.payloads {
+                    payload.transport = selected_instructions::SelectedCasePayloadTransport::Unused;
+                }
             }
         }
     }

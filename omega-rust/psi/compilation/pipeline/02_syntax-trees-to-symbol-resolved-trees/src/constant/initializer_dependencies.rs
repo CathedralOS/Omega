@@ -33,6 +33,9 @@ pub(crate) enum DependencyPurpose {
 pub struct ConstInitializerDependencies {
     /// A selected layout observation remains symbolic until target closure.
     pub pending_target_observation: bool,
+    /// Scoped overload choices still owed by ordinary typed call selection.
+    /// Candidate availability contributes no selected-body constant dependency.
+    pub pending_calls: Vec<(SourceSpan, Vec<SourceSpan>)>,
     pub constants: Vec<(SourceSpan, SourceSpan)>,
     pub calls: Vec<(SourceSpan, SourceSpan)>,
     pub initializer_operators: Vec<SourceSpan>,
@@ -74,6 +77,34 @@ pub(crate) fn collect_machine_body_demand(
         ..Collector::new(program)
     };
     collector.collect()?;
+    // Candidate bodies may need completion to type the call, but availability
+    // is not an execution root. Keep this closure out of `machines`; the typed
+    // operational graph later supplies only the selected candidate's edges.
+    let mut pending = collector.available_machines.clone();
+    let mut visited = collector.visited_machines.clone();
+    while let Some(machine) = pending.pop() {
+        if visited.contains(&machine) {
+            continue;
+        }
+        let mut availability = Collector {
+            machines: vec![machine],
+            deferred_machines: Some(Vec::new()),
+            purpose: DependencyPurpose::DeclarationReadiness,
+            ..Collector::new(program)
+        };
+        availability.collect()?;
+        visited.extend(availability.visited_machines);
+        pending.extend(availability.available_machines);
+        let deferred = collector
+            .deferred_machines
+            .as_mut()
+            .expect("body-demand owner");
+        for machine in availability.deferred_machines.unwrap_or_default() {
+            if !deferred.contains(&machine) {
+                deferred.push(machine);
+            }
+        }
+    }
     Ok(ResolvedMachineBodyDemand {
         machines: collector.visited_machines,
         deferred_machines: collector.deferred_machines.unwrap_or_default(),
@@ -83,10 +114,12 @@ pub(crate) fn collect_machine_body_demand(
 pub(crate) fn collect(
     program: &SymbolResolvedTrees,
     root: ExpressionHandle,
+    selected_calls: Option<&[(SourceSpan, SourceSpan)]>,
 ) -> Result<ConstInitializerDependencies, String> {
     let mut collector = Collector {
         expressions: vec![root],
         initializer_expressions: vec![root],
+        selected_calls,
         ..Collector::new(program)
     };
     collector.collect()?;
@@ -102,10 +135,12 @@ pub(crate) fn collect_declaration(
     destination: &symbol_resolved_trees::types::TypeReference,
     purpose: DependencyPurpose,
     retained_base: Option<&SymbolResolvedTrees>,
+    selected_calls: Option<&[(SourceSpan, SourceSpan)]>,
 ) -> Result<ConstInitializerDependencies, String> {
     let mut collector = Collector {
         expressions: vec![root],
         initializer_expressions: vec![root],
+        selected_calls,
         types: vec![destination],
         purpose,
         ..Collector::new(program)
@@ -114,6 +149,7 @@ pub(crate) fn collect_declaration(
     for symbol in collector
         .visited_machines
         .iter()
+        .chain(&collector.available_machines)
         .chain(&collector.visited_type_declarations)
         .chain(&collector.expanded_constants)
     {
@@ -386,13 +422,13 @@ pub(crate) fn bind_named_implementation_const_calls(
     Ok(())
 }
 
-/// Named-implementation routing publishes the trait requirement on every
-/// machine-reachable call after constant selection has already recorded the
-/// owned entry. A use copied into a machine shares that callee token, so
-/// routing moves the copy while the selection stays the entry. Constant
-/// custody compares the two. Put the recorded entry back on every copy of
-/// that initializer call. Other machine-body calls keep the requirement.
-pub(crate) fn restore_const_named_implementation_call_targets(
+/// Preserve reconciled source targets on retained initializer expressions.
+/// Ordinary overload selection initially needs the evaluator's typed owner;
+/// re-lowering its saved source after materialization leaves that target open.
+/// The declaration's own resolved selection supplies the original target here.
+/// Named-implementation routing can also move machine-reachable copies to the
+/// trait requirement; those copies retain the existing owned-entry restoration.
+pub(crate) fn restore_const_call_targets(
     program: &mut SymbolResolvedTrees,
     work: &[ExpressionHandle],
 ) {
@@ -404,6 +440,7 @@ pub(crate) fn restore_const_named_implementation_call_targets(
         .collect::<Vec<_>>();
     let mut initializer_expressions = Vec::new();
     collect_expression_handles(program, &roots, &mut initializer_expressions);
+    let mut initializer_targets = Vec::new();
     let mut recorded = Vec::new();
     for expression in &initializer_expressions {
         let node = program
@@ -425,6 +462,7 @@ pub(crate) fn restore_const_named_implementation_call_targets(
         {
             continue;
         }
+        initializer_targets.push((*expression, symbol));
         let span = call.target.source_span();
         if let Some((_, existing)) = recorded.iter().find(|(bound, _)| *bound == span) {
             if *existing != symbol {
@@ -434,7 +472,7 @@ pub(crate) fn restore_const_named_implementation_call_targets(
         }
         recorded.push((span, symbol));
     }
-    if recorded.is_empty() {
+    if recorded.is_empty() && initializer_targets.is_empty() {
         return;
     }
     for &expression in work {
@@ -453,16 +491,30 @@ pub(crate) fn restore_const_named_implementation_call_targets(
             .expressions
             .name_path_node(call.receiver)
             .map_or_else(SymbolHandle::invalid, |path| path.symbol);
-        if program.symbols.get(receiver_symbol).kind != SymbolKind::Conformance {
-            continue;
-        }
-        let Some((_, symbol)) = recorded
-            .iter()
-            .find(|(span, _)| *span == call.target.source_span())
-        else {
+        // An ordinary unresolved call must be the exact declaration-owned
+        // expression carrying the reconciled selection. Equal source spans on
+        // other expressions do not authorize filling their targets. Keep a
+        // conflicting nonempty ordinary target for the custody checker to reject.
+        let initializer_target = (!call.target_symbol.is_valid())
+            .then(|| {
+                initializer_targets
+                    .iter()
+                    .find(|(owner, _)| *owner == expression)
+            })
+            .flatten()
+            .map(|(_, symbol)| *symbol);
+        let routed_target = (program.symbols.get(receiver_symbol).kind == SymbolKind::Conformance)
+            .then(|| {
+                recorded
+                    .iter()
+                    .find(|(span, _)| *span == call.target.source_span())
+            })
+            .flatten()
+            .map(|(_, symbol)| *symbol);
+        let Some(symbol) = initializer_target.or(routed_target) else {
             continue;
         };
-        if call.target_symbol == *symbol {
+        if call.target_symbol == symbol {
             continue;
         }
         let ExpressionNode::Call(call) =
@@ -470,7 +522,7 @@ pub(crate) fn restore_const_named_implementation_call_targets(
         else {
             continue;
         };
-        call.target_symbol = *symbol;
+        call.target_symbol = symbol;
     }
 }
 
@@ -663,6 +715,7 @@ fn expression_child_handles(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => Vec::new(),
     }
 }
@@ -699,7 +752,7 @@ fn realization_entry(
     Ok(program.machine_state(*state).symbol)
 }
 
-struct Collector<'program> {
+struct Collector<'program, 'selection> {
     program: &'program SymbolResolvedTrees,
     dependencies: ConstInitializerDependencies,
     expressions: Vec<ExpressionHandle>,
@@ -708,6 +761,7 @@ struct Collector<'program> {
     /// following a call does not make its body an initializer expression.
     initializer_expressions: Vec<ExpressionHandle>,
     machines: Vec<SymbolHandle>,
+    available_machines: Vec<SymbolHandle>,
     types: Vec<&'program symbol_resolved_trees::types::TypeReference>,
     visited_type_children: Vec<arena::Handle<symbol_resolved_trees::types::TypeReference>>,
     visited_type_declarations: Vec<SymbolHandle>,
@@ -720,9 +774,10 @@ struct Collector<'program> {
     deferred_machines: Option<Vec<SymbolHandle>>,
     follow_dependencies: bool,
     purpose: DependencyPurpose,
+    selected_calls: Option<&'selection [(SourceSpan, SourceSpan)]>,
 }
 
-impl<'program> Collector<'program> {
+impl<'program, 'selection> Collector<'program, 'selection> {
     fn new(program: &'program SymbolResolvedTrees) -> Self {
         Self {
             program,
@@ -730,6 +785,7 @@ impl<'program> Collector<'program> {
             expressions: Vec::new(),
             initializer_expressions: Vec::new(),
             machines: Vec::new(),
+            available_machines: Vec::new(),
             types: Vec::new(),
             visited_type_children: Vec::new(),
             visited_type_declarations: Vec::new(),
@@ -740,6 +796,7 @@ impl<'program> Collector<'program> {
             deferred_machines: None,
             follow_dependencies: true,
             purpose: DependencyPurpose::Authored,
+            selected_calls: None,
         }
     }
 
@@ -923,6 +980,78 @@ impl<'program> Collector<'program> {
         target_span: SourceSpan,
         static_arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
     ) -> Result<(), String> {
+        if !target_symbol.is_valid() {
+            let symbols = &self.program.symbols;
+            let candidates = if symbols.get(receiver_symbol).kind == SymbolKind::Module {
+                symbols
+                    .child_handles(receiver_symbol)
+                    .into_iter()
+                    .flatten()
+                    .filter(|candidate| {
+                        symbols.get(*candidate).kind == SymbolKind::Machine
+                            && symbols.name(*candidate) == target_name
+                    })
+                    .collect::<Vec<_>>()
+            } else if !receiver_symbol.is_valid() {
+                symbols.top_level_candidates_from_source(
+                    target_name,
+                    &[SymbolKind::Machine],
+                    target_span,
+                )
+            } else {
+                Vec::new()
+            };
+            if !candidates.is_empty() {
+                // Completing bodies is availability, not invocation or readiness.
+                // The typed probe selects the body before its constants may
+                // participate in the initializer dependency graph.
+                if self.deferred_machines.is_some() {
+                    if self.follow_dependencies {
+                        self.available_machines.extend(candidates);
+                    }
+                    return Ok(());
+                }
+                let declarations = candidates
+                    .iter()
+                    .map(|candidate| call_declaration_source(self.program, *candidate))
+                    .collect::<Result<Vec<_>, _>>()?;
+                if let Some(selected_calls) = self.selected_calls
+                    && selected_calls
+                        .iter()
+                        .any(|(reference, _)| *reference == target_span)
+                {
+                    let choices = selected_calls
+                        .iter()
+                        .filter(|(reference, _)| *reference == target_span)
+                        .collect::<Vec<_>>();
+                    let [(_, declaration)] = choices.as_slice() else {
+                        return Err("constant overload has no unique typed source selection".into());
+                    };
+                    let selected = candidates
+                        .iter()
+                        .zip(&declarations)
+                        .filter(|(_, source)| *source == declaration)
+                        .map(|(candidate, _)| *candidate)
+                        .collect::<Vec<_>>();
+                    let [selected] = selected.as_slice() else {
+                        return Err(
+                            "constant overload selection is outside its exact scoped family".into(),
+                        );
+                    };
+                    return self.call(*selected, target_span);
+                }
+                for candidate in candidates {
+                    if !self.available_machines.contains(&candidate) {
+                        self.available_machines.push(candidate);
+                    }
+                }
+                let pending = (target_span, declarations);
+                if !self.dependencies.pending_calls.contains(&pending) {
+                    self.dependencies.pending_calls.push(pending);
+                }
+                return Ok(());
+            }
+        }
         match named_implementation_dependency(
             self.program,
             receiver_symbol,
@@ -1130,7 +1259,9 @@ impl<'program> Collector<'program> {
                     self.type_declaration(program.symbols.get(path.symbol).parent)?;
                 }
             }
-            ExpressionNode::ZeroValue(reference) => self.type_child(*reference)?,
+            ExpressionNode::TypeExpression(reference) | ExpressionNode::ZeroValue(reference) => {
+                self.type_child(*reference)?
+            }
             ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
@@ -1215,6 +1346,15 @@ impl<'program> Collector<'program> {
             );
         }
         self.type_parameters(machine.type_parameters)?;
+        self.expressions.extend(
+            program
+                .tables
+                .bodies
+                .expressions
+                .expression_handles(machine.declared_type_predicates)
+                .iter()
+                .copied(),
+        );
         for equation in program
             .tables
             .declarations
@@ -1354,7 +1494,21 @@ impl<'program> Collector<'program> {
                             match target {
                                 TransitionTarget::Value(value) => self.expressions.push(*value),
                                 TransitionTarget::Named(target) => {
-                                    self.call(target.symbol, target.source_span)?;
+                                    let path = program
+                                        .tables
+                                        .declarations
+                                        .statement_path_members
+                                        .span_or_empty(target.path);
+                                    let name = path
+                                        .last()
+                                        .ok_or("constant transition lost its callable name")?;
+                                    self.call_dependency(
+                                        target.receiver_symbol,
+                                        target.symbol,
+                                        name.as_str(),
+                                        target.source_span,
+                                        &[],
+                                    )?;
                                     let values = expressions.expression_handles(target.arguments);
                                     if values.len() != target.arguments.len() {
                                         return Err(

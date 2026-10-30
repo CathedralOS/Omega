@@ -308,6 +308,7 @@ fn evaluate_application_group(
                         selection_authority.clone(),
                         &independent,
                         &independent_domain.accounting,
+                        &[],
                     )?,
                 ),
             };

@@ -116,11 +116,10 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             input,
         ));
     }
-    // R2 rung 1 (ch12 "Dependent Data"): the DEFAULT-DOMAIN facts --
-    // `data M where count * stride <= len, { ... }` -- bare field names,
-    // comma-separated, ending at the body brace (trailing comma tolerated
-    // by the fact parser).
-    let mut where_facts = HandleSpan::empty();
+    // Both spellings still share the default-domain carrier during source
+    // migration. Requires clauses conjoin in declaration order; no machine
+    // entry contract or additional logical subject is introduced.
+    let mut default_domain_facts = crate::handle_spans::HandleSpanBuilder::new();
     if input.at_contextual("where") {
         input = input.take_contextual("where")?;
         let ((facts, _token_count), rest) =
@@ -129,9 +128,25 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
                 input,
                 |input| input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty(),
             )?;
-        where_facts = facts;
+        default_domain_facts.push_span(facts);
         input = rest;
     }
+    while input.at_contextual("requires") {
+        input = input.take_contextual("requires")?;
+        let ((facts, _token_count), rest) =
+            crate::contracts::facts::parse_required_logical_proof_facts_until(
+                syntax_trees,
+                input,
+                |input| {
+                    input.at_contextual("requires")
+                        || input.at_punctuation(PunctuationKind::LeftBrace)
+                        || input.tokens.is_empty()
+                },
+            )?;
+        default_domain_facts.push_span(facts);
+        input = rest;
+    }
+    let where_facts = default_domain_facts.finish();
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
 
     if input.at_integer() {
@@ -189,6 +204,11 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
     if input.at_contextual("where") {
         return Err(input.error_here(
             "opaque `boundary data` has no visible fields for a default-domain `where` clause",
+        ));
+    }
+    if input.at_contextual("requires") {
+        return Err(input.error_here(
+            "opaque `boundary data` has no visible fields for default-domain predicates",
         ));
     }
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;

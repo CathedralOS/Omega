@@ -60,6 +60,21 @@ mod tests;
 
 use route::{HostedChannel, RowRoute};
 
+/// Both ISAs return the encoded bytes beside a footprint carrying the same
+/// register reads, writes and effects; name that shared extraction once so
+/// every architecture arm reads a validated encoding the same way.
+macro_rules! selected_encoded_parts {
+    ($encoded:expr) => {{
+        let footprint = $encoded.footprint();
+        (
+            $encoded.bytes().to_vec(),
+            footprint.register_reads.clone(),
+            footprint.register_writes.clone(),
+            footprint.encoded.clone(),
+        )
+    }};
+}
+
 /// One row's encoded bytes and decoded footprint before they are interned
 /// into the encoding's shared store, beside the state the row retains. This
 /// is construction scratch: the durable row names a span and a handle, and
@@ -319,12 +334,7 @@ fn encode_address_routed(
                 }
             }
             .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
-            (
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().register_writes.clone(),
-                encoded.footprint().encoded.clone(),
-            )
+            selected_encoded_parts!(encoded)
         }
         Architecture::Aarch64 => {
             let encoded = match channel {
@@ -378,12 +388,7 @@ fn encode_address_routed(
                 }
             }
             .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
-            (
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().register_writes.clone(),
-                encoded.footprint().encoded.clone(),
-            )
+            selected_encoded_parts!(encoded)
         }
     };
     validate_operand_footprint(instruction, machine, &encoded_effects, &reads, &writes)?;
@@ -440,12 +445,7 @@ fn encode_scalar(
                 }
             }
             .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
-            (
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().register_writes.clone(),
-                encoded.footprint().encoded.clone(),
-            )
+            selected_encoded_parts!(encoded)
         }
         Architecture::Aarch64 => {
             let encoded = match channel {
@@ -467,12 +467,7 @@ fn encode_scalar(
                 }
             }
             .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
-            (
-                encoded.bytes().to_vec(),
-                encoded.footprint().register_reads.clone(),
-                encoded.footprint().register_writes.clone(),
-                encoded.footprint().encoded.clone(),
-            )
+            selected_encoded_parts!(encoded)
         }
     };
     validate_operand_footprint(instruction, machine, &encoded_effects, &reads, &writes)?;

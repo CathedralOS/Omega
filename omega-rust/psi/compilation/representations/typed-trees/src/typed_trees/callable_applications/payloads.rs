@@ -467,6 +467,11 @@ impl CallableApplication {
                         self.type_arguments(program, cast.semantic_domain_arguments)?;
                     Some(expression::ExpressionNode::Cast(cast))
                 }
+                expression::ExpressionNode::TypeExpression(reference) => {
+                    Some(expression::ExpressionNode::TypeExpression(
+                        self.type_reference(program, reference)?,
+                    ))
+                }
                 expression::ExpressionNode::ZeroValue(reference) => Some(
                     expression::ExpressionNode::ZeroValue(self.type_reference(program, reference)?),
                 ),

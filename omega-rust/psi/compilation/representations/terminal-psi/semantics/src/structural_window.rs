@@ -110,7 +110,10 @@ pub fn structural_window_projection<'types>(
             }
             (
                 StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                },
             ) if index < length => *element,
             (
                 StructuralPathSegment::RuntimeIndex { .. },

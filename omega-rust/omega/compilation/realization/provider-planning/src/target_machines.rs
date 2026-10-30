@@ -12,10 +12,14 @@ use checked_trees::typed_trees::typed_trees::inspection::callees::ExplicitStateC
 use diagnostics::Diagnostic;
 use target::TargetProfile;
 
+mod authored_providers;
 mod direct_body_absences;
+pub use authored_providers::{AuthoredTargetProviders, TargetProviderInventoryRequest};
 mod provider_publication;
 pub(crate) use direct_body_absences::DirectTargetBodyAbsences;
-pub use provider_publication::{TargetProviderPublicationRequest, provider_selection_roots};
+pub use provider_publication::{
+    PreparedTargetProviderPublication, TargetProviderPreparationRequest, provider_selection_roots,
+};
 
 /// Project retained declarations onto one realization using their exact handles.
 pub fn settle_provider_defaults(

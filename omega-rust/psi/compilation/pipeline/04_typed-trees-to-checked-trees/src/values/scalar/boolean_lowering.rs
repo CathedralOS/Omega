@@ -109,6 +109,16 @@ impl<'a> BooleanLowering<'a> {
 
 impl BooleanLowering<'_> {
     fn expression(&self, expression: ExpressionHandle) -> Option<CheckedBooleanExpression> {
+        if self
+            .program
+            .static_type_predicate_operands(expression)
+            .is_some()
+        {
+            return self
+                .program
+                .static_type_predicate_value(expression)
+                .map(CheckedBooleanExpression::Constant);
+        }
         if let Some(CheckedScalarExpression::Boolean(read)) = primitive_reference_read::lower(
             self.program,
             self.authored_parameters,
@@ -416,6 +426,7 @@ fn byte_carrier_pair_equality(
                 index: Box::new(checked_trees::CheckedScalarSelector {
                     expression: integer_literal(index, PrimitiveType::U64)?,
                     occurrence: ExpressionHandle::invalid(),
+                    entry_bound: None,
                 }),
                 element_path: Vec::new(),
                 primitive_type: PrimitiveType::U8,

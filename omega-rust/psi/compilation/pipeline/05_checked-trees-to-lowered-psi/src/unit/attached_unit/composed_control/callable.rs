@@ -24,6 +24,8 @@ impl<'a> CallableBody<'a> {
 }
 
 pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
+    pub scalar_applications:
+        &'a std::sync::Arc<super::super::scalar_applications::SourceScalarApplications>,
     pub structural_types: &'a [StructuralTypeDeclaration],
     pub type_ids: &'a [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     pub domain_ids: &'a [StructuralDomainBinding],
@@ -72,6 +74,7 @@ pub(in crate::unit::attached_unit) fn emit(
 > {
     let identity = lookup_machine_id(shared.machine_ids, plan.machine)?;
     let mut catalogs = catalogs::ComposedCatalogs {
+        scalar_applications: shared.scalar_applications,
         cleanup_control: &checked.facts.flow.terminal_unit_effects.cleanup_control,
         temporary_places: Vec::new(),
         result_places: Vec::new(),
@@ -146,10 +149,6 @@ pub(in crate::unit::attached_unit) fn emit(
         .zip(machine.structural_parameters.iter())
         .map(|(source, parameter)| (source.position, parameter.clone()))
         .collect();
-    let element_views = crate::expression_preparation::bindings::element_views(
-        &view_roster,
-        &catalogs.structural_types,
-    );
     let entry = plan
         .states
         .first()
@@ -162,10 +161,11 @@ pub(in crate::unit::attached_unit) fn emit(
         &machine.result,
         &signature.erased_scalar_parameters,
         &crate::scalar_lowering::contracts::ContractViewNamespace {
+            scalar_applications: shared.scalar_applications,
+            constant_values: &checked.typed.constant_recipe_closure.values,
             parameters: &view_roster,
             result: crate::scalar_lowering::contracts::ContractStructuralResult::Absent,
             structural_types: &catalogs.structural_types,
-            element_views: &element_views,
         },
         &mut catalogs.scalar_calls.next_call_obligation,
     )?;

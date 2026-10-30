@@ -180,44 +180,73 @@ impl Projection {
         &self,
         ordering: &crate::scalar_ordering::ScalarOrdering,
     ) -> Option<Vec<StructuralPathSegment>> {
+        self.reference_origin_path(ordering)?
+            .into_iter()
+            .map(|projection| match projection {
+                terminal_psi::ReferenceOriginProjection::Exact(segment) => Some(segment),
+                terminal_psi::ReferenceOriginProjection::Element => None,
+            })
+            .collect()
+    }
+
+    /// Describe a complete captured selection for returned-origin coverage.
+    /// Unknown coordinates retain their selected collection dimension as an
+    /// element family, never an executable address or proof of overlap. Windows
+    /// compose with their following index; an unselected window has no projected
+    /// endpoint. Conservative interference `path` cannot supply this evidence.
+    pub fn reference_origin_path(
+        &self,
+        ordering: &crate::scalar_ordering::ScalarOrdering,
+    ) -> Option<Vec<terminal_psi::ReferenceOriginProjection>> {
+        use terminal_psi::ReferenceOriginProjection::{Element, Exact};
         if self.indirect {
             return None;
         }
         let mut result = Vec::new();
-        // Extent validity belongs to formation and access. Exact address
-        // identity needs only the captured start of each relative window.
-        let mut offset: Option<u64> = None;
-        let append_offset = |offset: &mut Option<u64>, start: u64| -> Option<()> {
-            *offset = Some(offset.unwrap_or(0).checked_add(start)?);
+        // Outer None means no pending window; Some(None) retains a window
+        // whose captured start is unknown. These cannot be conflated: only an
+        // actual subsequent element selection consumes the latter dimension.
+        let mut offset: Option<Option<u64>> = None;
+        let append_offset = |offset: &mut Option<Option<u64>>, start: Option<u64>| {
+            *offset = Some(match (offset.unwrap_or(Some(0)), start) {
+                (Some(left), Some(right)) => Some(left.checked_add(right)?),
+                _ => None,
+            });
             Some(())
         };
         for step in self.address.as_ref()? {
             match step {
                 AddressStep::Window { start, at, .. } => {
-                    append_offset(&mut offset, ordering.known_unsigned(*at, *start)?)?
+                    append_offset(&mut offset, ordering.known_unsigned(*at, *start))?
                 }
                 AddressStep::Path(path, at) => {
                     for segment in path {
                         match segment {
                             StructuralPathSegment::FixedByteRange { start, .. } => {
-                                append_offset(&mut offset, *start)?
+                                append_offset(&mut offset, Some(*start))?
                             }
                             StructuralPathSegment::FixedIndex(_)
                             | StructuralPathSegment::RuntimeIndex { .. } => {
                                 let index = match segment {
-                                    StructuralPathSegment::FixedIndex(index) => *index,
+                                    StructuralPathSegment::FixedIndex(index) => Some(*index),
                                     StructuralPathSegment::RuntimeIndex { index, .. } => {
-                                        ordering.known_unsigned((*at)?, *index)?
+                                        ordering.known_unsigned((*at)?, *index)
                                     }
                                     _ => unreachable!(),
                                 };
-                                let index = offset.take().unwrap_or(0).checked_add(index)?;
-                                result.push(StructuralPathSegment::FixedIndex(index));
+                                result.push(match (offset.take().unwrap_or(Some(0)), index) {
+                                    (Some(start), Some(index)) => {
+                                        Exact(StructuralPathSegment::FixedIndex(
+                                            start.checked_add(index)?,
+                                        ))
+                                    }
+                                    _ => Element,
+                                });
                             }
                             StructuralPathSegment::Field(_) | StructuralPathSegment::Case(_)
                                 if offset.is_none() =>
                             {
-                                result.push(segment.clone())
+                                result.push(Exact(segment.clone()))
                             }
                             _ => return None,
                         }

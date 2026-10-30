@@ -224,10 +224,9 @@ fn scan_expression_use(
                     place_spelling_covers(&spelling, place)
                         || (consumes_record && place_spelling_covers(place, &spelling))
                 };
-                if let Some(place) = tracked
-                    .iter()
-                    .find(|place| place.any_window_open() && overlaps_consumed_value(&place.spelling))
-                {
+                if let Some(place) = tracked.iter().find(|place| {
+                    place.any_window_open() && overlaps_consumed_value(&place.spelling)
+                }) {
                     diagnostics.push(Diagnostic::error(format!(
                         "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
                          window: a prior write left data `{}`'s default domain FALSE -- \

@@ -1,0 +1,2 @@
+Build helper scalar completion: scalar evaluation execution:
+AllowanceExhausted(Fuel)

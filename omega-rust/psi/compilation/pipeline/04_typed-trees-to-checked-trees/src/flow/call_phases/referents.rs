@@ -136,6 +136,29 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         // and the others were merely retired conservatively. Alternative
         // origins go through the shared all-writers preservation judgment.
         for storage in targets {
+            // The referent's own declared constraints join only the returned
+            // guarantee vocabulary. A checked write through this formal's
+            // typed view is the one route by which the callee could have
+            // touched the captured storage, so a confined write covering the
+            // row's place restores it on whichever occurrence it selected.
+            // They never mint an unconditional membership: a view recast to
+            // its unqualified carrier, or a deeper element write, could still
+            // violate the constraint — exactly the writes that fail
+            // confinement or coverage.
+            for (domain_symbol, semantic_domain) in
+                validation::field_domains::domain_constraint_identities(
+                    program,
+                    parameter.type_reference,
+                )
+            {
+                guarantees.push(guarantees::ReturnedGuarantee {
+                    parameter: parameter.symbol,
+                    place: storage.clone(),
+                    domain: domain_symbol,
+                    identity: semantic_domain,
+                    proven_at_exit: false,
+                });
+            }
             for (path, domain_symbol, semantic_domain) in paths.iter() {
                 let authored_guarantee = path.is_empty()
                     && parameter_claims
@@ -208,6 +231,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                     place,
                     domain: *domain_symbol,
                     identity: *semantic_domain,
+                    proven_at_exit: true,
                 });
                 if targets.len() > 1 {
                     // Alternative origins need the all-writers preservation
@@ -412,6 +436,10 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                         &place,
                         domain_symbol,
                         semantic_domain,
+                        match &write.region {
+                            crate::flow::mutation::StorageRegion::Declared(region) => Some(region),
+                            _ => None,
+                        },
                     )
                 });
                 if affected && restored {

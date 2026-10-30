@@ -76,12 +76,11 @@ pub(crate) fn compute_function(
     let mut degrees = (0..domains.len())
         .map(|domain_index| conflicts.degree(domain_index))
         .collect::<Vec<_>>();
-    let mut unassigned = SelectionTree::new(
-        (0..domains.len())
-            .map(|domain_index| Some(selection_key(domain_index, &viable, &degrees, &domains)))
-            .collect(),
-    );
-    while let Some(SelectionKey { domain_index, .. }) = unassigned.pop_first() {
+    let initial_keys = (0..domains.len())
+        .map(|domain_index| selection_key(domain_index, &viable, &degrees, &domains))
+        .collect::<Vec<_>>();
+    let mut unassigned = PackedSelectionTree::new(&initial_keys);
+    while let Some(domain_index) = unassigned.pop_first() {
         active[domain_index] = false;
         // Affinity and neighbor feasibility only reorder among already-legal
         // candidates: aliases, liveness, and interference facts are untouched,
@@ -108,7 +107,7 @@ pub(crate) fn compute_function(
             for remaining in conflicts.get_constrained_neighbors(domain_index) {
                 if active[remaining] {
                     degrees[remaining] -= 1;
-                    unassigned.update(
+                    unassigned.set_key(
                         remaining,
                         selection_key(remaining, &viable, &degrees, &domains),
                     );
@@ -136,7 +135,7 @@ pub(crate) fn compute_function(
                 }
             }
             candidates.truncate(retained);
-            unassigned.update(
+            unassigned.set_key(
                 remaining,
                 selection_key(remaining, &viable, &degrees, &domains),
             );
@@ -145,7 +144,15 @@ pub(crate) fn compute_function(
     if let Some(first) = pressure.and_then(|pressure| pressure.first()).cloned() {
         return Err(first);
     }
-    Ok(FunctionRegisterHomes {
+    Ok(assemble_homes(legality, &homes))
+}
+
+/// Pair every live register with the home the sweep gave it.
+fn assemble_homes(
+    legality: &FunctionAllocationLegality,
+    homes: &[Option<RegisterViewId>],
+) -> FunctionRegisterHomes {
+    FunctionRegisterHomes {
         machine: legality.machine,
         assignments: legality
             .virtual_registers
@@ -158,7 +165,7 @@ pub(crate) fn compute_function(
                     .expect("active register has assigned home"),
             })
             .collect(),
-    })
+    }
 }
 
 /// Choose a home among candidates that are already legal for this domain.
@@ -379,75 +386,13 @@ fn strands_neighbor(
     false
 }
 
-struct SelectionTree {
-    base: usize,
-    keys: Vec<Option<SelectionKey>>,
-    tree: Vec<usize>,
-}
+/// A selection key's tournament contract: a fixed-width total order plus an
+/// `EMPTY` sentinel that sorts after every real key, so one tree serves the
+/// sparse key and both packed widths.
+trait SelectionOrder: Copy + Ord {
+    const EMPTY: Self;
 
-impl SelectionTree {
-    fn new(keys: Vec<Option<SelectionKey>>) -> Self {
-        let n = keys.len();
-        let base = n.next_power_of_two().max(1);
-        let mut tree = vec![usize::MAX; 2 * base];
-        for i in 0..n {
-            if keys[i].is_some() {
-                tree[base + i] = i;
-            }
-        }
-        for idx in (1..base).rev() {
-            tree[idx] = Self::winner(&keys, tree[2 * idx], tree[2 * idx + 1]);
-        }
-        Self { base, keys, tree }
-    }
-
-    #[inline]
-    fn winner(keys: &[Option<SelectionKey>], left: usize, right: usize) -> usize {
-        match (left != usize::MAX, right != usize::MAX) {
-            (false, false) => usize::MAX,
-            (true, false) => left,
-            (false, true) => right,
-            (true, true) => {
-                if keys[left] <= keys[right] {
-                    left
-                } else {
-                    right
-                }
-            }
-        }
-    }
-
-    #[inline]
-    fn update_leaf(&mut self, domain_index: usize) {
-        let mut idx = self.base + domain_index;
-        self.tree[idx] = if self.keys[domain_index].is_some() {
-            domain_index
-        } else {
-            usize::MAX
-        };
-        idx >>= 1;
-        while idx > 0 {
-            self.tree[idx] = Self::winner(&self.keys, self.tree[2 * idx], self.tree[2 * idx + 1]);
-            idx >>= 1;
-        }
-    }
-
-    #[inline]
-    fn pop_first(&mut self) -> Option<SelectionKey> {
-        let best = self.tree[1];
-        if best == usize::MAX {
-            return None;
-        }
-        let key = self.keys[best].take()?;
-        self.update_leaf(best);
-        Some(key)
-    }
-
-    #[inline]
-    fn update(&mut self, domain_index: usize, key: SelectionKey) {
-        self.keys[domain_index] = Some(key);
-        self.update_leaf(domain_index);
-    }
+    fn domain_index(self) -> usize;
 }
 
 /// The most-constrained-first order: fewest viable views, then most
@@ -465,6 +410,22 @@ struct SelectionKey {
     first_point: LiveRangePoint,
     leader: VirtualRegisterId,
     domain_index: usize,
+}
+
+impl SelectionOrder for SelectionKey {
+    /// No domain can have `usize::MAX` viable views, so this sorts last.
+    const EMPTY: Self = SelectionKey {
+        viable: usize::MAX,
+        degree: Reverse(0),
+        first_point: LiveRangePoint(0),
+        leader: VirtualRegisterId(0),
+        domain_index: usize::MAX,
+    };
+
+    #[inline]
+    fn domain_index(self) -> usize {
+        self.domain_index
+    }
 }
 
 fn selection_key(
@@ -488,23 +449,13 @@ fn selection_key(
 /// One ordering implementation serves both widths — `u64` while every field
 /// fits its narrow range, `u128` otherwise — so the heap and the placement
 /// loop are stated once instead of once per width.
-trait PackedSelectionKey: Copy + Ord {
-    const EMPTY: Self;
-
+trait PackedSelectionKey: SelectionOrder {
     /// `static_key` already carries this domain's static order.
     fn pack(viable: u32, degree: usize, static_key: Self) -> Self;
-
-    fn domain_index(self) -> usize;
 }
 
-impl PackedSelectionKey for u64 {
+impl SelectionOrder for u64 {
     const EMPTY: Self = u64::MAX;
-
-    #[inline]
-    fn pack(viable: u32, degree: usize, static_key: Self) -> Self {
-        let inv_degree = !(degree as u16);
-        ((viable as u64) << 56) | ((inv_degree as u64) << 40) | static_key
-    }
 
     #[inline]
     fn domain_index(self) -> usize {
@@ -512,14 +463,16 @@ impl PackedSelectionKey for u64 {
     }
 }
 
-impl PackedSelectionKey for u128 {
-    const EMPTY: Self = u128::MAX;
-
+impl PackedSelectionKey for u64 {
     #[inline]
     fn pack(viable: u32, degree: usize, static_key: Self) -> Self {
-        let inv_degree = !(degree.min(u32::MAX as usize) as u32);
-        ((viable as u128) << 120) | ((inv_degree as u128) << 88) | static_key
+        let inv_degree = !(degree as u16);
+        ((viable as u64) << 56) | ((inv_degree as u64) << 40) | static_key
     }
+}
+
+impl SelectionOrder for u128 {
+    const EMPTY: Self = u128::MAX;
 
     #[inline]
     fn domain_index(self) -> usize {
@@ -527,12 +480,20 @@ impl PackedSelectionKey for u128 {
     }
 }
 
-struct PackedSelectionTree<K: PackedSelectionKey> {
+impl PackedSelectionKey for u128 {
+    #[inline]
+    fn pack(viable: u32, degree: usize, static_key: Self) -> Self {
+        let inv_degree = !(degree.min(u32::MAX as usize) as u32);
+        ((viable as u128) << 120) | ((inv_degree as u128) << 88) | static_key
+    }
+}
+
+struct PackedSelectionTree<K: SelectionOrder> {
     base: usize,
     tree: Vec<K>,
 }
 
-impl<K: PackedSelectionKey> PackedSelectionTree<K> {
+impl<K: SelectionOrder> PackedSelectionTree<K> {
     fn new(keys: &[K]) -> Self {
         let n = keys.len();
         let base = n.next_power_of_two().max(1);
@@ -581,19 +542,12 @@ fn compute_function_bitmask(
     conflicts: &PreparedConflicts,
     pressure: Option<&mut Vec<RegisterHomeError>>,
 ) -> Result<FunctionRegisterHomes, RegisterHomeError> {
+    // This path is entered only when `PreparedConflicts` admitted conflict
+    // masks, which requires every domain's candidates to fit the mask, so a
+    // domain's candidate set is exactly the mask it was built with.
     let viable_masks = domains
         .iter()
-        .map(|domain| {
-            if domain.candidates.is_empty() {
-                domain.candidates_mask
-            } else {
-                let mut mask = 0u128;
-                for &cand in &domain.candidates {
-                    mask |= 1u128 << cand.0;
-                }
-                mask
-            }
-        })
+        .map(|domain| domain.candidates_mask)
         .collect::<Vec<_>>();
     let degrees = (0..domains.len())
         .map(|domain_index| conflicts.degree(domain_index))
@@ -748,20 +702,7 @@ fn place_packed<K: PackedSelectionKey>(
     if let Some(first) = pressure.and_then(|pressure| pressure.first()).cloned() {
         return Err(first);
     }
-    Ok(FunctionRegisterHomes {
-        machine: legality.machine,
-        assignments: legality
-            .virtual_registers
-            .iter()
-            .filter(|register| !register.spans.is_empty())
-            .map(|register| VirtualRegisterHome {
-                virtual_register: register.virtual_register,
-                class: register.class,
-                view: homes[register.virtual_register.0 as usize]
-                    .expect("active register has assigned home"),
-            })
-            .collect(),
-    })
+    Ok(assemble_homes(legality, &homes))
 }
 
 fn preferred_view_mask(

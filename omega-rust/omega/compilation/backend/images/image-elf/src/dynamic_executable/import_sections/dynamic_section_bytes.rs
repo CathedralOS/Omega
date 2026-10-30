@@ -55,22 +55,27 @@ impl ValidatedElfDynamicSectionPayloads {
         self.payloads.dynstr.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn dynamic_symbol_byte_count(&self) -> usize {
         self.payloads.dynsym.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn system_v_hash_byte_count(&self) -> usize {
         self.payloads.sysv_hash.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn gnu_hash_byte_count(&self) -> usize {
         self.payloads.gnu_hash.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn symbol_version_byte_count(&self) -> usize {
         self.payloads.versym.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn version_requirement_byte_count(&self) -> usize {
         self.payloads.verneed.len()
     }

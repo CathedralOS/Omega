@@ -24,10 +24,12 @@ impl ValidatedElfProcedureLinkageTemplatePlan {
         &self.linkage
     }
 
+    #[cfg(test)]
     pub(crate) fn procedure_linkage_byte_count(&self) -> usize {
         self.contents.bytes.plt.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn procedure_got_byte_count(&self) -> usize {
         self.contents.bytes.got_plt.len()
     }
@@ -40,10 +42,12 @@ impl ValidatedElfProcedureLinkageTemplatePlan {
         self.contents.bytes.rela_dyn.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn fixup_count(&self) -> usize {
         self.contents.fixups.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn placement_constraint_count(&self) -> usize {
         self.contents.constraints.len()
     }

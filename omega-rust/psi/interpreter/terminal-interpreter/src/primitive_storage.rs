@@ -1311,7 +1311,10 @@ impl TerminalExecution<'_> {
                 else {
                     return Err(malformed());
                 };
-                let terminal_psi::StructuralTypeShape::FixedArray { element, length } = self
+                let terminal_psi::StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } = self
                     .program
                     .structural_types()
                     .get(&carrier)
@@ -1535,7 +1538,10 @@ impl TerminalExecution<'_> {
                 }
                 (
                     semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index),
-                    terminal_psi::StructuralTypeShape::FixedArray { element, length },
+                    terminal_psi::StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    },
                 ) if index < length => {
                     projected
                         .path
@@ -2257,7 +2263,11 @@ impl TerminalExecution<'_> {
             array_path,
         )
         .ok_or_else(malformed)?;
-        let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = declaration.shape else {
+        let terminal_psi::StructuralTypeShape::FixedArray {
+            length: terminal_psi::ArrayExtent::Literal(length),
+            ..
+        } = declaration.shape
+        else {
             return Err(malformed());
         };
         let byte_type =

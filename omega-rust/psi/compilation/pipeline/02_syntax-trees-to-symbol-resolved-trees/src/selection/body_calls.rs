@@ -26,6 +26,10 @@ pub(crate) struct CallSite<'a> {
     pub(crate) member: &'a DiagnosticName,
     /// The resolved declaration the call is qualified by, or invalid.
     pub(crate) receiver_symbol: SymbolHandle,
+    /// The complete authored trait application before `::`. Declaration-only
+    /// routing cannot replace it with a lexical implementation of that trait;
+    /// typed application formation owns the argument correspondence.
+    pub(crate) requirement_application: arena::Handle<symbol_resolved_trees::types::TypeReference>,
     /// The call is unqualified: it names no receiver declaration.
     pub(crate) local_receiver: bool,
     /// Authored operands, excluding any receiver.
@@ -150,6 +154,7 @@ fn retarget_statement_span(
                     target: &call.target,
                     member: &call.target,
                     receiver_symbol: call.receiver_symbol,
+                    requirement_application: arena::Handle::invalid(),
                     local_receiver: call.receiver.is_empty(),
                     argument_count: program
                         .tables
@@ -231,6 +236,7 @@ fn retarget_transition_target(
                     target: &spelling,
                     member,
                     receiver_symbol: path.receiver_symbol,
+                    requirement_application: arena::Handle::invalid(),
                     local_receiver: members.len() == 1,
                     argument_count: program
                         .tables
@@ -340,6 +346,7 @@ fn retarget_expression(
                 target: &call.target,
                 member: &call.target,
                 receiver_symbol,
+                requirement_application: call.requirement_application,
                 local_receiver: !call.receiver.is_valid(),
                 argument_count: program
                     .tables
@@ -390,6 +397,7 @@ fn retarget_expression(
         | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
         | symbol_resolved_trees::expression::ExpressionNode::Name(_)
         | symbol_resolved_trees::expression::ExpressionNode::String(_)
+        | symbol_resolved_trees::expression::ExpressionNode::TypeExpression(_)
         | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
     }
     for child in children {

@@ -2,11 +2,14 @@
 //! These are lowering checks, not a lifecycle settlement or native boot receipt.
 
 use super::*;
+use legalized_operations::LegalizedOperationPlan;
+use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{
     SelectedInstruction, SelectedInstructionProvenance, SelectedSelectionConstraints,
 };
-use semantic_vocabulary::{IntegerValue, OperationId};
+use semantic_vocabulary::{FuelScheduleIdentity, IntegerValue, MachineId, OperationId};
 use target::NativeTarget;
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 pub(super) fn with_builder(
     target: NativeTarget,
@@ -20,7 +23,25 @@ pub(super) fn with_builder(
     let catalog = environment.constraints();
     let materialize =
         crate::selection::constraints::row(catalog, constraints.keys.materialize_i64).unwrap();
+    // Placement lowering never queries foreign scalar backing. An empty closed
+    // program gives the builder the same backings handle production carries
+    // without inventing an ingress roster.
+    let program = LegalizedOperationPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([0; 32]),
+        },
+        optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(
+            b"placement-lifecycle test",
+        ),
+        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+        target,
+        entry: MachineId::new(1).unwrap(),
+        scalar_functions: vec![],
+    };
+    let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(&program);
     let mut builder = Builder {
+        backings: &backings,
         environment: &environment,
         pending_provenance: SelectedInstructionProvenance::default(),
         required_values: Default::default(),
@@ -701,7 +722,7 @@ fn resident_array_transfer_keeps_source_and_destination_strides_independent() {
             array,
             StructuralTypeShape::FixedArray {
                 element: scalar,
-                length: 2,
+                length: terminal_psi::ArrayExtent::Literal(2),
             },
         ),
     ];
@@ -840,7 +861,10 @@ fn image_fixture() -> (
         ),
         declaration(
             array,
-            StructuralTypeShape::FixedArray { element, length: 2 },
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(2),
+            },
         ),
     ];
     let entry = |field: &str, placement| LayoutFieldEntryReport {

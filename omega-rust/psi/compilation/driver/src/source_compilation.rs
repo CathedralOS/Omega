@@ -15,6 +15,9 @@ use activation::SourceContext;
 
 mod authored_completion;
 use authored_completion::AuthoredCompletions;
+mod product_policy;
+mod provider_requests;
+pub use product_policy::{AdmittedProductPolicy, ProductPolicyRequest};
 mod storage;
 
 /// Parsed, source-scoped input after package admission and Build-helper selection.
@@ -72,11 +75,24 @@ pub struct SourceExtensionRequest {
     pub selection_authority: Arc<dyn BuildTimeSelectionAuthority>,
 }
 
-/// Complete Product typing and any deferred constant obligations, ready for checking.
+/// Complete Product typing with deferred obligations recorded in the program.
+/// Checking retains their evaluation entries; Terminal scalar completion consumes
+/// them without an authored-source snapshot or an execution continuation.
 pub struct PreparedSource {
     pub accounting: build_time_evaluation::SourceCompletionAccounting,
     pub typed: typed_trees::TypedTrees,
-    pub pending_pre_checks: Vec<PreCheckEvaluation>,
+}
+
+impl PreparedSource {
+    /// Rejoin executed Build root choices against the completed Product source.
+    /// The result retains exact lexical declarations; it does not choose a
+    /// realized target or settle physical entry calling plans.
+    pub fn admit_root_bindings(
+        &self,
+        executed: &[language_semantics::declaration_selection::ExecutedRootBinding],
+    ) -> Result<Vec<validation::product_entries::RootBinding>, Vec<Diagnostic>> {
+        validation::product_entries::collect_root_bindings(&self.typed, executed)
+    }
 }
 
 impl SourceCompilationRequest {
@@ -289,15 +305,9 @@ impl SourceContinuation {
         occurrence: source::SourceSpan,
         path: &[u8],
         slot: &[u8],
-        compatibility: &dyn typed_trees::product_operand::ProductEntryCompatibility,
+        slots: &dyn semantic_vocabulary::ProgramEntrySourceCatalog,
     ) -> Result<language_semantics::declaration_selection::DescribedProductEntry, String> {
-        validation::product_queries::describe_entry(
-            self.typed(),
-            occurrence,
-            path,
-            slot,
-            compatibility,
-        )
+        validation::product_queries::describe_entry(self.typed(), occurrence, path, slot, slots)
     }
 
     /// Whether two admitted Build continuations have exactly the same remaining
@@ -374,6 +384,19 @@ impl SourceContinuation {
             author,
             static_environment,
             demand,
+        )
+    }
+
+    /// Rejoin one admitted dependency's executed Product choice without
+    /// importing its Build code or resolving private names in the consumer.
+    pub fn rejoin_product_provider_selection(
+        &mut self,
+        selection: &build_time_evaluation::provider_declarations::RetainedProviderSelection,
+    ) -> Result<build_time_evaluation::provider_declarations::ProviderSelection, Diagnostic> {
+        selection.rejoin(
+            Arc::make_mut(&mut self.input).typing.typed_mut(),
+            source::DependencyScope::Product,
+            &[],
         )
     }
 
@@ -507,7 +530,6 @@ impl CompletedSource {
         PreparedSource {
             accounting: self.accounting,
             typed: self.typing.into_typed(),
-            pending_pre_checks: self.pending_pre_checks,
         }
     }
 
@@ -550,16 +572,17 @@ impl CompletedSource {
                 self.typing.lower_extension(seeded)
             })?
             .into_typed();
-        self.pending_pre_checks
-            .extend(PreCheckEvaluation::evaluate_extension_or_defer(
-                pre_checks,
-                wire_schema_frontier,
-                &mut typed,
-            )?);
+        // Evaluation records deferred recipes and complete initializer entries
+        // in `typed`. There is no source-evaluation continuation after this
+        // final extension: Product completion consumes the canonical entries.
+        PreCheckEvaluation::evaluate_extension_or_defer(
+            pre_checks,
+            wire_schema_frontier,
+            &mut typed,
+        )?;
         Ok(PreparedSource {
             accounting: self.accounting,
             typed,
-            pending_pre_checks: self.pending_pre_checks,
         })
     }
 }

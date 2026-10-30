@@ -124,7 +124,6 @@ impl<'program> Evaluator<'program> {
 
         let target = intrinsic_method.unwrap_or(target_name);
         let Some(operation) = HostOperation::from_name(target) else {
-            self.non_fs_host_boundary_touched = true;
             return unsupported(format!("host boundary call `{target}` not yet supported"));
         };
         self.serve_host_operation(operation, target_symbol, arguments, frame)
@@ -177,7 +176,6 @@ impl<'program> Evaluator<'program> {
             return Ok(None);
         };
         self.host_boundary_touched = true;
-        self.non_fs_host_boundary_touched = true;
         if arguments.len() != binding.operands.len() {
             return unsupported("virtual wait argument count differs from its binding".to_owned());
         }
@@ -268,21 +266,6 @@ impl<'program> Evaluator<'program> {
         arguments: &[ExpressionHandle],
         frame: &mut Frame,
     ) -> EvalResult<Value> {
-        // Everything past the Filesystem branch is a NON-fs host boundary
-        // (console, exit, clock, gui) -- the granted-build backstop's line.
-        // EXCEPTION (owner answer #5, 2026-07-11k): the CONSOLE WRITE family
-        // is served during granted builds. The effect gate already verified
-        // statically that the build machine reaches console only through
-        // DECLARED stdout_io/stderr_io rows (a row-less boundary surfaces as
-        // opaque `host_boundary` and refuses before evaluation starts), and
-        // the granted entry flushes the buffered bytes to the compiler's
-        // real streams -- "the interpreter should never just catch it".
-        // Everything else keeps tripping the backstop (defense in depth
-        // beneath the gate).
-        if !matches!(operation, HostOperation::ConsoleWrite { .. }) {
-            self.non_fs_host_boundary_touched = true;
-        }
-
         match operation {
             HostOperation::ExitProcess => {
                 // A `ProcessExit`-named boundary may only end the simulated

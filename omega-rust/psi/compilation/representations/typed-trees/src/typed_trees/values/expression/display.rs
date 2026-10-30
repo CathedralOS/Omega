@@ -121,6 +121,7 @@ impl Expression {
             Expression::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Expression::String(value) => source::display_literal_bytes(value),
             Expression::Unary(unary) => unary.display_name(),
+            Expression::TypeExpression(_) => "type".to_owned(),
             Expression::ZeroValue(_) => "zero_value<type>()".to_owned(),
         }
     }
@@ -245,6 +246,7 @@ impl ExpressionNode {
             }
             Self::String(value) => out.push_str(&source::display_literal_bytes(value)),
             Self::Unary(unary) => unary.write_display_name_with(table, out),
+            Self::TypeExpression(_) => out.push_str("type"),
             Self::ZeroValue(_) => out.push_str("zero_value<type>()"),
         }
     }

@@ -25,6 +25,7 @@ pub(crate) use slot_inventory::provider_completion_covers_writable_slots;
 use slot_inventory::{destination_inventory, parameter_destination_inventory};
 pub(super) use slot_inventory::{provider_output_relation_required, seed_incoming_slots};
 mod normal_exits;
+mod summary_windows;
 pub(super) use normal_exits::state_effects;
 mod instantiation;
 use instantiation::{aggregate_argument_sources, destination_source, instantiate};

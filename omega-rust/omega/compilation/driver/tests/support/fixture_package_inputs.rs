@@ -185,12 +185,7 @@ fn derive_entry_from_inputs(
     .map_err(|failure| failure.into_diagnostics())?;
     checked
         .execution()
-        .candidate_service_binding(
-            &checked.providers().boundary_calling_plan_realizations,
-            role,
-            supplier,
-            schema,
-        )
+        .candidate_service_binding(role, supplier, schema)
         .map(Some)
         .map_err(|diagnostic| vec![diagnostic])
 }
@@ -281,6 +276,115 @@ pub fn produce_fixture(
         prepared.product.clone(),
     )
     .map_err(compiler::CompilationProductError::into_diagnostics)
+}
+
+/// An authored rejection may also require the standalone batch API to retain
+/// attempted scalar charges. Observe it before package policy flattens failures
+/// to diagnostics; the ordinary package refusal is still exercised separately.
+fn observe_failed_scalar_accounting(
+    authored_project_root: &Path,
+    root_path: &Path,
+    inputs: &PackageCompilationInputs,
+    profile: TargetProfile,
+) -> Result<(), Vec<Diagnostic>> {
+    let oracle_path = authored_project_root.join("expected_failed_scalar_accounting.txt");
+    let oracle = match fs::read_to_string(&oracle_path) {
+        Ok(oracle) => oracle,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(vec![Diagnostic::error(error.to_string())]),
+    };
+    let minimum_receipts = oracle
+        .trim()
+        .parse::<usize>()
+        .ok()
+        .filter(|count| *count > 0)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "failed scalar accounting oracle requires a positive receipt count",
+            )]
+        })?;
+    let expected_diagnostics = fs::read_to_string(authored_project_root.join("expected.txt"))
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+    let request = compiler::CompileRequest::for_targets(
+        root_path.to_path_buf(),
+        sealed_fixture_staging::fresh_staging_build_dir(&repo_root(), authored_project_root),
+        vec![Some(profile)],
+    )
+    .with_package_inputs(inputs.clone());
+    let outcomes = omega_build::compile_sources(
+        &mut compiler::CompilationSession::default(),
+        request,
+    )
+    .map_err(|diagnostics| {
+        eprintln!(
+            "failed scalar accounting probe stopped before target completion: {diagnostics:?}"
+        );
+        vec![Diagnostic::error(
+            "failed scalar accounting probe did not reach target completion",
+        )]
+    })?;
+    let outcomes = outcomes.into_outcomes();
+    if outcomes.len() != 1 {
+        return Err(vec![Diagnostic::error(
+            "failed scalar accounting probe lost its target",
+        )]);
+    }
+    for outcome in outcomes {
+        if outcome.target_profile() != Some(profile) {
+            return Err(vec![Diagnostic::error(
+                "failed scalar accounting probe changed its target",
+            )]);
+        }
+        let accounting = outcome.source_completion_accounting().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "failed scalar accounting probe lost its ledger",
+            )]
+        })?;
+        accounting.validate_charges().map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "failed scalar accounting probe has invalid charges: {reason}"
+            ))]
+        })?;
+        let receipts = accounting
+            .receipts()
+            .iter()
+            .filter(|receipt| {
+                matches!(
+                    receipt,
+                    build_time_evaluation::PureEvaluationRecord::CanonicalScalar(_)
+                )
+            })
+            .count();
+        if receipts < minimum_receipts || !accounting.has_complete_usage() {
+            return Err(vec![Diagnostic::error(format!(
+                "failed scalar accounting probe requires {minimum_receipts} complete receipts, got {receipts}",
+            ))]);
+        }
+        let diagnostics = outcome.into_result().err().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "failed scalar accounting probe unexpectedly produced a product",
+            )]
+        })?;
+        for expected in expected_diagnostics
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+        {
+            if !diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected))
+            {
+                eprintln!("failed scalar accounting probe had another refusal: {diagnostics:?}");
+                return Err(vec![Diagnostic::error(
+                    "failed scalar accounting probe missed its authored refusal",
+                )]);
+            }
+        }
+        eprintln!(
+            "failed scalar accounting: {receipts} canonical receipts, valid complete charges"
+        );
+    }
+    Ok(())
 }
 
 /// Generic authored host-input fixtures: each immediate directory under
@@ -554,6 +658,10 @@ pub fn review_fixture(
                     "entry fixture acceptance: {errors:?}"
                 ))]
             })?;
+        // A false declaration condition can refuse during preliminary review.
+        // Observe the standalone ledger with the admitted entry inputs first;
+        // do not let that earlier refusal silently skip the authored oracle.
+        observe_failed_scalar_accounting(authored_project_root, &root_path, &inputs, profile)?;
         let mut discovery = clone_fixture_occurrences(&request.occurrences)?;
         let Some(compiler::PackageSourceRequest::Product(root)) = discovery.last_mut() else {
             return Err(vec![Diagnostic::error(
@@ -798,7 +906,6 @@ fn dangerous_service_bindings(
             preliminary
                 .execution()
                 .candidate_service_binding(
-                    &preliminary.providers().boundary_calling_plan_realizations,
                     AcceptedSemanticBindingRole::FilesystemHostService,
                     owner,
                     "FilesystemHost",
@@ -811,7 +918,6 @@ fn dangerous_service_bindings(
             preliminary
                 .execution()
                 .candidate_service_binding(
-                    &preliminary.providers().boundary_calling_plan_realizations,
                     AcceptedSemanticBindingRole::TimeHostService,
                     owner,
                     "TimeHost",

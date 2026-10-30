@@ -838,7 +838,10 @@ pub(crate) fn primitive_array_shape(
             return None;
         }
         match declaration.shape {
-            StructuralTypeShape::FixedArray { element, length } => {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 array = true;
                 empty |= length == 0;
                 count = count.and_then(|count| count.checked_mul(length));
@@ -973,244 +976,11 @@ pub(crate) fn fixed_element_array_view(
 /// extent is independent of the bytes occupied by that pointer cell. An
 /// owned bounded byte carrier's live-length word precedes `offset`, so its
 /// viewed bytes begin where the descriptor points.
-pub(crate) struct CollectionViewGeometry {
-    pub offset: u32,
-    pub elements: Vec<RuntimeElement>,
-    pub extent: terminal_semantics::CollectionExtent,
-    pub stride: u32,
-    pub storage: terminal_semantics::CollectionStorage,
-}
-
-pub(crate) fn collection_view_geometry(
-    source: &terminal_psi::StructuralParameterDeclaration,
-    argument: &terminal_psi::StructuralArgument,
-    view_type: StructuralTypeId,
-    declarations: &[StructuralTypeDeclaration],
-) -> Option<CollectionViewGeometry> {
-    collection_view_region_geometry(
-        source,
-        argument,
-        view_type,
-        declarations,
-        terminal_psi::ElementViewRegion::WholeCollection,
-    )
-}
-pub(crate) fn collection_view_region_geometry(
-    source: &terminal_psi::StructuralParameterDeclaration,
-    argument: &terminal_psi::StructuralArgument,
-    view_type: StructuralTypeId,
-    declarations: &[StructuralTypeDeclaration],
-    region: terminal_psi::ElementViewRegion,
-) -> Option<CollectionViewGeometry> {
-    use terminal_psi::{StructuralAccess, StructuralMultiplicity};
-    if source.place != argument.place
-        || !matches!(
-            (source.access, argument.access),
-            (
-                StructuralAccess::MutableBorrow,
-                terminal_psi::reading_borrow_pair_pattern!(),
-            ) | (
-                StructuralAccess::SharedBorrow,
-                StructuralAccess::SharedBorrow
-            ) | (
-                StructuralAccess::Owned,
-                StructuralAccess::SharedBorrow | terminal_psi::mutating_access_pair_pattern!(),
-            )
-        )
-        || !(source.multiplicity == StructuralMultiplicity::Unrestricted
-            || (source.multiplicity == StructuralMultiplicity::Affine
-                && source.access == StructuralAccess::Owned
-                && matches!(
-                    argument.access,
-                    terminal_psi::reading_borrow_pair_pattern!()
-                ))
-            || (source.multiplicity == StructuralMultiplicity::Affine
-                && matches!(
-                    source.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                )))
-    {
-        return None;
-    }
-    // A `&[u8]` view ends its path in a `FixedByteRange` window over the
-    // fixed byte array the field prefix names; the window start is a byte
-    // offset and its width replaces the array length in the descriptor.
-    let (field_path, byte_window) = match argument.path.last() {
-        Some(StructuralPathSegment::FixedByteRange { start, end }) => (
-            &argument.path[..argument.path.len() - 1],
-            Some((*start, *end)),
-        ),
-        _ => (&argument.path[..], None),
-    };
-    let view_element = match &find_structural_type(declarations, view_type)?.shape {
-        StructuralTypeShape::ElementView {
-            element: view_element,
-            ..
-        } => Some(*view_element),
-        shape if shape.is_borrowed_byte_carrier() => None,
-        _ => return None,
-    };
-    let (collection_shape, offset, elements) =
-        collection_projection(source.structural_type, field_path, declarations)?;
-    let element = view_element.or_else(|| {
-        declarations.iter().find_map(|declaration| {
-            (declaration.scalar_restriction.is_none()
-                && matches!(declaration.shape,
-            StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
-            if Ok(integer) == semantic_vocabulary::IntegerType::new(
-                semantic_vocabulary::IntegerSign::Unsigned, 8)))
-            .then_some(declaration.id)
-            .filter(|element| {
-                terminal_semantics::element_view_shape_region_geometry(
-                    declarations.iter(),
-                    &collection_shape,
-                    *element,
-                    region,
-                    argument.access,
-                )
-                .is_some()
-            })
-        })
-    })?;
-    let geometry = terminal_semantics::element_view_shape_region_geometry(
-        declarations.iter(),
-        &collection_shape,
-        element,
-        region,
-        argument.access,
-    )?;
-    if region == terminal_psi::ElementViewRegion::WholeCollection
-        && !typed_collection_layout_matches(
-            &collection_shape,
-            element,
-            argument.access,
-            declarations,
-        )
-    {
-        return None;
-    }
-    let (backing, representation) = match geometry {
-        terminal_semantics::ElementViewRegionGeometry::WholeCollection(backing) => (backing, None),
-        terminal_semantics::ElementViewRegionGeometry::RepresentationBytes {
-            byte_extent,
-            element: layout,
-        } => {
-            if byte_window.is_some() {
-                return None;
-            }
-            let storage = if matches!(&*collection_shape, StructuralTypeShape::ByteSequence(_)) {
-                terminal_semantics::CollectionStorage::Borrowed
-            } else {
-                terminal_semantics::CollectionStorage::Inline
-            };
-            (
-                terminal_semantics::CollectionBacking {
-                    extent: terminal_semantics::CollectionExtent::Fixed(byte_extent),
-                    storage,
-                },
-                Some(layout),
-            )
-        }
-    };
-    if backing.storage == terminal_semantics::CollectionStorage::Borrowed
-        && (byte_window.is_some()
-            || (view_element.is_some()
-                && representation.is_none()
-                && backing.extent != terminal_semantics::CollectionExtent::StoredLength))
-    {
-        return None;
-    }
-    let extent = backing.extent;
-    terminal_semantics::collection_view_descriptor(
-        &find_structural_type(declarations, view_type)?.shape,
-        Some(extent),
-        region,
-        &argument.path,
-        find_structural_type(declarations, element),
-    )?;
-    let element_stride = align(
-        shape(element, declarations)?.byte_size,
-        shape(element, declarations)?.alignment,
-    )?;
-    if let Some(layout) = &representation {
-        if layout.size != u64::from(element_stride)
-            || layout.alignment != u64::from(shape(element, declarations)?.alignment)
-            || layout.leaves.iter().any(|leaf| {
-                element_leaf_geometry(element, &leaf.path, leaf.scalar_type, declarations)
-                    .is_none_or(|(offset, _)| u64::from(offset) != leaf.offset)
-            })
-        {
-            return None;
-        }
-    }
-    let (window_offset, element_count, extent) = match (byte_window, extent) {
-        (Some((start, end)), terminal_semantics::CollectionExtent::Fixed(length))
-            if start <= end && end <= length =>
-        {
-            let byte_offset = start.checked_mul(u64::from(element_stride))?;
-            (
-                u32::try_from(byte_offset).ok()?,
-                end - start,
-                terminal_semantics::CollectionExtent::Fixed(end - start),
-            )
-        }
-        // A static window cannot bound a live count; dynamic narrowing is a
-        // following subslice over the established descriptor.
-        (Some(_), _) => return None,
-        // An owned byte carrier's live-length word precedes its elements, so
-        // the viewed bytes start eight bytes into the collection's storage;
-        // capacity bounds the span its live extent counts.
-        (None, terminal_semantics::CollectionExtent::LiveLength { capacity }) => (
-            8,
-            capacity,
-            terminal_semantics::CollectionExtent::LiveLength { capacity },
-        ),
-        (None, terminal_semantics::CollectionExtent::Fixed(length)) => (
-            0,
-            length,
-            terminal_semantics::CollectionExtent::Fixed(length),
-        ),
-        // This count is loaded at runtime. Only descriptor storage contributes
-        // to the finite footprint below, never a fabricated capacity.
-        (None, terminal_semantics::CollectionExtent::StoredLength) => {
-            (0, 0, terminal_semantics::CollectionExtent::StoredLength)
-        }
-    };
-    let offset = offset.checked_add(window_offset)?;
-    let storage_size = match backing.storage {
-        terminal_semantics::CollectionStorage::Inline => {
-            if representation.is_some() {
-                element_count
-            } else {
-                element_count.checked_mul(u64::from(element_stride))?
-            }
-        }
-        terminal_semantics::CollectionStorage::Borrowed => {
-            if extent == terminal_semantics::CollectionExtent::StoredLength {
-                16
-            } else {
-                8
-            }
-        }
-    };
-    // The selected collection owns this finite footprint. After indexing a
-    // view, `offset` is in its element storage, not in the root descriptor's
-    // two words. Projection already validates the containing field layout.
-    let (selected_storage, _, _) =
-        runtime_storage_projection(source.structural_type, field_path, declarations)?;
-    let selected_size = field_shape(&selected_storage, declarations, &mut Vec::new())?.byte_size;
-    let end = u64::from(window_offset).checked_add(storage_size)?;
-    if end > u64::from(selected_size) {
-        return None;
-    }
-    Some(CollectionViewGeometry {
-        offset,
-        elements,
-        extent,
-        stride: element_stride,
-        storage: backing.storage,
-    })
-}
+mod collection_views;
+pub(crate) use collection_views::{
+    CollectionViewGeometry, collection_view_geometry, collection_view_region_geometry,
+    projected_collection,
+};
 
 /// Reconstruct a borrowed view presented from whole or inline bounded-owner
 /// storage. The live length word and capacity bytes stay in the caller's
@@ -1484,6 +1254,7 @@ fn shape_inner(
             Some(ValueShape::integer(align(bytes, alignment)?, alignment))
         }
         StructuralTypeShape::FixedArray { element, length } => {
+            let length = length.literal()?;
             // Owned primitive arrays already define their recursive ABI,
             // including zero-byte arrays. Borrowing must observe that same
             // layout instead of independently imposing a nonempty extent.
@@ -1493,8 +1264,8 @@ fn shape_inner(
                 let element = shape_inner(*element, declarations, active)?;
                 let stride = align(element.byte_size, element.alignment)?;
                 Some(ValueShape::integer(
-                    u32::try_from(u64::from(stride).checked_mul(*length)?).ok()?,
-                    if *length == 0 { 1 } else { element.alignment },
+                    u32::try_from(u64::from(stride).checked_mul(length)?).ok()?,
+                    if length == 0 { 1 } else { element.alignment },
                 ))
             }
         }
@@ -2023,9 +1794,10 @@ fn project_storage<'types>(
             }
             (selection @ (Projection::FixedIndex(_) | Projection::RuntimeIndex(..)), array) => {
                 let (element, extent) = match array {
-                    StructuralTypeShape::FixedArray { element, length } => {
-                        (*element, Some(*length))
-                    }
+                    StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    } => (*element, Some(*length)),
                     StructuralTypeShape::ElementView { element, .. } => (*element, None),
                     _ => return None,
                 };
@@ -2224,23 +1996,15 @@ pub(crate) fn field_store_geometry(
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<PrimitiveAccessGeometry> {
-    let regions = storage_projection_regions(root, path, declarations)?;
-    let (byte_offset, byte_size, leaf_elements) = inline_scalar_field_geometry(
-        regions.root,
-        &path[regions.segment_start..],
-        field,
+    primitive_access_geometry(
+        root,
+        path,
         scalar,
         declarations,
-    )?;
-    let mut elements = regions.elements;
-    elements.extend(leaf_elements);
-    Some(PrimitiveAccessGeometry {
-        byte_offset,
-        byte_size,
-        elements,
-        pointer_slots: regions.pointer_slots,
-        uses_borrowed_backing: regions.uses_borrowed_backing,
-    })
+        |root, path, scalar, declarations| {
+            inline_scalar_field_geometry(root, path, field, scalar, declarations)
+        },
+    )
 }
 
 pub(crate) fn store(

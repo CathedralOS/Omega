@@ -1,0 +1,65 @@
+{
+  "stack32": {
+    "A": {
+      "wall_median_ms": 3037.890499999776,
+      "wall_range_ms": [
+        2756.4391999985673,
+        3798.616000000038
+      ],
+      "checking_median_ms": 1350.9245,
+      "peak_memory_median_bytes": 1337522176.0
+    },
+    "B": {
+      "wall_median_ms": 3178.8298500014207,
+      "wall_range_ms": [
+        2923.8794000011694,
+        3664.571599998453
+      ],
+      "checking_median_ms": 1365.7675,
+      "peak_memory_median_bytes": 1321635840.0
+    },
+    "median_change_percent": 4.6393821634339805
+  },
+  "length": {
+    "A": {
+      "wall_median_ms": 3395.5249000009644,
+      "wall_range_ms": [
+        2303.7547999992967,
+        4787.925900000118
+      ],
+      "checking_median_ms": 1436.42,
+      "peak_memory_median_bytes": 1262231552.0
+    },
+    "B": {
+      "wall_median_ms": 2888.0580000004556,
+      "wall_range_ms": [
+        2766.3065000015195,
+        3702.8307000000495
+      ],
+      "checking_median_ms": 1502.8229999999999,
+      "peak_memory_median_bytes": 1226209280.0
+    },
+    "median_change_percent": -14.945167976838125
+  },
+  "dispatch": {
+    "A": {
+      "wall_median_ms": 4221.592949998012,
+      "wall_range_ms": [
+        2679.0537999986554,
+        4415.905000001658
+      ],
+      "checking_median_ms": 2026.2979999999998,
+      "peak_memory_median_bytes": 1232242688.0
+    },
+    "B": {
+      "wall_median_ms": 3140.2181000012206,
+      "wall_range_ms": [
+        2833.0878999986453,
+        4908.512100002554
+      ],
+      "checking_median_ms": 1349.1265,
+      "peak_memory_median_bytes": 1266339840.0
+    },
+    "median_change_percent": -25.615327266388878
+  }
+}

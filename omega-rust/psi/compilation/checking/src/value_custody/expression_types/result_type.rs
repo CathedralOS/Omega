@@ -634,9 +634,16 @@ fn result_type(
             )
         }),
         ExpressionNode::Binary(binary) => {
-            let operands = [binary.left, binary.right]
-                .map(|operand| result_type(program, owner, operand, active));
-            binary_result(program, owner, expression, binary, operands, active)
+            if program.static_type_predicate_operands(expression).is_some() {
+                crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                    program,
+                    BuiltinTypeAtom::Bool,
+                )
+            } else {
+                let operands = [binary.left, binary.right]
+                    .map(|operand| result_type(program, owner, operand, active));
+                binary_result(program, owner, expression, binary, operands, active)
+            }
         }
         ExpressionNode::Unary(unary) => {
             let operand = result_type(program, owner, unary.operand, active);
@@ -680,6 +687,8 @@ fn result_type(
             }
         },
     };
+    let result =
+        result.map(|reference| program.statically_refined_type_reference(expression, reference));
     active.pop();
     let result = result.filter(|reference| {
         program

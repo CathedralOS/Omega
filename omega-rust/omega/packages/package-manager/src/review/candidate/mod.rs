@@ -19,7 +19,6 @@ pub use passes::{
 };
 pub use review_cache::PackageReviewCacheWrite;
 pub(crate) use review_cache::compiled_review_key_with_identity;
-pub(crate) use review_set::{
-    CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
-};
+pub use review_set::PackageSourceVerificationPhase;
+pub(crate) use review_set::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 pub(crate) use semantic_bindings::ConsumerScopedSemanticBindingReviewInput;

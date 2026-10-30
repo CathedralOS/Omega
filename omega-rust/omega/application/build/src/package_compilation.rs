@@ -75,10 +75,12 @@ pub fn compile_packages(
         for ((position, root), product) in compiler.complete_package_products(products)? {
             outcomes.push((
                 position,
-                product.map_err(|error| PackageCompileFailure {
-                    occurrence: root,
-                    failure: error.into_diagnostics().into(),
-                }),
+                product
+                    .and_then(crate::complete_product)
+                    .map_err(|error| PackageCompileFailure {
+                        occurrence: root,
+                        failure: error.into_diagnostics().into(),
+                    }),
             ));
         }
         outcomes.sort_unstable_by_key(|(position, _)| *position);

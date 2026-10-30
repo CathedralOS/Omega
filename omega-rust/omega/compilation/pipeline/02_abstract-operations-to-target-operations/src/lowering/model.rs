@@ -223,6 +223,7 @@ pub enum LoweringError {
     },
     UnsupportedStructuralReference(StructuralTypeId),
     UnclosedTargetLayout(StructuralTypeId),
+    UnclosedArrayExtent(StructuralTypeId),
     StructuralTypeTooLarge(StructuralTypeId),
     ConditionalControlFlowRequiresBlockLowering(MachineId),
     ConditionalConditionMustBeBoolean(ValueId),

@@ -140,7 +140,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     let (
         alias,
         authored_routes,
-        predicate_body,
+        predicate_presence,
         facts,
         operators,
         semantic_clause_token_count,
@@ -155,7 +155,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         (
             Some(alias),
             Vec::new(),
-            language_core::DomainPredicateBody::Bodyless,
+            language_core::DomainPredicatePresence::Absent,
             HandleSpan::empty(),
             HandleSpan::empty(),
             0,
@@ -173,21 +173,21 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
                 .set_proof_fact_source_span(handle, parent_span);
             handle
         });
-        let ((predicate_body, authored_facts, requires_token_count), input) =
+        let ((predicate_presence, authored_facts, requires_token_count), input) =
             parse_domain_requires(syntax_trees, input)?;
-        let (predicate_body, facts) = match parent_fact {
+        let (predicate_presence, facts) = match parent_fact {
             Some(handle) => (
-                language_core::DomainPredicateBody::Present,
+                language_core::DomainPredicatePresence::Present,
                 HandleSpan::from_parts(handle, 1 + authored_facts.count()),
             ),
-            None => (predicate_body, authored_facts),
+            None => (predicate_presence, authored_facts),
         };
         let ((authored_routes, semantic_clause_token_count), input) =
-            parse_domain_establishment(input, predicate_body.is_present())?;
+            parse_domain_establishment(input, predicate_presence.is_present())?;
         (
             None,
             authored_routes,
-            predicate_body,
+            predicate_presence,
             facts,
             HandleSpan::empty(),
             requires_token_count.saturating_add(semantic_clause_token_count),
@@ -206,7 +206,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
             authored_routes,
             cleanup_selection,
             classification,
-            predicate_body,
+            predicate_presence,
             facts,
             operators,
             semantic_clause_token_count: classification_token_count
@@ -254,7 +254,7 @@ fn parse_domain_requires<'tokens, 'source>(
     'tokens,
     'source,
     (
-        language_core::DomainPredicateBody,
+        language_core::DomainPredicatePresence,
         HandleSpan<ProofFact>,
         usize,
     ),
@@ -262,7 +262,7 @@ fn parse_domain_requires<'tokens, 'source>(
     if !input.at_contextual("requires") {
         return Ok((
             (
-                language_core::DomainPredicateBody::Bodyless,
+                language_core::DomainPredicatePresence::Absent,
                 HandleSpan::empty(),
                 0,
             ),
@@ -278,7 +278,7 @@ fn parse_domain_requires<'tokens, 'source>(
     }
     Ok((
         (
-            language_core::DomainPredicateBody::Present,
+            language_core::DomainPredicatePresence::Present,
             facts,
             token_count,
         ),
@@ -370,9 +370,6 @@ fn parse_domain_establishment<'tokens, 'source>(
         ));
     }
 
-    // A `requires` clause may own the declaration's final semicolon. When its
-    // proof-fact parser has already consumed that token, the next root item is
-    // the caller's input and this domain has no establishment clause.
     if requires_consumed
         && !input.at_contextual("established")
         && !input.at_punctuation(PunctuationKind::LeftBrace)
@@ -384,8 +381,9 @@ fn parse_domain_establishment<'tokens, 'source>(
     if input.at_punctuation(PunctuationKind::LeftBrace) {
         let body = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
         if body.at_punctuation(PunctuationKind::RightBrace) {
-            let input = body.take_punctuation(PunctuationKind::RightBrace, "}")?;
-            return Ok(((Vec::new(), 0), input));
+            return Err(
+                input.error_here("empty domain bodies are retired; end the declaration with `;`")
+            );
         }
         if at_legacy_authored_route(body) {
             return Err(input.error_here(
@@ -405,6 +403,11 @@ fn parse_domain_establishment<'tokens, 'source>(
         ));
     }
 
+    if !input.at_contextual("established") {
+        return Err(input.error_here(
+            "expected `;` to end the domain declaration or an `established by` clause",
+        ));
+    }
     let mut input = input.take_contextual("established")?;
     input = input.take_contextual("by")?;
     let routes_start_tokens = input.tokens.len();

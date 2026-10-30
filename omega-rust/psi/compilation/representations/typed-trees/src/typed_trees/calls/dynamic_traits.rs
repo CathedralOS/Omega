@@ -330,7 +330,8 @@ impl TypedTrees {
             ExpressionNode::Unary(unary) => {
                 self.collect_expression_symbols(unary.operand, symbols);
             }
-            ExpressionNode::ZeroValue(type_reference) => {
+            ExpressionNode::TypeExpression(type_reference)
+            | ExpressionNode::ZeroValue(type_reference) => {
                 collect_type_reference_symbols(self, *type_reference, symbols);
             }
             ExpressionNode::Boolean(_)

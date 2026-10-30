@@ -3,6 +3,7 @@
 
 use crate::provider_planning::provenance_replay::SelectedTargetMachineOrigin;
 use crate::provider_planning::{ProviderBinding, TypedTrees};
+use checked_trees::typed_trees::{signature::StateSignature, trait_definition::TraitDefinition};
 use target::HostedIntrinsicBundle;
 
 pub(crate) fn exact_satisfied_requirement_identity(

@@ -4,3 +4,5 @@ cannot prove ensures contract for exit from wrong_collection
 cannot prove ensures contract for exit from partial_restoration
 cannot prove ensures contract for exit from breaks_pair
 cannot prove requires contract for call consume
+cannot prove ensures contract for exit from nested_store_bad_branch
+cannot prove ensures contract for exit from nested_store_wrong_storage

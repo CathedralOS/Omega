@@ -276,7 +276,9 @@ impl SymbolCopy<'_, '_> {
                 }
             }
             ExpressionNode::Unary(unary) => self.expression_payloads(unary.operand),
-            ExpressionNode::ZeroValue(reference) => *reference = self.type_reference(*reference),
+            ExpressionNode::TypeExpression(reference) | ExpressionNode::ZeroValue(reference) => {
+                *reference = self.type_reference(*reference)
+            }
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)

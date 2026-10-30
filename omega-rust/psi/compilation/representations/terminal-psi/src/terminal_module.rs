@@ -15,6 +15,19 @@ pub mod boundary;
 pub use boundary::*;
 pub mod folded_constants;
 pub use folded_constants::*;
+pub mod proof_application_scope;
+pub mod scalar_applications;
+pub mod scalar_conditions;
+pub use proof_application_scope::{
+    ProofApplicationScope, ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration,
+};
+pub use scalar_applications::{
+    ArrayExtent, LayoutMeasurement, ScalarApplication, ScalarApplications,
+};
+pub use scalar_conditions::{
+    ScalarCompletionCondition, ScalarConditionSubject, ScalarConditions, ScalarPredicateCondition,
+    ScalarPredicateNode, ScalarRangeCondition, ScalarRangeObservation, ScalarRangeRequirement,
+};
 pub mod control_flow;
 pub use control_flow::{
     AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion, FenceOrdering,
@@ -80,6 +93,9 @@ pub struct TerminalIndexedTheorem {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalModule {
+    /// Pending target-dependent values and their complete source-free meanings.
+    /// Their answers and conditional admission belong to the target closure.
+    pub scalar_applications: ScalarApplications,
     /// Historical semantic compatibility consumed by folding. This supplies
     /// no executable boundary demand, provider installation or host authority.
     pub folded_constants: FoldedConstantClosure,
@@ -95,7 +111,9 @@ pub struct TerminalModule {
     /// Portable callable root. A target-family head is a contract, not an
     /// executable representative: installation selects its exact tagged body
     /// without changing this root or the canonical artifact.
-    pub entry: TargetMachineCallable,
+    /// Optional default invocation root. Declaration-only products carry no
+    /// entry; executing a retained callable requires an explicit selection.
+    pub entry: Option<TargetMachineCallable>,
     /// Canonical scalar membership vocabulary and explicit successor-edge coercions.
     pub scalar_qualifications: ScalarQualificationCatalog,
     /// Concrete target-neutral instantiated type shapes, ordered by `id`.
@@ -259,11 +277,20 @@ impl TerminalModule {
     /// producer's literal.
     pub fn for_entry(entry: MachineId) -> Self {
         Self {
+            entry: Some(TargetMachineCallable::Machine(entry)),
+            ..Self::declarations()
+        }
+    }
+
+    /// An empty declaration catalog without an executable default.
+    pub fn declarations() -> Self {
+        Self {
+            scalar_applications: Default::default(),
             folded_constants: Default::default(),
             indexed_theorems: Vec::new(),
             mathematical_carriers: Vec::new(),
             vocabulary_marker: VocabularyMarker::CURRENT,
-            entry: TargetMachineCallable::Machine(entry),
+            entry: None,
             identities: Default::default(),
             scalar_qualifications: Default::default(),
             structural_types: Vec::new(),

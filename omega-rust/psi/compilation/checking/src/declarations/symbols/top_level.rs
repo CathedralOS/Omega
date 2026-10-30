@@ -172,13 +172,13 @@ impl<'program> TopLevelSymbols<'program> {
                 })
                 .unwrap_or_default();
             let identity = program.machine_callable_identity(machine);
-            let is_result_overload_family = !same_named.is_empty()
+            let is_named_overload_family = !same_named.is_empty()
                 && identity.is_valid()
                 && same_named.iter().all(|previous| {
-                    program.callable_identities_share_family(
-                        program.machine_callable_identity(previous),
-                        identity,
-                    )
+                    let previous_identity = program.machine_callable_identity(previous);
+                    program.callable_identities_share_path(previous_identity, identity)
+                        && (program.callable_identities_share_family(previous_identity, identity)
+                            || (machine.spelling.is_none() && previous.spelling.is_none()))
                 });
             let is_boundary_token_overload_family = machine.spelling.is_some()
                 && machine.supply_mode
@@ -211,7 +211,7 @@ impl<'program> TopLevelSymbols<'program> {
                     })
                 });
             if !same_named.is_empty()
-                && !is_result_overload_family
+                && !is_named_overload_family
                 && !is_boundary_token_overload_family
                 && !is_owned_requirement_roster
             {

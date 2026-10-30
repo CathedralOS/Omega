@@ -19,13 +19,15 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{DataLayoutQueryRequest, ExpressionNode};
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
-/// Whether any typed call still carries a retained data-layout query. The
-/// query itself is already the pending marker: lowering admits the request
+/// Whether selected declarations retain target-dependent observations. A
+/// named constant propagates the dependency even when a call only names that
+/// constant rather than containing its query directly. The query itself is
+/// already the pending marker: lowering admits the request
 /// only as an explicit `DataLayoutQueryRequest`, so the field's presence is
 /// the complete deferral condition — no admission or selection closure is
 /// needed to know the answer is target-dependent. Ownership traversal excludes
 /// unselected declarations and stale arena nodes.
-pub(crate) fn pending_layout_queries_need_operator_selection(
+pub(crate) fn has_pending_target_observations(
     typed: &TypedTrees,
     selection: &typed_trees::references::DeclarationSelection,
 ) -> bool {
@@ -38,6 +40,11 @@ pub(crate) fn pending_layout_queries_need_operator_selection(
                 _ => false,
             },
         )
+        || typed.const_declarations().iter().any(|declaration| {
+            selection.contains(declaration.symbol)
+                && declaration.pending_target_observation
+                && declaration.evaluated_value.is_none()
+        })
 }
 
 /// Supplies a fresh measurement view for one query pass. Evaluation can install

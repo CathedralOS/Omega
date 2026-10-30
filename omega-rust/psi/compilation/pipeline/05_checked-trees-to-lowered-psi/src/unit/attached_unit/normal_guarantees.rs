@@ -110,7 +110,11 @@ pub(crate) fn lower(
             predicate,
             result.scalar().as_slice(),
             &[],
-            &ContractViewNamespace::EMPTY,
+            &ContractViewNamespace {
+                scalar_applications: views.scalar_applications,
+                constant_values: views.constant_values,
+                ..ContractViewNamespace::EMPTY
+            },
         )?;
         propositions = Some(match propositions {
             Some(previous) => {

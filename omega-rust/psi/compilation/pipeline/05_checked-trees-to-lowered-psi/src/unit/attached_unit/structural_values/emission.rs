@@ -350,6 +350,7 @@ pub(crate) fn emit<'source>(
         owners,
         result_access,
         published_places: Vec::new(),
+        completed_projections: Vec::new(),
         selection_route: Vec::new(),
     };
     if production.destination == ValueDestination::Evaluation {
@@ -1142,6 +1143,9 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     /// Exact declarations already published by nested operation emission.
     /// These are receipts, not new catalog entries owned by this value.
     published_places: Vec<StructuralPlaceDeclaration>,
+    /// Exact checked projections realized by this production, including private
+    /// descriptor captures. Geometry only; current memberships still need proof.
+    completed_projections: Vec<completed_projection::CompletedProjection>,
     selection_route: Vec<crate::emission::claim_bindings::selections::SelectedDecision>,
 }
 

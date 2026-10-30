@@ -888,7 +888,10 @@ pub fn scalar_array_qualifications_hold<'row>(
     if qualifications.is_empty() {
         return true;
     }
-    let Some(StructuralTypeShape::FixedArray { element, length }) = types
+    let Some(StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    }) = types
         .clone()
         .find(|row| row.id == carrier)
         .map(|row| &row.shape)
@@ -997,7 +1000,7 @@ pub fn machine_scalar_constant_origin(
         }
         for binding in crate::control_graph::forwarded_bindings(block) {
             if binding.target == owner {
-                incoming.push(*binding.arguments.get(ordinal)?);
+                incoming.push(*binding.arguments?.get(ordinal)?);
             }
         }
     }

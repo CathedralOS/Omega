@@ -19,7 +19,6 @@ PAYLOAD_FIELD_COLLIDES_WITH_COMMON_FIELD = 6
 UNKNOWN_DATA_TYPE = 7
 UNKNOWN_DOMAIN = 8
 DUPLICATE_PARAMETER = 9
-DUPLICATE_STATE = 10
 DUPLICATE_MACHINE = 11
 DUPLICATE_GENERIC_PARAMETER = 12
 UNKNOWN_NAME = 13
@@ -62,10 +61,6 @@ def parameter(handle: int) -> tuple[int, int, int]:
 
 def binder(field: int) -> tuple[int, int, int]:
     return (4, field, 0)
-
-
-def state(handle: int) -> tuple[int, int, int]:
-    return (5, handle, 0)
 
 
 def machine(handle: int) -> tuple[int, int, int]:
@@ -253,6 +248,7 @@ def decode(payload: bytes) -> Observation:
         (reader.byte(), reader.u64(), reader.u64())
         for _ in range(reader.u64())
     )
+    assert all(row[0] != 5 for row in value_bindings), "retired binding tag"
     path_bindings = tuple(
         (reader.byte(), reader.u64())
         for _ in range(reader.u64())
@@ -427,6 +423,25 @@ def phase_rejected_units(program: str, name: str, units: tuple[tuple, ...], stat
     actual_status, payload = run_units(program, units)
     assert actual_status == status, f"{name}: status {actual_status}"
     assert payload == b"", name
+
+
+def nested_machine_cases(program: str) -> None:
+    source = (b"machine outer<T>(x: T) -> T { x "
+              b"machine middle<U>(u: U) -> U { u "
+              b"machine leaf<V>(t: T, u: U, v: V) -> V { v } } }")
+    accepted(program, "three-level-static-binder-identities", source,
+             (generic(0), generic(0), generic(1), generic(1), generic(0), generic(1), generic(2), generic(2)))
+    source = b"machine outer() { first() machine first() { second() } machine second() { first() } }"
+    accepted(program, "forward-sibling-and-ancestor-family", source, (),
+             value_bindings=(machine(1), NOT_A_NAME, machine(2), NOT_A_NAME, machine(1), NOT_A_NAME))
+    source = b"machine outer() { left() machine left() { hidden() machine hidden() {} } machine right() { hidden() } }"
+    rejected(program, "sibling-private-descendant-inaccessible", source, UNKNOWN_NAME, b"hidden", occurrence=3)
+    source = b"machine outer(x: u8) { machine child() -> u8 { x } }"
+    rejected(program, "nested-runtime-parameter-not-captured", source, UNKNOWN_NAME, b"x", occurrence=2)
+    source = b"machine outer() { let secret: u8 = 1; machine child() -> u8 { secret } }"
+    rejected(program, "nested-runtime-local-not-captured", source, UNKNOWN_NAME, b"secret", occurrence=2)
+    source = b"machine outer() { machine helper() {} } machine outside() { outer::helper() }"
+    rejected(program, "qualification-cannot-export-helper", source, UNKNOWN_NAME, b"outer::helper")
 
 
 def main() -> None:
@@ -653,8 +668,8 @@ def main() -> None:
     accepted(
         program,
         "machine-signature-types",
-        b"machine f(a: u8, b: &mut D) -> u64 { state s(x: D) {} }\ndata D { y: u8; }",
-        (builtin("u8"), data(0), REFERENCE_ROW, builtin("u64"), data(0), builtin("u8")),
+        b'machine f(a: u8, b: &mut D) -> u64 { machine s(x: D) -> u64 {} }\ndata D { y: u8; }',
+        (builtin("u8"), data(0), REFERENCE_ROW, builtin("u64"), data(0), builtin("u64"), builtin("u8")),
     )
     accepted(
         program,
@@ -683,12 +698,12 @@ def main() -> None:
     accepted(
         program,
         "state-repeats-machine-and-parameter-names",
-        b"machine f(a: u8) { state f(a: u8) {} }",
+        b"machine f(a: u8) { machine f(a: u8) {} }",
         (builtin("u8"), builtin("u8")),
     )
     rejected(program, "unknown-parameter-type", b"machine f(a: Q) {}", UNKNOWN_DATA_TYPE, b"Q")
     rejected(program, "unknown-return-type", b"machine f() -> Q {}", UNKNOWN_DATA_TYPE, b"Q")
-    rejected(program, "unknown-state-parameter-type", b"machine f() { state s(x: Q) {} }", UNKNOWN_DATA_TYPE, b"Q")
+    rejected(program, "unknown-state-parameter-type", b"machine f() { machine s(x: Q) {} }", UNKNOWN_DATA_TYPE, b"Q")
     rejected(program, "unknown-referee", b"machine f(a: &Q) {}", UNKNOWN_DATA_TYPE, b"Q")
     rejected(
         program,
@@ -702,7 +717,7 @@ def main() -> None:
     rejected(
         program,
         "duplicate-state-parameter",
-        b"machine f() { state s(x: u8, x: u8) {} }",
+        b"machine f() { machine s(x: u8, x: u8) {} }",
         DUPLICATE_PARAMETER,
         b"x",
         2,
@@ -710,8 +725,8 @@ def main() -> None:
     rejected(
         program,
         "duplicate-state",
-        b"machine f() { state s {} state s {} }",
-        DUPLICATE_STATE,
+        b"machine f() { machine s {} machine s {} }",
+        DUPLICATE_MACHINE,
         b"s {}",
         2,
         length=1,
@@ -837,12 +852,12 @@ def main() -> None:
         b"data Range\nwhere\n    lo <= hi,\n{ lo: u64; hi: u64; }\n"
         b"machine f(x: u64) -> u64\nrequires x > 0\n{\n"
         b"    transition { _ -> g(x) }\n\n"
-        b"    state g(y: u64) -> u64\n    requires y > 1\n    { y }\n}",
+        b"    machine g(y: u64) -> u64\n    requires y > 1\n    { y }\n}",
         (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
         (
             field_name(0), field_name(1), NOT_A_NAME,
             parameter(0), NOT_A_NAME, NOT_A_NAME,
-            state(0), parameter(0), NOT_A_NAME,
+            machine(1), parameter(0), NOT_A_NAME,
             parameter(1), NOT_A_NAME, NOT_A_NAME,
             parameter(1),
         ),
@@ -904,7 +919,7 @@ def main() -> None:
     )
 
     # Expression names: locals, then pattern binders, then the body's own
-    # parameters; callees name machines, targets a state before a machine,
+    # parameters; callees name machines, targets a machine before a machine,
     # constructions and paths a data declaration's case.
     accepted(
         program,
@@ -916,14 +931,14 @@ def main() -> None:
     accepted(
         program,
         "state-scope",
-        b"machine f(a: u8) { transition { _ -> s(a) } state s(b: u8) { g(b); } }\nmachine g(x: u8) {}",
+        b"machine f(a: u8) { transition { _ -> s(a) } machine s(b: u8) { g(b); } }\nmachine g(x: u8) {}",
         (builtin("u8"), builtin("u8"), builtin("u8")),
-        (state(0), parameter(0), NOT_A_NAME, machine(1), parameter(1), NOT_A_NAME),
+        (machine(1), parameter(0), NOT_A_NAME, machine(2), parameter(1), NOT_A_NAME),
     )
     rejected(
         program,
         "state-cannot-see-entry-parameter",
-        b"machine f(a: u8) { transition { _ -> s() } state s() { g(a); } }\nmachine g(x: u8) {}",
+        b"machine f(a: u8) { transition { _ -> s() } machine s() { g(a); } }\nmachine g(x: u8) {}",
         UNKNOWN_NAME,
         b"a)",
         length=1,
@@ -933,11 +948,11 @@ def main() -> None:
         "cases-constructions-and-patterns",
         b"data T { case A; case B(v: u8); }\n"
         b"machine f(t: T) { transition t { T::B { v } -> s(v) _ -> s(1) } "
-        b"state s(v: u8) { let y: T = T::B { v: v }; let z: T = T::A; } }",
+        b"machine s(v: u8) { let y: T = T::B { v: v }; let z: T = T::A; } }",
         (builtin("u8"), data(0), builtin("u8"), data(0), data(0)),
         (
-            parameter(0), data_case(0, 1), state(0), binder(0), NOT_A_NAME,
-            state(0), NOT_A_NAME, NOT_A_NAME, data_case(0, 1), parameter(1), NOT_A_NAME, data_case(0, 0),
+            parameter(0), data_case(0, 1), machine(1), binder(0), NOT_A_NAME,
+            machine(1), NOT_A_NAME, NOT_A_NAME, data_case(0, 1), parameter(1), NOT_A_NAME, data_case(0, 0),
         ),
     )
     # An arm's `if` guard sees the pattern's binders
@@ -947,19 +962,19 @@ def main() -> None:
         "arm-guards-see-pattern-binders",
         b"data T { case A; case B(v: u8); }\n"
         b"machine f(t: T, x: u8) { transition t { T::B { v } if v == x -> s(v) _ if x > 1 -> s(x) _ -> s(1) } "
-        b"state s(v: u8) {} }",
+        b"machine s(v: u8) {} }",
         (builtin("u8"), data(0), builtin("u8"), builtin("u8")),
         (
-            parameter(0), data_case(0, 1), binder(0), parameter(1), NOT_A_NAME, state(0), binder(0), NOT_A_NAME,
-            parameter(1), NOT_A_NAME, NOT_A_NAME, state(0), parameter(1), NOT_A_NAME,
-            state(0), NOT_A_NAME, NOT_A_NAME,
+            parameter(0), data_case(0, 1), binder(0), parameter(1), NOT_A_NAME, machine(1), binder(0), NOT_A_NAME,
+            parameter(1), NOT_A_NAME, NOT_A_NAME, machine(1), parameter(1), NOT_A_NAME,
+            machine(1), NOT_A_NAME, NOT_A_NAME,
         ),
     )
     rejected(
         program,
         "arm-guard-cannot-see-another-arm's-binder",
         b"data T { case A; case B(v: u8); }\n"
-        b"machine f(t: T) { transition t { T::B { v } -> s(v) _ if v == 1 -> s(1) } state s(v: u8) {} }",
+        b"machine f(t: T) { transition t { T::B { v } -> s(v) _ if v == 1 -> s(1) } machine s(v: u8) {} }",
         UNKNOWN_NAME,
         b"v == 1",
         length=1,
@@ -1053,8 +1068,8 @@ def main() -> None:
     accepted(
         program,
         "generic-machine-signature",
-        b"machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] { state s(x: T) {} }\ndata Vec<T> { v: T; }",
-        (generic(0), data(0), REFERENCE_ROW, generic(0), SLICE_ROW, REFERENCE_ROW, generic(0), generic(1)),
+        b'machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] { machine s(x: T) -> &[T] {} }\ndata Vec<T> { v: T; }',
+        (generic(0), data(0), REFERENCE_ROW, generic(0), SLICE_ROW, REFERENCE_ROW, generic(0), generic(0), SLICE_ROW, REFERENCE_ROW, generic(1)),
     )
     accepted(
         program,
@@ -1150,7 +1165,7 @@ def main() -> None:
     # Source sets: a unit sees its own module, a sibling unit of the same
     # module, and each module it imports; imports are not transitive, and two
     # visible declarations of one spelling are ambiguous.
-    shapes = (b"shapes", b"pub data D { x: u8; }\npub machine g(d: D) {}")
+    shapes = (b"shapes", b'public data D { x: u8; }\npublic machine g(d: D) {}')
     accepted_units(
         program,
         "import-binds-types-and-callees",
@@ -1342,7 +1357,7 @@ def main() -> None:
     rejected_units(
         program,
         "operator-home-in-another-package",
-        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geo::shapes;\nmachine + D::add(a: D, b: D) -> D { a }")),
+        ((1, b"shapes", b'public data D { x: u8; }'), (0, b"", b"use geo::shapes;\nmachine + D::add(a: D, b: D) -> D { a }")),
         FOREIGN_OPERATOR_HOME,
         1,
         b"D",
@@ -1417,14 +1432,14 @@ def main() -> None:
         (parameter(0), NOT_A_NAME, NOT_A_NAME, parameter(0)),
     )
     rejected(program, "terminates-unknown-subject", b"machine f(n: u64) terminates by m; {}", UNKNOWN_NAME, b"m;", length=1)
-    # A state formal carries the entry subject its arrivals pass it, read
+    # A machine formal carries the entry subject its arrivals pass it, read
     # from the body bindings while resolution runs (clauses.omg).
     accepted(
         program,
         "ranked-state-arrivals-bind-carriers",
         b"machine count(n: u64) -> u64\nterminates by n;\n{\n    transition n > 0 {\n        true -> step(n - 1)\n        _ -> done()\n    }\n"
-        b"    state step(left: u64) -> u64 {\n        transition left > 0 {\n            true -> step(left - 1)\n            _ -> done()\n        }\n    }\n"
-        b"    state done() -> u64 { 0 }\n}",
+        b"    machine step(left: u64) -> u64 {\n        transition left > 0 {\n            true -> step(left - 1)\n            _ -> done()\n        }\n    }\n"
+        b"    machine done() -> u64 { 0 }\n}",
         (builtin("u64"),) * 5,
     )
     # A view names the compiler's ranking vocabulary by spelling, not a
@@ -1640,7 +1655,7 @@ def main() -> None:
     accepted(
         program,
         "generic-boundary-data-binds",
-        b"pub boundary data Ptr<T> [linear];\ndata A { p: Ptr<u8>; }",
+        b'public boundary data Ptr<T> [linear];\ndata A { p: Ptr<u8>; }',
         (builtin("u8"), data(0)),
     )
 
@@ -1783,7 +1798,7 @@ def main() -> None:
     accepted_units(
         program,
         "imported-trait-requirement-callee",
-        ((b"shapes", b"pub trait Shape { machine area() -> u64; }"), (b"", b"use shapes;\nmachine f() -> u64 { Shape::area() }")),
+        ((b"shapes", b'public trait Shape { machine area() -> u64; }'), (b"", b"use shapes;\nmachine f() -> u64 { Shape::area() }")),
         (builtin("u64"), builtin("u64")),
         (machine(0), NOT_A_NAME),
     )
@@ -1956,7 +1971,7 @@ def main() -> None:
     rejected_units(
         program,
         "case-and-constant-compete-across-modules",
-        ((b"left", b"pub data E { case A; }"), (b"right", b"pub const E::A: u64 = 1;"),
+        ((b"left", b'public data E { case A; }'), (b"right", b'public const E::A: u64 = 1;'),
          (b"", b"use left;\nuse right;\nmachine f() { let x: u64 = E::A; }")),
         AMBIGUOUS_NAME,
         2,
@@ -2092,7 +2107,7 @@ def main() -> None:
     accepted_units(
         program,
         "aliased-import-resolves",
-        ((1, b"shapes", b"pub data D { x: u8; }\npub machine g(d: D) {}"),
+        ((1, b"shapes", b'public data D { x: u8; }\npublic machine g(d: D) {}'),
          (0, b"", b"use geo::shapes;\nmachine f(d: D) { g(d); }")),
         (builtin("u8"), data(0), data(0)),
         (machine(0), parameter(1), NOT_A_NAME),
@@ -2108,7 +2123,7 @@ def main() -> None:
     rejected_units(
         program,
         "package-name-without-alias-rejects",
-        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geometry::shapes;\nmachine f() {}")),
+        ((1, b"shapes", b'public data D { x: u8; }'), (0, b"", b"use geometry::shapes;\nmachine f() {}")),
         UNDECLARED_DEPENDENCY,
         1,
         b"use geometry::shapes;",
@@ -2118,7 +2133,7 @@ def main() -> None:
     rejected_units(
         program,
         "build-alias-authorizes-no-product-import",
-        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geo::shapes;\nmachine f() {}")),
+        ((1, b"shapes", b'public data D { x: u8; }'), (0, b"", b"use geo::shapes;\nmachine f() {}")),
         UNDECLARED_DEPENDENCY,
         1,
         b"use geo::shapes;",
@@ -2128,7 +2143,7 @@ def main() -> None:
     rejected_units(
         program,
         "another-requesters-alias-authorizes-nothing",
-        ((2, b"m", b"pub data D { x: u8; }"), (0, b"", b"use lib::m;\nmachine f() {}")),
+        ((2, b"m", b'public data D { x: u8; }'), (0, b"", b"use lib::m;\nmachine f() {}")),
         UNRESOLVED_IMPORT,
         1,
         b"use lib::m;",
@@ -2138,7 +2153,7 @@ def main() -> None:
     rejected_units(
         program,
         "dependency-lacks-the-module",
-        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geo::circles;\nmachine f() {}")),
+        ((1, b"shapes", b'public data D { x: u8; }'), (0, b"", b"use geo::circles;\nmachine f() {}")),
         UNRESOLVED_IMPORT,
         1,
         b"use geo::circles;",
@@ -2148,7 +2163,7 @@ def main() -> None:
     rejected_units(
         program,
         "alias-alone-names-no-module",
-        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geo;\nmachine f() {}")),
+        ((1, b"shapes", b'public data D { x: u8; }'), (0, b"", b"use geo;\nmachine f() {}")),
         UNRESOLVED_IMPORT,
         1,
         b"use geo;",
@@ -2168,7 +2183,7 @@ def main() -> None:
     rejected_units(
         program,
         "private-machine-across-packages",
-        ((1, b"shapes", b"pub data D { x: u8; }\nmachine g(d: D) {}"),
+        ((1, b"shapes", b'public data D { x: u8; }\nmachine g(d: D) {}'),
          (0, b"", b"use geo::shapes;\nmachine f(d: D) { g(d); }")),
         UNKNOWN_NAME,
         1,
@@ -2180,7 +2195,7 @@ def main() -> None:
     accepted_units(
         program,
         "public-trait-requirement-across-packages",
-        ((1, b"shapes", b"pub trait Shape { machine area(x: u8) -> u8; }"),
+        ((1, b"shapes", b'public trait Shape { machine area(x: u8) -> u8; }'),
          (0, b"", b"use geo::shapes;\nmachine f() { Shape::area(1); }")),
         (builtin("u8"), builtin("u8")),
         (machine(0), NOT_A_NAME, NOT_A_NAME),
@@ -2201,7 +2216,7 @@ def main() -> None:
     accepted_units(
         program,
         "public-domain-across-packages",
-        ((1, b"limits", b"pub domain u64::Small(value) requires value < 4;"),
+        ((1, b"limits", b'public domain u64::Small(value) requires value < 4;'),
          (0, b"", b"use geo::limits;\nmachine f(x: u64 in Small) {}")),
         (builtin("u64"), in_domain(builtin("u64"), 0)),
         packages=app_geometry,
@@ -2218,7 +2233,7 @@ def main() -> None:
         packages=app_geometry,
         dependencies=geo,
     )
-    same_spelled = ((0, b"shapes", b"data D { x: u8; }"), (1, b"shapes", b"pub data D { y: u16; }"))
+    same_spelled = ((0, b"shapes", b"data D { x: u8; }"), (1, b"shapes", b'public data D { y: u16; }'))
     accepted_units(
         program,
         "same-spelled-modules-of-two-packages",
@@ -2240,7 +2255,7 @@ def main() -> None:
     accepted_units(
         program,
         "alias-precedes-a-local-module",
-        ((0, b"geo::shapes", b"data D { x: u8; }"), (1, b"shapes", b"pub data D { y: u16; }"),
+        ((0, b"geo::shapes", b"data D { x: u8; }"), (1, b"shapes", b'public data D { y: u16; }'),
          (0, b"", b"use geo::shapes;\nmachine f(d: D) {}")),
         (builtin("u8"), builtin("u16"), data(1)),
         packages=app_geometry,
@@ -2250,8 +2265,8 @@ def main() -> None:
     accepted_units(
         program,
         "toolchain-mount",
-        ((1, b"nat", b"pub data Nat { x: u8; }"),
-         (1, b"rat", b"use omega::language::core::nat;\npub data Rat { n: Nat; }"),
+        ((1, b"nat", b'public data Nat { x: u8; }'),
+         (1, b"rat", b'use omega::language::core::nat;\npublic data Rat { n: Nat; }'),
          (0, b"", b"use omega::language::core::rat;\nmachine f(r: Rat) {}")),
         (builtin("u8"), data(0), data(1)),
         packages=toolchain,
@@ -2340,6 +2355,8 @@ def main() -> None:
 
     phase_rejected(program, "parse-rejection-has-no-observation", b"data A { x: ; }", 250)
     phase_rejected(program, "lex-rejection-has-no-observation", b"\x80", 251)
+
+    nested_machine_cases(program)
 
     determinism = b"data A<T> { x: T; y: B in Wrapping; }\ndata B { case C(v: A); }"
     first = run(program, determinism)

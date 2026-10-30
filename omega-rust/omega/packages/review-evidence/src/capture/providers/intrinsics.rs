@@ -36,6 +36,11 @@ pub(crate) fn project_compiler_intrinsic_execution(
             custody: &compilation.custody.execution().numeric_realizations,
             provider,
         },
+        compilation.service_declarations.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "package review has no independent service declaration projection",
+            )]
+        })?,
         plan,
         schema,
         row,

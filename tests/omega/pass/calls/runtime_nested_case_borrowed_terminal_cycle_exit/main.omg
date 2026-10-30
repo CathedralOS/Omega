@@ -1,0 +1,22 @@
+// Expected exit: 0
+data Kind [copy] { case More; case Done; }
+data Cell { value: u64 in Trapping; canary: u64; }
+machine walk(cell: &mut Cell, remaining: u64 in Trapping) -> u64 in Trapping crashes Trap {
+ transition remaining > 0 { true -> choose(cell, remaining, Kind::More) false -> choose(cell, remaining, Kind::Done) }
+ machine choose(cell: &mut Cell, remaining: u64 in Trapping, kind: Kind) -> u64 in Trapping {
+  transition kind { Kind::More -> step(cell, remaining) Kind::Done -> finish(cell) }
+ }
+ machine step(cell: &mut Cell, remaining: u64 in Trapping) -> u64 in Trapping {
+  cell.value = cell.value + 1;
+  transition remaining > 1 { true -> choose(cell, remaining - 1, Kind::More) false -> choose(cell, 0, Kind::Done) }
+ }
+ machine finish(cell: &mut Cell) -> u64 in Trapping { cell.value }
+}
+machine main() crashes Trap {
+ let mut first: Cell = Cell { value: 7, canary: 33 };
+ let mut second: Cell = Cell { value: 19, canary: 41 };
+ let counted: u64 in Trapping = walk(&mut first, 4);
+ let absent: u64 in Trapping = walk(&mut second, 0);
+ transition counted == 11 && absent == 19 && first.value == 11 && second.value == 19 && first.canary == 33 && second.canary == 41 { true -> {} false -> bad() }
+ machine bad() crashes Trap { crash Trap; }
+}

@@ -889,7 +889,6 @@ machine Parser::clause_admitted(owner: ClauseOwner, kind: ClauseKind) -> bool {
         ClauseOwner::TraitMember -> machine_clause(kind)
         ClauseOwner::Contract -> machine_clause(kind)
         ClauseOwner::Refinement -> narrowing(kind)
-        ClauseOwner::State -> arrival(kind)
         ClauseOwner::Domain -> arrival(kind)
         _ -> declaration(kind)
     }

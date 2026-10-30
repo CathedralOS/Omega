@@ -126,7 +126,8 @@ impl TypedTrees {
             return Vec::new();
         }
         let occurrences = crate::product_operand::collect_product_selection_occurrences(self);
-        self.product_operand_applications
+        let mut live = self
+            .product_operand_applications
             .iter()
             .filter_map(|(handle, selected)| {
                 let role = selected.role?;
@@ -146,7 +147,16 @@ impl TypedTrees {
                     })
                     .then_some(handle)
             })
-            .collect()
+            .collect::<Vec<_>>();
+        for handle in self
+            .retained_product_application_handles
+            .span_or_empty(self.roots.retained_product_applications)
+        {
+            if self.product_operand_applications.is_valid(*handle) && !live.contains(handle) {
+                live.push(*handle);
+            }
+        }
+        live
     }
 
     /// Census of occurrence/evidence selections, preserving each source anchor.
@@ -281,6 +291,16 @@ impl TypedTrees {
                 ));
             }
         }
+        for handle in self.live_product_operand_applications() {
+            let selected = self.product_operand_applications.get(handle);
+            let Some(application) = selected.implementation.as_ref() else { continue; };
+            let source = self.expression_table.static_machine_application(selected.supplying_application);
+            if !includes_owner(source.lexical_owner) { continue; }
+            sites.push((
+                super::ClosedConformanceApplicationSite::ProductOperand(handle),
+                source.lexical_owner, selected.supplying_application, application,
+            ));
+        }
         sites
     }
 
@@ -290,11 +310,10 @@ impl TypedTrees {
     ) -> Option<&mut super::ClosedConformanceApplication> {
         match site {
             super::ClosedConformanceApplicationSite::DataArgument(handle) => Some(
-                &mut self
-                    .data_implementation_applications
-                    .get_mut(handle)
-                    .application,
+                &mut self.data_implementation_applications.get_mut(handle).application,
             ),
+            super::ClosedConformanceApplicationSite::ProductOperand(handle) => self
+                .product_operand_applications.get_mut(handle).implementation.as_mut(),
             super::ClosedConformanceApplicationSite::TraitArgument(handle) => Some(
                 &mut self
                     .trait_implementation_applications
@@ -624,7 +643,10 @@ impl TypedTrees {
                 continue;
             }
             if let [capture] = captures.as_slice() {
-                if &capture.conformance_application != application {
+                if !self.closed_conformance_applications_match(
+                    &capture.conformance_application,
+                    application,
+                ) {
                     return None;
                 }
                 let selecting = self.conformance_by_symbol(application.declaration)?;
@@ -713,6 +735,28 @@ impl TypedTrees {
         self.const_declarations()
             .iter()
             .find(|declaration| declaration.symbol == symbol)
+    }
+
+    /// The constant whose complete initializer is evaluated by this entry.
+    /// Generated spelling and source-span equality do not establish ownership.
+    /// Preparation may replace the machine row while retaining its symbol, so
+    /// the detached declaration handle identifies the entry, not its latest body.
+    pub fn const_declaration_for_evaluation_entry(
+        &self,
+        entry: symbols::SymbolHandle,
+    ) -> Option<&crate::constant::ConstDeclaration> {
+        if !entry.is_valid() {
+            return None;
+        }
+        self.const_declarations().iter().find(|declaration| {
+            self.tables.machines.is_valid(declaration.evaluation_entry)
+                && self
+                    .tables
+                    .machines
+                    .get(declaration.evaluation_entry)
+                    .symbol
+                    == entry
+        })
     }
 
     /// The declaration selected by this substituted value occurrence. An alias

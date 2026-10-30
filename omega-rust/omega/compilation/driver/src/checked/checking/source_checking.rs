@@ -19,7 +19,6 @@ pub(crate) fn check_product_source(
     let PreparedProductSource {
         source_completion_accounting,
         typed,
-        pending_pre_checks,
         computed_build_config,
         admission,
         build_sources,
@@ -30,21 +29,6 @@ pub(crate) fn check_product_source(
         .validate_charges()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let build = &computed_build_config.config;
-    let representations = representation_planning::rederive_opaque_representation_selections(
-        &typed,
-        computed_build_config.selected_build_machine_symbol,
-        &computed_build_config.declared_product_selections,
-        &computed_build_config.product_selection_requests,
-        &build.opaque_representation_selections,
-    )?;
-    let opaque_properties = representations
-        .iter()
-        .filter(|selection| {
-            selection.copy_disposition()
-                == representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
-        })
-        .map(|selection| validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
-        .collect::<Vec<_>>();
     let symbol_sources = typed.symbols.source_map();
     let catalogue_bindings = package_inputs
         .into_iter()
@@ -98,8 +82,12 @@ pub(crate) fn check_product_source(
             discover_packages: &catalogue_nominees,
             bindings: &catalogue_bindings,
         },
-        opaque_properties: &opaque_properties,
-        opaque_representations: &representations,
+        representations: psi_compiler::ProductRepresentationInput {
+            activation: computed_build_config.selected_build_machine_symbol,
+            declared: &computed_build_config.declared_product_selections,
+            executed: &computed_build_config.product_selection_requests,
+            retained: &build.opaque_representation_selections,
+        },
         asm_authority: Some(
             validation::AsmAuthorityAdmission::from_freestanding(build.settings.freestanding)
                 .with_grants(
@@ -122,7 +110,6 @@ pub(crate) fn check_product_source(
             let started = std::time::Instant::now();
             let result = psi_compiler::CheckRequest {
                 program: typed,
-                pending_constants: pending_pre_checks,
                 admission: source_admission,
                 previous: &previous,
                 retain: reuse.retain,
@@ -145,7 +132,6 @@ pub(crate) fn check_product_source(
     let roots = build.checked_tree_product_roots(rollback);
     let psi_compiler::SelectedCheckedSource {
         program,
-        constants,
         provider_defaults,
         retained,
         selection: product_selection,
@@ -171,6 +157,7 @@ pub(crate) fn check_product_source(
     Ok(CheckedProductSource {
         source_completion_accounting,
         program,
+        external_declarations: Arc::default(),
         provider_defaults: provider_defaults.into(),
         computed_build_config,
         admission,
@@ -183,6 +170,5 @@ pub(crate) fn check_product_source(
             ..Default::default()
         },
         product_selection,
-        constants,
     })
 }

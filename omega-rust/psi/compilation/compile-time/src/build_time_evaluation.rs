@@ -367,6 +367,8 @@ pub struct PreCheckEvaluation {
 pub struct EvaluatedPreCheck {
     domain: EvaluationDomain,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    selected_operators: Vec<SelectedBuildTimeBinaryOperator>,
+    provider_bodies: Vec<SelectedBuildTimeProviderBody>,
 }
 
 impl EvaluatedPreCheck {
@@ -375,12 +377,17 @@ impl EvaluatedPreCheck {
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         let _g = phase_profile::guard("evaluate_or_defer.finish");
+        let selected = SelectedBuildTimeOperators {
+            operators: &self.selected_operators,
+            provider_bodies: &self.provider_bodies,
+        };
         {
             let _g = phase_profile::guard("evaluate_or_defer.finish.settle_target_observations");
             const_initializers::settle_target_observations(
                 typed,
                 self.selection_authority.clone(),
                 &self.domain,
+                selected,
             )?;
         }
         let _g = phase_profile::guard("evaluate_or_defer.finish.validate_retained_invocations");
@@ -388,6 +395,7 @@ impl EvaluatedPreCheck {
             typed,
             self.selection_authority,
             &self.domain,
+            selected,
         )
     }
 }
@@ -666,48 +674,35 @@ impl PreCheckEvaluation {
                 "restored pre-check has not rejoined current declaration authority",
             )]);
         }
-        let defer = typed
-            .type_reference_table
-            .type_reference_rows()
-            .any(|(reference, _)| typed.layout_storage_arguments(reference).is_some())
-            || {
-                let _g = phase_profile::guard("evaluate_or_defer.check_defer");
-                phase_profile::scope("evaluate_or_defer.check_defer.independent_lengths", || {
-                    const_lengths::evaluate_independent_lengths(
-                        typed,
-                        self.selection_authority.clone(),
-                        &self.domain,
-                    )
-                })? || phase_profile::scope("evaluate_or_defer.check_defer.endpoint_calls", || {
-                    range_endpoints::pending_endpoint_calls_need_operator_selection(
-                        typed,
-                        self.selection_authority.clone(),
-                        &self.domain,
-                    )
-                })? || phase_profile::scope("evaluate_or_defer.check_defer.memberships", || {
-                    const_domain_facts::pending_memberships_need_operator_selection(
-                        typed,
-                        self.selection_authority.clone(),
-                        &self.domain,
-                    )
-                })? || phase_profile::scope(
-                    "evaluate_or_defer.check_defer.const_applications",
-                    || {
-                        const_applications::pending_const_applications_need_operator_selection(
-                            typed,
-                            self.selection_authority.clone(),
-                            &self.domain,
-                        )
-                    },
-                )? || data_layout_queries::pending_layout_queries_need_operator_selection(
+        const_initializers::retain_deferred_entries(typed, &self.domain);
+        let defer = {
+            let _g = phase_profile::guard("evaluate_or_defer.check_defer");
+            phase_profile::scope("evaluate_or_defer.check_defer.independent_lengths", || {
+                const_lengths::evaluate_independent_lengths(
                     typed,
-                    self.domain.work(),
-                ) || typed.const_declarations().iter().any(|declaration| {
-                    self.domain.contains(declaration.symbol)
-                        && declaration.pending_target_observation
-                        && declaration.evaluated_value.is_none()
-                })
-            };
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            })? || phase_profile::scope("evaluate_or_defer.check_defer.endpoint_calls", || {
+                range_endpoints::pending_endpoint_calls_need_operator_selection(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            })? || phase_profile::scope("evaluate_or_defer.check_defer.memberships", || {
+                const_domain_facts::pending_memberships_need_operator_selection(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            })? || phase_profile::scope("evaluate_or_defer.check_defer.const_applications", || {
+                const_applications::pending_const_applications_need_operator_selection(
+                    typed,
+                    self.selection_authority.clone(),
+                    &self.domain,
+                )
+            })? || data_layout_queries::has_pending_target_observations(typed, self.domain.work())
+        };
         if defer {
             let _g = phase_profile::guard("evaluate_or_defer.defer_path");
             range_endpoints::defer_pending_endpoint_calls_in(typed, &self.domain)?;
@@ -818,6 +813,7 @@ impl PreCheckEvaluation {
         typed: &mut typed_trees::TypedTrees,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
         let _g = phase_profile::guard("evaluate_or_defer.evaluate_work");
+        const_initializers::retain_deferred_entries(typed, &self.domain);
         phase_profile::scope(
             "evaluate_or_defer.evaluate_work.const_array_lengths",
             || {
@@ -896,6 +892,8 @@ impl PreCheckEvaluation {
         Ok(EvaluatedPreCheck {
             domain: self.domain,
             selection_authority: self.selection_authority,
+            selected_operators: self.selected_operators,
+            provider_bodies: self.provider_bodies,
         })
     }
 }
@@ -905,7 +903,6 @@ impl compiler_storage::Record for PreCheckEvaluation {
         &self,
         output: &mut compiler_storage::RecordWriter,
     ) -> Result<(), compiler_storage::RecordError> {
-        use compiler_storage::Record;
         output.record(|output| {
             self.domain.write(output)?;
             self.wire_schema_frontier.write(output)?;

@@ -273,7 +273,7 @@ invokes CoreGraphics;
     let mode: u64 = ObjectiveC::send_string(tmp, sel, &cbuf25[0]);
     let cbuf26: [u8; 48] = "nextEventMatchingMask:untilDate:inMode:dequeue:\0";
     let psel: u64 = ObjectiveC::register_selector(&cbuf26[0]);
-    let mask: u64 = 4294967295;
+    let mask: u64 = 0xFFFF_FFFF;
     let cbuf27: [u8; 11] = "sendEvent:\0";
     let dsel: u64 = ObjectiveC::register_selector(&cbuf27[0]);
     let cbuf28: [u8; 10] = "isVisible\0";

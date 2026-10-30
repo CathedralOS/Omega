@@ -6,7 +6,7 @@ use terminal_psi::{NumericRealization, TerminalIdentityTable};
 
 /// An invocation names either its public requirement or its exact realization.
 /// Both roles rejoin the same original checked satisfaction plan.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum NumericInvocation<'identity> {
     Requirement {
         declaration: &'identity str,
@@ -99,9 +99,9 @@ pub fn selected_numeric_realization<'a>(
     invocation: NumericInvocation<'_>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
-) -> Result<Option<&'a NumericRealization>, &'static str> {
+) -> Result<Option<&'a NumericRealization>, String> {
     let ProviderBinding::CompilerIntrinsic { machine } = &row.binding else {
-        return Err("numeric provider does not select an external compiler intrinsic");
+        return Err("numeric provider does not select an external compiler intrinsic".into());
     };
     let mut candidates = providers.iter().filter(|candidate| {
         let selected = match invocation {
@@ -122,10 +122,11 @@ pub fn selected_numeric_realization<'a>(
         selected && matches_numeric_selection(candidate, identities, plan, row, machine)
     });
     let candidate = candidates.next();
-    if candidates.next().is_some() {
-        return Err(
-            "selected numeric provider does not rejoin one canonical external satisfaction",
-        );
+    if let (Some(first), Some(second)) = (candidate, candidates.next()) {
+        return Err(format!(
+            "selected numeric provider has multiple exact catalogue satisfactions: plan `{}`, invocation {invocation:?}; first {first:?}; second {second:?}",
+            plan.name,
+        ));
     }
     if let Some(candidate) = candidate {
         candidate.validate(identities)?;

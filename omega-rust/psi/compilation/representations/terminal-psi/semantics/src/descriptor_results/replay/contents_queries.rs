@@ -88,7 +88,7 @@ impl Replay<'_> {
         match declaration.shape {
             StructuralTypeShape::FixedArray {
                 element: actual,
-                length,
+                length: terminal_psi::ArrayExtent::Literal(length),
             } if actual == *element => {
                 // Match the finite descriptor inventory's analysis bound.
                 if length > 4096 {

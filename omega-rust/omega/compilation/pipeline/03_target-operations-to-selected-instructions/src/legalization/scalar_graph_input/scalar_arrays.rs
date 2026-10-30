@@ -28,7 +28,10 @@ pub(in crate::legalization) fn shape(
             return Err(LegalizationError::custody());
         }
         match declaration.shape {
-            terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
+            terminal_psi::StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 array = true;
                 empty |= length == 0;
                 count = count.and_then(|count| count.checked_mul(length));

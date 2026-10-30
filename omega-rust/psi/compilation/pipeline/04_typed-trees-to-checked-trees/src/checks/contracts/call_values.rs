@@ -130,7 +130,7 @@ pub(crate) fn observation_actual<'program>(
     )
 }
 
-fn captured_operand<'facts>(
+pub(in crate::checks::contracts) fn captured_operand<'facts>(
     program: &dyn ::validation::CheckingInput,
     facts: &'facts CheckFacts,
     state: &FlowStateFact,

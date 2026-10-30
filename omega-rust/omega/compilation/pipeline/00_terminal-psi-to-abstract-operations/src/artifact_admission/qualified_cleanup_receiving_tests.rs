@@ -1,7 +1,6 @@
 //! Data-only checks of explicit ownership validation, not native preparation
 //! or a claim of independent PCC. The fixture is actual public CLI output.
 
-use super::native::VerifiedNativeArtifactInput;
 use terminal_codec::{CanonicalTerminalArtifact, build_identity_optimization_execution_record};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, RecordFieldValue, StructuralAccess,
@@ -15,14 +14,12 @@ fn independently_validate_ownership(module: TerminalModule) -> Result<(), String
         .expect("foundation-valid mutation can be encoded");
     let artifact = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
         .expect("mutant must reach semantic validation after canonical admission");
-    let input = VerifiedNativeArtifactInput::prepare(
-        &artifact,
-        target::TargetProfile::LinuxX64,
-        artifact.semantic_module().entry,
-        &[],
-    )
-    .expect("native preparation converts data; it does not prove issuance")
-    .into_optimization_input();
+    // Independent ownership validation covers every retained machine, not an
+    // invocation's selected native work domain.
+    let input = super::lower_decoded_artifact(artifact.semantic_module())
+        .expect("artifact lowering converts data; it does not prove issuance")
+        .into_optimization_artifact()
+        .into_optimization_input();
     let verified = crate::build_verified_psi_optimization_unit(
         input,
         terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),

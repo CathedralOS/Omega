@@ -161,6 +161,36 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .authored_selection_occurrences(expression)
             .collect::<Vec<_>>();
         let lowered = self.lower_node(expression)?;
+        if let resolved::expression::ExpressionNode::Call(source_call) =
+            self.source.expression(expression)
+        {
+            let mut own = None;
+            for &occurrence in &authored_selection_occurrences {
+                let Some(program) = self.program else {
+                    continue;
+                };
+                let selection = program
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or_else(|| {
+                        Diagnostic::error("typing call lost its source selection occurrence")
+                    })?;
+                if selection.kind() != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+                    || selection.source_span() != source_call.target.source_span() { continue; }
+                if own.is_some_and(|previous| previous != occurrence) {
+                    return Err(Diagnostic::error(
+                        "typing call has conflicting source-owned Call occurrences",
+                    )
+                    .with_source_span(source_call.target.source_span()));
+                }
+                own = Some(occurrence);
+            }
+            if let typed::expression::ExpressionNode::Call(call) =
+                self.target().expression_mut(lowered)
+            {
+                call.authored_call_selection = own;
+            }
+        }
         if matches!(self.target().expression(lowered), typed::expression::ExpressionNode::Call(call) if call.layout_query.is_some())
         {
             // A portable query has an ordinary u64 carrier before its selected
@@ -250,6 +280,15 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         } else {
             self.lower_value(binary.right)?
         };
+        if matches!(
+            self.target_trees.expression_table.expression(left),
+            typed::expression::ExpressionNode::TypeExpression(_)
+        ) && matches!(
+            self.target_trees.expression_table.expression(right),
+            typed::expression::ExpressionNode::TypeExpression(_)
+        ) {
+            self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::Bool)?;
+        }
         Ok(self
             .target()
             .insert(typed::expression::ExpressionNode::Binary(
@@ -591,6 +630,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .target()
                     .insert(typed::expression::ExpressionNode::Call(
                         typed::expression::TableCallExpression {
+                            authored_call_selection: None,
                             authored_call_binding: call.authored_call_binding,
                             authored_machine_application: Default::default(),
                             exact_coercion_target: typed::types::TypeReferenceHandle::invalid(),
@@ -766,6 +806,24 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             operand,
                         },
                     )))
+            }
+            resolved::expression::ExpressionNode::TypeExpression(type_reference) => {
+                let program = self.program.ok_or_else(|| {
+                    Diagnostic::error("static type operand requires its resolved program")
+                })?;
+                let exposure = self.source.authored_expression_exposure(expression).unwrap_or(
+                    language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                );
+                let reference =
+                    crate::type_reference::lower_type_reference_into_trees_with_exposure(
+                        program,
+                        self.target_trees,
+                        program.child_type_reference(*type_reference),
+                        exposure,
+                    )?;
+                Ok(self
+                    .target()
+                    .insert(typed::expression::ExpressionNode::TypeExpression(reference)))
             }
             resolved::expression::ExpressionNode::ZeroValue(type_reference) => {
                 let program = self.program.ok_or_else(|| {

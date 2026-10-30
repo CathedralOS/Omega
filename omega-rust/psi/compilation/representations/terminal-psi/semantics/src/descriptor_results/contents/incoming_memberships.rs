@@ -53,7 +53,7 @@ pub(super) fn select(
         }
         StructuralTypeShape::FixedArray {
             element: actual,
-            length,
+            length: terminal_psi::ArrayExtent::Literal(length),
         } if actual == *element && length <= 4096 => {
             let mut common: Option<PayloadMembershipContract> = None;
             for index in 0..length {

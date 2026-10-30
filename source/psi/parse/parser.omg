@@ -114,7 +114,9 @@ where
     machine_clause_count: u64 in Trapping;
     machine_first_statement: u64 in Trapping;
     machine_statement_count: u64 in Trapping;
-    machine_first_state: u64 in Trapping;
+    machine_parent: u64 in Trapping;
+    machine_current: u64 in Trapping;
+    machine_result: u64 in Trapping;
     machine_generic_count: u64 in Trapping;
     machine_operator: OperatorToken;
     machine_token_start: u64 in Trapping;
@@ -127,11 +129,6 @@ where
     contract_name_start: u64 in Trapping;
     contract_name_end: u64 in Trapping;
     contract_first_generic: u64 in Trapping;
-    state_start: u64 in Trapping;
-    state_name_start: u64 in Trapping;
-    state_name_end: u64 in Trapping;
-    state_first_clause: u64 in Trapping;
-    state_clause_count: u64 in Trapping;
     signature_first_parameter: u64 in Trapping;
     signature_parameter_count: u64 in Trapping;
     signature_has_return_type: bool;

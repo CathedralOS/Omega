@@ -1,0 +1,84 @@
+diff --git a/omega-rust/psi/compilation/checking/src/program_validation/statements.rs b/omega-rust/psi/compilation/checking/src/program_validation/statements.rs
+index 0106bc5ec7e..d4af63eff0c 100644
+--- a/omega-rust/psi/compilation/checking/src/program_validation/statements.rs
++++ b/omega-rust/psi/compilation/checking/src/program_validation/statements.rs
+@@ -106,0 +107 @@ pub(super) fn validate_state_statement_node<'p>(
++        let _profile = phase_profile::guard("05.statement.placed");
+@@ -128,0 +130,8 @@ pub(super) fn validate_state_statement_node<'p>(
++    let _profile = phase_profile::guard(match statement {
++        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => "05.statement.kind.assembly",
++        StatementNode::Assignment(_) => "05.statement.kind.assignment",
++        StatementNode::Call(_) => "05.statement.kind.call",
++        StatementNode::Expression(_) => "05.statement.kind.expression",
++        StatementNode::LocalData(_) => "05.statement.kind.local",
++        StatementNode::Transition(_) => "05.statement.kind.transition",
++    });
+diff --git a/omega-rust/psi/compilation/checking/src/program_validation/statements/expression_statements.rs b/omega-rust/psi/compilation/checking/src/program_validation/statements/expression_statements.rs
+index a97494594ca..280f804186c 100644
+--- a/omega-rust/psi/compilation/checking/src/program_validation/statements/expression_statements.rs
++++ b/omega-rust/psi/compilation/checking/src/program_validation/statements/expression_statements.rs
+@@ -109,0 +110 @@ pub(super) fn validate(
++    let profile = phase_profile::guard("05.statement.expression.shape");
+@@ -208,0 +210,2 @@ pub(super) fn validate(
++    drop(profile);
++    let profile = phase_profile::guard("05.statement.expression.range");
+@@ -231,0 +235,2 @@ pub(super) fn validate(
++    drop(profile);
++    let _profile = phase_profile::guard("05.statement.expression.finish");
+diff --git a/omega-rust/psi/compilation/checking/src/program_validation/statements/local_data_statements.rs b/omega-rust/psi/compilation/checking/src/program_validation/statements/local_data_statements.rs
+index 394beaa51f3..221d646a3e4 100644
+--- a/omega-rust/psi/compilation/checking/src/program_validation/statements/local_data_statements.rs
++++ b/omega-rust/psi/compilation/checking/src/program_validation/statements/local_data_statements.rs
+@@ -67,0 +68 @@ pub(super) fn validate(
++    let profile = phase_profile::guard("05.statement.local.setup");
+@@ -236,0 +238,2 @@ pub(super) fn validate(
++    drop(profile);
++    let profile = phase_profile::guard("05.statement.local.types");
+@@ -335,0 +339,2 @@ pub(super) fn validate(
++    drop(profile);
++    let profile = phase_profile::guard("05.statement.local.range");
+@@ -360,0 +366,2 @@ pub(super) fn validate(
++    drop(profile);
++    let _profile = phase_profile::guard("05.statement.local.finish");
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs
+index 5a042a7c95b..45e66ee9226 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs
+@@ -712,0 +713 @@ impl Operation<'_, '_> {
++    let _profile = phase_profile::guard("05.arithmetic.expression_analysis.binary.mathematical_interval");
+@@ -851,0 +853 @@ impl Operation<'_, '_> {
++    let _profile = phase_profile::guard("05.arithmetic.expression_analysis.binary.relationally_fits_carrier");
+@@ -1009,0 +1012 @@ impl Operation<'_, '_> {
++    let _profile = phase_profile::guard("05.arithmetic.expression_analysis.binary.result_fits");
+@@ -1071,0 +1075 @@ impl Operation<'_, '_> {
++    let _profile = phase_profile::guard("05.arithmetic.expression_analysis.binary.completed_operands_fit");
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/place.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/place.rs
+index 3f70fc2351e..d1ca066bffb 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/place.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/place.rs
+@@ -18,0 +19 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
++    let _profile = phase_profile::guard("05.arithmetic.expression_analysis.place.analyze");
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/invariant_bounds.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/invariant_bounds.rs
+index 4d2f37613a4..d99734ecd79 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/invariant_bounds.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/invariant_bounds.rs
+@@ -97,0 +98 @@ pub(crate) fn standing_integer_interval(
++    let _profile = phase_profile::guard("05.arithmetic.invariant_bounds.standing_integer_interval");
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/operand_reports.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/operand_reports.rs
+index 605888c467a..aeb99053aaf 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/operand_reports.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/operand_reports.rs
+@@ -23,0 +24 @@ pub(crate) fn report_mismatched_integer_operands(
++    let _profile = phase_profile::guard("05.arithmetic.operand_reports.report_mismatched_integer_operands");
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence.rs
+index d5d54aee1eb..cfeef3e8d57 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/ordered_values/congruence.rs
+@@ -439,0 +440 @@ impl<'terms> Equalities<'terms> {
++        let profile = phase_profile::guard("05.next.equality.terms");
+@@ -452,0 +454,2 @@ impl<'terms> Equalities<'terms> {
++        drop(profile);
++        let profile = phase_profile::guard("05.next.equality.seeds");
+@@ -469,0 +473,2 @@ impl<'terms> Equalities<'terms> {
++        drop(profile);
++        let _profile = phase_profile::guard("05.next.equality.closure");

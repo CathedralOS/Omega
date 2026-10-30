@@ -2,16 +2,16 @@
 // Expected exit: 0
 
 domain<const Bound:u64> u64::AtMost<Bound> requires self <= Bound;
-data Index<const Max:u64,Limit:u64 in AtMost<Max>> [copy] where value<Limit {value:u64;}
+data Index<const Max:u64,Limit:u64 in AtMost<Max>> [copy] requires value<Limit {value:u64;}
 data Observation [copy] {payload:u64;limit:u64;}
 
-machine construct(total:u64[8..=9])->Observation {
+machine construct(total: u64)->Observation requires total >= 8 && total <= 9 {
  let indexed:Index<10,((total+1u64) as u64 in AtMost<10>)> = Index{value:10};
  Observation{payload:indexed.value,limit:(indexed.Limit as u64)}
 }
 
-machine retain(input:u64[8..=9])->u64[8..=9] {input}
-machine probe(input:u64[8..=9])->Observation {construct(retain(input))}
+machine retain(input: u64)-> u64 requires input >= 8 && input <= 9 ensures result >= 8 && result <= 9 {input}
+machine probe(input: u64)->Observation requires input >= 8 && input <= 9 {construct(retain(input))}
 machine main() crashes Trap {
  let first:Observation=probe(8);
  let second:Observation=probe(9);

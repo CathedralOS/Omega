@@ -12,14 +12,16 @@ mod identities;
 mod product_requests;
 mod retained_selections;
 mod selection;
-pub use retained_selections::RetainedProviderSelection;
+pub use retained_selections::{RetainedProviderApplication, RetainedProviderSelection};
 
 use crate::is_exact_toolchain_build_prelude_data;
 use checked_trees::typed_trees::TypedTrees;
 pub use context::ProviderPlanningContext;
 use diagnostics::Diagnostic;
 pub use identities::{eligible, is_named_provider, named_requirement_lifetime_arguments};
-pub use product_requests::{collect_product_provider_selections, form_product_provider_request};
+pub use product_requests::{
+    collect_product_provider_selections, validate_product_provider_description,
+};
 pub use selection::{
     CompositionMode, ProviderOperatorFamilySelection, ProviderSelection, ProviderSelectionIdentity,
     ProviderSelectionSubject,
@@ -260,6 +262,8 @@ fn collect_provider_selections<'a>(
                     argument.symbol
                 };
                 ProviderSelectionIdentity {
+                    application: Default::default(),
+                    application_identity: None,
                     symbol,
                     package: typed.symbols.symbol_package_identity(symbol),
                     canonical_path: typed.symbols.display_path(symbol, "::"),

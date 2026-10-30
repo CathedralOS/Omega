@@ -1,0 +1,5 @@
+{
+  "rejection_contains": [
+    "mutates `old.value`"
+  ]
+}

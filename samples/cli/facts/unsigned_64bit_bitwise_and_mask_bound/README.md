@@ -123,3 +123,21 @@ Full 8-layer specification and lowering evidence:
 ## What remains open
 
 Bitwise operations on signed integers (`i64`), bitwise OR/XOR/NOT bound tracking, variable-mask bound derivation, and bitfield projection geometry remain governed under the wider bitwise and numeric value roadmap.
+
+## Build-owned target-body migration
+
+`BUILD-OWNED-TARGET-SELECTION` replaces this existing target-prefixed family
+with ordinary named implementations and explicit target-keyed Build provider
+rows. The original operation, inputs, contracts and exit oracle are retained,
+including any different invalid body in an unselected implementation. The
+other eight transport places retain their authored source and Build rows.
+A separate provider check distinguishes X86 tag 17 from ARM tag 29; entry
+wrappers and provider bodies both check it, exposing a wrong provider row.
+
+This migration requires the existing nine positive places and their specific
+reject twins to pass. It adds five-profile installations of the same Terminal
+artifact and actual macOS ARM/X86 native execution for the migrated target body.
+It does not establish a new numeric-width, argument-count or ownership mechanism,
+renew unrelated historical row claims, or close the target/native migration
+parent tasks. Windows/Linux native execution and native trap controls remain
+unverified here; wrong-selection controls execute in Terminal Psi.

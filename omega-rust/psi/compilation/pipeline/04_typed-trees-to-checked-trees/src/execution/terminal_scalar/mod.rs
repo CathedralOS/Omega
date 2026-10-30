@@ -128,6 +128,7 @@ fn checked_successor(
     Some(CheckedStructuralControlSuccessorPlan::new(
         statement_ordinal,
         target,
+        crate::execution::successor_completion::classify(program, machine, path.symbol),
         is_continuation,
         Vec::new(),
         Vec::new(),
@@ -147,6 +148,30 @@ pub(super) fn checked_terminator(
 ) -> Option<CheckedScalarStateTerminator> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let terminator_ordinal = u32::try_from(binding_count).ok()?;
+    // Checking forms every canonical arm. Execution retains only the selected
+    // edge when its guard is a closed static proposition, keeping the original
+    // statement coordinate and its checked value/custody records.
+    if let Some(selected) = crate::execution::selected_transitions::selected_transition(
+        program,
+        statements,
+        binding_count,
+    ) {
+        let ordinal = selected.statement_ordinal;
+        let transition = selected.transition;
+        return match checked_branch_destination(program, machine, ordinal, transition, false)? {
+            CheckedScalarBranchDestination::Return {
+                statement_ordinal,
+                is_continuation: false,
+            } => Some(CheckedScalarStateTerminator::Return { statement_ordinal }),
+            CheckedScalarBranchDestination::Crash { statement_ordinal } => {
+                Some(CheckedScalarStateTerminator::Crash { statement_ordinal })
+            }
+            CheckedScalarBranchDestination::Jump(successor) => {
+                Some(CheckedScalarStateTerminator::Jump(successor))
+            }
+            _ => None,
+        };
+    }
     let reachable =
         typed_trees::statement::reachable_transition_prefix(&statements[binding_count..]);
     Some(match reachable {

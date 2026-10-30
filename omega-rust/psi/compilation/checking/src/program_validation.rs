@@ -83,7 +83,7 @@ pub fn expression_interval(
 pub struct ProgramValidationFacts {
     pub quotient_formations: Vec<quotients::ValidatedQuotientFormation>,
     pub integer_range_obligations: Vec<checked_trees::IntegerRangeObligation>,
-    pub static_machine_selections: machine_parameters::ValidatedStaticMachineSelections,
+    pub static_machine_selections: machine_parameters::PreparedStaticMachineSelections,
     formed_static_machine_selections: machine_parameters::FormedStaticMachineSelections,
     pub stored_integer_writes: Vec<checked_trees::CheckedStoredIntegerWrite>,
     /// Successful immediate receiving judgments, not invariant-window closure.
@@ -93,6 +93,9 @@ pub struct ProgramValidationFacts {
     /// Integer operations whose formation conditions every clean arithmetic
     /// walk decided.
     pub decided_formations: Vec<typed_trees::expression::ExpressionHandle>,
+    /// Occurrences proved free of runtime Trap, independently of selected-policy
+    /// formation (Trapping signed division may form and still trap at MIN/-1).
+    pub trap_free_expressions: Vec<typed_trees::expression::ExpressionHandle>,
     /// Integer expression intervals, one per expression in handle order,
     /// hulled over every clean arithmetic walk of it.
     pub expression_intervals: Vec<ExpressionInterval>,
@@ -424,7 +427,7 @@ fn validate<'program>(
         );
     });
     let mut static_machine_selections =
-        machine_parameters::ValidatedStaticMachineSelections::default();
+        machine_parameters::PreparedStaticMachineSelections::default();
     let mut formed_static_machine_selections = Default::default();
     let formation_diagnostic_start = diagnostics.len();
     phase_profile::scope("05.d.2.a.1a6.static_machine_selections", || {
@@ -860,7 +863,6 @@ fn validate<'program>(
                         machine,
                         &state.name,
                         Some(state),
-                        &machine_symbols,
                         &symbols,
                         &writable_roots,
                         statement_handle,
@@ -963,6 +965,7 @@ fn validate<'program>(
         mut exact_integer_casts,
         mut integer_assignments,
         mut decided_formations,
+        mut trapping_decisions,
         expression_values: walked_intervals,
     } = arithmetic_decisions;
     integer_range_obligations.extend(formation_obligations);
@@ -1003,6 +1006,21 @@ fn validate<'program>(
     literals::validate_anonymous_bitwise(program, &mut anonymous_bitwise);
     finish_diagnostics(anonymous_bitwise)?;
     finish_diagnostics(literals::anonymous_integer_landing_warnings(program))?;
+    // A static occurrence may be observed by more than one clean walk. Only
+    // their conjunction discharges its runtime trap predicate.
+    trapping_decisions
+        .sort_by_key(|(expression, _)| checked_trees::operators::handle_position(*expression));
+    let mut trapping_verdicts = Vec::<(ExpressionHandle, bool)>::new();
+    for (expression, proven) in trapping_decisions {
+        match trapping_verdicts.last_mut() {
+            Some((previous, all_proven)) if *previous == expression => *all_proven &= proven,
+            _ => trapping_verdicts.push((expression, proven)),
+        }
+    }
+    let trap_free_expressions = trapping_verdicts
+        .into_iter()
+        .filter_map(|(expression, proven)| proven.then_some(expression))
+        .collect();
     decided_formations
         .sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
     decided_formations.dedup();
@@ -1044,6 +1062,7 @@ fn validate<'program>(
             boundary_operator_applications,
             exact_integer_casts,
             decided_formations,
+            trap_free_expressions,
             expression_intervals,
             float_meaning_projection_invocations,
             float_meaning_equality_propositions,

@@ -155,7 +155,8 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
             .map(|(index, _)| index),
     );
     match operation {
-        O::EstablishNativeCodeLayout { .. }
+        O::ReadScalarApplication { .. }
+        | O::EstablishNativeCodeLayout { .. }
         | O::ReleaseActivationClaim { .. }
         | O::MergeActivationClaim { .. } => {}
         O::EstablishActivationClaim { committed, .. }

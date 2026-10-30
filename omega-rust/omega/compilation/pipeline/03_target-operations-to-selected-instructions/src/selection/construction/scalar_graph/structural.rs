@@ -319,6 +319,17 @@ pub(super) fn view_element_pointer(
     )
 }
 
+/// Match one legalized kind and return once its emitter succeeds. Each
+/// structural family keeps its own callee; this shell is the shared dispatch.
+macro_rules! dispatch_kind {
+    ($row:expr, $pattern:pat, $emit:expr) => {
+        if matches!($row.kind, $pattern) {
+            $emit?;
+            return Ok(true);
+        }
+    };
+}
+
 pub(super) fn operation(
     function: usize,
     source: &LegalizedScalarFunction,
@@ -328,188 +339,135 @@ pub(super) fn operation(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<bool, SelectedInstructionError> {
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::IeeeFloatClassify { .. }
-    ) {
-        ieee_float_classify::establish(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { .. }
-    ) {
-        byte_concatenation::establish(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { .. }
-    ) {
-        byte_field_store::replace_byte(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::ByteSequenceStore { .. }
-            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
-    ) {
-        byte_field_store::replace(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::StructuralByteViewFieldStore { .. }
-    ) {
-        byte_view_field_store::replace(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
-    ) {
-        byte_views::write(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::ElementViewWrite { .. }
-    ) {
-        element_view_write::write(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
-            | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
-    ) {
-        primitive_locals::write(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishRecord { .. }
-    ) {
-        record::establish(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::PlacementLifecycle { .. }
-    ) {
-        placement_lifecycles::emit(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishCase { .. }
-    ) {
-        scalar_case::establish(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
-    ) {
-        leaf_copy::copy(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::StoreStructuralField { .. }
-    ) {
-        leaf_copy::reseat(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
-    ) {
-        structural_array::establish(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishScalarArray { .. }
-    ) {
-        scalar_array::establish(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
-    ) {
-        zeroed::establish(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }
-    ) {
-        structural_local::establish(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
-            | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
-    ) {
-        scalar_store::emit(source, row, builder)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishActivationClaim { .. }
-            | LegalizedScalarInstructionKind::SplitActivationClaim { .. }
-            | LegalizedScalarInstructionKind::MergeActivationClaim { .. }
-            | LegalizedScalarInstructionKind::ReleaseActivationClaim { .. }
-    ) {
-        activation_storage::emit(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishNativeCodeLayout { .. }
-    ) {
-        native_code_layout::establish(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
-    ) {
-        literals::establish(builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::ByteSequenceSubslice { .. }
-    ) {
-        subslice::create(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishElementView { .. }
-    ) {
-        element_establishment::establish(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::ElementViewSubslice { .. }
-    ) {
-        element_subslice::create(source, builder, row)?;
-        return Ok(true);
-    }
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::EstablishReference { .. }
-            | LegalizedScalarInstructionKind::EstablishPlacedReference { .. }
-    ) {
-        reference::establish(source, row, builder)?;
-        return Ok(true);
-    }
+    use LegalizedScalarInstructionKind as Kind;
+    dispatch_kind!(
+        row,
+        Kind::IeeeFloatClassify { .. },
+        ieee_float_classify::establish(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishByteSequenceConcatenation { .. },
+        byte_concatenation::establish(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::StructuralByteSequenceFieldByteStore { .. },
+        byte_field_store::replace_byte(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::ByteSequenceStore { .. } | Kind::StructuralByteSequenceFieldStore { .. },
+        byte_field_store::replace(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::StructuralByteViewFieldStore { .. },
+        byte_view_field_store::replace(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::ByteSequenceWrite { .. },
+        byte_views::write(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::ElementViewWrite { .. },
+        element_view_write::write(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishPrimitiveLocal { .. } | Kind::PrimitiveLocalStore { .. },
+        primitive_locals::write(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishRecord { .. },
+        record::establish(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::PlacementLifecycle { .. },
+        placement_lifecycles::emit(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishCase { .. },
+        scalar_case::establish(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::StructuralLeafCopy { .. },
+        leaf_copy::copy(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::StoreStructuralField { .. },
+        leaf_copy::reseat(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishStructuralArray { .. },
+        structural_array::establish(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishScalarArray { .. },
+        scalar_array::establish(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishZeroedStructural { .. },
+        zeroed::establish(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishStructuralLocal { .. },
+        structural_local::establish(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::StructuralScalarFieldStore { .. } | Kind::WriteOnlyPrimitiveStore { .. },
+        scalar_store::emit(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishActivationClaim { .. }
+            | Kind::SplitActivationClaim { .. }
+            | Kind::MergeActivationClaim { .. }
+            | Kind::ReleaseActivationClaim { .. },
+        activation_storage::emit(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishNativeCodeLayout { .. },
+        native_code_layout::establish(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishByteSequenceLiteral { .. },
+        literals::establish(builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::ByteSequenceSubslice { .. },
+        subslice::create(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishElementView { .. },
+        element_establishment::establish(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::ElementViewSubslice { .. },
+        element_subslice::create(source, builder, row)
+    );
+    dispatch_kind!(
+        row,
+        Kind::EstablishReference { .. } | Kind::EstablishPlacedReference { .. },
+        reference::establish(source, row, builder)
+    );
     // Closing a loan changes custody, not referent bytes. Trivial empty locals
     // likewise carry no executable initialization.
     if matches!(
@@ -551,13 +509,11 @@ pub(super) fn operation(
     }
     // Evaluated normalized foreign calls own their own argument transport and
     // result custody; they are never routed through the internal Call family.
-    if matches!(
-        row.kind,
-        LegalizedScalarInstructionKind::NormalizedForeignCall(_)
-    ) {
-        super::normalized_foreign::emit(function, source, row, environment, builder)?;
-        return Ok(true);
-    }
+    dispatch_kind!(
+        row,
+        Kind::NormalizedForeignCall(_),
+        super::normalized_foreign::emit(function, source, row, environment, builder)
+    );
     if row.result.is_some() {
         return Ok(false);
     }

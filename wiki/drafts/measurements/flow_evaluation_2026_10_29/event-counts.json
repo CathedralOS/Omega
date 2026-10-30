@@ -1,0 +1,212 @@
+{
+  "names_count": 395,
+  "stable_flow_counts": {
+    "05.flow_detail.append_guard_context": 728,
+    "05.flow_detail.append_state_exit_facts": 778,
+    "05.flow_detail.capture_operand": 6331,
+    "05.flow_detail.capture_place_operand": 2425,
+    "05.flow_detail.changed_operand_sources": 6383,
+    "05.flow_detail.dispatch_copy_value": 11762,
+    "05.flow_detail.evaluated_operand_as": 3914,
+    "05.flow_detail.expression_result": 6139,
+    "05.flow_detail.filter_captured_sources": 6331,
+    "05.flow_detail.new": 1154,
+    "05.flow_detail.operand_is_view": 9888,
+    "05.flow_detail.retain_observation_result": 5877
+  },
+  "varying_counts": {
+    "05.d.7.3b.1.cap.2d.assign": [
+      3907,
+      3912,
+      3906,
+      3907,
+      3912,
+      3890
+    ],
+    "05.d.7.3b.1.cap.2d.local_init": [
+      335,
+      336,
+      335,
+      335,
+      336,
+      332
+    ],
+    "05.d.7.3b.1.cap.2d.transitions": [
+      103,
+      104,
+      103,
+      103,
+      104,
+      100
+    ],
+    "05.num.1_scan": [
+      136,
+      136,
+      136,
+      137,
+      137,
+      136
+    ],
+    "05.num.2_observe_prefixes": [
+      133,
+      133,
+      133,
+      134,
+      134,
+      133
+    ],
+    "05.num.2a.1_completed_obs": [
+      163,
+      163,
+      163,
+      167,
+      167,
+      163
+    ],
+    "05.num.2a.2_collect_ordering": [
+      6,
+      6,
+      6,
+      9,
+      9,
+      6
+    ],
+    "05.num.2a.3_collect_assoc": [
+      163,
+      163,
+      163,
+      167,
+      167,
+      163
+    ],
+    "05.num.2a_visitor_visit": [
+      163,
+      163,
+      163,
+      167,
+      167,
+      163
+    ],
+    "05.num.2b_active_paths_stepped": [
+      74,
+      74,
+      74,
+      77,
+      77,
+      74
+    ],
+    "05.num.2b_step_statement": [
+      74,
+      74,
+      74,
+      77,
+      77,
+      74
+    ],
+    "05.num.assoc.1_reads": [
+      160,
+      160,
+      160,
+      164,
+      164,
+      160
+    ],
+    "05.num.assoc.2_build_preds": [
+      160,
+      160,
+      160,
+      164,
+      164,
+      160
+    ],
+    "05.num.assoc.3_prove": [
+      48,
+      48,
+      48,
+      52,
+      52,
+      48
+    ],
+    "05.num.prove.1_eq_loop": [
+      48,
+      48,
+      48,
+      52,
+      52,
+      48
+    ],
+    "05.num.prove.2_shared": [
+      48,
+      48,
+      48,
+      52,
+      52,
+      48
+    ],
+    "05.num.prove.2a_prep": [
+      48,
+      48,
+      48,
+      52,
+      52,
+      48
+    ],
+    "05.num.prove.2a_prep.hit": [
+      107,
+      107,
+      107,
+      115,
+      115,
+      107
+    ],
+    "05.num.prove.2a_prep.miss": [
+      273,
+      273,
+      273,
+      274,
+      274,
+      273
+    ],
+    "05.num.prove.2b_project": [
+      219,
+      219,
+      219,
+      352,
+      352,
+      219
+    ],
+    "05.num.visit.1_arm_judge": [
+      471,
+      471,
+      471,
+      475,
+      475,
+      471
+    ],
+    "05.num.visit.2_contra": [
+      444,
+      444,
+      444,
+      446,
+      446,
+      444
+    ],
+    "05.rf.recognize": [
+      10,
+      11,
+      10,
+      10,
+      11,
+      7
+    ]
+  },
+  "order": [
+    "A",
+    "B",
+    "B",
+    "A",
+    "A",
+    "B"
+  ],
+  "note": "Global exact-count assertion failed; counts also vary among unchanged baseline runs. Preserve this result, require exact target flow counts and name roster, and use fixed-input probe plus concurrency tests for collector accumulation correctness."
+}

@@ -6,9 +6,9 @@ use selected_instructions::{
 };
 
 pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
-    super::alternative_declaration(
-        constraint,
+    MachineEffectDeclaration::single(
         MachineSemanticKind::AtomicFence,
+        constraint,
         MachineMemoryEffect::AtomicFenceV1,
         MachineTrapBehavior::NeverV1,
         MachineBarrier::ExternalEffect,

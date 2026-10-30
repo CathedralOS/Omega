@@ -10,9 +10,12 @@ use crate::{CheckedFactCallProjection, CheckedPlacedViewInput};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckFacts {
-    /// Exact physical applications retained before target policy evaluation.
-    /// They establish no geometry and cannot cross the Terminal boundary.
+    /// Exact geometry applications deferred during source formation; no physical authority.
     pub deferred_layout_applications: Vec<typed_trees::types::TypeReferenceHandle>,
+    /// Complete checked callable descriptions, independent of executable roots.
+    pub declaration_descriptions: crate::CheckedDeclarationDescriptions,
+    /// Proof scope remains independent of executable body selection.
+    pub proof_applications: crate::ProofApplicationPlan,
     pub quotient_formations: Vec<super::CheckedQuotientFormation>,
     pub quotient_operations: Vec<super::CheckedQuotientOperation>,
     /// Portable specialization identities derived from checked machine contracts.

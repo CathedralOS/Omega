@@ -19,7 +19,7 @@ pub(crate) fn named_provider<'a>(
 ) -> Option<&'a Conformance> {
     let typed = context.typed;
     let mut matching = typed.conformances().iter().filter(|definition| {
-        eligible(definition)
+        (plan.application_identity().is_some() || eligible(definition))
             && context.contains(definition.symbol)
             && typed.symbols.display_path(definition.symbol, "::") == plan.provider_type
             && typed.symbols.symbol_package_identity(definition.symbol)
@@ -191,7 +191,7 @@ pub fn provider_row_matches(
     if !context.contains(machine.symbol) {
         return false;
     }
-    if named_provider(context, plan).is_some() {
+    if let Some(implementation) = named_provider(context, plan) {
         let Some(entry) = named_provider_row(context, plan, row) else {
             return false;
         };
@@ -208,30 +208,53 @@ pub fn provider_row_matches(
         // The row names what resolution bound its authored path to; on this
         // plan's target that stands for one body: the machine itself or its
         // family's member for the target.
-        if crate::target_machines::realized_row_machine(
-            context,
-            entry.realization_machine,
-            Some(&plan.target),
-        )
-        .is_some_and(|realized| realized.symbol == machine.symbol)
+        if plan.application_identity().is_none()
+            && crate::target_machines::realized_row_machine(
+                context,
+                entry.realization_machine,
+                Some(&plan.target),
+            )
+            .is_some_and(|realized| realized.symbol == machine.symbol)
         {
             return true;
         }
-        // The specialization producer clones states in declaration order;
-        // its receipt authenticates that correspondence. Rejoin the map's
-        // exact entry before accepting the corresponding instance entry.
-        if typed.machine_states(machine).len() != realization_states.len() {
+        let Some(entry_state) = typed.machine_states(machine).first() else {
+            return false;
+        };
+        if !typed.instantiated_machine_state_matches(
+            machine.symbol,
+            entry.realization_machine,
+            entry.realization_state,
+            entry_state.symbol,
+        ) {
             return false;
         }
-        typed
-            .machine_specializations
-            .iter()
-            .filter(|specialization| {
-                specialization.template == entry.realization_machine
-                    && specialization.instance == machine.symbol
-            })
-            .count()
-            == 1
+        match plan.application_identity() {
+            Some(expected) => {
+                typed
+                    .implementation_capture(
+                        machine.symbol,
+                        entry.realization_machine,
+                        implementation.symbol,
+                    )
+                    .and_then(|capture| {
+                        typed.portable_conformance_application_identity(
+                            &capture.conformance_application,
+                            capture.supplying_application,
+                        )
+                    })
+                    .and_then(|identity| typed.type_identity_text(identity))
+                    .as_deref()
+                    == Some(expected)
+            }
+            None => typed
+                .implementation_capture(
+                    machine.symbol,
+                    entry.realization_machine,
+                    implementation.symbol,
+                )
+                .is_none(),
+        }
     } else {
         let Some(owner) = provider_owner_symbol(typed, machine) else {
             return false;

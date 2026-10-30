@@ -55,7 +55,9 @@ pub(super) fn expression_is_effectful_for_transparent_result(
             .struct_fields(literal.fields)
             .iter()
             .any(|field| expression_is_effectful_for_transparent_result(program, field.value)),
-        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => false,
+        ExpressionNode::TypeExpression(_)
+        | ExpressionNode::SavedSubject(_)
+        | typed_trees::literal_expression_pattern!() => false,
     }
 }
 

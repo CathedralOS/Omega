@@ -5,6 +5,7 @@
 //! tree, a materializer publishes either the whole source or one
 //! [`workspace_member`], and [`issuance`] revalidates custody before returning.
 
+#[cfg(test)]
 use crate::SourceResolver;
 use crate::error::SourceResolveError;
 use crate::git::executable::selection::PrimaryGitSelection;
@@ -62,6 +63,11 @@ pub fn resolve_git_source_in_lane(
     )
 }
 
+/// Resolve a Git source through a caller-supplied resolver.
+///
+/// Test fixture entry: production callers pass an explicit lane to
+/// [`resolve_git_source_in_lane`] and proof their own custody.
+#[cfg(test)]
 pub(crate) fn resolve_git_source(
     request: &GitSourceRequest,
     resolver: &SourceResolver,

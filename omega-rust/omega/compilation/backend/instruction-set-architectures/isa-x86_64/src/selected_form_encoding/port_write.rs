@@ -32,9 +32,9 @@ pub(crate) fn effects() -> MachineEncodedEffects {
 }
 
 pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
-    super::alternative_declaration(
-        constraint,
+    MachineEffectDeclaration::single(
         MachineSemanticKind::PortWrite,
+        constraint,
         MachineMemoryEffect::NoneV1,
         MachineTrapBehavior::MayArchitecturalFaultV1,
         MachineBarrier::ExternalEffect,

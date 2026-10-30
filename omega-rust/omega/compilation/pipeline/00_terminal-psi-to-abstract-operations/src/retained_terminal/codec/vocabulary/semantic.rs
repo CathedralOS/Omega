@@ -165,8 +165,8 @@ record_variants!(diagnostics::DiagnosticSeverity {
     1 => Warning,
 });
 
-record_variants!(language_semantics::DomainPredicateBody {
-    0 => Bodyless,
+record_variants!(language_semantics::DomainPredicatePresence {
+    0 => Absent,
     1 => Present,
 });
 

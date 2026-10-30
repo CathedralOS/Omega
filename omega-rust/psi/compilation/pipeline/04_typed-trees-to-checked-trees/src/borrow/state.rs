@@ -102,6 +102,9 @@ pub(super) fn append_state_borrow_facts(
         })? {
             capture_incoming_origin(arenas, &mut returned);
             let segments = arenas.access_segments.insert_many(returned.place.segments);
+            let formation_owner_path = returned
+                .formation_owner_path
+                .map(|path| arenas.owner_segments.insert_many(path));
             let owner_path = arenas.owner_segments.insert_many(returned.owner_path);
             arenas.returned_loans.append_to_span(
                 &mut returned_loans_span,
@@ -110,6 +113,7 @@ pub(super) fn append_state_borrow_facts(
                     statement_index,
                     transition_target,
                     formation_expression: returned.formation_expression,
+                    formation_owner_path,
                     incoming_reference: returned.place.incoming_reference,
                     root: returned.place.root,
                     segments,

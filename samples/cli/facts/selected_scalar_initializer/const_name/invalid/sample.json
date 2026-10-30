@@ -2,7 +2,7 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "domain constraint `Selected` for the const leaf value is false",
-    "failed domain `i32::Selected`"
+    "array literal element is not proven in domain `i32::Selected`",
+    "a construction value must establish the domain"
   ]
 }

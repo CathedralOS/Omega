@@ -1,48 +1,10 @@
-//! Provider selection keys, provenance, indices and slot resolution.
+//! Source correspondence adapter for the shared whole-provider selector.
 
-use crate::provider_planning::independent_components::IndependentComponentJoin;
 use crate::{DerivedProviderPlan, ProviderPlanProvenance};
 use component_description::VerifiedComponent;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::ProviderPlan;
 use symbols::SymbolHandle;
-
-type ProviderSelectionKey = (Option<semantic_vocabulary::PackageKeyIdentity>, String);
-
-fn provider_slot_key(plan: &effects::provider_plan::ProviderPlan) -> ProviderSelectionKey {
-    (
-        plan.schema.trait_package_identity,
-        plan.schema.identity_text(plan.schema.trait_name).to_owned(),
-    )
-}
-
-fn selected_subject_keys(selection: &crate::ProviderSelection) -> Vec<ProviderSelectionKey> {
-    match &selection.subject {
-        crate::ProviderSelectionSubject::BoundaryTrait(identity)
-        | crate::ProviderSelectionSubject::BoundaryRequirement(identity) => {
-            vec![(identity.package, identity.canonical_path.clone())]
-        }
-        crate::ProviderSelectionSubject::BoundaryOperatorFamily(family) => family
-            .coordinates()
-            .iter()
-            .map(|coordinate| (family.package, coordinate.requirement_identity.clone()))
-            .collect(),
-    }
-}
-
-fn selected_provider_key(selection: &crate::ProviderSelection) -> ProviderSelectionKey {
-    (
-        selection.provider_type.package,
-        selection.provider_type.canonical_path.clone(),
-    )
-}
-
-fn provider_plan_key(plan: &effects::provider_plan::ProviderPlan) -> ProviderSelectionKey {
-    (
-        plan.provider_type_package_identity,
-        plan.provider_type.clone(),
-    )
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderSelectionProvenance {
@@ -53,42 +15,9 @@ pub enum ProviderSelectionProvenance {
 }
 
 impl ProviderSelectionProvenance {
-    /// Reconstruct the one build-owned composition choice retained by this
-    /// selected plan. Automatic unique selection and target defaults are
-    /// always fused: provider packages cannot independently componentize
-    /// themselves.
+    /// Composition policy is shared with canonical publication.
     pub fn composition_mode(&self) -> Result<crate::CompositionMode, String> {
-        match self {
-            Self::UniqueCoveringCandidate | Self::NativeBuild => Ok(crate::CompositionMode::Fused),
-            Self::TargetDefault(declarations) => {
-                if declarations.iter().any(|declaration| {
-                    declaration.composition_mode != crate::CompositionMode::Fused
-                }) {
-                    return Err(
-                        "target-provider defaults cannot request independent composition; only the owner-controlled build may create that deployment cut"
-                            .into(),
-                    );
-                }
-                Ok(crate::CompositionMode::Fused)
-            }
-            Self::BuildOverride(declarations) => {
-                let Some(first) = declarations.first() else {
-                    return Err(
-                        "selected provider plan has a build override without a declaration".into(),
-                    );
-                };
-                if declarations
-                    .iter()
-                    .any(|declaration| declaration.composition_mode != first.composition_mode)
-                {
-                    return Err(
-                        "selected provider plan has conflicting build-owned composition modes"
-                            .into(),
-                    );
-                }
-                Ok(first.composition_mode)
-            }
-        }
+        super::selection_declarations::project_provenance(self.clone()).composition_mode()
     }
 }
 
@@ -117,10 +46,6 @@ pub struct SelectedProviderReviewProvenance {
     pub row_external_completion_leaves: Vec<Vec<SymbolHandle>>,
 }
 
-/// Publish selected provider facts on a route that supplies no verified
-/// component descriptions. Every `Independent` selection rejects at the
-/// component-closure fence; routes that admit verified components call
-/// [`selected_provider_plan_facts_with_independent_components`].
 pub fn selected_provider_plan_facts(
     context: crate::ProviderPlanningContext<'_>,
     selected: Vec<SelectedProviderPlanWithProvenance>,
@@ -134,19 +59,11 @@ pub fn selected_provider_plan_facts(
     selected_provider_plan_facts_with_independent_components(context, selected, &[])
 }
 
-/// Publish selected provider facts and close every `Independent` selection
-/// against the build's verified component descriptions. Each plan's
-/// provenance comes from the derivation this compile just ran and is not
-/// replayed here; package review replays it with
-/// [`crate::replay_selected_provider_provenance`].
-///
-/// Each independently composed plan must be realized by exactly one
-/// `independent_components` entry (`VerifiedComponent::realizes_selected_plan`),
-/// and each supplied component must realize one such plan; the selected
-/// facts publish only when that join is complete.
+/// Keep rootless Check/review on exact invocation declarations. No canonical
+/// owner is required here; publication projects its own closed identities.
 pub(crate) fn selected_provider_plan_facts_with_independent_components(
     context: crate::ProviderPlanningContext<'_>,
-    mut selected: Vec<SelectedProviderPlanWithProvenance>,
+    selected: Vec<SelectedProviderPlanWithProvenance>,
     independent_components: &[VerifiedComponent],
 ) -> Result<
     (
@@ -155,88 +72,37 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
     ),
     Vec<diagnostics::Diagnostic>,
 > {
-    let typed = context.typed;
-    selected.sort_by(|left, right| left.derived.plan.selection_order(&right.derived.plan));
-
-    let mut diagnostics = replay_operator_family_selections(context, &selected);
-    let mut independent_join = IndependentComponentJoin::new(independent_components);
-    for selected_plan in &selected {
-        let plan = &selected_plan.derived.plan;
-        let provenance = &selected_plan.derived.provenance;
-        let composition_mode = match selected_plan.selected_by.composition_mode() {
-            Ok(mode) => mode,
-            Err(reason) => {
-                diagnostics.push(diagnostics::Diagnostic::error(reason));
-                continue;
+    let mut choices = Vec::with_capacity(selected.len());
+    for selected in selected {
+        let mut provenance =
+            super::selection_declarations::project_provenance(selected.selected_by);
+        match &mut provenance {
+            provider_selection::SelectionProvenance::BuildOverride(declarations)
+            | provider_selection::SelectionProvenance::TargetDefault(declarations) => {
+                for declaration in declarations {
+                    let source = declaration.origin.clone();
+                    super::selection_declarations::retain_family_replay(
+                        context,
+                        &source,
+                        declaration,
+                    );
+                }
             }
-        };
-        // Component-closure fence. An `Independent` edge closes only when
-        // exactly one verified component description realizes this plan
-        // (`VerifiedComponent::realizes_selected_plan` matches the selected
-        // provider type and every checked-adapter row against the verified
-        // module's provider-candidate catalog). The join reads the verified
-        // carrier itself, never a projection of its fields; a missing,
-        // duplicated, or mismatched realization rejects here rather than
-        // falling back to Fused.
-        if composition_mode == crate::CompositionMode::Independent
-            && let Err(diagnostic) = independent_join.realize(plan)
-        {
-            diagnostics.push(diagnostic);
+            provider_selection::SelectionProvenance::UniqueCoveringCandidate
+            | provider_selection::SelectionProvenance::NativeBuild => {}
         }
-        let schema_symbol = provenance.schema.symbol();
-        let declarations = match &selected_plan.selected_by {
-            ProviderSelectionProvenance::BuildOverride(declarations)
-            | ProviderSelectionProvenance::TargetDefault(declarations) => declarations,
-            ProviderSelectionProvenance::UniqueCoveringCandidate
-            | ProviderSelectionProvenance::NativeBuild => continue,
-        };
-        if declarations.is_empty() {
-            diagnostics.push(diagnostics::Diagnostic::error(format!(
-                "selected provider plan `{}` has an authored selection origin without a declaration",
-                plan.name,
-            )));
-        }
-        for declaration in declarations {
-            if !declaration.subject.selects_schema(
-                schema_symbol,
-                plan.schema.identity_text(plan.schema.trait_name),
-            ) || Some(declaration.provider_type.symbol) != provenance.provider_type
-            {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "selected provider plan `{}` has a selection declaration outside its exact schema, provider, or selecting-machine provenance",
-                    plan.name,
-                )));
-            }
-        }
+        choices.push(provider_selection::SelectedProvider {
+            candidate: super::selection_declarations::source_candidate(selected.derived),
+            selected_by: provenance,
+        });
     }
-    diagnostics.extend(independent_join.finish());
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
-
-    let plans = selected
-        .iter()
-        .map(|selected| selected.derived.plan.clone())
-        .collect::<Vec<_>>();
-    let facts = effects::SelectedProviderPlanFacts::from_selected_plans(plans.clone())
-        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
-    if facts.plans() != plans
-        || plans.iter().any(|plan| {
-            facts
-                .plan_by_exact_evidence(plan.report_fingerprint(), plan)
-                .is_none()
-        })
-    {
-        return Err(vec![diagnostics::Diagnostic::error(
-            "selected provider semantic facts do not retain the exact plans aligned with provenance",
-        )]);
-    }
+    let (facts, selected) = provider_selection::admit(choices, independent_components)?;
     let provenance = selected
         .into_iter()
         .map(|selected| SelectedProviderReviewProvenance {
-            plan: selected.derived.plan,
-            provider: selected.derived.provenance,
-            selected_by: selected.selected_by,
+            plan: selected.candidate.plan,
+            provider: selected.candidate.owner,
+            selected_by: super::selection_declarations::restore_provenance(selected.selected_by),
             row_compiler_intrinsic_executions: Vec::new(),
             row_external_completion_leaves: Vec::new(),
         })

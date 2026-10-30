@@ -85,6 +85,23 @@ pub fn canonical_template_contract_bytes(
         }
         bytes.push(0xf9);
     }
+    for &predicate in program
+        .expression_table
+        .expression_handles(machine.declared_type_predicates)
+    {
+        encode_identity_text(
+            &typed_trees::type_identity::normalized_expression_identity(
+                program, predicate, &binders,
+            )
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "generic type predicate has no complete normalized declaration identity",
+                )
+            })?,
+            &mut bytes,
+        );
+        bytes.push(0xf8);
+    }
     for bound in &machine.conformance_bounds {
         let mut encoded = Vec::new();
         encoded.extend(bound.trait_name.as_str().as_bytes());

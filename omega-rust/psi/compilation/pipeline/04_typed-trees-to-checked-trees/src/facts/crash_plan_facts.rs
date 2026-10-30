@@ -441,6 +441,7 @@ pub(crate) fn declared_parameter_names(
 pub(crate) fn derive_authored_machine_crash_buckets(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
+    operators: Option<&checked_trees::CheckedOperatorFacts>,
 ) -> Result<Vec<checked_trees::CrashRouteBucket>, diagnostics::Diagnostic> {
     let parameter_names = machine_entry_parameter_names(program, machine);
     let conservation = validation::content_conservation_plans(program);
@@ -450,7 +451,7 @@ pub(crate) fn derive_authored_machine_crash_buckets(
         &parameter_names,
         &conservation,
         CrashContractOwner::Machine(machine),
-        None,
+        operators,
         &[],
     )
 }
@@ -458,6 +459,7 @@ pub(crate) fn derive_authored_machine_crash_buckets(
 pub(crate) fn derive_authored_signature_crash_buckets(
     program: &dyn ::validation::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
+    operators: Option<&checked_trees::CheckedOperatorFacts>,
 ) -> Result<Vec<checked_trees::CrashRouteBucket>, diagnostics::Diagnostic> {
     let parameter_names = declared_parameter_names(program.state_signature_parameters(signature));
     let conservation = validation::content_conservation_plans(program);
@@ -467,7 +469,7 @@ pub(crate) fn derive_authored_signature_crash_buckets(
         &parameter_names,
         &conservation,
         CrashContractOwner::Signature(signature),
-        None,
+        operators,
         &[],
     )
 }

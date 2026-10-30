@@ -38,6 +38,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from compiler_profile import require_optimized
@@ -320,7 +321,9 @@ def rustc_version():
 
 
 ENABLED_RULE = re.compile(
-    r"optimizations\.enable\s*\(\s*Optimization::([A-Z][A-Za-z0-9]*)"
+    r"(?:optimizations\.enable\s*\(\s*|"
+    r"Optimizations::enable\s*\(\s*&mut\s+[A-Za-z_][A-Za-z0-9_]*\.optimizations\s*,\s*)"
+    r"Optimization::([A-Z][A-Za-z0-9]*)"
 )
 
 
@@ -328,7 +331,8 @@ def authored_selection(root):
     """Exact rule names the subject's build script enables.
 
     The build vocabulary enables rules through
-    ``builder.optimizations.enable(Optimization::Name)`` in the sibling
+    ``Optimizations::enable(&mut builder.optimizations, Optimization::Name)``
+    (or the historical method syntax) in the sibling
     ``build.omg``; the CLI can only disable. The scan answers which
     names a default build requests -- it is a record-keeping read, not
     a substitute for the compiler's own selection. ``measure`` reconciles
@@ -511,10 +515,11 @@ def settle_package_review(omega, project_dir, target):
          "--target", target], cwd=str(project_dir))
     review_path = select_review_document(text, project_dir, target)
     if review_path is not None:
-        document = review_path.read_text()
+        document = review_path.read_text(encoding="utf-8")
         settled, accepted = accept_pending_decisions(document)
         if accepted:
-            review_path.write_text(settled)
+            # Review recovery accepts only canonical LF framing, also on Windows.
+            review_path.write_text(settled, encoding="utf-8", newline="\n")
         # Resume publishes omega.lock even when the document carried no
         # pending tokens; skipping it on accepted == 0 left the gate
         # unsettled whenever the chosen document was already decided.
@@ -637,7 +642,15 @@ HOST_LEGS = (
 )
 
 
+def clean_workload_sources(repository):
+    return not any(subprocess.check_output(['git', *arguments], cwd=repository)
+                   for arguments in (['diff', '--name-only', 'HEAD', '--', '*.omg'],
+                                     ['ls-files', '--others', '--exclude-standard', '--', '*.omg']))
+
+
 def measure(args):
+    if args.work_units is not None and args.work_units <= 0:
+        raise SystemExit('--work-units must be positive')
     root = Path(args.root)
     if not root.is_file():
         raise SystemExit(f"subject root not found: {root}")
@@ -649,10 +662,11 @@ def measure(args):
     revision = subprocess.check_output(
         ["git", "rev-parse", "HEAD"], cwd=repository, text=True
     ).strip()
+    clean_at_start = clean_workload_sources(repository)
     omega = Path(args.omega).resolve()
     if not omega.is_file():
         raise SystemExit(f"omega binary not found: {omega}")
-    require_optimized(omega)
+    producer = require_optimized(omega)
 
     selection = {
         "enabled": sorted(set(authored_selection(root)) | set(args.enable)),
@@ -680,6 +694,7 @@ def measure(args):
                 args, root, repository, omega, selection, revision,
                 not_applicable.reason)
 
+    dependency_lock_before = hashlib.sha256((project_dir / 'omega.lock').read_bytes()).hexdigest()
     compile_wall = []
     compile_rss = []
     code_sizes = []
@@ -879,6 +894,14 @@ def measure(args):
             code == args.expected_exit for code in exit_codes
         )
 
+    # Compiler identity and workload identity are separate: a newer producer
+    # may benchmark the same frozen source checkout.
+    if subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repository, text=True).strip() != revision:
+        raise SystemExit('workload checkout revision changed during measurement')
+    host = host_block(omega, repository)
+    if host['omega_binary_sha256'] != producer['sha256']:
+        raise SystemExit('compiler executable changed during measurement')
+    dependency_lock_after = hashlib.sha256((project_dir / 'omega.lock').read_bytes()).hexdigest()
     record = {
         "schema": SCHEMA,
         "recorded_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -894,7 +917,19 @@ def measure(args):
             "selection": selection,
             "selection_source": "build.omg enable calls plus --enable/--disable",
         },
-        "host": host_block(omega, repository),
+        "host": host,
+        "measurement": {
+            "protocol": "omega-benchmark-process-v1/fresh-build-dir",
+            "source_clean": clean_at_start and clean_workload_sources(repository),
+            "input_sha256": hashlib.sha256(b'stdin=devnull').hexdigest(),
+            "dependency_lock_sha256": dependency_lock_after,
+            "dependency_lock_stable": dependency_lock_before == dependency_lock_after,
+            "machine_id": hashlib.sha256(f'{platform.node()}:{uuid.getnode()}'.encode()).hexdigest(),
+            "compiler_profile": producer['profile'],
+            "work_units": args.work_units,
+            "runtime_scope": "whole-process-including-startup",
+            "file_cache": "uncontrolled",
+        },
         "metrics": metrics,
         "notes": args.note,
     }
@@ -915,6 +950,10 @@ def validate_record(record, path):
     need(schema in KNOWN_SCHEMAS,
          f"schema must be one of {KNOWN_SCHEMAS!r}, got {schema!r}")
     current = schema == SCHEMA
+    if 'observation_warnings' in record:
+        warnings = record['observation_warnings']
+        need(isinstance(warnings, list) and all(isinstance(item, str) for item in warnings),
+             'observation_warnings must be a list of strings')
     subject = record.get("subject", {})
     need(isinstance(subject.get("name"), str) and subject["name"],
          "subject.name is required")
@@ -1042,6 +1081,27 @@ def validate_record(record, path):
             problems.append(
                 f"{path}: a failed runtime observation "
                 "(exit_code_match: false) is not valid benchmark evidence")
+    if "measurement" in record:
+        method = record["measurement"]
+        need(isinstance(method, dict), "measurement must be an object")
+        if isinstance(method, dict):
+            need(method.get('protocol') == 'omega-benchmark-process-v1/fresh-build-dir',
+                 'measurement.protocol is unsupported')
+            need(type(method.get('source_clean')) is bool, 'measurement.source_clean must be boolean')
+            need(type(method.get('dependency_lock_stable')) is bool,
+                 'measurement.dependency_lock_stable must be boolean')
+            for field in ('input_sha256', 'machine_id', 'dependency_lock_sha256'):
+                need(isinstance(method.get(field), str) and re.fullmatch(r'[0-9a-f]{64}', method[field]),
+                     f'measurement.{field} must be a sha256')
+            units = method.get('work_units')
+            need(units is None or type(units) is int and units > 0,
+                 'measurement.work_units must be a positive integer or null')
+            profile = method.get('compiler_profile')
+            need(isinstance(profile, dict) and profile.get('schema') == 'omega-compiler-build-profile-v1'
+                 and profile.get('opt_level') in ('1', '2', '3', 's', 'z'),
+                 'measurement.compiler_profile must verify an optimized producer')
+            need(method.get('runtime_scope') == 'whole-process-including-startup',
+                 'measurement.runtime_scope is unsupported')
     return problems
 
 
@@ -1185,6 +1245,8 @@ def main():
     measure_parser.add_argument("--run-samples", type=int, default=5)
     measure_parser.add_argument("--expected-exit", type=int,
                                 help="expected subject exit code")
+    measure_parser.add_argument("--work-units", type=int,
+                                help="authored operations per complete run (positive integer)")
     measure_parser.add_argument(
         "--prepare", action=argparse.BooleanOptionalAction, default=True,
         help="settle the package-review gate (omega update + accept) when "

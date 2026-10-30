@@ -12,25 +12,6 @@ use facts::{
 };
 use symbols::SymbolHandle;
 
-/// Whether a return type can produce identity rows at all: types whose
-/// peeled carrier is a reference yield none, so every caller can skip the
-/// row build without consulting the (return_type-keyed) domain rows.
-pub(super) fn carries_identity_rows(
-    program: &dyn ::validation::CheckingInput,
-    return_type: typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    if !return_type.is_valid() {
-        return false;
-    }
-    let carrier = program
-        .type_reference_table
-        .unconstrained_type_reference(return_type);
-    !matches!(
-        program.type_reference_table.type_reference(carrier),
-        typed_trees::types::TypeReferenceNode::Reference { .. }
-    )
-}
-
 /// The return-type-driven identity rows: the complete checked child duties
 /// plus type-level constraint domains. Independent of the callable's explicit
 /// contracts, so callers may memoize them per return type. Routed referent
@@ -43,8 +24,11 @@ pub(super) fn type_domain_rows(
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
+    let fields = validation::reference_shell(program, return_type)
+        .filter(|shell| shell.access.is_readable())
+        .map_or(return_type, |shell| shell.referee);
     let mut domains =
-        validation::field_domains::declared_result_field_domain_identities(program, return_type);
+        validation::field_domains::declared_result_field_domain_identities(program, fields);
     domains.extend(
         validation::field_domains::domain_constraint_identities(program, return_type)
             .into_iter()

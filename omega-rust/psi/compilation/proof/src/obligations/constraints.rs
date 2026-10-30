@@ -139,18 +139,6 @@ pub(crate) fn expression_constraints(
         // Knowing NaN's class supplies neither finiteness nor an ordered range.
         ExpressionNode::UndeterminedNaN(_) => ConstraintBuffer::new(),
         ExpressionNode::Integer(value) => integer_literal_constraints(value),
-        ExpressionNode::Name(path)
-            if program
-                .expression_table
-                .name_path_members(path.members)
-                .iter()
-                .map(|member| member.as_str())
-                .eq(["u32", "MAX"]) =>
-        {
-            integer_literal_constraints(&numerics::literals::IntegerLiteral::from_value(
-                u32::MAX as i64,
-            ))
-        }
         // An INDEXED read carries its collection's ELEMENT-type constraints
         // (`cells: [i32 [0..=7]; 4]` -> `cells[rp]` reads as [0..=7]). Sound
         // because the same element type now collects a bounded-assignment
@@ -168,6 +156,7 @@ pub(crate) fn expression_constraints(
         | ExpressionNode::Boolean(_)
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => ConstraintBuffer::new(),
     }
 }

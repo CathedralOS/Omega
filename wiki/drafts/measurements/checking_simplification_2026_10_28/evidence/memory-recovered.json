@@ -1,0 +1,7 @@
+{
+  "recorded_at": "2026-10-28T19:58:07.6721373-07:00",
+  "free_physical_kib": 71600932,
+  "total_physical_kib": 133043676,
+  "unexpected_test_pid_present": false,
+  "note": "Test exited before authorized stop reached it. Fresh closure comparison follows memory recovery."
+}

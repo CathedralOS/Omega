@@ -15,7 +15,6 @@ mod completed_outputs;
 mod execution_inputs;
 mod filesystem_scope;
 mod observation_identity;
-mod observation_projection;
 mod observations;
 mod output_custody;
 mod restricted_requests;
@@ -39,7 +38,6 @@ pub use restricted_requests::{
 };
 pub use snapshot_request::{BuildSnapshotCapture, BuildSnapshotRequest};
 
-use checked_interpreter::EvaluationObservations;
 use diagnostics::Diagnostic;
 use filesystem_authority::{BuildOutputObligation, BuildOutputReceipt};
 
@@ -114,38 +112,6 @@ impl<'scope> CapturedBuildObservations<'scope> {
         }
         self.build_log = log;
         Ok(())
-    }
-
-    /// Rejoin interpreter root identities and generated-source handoffs to
-    /// this activation's admitted filesystem custody.
-    pub fn capture(
-        observations: &EvaluationObservations,
-        scope: &'scope BuildMachineFilesystemScope,
-        machine_name: &str,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        let filesystem_operation_attempts =
-            observation_projection::project_filesystem_operation_attempts(
-                observations,
-                scope,
-                machine_name,
-            )?;
-        let included_source_handoffs = observation_projection::project_included_source_handoffs(
-            observations,
-            filesystem_operation_attempts.len(),
-            machine_name,
-        )?;
-        Ok(Self {
-            scope,
-            filesystem_host_observed: observations.filesystem_host_observed(),
-            filesystem_operation_schema_version: observations.filesystem_operation_schema_version(),
-            filesystem_operation_attempts,
-            included_source_handoffs,
-            output_obligations: observations.build_output_obligations().to_vec(),
-            output_receipts: observations.build_output_receipts().to_vec(),
-            build_log: observations.build_log().to_vec(),
-            filesystem_storage: Vec::new(),
-            filesystem_effects_retained: true,
-        })
     }
 
     /// Capture staged outputs, reject unadmitted host observations, then

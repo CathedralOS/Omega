@@ -52,7 +52,12 @@ fn edge_effects(
             .collect(),
         Terminator::StructuralCase { cases, .. } => cases
             .iter()
-            .map(|edge| (&[][..], edge.cleanup_actions.as_slice()))
+            .map(|edge| {
+                (
+                    edge.structural_arguments.as_slice(),
+                    edge.cleanup_actions.as_slice(),
+                )
+            })
             .collect(),
         _ => Vec::new(),
     };

@@ -1,0 +1,10 @@
+use omega::language::core::float;
+// Expected exit: 0
+use omega::language::core::float_operations;
+const BITS32: u32 = float::to_bits(float::canonicalize_nan<f32>(F32::square_root(-1.0f32)));
+const BITS64: u64 = float::to_bits(float::canonicalize_nan<f64>(F64::square_root(-1.0f64)));
+machine main() crashes Trap {
+    transition BITS32 == 0x7FC0_0000u32 && BITS64 == 0x7FF8_0000_0000_0000u64 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

@@ -19,10 +19,8 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-// Direct callable rows retain their complete original satisfaction plan.
-// Older partial-schema records cannot recover numeric custody and must reject
-// before their differently shaped payload is read.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI06";
+// Combined native catalogue custody differs from both predecessor records.
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI07";
 
 #[cfg(test)]
 mod tests {
@@ -96,12 +94,19 @@ fn capture(
     write_values(provider_declarations, &mut output)?;
     target_profile.write(&mut output)?;
     write_values(family_realizations, &mut output)?;
-    boundaries.selected_provider_plans.write(&mut output)?;
+    // Canonical Terminal owns checked-body associations. Persist only the
+    // independent source selections; recovery closes their instances normally.
+    boundaries
+        .selected_provider_plans
+        .clone()
+        .without_checked_specializations()
+        .write(&mut output)?;
     output.sequence(boundaries.selected_provider_provenance.len())?;
     for crate::provider_admission::CompilerIntrinsicPlanProvenance {
         plan,
         semantic_plan,
         row_executions,
+        row_numeric_realizations,
     } in &boundaries.selected_provider_provenance
     {
         plan.write(&mut output)?;
@@ -117,6 +122,7 @@ fn capture(
                 .filter(|execution| !execution.is_numeric())
                 .write(&mut output)?;
         }
+        write_values(row_numeric_realizations, &mut output)?;
     }
     boundaries.calling_applications.write(&mut output)?;
     native_target.write(&mut output)?;
@@ -146,11 +152,13 @@ struct IntrinsicPlanRecord {
     plan: effects::provider_plan::ProviderPlan,
     semantic_plan: Option<effects::provider_plan::ProviderPlan>,
     row_executions: Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>,
+    row_numeric_realizations: Vec<Option<String>>,
 }
 records::record_fields!(IntrinsicPlanRecord {
     plan,
-    semantic_plan,
-    row_executions
+    semantic_schema,
+    row_executions,
+    row_numeric_realizations
 });
 
 struct DerivationInputs {
@@ -186,36 +194,24 @@ impl DerivationInputs {
         let evaluated_binding_identities =
             Arc::new(terminal_psi::TerminalIdentityTable::read(input)?);
         input.context.binding_identities = Some(Arc::clone(&evaluated_binding_identities));
-        let checked_entry = RecordValue::read(input)?;
-        let physical_adapter_requested = RecordValue::read(input)?;
-        let provider_proposals = RecordValue::read(input)?;
-        let leaves = RecordValue::read(input)?;
-        let provider_declarations = RecordValue::read(input)?;
-        let profile = RecordValue::read(input)?;
-        let families = RecordValue::read(input)?;
-        let selected = RecordValue::read(input)?;
-        let intrinsic_provenance = RecordValue::read(input)?;
-        let calling = RecordValue::read(input)?;
-        let native = RecordValue::read(input)?;
-        let entry = match u8::read(input)? {
-            0 => None,
-            1 => Some(EntryRecord::read(input)?),
-            _ => return Err(input.error("invalid native entry presence tag")),
-        };
         Ok(Self {
             evaluated_binding_identities,
-            checked_entry,
-            physical_adapter_requested,
-            provider_proposals,
-            leaves,
-            provider_declarations,
-            profile,
-            families,
-            selected,
-            intrinsic_provenance,
-            calling,
-            native,
-            entry,
+            checked_entry: RecordValue::read(input)?,
+            physical_adapter_requested: RecordValue::read(input)?,
+            provider_proposals: RecordValue::read(input)?,
+            leaves: RecordValue::read(input)?,
+            provider_declarations: RecordValue::read(input)?,
+            profile: RecordValue::read(input)?,
+            families: RecordValue::read(input)?,
+            selected: RecordValue::read(input)?,
+            intrinsic_provenance: RecordValue::read(input)?,
+            calling: RecordValue::read(input)?,
+            native: RecordValue::read(input)?,
+            entry: match u8::read(input)? {
+                0 => None,
+                1 => Some(EntryRecord::read(input)?),
+                _ => return Err(input.error("invalid native entry presence tag")),
+            },
             application: RecordValue::read(input)?,
             optimizations: RecordValue::read(input)?,
             external: RecordValue::read(input)?,
@@ -298,6 +294,7 @@ pub fn recover_native_derivation_inputs(
                         plan: &row.plan,
                         semantic_plan: row.semantic_plan.as_ref().unwrap_or(&row.plan),
                         row_executions: &row.row_executions,
+                        row_numeric_realizations: &row.row_numeric_realizations,
                     },
                 )
                 .collect(),

@@ -393,6 +393,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                 result.binding_ordinal = u32::try_from(*count).ok()?;
                 let operation = build_call_operation(
                     program,
+                    shapes,
                     facts,
                     Some(scalar_callees),
                     machine,
@@ -1018,6 +1019,7 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
         };
         let operation = build_call_operation(
             program,
+            shapes,
             facts,
             Some(scalar_callees),
             machine,

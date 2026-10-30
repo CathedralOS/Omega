@@ -254,6 +254,9 @@ impl StateGraphEmission<'_, '_> {
                     &state.operations,
                     transfer,
                 );
+                if loan_backing.is_some() && !transfer.incoming_loan_resources.is_empty() {
+                    return unsupported("state loan ingress contradicts local owned backing");
+                }
                 let mut loan_backing_home = None;
                 let mut place = match transfer.source {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::EvaluateNoNormal { operations: ref selected } => {
@@ -844,7 +847,12 @@ impl StateGraphEmission<'_, '_> {
                 // Shared loan subjects keep their backing local's storage
                 // for the loan's duration exactly like mutable ones: the
                 // activation-entry home dies once at the machine's return.
+                // Complete incoming provenance denotes caller/provider backing.
+                // A local descriptor over it is not a locally owned lender home.
+                // Its recorded parent/operand debts above and selected carrier
+                // cleanup remain independent of this referent-home judgment.
                 if chain_arrival.is_none()
+                    && transfer.incoming_loan_resources.is_empty()
                     && matches!(
                         target_parameter.access,
                         checked_trees::CheckedStructuralAccess::MutableBorrow
@@ -1163,30 +1171,43 @@ impl StateGraphEmission<'_, '_> {
         // Operand evaluation establishes the outgoing values before the exact
         // selected source exit determines the remaining owned dispositions.
         // Keep action kinds and their checked order through private staging.
-        let exit = super::super::cleanup::coordinate(
-            self.catalogs.cleanup_control,
-            state,
-            edge.statement_ordinal as usize,
-            false,
-        )?;
-        let mut cleanup_regions = super::super::cleanup::for_exit_regions(
-            identities,
-            self.claims.published(),
-            self.checked,
-            state,
-            exit,
-            self.catalogs,
-            state_parameters,
-            &edge_evaluation,
-            operations,
-        )?;
-        super::super::cleanup::selection(
-            state.state,
-            &state.operations,
-            &edge_evaluation,
-            operations,
-            &mut cleanup_regions,
-        )?;
+        // A fused invocation keeps its own completion classification. A
+        // different returning arm can make the enclosing body resumable.
+        let selected_exit = match edge.completion {
+            checked_trees::CheckedSuccessorCompletion::NoNormalInvocation => None,
+            checked_trees::CheckedSuccessorCompletion::StateArrival
+            | checked_trees::CheckedSuccessorCompletion::ReturningInvocation => {
+                super::super::cleanup::optional_coordinate(
+                    self.catalogs.cleanup_control,
+                    state,
+                    edge.statement_ordinal as usize,
+                    false,
+                )?
+            }
+        };
+        let mut cleanup_regions = if let Some(exit) = selected_exit {
+            let mut cleanup_regions = super::super::cleanup::for_exit_regions(
+                identities,
+                self.claims.published(),
+                self.checked,
+                state,
+                exit,
+                self.catalogs,
+                state_parameters,
+                &edge_evaluation,
+                operations,
+            )?;
+            super::super::cleanup::selection(
+                state.state,
+                &state.operations,
+                &edge_evaluation,
+                operations,
+                &mut cleanup_regions,
+            )?;
+            cleanup_regions
+        } else {
+            Vec::new()
+        };
         // Proof-only actuals never evaluate: each checked erased row
         // lowers to a term over the emitting state's scalar values and
         // erased formals, in the target's erased-roster order.

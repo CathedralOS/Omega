@@ -552,8 +552,8 @@ fn collect_calls(
                 }
                 I::EstablishReference { source: parent, .. }
                 | I::EstablishPlacedReference { source: parent, .. } => {
-                    let known_width = if (coordinate.path.is_empty()
-                        || coordinate.path == [terminal_psi::StructuralPathSegment::Referent])
+                    let known_width = if coordinate.path.is_empty()
+                        || coordinate.path == [terminal_psi::StructuralPathSegment::Referent]
                     {
                         super::reference_input::establishment(function, row)
                             .filter(|address| !address.load_codec)

@@ -1,5 +1,5 @@
 use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
-use crate::{RegisterHomeError, ValidatedRegisterHomes, assign_register_homes};
+use crate::{RegisterHomeError, ValidatedRegisterHomes};
 
 use selected_instructions_to_selected_instructions::{
     StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,

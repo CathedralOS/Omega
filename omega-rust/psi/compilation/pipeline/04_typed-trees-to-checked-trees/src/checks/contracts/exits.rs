@@ -141,6 +141,16 @@ pub(super) fn check_exit_ensures(
     integer_range_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // The type-refinement owner forms the complete body and derives each
+    // branch environment from its declared domain and preceding guards.
+    // An empty environment establishes that this exact value exit cannot
+    // occur; its postconditions are vacuous, just as for contradictory live
+    // scalar premises. The requested guarantee contributes no assumption.
+    if program.static_type_context_is_unreachable(super::return_values::exit_return_expression(
+        program, exit_flow,
+    )) {
+        return;
+    }
     let entry_contexts: Vec<_> = facts
         .flow
         .contexts
@@ -328,18 +338,32 @@ pub(super) fn check_exit_ensures(
                                 ..
                             } => validation::reserved_result_owner(program, value).is_some_and(
                                 |(owner, _)| {
-                                    if owner != state_flow.machine_symbol
-                                        && owner != state_flow.state_symbol
-                                    {
-                                        return false;
-                                    }
                                     program.machine(state_flow.machine_symbol).is_some_and(
                                         |machine| {
-                                            crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
+                                            match crate::facts::qualification_evidence::machine_domain_establishment_route(
                                                 program,
                                                 machine,
                                                 domain_symbol,
-                                            )
+                                            ) {
+                                                // The requirement's own `result`
+                                                // names this machine's result
+                                                // through the conformance it
+                                                // satisfies: the domain's named
+                                                // route is this exact issuance.
+                                                Some(language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+                                                    requirement,
+                                                    ..
+                                                }) => {
+                                                    owner == requirement
+                                                        || owner == state_flow.machine_symbol
+                                                        || owner == state_flow.state_symbol
+                                                }
+                                                Some(_) => {
+                                                    owner == state_flow.machine_symbol
+                                                        || owner == state_flow.state_symbol
+                                                }
+                                                None => false,
+                                            }
                                         },
                                     )
                                 },
@@ -352,7 +376,7 @@ pub(super) fn check_exit_ensures(
                                     domain_symbol,
                                     ..
                                 } => program.domain_definition(domain_symbol).is_none_or(
-                                    |domain| !domain.predicate_body.is_present() || is_proved(),
+                                    |domain| !domain.predicate_presence.is_present() || is_proved(),
                                 ),
                                 _ => true,
                             }

@@ -10,7 +10,9 @@
 mod closed_operands;
 mod conformance_scopes;
 mod domain_scopes;
+mod machine_instances;
 mod machine_selections;
+pub use machine_instances::MachineInstantiation;
 mod payloads;
 mod requirement_instances;
 mod selected_operands;

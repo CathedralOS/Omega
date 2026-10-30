@@ -375,7 +375,7 @@ impl SyntaxCopy<'_> {
                     .map(|selection| self.copy_static_machine_argument(other, selection)),
                 authored_routes: domain.authored_routes.clone(),
                 classification: domain.classification,
-                predicate_body: domain.predicate_body,
+                predicate_presence: domain.predicate_presence,
                 facts: self.copy_domain_fact_span(other, domain.facts),
                 operators: self.copy_operator_definition_span(other, domain.operators),
                 semantic_clause_token_count: domain.semantic_clause_token_count,

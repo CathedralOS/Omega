@@ -3,7 +3,7 @@
 use reading_provider::main::Reading;
 machine consume(total: u64) -> u64 requires total >= 1000u64 { total - 1000u64 }
 machine journey(expected: u64) reaches Reading crashes Trap {
-    let difference: u64 = consume(Reading::total());
+    let difference: u64 = consume(Reading<17u64>::total());
     transition difference == expected { true -> done() false -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

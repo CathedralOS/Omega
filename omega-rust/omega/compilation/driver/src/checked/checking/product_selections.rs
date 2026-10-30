@@ -1,9 +1,5 @@
-//! Resolve inert source requests only after Build has joined Product sources.
-//! Semantic admission belongs to Psi; this coordinator publishes its results.
-
-mod additional_declarations;
-mod exclusions;
-mod native_bindings;
+//! Publish Product choices after package authentication and Psi source admission.
+//! Evaluation receipts remain Build custody; semantic choices come back owned.
 
 use compilation_products::ComputedBuildConfig;
 use diagnostics::Diagnostic;
@@ -12,58 +8,66 @@ pub(super) fn admit(
     source: &mut psi_compiler::SourceContinuation,
     computed: &mut ComputedBuildConfig,
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
-    handoffs: &package_compilation::BuildHandoffInventory,
 ) -> Result<(), Vec<Diagnostic>> {
-    let typed = source.typed();
-    let representations = representation_planning::collect_opaque_representation_selections(
-        typed,
-        computed.selected_build_machine_symbol,
-        &computed.declared_product_selections,
-        &computed.product_selection_requests,
-    )?;
-    let providers =
-        build_time_evaluation::provider_declarations::collect_product_provider_selections(
-            build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
-                typed,
-                source::DependencyScope::Product,
-            ),
-            computed.selected_build_machine_symbol,
-            &computed.declared_product_selections,
-            &computed.product_selection_requests,
-        )?;
-    let grants = trust_model::collect_product_root_grants(
-        typed,
-        computed.selected_build_machine_symbol,
-        &computed.declared_product_selections,
-        &computed.product_selection_requests,
-    )?;
-    computed.config.grants = grants;
-    computed.config.opaque_representation_selections = representations;
-    computed.config.provider_selections = providers;
-    computed.config.package_provider_selections = handoffs.rejoin_provider_selections(
-        typed,
-        package_inputs,
-        source::DependencyScope::Product,
-    )?;
-    additional_declarations::admit(typed, computed)?;
-    native_bindings::admit(source, computed)?;
-    if let Some(inputs) = package_inputs {
-        let retained = inputs.retained_package_native_bindings()?;
-        let inherited = provider_planning::rejoin_package_native_bindings(source.typed(), retained)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        computed.config.admitted_native_bindings.extend(inherited);
+    let package_providers = package_inputs
+        .map(|inputs| inputs.rejoin_package_provider_selections(source))
+        .transpose()?
+        .unwrap_or_default();
+    let admitted = source.admit_product_policy(psi_compiler::ProductPolicyRequest {
+        activation: computed.selected_build_machine_symbol,
+        declared: &computed.declared_product_selections,
+        executed: &computed.product_selection_requests,
+        native_bindings: &computed.native_binding_requests,
+        exclusions: &computed.behavior_exclusion_requests,
+    })?;
+
+    // Root source formation completes before receipt attachment or dependency
+    // resolution. These independent custody checks cannot change source meaning.
+    let mut native_bindings = Vec::new();
+    for selection in admitted.native_bindings {
+        let evaluation = computed
+            .config
+            .native_binding_evaluation
+            .clone()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "native Build selection lost its completed evaluation",
+                )]
+            })?;
+        native_bindings.push(provider_planning::native_bindings::NativeBuildSupply {
+            selection,
+            evaluation,
+        });
     }
-    provider_planning::unify_native_binding_identities(
-        &mut computed.config.admitted_native_bindings,
-    )
-    .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let typed = source.typed();
-    computed.config.behavior_exclusions = exclusions::resolve(
-        typed,
-        computed.selected_build_machine_symbol,
-        &computed.declared_product_selections,
-        &computed.product_selection_requests,
-        &computed.behavior_exclusion_requests,
-    )?;
+    for bundle in package_inputs
+        .into_iter()
+        .flat_map(|inputs| inputs.product_dependency_native_handoffs())
+    {
+        let selections = source.admit_captured_native_bindings(
+            bundle.native_declarations(),
+            bundle.native_intents(),
+        )?;
+        for selection in selections {
+            let evaluation = bundle.native_evaluation().cloned().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "native dependency effect lost its completed evaluation",
+                )]
+            })?;
+            native_bindings.push(provider_planning::native_bindings::NativeBuildSupply {
+                selection,
+                evaluation,
+            });
+        }
+    }
+
+    computed.config.grants = admitted.grants;
+    computed.config.opaque_representation_selections = admitted.representations;
+    computed.config.provider_selections = admitted.providers;
+    computed.config.package_provider_selections = package_providers;
+    computed.config.native_bindings = native_bindings;
+    computed.config.service_audits = admitted.declarations.service_audits;
+    computed.config.assumed_bindings = admitted.declarations.assumed_bindings;
+    computed.config.wire_compatibility_demands = admitted.declarations.wire_demands;
+    computed.config.behavior_exclusions = admitted.exclusions;
     Ok(())
 }

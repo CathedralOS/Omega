@@ -351,7 +351,7 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
             CheckedUnitEffectOperationPlan::EstablishLocal(
                 crate::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
             ) => values.structural_values.nodes.get(*value).expression,
-            CheckedUnitEffectOperationPlan::Call(call) => match call.source_site().flatten() {
+            CheckedUnitEffectOperationPlan::Call(call) => match call.source_site() {
                 Some(crate::NominalMachineUseSite::Expression(expression)) => expression,
                 _ => arena::Handle::invalid(),
             },

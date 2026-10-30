@@ -18,6 +18,7 @@ typed-trees-to-typed-trees = { path = "../pipeline/03b_typed-trees-to-typed-tree
 typed-trees-to-checked-trees = { path = "../pipeline/04_typed-trees-to-checked-trees" }
 validation = { path = "../checking" }
 representation-selections = { path = "../checking/representation-planning/selections" }
+representation-planning = { path = "../checking/representation-planning" }
 language-semantics = { path = "../../foundation/language-semantics" }
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }

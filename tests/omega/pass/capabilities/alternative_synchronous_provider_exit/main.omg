@@ -1,0 +1,30 @@
+// Expected exit: 0
+// Both selected and ordinary named calls execute correctly. The retained
+// alternative can replace Beta only after independent cycle admission.
+public boundary trait Alpha {
+    machine read() -> u64 reaches Alpha + Beta invokes Beta;
+}
+public boundary trait Beta {
+    machine read() -> u64 reaches Alpha + Beta invokes Alpha;
+}
+
+SelectedAlpha satisfies Alpha {
+    machine read() -> u64 { Beta::read() }
+}
+SelectedBeta satisfies Beta {
+    machine read() -> u64 { 73 }
+}
+AlternativeBeta satisfies Beta {
+    machine read() -> u64 { Alpha::read() }
+}
+
+machine main() reaches Alpha + Beta crashes Trap {
+    let direct: u64 = AlternativeBeta::read();
+    let selected: u64 = Alpha::read();
+    transition direct == 73 && selected == 73 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

@@ -61,6 +61,7 @@ pub(super) fn zero_argument_invocation_discharges(
     };
 
     let call = TableCallExpression {
+        authored_call_selection: None,
         authored_call_binding: None,
         authored_machine_application: Default::default(),
         requirement_application: Default::default(),

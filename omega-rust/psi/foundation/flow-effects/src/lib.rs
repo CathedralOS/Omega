@@ -12,7 +12,7 @@ pub use flow_effects::{
     CallOperational, CallServiceReachInference, CapabilityFlowFact, CapabilityFlowKind,
     CapabilityFlowPlan, CleanupDependency, InstallationReachRequirement, InvocationInferencePlan,
     InvocationTarget, MachineInvocationInference, MachineOperational, MachineServiceReachInference,
-    OperationalPlan, ServiceReachDependency, ServiceReachInferencePlan, StateOperational,
-    StateServiceReachInference, StaticMachineCallBinding, capabilities, invocations, operational,
-    service_reach,
+    OperationalPlan, RealizedInvocationTarget, ServiceReachDependency, ServiceReachInferencePlan,
+    StateOperational, StateServiceReachInference, StaticMachineCallBinding, capabilities,
+    invocations, operational, service_reach,
 };

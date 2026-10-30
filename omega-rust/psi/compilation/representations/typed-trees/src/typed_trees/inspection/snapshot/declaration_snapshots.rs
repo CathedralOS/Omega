@@ -316,7 +316,7 @@ pub struct DomainDefinitionSnapshot {
     pub alias: Vec<DomainAliasConstituentSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub classification: Option<&'static str>,
-    pub predicate_body: &'static str,
+    pub predicate_presence: &'static str,
     pub semantic_id: u32,
     pub semantic_roles: DomainSemanticRolesSnapshot,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -566,7 +566,7 @@ pub(crate) fn domain_definition_snapshot(
             })
             .unwrap_or_default(),
         classification: domain.classification.map(|value| value.as_str()),
-        predicate_body: domain.predicate_body.as_str(),
+        predicate_presence: domain.predicate_presence.as_str(),
         semantic_id: domain.semantic_id.0,
         semantic_roles: semantic_roles_snapshot(domain.semantic_roles),
         establishment_routes: domain

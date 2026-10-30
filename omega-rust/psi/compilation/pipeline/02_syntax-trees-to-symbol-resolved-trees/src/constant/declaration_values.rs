@@ -171,7 +171,7 @@ pub(crate) fn validate_scalar_initializer(
     syntax: &SyntaxTrees,
     constant: &syntax_trees::item::ConstDefinition,
 ) -> Result<(), String> {
-    use numerics::literals::{FloatFormat, FloatLiteral};
+    use numerics::literals::FloatFormat;
     use syntax_trees::expression::ExpressionNode;
 
     // Unused private declarations never reach substitution or public identity
@@ -197,10 +197,9 @@ pub(crate) fn validate_scalar_initializer(
             };
             let compatible = match initializer {
                 ExpressionNode::UndeterminedNaN(actual) => *actual == format,
-                ExpressionNode::Float(text) => FloatLiteral::parse(text.as_str(syntax))
-                    .is_some_and(|literal| {
-                        literal.landing().is_none_or(|landing| landing == format)
-                    }),
+                ExpressionNode::Float(text) => text.literal(syntax).is_some_and(|literal| {
+                    literal.landing().is_none_or(|landing| landing == format)
+                }),
                 ExpressionNode::Integer(literal) => {
                     literal.landing().is_none() && literal.value_bignum().is_some()
                 }

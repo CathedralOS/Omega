@@ -719,6 +719,7 @@ machine Resolver::data_scope(item: DataItem) -> TypeScope {
 // A declaration's own generic parameters as a scope with no container.
 public machine Resolver::scope(first: u64 in Trapping, count: u64 in Trapping) -> TypeScope {
     TypeScope {
+        lexical_machine: 0,
         first_generic_parameter: first,
         generic_parameter_count: count,
         first_outer_parameter: 0,
@@ -726,19 +727,54 @@ public machine Resolver::scope(first: u64 in Trapping, count: u64 in Trapping) -
     }
 }
 
-// Where generic parameter `parameter` stands in `scope`: the container's
-// parameters first, then the declaration's own. Two scopes' parameters at
-// one position are the same binder for comparing signatures.
-machine Resolver::scope_position(scope: TypeScope, parameter: u64 in Trapping) -> u64 in Trapping {
-    transition parameter >= scope.first_generic_parameter
-        && parameter < scope.first_generic_parameter + scope.generic_parameter_count {
-        true -> own(scope.outer_parameter_count + parameter - scope.first_generic_parameter)
-        _ -> own(parameter - scope.first_outer_parameter)
-    }
+// Signature-local parameters compare by position; inherited lexical binders
+// retain their exact declaration identity instead of becoming call operands.
+data GenericCoordinate [copy] {
+    case Declaration(position: u64 in Trapping);
+    case Container(position: u64 in Trapping);
+    case Lexical(parameter: u64 in Trapping);
+}
 
-    machine own(position: u64 in Trapping) -> u64 in Trapping {
-        position
+machine Resolver::generic_coordinate(scope: TypeScope, parameter: u64 in Trapping) -> GenericCoordinate {
+    transition parameter >= scope.first_generic_parameter
+        && parameter - scope.first_generic_parameter < scope.generic_parameter_count {
+        true -> own(parameter - scope.first_generic_parameter)
+        false -> outer(scope, parameter)
     }
+    machine own(position: u64 in Trapping) -> GenericCoordinate {
+        GenericCoordinate::Declaration { position: position }
+    }
+    machine outer(scope: TypeScope, parameter: u64 in Trapping) -> GenericCoordinate {
+        transition parameter >= scope.first_outer_parameter && parameter - scope.first_outer_parameter < scope.outer_parameter_count {
+            true -> container(parameter - scope.first_outer_parameter)
+            false -> lexical(parameter)
+        }
+    }
+    machine container(position: u64 in Trapping) -> GenericCoordinate {
+        GenericCoordinate::Container { position: position }
+    }
+    machine lexical(parameter: u64 in Trapping) -> GenericCoordinate {
+        GenericCoordinate::Lexical { parameter: parameter }
+    }
+}
+
+machine Resolver::same_generic_coordinate(left: GenericCoordinate, right: GenericCoordinate) -> bool {
+    transition left {
+        GenericCoordinate::Declaration { position } -> declaration(position, right)
+        GenericCoordinate::Container { position } -> container(position, right)
+        GenericCoordinate::Lexical { parameter } -> lexical(parameter, right)
+    }
+    machine declaration(position: u64 in Trapping, right: GenericCoordinate) -> bool {
+        transition right { GenericCoordinate::Declaration { position as other } -> equal(position, other) _ -> different() }
+    }
+    machine container(position: u64 in Trapping, right: GenericCoordinate) -> bool {
+        transition right { GenericCoordinate::Container { position as other } -> equal(position, other) _ -> different() }
+    }
+    machine lexical(parameter: u64 in Trapping, right: GenericCoordinate) -> bool {
+        transition right { GenericCoordinate::Lexical { parameter as other } -> equal(parameter, other) _ -> different() }
+    }
+    machine equal(left: u64 in Trapping, right: u64 in Trapping) -> bool { left == right }
+    machine different() -> bool { false }
 }
 
 // Type references of every trait, conformance, constant and proposition,
@@ -1080,11 +1116,11 @@ crashes Trap
     }
 
     machine machine_argument(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, row: u64 in Trapping, type_reference: TypeReference) {
-        let lookup: Lookup = Resolver::machine_named(&resolver.output, sources, syntax, false, type_reference.name.source_span, type_reference.name.source_span);
-        transition lookup {
-            Lookup::Found { handle } -> bounded(resolver, sources, syntax, scope, row, type_reference, TypeBinding::Machine { handle: handle })
-            Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, type_reference.name)
-            Lookup::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDataType, type_reference.name)
+        let binding: ValueBinding = Resolver::declaration_callee(&resolver.output, sources, syntax, scope.lexical_machine, type_reference.name.source_span);
+        transition binding {
+            ValueBinding::Machine { handle } -> bounded(resolver, sources, syntax, scope, row, type_reference, TypeBinding::Machine { handle: handle })
+            ValueBinding::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, type_reference.name)
+            _ -> reject(resolver, ResolveDiagnosticCode::UnknownDataType, type_reference.name)
         }
     }
 
@@ -1223,7 +1259,7 @@ crashes Trap
     }
 
     machine outer(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan) -> TypeBinding {
-        let container: Lookup = Resolver::generic_named(sources, syntax, scope.first_outer_parameter, scope.outer_parameter_count, name);
+        let container: Lookup = Resolver::scoped_generic_named(sources, syntax, scope, name);
         transition container {
             Lookup::Found { handle } -> found(TypeBinding::GenericParameter { parameter: handle })
             _ -> builtin(sources, syntax, name)
@@ -1575,7 +1611,7 @@ crashes Trap
 }
 
 // Machine signatures: each machine's generic annotations, its parameter and
-// return types, its `where machine` contracts', then each state's, all in
+// return types and its `where machine` contracts, all in
 // the machine's scope (a trait or conformance member's includes its
 // container's generic parameters).
 machine Resolver::bind_machine_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
@@ -1629,7 +1665,7 @@ crashes Trap
     ) {
         transition offset < item.contract_count && resolver.output.accepted {
             true -> bind_contract(resolver, sources, syntax, index, item, scope, offset)
-            _ -> state_signature(resolver, sources, syntax, index, item, 0)
+            _ -> next_machine(resolver, sources, syntax, index + 1)
         }
     }
 
@@ -1647,39 +1683,6 @@ crashes Trap
             written.has_return_type, written.return_type
         );
         transition { _ -> contract_signature(resolver, sources, syntax, index, item, scope, offset + 1) }
-    }
-
-    machine state_signature(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        index: u64 in Trapping,
-        item: MachineItem,
-        offset: u64 in Trapping
-    ) {
-        transition offset < item.state_count {
-            true -> bind_state(resolver, sources, syntax, index, item, offset)
-            _ -> next_machine(resolver, sources, syntax, index + 1)
-        }
-    }
-
-    machine bind_state(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        index: u64 in Trapping,
-        item: MachineItem,
-        offset: u64 in Trapping
-    ) {
-        let state_item: StateItem = SyntaxTrees::state_item(syntax, item.first_state + offset);
-        let scope: TypeScope = Resolver::machine_scope(&resolver.output, syntax, index);
-        Resolver::bind_signature(resolver, sources, syntax, scope, state_item.first_parameter,
-            state_item.parameter_count, state_item.has_return_type, state_item.return_type
-        );
-        transition resolver.output.accepted {
-            true -> state_signature(resolver, sources, syntax, index, item, offset + 1)
-            _ -> done()
-        }
     }
 
     machine done() {}
@@ -1763,8 +1766,8 @@ public machine Resolver::empty_scope() -> TypeScope {
 }
 
 // Machine namespaces. A machine's generic parameter names are distinct,
-// each signature's parameter names are distinct, and a machine's state names
-// are distinct; a state may repeat the machine's own name and its
+// each signature's parameter names and each lexical declaration family
+// obey the ordinary duplicate and overload rules. A helper's
 // parameters' names, and a member's generic parameters may shadow its
 // container's. Two machines of one module may share a path (owner and name,
 // a member's owner being its container) only as overloads: identical generic
@@ -1795,76 +1798,8 @@ crashes Trap
     machine machine_parameter_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: MachineItem) {
         Resolver::check_parameter_names(resolver, sources, syntax, item.first_parameter, item.parameter_count);
         transition resolver.output.accepted {
-            true -> state_names(resolver, sources, syntax, index, item, 0)
+            true -> overloads(resolver, sources, syntax, index, item, 0)
             _ -> done()
-        }
-    }
-
-    machine state_names(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        index: u64 in Trapping,
-        item: MachineItem,
-        offset: u64 in Trapping
-    ) {
-        transition offset < item.state_count {
-            true -> state_name(resolver, sources, syntax, index, item, offset)
-            _ -> overloads(resolver, sources, syntax, index, item, 0)
-        }
-    }
-
-    machine state_name(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        index: u64 in Trapping,
-        item: MachineItem,
-        offset: u64 in Trapping
-    ) {
-        let state_item: StateItem = SyntaxTrees::state_item(syntax, item.first_state + offset);
-        Resolver::check_parameter_names(resolver, sources, syntax, state_item.first_parameter,
-            state_item.parameter_count
-        );
-        transition resolver.output.accepted {
-            true -> state_prior(resolver, sources, syntax, index, item, offset, state_item.name, 0)
-            _ -> done()
-        }
-    }
-
-    machine state_prior(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        index: u64 in Trapping,
-        item: MachineItem,
-        offset: u64 in Trapping,
-        name: IdentifierSpan,
-        prior: u64 in Trapping
-    ) {
-        transition prior < offset {
-            true -> state_compare(resolver, sources, syntax, index, item, offset, name, prior)
-            _ -> state_names(resolver, sources, syntax, index, item, offset + 1)
-        }
-    }
-
-    machine state_compare(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
-        index: u64 in Trapping,
-        item: MachineItem,
-        offset: u64 in Trapping,
-        name: IdentifierSpan,
-        prior: u64 in Trapping
-    ) {
-        let prior_state: StateItem = SyntaxTrees::state_item(syntax, item.first_state + prior);
-        let equal: bool = SourceSet::spans_equal(sources, name.source_span,
-            prior_state.name.source_span
-        );
-        transition equal {
-            true -> reject(resolver, ResolveDiagnosticCode::DuplicateState, name)
-            _ -> state_prior(resolver, sources, syntax, index, item, offset, name, prior + 1)
         }
     }
 
@@ -2010,7 +1945,7 @@ crashes Trap
     let same_owner: bool = SourceSet::spans_equal(sources, left_owner.owner.source_span,
         right_owner.owner.source_span
     );
-    transition same_name && left_owner.has_owner == right_owner.has_owner && (!left_owner.has_owner || same_owner) {
+    transition left.parent == right.parent && same_name && left_owner.has_owner == right_owner.has_owner && (!left_owner.has_owner || same_owner) {
         true -> Resolver::same_parameters(resolver, sources, syntax, left_handle, right_handle)
         _ -> different()
     }
@@ -2322,9 +2257,9 @@ crashes Trap
     }
 
     machine same_position(left_scope: TypeScope, left_parameter: u64 in Trapping, right_scope: TypeScope, right_parameter: u64 in Trapping) -> bool {
-        let left_position: u64 in Trapping = Resolver::scope_position(left_scope, left_parameter);
-        let right_position: u64 in Trapping = Resolver::scope_position(right_scope, right_parameter);
-        left_position == right_position
+        let left: GenericCoordinate = Resolver::generic_coordinate(left_scope, left_parameter);
+        let right: GenericCoordinate = Resolver::generic_coordinate(right_scope, right_parameter);
+        Resolver::same_generic_coordinate(left, right)
     }
 
     machine same_handle(left: u64 in Trapping, right: u64 in Trapping) -> bool {
@@ -2660,24 +2595,9 @@ crashes Trap
     }
 }
 
-// Where a machine's statement run ends: after its last state's statements,
-// or after its entry statements when it declares no state.
-machine Resolver::statement_end(syntax: &SyntaxTrees, item: MachineItem) -> u64 in Trapping
-crashes Trap
-{
-    transition item.state_count > 0 {
-        true -> last_state(syntax, item)
-        _ -> entry(item)
-    }
-
-    machine last_state(syntax: &SyntaxTrees, item: MachineItem) -> u64 in Trapping {
-        let state_item: StateItem = SyntaxTrees::state_item(syntax, item.first_state + item.state_count - 1);
-        state_item.first_statement + state_item.statement_count
-    }
-
-    machine entry(item: MachineItem) -> u64 in Trapping {
-        item.first_statement + item.statement_count
-    }
+// A declaration owns only its executable statements; descendants have independent ranges.
+machine Resolver::statement_end(syntax: &SyntaxTrees, item: MachineItem) -> u64 in Trapping {
+    item.first_statement + item.statement_count
 }
 
 // Whether every lifetime tag a type row spells, its reference tag and its
@@ -2719,7 +2639,7 @@ machine Resolver::lifetime_named(sources: &SourceSet, syntax: &SyntaxTrees, scop
 crashes Trap
 {
     let own: bool = Resolver::lifetime_among(sources, syntax, scope.first_generic_parameter, scope.generic_parameter_count, name);
-    let outer: bool = Resolver::lifetime_among(sources, syntax, scope.first_outer_parameter, scope.outer_parameter_count, name);
+    let outer: bool = Resolver::scoped_lifetime_named(sources, syntax, scope, name, Resolver::scope_parent(syntax, scope));
     own || outer
 }
 
@@ -2783,5 +2703,62 @@ crashes Trap
 
     machine answer(count: u64 in Trapping) -> u64 in Trapping {
         count
+    }
+}
+
+// Walk retained lexical declarations before the root container's telescope.
+public machine Resolver::scoped_generic_named(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan) -> Lookup
+crashes Trap
+{
+    transition { _ -> ancestor(sources, syntax, scope, name, Resolver::scope_parent(syntax, scope)) }
+    machine ancestor(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan, parent: u64 in Trapping) -> Lookup {
+        transition parent > 0 {
+            true -> declared(sources, syntax, scope, name, parent - 1)
+            false -> outer(sources, syntax, scope, name)
+        }
+    }
+    machine declared(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan, handle: u64 in Trapping) -> Lookup {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
+        let named: Lookup = Resolver::generic_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name);
+        transition named {
+            Lookup::Absent -> ancestor(sources, syntax, scope, name, item.parent)
+            _ -> named
+        }
+    }
+    machine outer(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan) -> Lookup {
+        Resolver::generic_named(sources, syntax, scope.first_outer_parameter, scope.outer_parameter_count, name)
+    }
+}
+
+machine Resolver::scoped_lifetime_named(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan, parent: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition parent > 0 {
+        true -> declared(sources, syntax, scope, name, parent - 1)
+        false -> Resolver::lifetime_among(sources, syntax, scope.first_outer_parameter, scope.outer_parameter_count, name)
+    }
+    machine declared(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan, handle: u64 in Trapping) -> bool {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
+        let present: bool = Resolver::lifetime_among(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name);
+        transition present {
+            true -> true
+            false -> Resolver::scoped_lifetime_named(sources, syntax, scope, name, item.parent)
+        }
+    }
+}
+
+// The scope retains its exact declaration, including when it owns no binders.
+// Generic lookup already searched that declaration's own span; ancestry starts
+// at its parent. Non-machine scopes have no lexical declaration context.
+machine Resolver::scope_parent(syntax: &SyntaxTrees, scope: TypeScope) -> u64 in Trapping
+crashes Trap
+{
+    transition scope.lexical_machine > 0 {
+        true -> declared(syntax, scope.lexical_machine - 1)
+        false -> 0
+    }
+    machine declared(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
+        item.parent
     }
 }

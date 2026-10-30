@@ -1,0 +1,33 @@
+[package]
+name = "normalized-foreign-call-plan"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "normalized_foreign_call_plan"
+path = "src/lib.rs"
+
+[features]
+test-support = [
+    "dep:calling-conventions",
+    "dep:function-identity",
+    "dep:legalized-operations",
+    "dep:optimization-unit",
+    "dep:task-plans",
+    "dep:target-operations",
+    "dep:terminal-psi",
+]
+
+[dependencies]
+register-model = { path = "../../register-model" }
+selected-instructions = { path = "../../../representations/selected-instructions" }
+semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+target = { path = "../../target" }
+calling-conventions = { path = "../../calling-conventions", optional = true }
+function-identity = { path = "../../../../foundation/function-identity", optional = true }
+legalized-operations = { path = "../../../representations/target-operations/legalized-operations", optional = true }
+optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit", optional = true }
+task-plans = { path = "../../runtime/task-plans", optional = true }
+target-operations = { path = "../../../representations/target-operations", optional = true }
+terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi", optional = true }

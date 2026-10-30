@@ -5,8 +5,11 @@
 //! identity and relative source coordinates so moving a checkout changes no
 //! semantic choice. Decoding supplies inert anchors, never execution authority.
 
-use build_time_evaluation::provider_declarations::RetainedProviderSelection;
+use build_time_evaluation::provider_declarations::{
+    RetainedProviderApplication, RetainedProviderSelection,
+};
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
+use language_semantics::declaration_selection::product_operands::ProductStaticOperandGraph;
 use language_semantics::declaration_selection::{
     BuildSelectionOrigin, CompositionMode, ProductTarget,
 };
@@ -16,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use symbols::{RetainedDeclaration, SymbolKind};
 
-const MAGIC: &[u8] = b"OMG-BUILD-PROVIDER-CHOICES\x01";
+const MAGIC: &[u8] = b"OMG-BUILD-PROVIDER-CHOICES\x02";
 const MAXIMUM_ROWS: u64 = 1 << 20;
 
 pub(super) struct SelectionSources {
@@ -25,7 +28,9 @@ pub(super) struct SelectionSources {
 
 impl SelectionSources {
     fn collect(rows: &[RetainedProviderSelection]) -> Self {
-        let mut sources = Vec::new();
+        let mut pool = Self {
+            sources: Vec::new(),
+        };
         for row in rows {
             for anchor in [
                 &row.subject,
@@ -33,12 +38,72 @@ impl SelectionSources {
                 row.origin.activation(),
                 row.origin.author(),
             ] {
-                if !sources.contains(anchor.source()) {
-                    sources.push(anchor.source().clone());
-                }
+                pool.intern_source(anchor.source());
+            }
+            for application in [&row.subject_application, &row.provider_application]
+                .into_iter()
+                .flatten()
+            {
+                let mut graph = application.graph.clone();
+                graph.remap_source_spans(|span| {
+                    let source = application.sources.get(span.source_id).expect(
+                        "captured application source coordinates belong to their retained map",
+                    );
+                    source::SourceSpan::new(pool.intern_source(source), span.span)
+                });
             }
         }
-        Self { sources }
+        pool
+    }
+
+    fn intern_source(&mut self, source: &SourceFile) -> SourceId {
+        let mut source = source.clone();
+        source.source_id = SourceId(0);
+        let index = match self.sources.iter().position(|existing| *existing == source) {
+            Some(index) => index,
+            None => {
+                let index = self.sources.len();
+                self.sources.push(source);
+                index
+            }
+        };
+        SourceId(index)
+    }
+
+    fn application(&self, application: Option<&RetainedProviderApplication>, output: &mut Vec<u8>) {
+        let Some(application) = application else {
+            output.push(0);
+            return;
+        };
+        output.push(1);
+        push_framed(output, application.identity.as_bytes());
+        let mut graph = application.graph.clone();
+        graph.remap_source_spans(|span| {
+            let mut source = application
+                .sources
+                .get(span.source_id)
+                .expect("captured application retains its source coordinates")
+                .clone();
+            source.source_id = SourceId(0);
+            let index = self
+                .sources
+                .iter()
+                .position(|existing| *existing == source)
+                .expect("selection source pool contains every closed application coordinate");
+            source::SourceSpan::new(SourceId(index), span.span)
+        });
+        // Producer-owned graphs already occupy memory. Encoding preserves
+        // them without imposing a second language size limit. Candidate reads
+        // below remain bounded before any receiving-world admission.
+        let limits = compiler_storage::RecordLimits {
+            bytes: usize::MAX,
+            allocation: usize::MAX,
+            elements: usize::MAX,
+            depth: usize::MAX,
+        };
+        let bytes = compiler_storage::encode(&graph, limits)
+            .expect("owned graph encoding has no external resource limits");
+        push_framed(output, &bytes);
     }
 
     pub(super) fn anchor(&self, anchor: &RetainedDeclaration, output: &mut Vec<u8>) {
@@ -68,6 +133,8 @@ impl SelectionSources {
             push_framed(&mut output, row.subject_identity.as_bytes());
             self.anchor(&row.provider, &mut output);
             push_framed(&mut output, row.provider_identity.as_bytes());
+            self.application(row.subject_application.as_ref(), &mut output);
+            self.application(row.provider_application.as_ref(), &mut output);
             integer(&mut output, row.target.code());
             output.push(match row.composition_mode {
                 CompositionMode::Fused => 0,
@@ -106,7 +173,7 @@ pub fn package_provider_selections_digest(
 ) -> [u8; 32] {
     let pool = SelectionSources::collect(rows);
     let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-provider-choices-v1\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-provider-choices-v2\0");
     digest.u64(pool.sources.len() as u64);
     for source in &pool.sources {
         let relative = source
@@ -133,6 +200,17 @@ pub fn decode_package_provider_selections(
         return None;
     }
     let sources = decode_sources(&mut cursor)?;
+    let application_sources = Arc::new(source::SourceMap::from_files(
+        sources
+            .iter()
+            .cloned()
+            .enumerate()
+            .map(|(index, mut source)| {
+                source.source_id = SourceId(index);
+                source
+            })
+            .collect(),
+    ));
     let observation = match cursor.u8()? {
         0 => None,
         1 => Some(cursor.bytes(32)?.try_into().ok()?),
@@ -145,6 +223,8 @@ pub fn decode_package_provider_selections(
         let subject_identity = std::str::from_utf8(cursor.framed()?).ok()?.to_owned();
         let provider = decode_anchor(&mut cursor, &sources)?;
         let provider_identity = std::str::from_utf8(cursor.framed()?).ok()?.to_owned();
+        let subject_application = decode_application(&mut cursor, &application_sources)?;
+        let provider_application = decode_application(&mut cursor, &application_sources)?;
         let target = ProductTarget::from_code(cursor.u64()?)?;
         let composition_mode = match cursor.u8()? {
             0 => CompositionMode::Fused,
@@ -165,14 +245,52 @@ pub fn decode_package_provider_selections(
         rows.push(RetainedProviderSelection {
             subject,
             subject_identity,
+            subject_application,
             provider,
             provider_identity,
+            provider_application,
             target,
             composition_mode,
             origin,
         });
     }
     cursor.exhausted().then_some((rows, observation))
+}
+
+fn decode_application(
+    cursor: &mut ObservationCursor<'_>,
+    sources: &Arc<source::SourceMap>,
+) -> Option<Option<RetainedProviderApplication>> {
+    match cursor.u8()? {
+        0 => Some(None),
+        1 => {
+            let identity = std::str::from_utf8(cursor.framed()?).ok()?.to_owned();
+            if identity.is_empty() {
+                return None;
+            }
+            let mut graph: ProductStaticOperandGraph = compiler_storage::decode(
+                cursor.framed()?,
+                compiler_storage::RecordLimits::default(),
+            )
+            .ok()?;
+            let mut valid = true;
+            graph.remap_source_spans(|span| {
+                valid &= sources.get(span.source_id).is_some_and(|source| {
+                    source.source.get(span.span.start..span.span.end).is_some()
+                });
+                span
+            });
+            if !valid {
+                return None;
+            }
+            Some(Some(RetainedProviderApplication {
+                identity,
+                graph,
+                sources: sources.clone(),
+            }))
+        }
+        _ => None,
+    }
 }
 
 pub(super) fn integer(output: &mut Vec<u8>, value: u64) {

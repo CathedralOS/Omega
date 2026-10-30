@@ -188,14 +188,33 @@ pub(super) fn analyze(
         }
     }
     if effective_domain == ArithmeticDomain::Trapping
+        && walk.checks_trap_coverage
         && let Some(policy_primitive) = integer_policy_primitive(operator)
         && let Some(primitive) = primitive.filter(|primitive| primitive_range(*primitive).is_some())
     {
         let trap_predicates =
             integer_policy_bridge(policy_primitive, ArithmeticDomain::Trapping).trap_predicates;
+        // Only the actual occurrence walk can publish an execution receipt.
+        // Declaration/meaning analyses preserve the ceiling check's laziness;
+        // they neither enter private runtime prefixes nor contribute decisions
+        // from a different reader context to this operation's certificate.
+        let cannot_trap = (walk.retain_trap_receipts
+            && walk.checks_occurrence_fit
+            && walk
+                .machine
+                .is_some_and(|machine| super::trapping_receipts::required(walk.program, machine))
+            && walk.state.is_some())
+        .then(|| operation.forms_exactly(policy_primitive, primitive, interval));
+        if let Some(cannot_trap) = cannot_trap {
+            decisions.trapping_decisions.push((expression, cannot_trap));
+        }
         walk.require_trap_coverage(
             expression,
-            || operation.forms_exactly(policy_primitive, primitive, interval),
+            || {
+                cannot_trap.unwrap_or_else(|| {
+                    operation.forms_exactly(policy_primitive, primitive, interval)
+                })
+            },
             |covering| Operation::forms_exactly_under(covering, expression, binary),
             || {
                 format!(
@@ -401,9 +420,10 @@ impl Operation<'_, '_> {
             primitive,
             interval,
             primitive_range(primitive).is_some_and(|range| {
-                self.result_fits(primitive, range, interval, false)
-                    || self.relationally_fits_carrier(Some(primitive))
-                    || self.completed_operands_fit()
+                // The Trapping expression's normal result is carrier-bounded
+                // only after it did not trap. Never use a range query on that
+                // same result to prove its own Exact counterpart forms.
+                self.result_fits(primitive, range, interval, false) || self.completed_operands_fit()
             }),
             None,
             &mut super::ArithmeticDecisions::default(),

@@ -21,7 +21,7 @@ pub use fixups::{
     SelectedFormInternalMachineFixupState, SelectedFormNormalizedForeignCallFixup,
     SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
 };
-pub use foreign::{Aarch64ForeignCallFloatingControlRecord, ForeignCallRelocation};
+pub use foreign::{ForeignCallFloatingControlRecord, ForeignCallRelocation};
 pub use internal::{
     InstalledProviderUnitScalarCallRecord, InternalCallRelocation, InternalStructuralCallResult,
     InternalUnitCallRecord, InternalUnitCallSource, InternalUnitScalarCallRecord,

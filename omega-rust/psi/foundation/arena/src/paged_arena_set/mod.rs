@@ -4,7 +4,6 @@
 //! selects the page and its arena index selects the page-local slot. Semantic
 //! spans remain within one page and therefore continue to resolve as slices.
 
-use compiler_storage::Record;
 mod page;
 use page::ArenaPage;
 use std::marker::PhantomData;

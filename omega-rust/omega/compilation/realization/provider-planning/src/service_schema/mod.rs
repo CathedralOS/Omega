@@ -760,7 +760,7 @@ fn append_bodyless_result_claims(
         boundary_trait,
         requirement,
         &mut |_, domain| {
-            if domain.predicate_body != language_semantics::DomainPredicateBody::Bodyless {
+            if domain.predicate_presence != language_semantics::DomainPredicatePresence::Absent {
                 return;
             }
             claims.push(ServiceResultClaim {
@@ -794,7 +794,7 @@ fn append_routed_entry_claims(
                         .unwrap_or_default(),
                 ),
                 domain: domain_claim_name(program, domain),
-                predicate_body: domain.predicate_body,
+                predicate_presence: domain.predicate_presence,
                 effective_carry: language_semantics::CarryPolicy::STRICT,
                 authority_flow: ServiceEntryAuthorityFlow::Accepts,
             });

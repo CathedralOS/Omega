@@ -1199,6 +1199,7 @@ fn collect_expression_subtree(
         | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::String(_)
+        | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => {}
     }
 }
@@ -1206,6 +1207,7 @@ fn collect_expression_subtree(
 fn expression_candidates(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,
+    type_operands: &std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher>,
     contract_clause_expressions: &std::collections::HashSet<
         ExpressionHandle,
         symbols::BuildSymbolHasher,
@@ -1216,6 +1218,9 @@ fn expression_candidates(
     let mut candidates = Vec::new();
 
     match expressions.expression(expression) {
+        ExpressionNode::Binary(_)
+            if crate::symbols::type_predicates::is_type_predicate(program, expression) => {}
+        ExpressionNode::Indexed(_) if type_operands.contains(&expression) => {}
         ExpressionNode::Binary(_) | ExpressionNode::Indexed(_) | ExpressionNode::Unary(_) => {
             candidates.push(Candidate {
                 expression,
@@ -1597,6 +1602,25 @@ fn finalize_expression_groups(
     )>,
 ) -> Result<(), Diagnostic> {
     let contract_clause_expressions = contract_clause_expression_handles(program);
+    let mut operand_nodes = Vec::new();
+    for &(expression, _) in &authored_expressions {
+        if crate::symbols::type_predicates::is_type_predicate(program, expression)
+            && let ExpressionNode::Binary(binary) =
+                program.tables.bodies.expressions.expression(expression)
+        {
+            crate::symbols::type_predicates::type_operand_nodes(
+                program,
+                binary.left,
+                &mut operand_nodes,
+            );
+            crate::symbols::type_predicates::type_operand_nodes(
+                program,
+                binary.right,
+                &mut operand_nodes,
+            );
+        }
+    }
+    let type_operands = operand_nodes.into_iter().collect();
     let mut groups: Vec<CandidateGroup> = Vec::new();
     // Groups stay in first-seen order; the index only replaces the linear
     // search for a candidate's group, which made this pass quadratic in the
@@ -1608,7 +1632,12 @@ fn finalize_expression_groups(
             .bodies
             .expressions
             .compiler_selection_partition(expression);
-        for candidate in expression_candidates(program, expression, &contract_clause_expressions)? {
+        for candidate in expression_candidates(
+            program,
+            expression,
+            &type_operands,
+            &contract_clause_expressions,
+        )? {
             let top_level_static_argument_position =
                 if matches!(candidate.kind, Kind::StaticArgument | Kind::Conformance) {
                     match program.tables.bodies.expressions.expression(expression) {

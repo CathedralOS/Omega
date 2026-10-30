@@ -7,11 +7,13 @@ use std::sync::Arc;
 use symbols::JoinedPath;
 use typed_trees::types::TypeReferenceHandle;
 
+mod cases;
 mod domain_premises;
 mod integer_predicates;
 mod invocation_entry;
 mod licenses;
 pub(super) mod normal_returns;
+mod resolution_queries;
 mod returned_fields;
 pub(super) mod selected_contracts;
 mod storage_effects;
@@ -121,6 +123,15 @@ pub(crate) enum StructuralTerm {
     BoundProjection {
         subject: SymbolHandle,
         path: String,
+    },
+    /// The same captured scalar bits viewed in another admitted carrier.
+    /// This records representation identity, never IEEE numeric equality.
+    /// Construction retains checked shared-read custody; reversing the view
+    /// recovers the original value without quieting or canonicalizing NaNs.
+    ScalarRepresentation {
+        source: typed_trees::types::PrimitiveType,
+        target: typed_trees::types::PrimitiveType,
+        value: Box<StructuralTerm>,
     },
     /// Exact literal value, independent of radix or authored spelling.
     Integer(numerics::bignum::BigInt),
@@ -300,6 +311,15 @@ impl StructuralTerm {
     /// about a completed collection, never the referent's contents.
     pub(super) fn map_children(self, mut map: impl FnMut(Self) -> Self) -> Self {
         match self {
+            StructuralTerm::ScalarRepresentation {
+                source,
+                target,
+                value,
+            } => StructuralTerm::ScalarRepresentation {
+                source,
+                target,
+                value: Box::new(map(*value)),
+            },
             StructuralTerm::IntegerEmbedding { reference, value } => {
                 StructuralTerm::IntegerEmbedding {
                     reference,
@@ -423,12 +443,19 @@ struct CompletedNominalCapture {
     anchor: ExpressionHandle,
     reference: TypeReferenceHandle,
     value: StructuralTerm,
+    observed_value: StructuralTerm,
 }
 
 impl CompletedNominalCapture {
     fn same_admission(&self, other: &Self) -> bool {
         self.anchor == other.anchor
             && self.reference == other.reference
+            && self
+                .observed_value
+                .observation_identity_key()
+                .is_some_and(|key| {
+                    other.observed_value.observation_identity_key().as_ref() == Some(&key)
+                })
             && self
                 .value
                 .observation_identity_key()
@@ -458,11 +485,12 @@ pub(super) struct StructuralJudge<'program> {
     // Declaration-level field correspondence never recursively re-enters an
     // active body. This belongs to the query, including all cloned path judges.
     returned_field_owners: Arc<Vec<SymbolHandle>>,
-    pub(super) returned_field_trace:
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) returned_field_trace:
         Option<Arc<std::sync::Mutex<returned_fields::ReturnedFieldTrace>>>,
     // Active executed bodies bound ordinary calls as well as terminal transfers.
     // A recurrent call consumes its checked contract instead of unfolding again.
     body_invocations: Arc<Vec<SymbolHandle>>,
+    active_application: Option<Arc<resolution_queries::ApplicationResolution<'program>>>,
     normal_memberships: Arc<Vec<MembershipGuarantee>>,
     pub(super) normal_content_guarantees:
         Arc<Vec<super::content_conservation::ObservedContentEquation>>,
@@ -533,6 +561,7 @@ impl Clone for StructuralJudge<'_> {
             returned_field_owners: Arc::clone(&self.returned_field_owners),
             returned_field_trace: self.returned_field_trace.clone(),
             body_invocations: Arc::clone(&self.body_invocations),
+            active_application: self.active_application.clone(),
             normal_memberships: Arc::clone(&self.normal_memberships),
             normal_content_guarantees: Arc::clone(&self.normal_content_guarantees),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
@@ -839,42 +868,49 @@ impl<'program> StructuralJudge<'program> {
         judged_machine: &Machine,
         requires: &[ExpressionHandle],
     ) -> Self {
-        // Install premises under the runtime value resolver. Installing them
-        // in tag-only mode first can resolve the new equation through its own
-        // case substitution and discard its scalar value consequence.
-        let mut judge = Self::from_case_requires(program, judged_machine, &[]);
-        judge.runtime_body_values = true;
-        judge.body_type_parameters = program.machine_type_parameters(judged_machine);
-        judge.premise_facts.extend_from_slice(requires);
-        for fact in requires {
-            judge.intake(program, *fact);
-        }
-        // Capture entry comparison truth before any prefix effect. A later
-        // write retires current storage observations, while detached input
-        // values and their predicates keep the original invocation identity.
-        for fact in requires {
-            judge.intake_preserved_predicate(*fact);
-        }
-        judge
+        Self::from_runtime_declaration_requires(
+            program,
+            judged_machine,
+            program.machine_states(judged_machine).first(),
+            requires,
+        )
     }
 
-    /// Every arrival proves this state's declared entry contract separately.
-    /// Its prefix may consume those facts without unrolling the state cycle or
-    /// importing the machine entry's unrelated invocation assumptions.
+    /// Every arrival proves this declaration's own entry contract separately.
+    /// Its prefix retains admitted input domains, never another invocation's
+    /// entry values or unrelated enclosing requirements.
     pub(super) fn from_runtime_state_requires(
         program: &'program dyn crate::CheckingInput,
         machine: &Machine,
         state: &typed_trees::state::State,
         requires: &[ExpressionHandle],
     ) -> Self {
-        let mut judge = Self::from_runtime_requires(program, machine, &[]);
-        judge.declaration_state = state.symbol;
-        judge.retain_entry_owned_values(state);
+        Self::from_runtime_declaration_requires(program, machine, Some(state), requires)
+    }
+
+    fn from_runtime_declaration_requires(
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        state: Option<&typed_trees::state::State>,
+        requires: &[ExpressionHandle],
+    ) -> Self {
+        // Install premises under the runtime value resolver. Installing them
+        // in tag-only mode first can resolve the new equation through its own
+        // case substitution and discard its scalar value consequence.
+        let mut judge = Self::from_case_requires(program, machine, &[]);
+        judge.runtime_body_values = true;
+        judge.body_type_parameters = program.machine_type_parameters(machine);
+        if let Some(state) = state {
+            judge.declaration_state = state.symbol;
+            judge.retain_entry_owned_values(state);
+        }
         judge.premise_facts.extend_from_slice(requires);
         for fact in requires {
             judge.intake(program, *fact);
         }
-        judge.intake_entry_domain_predicates(machine, state);
+        if let Some(state) = state {
+            judge.intake_entry_domain_predicates(machine, state);
+        }
         // Capture entry comparison truth before any prefix effect. A later
         // write retires current storage observations, while detached input
         // values and their predicates keep the original invocation identity.
@@ -942,6 +978,15 @@ impl<'program> StructuralJudge<'program> {
         requires: &[ExpressionHandle],
         resolve_applications: bool,
     ) -> Self {
+        let mut entry_facts = requires.to_vec();
+        if let Some(machine) = program.machine(owner) {
+            entry_facts.extend_from_slice(
+                program
+                    .expression_table
+                    .expression_handles(machine.declared_type_predicates),
+            );
+        }
+        let requires = entry_facts.as_slice();
         let licenses = crate::frozen_program::frozen_memo(
             program,
             |memos| &memos.license_candidates,
@@ -964,6 +1009,7 @@ impl<'program> StructuralJudge<'program> {
             returned_field_owners: Arc::new(Vec::new()),
             returned_field_trace: None,
             body_invocations: Arc::new(Vec::new()),
+            active_application: None,
             normal_memberships: Arc::new(Vec::new()),
             normal_content_guarantees: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
@@ -1127,19 +1173,6 @@ impl<'program> StructuralJudge<'program> {
         self.judge_observed_predicate(predicate, depth)
     }
 
-    pub(super) fn application_is_independent(
-        &self,
-        callee: SymbolHandle,
-        selections: &[typed_trees::expression::StaticMachineArgument],
-    ) -> bool {
-        crate::machine_calls::contract_dependencies::independent_application(
-            self.program,
-            self.machine_symbol,
-            callee,
-            selections,
-        )
-    }
-
     pub(super) fn declaration_expression_type(
         &self,
         expression: ExpressionHandle,
@@ -1221,6 +1254,12 @@ impl<'program> StructuralJudge<'program> {
     }
 
     pub(super) fn intake(&mut self, program: &dyn crate::CheckingInput, fact: ExpressionHandle) {
+        if !self.case_facts_only && program.static_type_predicate_operands(fact).is_some() {
+            if let Some(predicate) = self.declaration_term(fact) {
+                self.intake_equation(predicate, value_predicates::boolean_term(true), 0);
+            }
+            return;
+        }
         let Some(binary) = program.expression_table.binary_node(fact) else {
             return;
         };
@@ -1335,6 +1374,9 @@ impl<'program> StructuralJudge<'program> {
                         .and_then(|reference| program.primitive_type_reference(reference))
                         == Some(typed_trees::types::PrimitiveType::Bool)
                 }
+                StructuralTerm::Variable(_) => {
+                    program.static_type_predicate_operands(fact).is_some()
+                }
                 _ => false,
             };
             if predicate {
@@ -1432,6 +1474,7 @@ impl<'program> StructuralJudge<'program> {
                 | StructuralTerm::IndexedValue { .. }
                 | StructuralTerm::MathematicalBinary { .. }
                 | StructuralTerm::IntegerEmbedding { .. }
+                | StructuralTerm::ScalarRepresentation { .. }
                 | StructuralTerm::ScalarBinary { .. },
                 _,
             ) => {
@@ -1448,6 +1491,7 @@ impl<'program> StructuralJudge<'program> {
                 | StructuralTerm::IndexedValue { .. }
                 | StructuralTerm::MathematicalBinary { .. }
                 | StructuralTerm::IntegerEmbedding { .. }
+                | StructuralTerm::ScalarRepresentation { .. }
                 | StructuralTerm::ScalarBinary { .. },
             ) => {
                 if !term_contains(&left, &right) {
@@ -1558,6 +1602,10 @@ impl<'program> StructuralJudge<'program> {
                         .into_iter()
                         .map(|argument| self.resolve_at(argument, depth + 1))
                         .collect();
+                    let result_type = super::specification_calls::canonical_result_reference(
+                        self.program,
+                        result_type,
+                    );
                     let resolved = StructuralTerm::Application {
                         result_type,
                         target,
@@ -1573,21 +1621,11 @@ impl<'program> StructuralJudge<'program> {
                         return resolved;
                     }
                     if self.require_closed_computation {
-                        let StructuralTerm::Application {
-                            target,
-                            selections,
-                            machine,
-                            arguments,
-                            ..
-                        } = &resolved
-                        else {
-                            unreachable!();
-                        };
                         // Conditional normal-return guarantees are not proof
                         // that this evaluation completes. Compute its body
                         // using the same continuing invocation depth instead.
                         return self
-                            .unfold_application(*target, selections, machine, arguments, depth + 1)
+                            .unfold_application(&resolved, depth + 1)
                             .map_or(resolved.clone(), |value| self.resolve_at(value, depth + 1));
                     }
                     // Hypothesis rewrites first (the inductive hypothesis
@@ -1605,19 +1643,7 @@ impl<'program> StructuralJudge<'program> {
                         term = normalized;
                         continue;
                     }
-                    let StructuralTerm::Application {
-                        result_type: _,
-                        target,
-                        selections,
-                        machine,
-                        arguments,
-                    } = &resolved
-                    else {
-                        unreachable!();
-                    };
-                    if let Some(unfolded) =
-                        self.unfold_application(*target, selections, machine, arguments, depth + 1)
-                    {
+                    if let Some(unfolded) = self.unfold_application(&resolved, depth + 1) {
                         term = unfolded;
                         continue;
                     }
@@ -1728,6 +1754,7 @@ impl<'program> StructuralJudge<'program> {
                         && let Some(value) = path.split('.').try_fold(subject, |value, field| {
                             super::observed_projections::project_declared_field(
                                 self.program,
+                                self,
                                 value,
                                 field,
                             )
@@ -1776,6 +1803,22 @@ impl<'program> StructuralJudge<'program> {
                     }
                     if let Some(folded) = fold_scalar_binary(operator, meaning, &left, &right) {
                         return folded;
+                    }
+                    return resolved;
+                }
+                StructuralTerm::ScalarRepresentation {
+                    source,
+                    target,
+                    value,
+                } => {
+                    let resolved = super::structural_terms::normalize_scalar_representation(
+                        source,
+                        target,
+                        self.resolve_at(*value, depth + 1),
+                    );
+                    if let Some((_, replacement)) = self.rewrites.find(&resolved) {
+                        term = replacement.clone();
+                        continue;
                     }
                     return resolved;
                 }
@@ -1916,13 +1959,14 @@ impl<'program> StructuralJudge<'program> {
         {
             return Some(value);
         }
-        let result = self.unfold_application(
+        let application = StructuralTerm::Application {
+            result_type,
             target,
-            selections,
-            machine.name.as_str(),
-            arguments,
-            depth + 1,
-        )?;
+            selections: selections.to_vec(),
+            machine: machine.name.as_str().to_owned(),
+            arguments: arguments.to_vec(),
+        };
+        let result = self.unfold_application(&application, depth + 1)?;
         let result = self.resolve_at(result, depth + 1);
         if self.require_closed_computation && !result.is_closed_value() {
             return None;
@@ -2004,7 +2048,14 @@ impl<'program> StructuralJudge<'program> {
                 0,
             )?,
             None => {
-                judge.unfold_application(target, selections, machine.name.as_str(), arguments, 0)?
+                let application = StructuralTerm::Application {
+                    result_type,
+                    target,
+                    selections: selections.to_vec(),
+                    machine: machine.name.as_str().to_owned(),
+                    arguments: arguments.to_vec(),
+                };
+                judge.unfold_application(&application, 0)?
             }
         };
         let value = judge.resolve(value);
@@ -2019,12 +2070,20 @@ impl<'program> StructuralJudge<'program> {
     /// No source initializer is replayed to reconstruct a caller snapshot.
     fn unfold_application(
         &self,
-        target: SymbolHandle,
-        selections: &[typed_trees::expression::StaticMachineArgument],
-        machine_name: &str,
-        arguments: &[StructuralTerm],
+        application: &StructuralTerm,
         depth: usize,
     ) -> Option<StructuralTerm> {
+        let StructuralTerm::Application {
+            target,
+            selections,
+            machine: machine_name,
+            arguments,
+            ..
+        } = application
+        else {
+            return None;
+        };
+        let target = *target;
         if super::struct_trace() {
             eprintln!("STRUCT unfold? {machine_name} args {arguments:?} depth {depth}");
         }
@@ -2100,6 +2159,7 @@ impl<'program> StructuralJudge<'program> {
         // ordinary and normalized terminal values use that same admission.
         let mut specification = self.clone();
         specification.specification_terms = true;
+        let specification = specification.resolving_application(application)?;
 
         let mut environment = environment;
         let statements = program.statement_table.statements(state.statement_nodes);
@@ -2125,7 +2185,7 @@ impl<'program> StructuralJudge<'program> {
                     depth + 1,
                 )?;
                 let term = if self.require_closed_computation {
-                    let completed = self.resolve_at(term, depth + 1);
+                    let completed = specification.resolve_at(term, depth + 1);
                     if !completed.is_closed_value() {
                         return None;
                     }
@@ -2196,8 +2256,8 @@ impl<'program> StructuralJudge<'program> {
                         let subject_term = if position < parameter_count {
                             &environment[position].1
                         } else {
-                            local_subject =
-                                self.resolve_at(environment[position].1.clone(), depth + 1);
+                            local_subject = specification
+                                .resolve_at(environment[position].1.clone(), depth + 1);
                             &local_subject
                         };
                         let StructuralTerm::Constructor {
@@ -2336,6 +2396,7 @@ impl<'program> StructuralJudge<'program> {
             // not a later unchecked read of its referent.
             return super::observed_projections::project_declared_field(
                 self.program,
+                self,
                 value,
                 field_name,
             );
@@ -2456,6 +2517,12 @@ impl<'program> StructuralJudge<'program> {
             return Some(value);
         }
         let program = self.program;
+        if program.static_type_predicate_operands(expression).is_some() {
+            // Types have no runtime storage observation. Read the same
+            // declaration-owned proposition as contract term construction;
+            // an open proposition remains symbolic until a path establishes it.
+            return super::structural_terms::static_type_predicate_term(program, expression, &[]);
+        }
         // A selected collection measure observes the completed descriptor, not
         // its retired referent. Resolve the receiver through the ordinary value
         // owner first: only an exact completed value or a separately proved
@@ -2528,6 +2595,14 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => self.specification_match_term(
+                expression,
+                dispatch,
+                environment,
+                static_observations,
+                scope?,
+                depth + 1,
+            ),
             ExpressionNode::Name(path) => {
                 // Static values use the resolved declaration, not the runtime
                 // environment's spelling. A local may shadow a const binder;
@@ -2537,8 +2612,8 @@ impl<'program> StructuralJudge<'program> {
                     .iter()
                     .find(|(symbol, _, _)| *symbol == path.symbol)
                     && let Some(parameter) = program.data_type_parameter_by_symbol(path.symbol)
-                    && let (typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | typed_trees::data::TypeParameterKind::Value { type_reference }) =
+                    && let typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference } =
                         parameter.kind
                 {
                     return match super::static_applications::constant_value(program, selected) {
@@ -2732,17 +2807,21 @@ impl<'program> StructuralJudge<'program> {
                 let (machine, state, _) = scope?;
                 let source =
                     crate::expression_result_type_reference(program, machine, state, cast.value)?;
-                super::structural_terms::denotation_preserving_conversion(program, cast, source)
-                    .then(|| {
-                        self.callee_term(
-                            cast.value,
-                            environment,
-                            static_observations,
-                            scope,
-                            depth + 1,
-                        )
-                    })
-                    .flatten()
+                let value = self.callee_term(
+                    cast.value,
+                    environment,
+                    static_observations,
+                    scope,
+                    depth + 1,
+                )?;
+                if super::structural_terms::denotation_preserving_conversion(program, cast, source)
+                {
+                    Some(value)
+                } else {
+                    super::structural_terms::scalar_representation_term(
+                        program, cast, source, value,
+                    )
+                }
             }
             ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
             ExpressionNode::ZeroValue(type_reference) => {
@@ -3045,6 +3124,7 @@ impl<'program> StructuralJudge<'program> {
                         }
                         StructuralTerm::Integer(_)
                         | StructuralTerm::Float(_)
+                        | StructuralTerm::ScalarRepresentation { .. }
                         | StructuralTerm::Application { .. }
                         | StructuralTerm::CallProjection { .. }
                         | StructuralTerm::CapturedValue { .. }
@@ -3109,6 +3189,20 @@ impl<'program> StructuralJudge<'program> {
     ) -> StructuralJudgment {
         if self.case_facts_only && !super::call_requirements::case_fact_only(program, fact) {
             return StructuralJudgment::Unknown;
+        }
+        if program.static_type_predicate_operands(fact).is_some() {
+            return self
+                .declaration_term(fact)
+                .map(|term| self.resolve(term))
+                .and_then(|term| value_predicates::boolean_value(term.semantic_value()))
+                .map(|holds| {
+                    if holds {
+                        StructuralJudgment::Proven
+                    } else {
+                        StructuralJudgment::Refuted
+                    }
+                })
+                .unwrap_or(StructuralJudgment::Unknown);
         }
         if program
             .expression_table
@@ -3257,379 +3351,6 @@ impl<'program> StructuralJudge<'program> {
             _ => self
                 .judge_value_predicate(fact)
                 .unwrap_or(StructuralJudgment::Unknown),
-        }
-    }
-
-    fn is_case_membership(
-        &self,
-        expression: ExpressionHandle,
-        comparison: &typed_trees::expression::TableBinaryExpression,
-    ) -> bool {
-        if !self.runtime_body_values {
-            return crate::proof_contracts::bound_expression_meaning::has_exact_parameter_case_membership_meaning(
-                self.program, &self.declaration_parameters, expression, comparison,
-            );
-        }
-        self.program
-            .machine(self.machine_symbol)
-            .is_some_and(|machine| {
-                crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
-                    self.program,
-                    machine,
-                    self.declaration_state
-                        .is_valid()
-                        .then(|| {
-                            self.program
-                                .state_in_machine(machine, self.declaration_state)
-                        })
-                        .flatten(),
-                    expression,
-                    comparison,
-                )
-            })
-    }
-
-    /// A callee's classifier is checked in its own parameter scope before its
-    /// subject is substituted into the caller. Checking the uninstantiated
-    /// expression against the caller would confuse identically named binders.
-    pub(super) fn instantiated_case_judgment(
-        &self,
-        scope: SymbolHandle,
-        parameters: &[typed_trees::signature::StateParameter],
-        fact: ExpressionHandle,
-        map: &[(String, StructuralTerm)],
-    ) -> StructuralJudgment {
-        self.instantiated_selected_case_judgment(scope, parameters, fact, map, &[])
-    }
-
-    pub(super) fn instantiated_selected_case_judgment(
-        &self,
-        scope: SymbolHandle,
-        parameters: &[typed_trees::signature::StateParameter],
-        fact: ExpressionHandle,
-        map: &[(String, StructuralTerm)],
-        machine_map: &[(
-            SymbolHandle,
-            TypeReferenceHandle,
-            typed_trees::expression::StaticMachineArgument,
-        )],
-    ) -> StructuralJudgment {
-        let Some(binary) = self.program.expression_table.binary_node(fact) else {
-            return StructuralJudgment::Unknown;
-        };
-        if !crate::proof_contracts::bound_expression_meaning::has_exact_parameter_case_membership_meaning(
-            self.program, parameters, fact, binary,
-        ) {
-            return StructuralJudgment::Unknown;
-        }
-        let Some((definition, variant)) =
-            super::structural_terms::case_classifier(self.program, binary.right)
-        else {
-            return StructuralJudgment::Unknown;
-        };
-        let Some(subject) = super::structural_terms::structural_term(
-            self.program,
-            None,
-            Some((scope, parameters)),
-            binary.left,
-            None,
-        ) else {
-            return StructuralJudgment::Unknown;
-        };
-        self.judge_case(
-            Self::substitute_call_term(&subject, map, machine_map),
-            definition.symbol,
-            variant.symbol,
-        )
-    }
-
-    /// Import a checked selected callee's tag guarantee under its own scope.
-    /// The receiver supplies only post-call bindings and has already proved
-    /// the invocation's premises. A tag never contributes a value equation.
-    pub(super) fn instantiated_case_guarantees(
-        &self,
-        callee: &Machine,
-        fact: ExpressionHandle,
-        map: &[(String, StructuralTerm)],
-        guarantees: &mut Vec<CaseGuarantee>,
-    ) {
-        let Some(entry) = self.program.machine_states(callee).first() else {
-            return;
-        };
-        self.instantiated_contract_case_guarantees(
-            &super::specification_calls::SelectedCallContract::Concrete(callee, entry),
-            fact,
-            map,
-            guarantees,
-        );
-    }
-
-    /// The selected public telescope owns tag formation too. A retained
-    /// requirement can classify its explicit arguments or exact result without
-    /// reopening a private realization's stronger contract or storage names.
-    pub(super) fn instantiated_contract_case_guarantees(
-        &self,
-        owner: &super::specification_calls::SelectedCallContract<'_>,
-        fact: ExpressionHandle,
-        map: &[(String, StructuralTerm)],
-        guarantees: &mut Vec<CaseGuarantee>,
-    ) {
-        use super::specification_calls::{SelectedCallContract, owner_parameters, owner_symbol};
-        if !self.has_exact_case_subjects() {
-            return;
-        }
-        let Some(binary) = self.program.expression_table.binary_node(fact) else {
-            return;
-        };
-        if binary.operator == BinaryOperator::And {
-            self.instantiated_contract_case_guarantees(owner, binary.left, map, guarantees);
-            self.instantiated_contract_case_guarantees(owner, binary.right, map, guarantees);
-            return;
-        }
-        if !super::structural_terms::is_case_observation(self.program, fact) {
-            return;
-        }
-        let parameters = owner_parameters(self.program, owner);
-        let (scope, exact) = match owner {
-            SelectedCallContract::Concrete(callee, _) => (
-                callee.symbol,
-                crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
-                    self.program,
-                    callee,
-                    None,
-                    fact,
-                    binary,
-                ),
-            ),
-            SelectedCallContract::Signature(signature) => {
-                let subject_type = crate::parameter_expression_result_type_reference(
-                    self.program,
-                    signature.symbol,
-                    parameters,
-                    binary.left,
-                )
-                .or_else(|| {
-                    crate::reserved_result_place(self.program, binary.left)
-                        .filter(|place| place.machine_symbol == signature.symbol)
-                        .map(|place| place.type_reference)
-                });
-                (signature.symbol,
-                 crate::proof_contracts::bound_expression_meaning::has_exact_typed_case_membership_meaning(
-                    self.program, fact, binary, subject_type,
-                 ))
-            }
-            _ => (owner_symbol(owner), false),
-        };
-        if !exact {
-            return;
-        }
-        let Some((definition, variant)) =
-            super::structural_terms::case_classifier(self.program, binary.right)
-        else {
-            return;
-        };
-        let Some(subject) = super::structural_terms::structural_term(
-            self.program,
-            None,
-            Some((scope, parameters)),
-            binary.left,
-            None,
-        ) else {
-            return;
-        };
-        let Some(subject) = self.resolve_case_subject(Self::substitute_term(&subject, map), 0)
-        else {
-            return;
-        };
-        guarantees.push(CaseGuarantee {
-            subject,
-            data: definition.symbol,
-            case: variant.symbol,
-        });
-    }
-
-    pub(super) fn intake_case_guarantee(&mut self, guarantee: &CaseGuarantee) {
-        Arc::make_mut(&mut self.case_facts).push((
-            guarantee.subject.clone(),
-            guarantee.data,
-            guarantee.case,
-        ));
-    }
-
-    pub(super) fn judge_case(
-        &self,
-        subject: StructuralTerm,
-        data_symbol: SymbolHandle,
-        case_symbol: SymbolHandle,
-    ) -> StructuralJudgment {
-        let Some(subject) = self.resolve_case_subject(subject, 0) else {
-            return StructuralJudgment::Unknown;
-        };
-        if let StructuralTerm::Constructor { data, case, .. } = &subject {
-            // Legacy value terms retain nominal names. Rejoin only a unique
-            // declaration; same-spelled foreign data is not this classifier.
-            let Some(definition) = self.program.data_definition_by_symbol(data_symbol) else {
-                return StructuralJudgment::Unknown;
-            };
-            if definition.name.as_str() != data
-                || self
-                    .program
-                    .data_definitions()
-                    .iter()
-                    .filter(|candidate| candidate.name.as_str() == data)
-                    .count()
-                    != 1
-            {
-                return StructuralJudgment::Unknown;
-            }
-            let observed = self
-                .program
-                .data_members(definition)
-                .iter()
-                .find_map(|member| match member {
-                    typed_trees::data::DataMember::Variant(variant)
-                        if variant.name.as_str() == case =>
-                    {
-                        Some(variant.symbol)
-                    }
-                    _ => None,
-                });
-            return match observed {
-                Some(observed) if observed == case_symbol => StructuralJudgment::Proven,
-                Some(_) => StructuralJudgment::Refuted,
-                None => StructuralJudgment::Unknown,
-            };
-        }
-        // A captured value is one occurrence. Mathematical applications have
-        // already rejoined their exact declaration and denotational closure in
-        // resolve_case_subject; their tags never require body unfolding.
-        if !matches!(
-            subject,
-            StructuralTerm::Variable(_)
-                | StructuralTerm::BoundValue(_)
-                | StructuralTerm::CapturedValue { .. }
-                | StructuralTerm::Application { .. }
-        ) {
-            return StructuralJudgment::Unknown;
-        }
-        for (known_subject, known_data, known_case) in self.case_facts.iter() {
-            if *known_data == data_symbol
-                && self.resolve_case_subject(known_subject.clone(), 0).as_ref() == Some(&subject)
-            {
-                return if *known_case == case_symbol {
-                    StructuralJudgment::Proven
-                } else {
-                    StructuralJudgment::Refuted
-                };
-            }
-        }
-        StructuralJudgment::Unknown
-    }
-
-    /// Only source premises and checked arm refinements feed this store. In
-    /// particular, legacy citation results and already-unfolded value equations
-    /// are not evidence for new tag judgments. No callable body is interpreted.
-    pub(super) fn intake_case_equation(
-        &mut self,
-        left: StructuralTerm,
-        right: StructuralTerm,
-        depth: usize,
-    ) {
-        if depth >= 32 {
-            return;
-        }
-        let (Some(left), Some(right)) = (
-            self.resolve_case_subject(left, 0),
-            self.resolve_case_subject(right, 0),
-        ) else {
-            return;
-        };
-        match (&left, &right) {
-            (StructuralTerm::Variable(name), _)
-                if left != right && !term_contains(&right, &left) =>
-            {
-                Arc::make_mut(&mut self.case_substitutions).push((name.clone(), right));
-            }
-            (_, StructuralTerm::Variable(name))
-                if left != right && !term_contains(&left, &right) =>
-            {
-                Arc::make_mut(&mut self.case_substitutions).push((name.clone(), left));
-            }
-            (
-                StructuralTerm::Constructor {
-                    data: left_data,
-                    case: left_case,
-                    fields: left_fields,
-                },
-                StructuralTerm::Constructor {
-                    data: right_data,
-                    case: right_case,
-                    fields: right_fields,
-                },
-            ) if left_data == right_data
-                && left_case == right_case
-                && left_fields.len() == right_fields.len() =>
-            {
-                for (name, left) in left_fields {
-                    if let Some((_, right)) = right_fields.iter().find(|(field, _)| field == name) {
-                        self.intake_case_equation(left.clone(), right.clone(), depth + 1);
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn resolve_case_subject(&self, term: StructuralTerm, depth: usize) -> Option<StructuralTerm> {
-        if depth >= 32 {
-            return None;
-        }
-        match term {
-            StructuralTerm::ObservedValue {
-                observed_type,
-                value,
-                descriptor,
-            } => Some(StructuralTerm::ObservedValue {
-                observed_type,
-                descriptor,
-                value: Box::new(self.resolve_case_subject(*value, depth + 1)?),
-            }),
-            StructuralTerm::Variable(ref name) => match self
-                .case_substitutions
-                .iter()
-                .find(|(variable, _)| variable == name)
-            {
-                Some((_, replacement)) => self.resolve_case_subject(replacement.clone(), depth + 1),
-                None => Some(term),
-            },
-            StructuralTerm::Constructor { data, case, fields } => {
-                Some(StructuralTerm::Constructor {
-                    data,
-                    case,
-                    fields: fields
-                        .into_iter()
-                        .map(|(name, field)| {
-                            Some((name, self.resolve_case_subject(field, depth + 1)?))
-                        })
-                        .collect::<Option<Vec<_>>>()?,
-                })
-            }
-            StructuralTerm::Integer(_)
-            | StructuralTerm::Float(_)
-            | StructuralTerm::BoundValue(_) => Some(term),
-            StructuralTerm::CapturedValue { .. } => Some(term),
-            application @ StructuralTerm::Application { .. } => {
-                self.selected_application_case_subject(&application, depth)
-            }
-            StructuralTerm::CallProjection { .. }
-            | StructuralTerm::BoundProjection { .. }
-            | StructuralTerm::Opaque(_)
-            | StructuralTerm::ScalarBinary { .. }
-            | StructuralTerm::MathematicalBinary { .. }
-            | StructuralTerm::IntegerEmbedding { .. }
-            | StructuralTerm::CollectionMeasure { .. }
-            | StructuralTerm::Projection { .. }
-            | StructuralTerm::IndexedValue { .. } => None,
         }
     }
 

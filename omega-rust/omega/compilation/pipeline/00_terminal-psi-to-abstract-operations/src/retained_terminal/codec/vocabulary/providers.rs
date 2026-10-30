@@ -144,6 +144,7 @@ record_fields!(terminal_installation::ProviderInstallationSelection {
 });
 
 record_fields!(effects::provider_plan::ProviderPlan {
+    provider_application,
     name,
     provider_type,
     provider_type_package_identity,
@@ -208,7 +209,7 @@ record_fields!(effects::provider_plan::ServiceEntryClaim {
     parameter_index,
     carrier_identity,
     domain,
-    predicate_body,
+    predicate_presence,
     effective_carry,
     authority_flow
 });
@@ -257,6 +258,7 @@ record_variants!(effects::provider_plan::ServiceProgressSubject {
 });
 
 record_fields!(effects::provider_plan::ServiceReceiverApplication {
+    application,
     trait_name,
     trait_package_identity,
     argument_identities,
@@ -296,7 +298,8 @@ record_variants!(effects::TerminalAuthorityClass {
 
 record_fields!(backend_plan::TerminalTargetProviderPlan {
     plan,
-    provider_declaration
+    provider_declaration,
+    row_numeric_realizations
 });
 
 record_fields!(backend_plan::TerminalTargetProviderProposal {

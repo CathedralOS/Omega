@@ -177,6 +177,31 @@ pub fn capture_static_environment(
     Ok(Some(Arc::new(capture.environment)))
 }
 
+/// Capture one already formed whole static operand into independent owned
+/// arenas. Its source coordinates remain under the caller's retained map;
+/// no current-program type, symbol, expression or member handle escapes.
+pub fn capture_closed_operand(
+    program: &TypedTrees,
+    argument: &expr::StaticMachineArgument,
+    lexical_owner: SymbolHandle,
+) -> Result<ProductStaticOperandGraph, String> {
+    let owner = program
+        .symbols
+        .symbol_provenance_source_span(lexical_owner)
+        .ok_or("closed Product application lost its original lexical scope")?;
+    let mut capture = Capture {
+        program,
+        environment: ProductStaticEnvironment::default(),
+        owner,
+        types: Vec::new(),
+        active_types: Vec::new(),
+        expressions: Vec::new(),
+        active_expressions: Vec::new(),
+    };
+    capture.environment.graph.root = capture.operand(argument)?;
+    Ok(capture.environment.graph)
+}
+
 struct Capture<'a> {
     program: &'a TypedTrees,
     environment: ProductStaticEnvironment,
@@ -625,6 +650,9 @@ impl Capture<'_> {
             expr::ExpressionNode::ZeroValue(reference) => {
                 ProductExpressionKind::ZeroValue(self.ty(*reference)?)
             }
+            expr::ExpressionNode::TypeExpression(reference) => {
+                ProductExpressionKind::TypeExpression(self.ty(*reference)?)
+            }
             expr::ExpressionNode::Unary(unary) => ProductExpressionKind::Unary {
                 operator: match unary.operator {
                     expr::UnaryOperator::BitwiseNot => ProductUnaryOperator::BitwiseNot,
@@ -696,6 +724,26 @@ impl Capture<'_> {
                     Handle::invalid()
                 };
                 let target = self.name(call.target.as_str(), call.target_symbol);
+                if let Some(occurrence) = call.authored_call_selection {
+                    let selection = program
+                        .authored_declaration_selections()
+                        .get(occurrence)
+                        .ok_or("Build static call lost its authored Call occurrence")?;
+                    if selection.kind()
+                        != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+                        || !program
+                            .expression_table
+                            .authored_selection_occurrences(expression)
+                            .any(|attached| attached == occurrence)
+                    {
+                        return Err("Build static call changed its source-owned Call association".into());
+                    }
+                    // The call token and its selected declaration have separate
+                    // coordinates. The original occurrence supplies the former;
+                    // `name` above retains the latter for exact source rejoining.
+                    self.environment.graph.names.get_mut(target).source_span =
+                        selection.source_span();
+                }
                 let owner = if call.requirement_application.is_valid() {
                     self.ty(call.requirement_application)?
                 } else {

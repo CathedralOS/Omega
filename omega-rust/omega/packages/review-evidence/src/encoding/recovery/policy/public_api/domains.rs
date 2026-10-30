@@ -18,9 +18,9 @@ pub(in crate::encoding::recovery) fn domain_shape(
         type_parameters: reader.sequence(3, type_parameter)?,
         target_type: type_identity(reader)?,
         index_arguments: reader.sequence(8, type_identity)?,
-        predicate_body: super::super::tag!(reader => {
-            0 => language_semantics::DomainPredicateBody::Bodyless,
-            1 => language_semantics::DomainPredicateBody::Present,
+        predicate_presence: super::super::tag!(reader => {
+            0 => language_semantics::DomainPredicatePresence::Absent,
+            1 => language_semantics::DomainPredicatePresence::Present,
         }),
         predicate_facts: reader.sequence(2, contract_fact)?,
         alias_expansion: reader.option(|reader| reader.sequence(2, alias_atom))?,

@@ -622,6 +622,8 @@ impl ScanContext<'_> {
                     self.scan(*argument, value_environment, executes);
                 }
             }
+            ExpressionNode::Binary(_)
+                if program.static_type_predicate_operands(expression).is_some() => {}
             ExpressionNode::Binary(binary) => {
                 // Every binary-operand TYPE check (operator applied to operands it is
                 // not defined for) lives behind one dispatcher.
@@ -637,6 +639,21 @@ impl ScanContext<'_> {
                     self.formation_obligations,
                 );
                 self.scan(binary.left, value_environment, executes);
+                // A checked case classifier reads its subject, while the
+                // right operand selects a declaration. Reuse the complete
+                // subject/carrier/case judgment; treating a qualified case as
+                // a value would incorrectly demand runtime storage for its
+                // module. Malformed membership and ordinary equality still
+                // scan both operands and retain their usual diagnostics.
+                if crate::has_exact_case_membership_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                    binary,
+                ) {
+                    return;
+                }
                 let right_environment =
                     crate::proof_contracts::arithmetic_domains::short_circuit_operand_environment(
                         program,
@@ -746,6 +763,9 @@ impl ScanContext<'_> {
                 self.scan(range.start, value_environment, executes);
                 self.scan(range.end, value_environment, executes);
             }
+            ExpressionNode::TypeExpression(_) => self.diagnostics.push(Diagnostic::error(
+                "a type operand is valid only in a static type predicate",
+            )),
             typed_trees::executable_leaf_expression_pattern!() => {}
             ExpressionNode::ZeroValue(type_reference) => {
                 self.diagnostics.push(Diagnostic::error(format!(

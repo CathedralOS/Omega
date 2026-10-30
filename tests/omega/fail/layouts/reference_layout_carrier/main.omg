@@ -1,0 +1,12 @@
+// The referent is not the reference carrier: its size cannot discharge 8 bytes.
+data Pair { first: u64; second: u64; }
+const REFERENCE_BYTES: u64 = size_of<Pair>();
+machine require_reference_layout() requires REFERENCE_BYTES == 8u64 {}
+machine main() crashes Trap {
+    require_reference_layout();
+    transition REFERENCE_BYTES == 8u64 && size_of<Pair>() == 16u64 {
+        true -> {}
+        _ -> bad()
+    }
+    machine bad() { crash Trap; }
+}

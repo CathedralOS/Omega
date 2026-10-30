@@ -16,7 +16,7 @@ use psi::typing::typer;
 
 // Expression typing. A tree types in table order, children before parents,
 // so each node meets typed children. A name takes its binding's declared
-// type; a name that denotes no value (a machine, a state, a data declaration
+// type; a name that denotes no value (a machine, a data declaration
 // or a payload-bearing case) stays absent, for its parent to use or reject.
 // An unsuffixed integer literal is anonymous: wholly anonymous arithmetic
 // folds exactly, and a typed operand lands the other at its carrier

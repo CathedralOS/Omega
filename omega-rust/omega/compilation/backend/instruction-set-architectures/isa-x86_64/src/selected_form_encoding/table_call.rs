@@ -6,7 +6,7 @@ use super::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
     X86_64SelectedFormFootprint,
 };
-use register_model::{RegisterOperandAccess, RegisterViewId};
+use register_model::{RegisterOperandAccess, RegisterViewId, views_with_access};
 use selected_instructions::{MachineAlternativeKey, SelectedNormalizedForeignCall};
 
 pub fn encode_x86_64_selected_table_call_form(
@@ -62,13 +62,7 @@ pub fn validate_x86_64_selected_table_call_form(
     if form.key != alternative {
         return Err(invalid());
     }
-    let registers = |access| {
-        views
-            .iter()
-            .zip(accesses)
-            .filter_map(|(view, actual)| (*actual == access).then_some(*view))
-            .collect()
-    };
+    let registers = |access| views_with_access(views, accesses, access);
     Ok(ValidatedX86_64SelectedFormEncoding {
         bytes: bytes.to_vec(),
         footprint: X86_64SelectedFormFootprint {

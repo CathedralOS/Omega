@@ -30,11 +30,11 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     Block, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
-    ClaimTransfer, ContractClause, EntryClaim, InstallationReachDependency, MachineContract,
-    NominalAffineCleanup, Operation, OperationKind, OperationResult,
-    ProgramLocalRootIntroductionSchema, ProviderCandidateConformance, ProviderParameterRefinement,
-    ProviderRefinement, ProviderSignature, ProviderSignatureParameter, ServiceDeclaration,
-    StructuralAccess, StructuralArgument, StructuralCaseDeclaration, StructuralCaseSuccessorEdge,
+    ContractClause, EntryClaim, InstallationReachDependency, MachineContract, NominalAffineCleanup,
+    Operation, OperationKind, OperationResult, ProgramLocalRootIntroductionSchema,
+    ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
+    ProviderSignature, ProviderSignatureParameter, ServiceDeclaration, StructuralAccess,
+    StructuralArgument, StructuralCaseDeclaration, StructuralCaseSuccessorEdge,
     StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
     StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultDeclaration,
@@ -63,8 +63,7 @@ use crate::proofs::content_conservation;
 use crate::proofs::content_conservation::lower_boundary_content_guarantees;
 use crate::proofs::crash_routes::{
     lower_boundary_crash_routes, lower_checked_crash_route_buckets,
-    lower_structural_crash_route_buckets, structural_crash_argument_type,
-    substitute_structural_crash_route_roots,
+    lower_structural_crash_route_buckets, substitute_structural_crash_route_roots,
 };
 use crate::retention::placed_view_inputs::lower_placed_view_input;
 use crate::scalar_lowering::scalar_carriers;

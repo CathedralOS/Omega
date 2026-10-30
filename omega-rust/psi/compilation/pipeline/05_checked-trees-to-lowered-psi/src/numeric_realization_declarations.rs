@@ -7,6 +7,9 @@ use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
 use terminal_psi::{NominalDeclarationIdentity, NumericRealization, TerminalIdentityTable};
 
+mod prepared;
+pub use prepared::PreparedNumericRealizationDeclarations;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NumericRealizationDeclarations {
     pub identities: TerminalIdentityTable,

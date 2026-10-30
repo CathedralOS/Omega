@@ -274,7 +274,7 @@ impl OperationFrame<'_, '_> {
         // This association carries storage geometry, not another disposal debt.
         let source = operation
             .call()
-            .and_then(CheckedUnitCallPlan::source_site)
+            .map(CheckedUnitCallPlan::source_site)
             .ok_or(LoweringError::Unsupported(
                 "structural call result lost its authored occurrence",
             ))?;
@@ -687,9 +687,20 @@ impl OperationFrame<'_, '_> {
         let earlier =
             self.results
                 .earlier(structural_arguments, self.operations, self.evaluation)?;
+        let caller_bindings = self.evaluation.completed_bindings(
+            self.operations,
+            self.caller
+                .local_places
+                .iter()
+                .cloned()
+                .chain(earlier.iter().filter_map(|(place, _)| *place))
+                .chain(self.primitive_locals.iter().map(|local| local.declaration))
+                .chain(self.private_places.iter().cloned()),
+        );
         let prepared = ordinary_calls::prepare(
             identities,
             checked,
+            &self.evaluation.scalar_applications,
             self.state,
             operation,
             signatures::find(self.callees.signatures, *target_machine)?.call_target(),
@@ -705,7 +716,7 @@ impl OperationFrame<'_, '_> {
             &earlier,
             self.primitive_locals,
             &self.evaluation.structural_locals,
-            &self.evaluation.scalar_bindings,
+            &caller_bindings,
             self.structural_types.declarations(),
             inputs.byte_places,
             self.calls,
@@ -724,7 +735,7 @@ impl OperationFrame<'_, '_> {
             let (coordinate, frontier) = self.source_call_record(*coordinate)?;
             self.operations.invocation_completion = Some(
                 crate::emission::operation_emission::buffer::PendingInvocationCompletion {
-                    coordinate, frontier, source_site: call.source_site().flatten(),
+                    coordinate, frontier, source_site: call.source_site(),
                     target: call.target.machine,
                     outcome: crate::emission::operation_emission::buffer::PendingInvocationOutcome::ModuleNoNormal { callee, inputs: prepared },
                 });
@@ -769,7 +780,6 @@ impl OperationFrame<'_, '_> {
             checked,
             self.operations,
             coordinate,
-            None,
             crate::direct_calls::CallRecord::Frontier(&frontier),
             OperationResult::Unit,
             callee,
@@ -849,9 +859,20 @@ impl OperationFrame<'_, '_> {
         let earlier =
             self.results
                 .earlier(&call.structural_arguments, self.operations, self.evaluation)?;
+        let caller_bindings = self.evaluation.completed_bindings(
+            self.operations,
+            self.caller
+                .local_places
+                .iter()
+                .cloned()
+                .chain(earlier.iter().filter_map(|(place, _)| *place))
+                .chain(self.primitive_locals.iter().map(|local| local.declaration))
+                .chain(self.private_places.iter().cloned()),
+        );
         let prepared = ordinary_calls::prepare(
             identities,
             checked,
+            &self.evaluation.scalar_applications,
             self.state,
             operation,
             signature.call_target(),
@@ -867,7 +888,7 @@ impl OperationFrame<'_, '_> {
             &earlier,
             self.primitive_locals,
             &self.evaluation.structural_locals,
-            &self.evaluation.scalar_bindings,
+            &caller_bindings,
             self.structural_types.declarations(),
             inputs.byte_places,
             self.calls,
@@ -887,7 +908,6 @@ impl OperationFrame<'_, '_> {
             checked,
             self.operations,
             coordinate,
-            None,
             crate::direct_calls::CallRecord::Frontier(&frontier),
             OperationResult::Scalar(value),
             callee,

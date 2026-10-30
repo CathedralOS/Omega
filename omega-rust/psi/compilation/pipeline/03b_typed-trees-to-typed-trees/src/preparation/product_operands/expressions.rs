@@ -11,6 +11,7 @@ impl Lower<'_> {
         expression: ExpressionHandle,
         source_span: source::SourceSpan,
         selections: HandleSpan<ProductOperandSelection>,
+        call_target_span: Option<source::SourceSpan>,
     ) -> Result<(), Vec<Diagnostic>> {
         let retained = if selections.is_empty() {
             &[][..]
@@ -20,6 +21,9 @@ impl Lower<'_> {
             })?
         };
         let mut occurrences = Vec::with_capacity(retained.len());
+        let call_target_span =
+            call_target_span.map(|span| self.program.symbols.rejoin_product_occurrence(span));
+        let mut call_selection = None;
         for selection in retained {
             let kind = selection.kind.ok_or_else(|| {
                 self.error("designated expression lost its authored selection kind")
@@ -33,8 +37,19 @@ impl Lower<'_> {
                 .authored_declaration_selections()
                 .source_coordinate_occurrence(span, selection.exposure, kind)
                 .map_err(|reason| {
-                    vec![Diagnostic::error(reason.to_string()).with_source_span(span)]
+                    vec![Diagnostic::error(format!("designated expression cannot rejoin its {kind:?} selection ({:?}): {reason}", selection.exposure)).with_source_span(span)]
                 })?;
+            if kind
+                == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+                && call_target_span == Some(span)
+            {
+                if call_selection.is_some_and(|previous| previous != occurrence) {
+                    return Err(
+                        self.error("designated call has conflicting source-owned Call occurrences")
+                    );
+                }
+                call_selection = Some(occurrence);
+            }
             occurrences.push(occurrence);
         }
         let span = self.program.symbols.rejoin_product_occurrence(source_span);
@@ -44,6 +59,9 @@ impl Lower<'_> {
         self.program
             .expression_table
             .attach_authored_selection_occurrences(expression, occurrences);
+        if let Node::Call(call) = self.program.expression_table.expression_mut(expression) {
+            call.authored_call_selection = call_selection;
+        }
         Ok(())
     }
     fn expression_optional(
@@ -120,11 +138,22 @@ impl Lower<'_> {
             )
             .ok_or_else(|| self.error("completed static actual has no ordinary const value"))?;
             let result = self.program.expression_table.insert(node);
-            self.retain_expression_source(result, value.source_span, value.authored_selections)?;
+            self.retain_expression_source(
+                result,
+                value.source_span,
+                value.authored_selections,
+                None,
+            )?;
             self.expressions.push((handle, result));
             self.active_expressions.pop();
             return Ok(result);
         }
+        let call_target_span = match &value.kind {
+            ProductExpressionKind::Call { target, .. } => {
+                Some(self.graph.names.get(*target).source_span)
+            }
+            _ => None,
+        };
         let node = match value.kind {
             ProductExpressionKind::Invalid => {
                 return Err(self.error("designated constant expression has an invalid node"));
@@ -169,6 +198,7 @@ impl Lower<'_> {
                     target,
                     value.source_span,
                     value.authored_selections,
+                    None,
                 )?;
                 self.active_expressions.pop();
                 self.expressions.push((handle, target));
@@ -240,6 +270,7 @@ impl Lower<'_> {
                 end_inclusive: inclusive,
             }),
             ProductExpressionKind::ZeroValue(target) => Node::ZeroValue(self.ty(target)?),
+            ProductExpressionKind::TypeExpression(target) => Node::TypeExpression(self.ty(target)?),
             ProductExpressionKind::Cast {
                 value,
                 target,
@@ -323,6 +354,7 @@ impl Lower<'_> {
                 source_application.binding_declaration = target_symbol;
                 source_application.input_selections = input_selections;
                 Node::Call(expr::TableCallExpression {
+                    authored_call_selection: None,
                     authored_call_binding: Some(
                         language_semantics::declaration_selection::ResolvedAuthoredCallBinding {
                             selected: target_symbol,
@@ -427,7 +459,12 @@ impl Lower<'_> {
             )),
         };
         let target = self.program.expression_table.insert(node);
-        self.retain_expression_source(target, value.source_span, value.authored_selections)?;
+        self.retain_expression_source(
+            target,
+            value.source_span,
+            value.authored_selections,
+            call_target_span,
+        )?;
         self.active_expressions.pop();
         self.expressions.push((handle, target));
         Ok(target)

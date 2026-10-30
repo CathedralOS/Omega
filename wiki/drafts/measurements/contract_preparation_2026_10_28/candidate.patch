@@ -1,0 +1,17 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment.rs
+index ee07f6d8d00..b63a9ef86e4 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment.rs
+@@ -5,0 +6,2 @@ use crate::proof_integer_expression;
++#[cfg(test)]
++mod difference_constraint_tests;
+@@ -1074,0 +1077,9 @@ impl<'program> Engine<'program> {
++        // Installation already closed every difference constraint and checked cycles.
++        // Opaque interval refresh can strengthen facts outside that closed matrix.
++        if self.opaque_terms.is_empty()
++            && self.bounds.iter().all(|(polynomial, _)| {
++                polynomial.as_atom_difference().is_some() || polynomial.as_single_atom().is_some()
++            })
++        {
++            return false;
++        }

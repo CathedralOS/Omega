@@ -6,7 +6,7 @@ use diagnostics::Diagnostic;
 /// Source-issued selection of a public implementation in one immutable package.
 /// Its methods borrow portable code; callers cannot replace the selected declaration.
 pub struct ProducedBuildProvider {
-    code: Option<terminal_codec::CanonicalTerminalArtifact>,
+    code: Option<std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>>,
     path: String,
     package: semantic_vocabulary::PackageKeyIdentity,
     declaration: String,
@@ -15,7 +15,7 @@ pub struct ProducedBuildProvider {
 }
 
 impl ProducedBuildProvider {
-    pub fn artifact(&self) -> Option<&terminal_codec::CanonicalTerminalArtifact> {
+    pub fn artifact(&self) -> Option<&std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>> {
         self.code.as_ref()
     }
     pub fn path(&self) -> &str {
@@ -118,11 +118,13 @@ impl BuildProviderProductionRequest<'_> {
                 let produced = request
                     .produce(Default::default(), &mut crate::UnmeasuredProduction)
                     .map_err(|error| error.diagnostics())?;
-                Some(produced.into_artifact().map_err(|error| {
-                    vec![Diagnostic::error(format!(
-                        "Build provider publication: {error:?}"
-                    ))]
-                })?)
+                Some(std::sync::Arc::new(produced.into_artifact().map_err(
+                    |error| {
+                        vec![Diagnostic::error(format!(
+                            "Build provider publication: {error:?}"
+                        ))]
+                    },
+                )?))
             }
         };
         Ok(ProducedBuildProvider {

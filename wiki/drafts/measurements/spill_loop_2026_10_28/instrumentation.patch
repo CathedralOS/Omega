@@ -1,0 +1,112 @@
+diff --git a/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs b/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs
+index d7b84ada8b2..f10c7c74715 100644
+--- a/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs
++++ b/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs
+@@ -678,6 +678,7 @@ pub(super) fn derive_runtime_spill<'source>(
+     };
+     use semantic_vocabulary::{EdgeId, IntegerSign, IntegerType, OperationId};
+     use slot::{bits_transport, entry_definitions};
++    let profile = phase_profile::guard("06.1.d.05.spill.detail.subject");
+     let (plan, function) =
+         crate::rewrites::plan_function(source, function_index, environment, || {
+             RuntimeSpillError::SourceMismatch
+@@ -863,6 +864,8 @@ pub(super) fn derive_runtime_spill<'source>(
+     {
+         return Err(RuntimeSpillError::UnsupportedUse);
+     }
++    drop(profile);
++    let profile = phase_profile::guard("06.1.d.05.spill.detail.uses");
+     let mut definitions = if let Some(instruction) = definition {
+         vec![StorageDefinition {
+             block_index,
+@@ -1368,6 +1371,8 @@ pub(super) fn derive_runtime_spill<'source>(
+         return Err(RuntimeSpillError::UnsupportedValue);
+     }
+     let keys = environment.selected_keys();
++    drop(profile);
++    let profile = phase_profile::guard("06.1.d.05.spill.detail.access");
+     let address = environment
+         .constraint(
+             keys.frame_address
+@@ -1517,6 +1522,8 @@ pub(super) fn derive_runtime_spill<'source>(
+     // way. A fixed-view operand or entry-bound register anywhere in the
+     // function precolors an interval that may reach across a span, so every
+     // unit such a view occupies is excluded too.
++    drop(profile);
++    let profile = phase_profile::guard("06.1.d.05.spill.detail.homes");
+     let any_flexible = flexible_uses.iter().any(|&flexible| flexible);
+     let mut implicit_use_units = std::collections::BTreeSet::new();
+     let mut pinned_units = std::collections::BTreeSet::new();
+@@ -1747,6 +1754,8 @@ pub(super) fn derive_runtime_spill<'source>(
+     // victim itself, so the held register's value no longer restates it.
+     // Where no view survives, the instruction still closes the span and the
+     // produced shape degrades to the bounded one.
++    drop(profile);
++    let profile = phase_profile::guard("06.1.d.05.spill.detail.spans");
+     let mut crossed_unit_writes: Vec<std::collections::BTreeSet<usize>> = function
+         .blocks
+         .iter()
+@@ -2056,6 +2065,8 @@ pub(super) fn derive_runtime_spill<'source>(
+         .map(charged)
+         .transpose()?
+         .is_some_and(|total| total <= ceiling);
++    drop(profile);
++    let _profile = phase_profile::guard("06.1.d.05.spill.detail.slots");
+     let assignment = slot::assign(
+         function,
+         register,
+diff --git a/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/slot.rs b/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/slot.rs
+index b4e93e4dbd8..02d6527823f 100644
+--- a/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/slot.rs
++++ b/omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/slot.rs
+@@ -243,6 +243,7 @@ pub(super) fn assign(
+     span_closes: &[Vec<usize>],
+     reuse_slots: bool,
+ ) -> Assignment {
++    let profile = phase_profile::guard("06.1.d.05.spill.slots.candidates");
+     let private = LocalStorageSlotId::Spill { register: victim };
+     let block_count = function.blocks.len();
+     let mut candidate_slots: Vec<LocalStorageSlotId> = Vec::new();
+@@ -257,6 +258,8 @@ pub(super) fn assign(
+             }
+         }
+     }
++    drop(profile);
++    let profile = phase_profile::guard("06.1.d.05.spill.slots.windows");
+     if candidate_slots.is_empty() {
+         let mut any_emitted_load = false;
+         if definitions.is_empty() {
+@@ -509,6 +512,8 @@ pub(super) fn assign(
+         private,
+     };
+     let mut window_slot: Vec<LocalStorageSlotId> = vec![private; windows.len()];
++    drop(profile);
++    let profile = phase_profile::guard("06.1.d.05.spill.slots.choose");
+     let mut classified_slots: Option<RawCandidateSlots> = None;
+     let mut scratch = ShareableScratch::new(block_count);
+     for (window, window_definitions) in windows.iter().enumerate() {
+@@ -589,6 +594,8 @@ pub(super) fn assign(
+         };
+         window_slot[window] = chosen;
+     }
++    drop(profile);
++    let _profile = phase_profile::guard("06.1.d.05.spill.slots.mapping");
+     for definition in 0..definitions.len() {
+         let root = find(&mut parent, definition);
+         let window = window_index
+@@ -716,6 +723,7 @@ impl RawCandidateSlots {
+     /// function scan, deferring per-slot sorting and summary allocation until
+     /// `get(slot_idx)` is queried.
+     fn scan(function: &SelectedFunction, candidates: &[LocalStorageSlotId]) -> Self {
++        let _profile = phase_profile::guard("06.1.d.05.spill.slots.scan");
+         let count = candidates.len();
+         let block_count = function.blocks.len();
+         if count == 0 {
+@@ -890,6 +898,7 @@ impl RawCandidateSlots {
+     }
+ 
+     fn get(&mut self, slot_idx: usize) -> Option<&CandidateAccesses> {
++        let _profile = phase_profile::guard("06.1.d.05.spill.slots.get");
+         if self.invalid[slot_idx] {
+             return None;
+         }

@@ -105,6 +105,9 @@ fn project_possible(
     expression: ExpressionHandle,
     formal: Option<&typed_trees::signature::StateParameter>,
 ) -> Option<Interval> {
+    if let Some(value) = program.static_boolean_value(expression) {
+        return value.then_some(Interval::UNBOUNDED);
+    }
     if program
         .prepared_mathematics()
         .is_some_and(|view| view.application(expression).is_some())
@@ -116,21 +119,57 @@ fn project_possible(
     };
     if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
         // These two selective connectives have no declared operator spelling.
-        let left = project_possible(program, callee, environment, lengths, binary.left, formal);
         if binary.operator == BinaryOperator::And {
-            let left = left?;
-            let continuing = condition_environment(program, callee, environment, binary.left);
-            if continuing.intervals.values().any(|interval| {
-                interval
-                    .low
-                    .zip(interval.high)
-                    .is_some_and(|(low, high)| low > high)
-            }) {
-                return None;
+            let mut remaining_right_operands = vec![binary.right];
+            let mut current_operand = binary.left;
+            // Folded and prepared predicates retain their existing projection owner.
+            while program.static_boolean_value(current_operand).is_none()
+                && !program
+                    .prepared_mathematics()
+                    .is_some_and(|view| view.application(current_operand).is_some())
+            {
+                let Some(prefix) = program.expression_table.binary_node(current_operand) else {
+                    break;
+                };
+                if prefix.operator != BinaryOperator::And {
+                    break;
+                }
+                remaining_right_operands.push(prefix.right);
+                current_operand = prefix.left;
             }
-            return project_possible(program, callee, &continuing, lengths, binary.right, formal)
-                .map(|right| left.intersect(right));
+            let mut interval = project_possible(
+                program,
+                callee,
+                environment,
+                lengths,
+                current_operand,
+                formal,
+            )?;
+            let mut continuing = environment.clone();
+            // Carry each completed prefix forward instead of evaluating it again.
+            while let Some(right) = remaining_right_operands.pop() {
+                continuing = condition_environment(program, callee, &continuing, current_operand);
+                if continuing.intervals.values().any(|interval| {
+                    interval
+                        .low
+                        .zip(interval.high)
+                        .is_some_and(|(low, high)| low > high)
+                }) {
+                    return None;
+                }
+                interval = interval.intersect(project_possible(
+                    program,
+                    callee,
+                    &continuing,
+                    lengths,
+                    right,
+                    formal,
+                )?);
+                current_operand = right;
+            }
+            return Some(interval);
         }
+        let left = project_possible(program, callee, environment, lengths, binary.left, formal);
         let right = project_possible(program, callee, environment, lengths, binary.right, formal);
         return match (left, right) {
             (Some(left), Some(right)) => Some(left.union(right)),
@@ -417,6 +456,7 @@ fn operand_interval(
             None,
             super::ArithmeticDomain::Exact,
             "normal-return contract",
+            false,
             false,
             &mut diagnostics,
         );

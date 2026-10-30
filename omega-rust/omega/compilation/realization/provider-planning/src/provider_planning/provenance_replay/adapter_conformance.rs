@@ -6,49 +6,7 @@
 use crate::ProviderPlanningContext;
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 
-pub(crate) fn exact_row_for_schema_method<'plan>(
-    plan: &'plan ProviderPlan,
-    method: &effects::provider_plan::ServiceMethod,
-) -> Result<&'plan ProviderPlanRow, diagnostics::Diagnostic> {
-    if plan
-        .schema
-        .identity_text(method.requirement_identity)
-        .is_empty()
-    {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` schema method `{}` has no exact synchronous-invocation overload identity",
-            plan.name, method.name,
-        )));
-    }
-    let method_count = plan
-        .schema
-        .methods
-        .iter()
-        .filter(|candidate| candidate.requirement_identity == method.requirement_identity)
-        .count();
-    if method_count != 1 {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` contains {method_count} schema methods for exact synchronous-invocation overload `{}`",
-            plan.name,
-            plan.schema.identity_text(method.requirement_identity),
-        )));
-    }
-    let rows = plan
-        .rows
-        .iter()
-        .filter(|row| plan.schema.row_binds_method(row, method, &plan.identities))
-        .collect::<Vec<_>>();
-    let [row] = rows.as_slice() else {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` schema method `{}` / `{}` binds {} exact synchronous-invocation rows",
-            plan.name,
-            method.name,
-            plan.schema.identity_text(method.requirement_identity),
-            rows.len(),
-        )));
-    };
-    Ok(*row)
-}
+pub(crate) use backend_plan::synchronous_invocations::exact_row_for_schema_method;
 
 /// Join one selected requirement to its exact
 /// checked adapter. Absence means the declaration has no boundary schema or
@@ -388,44 +346,45 @@ fn validate_exact_requirement_lifetime_partition(
     }
 }
 
-fn exact_invocation_service_name(
+fn exact_invocation_target(
     context: ProviderPlanningContext<'_>,
     machine: &checked_trees::typed_trees::machine::Machine,
-    target: flow_effects::InvocationTarget,
-) -> Result<String, diagnostics::Diagnostic> {
+    target: flow_effects::RealizedInvocationTarget,
+) -> Result<super::super::synchronous_cycles::SynchronousBoundaryTarget, diagnostics::Diagnostic> {
     let typed = context.typed;
-    let symbol = match target {
-        flow_effects::InvocationTarget::Parameter(index) => {
-            let Some(entry) = typed.machine_states(machine).first() else {
-                return Err(diagnostics::Diagnostic::error(format!(
-                    "checked adapter `{}` has no entry state for synchronous-invocation parameter {index}",
+    let (symbol, application) = match target {
+        flow_effects::RealizedInvocationTarget::Requirement(requirement) => {
+            let scope = if let Some(application) = typed.closed_requirement_application(requirement) {
+                application.trait_scope.scope(typed)
+            } else {
+                typed.trait_machine_signature(requirement).and_then(|(declaration, _)| {
+                    (typed.trait_type_parameters(declaration).is_empty()
+                        && declaration.lifetime_parameters.is_empty())
+                        .then(|| checked_trees::typed_trees::trait_definition::AppliedTraitScope::abstract_scope(declaration))
+                })
+            }.ok_or_else(|| diagnostics::Diagnostic::error(format!(
+                "checked adapter `{}` synchronous invocation lost its exact requirement application",
+                machine.name,
+            )))?;
+            let application = scope.portable_application_identity(typed)
+                .and_then(|identity| typed.type_identity_text(identity))
+                .ok_or_else(|| diagnostics::Diagnostic::error(format!(
+                    "checked adapter `{}` synchronous invocation has no portable application identity",
                     machine.name,
-                )));
-            };
-            let Ok(parameter_index) = usize::try_from(index) else {
-                return Err(diagnostics::Diagnostic::error(format!(
-                    "checked adapter `{}` synchronous-invocation parameter index {index} is outside the target index range",
-                    machine.name,
-                )));
-            };
-            let Some(parameter) = typed.state_parameters(entry).iter().nth(parameter_index) else {
-                return Err(diagnostics::Diagnostic::error(format!(
-                    "checked adapter `{}` has no exact non-self synchronous-invocation parameter {index}",
-                    machine.name,
-                )));
-            };
-            if !parameter.type_reference.is_valid() {
-                return Err(diagnostics::Diagnostic::error(format!(
-                    "checked adapter `{}` synchronous-invocation parameter {index} has no exact type reference",
-                    machine.name,
-                )));
-            }
-            typed
-                .type_reference_table
-                .type_reference(parameter.type_reference)
-                .type_symbol(&typed.type_reference_table)
+                )))?;
+            (scope.declaration.symbol, Some(application))
         }
-        flow_effects::InvocationTarget::Service(symbol) => symbol,
+        flow_effects::RealizedInvocationTarget::Abstract(
+            flow_effects::InvocationTarget::Service(symbol),
+        ) => (symbol, None),
+        flow_effects::RealizedInvocationTarget::Abstract(
+            flow_effects::InvocationTarget::Parameter(index),
+        ) => {
+            return Err(diagnostics::Diagnostic::error(format!(
+                "checked adapter `{}` retains retired runtime boundary-binding parameter {index} in its synchronous invocation graph",
+                machine.name,
+            )));
+        }
     };
     if !symbol.is_valid() {
         return Err(diagnostics::Diagnostic::error(format!(
@@ -452,17 +411,22 @@ fn exact_invocation_service_name(
             matches.len(),
         )));
     };
-    Ok(typed.trait_declaration_path(definition))
+    Ok(
+        super::super::synchronous_cycles::SynchronousBoundaryTarget::Application {
+            declaration: typed.trait_declaration_path(definition),
+            package: typed.symbols.symbol_package_identity(symbol),
+            application,
+        },
+    )
 }
 
 pub(crate) fn exact_checked_adapter_invocations(
     context: ProviderPlanningContext<'_>,
     invocations: &checked_trees::SynchronousInvocationFacts,
     plan: &ProviderPlan,
-    method: &effects::provider_plan::ServiceMethod,
     row: &ProviderPlanRow,
-) -> Result<Vec<String>, diagnostics::Diagnostic> {
-    let typed = context.typed;
+) -> Result<Vec<super::super::synchronous_cycles::SynchronousBoundaryTarget>, diagnostics::Diagnostic>
+{
     let ProviderBinding::CheckedAdapter {
         machine_identity, ..
     } = &row.binding
@@ -486,128 +450,9 @@ pub(crate) fn exact_checked_adapter_invocations(
             summaries.len(),
         )));
     };
-    let target_identity =
-        typed.callable_identity_by_text(plan.schema.identity_text(method.requirement_identity));
-    let top_level_requirement = if target_identity.is_valid() {
-        typed
-            .machines_by_callable_identity(target_identity)
-            .into_iter()
-            .find(|requirement| {
-                requirement.supply_mode
-                    == language_semantics::MachineSupplyMode::TopLevelRequirement
-                    && context.contains(requirement.symbol)
-                    && typed.symbols.symbol_package_identity(requirement.symbol)
-                        == method.requirement_owner_package_identity
-            })
-            .or_else(|| {
-                typed.machines().iter().find(|requirement| {
-                    requirement.target.is_some()
-                        && requirement.supply_mode
-                            == language_semantics::MachineSupplyMode::TopLevelRequirement
-                        && typed.machine_callable_identity(requirement) == target_identity
-                        && context.contains(requirement.symbol)
-                        && typed.symbols.symbol_package_identity(requirement.symbol)
-                            == method.requirement_owner_package_identity
-                })
-            })
-    } else {
-        None
-    };
-    let boundaries = typed
-        .traits()
+    summary
+        .realized_targets
         .iter()
-        .filter(|definition| {
-            definition.is_boundary
-                && context.contains(definition.symbol)
-                && typed.trait_declaration_path(definition) == method.requirement_owner
-                && typed.symbols.symbol_package_identity(definition.symbol)
-                    == method.requirement_owner_package_identity
-        })
-        .collect::<Vec<_>>();
-    let boundary = match (top_level_requirement, boundaries.as_slice()) {
-        (Some(_), []) => None,
-        (None, [boundary]) => Some(*boundary),
-        (None, []) => {
-            let operators = typed
-                .operators()
-                .iter()
-                .filter(|operator| {
-                    operator.is_boundary
-                        && context.contains(operator.symbol)
-                        && checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
-                            typed, operator,
-                        ) == method.requirement_owner
-                        && typed.symbols.symbol_package_identity(operator.symbol)
-                            == method.requirement_owner_package_identity
-                })
-                .count();
-            if operators == 1 {
-                None
-            } else {
-                return Err(diagnostics::Diagnostic::error(format!(
-                    "ProviderPlan `{}` requirement owner `{}` resolves to neither one exact boundary trait nor one exact boundary operator for synchronous invocation",
-                    plan.name, method.requirement_owner,
-                )));
-            }
-        }
-        (_, boundaries) => {
-            return Err(diagnostics::Diagnostic::error(format!(
-                "ProviderPlan `{}` requirement owner `{}` resolves to {} exact boundary traits for self-forwarded synchronous invocation",
-                plan.name,
-                method.requirement_owner,
-                boundaries.len(),
-            )));
-        }
-    };
-
-    let mut names = Vec::new();
-    for target in &summary.checked_inferred_targets {
-        let target_name = exact_invocation_service_name(context, adapter, *target)?;
-        let self_forwarded = *target == flow_effects::InvocationTarget::Parameter(0)
-            && boundary.is_some_and(|boundary| {
-                let parameter_count = typed
-                    .machine_states(adapter)
-                    .first()
-                    .map(|entry| typed.state_parameters(entry).iter().count())
-                    .unwrap_or_default();
-                method.parameter_count.checked_add(1) == Some(parameter_count)
-                    && target_name == typed.trait_declaration_path(boundary)
-            });
-        if self_forwarded {
-            continue;
-        }
-        names.push(target_name);
-    }
-    names.sort_unstable();
-    names.dedup();
-    Ok(names)
-}
-
-pub(crate) fn exact_authored_invocations(
-    plan: &ProviderPlan,
-    method: &effects::provider_plan::ServiceMethod,
-) -> Result<Vec<String>, diagnostics::Diagnostic> {
-    if method
-        .synchronous_invocations
-        .iter()
-        .any(|target| target.is_empty())
-    {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` exact overload `{}` has an empty synchronous-invocation identity",
-            plan.name,
-            plan.schema.identity_text(method.requirement_identity),
-        )));
-    }
-    if method
-        .synchronous_invocations
-        .windows(2)
-        .any(|pair| pair[0] >= pair[1])
-    {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` exact overload `{}` synchronous-invocation identities are not strictly increasing",
-            plan.name,
-            plan.schema.identity_text(method.requirement_identity),
-        )));
-    }
-    Ok(method.synchronous_invocations.clone())
+        .map(|target| exact_invocation_target(context, adapter, *target))
+        .collect()
 }

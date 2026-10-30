@@ -1,0 +1,11 @@
+// Existing reference-shaped where equations remain valid under body preparation.
+// Expected exit: 0
+machine pick<T>() -> u32
+where T == &u32
+ensures result == 0u32
+{ 0u32 }
+machine main() crashes Trap {
+    transition pick<&u32>() == 0u32 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

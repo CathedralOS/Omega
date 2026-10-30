@@ -1,0 +1,156 @@
+diff --git a/omega-rust/psi/compilation/checking/src/program_validation/statements/local_data_statements.rs b/omega-rust/psi/compilation/checking/src/program_validation/statements/local_data_statements.rs
+index 394beaa51f3..50c4708ba59 100644
+--- a/omega-rust/psi/compilation/checking/src/program_validation/statements/local_data_statements.rs
++++ b/omega-rust/psi/compilation/checking/src/program_validation/statements/local_data_statements.rs
+@@ -73,6 +73,7 @@ pub(super) fn validate(
+     if !local_data.role.is_runtime_binding() {
+         return;
+     }
++    let profile = phase_profile::guard("05.local.1_shape");
+     let (program, machine, state_name, current_state, symbols, _) = scope.reads();
+     let statement_index = scope.statement_index;
+     let value_environment = &mut *outputs.value_environment;
+@@ -325,6 +326,8 @@ pub(super) fn validate(
+             diagnostics,
+         );
+     }
++    drop(profile);
++    let profile = phase_profile::guard("05.local.2_nested");
+     calls::report_nested_call_in_local_initializer(
+         program,
+         machine,
+@@ -332,6 +335,8 @@ pub(super) fn validate(
+         local_data.initial_value,
+         diagnostics,
+     );
++    drop(profile);
++    let profile = phase_profile::guard("05.local.3_range");
+     let before = diagnostics.len();
+     let first_checked_interval = arithmetic_decisions.expression_values.len();
+     let local_target_domain =
+@@ -358,6 +363,8 @@ pub(super) fn validate(
+                 arithmetic_decisions,
+             )
+         });
++    drop(profile);
++    let profile = phase_profile::guard("05.local.4_containment");
+     // Keep the declared carrier check independent of arithmetic failures.
+     if local_data.initial_value.is_valid() {
+         let (source_primitive, source_domain) = arithmetic_domains::stored_value_carrier(
+@@ -427,6 +434,8 @@ pub(super) fn validate(
+         }
+     }
+     if local_data.initial_value.is_valid() {
++        drop(profile);
++        let _profile = phase_profile::guard("05.local.5_capture");
+         let mut completed_values = Vec::new();
+         let aggregate_with_writes = matches!(
+             program
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs
+index f69326ce89e..aac0791918b 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs
+@@ -170,6 +170,7 @@ pub(super) fn analyze(
+     retain_trap_receipts: bool,
+     diagnostics: &mut Vec<Diagnostic>,
+ ) -> CheckedAnalysis {
++    let _profile = phase_profile::guard("05.expression_analysis.entry");
+     let mut decisions = ArithmeticDecisions::default();
+     let value = ExpressionWalk {
+         program,
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs
+index 5a042a7c95b..5da7036bc70 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/binary.rs
+@@ -494,6 +494,7 @@ impl Operation<'_, '_> {
+     /// An anonymous operand beside a typed integer operand lands in that
+     /// operand's primitive; it must land exactly.
+     fn land_anonymous_operands(&mut self, diagnostics: &mut Vec<Diagnostic>) {
++        let _profile = phase_profile::guard("05.binary.land_anonymous_operands");
+         let is_integer = |primitive: &PrimitiveType| primitive.accepts_integer_literal();
+         let Some(primitive) = self
+             .left
+@@ -710,6 +711,7 @@ impl Operation<'_, '_> {
+     /// any ENCLOSING op. Right shifts retain their operand carrier's bounds;
+     /// left-shift product bounds feed the Exact value-overflow obligation.
+     fn mathematical_interval(&self) -> Interval {
++        let _profile = phase_profile::guard("05.binary.mathematical_interval");
+         let walk = self.walk;
+         let (program, machine, state) = (walk.program, walk.machine, walk.state);
+         let (left, right) = (self.binary.left, self.binary.right);
+@@ -826,6 +828,7 @@ impl Operation<'_, '_> {
+ 
+     /// `x - x` over one integer place is zero.
+     fn cancels_to_zero(&self) -> bool {
++        let _profile = phase_profile::guard("05.binary.cancels_to_zero");
+         let walk = self.walk;
+         self.operator() == BinaryOperator::Subtract
+             && self.left.primitive == self.right.primitive
+@@ -849,6 +852,7 @@ impl Operation<'_, '_> {
+     /// bounded u64 left shift) that prove an Exact result representable
+     /// without every operand being bounded.
+     fn relationally_fits_carrier(&self, primitive: Option<PrimitiveType>) -> bool {
++        let _profile = phase_profile::guard("05.binary.relationally_fits_carrier");
+         let walk = self.walk;
+         let (program, environment) = (walk.program, walk.environment);
+         let (left, right) = (self.binary.left, self.binary.right);
+@@ -1007,6 +1011,7 @@ impl Operation<'_, '_> {
+         interval: Interval,
+         exact_result_proven: bool,
+     ) -> bool {
++        let _profile = phase_profile::guard("05.binary.result_fits");
+         // An unknown address ceiling is not infinity. Only the completed
+         // occurrence judgment above can establish its symbolic fit. Reuse that
+         // decision here instead of repeating the structural prefix walk.
+@@ -1069,6 +1074,7 @@ impl Operation<'_, '_> {
+     /// justify this operation. Meaning-only analysis disables this recursive
+     /// bridge while the structural judgment reconstructs operand denotations.
+     fn completed_operands_fit(&self) -> bool {
++        let _profile = phase_profile::guard("05.binary.completed_operands_fit");
+         self.walk.checks_occurrence_fit
+             && self
+                 .walk
+@@ -1240,6 +1246,7 @@ impl Operation<'_, '_> {
+         primitive: Option<PrimitiveType>,
+         interval: Interval,
+     ) -> Interval {
++        let _profile = phase_profile::guard("05.binary.policy_result_interval");
+         if effective_domain == ArithmeticDomain::Exact {
+             return interval;
+         }
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/call.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/call.rs
+index ba6dbd3050d..1f152d3c006 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/call.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/call.rs
+@@ -28,6 +28,7 @@ pub(super) fn analyze(
+     call: &TableCallExpression,
+     child_values: Option<&[super::CheckedIntegerValue]>,
+ ) -> Analysis {
++    let _profile = phase_profile::guard("05.analysis.call");
+     // The shared expression walk has checked receiver and argument formation,
+     // including calls whose result folds before reaching this result query.
+     // Speculative interval queries below must not repeat those diagnostics.
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/folded_values.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/folded_values.rs
+index 8e026726b24..deaf6dda8dc 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/folded_values.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/folded_values.rs
+@@ -20,6 +20,7 @@ pub(super) fn analyze(
+     expression: ExpressionHandle,
+     diagnostics: &mut Vec<Diagnostic>,
+ ) -> Option<Analysis> {
++    let _profile = phase_profile::guard("05.analysis.folded_values");
+     if let Some(value) = literals::closed_record_integer_projection(walk.program, expression)
+         && let Some(primitive) = value.primitive
+         && let Some(literal) = literals::land_integer_value(&value.value, primitive)
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/place.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/place.rs
+index 3f70fc2351e..9f29a23c685 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/place.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis/place.rs
+@@ -16,6 +16,7 @@ use crate::value_custody::places;
+ /// range-enforced by the proof side, and ZII requires 0 in the element range --
+ /// the interval is a true invariant).
+ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> Analysis {
++    let _profile = phase_profile::guard("05.analysis.place");
+     let program = walk.program;
+     // A literal-index element read (`self.cells[3]`) can carry a flow fact of
+     // its own, such as a cited helper theorem's element bound.

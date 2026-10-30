@@ -78,7 +78,7 @@ pub enum ItemSnapshot {
         authored_routes: Vec<Vec<IdentifierSnapshot>>,
         #[serde(skip_serializing_if = "Option::is_none")]
         classification: Option<&'static str>,
-        predicate_body: &'static str,
+        predicate_presence: &'static str,
         facts: Vec<ProofFactSnapshot>,
         operators: Vec<OperatorSnapshot>,
         semantic_clause_token_count: usize,
@@ -559,7 +559,7 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 .map(|route| snapshot_identifier_slice(syntax_trees, route))
                 .collect(),
             classification: value.classification.map(|value| value.as_str()),
-            predicate_body: value.predicate_body.as_str(),
+            predicate_presence: value.predicate_presence.as_str(),
             facts: snapshot_proof_facts(syntax_trees, value.facts),
             operators: syntax_trees
                 .items

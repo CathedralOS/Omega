@@ -1,1 +1,3 @@
-target-dependent constant evaluation requires an unqualified builtin scalar destination
+constant invocation of `bounded_layout` failed checking
+violates required fact `value <= 3`
+structurally false

@@ -1,0 +1,18 @@
+// Fact: an IEEE f64 computed and stored through a write-only borrow (&write) preserves its exact bit pattern on readback, satisfying the 0.75 comparison across all nine places
+// Place: another target body. Per-target implementations supply the compared expectation.
+// Expected exit: 0
+
+machine store(r: &write f64) { r = 6.0 / 8.0; }
+
+linux_x86_64 machine expected() -> f64 { 0.75 }
+linux_arm64 machine expected() -> f64 { 0.75 }
+macos_arm64 machine expected() -> f64 { 0.75 }
+windows_x86_64 machine expected() -> f64 { 0.75 }
+
+machine main() crashes Trap {
+    let mut slot: f64;
+    store(&write slot);
+    let v: f64 = slot;
+    transition v == expected() { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

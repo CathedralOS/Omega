@@ -91,7 +91,7 @@ impl ConstInitializerSelection {
                     .with_source_span(definition.name.source_span()),
             ]);
         }
-        self.pending_leaf_dependencies(syntax, definition, expression)
+        self.pending_leaf_dependencies(syntax, definition, expression, None)
     }
 
     pub fn pending_leaf_dependencies(
@@ -99,6 +99,7 @@ impl ConstInitializerSelection {
         syntax: &SyntaxTrees,
         definition: &syntax_trees::item::ConstDefinition,
         expression: syntax_trees::expression::ExpressionHandle,
+        selected_calls: Option<&[(source::SourceSpan, source::SourceSpan)]>,
     ) -> Result<
         crate::constant::initializer_dependencies::ConstInitializerDependencies,
         Vec<Diagnostic>,
@@ -119,7 +120,11 @@ impl ConstInitializerSelection {
             syntax.expressions.source_span(expression),
         )
         .and_then(|expression| {
-            crate::constant::initializer_dependencies::collect(&self.frontier.trees, expression)
+            crate::constant::initializer_dependencies::collect(
+                &self.frontier.trees,
+                expression,
+                selected_calls,
+            )
         })
         .map_err(|reason| {
             vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
@@ -137,12 +142,32 @@ impl ConstInitializerSelection {
         self.declaration_dependencies(
             definition,
             crate::constant::initializer_dependencies::DependencyPurpose::DeclarationReadiness,
+            definition
+                .normalization
+                .as_ref()
+                .map(|receipt| receipt.declaration_custody.call_selections.as_slice()),
+        )
+    }
+
+    pub fn selected_initializer_dependencies(
+        &self,
+        definition: &syntax_trees::item::ConstDefinition,
+        selected_calls: &[(source::SourceSpan, source::SourceSpan)],
+    ) -> Result<
+        crate::constant::initializer_dependencies::ConstInitializerDependencies,
+        Vec<Diagnostic>,
+    > {
+        self.declaration_dependencies(
+            definition,
+            crate::constant::initializer_dependencies::DependencyPurpose::DeclarationReadiness,
+            Some(selected_calls),
         )
     }
 
     pub fn initializer_authored_dependencies(
         &self,
         definition: &syntax_trees::item::ConstDefinition,
+        selected_calls: Option<&[(source::SourceSpan, source::SourceSpan)]>,
     ) -> Result<
         crate::constant::initializer_dependencies::ConstInitializerDependencies,
         Vec<Diagnostic>,
@@ -150,6 +175,7 @@ impl ConstInitializerSelection {
         self.declaration_dependencies(
             definition,
             crate::constant::initializer_dependencies::DependencyPurpose::Authored,
+            selected_calls,
         )
     }
 
@@ -157,6 +183,7 @@ impl ConstInitializerSelection {
         &self,
         definition: &syntax_trees::item::ConstDefinition,
         purpose: crate::constant::initializer_dependencies::DependencyPurpose,
+        selected_calls: Option<&[(source::SourceSpan, source::SourceSpan)]>,
     ) -> Result<
         crate::constant::initializer_dependencies::ConstInitializerDependencies,
         Vec<Diagnostic>,
@@ -180,6 +207,7 @@ impl ConstInitializerSelection {
             &declaration.declared_type,
             purpose,
             self.frontier.selection.retained_base(),
+            selected_calls,
         )
         .map_err(|reason| {
             vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]

@@ -16,7 +16,10 @@ pub fn scalar_array_leaf_path<'types>(
     let mut current = root;
     loop {
         match types.clone().find(|row| row.id == current)?.shape {
-            StructuralTypeShape::FixedArray { element, length } => {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 dimensions.push(length);
                 current = element;
             }
@@ -64,7 +67,10 @@ pub fn scalar_array_leaf_declaration<'types>(
             .clone()
             .find(|declaration| declaration.id == current)?;
         match declaration.shape {
-            StructuralTypeShape::FixedArray { element, length } => {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 array = true;
                 empty |= length == 0;
                 leaf_count = leaf_count.and_then(|count| count.checked_mul(length));

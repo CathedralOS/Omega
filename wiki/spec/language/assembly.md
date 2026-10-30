@@ -1,74 +1,141 @@
 # Checked assembly
 
-The settled decision `checked-assembly-label-contracts` makes one assembly body
-a checked control-flow graph whose explicit labels carry ordinary propositions
-and ownership obligations. Assembly has no weaker, asm-only proof system.
+Named decision: `checked-assembly-machine-bodies`, settled 2026-10-29. Assembly
+machines have an explicit assembly body language and ordinary checked machine
+contracts. Nested assembly machines name the basic blocks of one checked
+control-flow graph. This refines `checked-assembly-label-contracts`; colon labels
+and implicit inter-block fall-through are retired source forms. Assembly has no
+weaker, asm-only proof system.
 
-`asm { ... }` is parsed for the selected target, not an opaque text or byte
-escape. Every accepted instruction has a compiler-owned contract; unknown
-instructions and raw emitted bytes reject. A prebuilt blob is a foreign provider
-artifact under admission, not inline assembly. There is no compatibility
-`ForeignBinding::Instruction` source form.
+`asm machine` declares an assembly-bodied machine. `asm { ... }` embeds a checked
+assembly region in ordinary Omega code. Both are parsed for the selected target,
+not treated as opaque text or bytes. Every accepted instruction has a
+compiler-owned contract; unknown instructions and raw emitted bytes reject.
+A prebuilt blob is a foreign provider artifact under admission, not inline
+assembly. There is no compatibility `ForeignBinding::Instruction` source form.
 
 Under [embedded interpretation](../build/embedding.md), supported instructions
 execute their catalog-defined semantics against ordinary values/storage and an
-explicitly supplied target environment. Assembly remains valid source; neither
-an authored alternate body nor a boundary wrapper per block is required. This
-does not require a whole-host emulator or grant execution support to every
-catalogued instruction. See [interpreted execution](#interpreted-execution).
+explicitly supplied target environment. Neither an alternate body nor a wrapper
+per block is required. This grants no execution support to an unmodeled
+instruction. See [interpreted execution](#interpreted-execution).
 
-## Blocks and assertions
+## Machine bodies and checked entry
 
-An assembly body is a checked control-flow graph of label blocks. The unlabeled
-form is one implicit entry block. A labeled body names every internal target;
-there are no hidden labels or assembler-private control-flow edges. Blocks
-contain at least one known instruction, multiple instructions use `;`
-separators, and a control transfer is the block's final instruction.
+Every assembly-bodied declaration spells `asm machine`, including a declaration
+nested inside another assembly machine. An unmarked `machine` does not silently
+switch body language because of its parent. Executable Omega statements are not
+mixed into the instruction stream; the structural `transition` form below and
+machine contracts are checked control-flow metadata.
 
-Each label may carry ordinary `requires` and `ensures` propositions:
+An assembly machine can implement an ordinary machine requirement, including a
+member of a named implementation. The body must satisfy the requirement's full
+signature, propositions, ownership, crash, reach, termination and applicable
+calling/state plan. `asm` selects a body language, not an unchecked provider or
+a distinct satisfaction relation.
+
+Within one assembly region, nested assembly machines are local continuations,
+not fresh ABI entries. Entering one through a local edge neither allocates a
+frame nor repeats argument setup, register initialization or a prologue. Nesting
+scopes names, not runtime storage or authority. Separately callable entries still
+owe the ordinary explicit-argument and calling-plan rules.
+
+## Explicit control flow
+
+Each assembly machine's executable body is one basic block. Nested declarations
+do not execute merely because the preceding source ends. Instructions use `;`
+separators. The terminating forms are:
+
+| Form | Meaning |
+| --- | --- |
+| `transition -> next;` | Checked transfer to the physically adjacent local block, with no emitted transfer instruction. |
+| `jmp target;` | Actual direct branch to a visible local continuation, including sibling edges and backedges. |
+| Conditional jump followed by `transition -> next;` | One conditional terminator: the instruction names the taken edge; the transition names the adjacent not-taken edge. |
+| A catalog-defined return or other exit | Checked completion under the enclosing entry/exit plan, or the exact contracted environment exit. |
+
+A conditional jump is the final native instruction of its block. Its immediately
+following `transition` completes that terminator; no other executable statement
+may intervene or follow. An unconditional transfer or return terminates
+immediately. There is no `else` instruction suffix or implicit missing successor.
 
 ```omega
-asm {
-entry requires input > 0:
-    mov eax, input;
-    jmp loop;
+asm machine drain(count: u32)
+terminates
+registers ecx = count
+{
+    transition -> check;
 
-loop requires eax > 0:
-    sub eax, 1;
-    jnz loop;
+    asm machine check {
+        test ecx, ecx;
+        jz done;
+        transition -> step;
 
-done requires eax == 0 ensures eax == 0:
-    mov output, eax
+        asm machine step
+        requires ecx > 0
+        {
+            sub ecx, 1;
+            jmp check;
+        }
+    }
+
+    asm machine done
+    requires ecx == 0
+    {
+        ret;
+    }
 }
 ```
 
-Every incoming edge proves the target label's `requires` against the exact
-modeled register, flag, memory, place, value, authority and ownership state on
-that edge. Every exit from a label proves its `ensures` after applying the
-catalog semantics of the instructions on that path. A backward edge is checked
-the same way as any other edge; when the enclosing machine owes termination,
-the loop also carries the ordinary ranked-decrease obligation. A failure to
-prove one edge rejects the body rather than weakening the label contract.
-The enclosing Omega control point proves the entry label's `requires`; it is the
-body's incoming edge and not an assumed initial state.
-The not-taken edge of a conditional terminator falls through to the next
-declared label, or to the body exit when no label follows; it is an explicit CFG
-edge and owes that destination's contract just like the taken edge.
+The initial transition selects the instruction entry after one-time setup; it
+does not require a trampoline. A later jump to `check` skips that setup.
+Transitions may connect a parent to its first nested block or a block to its
+next laid-out sibling. Lexical nesting alone does not establish adjacency.
+An intervening instruction range, incompatible adjacency constraints or an
+unrealizable layout rejects; the compiler cannot silently turn `transition`
+into a jump. No register moves, prologue or other hidden setup may be inserted
+on that edge. An actual `jmp` may be relaxed or elided where its semantics permit;
+that does not weaken the source transition's zero-instruction guarantee.
 
-Label propositions observe the symbolic assembly state; they do not emit an
-instruction or grant runtime access. Thus a modeled memory proposition such as
-`[eax] == 1` is a proof query at that label, while an instruction that actually
-loads or stores through `eax` separately owes the catalog's access, provenance,
-alignment and authority requirements. A memory projection whose width, address
-space or modeled backing is ambiguous is not a proposition the checker can
-establish.
+An inline `asm` region with no explicit control transfer may complete at its
+checked body end and resume ordinary Omega code. That exit is not implicit entry
+into a nested declaration. An assembly machine must complete through its checked
+exit rather than accidentally running past its body.
 
-The optional body-level `where` surface remains the concise single-block form
-and supplies entry `requires`, falling-through `ensures` and an exact
-register-clobber declaration:
+## Contracts and clobbers
+
+Root and nested assembly machines may carry `requires`, `ensures` and optional
+`clobbers` clauses. A callable machine retains its ordinary contract over the
+complete invocation: its `ensures` is proved at normal completion, not at an
+initial transfer into its CFG. Local continuation contracts instead describe
+block entry and exit. Every incoming edge proves the destination block's
+`requires` against its exact register, flag, memory, place, value, authority and
+ownership state. Each outgoing edge proves that local block's `ensures` after
+its own instructions and before executing its successor. Those assertions do
+not recursively execute a successor's body. A loop backedge still owes the
+enclosing machine's ordinary ranked-decrease obligation when termination is
+required.
+
+The enclosing checked control point proves the initial entry obligations.
+Lexical nesting imports neither unproved parent predicates nor stale facts.
+Instruction requirements generate proof goals; an instruction's presence does
+not establish its own premises. Existing flow facts and admissible private
+contract inference can discharge those goals without repeated annotations, but
+every actual incoming edge must justify any inferred requirement. Public
+contracts cannot silently strengthen from one implementation's body.
+
+Block propositions observe the symbolic assembly state; they emit no instruction
+and grant no runtime access. A modeled memory proposition such as `[eax] == 1`
+is a proof query, while a load or store separately owes access, provenance,
+alignment and authority. An ambiguous width, address space or backing rejects.
+
+These are checked assertions, not admissions or extra facts. Body-level inline
+`ensures` checks the ordinary body exit; a named block's `ensures` checks each
+outgoing edge, including a jump. Neither overrides the instruction catalog.
+
+The optional inline body contract uses the same direct clauses:
 
 ```omega
-asm where
+asm
     requires context.ready
     clobbers none
     ensures context.ready
@@ -77,25 +144,101 @@ asm where
 }
 ```
 
-Here `context` is an ordinary explicit parameter or local in scope; assembly
-does not introduce an implicit machine receiver.
-
-These are checked assertions, not admissions or extra facts. Body-level
-`ensures` requires a falling-through body exit; an explicit label's `ensures`
-is checked before each of that label's modeled exits, including a jump. Neither
-form overrides the instruction catalog.
-
+Here `context` is an explicit ordinary value in scope, not an implicit receiver.
 An authored clobber set must equal the union of the realized instruction
 contracts' changed registers. Omitted changes and invented changes both reject;
 order and duplicates have no meaning. An explicitly empty set is `clobbers none`.
 Omitting the clause never omits the catalog's effects.
+
+For a nested block, the set covers its own instructions up to outgoing edges,
+not the union of every reachable successor. The enclosing region accounts for
+the complete graph and one-time setup. Implicit instruction writes, flag effects
+and overlapping register views remain authoritative even when not spelled as
+destinations. Declaring a clobber neither initializes a register nor saves it.
+Writing then restoring a register still contributes a write footprint; proving
+ABI preservation of its entry value is a separate obligation.
+
+## Register initialization and calling plans
+
+An independently entered body may bind initial working registers with a
+`registers` clause, as in `registers ecx = count`. The right sides are checked,
+pure entry expressions over explicit inputs and authorized projections, not
+arbitrary executable Omega bodies. All right sides refer to the incoming values;
+initialization preserves that meaning when source and destination registers
+overlap. The compiler must not sequentially destroy an input needed by a later
+binding. Boolean conditions bind their target register representation, retaining
+the relationship to their propositions for subsequent branch checking.
+
+Bindings are initialization, not a declaration of where the caller supplied
+arguments. They may emit moves or computations, contribute their realized
+effects, and must prove indexing, address formation and other partial-expression
+obligations before the body begins. Nested CFG continuations instead receive
+the exact incoming register state; there is no automatic rebinding on an edge.
+Proof assertions may name the region's explicit input identities while their
+relationships remain live; this does not capture an enclosing Omega activation.
+
+The [calling plan](../build/calling_plans.md) owns interface placement. Ordinary
+Omega entries use the compiler-owned internal convention; boundary requirements
+select `Calling<Policy>`, whose validated plan governs both callers and checked
+assembly implementations. Typed symbols remain available as operands under
+their ordinary value/place rules; an input name is not an immutable promise
+that a particular physical register still contains that input after a write.
+Explicit working-register choices must respect instruction and state constraints.
+
+There is no separate `outputs result = register` clause. The signature defines
+the logical result, and the calling plan defines all its physical locations.
+At a checked `ret`, the implementation proves initialization and validity of
+every result component, postconditions, ownership dispositions, stack state and
+required preservation. Results may use zero or several registers or an indirect
+destination; a record of two results does not necessarily return in two registers.
+Authorized mutations through parameters remain separate effects.
+
+For example, the Microsoft x64 plan for a 16-byte C-layout record returns through
+a caller-supplied output destination. The plan locates the hidden pointer in
+`rcx`; the entry contract establishes its writable extent and alignment. Copying
+it to `r9` retains that exact storage relationship, so stores at `[r9]` and
+`[r9 + 8]` can initialize two `u64` fields without an additional assertion on
+`r9`. The policy does not create access authority, and an arbitrary integer in
+`r9` proves nothing. Initialization and return of the destination pointer in
+`rax` must satisfy the same plan.
+
+Whole-machine assembly does not by itself promise the absence of all generated
+entry/exit code. Exact-control entries must account for their complete validated
+entry, stack, restoration and exit contract; no uncontracted prologue, spill or
+epilogue is permitted. An inline region does not acquire control of its enclosing
+machine's ABI merely by using physical registers.
+
+## Generics, slices and tracked storage
+
+Assembly machines use ordinary type, value, const, static-machine and named
+implementation binders. Nested declarations retain exact enclosing static
+applications, not runtime closures. Every admitted specialization must justify
+its instructions, operand widths, layouts, multiplicity and target features.
+Equal byte size alone does not authorize copying or relocating arbitrary `T`.
+An assembly machine may satisfy a generic machine parameter under the same
+contract as an ordinary machine; a library iterator needs no asm-only variant.
+That composition neither injects source instructions nor guarantees inlining
+or compile-time unrolling.
+
+Ordinary `&[T]` and `&mut [T]` parameters retain length, backing, lifetime and
+access obligations in assembly. A native boundary policy must explicitly admit
+their foreign shape or use a checked pointer/length adapter; that ABI restriction
+does not prohibit slices under Omega's internal convention.
+
+Register dataflow retains justified relationships to authorized storage through
+copies, pointer adjustments and joins. Each access still proves its current
+extent, offset, initialization, alignment and permission. Clobbering a pointer,
+losing the relation at a join, changing the backing or ending its loan invalidates
+the affected evidence. Neither numeric address exposure nor tracking metadata
+creates a loan or extends one. See [address exposure](counts_and_addresses.md#address-exposure)
+and [location alignment](counts_and_addresses.md#location-alignment).
 
 ## Assembly state and explicit communication
 
 A body has no implicit general-register or scratch-flag inputs from surrounding
 compiled code. Such inputs must come from its declared operands or a
 catalog-defined state observation. Within one body, register and flag versions
-flow through explicit label edges and are part of each label contract; separate
+flow through explicit machine edges and are part of each block contract; separate
 `asm` statements share no hidden scratch state. Register allocation and
 incidental preservation are not source contracts. Clobbers account for changes;
 they do not supply initial values.
@@ -145,7 +288,7 @@ trust assertion substitutes for this proof.
 
 An [assumed binding contract](../build/assumed_binding_contracts.md) can supply
 explicitly admitted premises at an authorized runtime crossing. It cannot exempt
-an assembly block from the instruction catalog, reinterpret `asm where` as an
+an assembly block from the instruction catalog, reinterpret an assembly contract as an
 assumption, admit raw emitted bytes, or suppress instruction obligations. The
 checked body consumes authority under its own contract, just like non-assembly
 code; the potentially false relationship belongs to the root-selected boundary.
@@ -227,13 +370,15 @@ neither supply missing instruction semantics nor become build-admissible.
 ## Control flow and machine state
 
 Catalog availability distinguishes user-checked instructions from deriver-only
-entry/exit operations. Jumps within a body target declared assembly labels;
+entry/exit operations. Jumps within a body target declared assembly machines;
 jumps leaving the body map to explicit checked Omega terminal transfers to
 visible machines. Source nesting does not grant a raw jump into another body
 or bypass its contract/acknowledgements. Both forms retain arguments, invariants
 and live obligations. Undeclared targets,
-hidden returns, unwinds and unmodeled exits reject. Return-from-interrupt is not
-a way to bypass an entry contract. Direct targets remain final-artifact-validated;
+uncontracted returns, unwinds and unmodeled exits reject. An assembly machine's
+return requires its validated exit plan; an inline region cannot return past
+its enclosing machine. Return-from-interrupt cannot bypass an entry contract.
+Direct targets remain final-artifact-validated;
 indirect calls/tail calls require sealed requirement-compatible entry references,
 not numeric addresses.
 
@@ -271,3 +416,14 @@ scoped installation authority and reach; ordinary bytes cannot supply them.
 writers, consumer validation and publication. The instruction catalog owns `lidt`
 requirements, not an OS's table carrier or lifecycle. Current catalog coverage
 and source realization limits live [beside the catalog](../../../omega-rust/psi/foundation/language-core/inline_assembly.md).
+
+## Implementation status
+
+The machine-body, adjacency-transition, entry-register and raw-memory forms above
+are the accepted language contract, not claims of complete implementation.
+Both producers, retained representations, interpretation, native realization
+and final-artifact checks must migrate together. Existing colon-label parsing,
+implicit conditional fall-through and rejection of general returns describe
+the current subset, not an alternate supported language. The owning task in
+[TASKS.md](../../../TASKS.md#checked-assembly-control-flow) retains that migration
+and its positive execution and invalid-control acceptance.

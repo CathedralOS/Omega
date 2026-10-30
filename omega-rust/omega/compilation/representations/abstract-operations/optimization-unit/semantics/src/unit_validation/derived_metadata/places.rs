@@ -134,8 +134,12 @@ pub(crate) fn validate_operation_places(
                 }
             }
         }
-        O::StructuralCase { source, .. } => {
+        O::StructuralCase { source, cases, .. } => {
             require(*source, known)?;
+            for binding in cases.iter().flat_map(|case| &case.structural_bindings) {
+                require(binding.parameter, known)?;
+                require(binding.argument.place, known)?;
+            }
         }
         O::Jump {
             structural_bindings,

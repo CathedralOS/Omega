@@ -61,10 +61,20 @@ pub struct CheckedStructuralControlEdgeCleanupPlan {
     pub trivial_affine_discard_parameter_positions: Vec<u32>,
 }
 
+/// Arrival and caller completion are separate: fusing a terminal invocation
+/// into a graph edge does not create a normal return from its callee.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedSuccessorCompletion {
+    StateArrival,
+    ReturningInvocation,
+    NoNormalInvocation,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStructuralControlSuccessorPlan {
     pub statement_ordinal: u32,
     pub target_state: SymbolHandle,
+    pub completion: CheckedSuccessorCompletion,
     /// Whether the transition selects the state's authored continuation
     /// rather than its ordinary target. Scalar terminators and the composed
     /// route share this one plan; a scalar edge carries only this identity
@@ -89,6 +99,7 @@ impl CheckedStructuralControlSuccessorPlan {
     pub fn new(
         statement_ordinal: u32,
         target_state: SymbolHandle,
+        completion: CheckedSuccessorCompletion,
         is_continuation: bool,
         transfers: Vec<CheckedStructuralControlTransferPlan>,
         scalar_arguments: Vec<CheckedStructuralScalarArgumentPlan>,
@@ -99,6 +110,7 @@ impl CheckedStructuralControlSuccessorPlan {
         CheckedStructuralControlSuccessorPlan {
             statement_ordinal,
             target_state,
+            completion,
             is_continuation,
             transfers,
             scalar_arguments,
@@ -135,6 +147,14 @@ impl CheckedStructuralControlSuccessorPlan {
         self.operand_operations()
             .flat_map(crate::CheckedUnitEffectOperationPlan::with_value_calls)
             .filter(|operation| operation.call().is_some())
+    }
+
+    /// A normal source completion owes its selected lexical disposal. An
+    /// invocation without a return still evaluates operands and enters its
+    /// target; it does not invent disposal or domain-abandonment authority.
+    pub fn has_normal_caller_completion(&self) -> bool {
+        self.completion != CheckedSuccessorCompletion::NoNormalInvocation
+            && self.has_normal_continuation()
     }
 
     /// Operand evaluation can stop before any state arrival or transfer.
@@ -183,6 +203,10 @@ pub struct CheckedStructuralControlTransferPlan {
     /// Reference construction syntax and intermediate descriptors do not name
     /// the ultimate home; operand-completion provenance does.
     pub retained_loan_backing: Option<u32>,
+    /// Complete whole-operand ingress provenance from checked loan resources.
+    /// Empty supplies no ingress judgment. Descriptor storage is not ownership
+    /// of its referent; payload evaluation and retained parent debts stay separate.
+    pub incoming_loan_resources: Vec<arena::Handle<crate::CheckedCallBorrowLoanResource>>,
     /// Owned storage reached through the captured backing's contained loans.
     /// Each pair names the exact dependent and parent in the source frame.
     /// These lifetime edges grant neither relocation nor disposal authority.
@@ -202,6 +226,7 @@ impl Default for CheckedStructuralControlTransferPlan {
             source: CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 },
             target_parameter_index: 0,
             retained_loan_backing: None,
+            incoming_loan_resources: Vec::new(),
             retained_loan_parents: Vec::new(),
             retained_operand_parents: Vec::new(),
         }

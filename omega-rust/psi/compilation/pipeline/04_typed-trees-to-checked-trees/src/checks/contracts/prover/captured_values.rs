@@ -7,9 +7,7 @@
 use checked_trees::{CheckFacts, FlowConstraintRef, FlowOperandFact, FlowStateFact};
 
 mod read_cuts;
-pub(in crate::checks::contracts) use read_cuts::{
-    ScalarRead, retain_reads, scalar_preserved_at_values,
-};
+pub(in crate::checks::contracts) use read_cuts::{retain_reads, scalar_preserved_at_values};
 
 /// `consumer_statement` is the first statement frontier after this completed
 /// consumption, including its nested calls. Its constraints exclude the goal.

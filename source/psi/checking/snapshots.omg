@@ -190,8 +190,12 @@ crashes Trap
     }
 
     machine integer(checker: &mut Checker, typing: &Typing, handle: u64 in Trapping, lender: u64 in Trapping, value: Value, owner: u64 in Trapping) {
-        let read: Place = Checker::place_at(checker, owner - 1);
-        let snapshot: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Snapshot, lender, owner, read.type_handle);
+        // Capture the admitted value's scalar type, not the storage path's
+        // metadata. Synthetic lengths have no source type handle; a read
+        // adaptation also denotes the scalar value rather than a reference.
+        let expression_type: u64 in Trapping = Typing::expression_type(typing, handle);
+        let read_type: u64 in Trapping = Checker::read_type(typing, expression_type);
+        let snapshot: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Snapshot, lender, owner, read_type);
         transition snapshot > 0 {
             true -> numbered(checker, handle, value, snapshot)
             _ -> unplaced(checker, handle, value)
@@ -320,4 +324,26 @@ crashes Trap
     }
 
     machine done(captured: CapturedSubject) -> CapturedSubject { captured }
+}
+
+// A store evaluates its RHS before replacing destination storage, exactly as
+// a call evaluates operands before applying its write frame. Retain only an
+// overlapping completed value. This shared capture preserves the old subject
+// for ordinary assignments and ranking comparisons alike; it grants no access
+// authority and never reevaluates an operand after the write.
+public machine Checker::snapshot_assignment(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, destination: u64 in Trapping)
+crashes Trap
+{
+    let value: Value = Checker::value_at(checker, root);
+    let owner: u64 in Trapping = Checker::subject_place(checker, value.subject);
+    let term: bool = value.known && value.subject > 0 && owner > 0 && Checker::within(checker, owner, destination);
+    let placed: bool = value.place > 0 && (Checker::within(checker, value.place, destination) || Checker::within(checker, destination, value.place));
+    transition destination > 0 && (term || placed) {
+        true -> captured(checker, syntax, typing, root, destination)
+        false -> {}
+    }
+    machine captured(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, destination: u64 in Trapping) {
+        let write: WriteFootprint = WriteFootprint { place: destination, callee: 0, whole: true };
+        Checker::snapshot_tree(checker, syntax, typing, root, root, write);
+    }
 }

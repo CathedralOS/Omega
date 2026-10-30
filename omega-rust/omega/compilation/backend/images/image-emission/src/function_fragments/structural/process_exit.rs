@@ -1,10 +1,10 @@
 //! Nonreturning boundary custody: selected SSA and terminal span, without scratch.
 use super::{Error, attribution, fragment, host, placed_text_offset, selected, source};
 use crate::ObjectBoundarySettlement;
-use calling_conventions::{ValueLocation, ValuePlacement, ValueShape};
+use crate::object_artifact::replay::boundary::runtime_scalar_custody::hosted_i32_argument;
 use machine_code::{
-    BoundaryResultRecord, BoundarySettlementRecord, ForeignCallScalarArgumentRecord,
-    InternalUnitScalarArgumentSourceRecord, SemanticCodeSite,
+    BoundaryResultRecord, BoundarySettlementRecord, InternalUnitScalarArgumentSourceRecord,
+    SemanticCodeSite,
 };
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use selected_instructions::{
@@ -77,24 +77,16 @@ pub(super) fn settlement(
             Default::default(),
         ),
         scalar_arguments: Vec::new(),
-        runtime_scalar_arguments: vec![ForeignCallScalarArgumentRecord {
-            parameter_index: 0,
-            source: InternalUnitScalarArgumentSourceRecord::SelectedProcessExit {
+        runtime_scalar_arguments: vec![hosted_i32_argument(
+            InternalUnitScalarArgumentSourceRecord::SelectedProcessExit {
                 source_value: value,
                 scalar_type,
                 instruction: instruction.id,
             },
-            placement: ValuePlacement {
-                shape: ValueShape::integer(4, 4),
-                locations: vec![ValueLocation::Register {
-                    register,
-                    value_byte_offset: 0,
-                    byte_size: 4,
-                }],
-            },
+            register,
             code_offset,
-            byte_count: span.bytes.len(),
-        }],
+            span.bytes.len(),
+        )],
         arguments: Vec::new(),
         byte_sequence_arguments: Vec::new(),
         completion_claim_sources: Vec::new(),
@@ -166,6 +158,7 @@ pub(super) fn validate(
         .function(machine)
         .ok_or_else(invalid)?;
     let (abstracted, _) = source::function(container, machine)?;
+    let offset = host(span.offset)?;
     if located.instruction_index as usize != block.instructions.len()
         || edge != *completion_edge
         || instruction.kind != SelectedInstructionKind::HostedExitProcessI32
@@ -179,13 +172,13 @@ pub(super) fn validate(
                 completion_edge: *completion_edge,
             })
         || proposed.machine != machine
-        || proposed.text_offset != placed_text_offset(placed.section_offset, host(span.offset)?)?
+        || proposed.text_offset != placed_text_offset(placed.section_offset, offset)?
         || proposed.settlement.invocation_site != semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
         || proposed.settlement.execution != execution.into()
         || proposed.settlement.boundary != boundary
         || proposed.settlement.operation_ordinal
             != attribution::ordinal(abstracted, SemanticCodeSite::Edge(edge))?
-        || proposed.settlement.code_offset != host(span.offset)?
+        || proposed.settlement.code_offset != offset
         || proposed.settlement.byte_count != span.bytes.len()
         || !crate::object_artifact::replay::boundary::runtime_scalar_custody::process_exit::bytes_are_exact(
             container.source().text_section().target,

@@ -189,23 +189,22 @@ pub(super) fn validate_operands(
                     &[(binary.left, minimum), (binary.right, -1)],
                 )
         });
-    // A private body's complete incoming frames may establish facts absent
-    // from its signature. Observe both completed operands before this exact
-    // operation; its result equation cannot establish its own formation.
+    // The local interval/relation view is sufficient but may omit a private
+    // invocation's complete arrivals. Reuse the existing ordered operand owner
+    // at the same pre-operation cut; requested conditions remain goals only.
     if let Some(state) = state {
+        let excludes = |excluded| {
+            crate::proof_contracts::contract_entailment::integer_operands_exclude_at_occurrence(
+                program, machine, state, expression, primitive, excluded,
+            )
+        };
         let conditions = definedness_conditions(binary.operator, domain);
         if conditions.nonzero_divisor && !proven.nonzero_divisor {
-            proven.nonzero_divisor = crate::proof_contracts::contract_entailment::operation_inputs_exclude_integer_values(
-                program, machine, state, expression, &[(1, 0)],
-            );
+            proven.nonzero_divisor = excludes([None, Some(0)]);
         }
-        if conditions.signed_result_representable
-            && !proven.signed_pair_excluded
-            && let Some(minimum) = signed_minimum(primitive)
-        {
-            proven.signed_pair_excluded = crate::proof_contracts::contract_entailment::operation_inputs_exclude_integer_values(
-                program, machine, state, expression, &[(0, minimum), (1, -1)],
-            );
+        if conditions.signed_result_representable && !proven.signed_pair_excluded {
+            proven.signed_pair_excluded = signed_minimum(primitive)
+                .is_some_and(|minimum| excludes([Some(minimum), Some(-1)]));
         }
     }
     report_partial(binary.operator, domain, proven, owner, true, diagnostics)

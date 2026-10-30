@@ -13,5 +13,6 @@ mod behavior_exclusions;
 mod terminal_artifact;
 
 pub(crate) use terminal_artifact::{
-    TerminalProductRequest, TerminalProductionView, produce_retained_terminal_artifacts,
+    ProducedTerminalProduct, TerminalProductRequest, TerminalProductUse, TerminalProductionView,
+    check_terminal_conditions, produce_retained_terminal_artifacts,
 };

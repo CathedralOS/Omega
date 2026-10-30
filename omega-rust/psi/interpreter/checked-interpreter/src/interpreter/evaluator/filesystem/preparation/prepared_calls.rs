@@ -58,12 +58,12 @@ impl std::ops::Deref for PreparedFilesystemPath {
     }
 }
 
-/// Every canonical authored operand is represented, including ABI-shape
-/// operands a modeled provider does not otherwise need.
+/// Every canonical authored operand is consumed during preparation, including
+/// ABI-shape operands a modeled provider does not otherwise need; only the
+/// operands an execution provider reads are retained here.
 pub(crate) enum PreparedFilesystemCall {
     Create {
         path: PreparedFilesystemPath,
-        mode: i32,
     },
     Open {
         path: PreparedFilesystemPath,
@@ -107,14 +107,12 @@ pub(crate) enum PreparedFilesystemCall {
     },
     CreateDir {
         path: PreparedFilesystemPath,
-        mode: i32,
     },
     RemoveDir {
         path: PreparedFilesystemPath,
     },
     CreateDirName {
         name: PreparedFilesystemPath,
-        mode: i32,
     },
     OpenAt {
         dirfd: i32,
@@ -175,15 +173,9 @@ pub(crate) enum PreparedFilesystemCall {
     CreateHardLink {
         link: PreparedFilesystemPath,
         existing: PreparedFilesystemPath,
-        security_attributes: i64,
     },
     OpenPathHandle {
         path: PreparedFilesystemPath,
-        desired_access: u32,
-        share_mode: u32,
-        security_attributes: i64,
-        creation_disposition: u32,
-        flags_and_attributes: u32,
         template_file: i64,
     },
     CloseHandle {
@@ -196,28 +188,17 @@ pub(crate) enum PreparedFilesystemCall {
         handle: i64,
         buffer: PreparedByteOutput,
         capacity: PreparedTransferCount,
-        flags: u32,
     },
     SetFileTime {
         handle: i64,
-        creation: i64,
-        last_access: Vec<u8>,
         last_write: Vec<u8>,
     },
     LockFileEx {
         handle: i64,
         flags: u32,
-        reserved: u32,
-        length_low: u32,
-        length_high: u32,
-        overlapped: PreparedMutableByteInput,
     },
     UnlockFile {
         handle: i64,
-        offset_low: u32,
-        offset_high: u32,
-        length_low: u32,
-        length_high: u32,
     },
     GetLastError,
     RemoveName {
@@ -854,10 +835,12 @@ impl<'program> Evaluator<'program> {
             .expect("filesystem preparation requires an active operation attempt");
         let mut a = FilesystemArgumentCursor::new(self, attempt_index, arguments, frame);
         let call = match operation {
-            FilesystemHostOperation::Create => PreparedFilesystemCall::Create {
-                path: a.path()?,
-                mode: a.i32()?,
-            },
+            FilesystemHostOperation::Create => {
+                let path = a.path()?;
+                // Canonical create mode: validated and consumed, not retained.
+                a.i32()?;
+                PreparedFilesystemCall::Create { path }
+            }
             FilesystemHostOperation::Open => PreparedFilesystemCall::Open {
                 path: a.path()?,
                 flags: a.i32()?,
@@ -905,17 +888,21 @@ impl<'program> Evaluator<'program> {
                 offset: a.i64()?,
                 whence: a.i32()?,
             },
-            FilesystemHostOperation::CreateDir => PreparedFilesystemCall::CreateDir {
-                path: a.path()?,
-                mode: a.i32()?,
-            },
+            FilesystemHostOperation::CreateDir => {
+                let path = a.path()?;
+                // Canonical create mode: validated and consumed, not retained.
+                a.i32()?;
+                PreparedFilesystemCall::CreateDir { path }
+            }
             FilesystemHostOperation::RemoveDir => {
                 PreparedFilesystemCall::RemoveDir { path: a.path()? }
             }
-            FilesystemHostOperation::CreateDirName => PreparedFilesystemCall::CreateDirName {
-                name: PreparedFilesystemPath::Native(a.path_like_bytes()?),
-                mode: a.i32()?,
-            },
+            FilesystemHostOperation::CreateDirName => {
+                let name = PreparedFilesystemPath::Native(a.path_like_bytes()?);
+                // Canonical create mode: validated and consumed, not retained.
+                a.i32()?;
+                PreparedFilesystemCall::CreateDirName { name }
+            }
             FilesystemHostOperation::OpenAt => {
                 let dirfd = a.descriptor()?;
                 let name = a.relative_component()?;
@@ -995,20 +982,27 @@ impl<'program> Evaluator<'program> {
             FilesystemHostOperation::FindClose => PreparedFilesystemCall::FindClose {
                 handle: a.find_handle()?,
             },
-            FilesystemHostOperation::CreateHardLink => PreparedFilesystemCall::CreateHardLink {
-                link: a.path()?,
-                existing: a.path()?,
-                security_attributes: a.i64()?,
-            },
-            FilesystemHostOperation::OpenPathHandle => PreparedFilesystemCall::OpenPathHandle {
-                path: a.path()?,
-                desired_access: a.u32()?,
-                share_mode: a.u32()?,
-                security_attributes: a.i64()?,
-                creation_disposition: a.u32()?,
-                flags_and_attributes: a.u32()?,
-                template_file: a.nullable_native_handle()?,
-            },
+            FilesystemHostOperation::CreateHardLink => {
+                let link = a.path()?;
+                let existing = a.path()?;
+                // Windows security-attributes operand: consumed, not retained.
+                a.i64()?;
+                PreparedFilesystemCall::CreateHardLink { link, existing }
+            }
+            FilesystemHostOperation::OpenPathHandle => {
+                let path = a.path()?;
+                // CreateFileA's access/share/security/disposition/attribute
+                // operands are ABI shape: consumed here, never read back.
+                a.u32()?;
+                a.u32()?;
+                a.i64()?;
+                a.u32()?;
+                a.u32()?;
+                PreparedFilesystemCall::OpenPathHandle {
+                    path,
+                    template_file: a.nullable_native_handle()?,
+                }
+            }
             FilesystemHostOperation::CloseHandle => PreparedFilesystemCall::CloseHandle {
                 handle: a.native_handle()?,
             },
@@ -1020,17 +1014,18 @@ impl<'program> Evaluator<'program> {
                 let buffer = a.mutable_bytes()?;
                 let capacity = a.count()?;
                 buffer.require_capacity(capacity.host)?;
-                let flags = a.u32()?;
+                // Win32 flags operand: consumed, not retained.
+                a.u32()?;
                 PreparedFilesystemCall::FinalPathNameByHandle {
                     handle,
                     buffer,
                     capacity,
-                    flags,
                 }
             }
             FilesystemHostOperation::SetFileTime => {
                 let handle = a.native_handle()?;
-                let creation = a.i64()?;
+                // Creation-time operand: consumed, not retained.
+                a.i64()?;
                 let last_access = a.bytes()?;
                 if last_access.len() < FILETIME_BYTES {
                     return trap("filesystem FILETIME access operand is shorter than 8 bytes");
@@ -1039,28 +1034,28 @@ impl<'program> Evaluator<'program> {
                 if last_write.len() < FILETIME_BYTES {
                     return trap("filesystem FILETIME write operand is shorter than 8 bytes");
                 }
-                PreparedFilesystemCall::SetFileTime {
-                    handle,
-                    creation,
-                    last_access,
-                    last_write,
-                }
+                PreparedFilesystemCall::SetFileTime { handle, last_write }
             }
-            FilesystemHostOperation::LockFileEx => PreparedFilesystemCall::LockFileEx {
-                handle: a.native_handle()?,
-                flags: a.u32()?,
-                reserved: a.u32()?,
-                length_low: a.u32()?,
-                length_high: a.u32()?,
-                overlapped: a.mutable_byte_input(OVERLAPPED_BYTES)?,
-            },
-            FilesystemHostOperation::UnlockFile => PreparedFilesystemCall::UnlockFile {
-                handle: a.native_handle()?,
-                offset_low: a.u32()?,
-                offset_high: a.u32()?,
-                length_low: a.u32()?,
-                length_high: a.u32()?,
-            },
+            FilesystemHostOperation::LockFileEx => {
+                let handle = a.native_handle()?;
+                let flags = a.u32()?;
+                // reserved/length/OVERLAPPED operands are ABI shape: consumed
+                // (including the OVERLAPPED capacity check), not retained.
+                a.u32()?;
+                a.u32()?;
+                a.u32()?;
+                a.mutable_byte_input(OVERLAPPED_BYTES)?;
+                PreparedFilesystemCall::LockFileEx { handle, flags }
+            }
+            FilesystemHostOperation::UnlockFile => {
+                let handle = a.native_handle()?;
+                // Byte-range operands are ABI shape: consumed, not retained.
+                a.u32()?;
+                a.u32()?;
+                a.u32()?;
+                a.u32()?;
+                PreparedFilesystemCall::UnlockFile { handle }
+            }
             FilesystemHostOperation::GetLastError => PreparedFilesystemCall::GetLastError,
             FilesystemHostOperation::RemoveName => PreparedFilesystemCall::RemoveName {
                 path: PreparedFilesystemPath::Native(a.path_like_bytes()?),

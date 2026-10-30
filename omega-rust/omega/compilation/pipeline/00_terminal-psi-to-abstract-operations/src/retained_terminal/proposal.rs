@@ -174,10 +174,16 @@ fn project_terminal_native_body(
     request: &TerminalNativeProposalRequest<'_>,
 ) -> Result<TerminalNativeBodyProposal, Vec<Diagnostic>> {
     let terminal_module = artifact.semantic_module();
+    let selected = backend_plan::close_checked_provider_specializations(
+        request.boundaries.selected_provider_plans.clone(),
+        request.provider_declarations,
+        terminal_module,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])?;
     let selected = close_family_realizations(
         artifact,
         target_profile,
-        request.boundaries.selected_provider_plans,
+        &selected,
         request.family_realizations,
     )?;
     // This closes static activation obligations, not executor installation.
@@ -204,25 +210,49 @@ fn project_terminal_native_body(
             "native proposal lost selected intrinsic plan custody",
         )]);
     }
-    let intrinsic_executions = selected
+    let (intrinsic_executions, numeric_realizations): (Vec<_>, Vec<_>) = selected
         .plans()
         .iter()
         .zip(&request.boundaries.selected_provider_provenance)
         .map(|(plan, retained)| {
-            if plan != retained.plan || plan.rows.len() != retained.row_executions.len() {
+            if plan != retained.plan
+                || plan.rows.len() != retained.row_executions.len()
+                || plan.rows.len() != retained.row_numeric_realizations.len()
+            {
                 return Err(vec![Diagnostic::error(
                     "native proposal has mismatched intrinsic row custody",
                 )]);
             }
-            // Numeric meaning and external satisfaction travel in Terminal.
-            // Keep only the independent host/placement authority judgments.
-            Ok(retained
-                .row_executions
+            let mut declarations = request
+                .provider_declarations
                 .iter()
-                .map(|execution| execution.filter(|execution| !execution.is_numeric()))
-                .collect())
+                .filter(|declaration| declaration.plan == *plan);
+            let (Some(declaration), None) = (declarations.next(), declarations.next()) else {
+                return Err(vec![Diagnostic::error(
+                    "native intrinsic provenance has no unique whole-plan declaration custody",
+                )]);
+            };
+            if declaration.row_numeric_realizations.as_slice() != retained.row_numeric_realizations
+            {
+                return Err(vec![Diagnostic::error(
+                    "native intrinsic provenance substituted its selected external declarations",
+                )]);
+            }
+            // Numeric meaning and external satisfaction travel in Terminal.
+            // Keep the exact selected declaration separately from independent
+            // host/placement authority; equal meaning cannot replace identity.
+            Ok((
+                retained
+                    .row_executions
+                    .iter()
+                    .map(|execution| execution.filter(|execution| !execution.is_numeric()))
+                    .collect::<Vec<_>>(),
+                retained.row_numeric_realizations.to_vec(),
+            ))
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .unzip();
     let callback_occurrences = project_callback_occurrences(
         &request.callback_placements,
         artifact,
@@ -237,7 +267,7 @@ fn project_terminal_native_body(
     )?;
     backend_plan::validate_callback_thunk_joins(artifact.view(), &callback_occurrences)
         .map_err(|message| vec![Diagnostic::error(message)])?;
-    let boundary_application_coverage = request.boundaries.settle(artifact)?;
+    let boundary_application_coverage = request.boundaries.settle(artifact, &selected)?;
     let comparisons = crate::comparison_settlement::settle_comparison_occurrences(
         terminal_module,
         &selected,
@@ -267,6 +297,7 @@ fn project_terminal_native_body(
             checked_adapters,
             external_bindings: external_binding_rows,
             intrinsic_executions,
+            numeric_realizations,
             x86_scalar_fma: request.x86_scalar_fma_provider,
         },
         occurrences: TerminalNativeOccurrences {

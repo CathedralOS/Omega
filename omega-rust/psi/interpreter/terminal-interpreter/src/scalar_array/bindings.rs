@@ -46,13 +46,6 @@ impl ScalarArrayBindings {
             .map(|binding| &binding.value)
     }
 
-    pub(crate) fn get_mut(&mut self, place: &PlaceId) -> Option<&mut TerminalScalarArrayValue> {
-        self.rows
-            .get_mut(place)
-            .filter(|binding| binding.live)
-            .map(|binding| &mut binding.value)
-    }
-
     pub(crate) fn contains_key(&self, place: &PlaceId) -> bool {
         self.get(place).is_some()
     }

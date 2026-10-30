@@ -18,7 +18,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let lo: i32 = max_i32(main.seed, 0);   // [0, i32::MAX]   (max lower-bounds)
+    let lo: i32 = max_i32(main.seed, 0);   // [0, i32 maximum]   (max lower-bounds)
     let bounded: i32 = min_i32(lo, 60);    // [0, 60]         (min upper-bounds)
     let s: i32 = bounded + 70;         // [70, 130] in i32 -> EXACT only because bounded
 

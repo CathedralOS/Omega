@@ -45,15 +45,21 @@ pub(super) fn build(
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
     terminator_index: usize,
     trace: &control::LocalConstructionTrace,
-) -> Option<CheckedComposedUnitControlTerminatorPlan> {
+) -> Option<(
+    CheckedComposedUnitControlTerminatorPlan,
+    Option<checked_trees::FlowClaimJoinExit>,
+)> {
     if let Some(call) = operations
         .iter()
         .filter_map(CheckedUnitEffectOperationPlan::call)
         .find(|call| *call.result() == checked_trees::CheckedUnitCallResult::NoNormal)
     {
-        return Some(CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal {
-            coordinate: call.coordinate,
-        });
+        return Some((
+            CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal {
+                coordinate: call.coordinate,
+            },
+            None,
+        ));
     }
     // A stopped prefix has no value to return, including a declaration-owned
     // external completion. The operation retains its exact outcome and entry
@@ -62,7 +68,10 @@ pub(super) fn build(
         .iter()
         .any(|operation| !operation.has_normal_continuation())
     {
-        return Some(CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal);
+        return Some((
+            CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal,
+            None,
+        ));
     }
     let result = result.clone();
     // The state's own owner answers its machine-scoped facts; the dispatch
@@ -149,6 +158,63 @@ pub(super) fn build(
             operations.push(operation);
             Some(CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result })
         };
+    // Static dispatch is selected before building any destination's operands.
+    // Unlike an ordinary unconditional tail, these calls have not been planned
+    // by the common prefix: their original guarded occurrence owns them.
+    if statements.get(terminator_index).is_some_and(|statement| {
+        matches!(statement, StatementNode::Transition(transition)
+            if matches!(transition.guard, TransitionGuardNode::When(_)))
+    }) && let Some(selected) = crate::execution::selected_transitions::selected_transition(
+        program,
+        statements,
+        terminator_index,
+    ) {
+        trace.phase("state graph: terminator: selected static destination");
+        let transition = selected.transition;
+        let selected_ordinal = selected.statement_ordinal;
+        let selected_exit = checked_trees::FlowClaimJoinExit {
+            state_symbol: state.symbol,
+            statement_index: selected_ordinal as usize,
+            kind: checked_trees::FlowClaimJoinExitKind::TransitionTarget,
+        };
+        if validation::completing_transition_transfer(program, transition.target).is_some_and(
+            |transfer| super::fused::fused_target_index(program, fused, transfer.target).is_some(),
+        ) {
+            return Some((
+                CheckedComposedUnitControlTerminatorPlan::Jump {
+                    successor: edge(
+                        operations,
+                        transition,
+                        selected_ordinal,
+                        SuccessorEdge::Jump,
+                        shapes,
+                    )?,
+                },
+                Some(selected_exit),
+            ));
+        }
+        let arm = guarded_return_arm(
+            program,
+            facts,
+            scalar_callees,
+            shapes,
+            machine,
+            state,
+            structural,
+            entry_claims,
+            local_results,
+            &result,
+            next_scalar_binding,
+            operations,
+            selected_ordinal,
+            transition,
+            trace,
+        )?;
+        return Some((
+            complete_selected_return(program, transition, arm, operations)?,
+            Some(selected_exit),
+        ));
+    }
     let before_closed_sum = trace.mark();
     let closed_sum = closed_sum::build(
         program,
@@ -773,7 +839,7 @@ pub(super) fn build(
             }
         }
     };
-    Some(terminator)
+    Some((terminator, None))
 }
 
 /// Rejoin the shared roster's authored destination, distinguishing a local
@@ -965,4 +1031,97 @@ fn crash_arm(
             TransitionTargetNode::Terminal
         ))
     .then_some(checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal })
+}
+
+/// Once selection is closed, the existing arm transaction becomes this state's
+/// completion. Preserve its operand order, call coordinate and post-call loan
+/// transaction; normal-edge cleanup still runs on the resulting terminator.
+fn complete_selected_return(
+    program: &dyn validation::CheckingInput,
+    transition: &typed_trees::statement::TableTransition,
+    arm: checked_trees::CheckedConditionalReturnArm,
+    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+) -> Option<CheckedComposedUnitControlTerminatorPlan> {
+    use checked_trees::{
+        CheckedConditionalReturnArm as Arm, CheckedScalarReturnPlan,
+        CheckedStructuralReturnCompletion, CheckedUnitCallResult, CheckedUnitStructuralReturnPlan,
+    };
+    Some(match arm {
+        Arm::EvaluateNoNormal {
+            operations: prefix, ..
+        } => {
+            operations.extend(prefix.iter().cloned());
+            CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal
+        }
+        Arm::Crash { statement_ordinal } => {
+            CheckedComposedUnitControlTerminatorPlan::Crash { statement_ordinal }
+        }
+        Arm::Unit { .. } => CheckedComposedUnitControlTerminatorPlan::ReturnUnit,
+        Arm::Scalar {
+            statement_ordinal,
+            primitive_type,
+        } => CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+            completion: CheckedScalarReturnPlan::Exits(
+                checked_trees::CheckedUnitScalarControlPlan {
+                    primitive_type,
+                    terminator: checked_trees::CheckedScalarStateTerminator::Return {
+                        statement_ordinal,
+                    },
+                },
+            ),
+        },
+        Arm::Structural(operation) => {
+            if !operation.has_normal_continuation() {
+                operations.push(operation);
+                return Some(CheckedComposedUnitControlTerminatorPlan::EvaluateNoNormal);
+            }
+            let binding = operation.structural_result_binding()?.clone();
+            let TransitionTargetNode::Value(expression) =
+                program.statement_table.transition_target(transition.target)
+            else {
+                return None;
+            };
+            let completion = CheckedStructuralReturnCompletion::Value {
+                statement_index: binding.statement_index,
+                expression: *expression,
+                evaluation: checked_trees::FlowPermissionEvaluation::TransitionTarget(
+                    transition.target,
+                ),
+            };
+            let result = CheckedUnitStructuralReturnPlan::from_binding(binding, completion);
+            operations.push(operation);
+            CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result }
+        }
+        Arm::Call {
+            operands,
+            operation,
+            completions,
+        } => {
+            let call = operation.call()?;
+            let coordinate = call.coordinate;
+            let completion = match call.result() {
+                CheckedUnitCallResult::NoNormal => {
+                    CheckedComposedUnitControlTerminatorPlan::InvokeNoNormal { coordinate }
+                }
+                CheckedUnitCallResult::Unit => CheckedComposedUnitControlTerminatorPlan::ReturnUnit,
+                CheckedUnitCallResult::Scalar(binding) => {
+                    CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+                        completion: CheckedScalarReturnPlan::Binding(*binding),
+                    }
+                }
+                CheckedUnitCallResult::Structural { binding, .. } => {
+                    CheckedComposedUnitControlTerminatorPlan::ReturnStructural {
+                        result: CheckedUnitStructuralReturnPlan::from_binding(
+                            binding.clone(),
+                            CheckedStructuralReturnCompletion::Call { coordinate },
+                        ),
+                    }
+                }
+            };
+            operations.extend(operands.iter().cloned());
+            operations.push(operation);
+            operations.extend(completions.iter().cloned());
+            completion
+        }
+    })
 }

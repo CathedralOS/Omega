@@ -60,13 +60,73 @@ pub(crate) fn selected_byte_output_bytes_are_exact(
             }]
 }
 
+/// The one runtime scalar argument a hosted i32 boundary carries, in slot 0 at
+/// the settlement's own offset, four-byte ring width and optional register.
+pub(crate) fn single_i32_register_argument(
+    settlement: &BoundarySettlementRecord,
+    expected_register: Option<MachineRegister>,
+) -> Option<&machine_code::ForeignCallScalarArgumentRecord> {
+    let [argument] = settlement.runtime_scalar_arguments.as_slice() else {
+        return None;
+    };
+    (argument.parameter_index == 0
+        && argument.code_offset == settlement.code_offset
+        && argument.byte_count == settlement.byte_count
+        && argument.placement.shape == ValueShape::integer(4, 4)
+        && matches!(
+            argument.placement.locations.as_slice(),
+            [ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size: 4,
+            }] if expected_register.is_none_or(|expected| *register == expected)
+        ))
+    .then_some(argument)
+}
+
+/// The i32 register argument record a hosted scalar boundary settles.
+pub(crate) fn hosted_i32_argument(
+    source: InternalUnitScalarArgumentSourceRecord,
+    register: MachineRegister,
+    code_offset: usize,
+    byte_count: usize,
+) -> machine_code::ForeignCallScalarArgumentRecord {
+    machine_code::ForeignCallScalarArgumentRecord {
+        parameter_index: 0,
+        source,
+        placement: calling_conventions::ValuePlacement {
+            shape: ValueShape::integer(4, 4),
+            locations: vec![ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size: 4,
+            }],
+        },
+        code_offset,
+        byte_count,
+    }
+}
+
+/// Everything a hosted scalar settlement must not carry beside that argument.
+pub(crate) fn settlement_carries_only_runtime_scalars(
+    settlement: &BoundarySettlementRecord,
+) -> bool {
+    settlement.native_result.is_unit()
+        && settlement.scalar_arguments.is_empty()
+        && settlement.arguments.is_empty()
+        && settlement.byte_sequence_arguments.is_empty()
+        && settlement.completion_claim_sources.is_empty()
+        && settlement.completion_receipts.is_empty()
+        && settlement.completion_provider_custody.is_empty()
+}
+
 /// This validates transport shape, not source authority. Installation separately
 /// compares the complete record against the replay-validated executable image.
 pub(crate) fn selected_byte_output_shape_is_exact(
     target: NativeTarget,
     settlement: &BoundarySettlementRecord,
 ) -> bool {
-    let [argument] = settlement.runtime_scalar_arguments.as_slice() else {
+    let Some(argument) = single_i32_register_argument(settlement, None) else {
         return false;
     };
     let InternalUnitScalarArgumentSourceRecord::SelectedBoundary {
@@ -108,25 +168,7 @@ pub(crate) fn selected_byte_output_shape_is_exact(
             settlement.realization,
             target_operations::BoundaryRealization::HostedWriteByteI32(_)
         )
-        && settlement.native_result.is_unit()
-        && settlement.scalar_arguments.is_empty()
-        && settlement.arguments.is_empty()
-        && settlement.byte_sequence_arguments.is_empty()
-        && settlement.completion_claim_sources.is_empty()
-        && settlement.completion_receipts.is_empty()
-        && settlement.completion_provider_custody.is_empty()
-        && argument.parameter_index == 0
-        && argument.code_offset == settlement.code_offset
-        && argument.byte_count == settlement.byte_count
-        && argument.placement.shape == ValueShape::integer(4, 4)
-        && matches!(
-            argument.placement.locations.as_slice(),
-            [ValueLocation::Register {
-                value_byte_offset: 0,
-                byte_size: 4,
-                ..
-            }]
-        )
+        && settlement_carries_only_runtime_scalars(settlement)
 }
 
 pub(crate) fn inspected_hosted_read_byte_roots(
@@ -418,12 +460,10 @@ mod tests {
     use super::{
         Architecture, BoundaryExecutionRecord, IntegerSign, IntegerType,
         InternalUnitScalarArgumentSourceRecord, MachineRegister, NativeTarget, ScalarType,
-        ValueLocation, ValueShape, decode_selected_byte_output, hosted_write_byte_custody_is_exact,
+        ValueShape, decode_selected_byte_output, hosted_i32_argument,
+        hosted_write_byte_custody_is_exact,
     };
-    use machine_code::{
-        BoundarySettlementRecord, ForeignCallScalarArgumentRecord, UnitIntegerConstantRecord,
-        UnitScalarHomeRecord,
-    };
+    use machine_code::{BoundarySettlementRecord, UnitIntegerConstantRecord, UnitScalarHomeRecord};
     use semantic_vocabulary::{BoundaryMachineId, IntegerValue, OperationId, ValueId};
     use target_operations::{
         BoundaryRealization, CompilerBuiltinExecution, HostedWriteByteI32Realization,
@@ -504,20 +544,7 @@ mod tests {
             Architecture::X86_64 => MachineRegister::X86R11,
             Architecture::Aarch64 => MachineRegister::Aarch64X(9),
         };
-        let mut argument = ForeignCallScalarArgumentRecord {
-            parameter_index: 0,
-            source,
-            placement: calling_conventions::ValuePlacement {
-                shape: ValueShape::integer(4, 4),
-                locations: vec![ValueLocation::Register {
-                    register,
-                    value_byte_offset: 0,
-                    byte_size: 4,
-                }],
-            },
-            code_offset: 0,
-            byte_count: 0,
-        };
+        let mut argument = hosted_i32_argument(source, register, 0, 0);
         let materialization =
             crate::object_artifact::call_sites::expected_foreign_scalar_argument_bytes(
                 target, &argument, 0,

@@ -1,0 +1,13 @@
+// Expected exit: 0.
+// A layout query measures its complete stored type, including a reference shell.
+data Pair { first: u64; second: u64; }
+const REFERENCE_BYTES: u64 = size_of<&Pair>();
+machine require_reference_layout() requires REFERENCE_BYTES == 8u64 {}
+machine main() crashes Trap {
+    require_reference_layout();
+    transition REFERENCE_BYTES == 8u64 && size_of<Pair>() == 16u64 {
+        true -> {}
+        _ -> bad()
+    }
+    machine bad() { crash Trap; }
+}

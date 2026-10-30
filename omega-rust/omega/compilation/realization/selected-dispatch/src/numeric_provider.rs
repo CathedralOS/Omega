@@ -24,13 +24,13 @@ impl<'a> NumericProviderSelection<'a> {
         requirement: SymbolHandle,
         realization: SymbolHandle,
     ) -> Result<effects::CompilerIntrinsicExecutionIdentity, Diagnostic> {
-        let join = || -> Result<_, &'static str> {
+        let join = || -> Result<_, String> {
             let nominal = self
                 .custody
                 .nominal(requirement)
                 .ok_or("numeric requirement has no checked declaration")?;
             if self.candidate.nominal(requirement) != Some(nominal) {
-                return Err("numeric requirement differs from checked declaration custody");
+                return Err("numeric requirement differs from checked declaration custody".into());
             }
             let realization = self
                 .custody
@@ -48,7 +48,9 @@ impl<'a> NumericProviderSelection<'a> {
                     row,
                 )
                 .and_then(|candidate| {
-                    candidate.ok_or("numeric selection has no checked external satisfaction")
+                    candidate.ok_or_else(|| {
+                        "numeric selection has no checked external satisfaction".into()
+                    })
                 })
                 .map(|candidate| {
                     (
@@ -81,7 +83,8 @@ impl<'a> NumericProviderSelection<'a> {
                 .transpose()?;
             if candidate != custody || candidate.1 != Some(realization) || candidate.2 != provider {
                 return Err(
-                    "numeric meaning, realization or owner differs from checked selection custody",
+                    "numeric meaning, realization or owner differs from checked selection custody"
+                        .into(),
                 );
             }
             Ok(candidate.0.into())
