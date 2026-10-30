@@ -170,9 +170,22 @@ pub(super) fn validate(
     }
     let fields = program.expression_table.match_fields(pattern.fields);
     let total = structural_match_pattern_is_total(program, MatchPattern::Destructure(pattern));
+    let selected_field_symbol = |field_symbol: SymbolHandle| {
+        if declared
+            .iter()
+            .any(|declared| declared.symbol == field_symbol)
+        {
+            return field_symbol;
+        }
+        program
+            .closed_data_constructor_field(reference, data.symbol, field_symbol)
+            .map(|selected| selected.symbol)
+            .unwrap_or(field_symbol)
+    };
     for (ordinal, field) in fields.iter().enumerate() {
         let exact = declared.iter().find(|declared| {
-            declared.symbol == field.field_symbol && declared.name.as_str() == field.member.as_str()
+            declared.symbol == selected_field_symbol(field.field_symbol)
+                && declared.name.as_str() == field.member.as_str()
         });
         if exact.is_none()
             || fields[..ordinal]
@@ -216,7 +229,7 @@ pub(super) fn validate(
         && declared.iter().any(|declared| {
             !fields
                 .iter()
-                .any(|field| field.field_symbol == declared.symbol)
+                .any(|field| selected_field_symbol(field.field_symbol) == declared.symbol)
         })
     {
         diagnostics.push(
@@ -266,5 +279,30 @@ pub fn structural_match_cases_are_covered(
     if variants.peek().is_none() {
         return cases.contains(&SymbolHandle::invalid());
     }
-    variants.all(|variant| cases.contains(&variant.symbol))
+    variants
+        .filter(|variant| !variant_is_impossible(program, variant))
+        .all(|variant| cases.contains(&variant.symbol))
+}
+
+/// A variant carrying a literal-false `where` fact -- the `0`/`false` witness
+/// generic synthesis leaves when an instance's `T == name` refutes, or an
+/// authored `where false` -- can never be established, so it is not an
+/// obligation the match must cover. Facts needing evaluation are not
+/// contradictions and stay counted.
+fn variant_is_impossible(
+    program: &dyn crate::CheckingInput,
+    variant: &typed_trees::data::DataVariant,
+) -> bool {
+    program
+        .proof_facts
+        .span_or_empty(variant.where_facts)
+        .iter()
+        .any(|fact| match fact.as_expression() {
+            Some(expression) => match program.expression_table.expression(*expression) {
+                ExpressionNode::Integer(literal) => literal.decimal_value_i128() == Some(0),
+                ExpressionNode::Boolean(value) => !*value,
+                _ => false,
+            },
+            None => false,
+        })
 }
