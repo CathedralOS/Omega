@@ -11,6 +11,7 @@ pub(super) struct CaseObservation {
     pub place: CanonicalPlace,
     pub variant: SymbolHandle,
     pub selected: bool,
+    pub stable_index_subject: bool,
 }
 
 pub(super) fn collect(
@@ -57,6 +58,7 @@ pub(super) fn collect(
                     place,
                     variant,
                     selected: value,
+                    stable_index_subject: false,
                 });
             }
             _ => {}
@@ -65,6 +67,10 @@ pub(super) fn collect(
     // Normalize every retained observation in this same immutable consumer
     // scope once. Captured expression roots stay exact saved occurrences.
     for row in &mut observer.rows {
+        // Check the original selector before pinned-index normalization can
+        // hide a mutable or foreign binding behind a fixed coordinate.
+        row.stable_index_subject = has_index(&row.place)
+            && super::stable_subject(program, machine, state, statement_index, &row.place);
         normalize_place(
             program,
             semantic,
@@ -205,6 +211,7 @@ impl Observer<'_> {
                     place,
                     variant,
                     selected: value,
+                    stable_index_subject: false,
                 });
             }
             _ => {}

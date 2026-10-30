@@ -497,6 +497,12 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 environment,
                 (machine, state, state.return_type),
             ) else {
+                if super::struct_trace() {
+                    eprintln!(
+                        "STRUCT call-prefix no operation entries caller={} statement={}",
+                        machine.name, self.statement_index
+                    );
+                }
                 self.proven = false;
                 return;
             };
@@ -509,6 +515,12 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 (machine, state, state.return_type),
                 self.call_site,
             ) else {
+                if super::struct_trace() {
+                    eprintln!(
+                        "STRUCT call-prefix no argument entries caller={} statement={}",
+                        machine.name, self.statement_index
+                    );
+                }
                 self.proven = false;
                 return;
             };
@@ -524,6 +536,12 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 return;
             }
             let Some(observed_arguments) = entry.observed_arguments() else {
+                if super::struct_trace() {
+                    eprintln!(
+                        "STRUCT call-prefix missing observed arguments caller={} statement={}",
+                        machine.name, self.statement_index
+                    );
+                }
                 self.proven = false;
                 return;
             };
@@ -646,6 +664,12 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     Some(value.clone())
                 };
                 let Some(value) = value else {
+                    if super::struct_trace() {
+                        eprintln!(
+                            "STRUCT call-prefix missing actual observation caller={} parameter={}",
+                            machine.name, predicate_parameter.name
+                        );
+                    }
                     let mut expressions = Vec::new();
                     crate::expression_traversal::collect_expression_tree(
                         program,
@@ -668,22 +692,29 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 };
                 substitution.push((predicate_parameter.name.as_str().to_owned(), value));
             }
-            self.proven &= matches!(
-                instantiated_selected_fact_judgment(
-                    program,
-                    &entry.judge,
-                    self.callee_owner,
-                    &requirement_parameters,
-                    self.expression,
-                    &substitution,
-                    self.inherited
-                        .as_ref()
-                        .map_or(&[], |predicate| predicate.selections.as_slice()),
-                    &type_substitution,
-                    Some((machine, state)),
-                ),
-                StructuralJudgment::Proven,
+            let judgment = instantiated_selected_fact_judgment(
+                program,
+                &entry.judge,
+                self.callee_owner,
+                &requirement_parameters,
+                self.expression,
+                &substitution,
+                self.inherited
+                    .as_ref()
+                    .map_or(&[], |predicate| predicate.selections.as_slice()),
+                &type_substitution,
+                Some((machine, state)),
             );
+            if !matches!(judgment, StructuralJudgment::Proven) && super::struct_trace() {
+                eprintln!(
+                    "STRUCT call-prefix judgment caller={} statement={} case_only={} judgment={judgment:?} goal={} substitution={substitution:?}",
+                    machine.name,
+                    self.statement_index,
+                    judge.has_runtime_body_values() && !judge.requires_value_preservation(),
+                    program.expression_table.display_name(self.expression)
+                );
+            }
+            self.proven &= matches!(judgment, StructuralJudgment::Proven);
         }
     }
 }
