@@ -161,16 +161,7 @@ pub(super) fn close(
             None => provider.const_bindings[ordinal] = Some(actual),
             Some(previous)
                 if !supplied_constants[ordinal]
-                    && program
-                        .static_const_type_reference_identity(previous)
-                        .zip(program.static_const_type_reference_identity(actual))
-                        .map_or_else(
-                            || {
-                                program.normalized_type_identity_text(previous)
-                                    != program.normalized_type_identity_text(actual)
-                            },
-                            |(previous, actual)| previous != actual,
-                        ) =>
+                    && !super::super::selection::same_const_identity(program, previous, actual) =>
             {
                 provider.conflicted = true
             }

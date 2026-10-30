@@ -195,6 +195,8 @@ struct CallSelection {
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     evidence_bindings: Vec<Option<StaticMachineArgument>>,
     conflicted: bool,
+    /// First failed proposal, retained only for the owning refusal diagnostic.
+    conflict_reason: Option<String>,
     /// An authored argument exceeded its binder-kind capacity before inference.
     explicit_argument_overflow: bool,
 }
@@ -679,8 +681,67 @@ fn incomplete_selection_diagnostic(
     } else {
         String::new()
     };
+    let mut details = Vec::new();
+    if let Some(reason) = &selection.conflict_reason {
+        details.push(reason.clone());
+    }
+    for ((_, name), binding) in candidate
+        .template
+        .type_parameters
+        .iter()
+        .zip(&selection.type_bindings)
+    {
+        if binding.is_none() {
+            details.push(format!("Type slot `{name}` has no proposal"));
+        }
+    }
+    for ((_, name, _), binding) in candidate
+        .template
+        .const_parameters
+        .iter()
+        .zip(&selection.const_bindings)
+    {
+        if binding.is_none() {
+            details.push(format!("Const slot `{name}` has no proposal"));
+        }
+    }
+    for ((_, name, _), binding) in candidate
+        .template
+        .machine_parameters
+        .iter()
+        .zip(&selection.machine_bindings)
+    {
+        if binding.is_none() {
+            details.push(format!("Machine slot `{name}` has no proposal"));
+        }
+    }
+    for (ordinal, binding) in selection.evidence_bindings.iter().enumerate() {
+        if binding.is_none() {
+            details.push(format!(
+                "evidence slot `{}` has no proposal",
+                candidate.template.evidence_parameters[ordinal].binder_name
+            ));
+        }
+    }
+    for (kind, unresolved) in [
+        ("Type", selection.unresolved_type_parameters),
+        ("Const", selection.unresolved_const_parameters),
+        ("Machine", selection.unresolved_machine_parameters),
+        ("evidence", selection.unresolved_evidence_parameters),
+    ] {
+        if unresolved {
+            details.push(format!(
+                "{kind} proposals retain an open supplying parameter"
+            ));
+        }
+    }
+    let detail = if details.is_empty() {
+        String::new()
+    } else {
+        format!(": {}", details.join("; "))
+    };
     let diagnostic = Diagnostic::error(format!(
-        "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived{location}",
+        "generic machine `{}` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived{location}{detail}",
         candidate.template.template_name,
     ));
     match selection.site {

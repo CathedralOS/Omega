@@ -5,7 +5,9 @@ use crate::monomorphization::selection::callee_proposals::{
     enclosing_statement_ordinal, resolve_callee,
 };
 use crate::monomorphization::selection::collect_call_proposals;
-use crate::monomorphization::selection::static_bindings::same_type_identity;
+use crate::monomorphization::selection::static_bindings::{
+    same_const_identity, same_type_identity,
+};
 use crate::monomorphization::{
     CallSelection, CallSite, CalleeState, Candidate, ExpressionHandle, SpecializationKey,
     StaticMachineArgument, SymbolHandle, SymbolKind, TypeParameterKind, TypeReferenceHandle,
@@ -189,6 +191,7 @@ pub(crate) fn selection_from_proposals(
         machine_bindings: bindings.machine_bindings,
         evidence_bindings: bindings.evidence_bindings,
         conflicted: bindings.conflicted,
+        conflict_reason: bindings.conflict_reason,
     }
 }
 
@@ -203,6 +206,7 @@ pub(crate) struct ProposalBindings {
     pub(crate) machine_bindings: Vec<Option<StaticMachineArgument>>,
     pub(crate) evidence_bindings: Vec<Option<StaticMachineArgument>>,
     pub(crate) conflicted: bool,
+    pub(crate) conflict_reason: Option<String>,
 }
 
 pub(crate) fn proposal_bindings(
@@ -230,6 +234,7 @@ pub(crate) fn proposal_bindings(
         machine_bindings: vec![None; candidate.template.machine_parameters.len()],
         evidence_bindings: vec![None; candidate.template.evidence_parameters.len()],
         conflicted: false,
+        conflict_reason: None,
     };
     for (_, parameter, argument) in runtime_value_proposals {
         // Runtime code is keyed by the declared carrier, not by a value
@@ -246,7 +251,15 @@ pub(crate) fn proposal_bindings(
         match selection.type_bindings[parameter] {
             None => selection.type_bindings[parameter] = Some(binding),
             Some(existing) if !same_type_identity(program, existing, binding) => {
-                selection.conflicted = true
+                selection.conflicted = true;
+                selection.conflict_reason.get_or_insert_with(|| {
+                    format!(
+                        "Type slot `{}` conflicts: {} versus {}",
+                        candidate.template.type_parameters[parameter].1,
+                        describe_binding(program, existing),
+                        describe_binding(program, binding),
+                    )
+                });
             }
             Some(_) => {}
         }
@@ -271,8 +284,16 @@ pub(crate) fn proposal_bindings(
         }
         match selection.const_bindings[parameter] {
             None => selection.const_bindings[parameter] = Some(binding),
-            Some(existing) if !same_type_identity(program, existing, binding) => {
-                selection.conflicted = true
+            Some(existing) if !same_const_identity(program, existing, binding) => {
+                selection.conflicted = true;
+                selection.conflict_reason.get_or_insert_with(|| {
+                    format!(
+                        "Const slot `{}` conflicts: {} versus {}",
+                        candidate.template.const_parameters[parameter].1,
+                        describe_binding(program, existing),
+                        describe_binding(program, binding),
+                    )
+                });
             }
             Some(_) => {}
         }
@@ -289,7 +310,17 @@ pub(crate) fn proposal_bindings(
         }
         match &selection.machine_bindings[parameter] {
             None => selection.machine_bindings[parameter] = Some(binding),
-            Some(existing) if existing.symbol != binding.symbol => selection.conflicted = true,
+            Some(existing) if existing.symbol != binding.symbol => {
+                selection.conflicted = true;
+                selection.conflict_reason.get_or_insert_with(|| {
+                    format!(
+                        "Machine slot `{}` conflicts: {} versus {}",
+                        candidate.template.machine_parameters[parameter].1,
+                        existing.display_name(),
+                        binding.display_name(),
+                    )
+                });
+            }
             Some(_) => {}
         }
     }
@@ -303,12 +334,41 @@ pub(crate) fn proposal_bindings(
                 if existing.symbol != binding.symbol
                     || existing.display_name() != binding.display_name() =>
             {
-                selection.conflicted = true
+                selection.conflicted = true;
+                selection.conflict_reason.get_or_insert_with(|| {
+                    format!(
+                        "evidence slot `{}` conflicts: {} versus {}",
+                        candidate.template.evidence_parameters[parameter].binder_name,
+                        existing.display_name(),
+                        binding.display_name(),
+                    )
+                });
             }
             Some(_) => {}
         }
     }
     selection
+}
+
+fn describe_binding(
+    program: &dyn validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> String {
+    let owner = program
+        .type_reference_table
+        .operand_lifetime_owner(reference);
+    format!(
+        "{} [identity {}; supplier {}]",
+        program.display_type_reference(reference),
+        program
+            .static_const_type_reference_identity(reference)
+            .unwrap_or_else(|| program.normalized_type_identity_text(reference)),
+        if owner.is_valid() {
+            program.symbols.display_path(owner, "::")
+        } else {
+            "unretained".into()
+        },
+    )
 }
 
 pub(crate) fn type_reference_is_any_generic_parameter(
