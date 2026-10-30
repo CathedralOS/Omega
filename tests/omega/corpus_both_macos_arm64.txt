@@ -24,6 +24,8 @@ pass/build/provider_applied_const29_exit built 2469ms exit:0 interpreter-exit:0 
 pass/build/provider_nested_type_application_exit built 2392ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @bad69cc2a485
 pass/build/provider_structural_type_application_exit built 2830ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @b86bab8d85ef
 pass/calls/converted_call_value_private_arrival_exit built 1101ms exit:0 interpreter-exit:0 interpreter:agrees @ef874b4d34bc
+pass/calls/returned_nested_record_disjoint_field_move_exit built 1382ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
+pass/calls/returned_nested_record_newer_child_exit built 1292ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
 pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit built 1389ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
 pass/calls/static_machine_required_input_crash_refinement_exit built 1270ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
 pass/collections/runtime_owned_array_projection_snapshot_exit built 5859ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @27c558b731f4
@@ -50,7 +52,15 @@ pass/facts/borrowed_result_field_domains_sibling_write_other_machine_exit built 
 pass/facts/borrowed_result_field_domains_sibling_write_other_state_exit built 1016ms exit:0 interpreter-exit:0 interpreter:agrees @a130a16c2522
 pass/facts/borrowed_result_field_domains_sibling_write_parameter_exit built 1021ms exit:0 interpreter-exit:0 interpreter:agrees @a130a16c2522
 pass/facts/borrowed_result_field_domains_sibling_write_target_body_exit built 1016ms exit:0 interpreter-exit:0 interpreter:agrees @a130a16c2522
-pass/facts/disjoint_field_borrow_windows_through_local_exit built 1244ms exit:0 interpreter-exit:0 interpreter:agrees @cdaaea7fffc3
+pass/facts/disjoint_field_borrow_windows_through_call_result_exit built 1145ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_const_name_exit built 1167ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_field_exit built 1151ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_local_exit built 1129ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_match_join_exit built 1112ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_other_machine_exit built 1141ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_other_state_exit built 1170ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_parameter_exit built 1154ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
+pass/facts/disjoint_field_borrow_windows_through_target_body_exit built 1454ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @1e127a84987a
 pass/facts/ieee_guard_i32_from_f64_call_result built 2281ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
 pass/facts/ieee_guard_i32_from_f64_const_name built 2284ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
 pass/facts/ieee_guard_i32_from_f64_field built 1997ms exit:0 interpreter-exit:0 interpreter:agrees @da380b16b89b+wt
