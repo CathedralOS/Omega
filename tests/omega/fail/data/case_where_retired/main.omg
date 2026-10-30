@@ -1,0 +1,11 @@
+// Case-local `where` clauses are RETIRED: the case predicate lives in the
+// data's `requires` disjunction as `(self in Interval::Range) &&
+// self.lo <= self.hi`, which the parser projects back onto the variant's
+// facts for construction, matching and coverage.
+
+data Interval [copy] {
+    case Range(lo: u64, hi: u64) where lo <= hi;
+}
+
+machine main() {
+}

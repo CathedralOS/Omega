@@ -465,23 +465,17 @@ fn parse_case_member<'tokens, 'source>(
         (HandleSpan::empty(), Vec::new())
     };
 
-    // CASE-CONSTRAINTS: a case-local `where` clause after the payload list --
-    // `case Range(lo: u64, hi: u64) where lo <= hi;` -- names payload and
-    // common fields; the fact list ends at the case's `;`. The
-    // case-constraints-through-default-domain migration spells the same
-    // proposition in the data's `requires` disjunction; both views land on
-    // this `where_facts` span (see `project_case_predicate_facts`).
-    let mut where_facts = HandleSpan::empty();
+    // CASE-CONSTRAINTS (retired): a case-local `where` clause after the
+    // payload list -- `case Range(lo: u64, hi: u64) where lo <= hi;` -- is
+    // superseded by the data's `requires` disjunction, which spells the same
+    // proposition per case as `(self in <data>::<case>) && self.<field> ...`.
+    // The parser projects that disjunction back onto this `where_facts` span
+    // (see `project_case_predicate_facts`), so the authored clause is gone.
+    let where_facts = HandleSpan::empty();
     if input.at_contextual("where") {
-        input = input.take_contextual("where")?;
-        let ((facts, _token_count), rest) =
-            crate::contracts::facts::parse_logical_proof_facts_until(
-                syntax_trees,
-                input,
-                |input| input.at_punctuation(PunctuationKind::Semicolon) || input.tokens.is_empty(),
-            )?;
-        where_facts = facts;
-        input = rest;
+        return Err(input.error_here(
+            "case-local `where` is retired; spell the case predicate in the data's `requires` disjunction as `(self in <data>::<case>) && self.<field> <bound>`",
+        ));
     }
 
     input = if input.at_punctuation(PunctuationKind::Semicolon) {

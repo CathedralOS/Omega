@@ -1,0 +1,11 @@
+// Comma-separated case-local fact lists retired with the clause itself:
+// the same proposition spells `self.x >= 1 && self.x <= 16` inside
+// `requires (self in Packet::Short) && ...`.
+
+data Packet [copy] {
+    case Short(x: u64) where x >= 1, x <= 16;
+    case Long(x: u64, y: u64);
+}
+
+machine main() {
+}
