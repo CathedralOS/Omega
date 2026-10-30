@@ -353,14 +353,6 @@ fn select_checked_providers(
     if let Some(entry) = &mut selected_program_entry {
         entry.bind_physical_adapter(typed, &selected_provider_provenance)?;
     }
-    provider_planning::target_machines::reject_reached_inert_sibling_calls(
-        typed,
-        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
-        selected_program_entry
-            .as_ref()
-            .map(|entry| entry.machine_symbol()),
-        &selected_provider_provenance,
-    )?;
     let root_grants = build_config.root_grant_selectors();
     let providers =
         providers.prepare_row_declarations(typed, source.sources.exact_toolchain_sources())?;

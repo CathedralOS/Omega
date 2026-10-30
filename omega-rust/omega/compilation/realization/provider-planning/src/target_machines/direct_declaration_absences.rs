@@ -1,48 +1,38 @@
-//! Known missing target bodies in direct call closures.
+//! Propagate missing declaration custody through direct provider call closures.
 //!
-//! A portable adapter can call a family that only hosted targets implement.
-//! Its source remains checked on a freestanding target, but the adapter cannot
-//! make a complete provider candidate there. Compute this negative fact before
-//! selection so an otherwise unique map cannot force an unavailable service
-//! into a library review. Candidates remain whole maps, never combined rows.
-//!
-//! This is not a realizability certificate. Bodyless requirements still await
-//! provider selection; implicit operators, cleanup and dynamic dispatch still
-//! need their existing realization checks. Only an exact direct call into a
-//! missing target body propagates absence. Reverse propagation reaches the
-//! fixed point through recursive closures without caching provisional success.
+//! Scope membership is source provenance, not target applicability. Bodyless
+//! requirements remain provider dependencies; this walk grants no execution.
 
 use crate::ProviderPlanningContext;
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::typed_trees::inspection::callees::ExplicitStateCallees;
 use symbols::SymbolHandle;
 
-pub(crate) struct DirectTargetBodyAbsences {
+pub(crate) struct DirectDeclarationAbsences {
     /// Positions belong to the immutable typed machine roster of this query.
     absent: Vec<bool>,
 }
 
-impl DirectTargetBodyAbsences {
-    pub(crate) fn derive(context: ProviderPlanningContext<'_>, target: Option<&str>) -> Self {
+impl DirectDeclarationAbsences {
+    pub(crate) fn derive(context: ProviderPlanningContext<'_>) -> Self {
         let typed = context.typed;
         let machines = typed.machines();
         let mut absent = vec![false; machines.len()];
         let mut callers = vec![Vec::new(); machines.len()];
         let mut callees = ExplicitStateCallees::default();
         for (position, machine) in machines.iter().enumerate() {
-            if !super::realizes_machine(context, machine, target) {
+            if !context.contains(machine.symbol) {
                 absent[position] = true;
                 continue;
             }
             for state in typed.machine_states(machine) {
                 for called in callees.collect(typed, state) {
                     // A requirement without an authored machine is a provider
-                    // dependency, not a family with a missing target member.
+                    // dependency, not a missing authored declaration.
                     let Some(declaration) = super::called_machine(typed, *called) else {
                         continue;
                     };
-                    let Some(realization) =
-                        super::realized_row_machine(context, declaration.symbol, target)
+                    let Some(realization) = super::scoped_row_machine(context, declaration.symbol)
                     else {
                         absent[position] = true;
                         continue;

@@ -205,16 +205,10 @@ pub fn provider_row_matches(
         {
             return false;
         }
-        // The row names what resolution bound its authored path to; on this
-        // plan's target that stands for one body: the machine itself or its
-        // family's member for the target.
+        // The row names the exact ordinary machine selected by its Build plan.
         if plan.application_identity().is_none()
-            && crate::target_machines::realized_row_machine(
-                context,
-                entry.realization_machine,
-                Some(&plan.target),
-            )
-            .is_some_and(|realized| realized.symbol == machine.symbol)
+            && crate::target_machines::scoped_row_machine(context, entry.realization_machine)
+                .is_some_and(|realized| realized.symbol == machine.symbol)
         {
             return true;
         }

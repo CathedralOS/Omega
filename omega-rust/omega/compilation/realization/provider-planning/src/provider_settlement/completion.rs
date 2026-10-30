@@ -160,8 +160,8 @@ impl CompletionReview<'_> {
     ) -> Result<Outcome, String> {
         let context =
             crate::ProviderPlanningContext::new(self.checked, source::DependencyScope::Product);
-        let machine = crate::target_machines::realized_row_machine(context, symbol, self.target)
-            .ok_or_else(|| "completion call has no exact target realization".to_owned())?;
+        let machine = crate::target_machines::scoped_row_machine(context, symbol)
+            .ok_or_else(|| "completion call has no exact scoped declaration".to_owned())?;
         if !machine.body_is_present {
             if let Some(backing) = crate::provider_planning::native_catalogue_backing::resolve(
                 &self.checked.typed,

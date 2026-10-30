@@ -169,8 +169,7 @@ pub(super) fn derive(
                 row_placed_accessors: Vec::new(),
             };
             for row in rows {
-                // The row binds the entry of the machine resolution named; a
-                // family head's entry stands for every member's.
+                // The row binds the exact entry of its resolved ordinary machine.
                 let named = typed.machine_by_symbol(row.realization_machine)?;
                 if typed.machine_states(named).first()?.symbol != row.realization_state {
                     return None;
@@ -180,11 +179,7 @@ pub(super) fn derive(
                 } else {
                     row.realization_machine
                 };
-                let machine = crate::target_machines::realized_row_machine(
-                    context,
-                    realization,
-                    selected_target,
-                )?;
+                let machine = crate::target_machines::scoped_row_machine(context, realization)?;
                 if typed.symbols.symbol_package_identity(machine.symbol) != origin_package {
                     return None;
                 }
@@ -220,9 +215,8 @@ pub(super) fn derive(
                         0,
                     )
                 } else {
-                    // Foreign candidates belong to the selected target member,
-                    // while the authored map can name its portable family head.
-                    // Join the resolved identity, just as checked adapters do.
+                    // Catalogue candidates retain the exact resolved identity,
+                    // just as checked adapters do.
                     let mut matched = Vec::new();
                     for candidate in candidates {
                         for (index, binding) in candidate.plan.rows.iter().enumerate() {

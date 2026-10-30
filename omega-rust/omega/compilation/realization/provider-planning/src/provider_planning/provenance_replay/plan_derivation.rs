@@ -40,9 +40,7 @@ pub(crate) fn derive_provider_plans(
     // transitional settlement derives only the requested realization's rows;
     // semantic declaration queries must never perform that selection for us.
     for machine in typed.machines() {
-        if !is_authored_provider_machine(typed, machine)
-            || !crate::target_machines::realizes_machine(context, machine, selected_target)
-        {
+        if !is_authored_provider_machine(typed, machine) || !context.contains(machine.symbol) {
             continue;
         }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
@@ -157,12 +155,9 @@ pub(crate) fn derive_provider_plans(
         super::named_provider_plans::derive(context, calling_plans, selected_target, &plans);
     plans.extend(named);
     derive_placed_accessor_plans(context, selected_target, &mut plans)?;
-    // Coverage includes the selected target's direct body closure, not only
-    // the portable adapter's own declaration. Keep every authored source body,
-    // but exclude a whole map when one of its rows reaches a known absent
-    // target body. Completion, provider dependencies and admission remain
-    // separate obligations on the candidates that selection actually chooses.
-    let absent = crate::target_machines::DirectTargetBodyAbsences::derive(context, selected_target);
+    // A candidate cannot borrow declarations from the other dependency purpose.
+    // Selection and admission independently establish its execution closure.
+    let absent = crate::target_machines::DirectDeclarationAbsences::derive(context);
     plans.retain(|candidate| {
         !candidate.provenance.row_realizations.iter().any(|machine| {
             machine
@@ -181,9 +176,7 @@ fn derive_top_level_requirement_plans(
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
-        if !is_authored_provider_machine(typed, machine)
-            || !crate::target_machines::realizes_machine(context, machine, selected_target)
-        {
+        if !is_authored_provider_machine(typed, machine) || !context.contains(machine.symbol) {
             continue;
         }
         let is_checked_adapter = machine.supply_mode
@@ -322,9 +315,7 @@ fn derive_boundary_operator_plans(
     let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
-        if !is_authored_provider_machine(typed, machine)
-            || !crate::target_machines::realizes_machine(context, machine, selected_target)
-        {
+        if !is_authored_provider_machine(typed, machine) || !context.contains(machine.symbol) {
             continue;
         }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);

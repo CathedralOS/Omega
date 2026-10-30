@@ -142,22 +142,11 @@ pub fn exact_checked_adapter<'typed>(
     let target_identity_text = plan.identity_text(*machine_identity);
     let target_callable_identity = typed.callable_identity_by_text(target_identity_text);
     let identity_matches = if target_callable_identity.is_valid() {
-        let mut matches = typed
+        typed
             .machines_by_callable_identity(target_callable_identity)
             .into_iter()
-            .filter(|candidate| {
-                crate::target_machines::realizes_machine(context, candidate, Some(&plan.target))
-            })
-            .collect::<Vec<_>>();
-        for candidate in typed.machines() {
-            if candidate.target.is_some()
-                && crate::target_machines::realizes_machine(context, candidate, Some(&plan.target))
-                && typed.machine_callable_identity(candidate) == target_callable_identity
-            {
-                matches.push(candidate);
-            }
-        }
-        matches
+            .filter(|candidate| context.contains(candidate.symbol))
+            .collect::<Vec<_>>()
     } else {
         Vec::new()
     };
