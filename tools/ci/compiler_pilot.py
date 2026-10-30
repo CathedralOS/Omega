@@ -6,11 +6,13 @@ The corpus owns source checking, native/Terminal execution and diagnostic oracle
 this caller additionally refuses missing rows and success without execution.
 """
 
+import argparse
 from dataclasses import dataclass
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+import re
 import shutil
 import subprocess
 import sys
@@ -32,6 +34,43 @@ NEGATIVES = (
     "fail/domains/carried_indexed_payload_qualification",
     "fail/domains/carried_runtime_index_payload_qualification",
 )
+FIXTURE_ENVIRONMENT = "OMEGA_COMPILER_PILOT_FIXTURES"
+
+
+def select_fixtures(request):
+    """Validate exact existing corpus IDs before any producer is built.
+
+    The corpus accepts substring filters. Refuse collisions rather than run an
+    unrequested fixture, and never turn an invalid request into the smoke set.
+    """
+    if not isinstance(request, str):
+        raise ValueError("fixtures must be a comma-separated string")
+    fixtures = tuple(part.strip() for part in request.split(","))
+    if not fixtures or any(not fixture for fixture in fixtures):
+        raise ValueError("fixtures must be nonempty comma-separated corpus IDs")
+    if len(set(fixtures)) != len(fixtures):
+        raise ValueError("fixture IDs must be distinct")
+    root = (ROOT / "tests" / "omega").resolve()
+    groups = set()
+    for fixture in fixtures:
+        path = PurePosixPath(fixture)
+        if (len(path.parts) != 3 or path.parts[0] not in ("pass", "fail")
+                or any(part in (".", "..") for part in path.parts)
+                or "\\" in fixture or path.as_posix() != fixture):
+            raise ValueError(f"not a normalized pass/group/name or fail/group/name ID: {fixture!r}")
+        directory = root.joinpath(*path.parts)
+        if not directory.resolve().is_relative_to(root) or not (directory / "main.omg").is_file():
+            raise ValueError(f"fixture has no existing main.omg inside tests/omega: {fixture}")
+        groups.add(directory.parent)
+    matched = {directory.relative_to(root).as_posix()
+               for group in groups for directory in group.iterdir()
+               if (directory / "main.omg").is_file()
+               and any(fragment in directory.relative_to(root).as_posix() for fragment in fixtures)}
+    if matched != set(fixtures):
+        raise ValueError("corpus substring filter would also select unrequested fixtures: "
+                         + ", ".join(sorted(matched - set(fixtures))))
+    return (tuple(fixture for fixture in fixtures if fixture.startswith("pass/")),
+            tuple(fixture for fixture in fixtures if fixture.startswith("fail/")))
 
 
 def validate_report(report, expected, *, both, revision, target):
@@ -52,7 +91,9 @@ def validate_report(report, expected, *, both, revision, target):
         elif both:
             facts = row.get("facts", {})
             if (row["status"] != "built" or facts.get("interpreter") != "agrees"
-                    or "exit" not in facts or facts["exit"] != facts.get("interpreter-exit")):
+                    or not isinstance(facts.get("exit"), str)
+                    or not re.fullmatch(r"-?\d+", facts.get("exit", ""))
+                    or facts["exit"] != facts.get("interpreter-exit")):
                 raise ValueError(f"{row['fixture']}: missing native/Terminal agreement")
             for stream in ("stdout", "stderr"):
                 oracle = ROOT / "tests" / "omega" / row["fixture"] / f"expected_{stream}.txt"
@@ -116,7 +157,7 @@ class CompilerProducer:
 
 
 def prepare_producer(output):
-    """Build and retain the ordinary producer once, before choosing consumers."""
+    """Build and retain the ordinary producer once for validated consumers."""
     output = Path(output).resolve()
     revision = command(["git", "rev-parse", "HEAD"])
     if command(["git", "status", "--porcelain"]) or os.environ.get("GITHUB_SHA", revision) != revision:
@@ -228,11 +269,14 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         raise ValueError("candidate changed during validation")
 
 
-def run_suite(name, positives, negatives, *, checking_only=(), producer=None):
+def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fixtures=None):
     output = ROOT / "build" / name
     output.mkdir(parents=True, exist_ok=True)
     summary = dict(schema="omega-compiler-pilot-v1", passed=False)
     try:
+        if fixtures is not None:
+            positives, negatives = select_fixtures(fixtures)
+            checking_only = ()
         execute(output, summary, positives=positives, negatives=negatives,
                 checking_only=checking_only, producer=producer)
         summary["passed"] = True
@@ -246,8 +290,14 @@ def run_suite(name, positives, negatives, *, checking_only=(), producer=None):
         (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
 
-def main():
-    return run_suite("compiler-pilot", POSITIVES, NEGATIVES)
+def main(arguments=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--fixtures", help="comma-separated exact pass/group/name or fail/group/name IDs")
+    options = parser.parse_args(arguments)
+    fixtures = options.fixtures
+    if fixtures is None:
+        fixtures = os.environ.get(FIXTURE_ENVIRONMENT) or None
+    return run_suite("compiler-pilot", POSITIVES, NEGATIVES, fixtures=fixtures)
 
 
 if __name__ == "__main__":
