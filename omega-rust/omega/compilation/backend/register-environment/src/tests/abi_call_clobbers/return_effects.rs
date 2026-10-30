@@ -2,15 +2,14 @@ use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, ScalarAbiCase,
     abi_case_context, assert_faulting_trap, assert_storage_free,
     baseline_target_register_environment, binds_catalog_provenance, convention_for, declared_pairs,
-    encoded_mut, produced_effects, row_and_declaration, scalar_abi_cases, units_for_names,
-    validate_effects,
+    encoded_mut, produced_effects, row_and_declaration, scalar_abi_cases, sole_alternative,
+    units_for_names, validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectCatalogValidationError, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior,
+    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectCatalogValidationError,
+    MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 /// Every selected return rule key with the semantic family the effect
@@ -153,15 +152,7 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
 
             // One canonical alternative replays the exact ABI return
             // mechanism for this target.
-            assert_eq!(declaration.alternatives.len(), 1, "{key:?}");
-            let alternative = &declaration.alternatives[0];
-            assert_eq!(alternative.key.family, (*semantic).into(), "{key:?}");
-            assert_eq!(alternative.key.variant, 0, "{key:?}");
-            assert_eq!(
-                alternative.applicability,
-                MachineAlternativeApplicability::Always,
-                "{key:?}"
-            );
+            let alternative = sole_alternative(declaration, *semantic, *key);
             let encoded = &alternative.encoded;
             assert!(encoded.external_operand_reads.is_empty(), "{key:?}");
             assert!(encoded.external_operand_writes.is_empty(), "{key:?}");

@@ -2,7 +2,8 @@ use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     assert_faulting_trap, assert_storage_free, baseline_target_register_environment,
     binds_catalog_provenance, declaration_mut, declared_pairs, encoded_mut, flags_view, named_view,
-    produced_effects, row_and_declaration, scalar_abi_cases, stack_pointer_view, validate_effects,
+    produced_effects, row_and_declaration, scalar_abi_cases, sole_alternative, stack_pointer_view,
+    validate_effects,
 };
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -216,15 +217,7 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
 
             // One canonical alternative replays the exact ABI branch
             // mechanism for this target.
-            assert_eq!(declaration.alternatives.len(), 1, "{key:?}");
-            let alternative = &declaration.alternatives[0];
-            assert_eq!(alternative.key.family, (*semantic).into(), "{key:?}");
-            assert_eq!(alternative.key.variant, 0, "{key:?}");
-            assert_eq!(
-                alternative.applicability,
-                MachineAlternativeApplicability::Always,
-                "{key:?}"
-            );
+            let alternative = sole_alternative(declaration, *semantic, *key);
             assert_eq!(
                 alternative.size,
                 expected_size(*semantic, case.target.architecture),

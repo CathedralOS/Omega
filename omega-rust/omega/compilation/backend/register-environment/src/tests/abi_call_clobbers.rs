@@ -25,10 +25,10 @@ use register_model::{
     ValidatedRegisterConstraintCatalog,
 };
 use selected_instructions::{
-    MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineSemanticKind, SelectedConstraintKeys,
-    ValidatedMachineEffectCatalog,
+    MachineAlternative, MachineAlternativeApplicability, MachineEffectCatalog,
+    MachineEffectCatalogValidationError, MachineEffectDeclaration, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineSemanticKind, SelectedConstraintKeys, ValidatedMachineEffectCatalog,
 };
 use target::{Architecture, NativeTarget};
 
@@ -272,6 +272,25 @@ fn binds_catalog_provenance(
         environment.constraints().identity()
     );
     assert_eq!(catalog.catalog().selected_keys, keys);
+}
+
+/// The one canonical alternative a rule declares, bound to its own family and
+/// admitted by the always-applicable window.
+fn sole_alternative<'a>(
+    declaration: &'a MachineEffectDeclaration,
+    semantic: MachineSemanticKind,
+    key: RegisterConstraintKey,
+) -> &'a MachineAlternative {
+    assert_eq!(declaration.alternatives.len(), 1, "{key:?}");
+    let alternative = &declaration.alternatives[0];
+    assert_eq!(alternative.key.family, semantic.into(), "{key:?}");
+    assert_eq!(alternative.key.variant, 0, "{key:?}");
+    assert_eq!(
+        alternative.applicability,
+        MachineAlternativeApplicability::Always,
+        "{key:?}"
+    );
+    alternative
 }
 
 /// The selected constraint row and the effect declaration one selected rule
