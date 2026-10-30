@@ -1,0 +1,2 @@
+module main;
+public boundary trait Value { machine get() -> u64 reaches; }

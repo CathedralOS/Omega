@@ -1073,6 +1073,8 @@ fail/borrows/callable_shared_candidate_cannot_supply_mutable_result rejected 740
 	machine `choose` returns a view whose access cannot be supplied by matching input `first`
 fail/borrows/captured_reference_membership_ignores_later_selector rejected 1906ms expected @a92f16431042
 	cannot prove requires contract for call consume from stale: held.value in u64::Positive in state `entry`
+fail/borrows/captured_state_shared_reborrow_write rejected 3222ms expected @230151eef4fe
+	machine `next` state `entry` assignment cannot write `words` because it is not mutable in this state (if `words` is undeclared -- a typo -- no such field or local exists)
 fail/borrows/captured_window_write_invalidates_backing rejected 1008ms expected @fe4789a121e2
 	cannot prove default-domain field requirement for return from corrupt at statement 2: rows[0][1] requires u64::Positive
 	cannot prove default-domain field requirement for return from corrupt at statement 2: rows[1][1] requires u64::Positive
@@ -1176,6 +1178,8 @@ fail/borrows/copied_input_descriptor_retarget_rejected rejected 1843ms expected 
 fail/borrows/copied_reference_cohort_live_source_write rejected 1744ms expected @a92f16431042
 	statement 4 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
 	statement 4 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
+fail/borrows/copied_scalar_field_without_restriction rejected 3373ms expected @230151eef4fe
+	argument `value` for state `entry` expects `&u64[0..=5]`, got `member access`
 fail/borrows/copied_shared_descendant_keeps_owner rejected 502ms expected @7fd97495b148+wt
 	state `drop$specialized$9e8160205d459d88$0` receives an owned value while local borrow `views` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/borrows/cyclic_arrival_duplicates_exclusive_reference rejected 2043ms expected @a92f16431042
@@ -5381,27 +5385,63 @@ fail/facts/borrowed_content_partition_through_parameter_rejected rejected 3213ms
 fail/facts/borrowed_content_partition_through_target_body_rejected rejected 3173ms expected @a92f16431042
 	cannot prove requires contract for call carve from exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite rejected 1480ms expected @a92f16431042
+fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite rejected 1795ms expected @d3ab0751301f
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_const_name_prerequisite rejected 2060ms expected @a92f16431042
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_const_name_prerequisite rejected 1593ms expected @d3ab0751301f
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_field_prerequisite rejected 1836ms expected @a92f16431042
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_field_prerequisite rejected 1459ms expected @d3ab0751301f
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_local_prerequisite rejected 2045ms expected @a92f16431042
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_local_prerequisite rejected 1434ms expected @d3ab0751301f
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_match_join_prerequisite rejected 1982ms expected @a92f16431042
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_match_join_prerequisite rejected 1408ms expected @d3ab0751301f
 	cannot prove automatic cleanup requires at selected edge from through state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_other_machine_prerequisite rejected 2290ms expected @a92f16431042
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_other_machine_prerequisite rejected 1438ms expected @d3ab0751301f
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_other_state_prerequisite rejected 2286ms expected @a92f16431042
-	cannot prove automatic cleanup requires at selected edge from main state next after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_parameter_prerequisite rejected 1970ms expected @a92f16431042
+	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 2: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 5: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 8: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_other_state_prerequisite rejected 1392ms expected @d3ab0751301f
+	cannot prove automatic cleanup requires at selected edge from next state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from next state entry after statement 2: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from next state entry after statement 5: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from next state entry after statement 8: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_parameter_prerequisite rejected 1372ms expected @d3ab0751301f
 	cannot prove automatic cleanup requires at selected edge from through state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_target_body_prerequisite rejected 1553ms expected @a92f16431042
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 2: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 5: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 8: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_target_body_prerequisite rejected 1389ms expected @d3ab0751301f
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
 fail/facts/borrowed_restoration_window_through_call_result_rejected rejected 1987ms expected @a92f16431042
 	state `write_cell` receives `c` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `c.value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -24436,6 +24476,7 @@ pass/borrows/boundary_scalar_slice_write_exit checked 2779ms check-target:macos_
 pass/borrows/branch_selected_record_composed_receiver_exit checked 6798ms check-target:macos_arm64 @a92f16431042
 pass/borrows/branch_selected_record_receiver_exit checked 6497ms check-target:macos_arm64 @a92f16431042
 pass/borrows/callee_returned_shared_reborrow_chain_exit checked 2342ms check-target:macos_arm64 @a92f16431042
+pass/borrows/captured_state_shared_reborrow checked 5573ms check-target:macos_arm64 @230151eef4fe
 pass/borrows/carried_loan_replacement checked 2990ms @a92f16431042
 pass/borrows/carry_permission_alias checked 2772ms @a92f16431042
 pass/borrows/carry_property_declared checked 2751ms @a92f16431042
@@ -24459,6 +24500,7 @@ pass/borrows/copied_input_descriptor_independent_mutation_exit checked 3956ms ch
 pass/borrows/copied_input_descriptor_local_copy_exit checked 1402ms check-target:macos_arm64 @27c558b731f4
 pass/borrows/copied_input_descriptor_return_copy_exit checked 2508ms check-target:macos_arm64 @a92f16431042
 pass/borrows/copied_intermediate_descriptor_snapshot_exit checked 2740ms check-target:macos_arm64 @a92f16431042
+pass/borrows/copied_scalar_field_with_restricted_peer checked 4838ms check-target:macos_arm64 @230151eef4fe
 pass/borrows/data_copy_property checked 2619ms @a92f16431042
 pass/borrows/disjoint_branch_closure_with_grandchild checked 2284ms check-target:macos_arm64 @a92f16431042
 pass/borrows/dynamic_window_return_custody_exit incomplete 2353ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
@@ -25437,6 +25479,7 @@ pass/collections/std_option_runtime_match_exit checked 8368ms check-target:macos
 pass/collections/std_option_surface checked 1717ms @a92f16431042
 pass/collections/view_record_element_member_read_exit checked 12398ms check-target:macos_arm64 @a92f16431042
 pass/collections/zero_length_byte_array_admission checked 2364ms @a92f16431042
+pass/components/independent_same_spelling_packages checked 9944ms check-target:macos_arm64 @230151eef4fe
 pass/comptime/provider_boundary_range_endpoint_exit checked 19768ms check-target:macos_arm64 @a92f16431042
 pass/comptime/range_endpoint_requires_discharge_exit checked 10105ms check-target:macos_arm64 @a92f16431042
 pass/comptime/runtime_const_array_anonymous_expression_exit checked 4249ms check-target:macos_arm64 @a92f16431042
