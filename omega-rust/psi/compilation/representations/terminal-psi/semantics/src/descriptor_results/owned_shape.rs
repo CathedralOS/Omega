@@ -3,6 +3,7 @@
 //! Access must be explicit in each byte carrier. An unannotated byte descriptor
 //! or ElementView obtains access from its producer and cannot be classified as
 //! shared from shape alone; ordinary references retain their own return contract.
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
@@ -39,13 +40,10 @@ fn owned_shape<'a>(
         if active.contains(&root) {
             return false;
         }
-        let mut declarations = types.clone().filter(|declaration| declaration.id == root);
-        let Some(declaration) = declarations.next() else {
+        let Some(declaration) = exactly_one(types.clone(), |declaration| declaration.id == root)
+        else {
             return false;
         };
-        if declarations.next().is_some() {
-            return false;
-        }
         active.push(root);
         let mut field_is_owned = |field: &terminal_psi::StructuralFieldDeclaration| {
             // Erased declarations contribute no storage or loan authority.

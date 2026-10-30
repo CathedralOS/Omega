@@ -30,13 +30,9 @@ pub fn sequence_field_allows_observation<'types>(
             }
         }
     } else if let Some(identity) = field.as_structural() {
-        let mut matching = types.filter(|row| row.id == identity);
-        let Some(declaration) = matching.next() else {
+        let Some(declaration) = exactly_one(types, |row| row.id == identity) else {
             return false;
         };
-        if matching.next().is_some() {
-            return false;
-        }
         match declaration.shape {
             StructuralTypeShape::ElementView { access, .. }
             | StructuralTypeShape::ByteSequence(

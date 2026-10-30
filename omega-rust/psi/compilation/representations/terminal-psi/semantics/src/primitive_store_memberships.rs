@@ -235,16 +235,10 @@ pub fn primitive_store_preserves_scalar_memberships<'types, 'domain>(
     let actual = if value.qualifications.is_empty() {
         &[][..]
     } else {
-        let mut matching = catalog
-            .sets
-            .iter()
-            .filter(|set| set.id == value.qualifications);
-        let Some(set) = matching.next() else {
+        let Some(set) = exactly_one(catalog.sets.iter(), |set| set.id == value.qualifications)
+        else {
             return false;
         };
-        if matching.next().is_some() {
-            return false;
-        }
         set.domains.as_slice()
     };
     required.into_iter().all(|required| {
