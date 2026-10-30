@@ -59,6 +59,13 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
         });
     }
 
+    /// Project one retained callable onto its explicit target member. This
+    /// describes membership only; no execution or checking authority is added.
+    pub fn callable_for_target(&self, symbol: Declaration, target: &str) -> Option<Declaration> {
+        self.target_machine(self.called_machine(symbol)?, target)
+            .map(|row| row.machine)
+    }
+
     fn called_machine(&self, symbol: Declaration) -> Option<&ProofApplicationMachine<Declaration>> {
         self.machines
             .iter()

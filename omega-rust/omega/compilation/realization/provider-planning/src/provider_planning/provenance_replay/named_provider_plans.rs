@@ -8,97 +8,10 @@ use super::{
 };
 use crate::ProviderPlanningContext;
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow};
-use checked_trees::typed_trees::typed_trees::CapturedMachineApplication;
-use checked_trees::typed_trees::{
-    TypedTrees,
-    trait_definition::{AppliedTraitScope, Conformance},
+use build_time_evaluation::provider_declarations::{
+    prepared_named_provider_applications, prepared_named_provider_member,
 };
 use effects::provider_plan::ProviderIdentityTable;
-
-struct NamedApplication<'program> {
-    declaration: &'program Conformance,
-    scope: AppliedTraitScope<'program>,
-    application: Option<&'program CapturedMachineApplication>,
-    identity: Option<String>,
-}
-
-fn applications(context: ProviderPlanningContext<'_>) -> Vec<NamedApplication<'_>> {
-    let program = context.typed;
-    let mut applications = Vec::new();
-    for declaration in program.conformances().iter().filter(|declaration| {
-        context.contains(declaration.symbol) && crate::provider_identity::eligible(declaration)
-    }) {
-        if let Some(scope) = AppliedTraitScope::from_conformance(program, declaration) {
-            applications.push(NamedApplication {
-                declaration,
-                scope,
-                application: None,
-                identity: None,
-            });
-        }
-    }
-    // Capture receipts arise from actual checked conformance applications.
-    // Unexecuted Product recipes never seed captures or executable candidates.
-    for (_, capture) in program.captured_machine_applications.iter() {
-        let Some(declaration) = program
-            .conformance_by_symbol(capture.conformance_application.declaration)
-            .filter(|declaration| context.contains(declaration.symbol))
-        else {
-            continue;
-        };
-        let Some(identity) = program
-            .portable_conformance_application_identity(
-                &capture.conformance_application,
-                capture.supplying_application,
-            )
-            .and_then(|identity| program.type_identity_text(identity))
-        else {
-            continue;
-        };
-        if applications.iter().any(|existing| {
-            existing.declaration.symbol == declaration.symbol
-                && existing.identity.as_ref() == Some(&identity)
-        }) {
-            continue;
-        }
-        let Some(scope) = capture.conformance_application.trait_scope.scope(program) else {
-            continue;
-        };
-        applications.push(NamedApplication {
-            declaration,
-            scope,
-            application: Some(capture),
-            identity: Some(identity),
-        });
-    }
-    applications
-}
-
-fn captured_row<'program>(
-    program: &'program TypedTrees,
-    application: &NamedApplication<'_>,
-    template: symbols::SymbolHandle,
-) -> Option<symbols::SymbolHandle> {
-    let identity = application.identity.as_deref()?;
-    let mut matching = program
-        .captured_machine_applications
-        .iter()
-        .filter(|(_, capture)| {
-            capture.template == template
-                && capture.conformance_application.declaration == application.declaration.symbol
-                && program
-                    .portable_conformance_application_identity(
-                        &capture.conformance_application,
-                        capture.supplying_application,
-                    )
-                    .and_then(|identity| program.type_identity_text(identity))
-                    .as_deref()
-                    == Some(identity)
-        })
-        .map(|(_, capture)| capture.instance);
-    let selected = matching.next()?;
-    matching.next().is_none().then_some(selected)
-}
 
 pub(super) fn derive(
     context: ProviderPlanningContext<'_>,
@@ -107,7 +20,7 @@ pub(super) fn derive(
     candidates: &[DerivedProviderPlan],
 ) -> Vec<DerivedProviderPlan> {
     let typed = context.typed;
-    applications(context)
+    prepared_named_provider_applications(context)
         .into_iter()
         .filter_map(|application| {
             let implementation = application.declaration;
@@ -170,7 +83,7 @@ pub(super) fn derive(
                     return None;
                 }
                 let realization = if application.application.is_some() {
-                    captured_row(typed, &application, row.realization_machine)?
+                    prepared_named_provider_member(typed, &application, row.realization_machine)?
                 } else {
                     row.realization_machine
                 };

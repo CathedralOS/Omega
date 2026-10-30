@@ -10,17 +10,23 @@ mod admission;
 mod application_dependencies;
 mod context;
 mod identities;
+mod named_applications;
 mod product_requests;
 mod retained_selections;
 mod selection;
 pub use retained_selections::{RetainedProviderApplication, RetainedProviderSelection};
 
 use crate::is_exact_toolchain_build_prelude_data;
-pub(crate) use application_dependencies::source_application_dependencies;
+pub(crate) use application_dependencies::{
+    SourceProviderDependencies, source_application_dependencies,
+};
 use checked_trees::typed_trees::TypedTrees;
 pub use context::ProviderPlanningContext;
 use diagnostics::Diagnostic;
 pub use identities::{eligible, is_named_provider, named_requirement_lifetime_arguments};
+pub use named_applications::{
+    NamedProviderApplication, prepared_named_provider_applications, prepared_named_provider_member,
+};
 pub use product_requests::{
     collect_product_provider_selections, validate_product_provider_description,
 };

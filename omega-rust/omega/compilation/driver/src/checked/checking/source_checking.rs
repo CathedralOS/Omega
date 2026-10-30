@@ -156,12 +156,7 @@ fn layout_target_scopes(
         .any(|occurrence| {
             typed
                 .layout_storage_arguments(occurrence.reference)
-                .is_some_and(|storage| {
-                    typed
-                        .closed_data_field_definition(storage.semantic_type)
-                        .is_some()
-                        && typed_trees::domain::index_argument_is_closed(typed, storage.policy)
-                })
+                .is_some()
         })
     {
         return Ok(Vec::new());
@@ -220,24 +215,25 @@ fn layout_target_scopes(
                 }
             }
         }
-        let providers = if reusable {
-            Vec::new()
-        } else {
-            choices
-                .iter()
-                .filter(|choice| {
-                    choice
-                        .target
-                        .is_none_or(|target| target.canonical_name() == profile.target_name())
-                })
-                .map(|choice| (**choice).clone())
-                .collect()
-        };
+        let selected =
+            |choices: &[build_time_evaluation::provider_declarations::ProviderSelection]| {
+                choices
+                    .iter()
+                    .filter(|choice| {
+                        !reusable
+                            && choice.target.is_none_or(|target| {
+                                target.canonical_name() == profile.target_name()
+                            })
+                    })
+                    .cloned()
+                    .collect()
+            };
         scopes.push(build_time_evaluation::FixedLayoutTargetScope {
             target: profile.target_name().to_owned(),
             facts: profile.layout_target_facts(),
             roots: (!reusable).then_some(roots),
-            providers,
+            overrides: selected(&build.provider_selections),
+            package_defaults: selected(&build.package_provider_selections),
         });
     }
     Ok(scopes)

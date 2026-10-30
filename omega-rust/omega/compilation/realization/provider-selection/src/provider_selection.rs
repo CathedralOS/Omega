@@ -20,7 +20,7 @@ pub fn choose<Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
 ) -> Result<Vec<SelectedProvider<Declaration, Owner, Origin>>, Vec<Diagnostic>> {
     let plans = candidates
         .iter()
-        .map(|candidate| candidate.plan.clone())
+        .map(|candidate| &candidate.plan)
         .collect::<Vec<_>>();
     let selected =
         crate::selection::select_provider_plan_indices(&plans, target, defaults, overrides)?;

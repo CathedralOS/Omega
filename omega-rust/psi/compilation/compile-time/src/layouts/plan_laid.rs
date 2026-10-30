@@ -13,7 +13,8 @@ pub struct FixedLayoutTargetScope {
     pub target: String,
     pub facts: Option<layout_plans::LayoutTargetFacts>,
     pub roots: Option<Vec<symbols::SymbolHandle>>,
-    pub providers: Vec<crate::provider_declarations::ProviderSelection>,
+    pub overrides: Vec<crate::provider_declarations::ProviderSelection>,
+    pub package_defaults: Vec<crate::provider_declarations::ProviderSelection>,
 }
 
 /// Close physical representation applications before the settled source judgment.
@@ -29,12 +30,7 @@ pub fn evaluate_fixed_layout_applications(
         .any(|occurrence| {
             typed
                 .layout_storage_arguments(occurrence.reference)
-                .is_some_and(|storage| {
-                    typed
-                        .closed_data_field_definition(storage.semantic_type)
-                        .is_some()
-                        && typed_trees::domain::index_argument_is_closed(typed, storage.policy)
-                })
+                .is_some()
         })
     {
         return Ok(());
@@ -60,40 +56,51 @@ pub fn evaluate_fixed_layout_applications(
         );
     });
     let operational = validation::infer_operational_may(typed);
-    let applications =
-        semantic_vocabulary::proof_applications::ProofApplications::new(&topology, &operational);
     let mut targets = Vec::new();
     let mut inputs = Vec::new();
     for scope in scopes {
-        let providers = crate::provider_declarations::source_application_dependencies(
-            typed,
-            &scope.target,
-            &scope.providers,
-            &defaults,
-            topology.provider_candidates.storage_slice(),
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let work = if let Some(roots) = &scope.roots {
-            let mut roots = roots.clone();
-            if roots.is_empty() {
-                // A provider-only deployment exposes its explicitly selected
-                // member entries. Ambient source defaults are descriptions,
-                // not externally invoked roots of that deployment.
-                for (_, member) in crate::provider_declarations::source_application_dependencies(
-                    typed,
-                    &scope.target,
-                    &scope.providers,
-                    &[],
-                    topology.provider_candidates.storage_slice(),
-                )
-                .map_err(|reason| vec![Diagnostic::error(reason)])?
-                {
-                    if !roots.contains(&member) {
-                        roots.push(member);
-                    }
+            let discovery = crate::provider_declarations::source_application_dependencies(
+                typed,
+                &scope.target,
+                roots,
+                &scope.overrides,
+                &scope.package_defaults,
+                &defaults,
+                &topology,
+                &operational,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let machines = match discovery {
+                crate::provider_declarations::SourceProviderDependencies::Complete { machines } => {
+                    machines
                 }
-            }
-            let reached = applications.invocation_reachability(&scope.target, &providers, &roots);
+                crate::provider_declarations::SourceProviderDependencies::Unresolved {
+                    machines,
+                    pending,
+                } => {
+                    // This is descriptive discovery, not a successful provider
+                    // settlement. Only independently definite calls contribute
+                    // physical work. Pending coordinates grant no geometry;
+                    // Native must replay the original declarations against its
+                    // realized schemas before storage or executable admission.
+                    for selection in pending {
+                        phase_profile::count(
+                            "05.fixed_layout.unresolved_candidates",
+                            selection.candidate_applications.len() as u64,
+                        );
+                        phase_profile::count(
+                            "05.fixed_layout.unresolved_choices",
+                            selection.errors.len() as u64,
+                        );
+                        phase_profile::count(
+                            "05.fixed_layout.unresolved_calls",
+                            selection.calls.len() as u64,
+                        );
+                    }
+                    machines
+                }
+            };
             // Checking retains a complete named-map declaration, including
             // sibling row descriptions. Those dependencies still supply nested
             // data fields and constant types, but describing a sibling does not
@@ -102,12 +109,12 @@ pub fn evaluate_fixed_layout_applications(
                 typed
                     .machines()
                     .iter()
-                    .filter(|machine| !reached.machines.contains(&machine.symbol))
+                    .filter(|machine| !machines.contains(&machine.symbol))
                     .map(|machine| machine.symbol),
             );
             crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
                 typed,
-                &reached.machines,
+                &machines,
                 &[],
             )
             .work()
