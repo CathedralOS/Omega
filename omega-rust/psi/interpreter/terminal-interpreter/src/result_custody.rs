@@ -217,7 +217,7 @@ impl TerminalExecution<'_> {
         custody.rows(&self.reference_referents, root)?;
         custody.rows(&self.provider_storage.descriptors, root)?;
         for (_, storage) in cells(&self.structural_byte_storage, root) {
-            storage.measure_result_custody(&mut custody)?;
+            storage.measure_result_custody(custody)?;
         }
         for (_, binding) in cells(&self.structural_byte_sequence_fields, root) {
             custody.binding(binding)?;
