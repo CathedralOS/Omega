@@ -133,9 +133,8 @@ pub(crate) fn build_contract_plans(
             operators,
         )
     });
-    let (mut machines, mut publications) = phase_profile::scope(
-        "05.d.3.c.5c.2.per_machine_plans",
-        || {
+    let (mut machines, mut publications) =
+        phase_profile::scope("05.d.3.c.5c.2.per_machine_plans", || {
             use rayon::prelude::*;
             let results: Result<
                 Vec<(checked_trees::MachineContractPlan, ContractPublication<'_>)>,
@@ -272,8 +271,7 @@ pub(crate) fn build_contract_plans(
                     .collect()
             });
             results.map(|pairs| pairs.into_iter().unzip::<_, _, Vec<_>, Vec<_>>())
-        },
-    )?;
+        })?;
     let operator_crashes = phase_profile::scope("05.d.3.c.5c.3.operator_crashes", || {
         operator_crashes::build(program, operators, flow, semantic)
     })?;

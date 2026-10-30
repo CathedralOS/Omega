@@ -66,7 +66,7 @@ impl<'a> TerminalProductionRequest<'a> {
         let declaration_requests = crate::build_bindings::capture_declarations(checked);
         let native_formations = crate::build_bindings::capture_native_formations(
             checked,
-            self.root,
+            self.machine,
             &declaration_requests,
         )
         .map_err(TerminalArtifactProductionError::BuildContext)?;

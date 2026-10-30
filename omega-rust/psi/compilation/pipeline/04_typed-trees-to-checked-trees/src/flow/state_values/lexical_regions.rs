@@ -63,14 +63,11 @@ pub(in crate::flow) fn record<'plans>(
                     // by lexical containment: the call's own recorded arguments
                     // are the capture roster under its operand evidence epoch.
                     None => {
-                        super::lexical_scope_covers_call(
-                            program,
-                            machine.symbol,
-                            owner.symbol,
-                        ) && validation::call_site_argument_expressions(program, &site)
-                            .iter()
-                            .copied()
-                            .eq(captured.iter().map(|value| value.expression))
+                        super::lexical_scope_covers_call(program, machine.symbol, owner.symbol)
+                            && validation::call_site_argument_expressions(program, &site)
+                                .iter()
+                                .copied()
+                                .eq(captured.iter().map(|value| value.expression))
                     }
                 }
         })
@@ -124,10 +121,8 @@ pub(in crate::flow) fn record<'plans>(
                     captured
                         .get(ordinal)
                         .and_then(|capture| {
-                            super::completed_argument_facts(
-                                program, build, capture, invocation,
-                            )
-                            .map(|completed| (capture, completed))
+                            super::completed_argument_facts(program, build, capture, invocation)
+                                .map(|completed| (capture, completed))
                         })
                         .map(|(capture, completed)| {
                             super::qualifications::capture_completed_argument(
