@@ -14,7 +14,7 @@ use super::{
     WholeFunctionEntryAssumption, WholeFunctionExitContract, WholeFunctionExitContractIdentity,
     WholeFunctionExitEvidence, WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy,
     WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy,
-    error::WholeFunctionExitContractError,
+    error::WholeFunctionExitContractError::{self, NonReturnControlEffect, NonReturnStackEffect},
     identity::contract_identity,
     validation_rules::{
         EntryAssumptionKind, frame_permissions, target_contract_inputs,
@@ -335,9 +335,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         .any(|unit| stack_units.contains(unit))
                         || transformed_implicit_writes_any(encoding_row, &stack_units, encoded)
                     {
-                        return Err(WholeFunctionExitContractError::NonReturnStackEffect(
-                            instruction.id,
-                        ));
+                        return Err(NonReturnStackEffect(instruction.id));
                     }
                     let end = resolved_block
                         .offset
@@ -393,19 +391,16 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         selected_instructions::selected_call_pattern!(..)
                     ) {
                         if function_frame.is_none() {
-                            return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-                                instruction.id,
-                            ));
+                            return Err(NonReturnControlEffect(instruction.id));
                         }
                         validate_internal_call(
                             target,
                             stack_pointer,
                             instruction.id,
-                            instruction.kind.call_target().ok_or(
-                                WholeFunctionExitContractError::NonReturnControlEffect(
-                                    instruction.id,
-                                ),
-                            )?,
+                            instruction
+                                .kind
+                                .call_target()
+                                .ok_or(NonReturnControlEffect(instruction.id))?,
                             encoding_row,
                             resolved_row,
                             encoded,
@@ -420,9 +415,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                             && instruction.constraint.family
                                 != register_model::RegisterConstraintFamily::SystemCall
                         {
-                            return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-                                instruction.id,
-                            ));
+                            return Err(NonReturnControlEffect(instruction.id));
                         }
                         validate_normalized_foreign_call(
                             target,
@@ -442,9 +435,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                         .any(|unit| stack_units.contains(unit))
                         || transformed_implicit_writes_any(encoding_row, &stack_units, encoded)
                     {
-                        return Err(WholeFunctionExitContractError::NonReturnStackEffect(
-                            instruction.id,
-                        ));
+                        return Err(NonReturnStackEffect(instruction.id));
                     }
                     validate_non_return(
                         target.architecture,

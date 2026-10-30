@@ -32,7 +32,9 @@ use machine_code::SelectedFormEncoding;
 
 use super::super::{
     WholeFunctionReturnEvidence, WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
-    error::WholeFunctionExitContractError,
+    error::WholeFunctionExitContractError::{
+        self, NonReturnControlEffect, NonReturnMemoryEffect, NonReturnStackEffect,
+    },
 };
 
 #[cfg(test)]
@@ -444,9 +446,7 @@ pub(in crate::exit_contract) fn validate_non_return(
     };
     let temporary_stack = balanced_temporary_stack(architecture, kind, effects);
     if effects.stack != MachineEncodedStackEffect::UnchangedV1 && !temporary_stack {
-        return Err(WholeFunctionExitContractError::NonReturnStackEffect(
-            instruction,
-        ));
+        return Err(NonReturnStackEffect(instruction));
     }
     let memory_matches = match (kind, effects.memory, encoding.address) {
         (
@@ -810,14 +810,10 @@ pub(in crate::exit_contract) fn validate_non_return(
         _ => false,
     };
     if !memory_matches {
-        return Err(WholeFunctionExitContractError::NonReturnMemoryEffect(
-            instruction,
-        ));
+        return Err(NonReturnMemoryEffect(instruction));
     }
     if effects.control != expected_control {
-        return Err(WholeFunctionExitContractError::NonReturnControlEffect(
-            instruction,
-        ));
+        return Err(NonReturnControlEffect(instruction));
     }
     Ok(())
 }
