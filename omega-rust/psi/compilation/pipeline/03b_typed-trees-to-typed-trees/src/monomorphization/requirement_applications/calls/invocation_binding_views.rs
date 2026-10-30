@@ -12,6 +12,8 @@ use typed_trees::{
     static_applications::{StaticMachineBinding, StaticMachineBindingValue},
 };
 
+use super::super::selected_applications;
+
 pub(super) fn public_bindings(
     program: &mut TypedTrees,
     owner: SymbolHandle,
@@ -89,14 +91,7 @@ pub(super) fn complete_arguments(
     let bindings = program
         .expression_table
         .static_machine_application_bindings(invocation);
-    let applications = program.selected_conformance_applications(
-        owner,
-        dispatch.selection_application,
-        dispatch.evidence_parameter,
-        dispatch.requirement,
-        dispatch.application_report_fingerprint,
-        dispatch.application_commitment,
-    );
+    let applications = selected_applications(program, owner, dispatch);
     let [application] = applications.as_slice() else {
         return None;
     };

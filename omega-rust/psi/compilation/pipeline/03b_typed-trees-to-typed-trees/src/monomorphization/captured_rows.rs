@@ -3,6 +3,7 @@
 //! The exact closed selection supplies operands; runtime carriers and diagnostic
 //! names cannot infer a missing map application.
 
+use super::requirement_applications::selected_applications;
 use super::{CallSite, Diagnostic, SymbolHandle, TypedTrees};
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
@@ -198,14 +199,7 @@ fn call_capture(
     if target != dispatch.realization_state {
         return Ok(None);
     }
-    let applications = program.selected_conformance_applications(
-        owner,
-        dispatch.selection_application,
-        dispatch.evidence_parameter,
-        dispatch.requirement,
-        dispatch.application_report_fingerprint,
-        dispatch.application_commitment,
-    );
+    let applications = selected_applications(program, owner, dispatch);
     let [application] = applications.as_slice() else {
         return Ok(None);
     };
