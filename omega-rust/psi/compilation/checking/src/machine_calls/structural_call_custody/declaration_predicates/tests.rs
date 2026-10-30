@@ -316,3 +316,100 @@ fn unresolved_nested_array_extents_cannot_hide_payload_requirements() {
         definition
     ));
 }
+
+#[test]
+fn carrier_implied_case_roster_does_not_expand_array_elements() {
+    let (mut program, state, envelope, pair_facts) = fixture();
+    // Remove Pair's independent coupling, leaving only the complete case
+    // coverage predicate on Envelope. The existing coupling test keeps the
+    // converse control: a relation not implied by fields must remain a row.
+    let root_span = program.roots.data_definitions;
+    for definition in program.tables.data_definitions.span_mut_or_empty(root_span) {
+        if definition.where_facts == pair_facts {
+            definition.where_facts = HandleSpan::empty();
+        }
+    }
+    let parameter = program.state_parameters(&state)[0].clone();
+    let TypeReferenceNode::Reference { referee, .. } = *program
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        panic!("fixture parameter must be a borrow")
+    };
+    let subject = program
+        .expression_table
+        .insert_tree(&Expression::Name(NamePath::resolved(
+            vec![Identifier::from("self")],
+            parameter.symbol,
+            parameter.symbol,
+        )));
+    let cases: Vec<_> = program
+        .data_members(program.unique_data_definition_by_symbol(envelope).unwrap())
+        .iter()
+        .filter_map(|member| member.as_variant())
+        .map(|case| (case.symbol, case.name.clone()))
+        .collect();
+    let mut membership = Vec::new();
+    for (symbol, name) in cases {
+        let selected = program
+            .expression_table
+            .insert_tree(&Expression::Name(NamePath::resolved(
+                vec![name],
+                symbol,
+                symbol,
+            )));
+        membership.push(program.expression_table.insert(ExpressionNode::Binary(
+            TableBinaryExpression {
+                left: subject,
+                operator: BinaryOperator::CaseMembership,
+                right: selected,
+            },
+        )));
+    }
+    let predicate =
+        program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left: membership[0],
+                operator: BinaryOperator::Or,
+                right: membership[1],
+            }));
+    let mut facts = HandleSpan::empty();
+    program
+        .proof_facts
+        .append_to_span(&mut facts, ProofFact::Expression(predicate));
+    for definition in program.tables.data_definitions.span_mut_or_empty(root_span) {
+        if definition.symbol == envelope {
+            definition.predicate_subject_symbol = parameter.symbol;
+            definition.predicate_subject_type = referee;
+            definition.where_facts = facts;
+        }
+    }
+    let array = program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: referee,
+            length: FixedArrayLength::Literal(32),
+        });
+    let borrowed = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            referee: array,
+            access: ReferenceAccess::Mutable,
+            lifetime: None,
+        });
+    program.state_parameters.span_mut_or_empty(state.parameters)[0].type_reference = borrowed;
+    let operators = CheckedOperatorFacts::default();
+    assert!(
+        state_declaration_predicates(&program, &operators, &state).is_empty(),
+        "case validity belongs to the element carrier, not 32 copied predicate trees"
+    );
+
+    // Coverage of just one case is stronger than the sum carrier. It must not
+    // disappear merely because its sibling has no payload or interval rows.
+    program.proof_facts.span_mut_or_empty(facts)[0] = ProofFact::Expression(membership[0]);
+    assert_eq!(
+        state_declaration_predicates(&program, &operators, &state).len(),
+        32
+    );
+}

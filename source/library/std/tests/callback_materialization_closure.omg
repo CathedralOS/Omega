@@ -128,8 +128,8 @@ public boundary trait WindowRegistrar: Calling<RegistrarPolicyCallingPolicy> {
     machine register<machine Selected, machine SecondarySelected>(
         specification: &Spread<ForeignRecord>
     )
-    where machine Selected satisfies WindowProcedure::call;
-    where machine SecondarySelected satisfies WindowProcedure::call;
+    requires machine Selected satisfies WindowProcedure::call;
+    requires machine SecondarySelected satisfies WindowProcedure::call;
     reaches;
 }
 

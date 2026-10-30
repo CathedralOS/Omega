@@ -2,17 +2,17 @@
 public boundary trait Handler { machine read(value: u64) -> u64 reaches; }
 trait Forwarding {
  machine run<machine Callback>(prefix: u64, value: u64) -> u64
- where machine Callback satisfies Handler::read;
+ requires machine Callback satisfies Handler::read;
  invokes Handler;
  reaches;
 }
 Forwarder satisfies Forwarding {
  machine run<machine Action>(tag: u64, value: u64) -> u64
- where machine Action satisfies Handler::read;
+ requires machine Action satisfies Handler::read;
  { forward<Action>(tag, value) }
 }
 machine forward<machine Selected>(tag: u64, value: u64) -> u64
-where machine Selected satisfies Handler::read;
+requires machine Selected satisfies Handler::read;
 invokes Handler;
 {
  transition tag == 11u64 { true -> invoke(value) false -> wrong_tag() }

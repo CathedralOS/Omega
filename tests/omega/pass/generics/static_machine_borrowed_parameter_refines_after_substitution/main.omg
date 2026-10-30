@@ -19,7 +19,7 @@ data Holder<T> {
 }
 
 machine filter<T, machine Predicate>(items: Seq<T>) -> Seq<T>
-where machine Predicate(value: &T) -> bool;
+requires machine Predicate(value: &T) -> bool;
 terminates by items;
 {
     transition items {
@@ -40,7 +40,7 @@ terminates by items;
 }
 
 machine filter_against<T, U, machine Predicate>(items: Seq<T>, bound: U) -> Seq<T>
-where machine Predicate(value: &T, bound: &U) -> bool;
+requires machine Predicate(value: &T, bound: &U) -> bool;
 terminates by items;
 {
     transition items {
@@ -61,7 +61,7 @@ terminates by items;
 }
 
 machine filter_touch<T, machine Touch>(items: Seq<T>) -> Seq<T>
-where machine Touch(value: &mut T) -> bool;
+requires machine Touch(value: &mut T) -> bool;
 terminates by items;
 {
     transition items {
@@ -84,7 +84,7 @@ terminates by items;
 }
 
 machine map<T, U, machine F>(items: Seq<T>) -> Seq<U>
-where machine F(value: T) -> U;
+requires machine F(value: T) -> U;
 terminates by items;
 {
     transition items {
@@ -134,13 +134,13 @@ machine clear_negative(value: &mut i32) -> bool {
 }
 
 machine keep_concrete<machine P>(items: Seq<i32>) -> Seq<i32>
-where machine P(value: &i32) -> bool;
+requires machine P(value: &i32) -> bool;
 {
     filter<P>(items)
 }
 
 machine keep_generic<T, machine P>(items: Seq<T>) -> Seq<T>
-where machine P(value: &T) -> bool;
+requires machine P(value: &T) -> bool;
 {
     filter<P>(items)
 }

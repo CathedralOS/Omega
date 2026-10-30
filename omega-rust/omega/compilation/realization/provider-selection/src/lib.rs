@@ -15,7 +15,7 @@ pub use callback_roots::{
 };
 pub use provider_instances::{
     GenericProviderInstanceDeclarations, ProviderInstanceDeclarations,
-    ProviderInstanceRowDeclarations, project_provider_instances,
+    ProviderInstanceRowDeclarations, ProviderPlanInstanceDeclarations, project_provider_instances,
 };
 mod selected_binding;
 pub use boundary_review::BoundaryProviderAdmission;

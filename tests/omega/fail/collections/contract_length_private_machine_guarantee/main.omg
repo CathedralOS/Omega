@@ -2,7 +2,7 @@ trait Measure { machine call(values: &[f64]) -> u64; }
 machine chosen(values: &[f64]) -> u64 satisfies Measure::call
 ensures result == values.len { values.len }
 machine first<machine Selected>(values: &[f64]) -> f64
-where machine Selected satisfies Measure::call;
+requires machine Selected satisfies Measure::call;
 {
  let count: u64 = Selected(values);
  transition count > 0 { true -> (values[0]) false -> 0.0 }

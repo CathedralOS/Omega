@@ -82,7 +82,7 @@ impl CheckedCompilation {
             provider_declarations: &native_sources.declarations,
             target_profile: execution.selected_target_profile,
             boundaries: BoundaryApplicationSettlement {
-                selected_provider_plans: &execution.selected_provider_plan_facts,
+                selected_provider_plans: execution.provider_source.plans(),
                 selected_provider_provenance,
                 calling_applications: providers
                     .calling_applications(exported_calling_applications)

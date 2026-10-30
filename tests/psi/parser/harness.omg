@@ -337,6 +337,7 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ExpectedArrayElement -> parse_diagnostic(parser_harness, output, 192)
             ParseDiagnosticCode::ExpectedArrayElementEnd -> parse_diagnostic(parser_harness, output, 193)
             ParseDiagnosticCode::MissingBoundaryReachCeiling -> parse_diagnostic(parser_harness, output, 200)
+            ParseDiagnosticCode::RetiredWhereMachineRequirement -> parse_diagnostic(parser_harness, output, 201)
         }
     }
 

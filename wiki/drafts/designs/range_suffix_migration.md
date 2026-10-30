@@ -771,3 +771,33 @@ envelope. It also executes with native/Terminal exit 70. The source control
 value read after a field write fails to establish a false field-free conjunct.
 These close this customer and the demonstrated composition defects, not the
 remaining declaration audit, other predicate mechanisms or Rust suffix removal.
+
+## Audited cellular automaton customer
+
+`samples/cli/simulation/cellular_automaton` restores all nine original bounded
+positions: both 64-element grids contain only 0/1, and `gen`, `rp`, `window`,
+`cell`, `nv`, `x` and `cv` retain their original scalar bounds. Ordinary recursive
+collection predicates and a checked selected-cell theorem replace the retired
+suffixes; the program no longer clamps values to recover discarded bounds.
+
+The checker shares a read-only ordered conjunction roster across standing
+requirements, mutation windows, constant facts and call custody. It retains the
+authored expression tree for formation and operator selection. Post-store proof
+uses independently established RHS bounds and the existing complete private
+arrival observer. Nested calls transport completed operand field facts at their
+actual storage versions, and every incoming edge participates in the join.
+Unversioned byte-carrier ceilings are removed: an earlier ASCII observation
+cannot justify a byte write after the buffer has been replaced with multibyte
+text. Open or escaping nested callables retain their declared entry envelope.
+
+On macOS ARM64, the optimized producer built from `dcd52d625a77` runs the full
+sample and a separately prepared authored replay with native/Terminal exit zero
+and the same independent 35-line Rule 90 output. The focused corpus establishes
+24 checked positives and 36 intended rejections; 19 executable fixtures agree
+across native and Terminal, including the existing correlated-store nine-place
+row and both migrated six-cell predicate fixtures. Four positives are
+compile-only. The unchanged qualified-byte argument snapshot fixture exits 70
+natively but Terminal refuses `VerifiedOperationMalformed`; the fixed-base
+producer `1545e114cb00` reproduces the same failure at machine 15, block 28,
+operation 127. That fixture is not counted as engine agreement. Other hosts and
+the remaining migration acceptance remain open.

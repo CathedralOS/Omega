@@ -8,19 +8,19 @@ satisfies Handler<u64>::call, Handler<bool>::call, Predicate::evaluate
 { true }
 
 linux_arm64 machine choose<machine Selected>() -> bool
-where machine Selected satisfies Handler<u64>::call;
+requires machine Selected satisfies Handler<u64>::call;
 { Selected() }
 
 linux_x86_64 machine choose<machine Callback>() -> bool
-where machine Callback satisfies Handler<bool>::call;
+requires machine Callback satisfies Handler<bool>::call;
 { Callback() }
 
 macos_arm64 machine choose<machine Operation>() -> bool
-where machine Operation satisfies Predicate::evaluate;
+requires machine Operation satisfies Predicate::evaluate;
 { Operation() }
 
 windows_x86_64 machine choose<machine Action>() -> bool
-where machine Action() -> bool;
+requires machine Action() -> bool;
 { Action() }
 
 machine main() crashes Trap {

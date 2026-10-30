@@ -3,7 +3,7 @@ const Callback: u64 = 2;
 machine marker() -> u64 { 7 }
 machine count<const Size: u64>() -> u64 { Size }
 machine selected<Length [copy], machine Callback, const Capacity: u64>(items: Length, other: [u8; count<Callback>()]) -> u64
-where machine Callback() -> u64;
+requires machine Callback() -> u64;
 where Length == [u8; Capacity]
 { Capacity }
 machine main() {

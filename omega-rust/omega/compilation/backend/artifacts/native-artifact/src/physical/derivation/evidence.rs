@@ -790,6 +790,24 @@ pub(crate) fn ranges_overlap(
     left_start < right_end && right_start < left_end
 }
 
+/// Whether a text-section relocation covers any byte of `[start, end)`: a
+/// direct-instruction child owns exactly the bytes it emitted, so an overlap
+/// means the retained bytes are not that instruction's own.
+pub(crate) fn text_relocation_overlaps(
+    object: &image_emission::ObjectArtifact,
+    (start, end): (usize, usize),
+) -> bool {
+    object.relocations().records().any(|(_, relocation)| {
+        relocation.section == object_file::SectionKind::Text
+            && ranges_overlap(
+                start,
+                end,
+                relocation.offset,
+                relocation.offset.saturating_add(relocation.byte_width),
+            )
+    })
+}
+
 /// Each child retains a canonical covered union in each coordinate domain.
 /// Its intervals have equal lengths across custody boundaries; no hull is
 /// permitted to claim compiler-only bytes between authored intervals.

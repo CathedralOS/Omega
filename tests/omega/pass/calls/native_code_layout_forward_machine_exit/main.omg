@@ -1,5 +1,5 @@
 machine describe<machine Chosen>() -> CodeLayout
-where machine Chosen(value: u64) -> u64;
+requires machine Chosen(value: u64) -> u64;
 { code_layout<Chosen>() }
 // The exact selected executable application supplies a nonzero native entry and finite attributed code regions at runtime.
 // Expected exit: 0

@@ -25,10 +25,10 @@ parameters>] [(parameters)] [-> Type] contracts clauses ({ ... } | ;)`
 declarations, where `boundary` marks a crossing, and a fixed operator
 token from the closed vocabulary `+ - * / % == != < <= > >= [] [..]` binds
 operator syntax to the declaration (a conformance member binds none). Each
-`where machine Name [<generic parameters>] [(parameters)] [-> Type] clauses`
-contract, or nominal `where machine Name satisfies Trait::requirement`,
+`requires machine Name [<generic parameters>] [(parameters)] [-> Type] clauses`
+contract, or nominal `requires machine Name satisfies Trait::requirement`,
 gives a static machine binder its signature; the contracts precede the
-other clauses, end at their `;` or at the next `where machine`, and form one
+other clauses, end at their `;` or at the next `requires machine`, and form one
 flat list whose binders resolution matches, since a contract may name a
 binder of an earlier contract. The clauses are `reaches`, `invokes`,
 `suspends;`, `blocks;`, `crashes`, `requires`/`ensures` facts separated by
@@ -162,8 +162,7 @@ ambiguous. Every root kind the parser accepts binds but
 mathematical definitions (`let` roots) and transparent trait refinements,
 which reject at their root as unsupported declarations before any binding,
 as does a form whose bindings resolution does not record yet
-([`resolve/forms.omg`](resolve/forms.omg)), at that form: a nominal `where
-machine ... satisfies` contract, a structural one with generic parameters or
+([`resolve/forms.omg`](resolve/forms.omg)), at that form: a nominal `requires machine ... satisfies` contract, a structural one with generic parameters or
 clauses other than `requires`, `crashes`, `suspends` and `blocks`, a `where
 proposition` contract, a proposition binder, an evidence binder on a machine,
 data declaration, conformance, domain or proposition, or an
@@ -175,7 +174,7 @@ it (`Reader satisfies Reading<Value>` between a type and a const, or any
 other mix). The binder selects an implementation; it is not a stored type
 and not a second list. Its trait application binds as a trait in that
 telescope's scope, so an earlier binder is visible to it. A
-structural `where machine` contract binds its machine's `machine` binder of
+structural `requires machine` contract binds its machine's `machine` binder of
 its name, one contract per binder
 ([`resolve/contracts.omg`](resolve/contracts.omg)), its parameter and result
 types in the machine's scope and its `requires` facts over its own
@@ -405,7 +404,7 @@ and a byte predicate applies to one `u8` view
 ([`typing/admission.omg`](typing/admission.omg)).
 Facts type too ([`typing/facts.omg`](typing/facts.omg)): each machine's
 `requires` and `ensures` fact over its own parameters (`result` has the
-machine's result type), each `where machine`
+machine's result type), each `requires machine`
 contract's `requires` fact over its own parameters, and each data
 declaration's `where` fact over its fields, and each case's own `where` fact
 over its payload fields and those fields, is a Boolean. A proposition
@@ -746,7 +745,7 @@ owns bounded token selection and trivia traversal;
 | `tokens/` | Owns the sole typed lexical token stream the lexer fills and the parser borrows. | Absorb only into a successor representation that preserves the exact typed vocabulary and coordinates without parallel token truth. |
 | `syntax/` | Owns the bounded structural syntax retained by the current parser slice, including distinct direct-field and case-payload-field tables. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
 | `lex/` | Owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
-| `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type, generic-parameter, clause and name-path grammars (`types.omg`, `generics.omg`, `clause.omg`, `path.omg`), data, machine (with its operator token and `where machine` contracts), trait (with refinements and `where proposition` contracts), conformance, domain, constant, proposition and mathematical-definition declarations (`data.omg`, `machine.omg`, `traits.omg`, `conformance.omg`, `domain.omg`, `constant.omg`, `proposition.omg`, `definition.omg`), body statements (`statement.omg`) and expressions (`expression.omg`). | Absorb the parser only into its canonical successor. |
+| `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type, generic-parameter, clause and name-path grammars (`types.omg`, `generics.omg`, `clause.omg`, `path.omg`), data, machine (with its operator token and `requires machine` contracts), trait (with refinements and `where proposition` contracts), conformance, domain, constant, proposition and mathematical-definition declarations (`data.omg`, `machine.omg`, `traits.omg`, `conformance.omg`, `domain.omg`, `constant.omg`, `proposition.omg`, `definition.omg`), body statements (`statement.omg`) and expressions (`expression.omg`). | Absorb the parser only into its canonical successor. |
 | `resolution/` | Owns the name bindings that annotate the syntax tables by handle, and resolution diagnostics. | Absorb into a later Psi representation only with equivalent bindings and diagnostics. |
 | `resolve/` | Owns name resolution from syntax and source bytes to the bindings, and the named rejection of machine forms it does not bind yet (`forms.omg`). | Absorb only into the canonical multi-source resolver. |
 | `types/` | Owns the interned type table and the typing annotations indexed by syntax handles, and typing diagnostics. | Absorb into a later Psi representation only with equivalent types, selections and diagnostics. |

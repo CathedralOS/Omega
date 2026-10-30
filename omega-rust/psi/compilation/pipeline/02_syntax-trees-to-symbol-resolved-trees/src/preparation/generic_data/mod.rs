@@ -213,6 +213,23 @@ pub fn closed_data_const_argument_expressions(
     ))
 }
 
+/// Whether this authored argument can still denote a closed const value: a
+/// literal const expression, or a bare name that is neither a scalar spelling
+/// nor a normalized const argument.
+fn may_supply_closed_const_argument(syntax: &SyntaxTrees, argument: TypeReferenceHandle) -> bool {
+    match syntax.type_references.type_reference(argument) {
+        TypeReferenceNode::ConstExpression(_) => true,
+        TypeReferenceNode::Named(name) => {
+            syntax
+                .type_references
+                .const_argument_normalization(argument)
+                .is_none()
+                && ConstScalarSpelling::from_bare_name(name.as_str(syntax)).is_none()
+        }
+        _ => false,
+    }
+}
+
 fn positions_may_have_closed_const_arguments(
     syntax: &SyntaxTrees,
     positions: &[TypeReferenceHandle],
@@ -223,20 +240,7 @@ fn positions_may_have_closed_const_arguments(
                 .type_references
                 .type_reference_handles(*arguments)
                 .iter()
-                .any(
-                    |argument| match syntax.type_references.type_reference(*argument) {
-                        TypeReferenceNode::ConstExpression(_) => true,
-                        TypeReferenceNode::Named(name) => {
-                            syntax
-                                .type_references
-                                .const_argument_normalization(*argument)
-                                .is_none()
-                                && ConstScalarSpelling::from_bare_name(name.as_str(syntax))
-                                    .is_none()
-                        }
-                        _ => false,
-                    },
-                ),
+                .any(|argument| may_supply_closed_const_argument(syntax, *argument)),
             TypeReferenceNode::Constrained { constraints, .. } => syntax
                 .type_references
                 .constraints(*constraints)
@@ -246,20 +250,7 @@ fn positions_may_have_closed_const_arguments(
                         .type_references
                         .type_reference_handles(domain.arguments)
                         .iter()
-                        .any(
-                            |argument| match syntax.type_references.type_reference(*argument) {
-                                TypeReferenceNode::ConstExpression(_) => true,
-                                TypeReferenceNode::Named(name) => {
-                                    syntax
-                                        .type_references
-                                        .const_argument_normalization(*argument)
-                                        .is_none()
-                                        && ConstScalarSpelling::from_bare_name(name.as_str(syntax))
-                                            .is_none()
-                                }
-                                _ => false,
-                            },
-                        ),
+                        .any(|argument| may_supply_closed_const_argument(syntax, *argument)),
                     _ => false,
                 }),
             _ => false,
@@ -384,17 +375,7 @@ fn collect_closed_const_arguments(
         }
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if let Some(type_reference) = *parameter
-                && match syntax.type_references.type_reference(*argument) {
-                    TypeReferenceNode::ConstExpression(_) => true,
-                    TypeReferenceNode::Named(name) => {
-                        syntax
-                            .type_references
-                            .const_argument_normalization(*argument)
-                            .is_none()
-                            && ConstScalarSpelling::from_bare_name(name.as_str(syntax)).is_none()
-                    }
-                    _ => false,
-                }
+                && may_supply_closed_const_argument(syntax, *argument)
                 && seen_pending.insert(*argument)
             {
                 pending.push((

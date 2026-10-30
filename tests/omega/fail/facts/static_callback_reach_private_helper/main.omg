@@ -21,7 +21,7 @@ requires value <= 37
 ensures result <= 37
 { value }
 machine private_helper<machine Step>(value: u64) -> u64
-where machine Step satisfies StepContract::step;
+requires machine Step satisfies StepContract::step;
 terminates;
 requires value <= 37
 ensures result <= 37
@@ -30,13 +30,13 @@ machine note(value: u64) -> u64 reaches Console terminates;
 requires value <= 37 ensures result <= 37
 { value }
 machine traverse<machine Step>(value: u64) -> u64
-where machine Step satisfies StepContract::step;
+requires machine Step satisfies StepContract::step;
 terminates;
 requires value <= 37
 ensures result <= 37
 { private_helper<Step>(value) }
 machine with_note<machine Step>(value: u64) -> u64
-where machine Step satisfies StepContract::step;
+requires machine Step satisfies StepContract::step;
 terminates;
 requires value <= 37
 ensures result <= 37

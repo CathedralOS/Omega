@@ -202,11 +202,8 @@ pub fn borrowed_primitive_projection_declaration<'a>(
     // A whole declared scalar keeps its exact type. An inline field presents
     // its observation carrier instead: the existence of a bounded declaration
     // elsewhere must not change a plain shared call's contract.
-    let expected = expected.and_then(|expected| {
-        declarations
-            .clone()
-            .find(|declaration| declaration.id == expected)
-    });
+    let expected =
+        expected.and_then(|expected| crate::structural_declaration(declarations.clone(), expected));
     let tip = walk_primitive_projection(
         declarations.clone(),
         root,
@@ -427,11 +424,8 @@ pub fn runtime_structural_copy_type<'a>(
         // Confirm the checked result against the field's complete copy
         // contract. An equal-width restricted scalar elsewhere in the catalog
         // must not select this value's identity or manufacture its predicate.
-        let expected = expected.and_then(|identity| {
-            declarations
-                .clone()
-                .find(|declaration| declaration.id == identity)
-        });
+        let expected = expected
+            .and_then(|identity| crate::structural_declaration(declarations.clone(), identity));
         return field
             .field_type
             .leaf_copy_type(expected)?

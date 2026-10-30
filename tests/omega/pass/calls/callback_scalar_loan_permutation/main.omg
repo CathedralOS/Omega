@@ -148,7 +148,7 @@ public boundary trait SortRegistrar: Calling<SortCalling> {
         elements: &mut Elements, count: u64, width: u64, direction: &u64,
         native callback compare from Handler
     )
-    where machine Handler satisfies Comparator::compare;
+    requires machine Handler satisfies Comparator::compare;
     reaches
     invokes Comparator;
     requires count == 2 && width == 8;

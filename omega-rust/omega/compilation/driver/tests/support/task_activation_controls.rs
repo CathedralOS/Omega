@@ -9,11 +9,13 @@ pub(super) fn produce(
     machine: &str,
     profile: target::TargetProfile,
 ) -> Result<(), String> {
-    let providers = checked.execution().selected_provider_plan_facts.clone();
+    let providers = checked.execution().provider_source.plans().clone();
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-    let source_demands =
-        psi_compiler::lower_task_activation_demands(&checked.execution().program, &mut identities)
-            .map_err(|errors| format!("source task projection: {errors:?}"))?;
+    let source_demands = psi_compiler::lower_task_activation_demands(
+        checked.execution().provider_source.program(),
+        &mut identities,
+    )
+    .map_err(|errors| format!("source task projection: {errors:?}"))?;
     let source_plans = task_plans::realize_task_activations(
         &source_demands,
         &identities.build(),
@@ -22,7 +24,7 @@ pub(super) fn produce(
     )
     .map_err(|errors| format!("source task admission: {errors:?}"))?;
     let artifact = psi_compiler::TerminalProductionRequest::new(
-        &checked.execution().program,
+        checked.execution().provider_source.program(),
         psi_compiler::TerminalMachineSelection::Name(machine),
         checked.sources().exact_toolchain_sources(),
     )

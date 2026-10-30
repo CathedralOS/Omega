@@ -25,7 +25,7 @@ GenericIdentity<T> satisfies Identity<T> {
 }
 boundary machine before_binders() -> i32 ensures result == 0;
 BoundIdentity<'scope, T, const Bytes: [u8; 2], machine Observe> satisfies Identity<T>
-where machine Observe(value: T) -> T;
+requires machine Observe(value: T) -> T;
 {
     machine same(value: T) -> T { value }
 }

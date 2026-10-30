@@ -146,29 +146,18 @@ pub(crate) fn assign_nominal_machine_requirement_arguments(
             );
         }
     }
+    // Every closed root roster contributes its own binders as a fresh scope.
+    let mut collect_root = |parameters: &[TypeParameter]| {
+        collect(program, parameters, &[], &mut scopes);
+    };
     for owner in program.conformances.iter() {
-        collect(
-            program,
-            program.data_type_parameters(owner.type_parameters),
-            &[],
-            &mut scopes,
-        );
+        collect_root(program.data_type_parameters(owner.type_parameters));
     }
     for owner in program.data_definitions.iter() {
-        collect(
-            program,
-            program.data_type_parameters(owner.type_parameters),
-            &[],
-            &mut scopes,
-        );
+        collect_root(program.data_type_parameters(owner.type_parameters));
     }
     for owner in program.domain_definitions.iter() {
-        collect(
-            program,
-            program.data_type_parameters(owner.type_parameters),
-            &[],
-            &mut scopes,
-        );
+        collect_root(program.data_type_parameters(owner.type_parameters));
     }
     let propositions = trait_parameter_slots(program, |parameter| {
         matches!(parameter.kind, TypeParameterKind::Proposition { .. })

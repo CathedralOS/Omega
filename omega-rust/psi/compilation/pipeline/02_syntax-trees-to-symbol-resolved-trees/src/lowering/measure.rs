@@ -1,5 +1,6 @@
 //! Measure definitions and their optional parameter.
 
+use crate::lowering::expression::expression_table;
 use crate::lowering::expression::lower_expression_into_table;
 use crate::lowering::name::lower_operator_path_name;
 use crate::lowering::state::lower_state_parameter;
@@ -34,12 +35,7 @@ pub(crate) fn lower_measure_definition(
         let lowered = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
         lowered_components.push(lowered);
     }
-    let body = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .insert_expression_handles(lowered_components);
+    let body = expression_table(lowerer).insert_expression_handles(lowered_components);
 
     Ok(MeasureDefinition {
         symbol: SymbolHandle::invalid(),

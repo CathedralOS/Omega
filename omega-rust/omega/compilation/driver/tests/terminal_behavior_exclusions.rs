@@ -32,7 +32,8 @@ fn executed_values_keep_helper_identity_and_omit_untaken_exclusions() {
     assert_eq!(
         checked
             .execution()
-            .program
+            .provider_source
+            .program()
             .symbols
             .name(grants[0].selecting_machine),
         "configure",
@@ -48,7 +49,8 @@ fn executed_values_keep_helper_identity_and_omit_untaken_exclusions() {
     assert!(rows.iter().all(|row| {
         checked
             .execution()
-            .program
+            .provider_source
+            .program()
             .typed
             .symbols
             .name(row.selecting_machine)
@@ -111,7 +113,7 @@ fn exclusion_tickets_reject_foreign_receivers_and_replay(checked: &compiler::Che
         TerminalStructuralValue,
     };
     let produced = psi_compiler::TerminalProductionRequest::new(
-        &checked.execution().program,
+        checked.execution().provider_source.program(),
         psi_compiler::TerminalMachineSelection::Name("build"),
         checked.sources().exact_toolchain_sources(),
     )

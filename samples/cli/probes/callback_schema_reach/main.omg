@@ -1,5 +1,5 @@
 // Machine parameters bound by an authored signature
-// schema — `where machine Schema<const Number: u64>
+// schema — `requires machine Schema<const Number: u64>
 // (value: u64) -> u64 reaches Console` — carry a const
 // binder AND an effect requirement; `Schema<2>(value)`
 // calls the bound machine with its static argument.
@@ -16,8 +16,8 @@
 boundary trait Console { machine ping() reaches; }
 
 machine apply<machine Schema, machine Unused>(value: u64) -> u64
-where machine Schema<const Number: u64>(value: u64) -> u64 reaches Console;
-where machine Unused<const Number: u64>(value: u64) -> u64 reaches Console;
+requires machine Schema<const Number: u64>(value: u64) -> u64 reaches Console;
+requires machine Unused<const Number: u64>(value: u64) -> u64 reaches Console;
 {
     let first: u64 = Schema<2>(value);
     Schema<3>(first)

@@ -75,19 +75,20 @@ pub(super) fn handle_element_store<'program>(
     let Some(field) = data_field(program, definition, member.member.as_str()) else {
         return false;
     };
-    let affected: Vec<ExpressionHandle> = program
-        .proof_facts
-        .span_or_empty(definition.where_facts)
-        .iter()
-        .filter_map(|fact| match fact {
-            ProofFact::Expression(expression)
-                if reads_field_contents(program, *expression, field.name.as_str()) =>
-            {
-                Some(*expression)
+    let affected = program
+        .conjunctive_proof_facts(definition.where_facts)
+        .filter(|fact| match fact {
+            ProofFact::Expression(expression) => {
+                reads_field_contents(program, *expression, field.name.as_str())
             }
-            _ => None,
+            _ => super::place_queries::fact_names_field(
+                program,
+                definition,
+                fact,
+                field.name.as_str(),
+            ),
         })
-        .collect();
+        .collect::<Vec<_>>();
     if affected.is_empty() {
         return true;
     }
@@ -152,10 +153,15 @@ pub(super) fn handle_element_store<'program>(
     let all_hold = precise_receiver
         && elements.as_ref().is_some_and(|elements| {
             affected.iter().all(|fact| {
+                let Some(expression) = fact.as_expression() else {
+                    // Unsupported evidence keeps restoration debt. A store
+                    // cannot silently discard a membership or proposition.
+                    return false;
+                };
                 collection_predicates::data_fact_decided(
                     program,
                     definition,
-                    *fact,
+                    *expression,
                     &mut |argument| {
                         if argument.symbol == field.symbol {
                             return Some(ArgumentKnowledge::Array(elements.clone()));

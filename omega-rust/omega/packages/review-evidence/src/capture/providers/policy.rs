@@ -47,11 +47,7 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
     // The candidate under review cannot manufacture selected-instance custody.
     // Derive this source-only projection from the original compiler program;
     // ordinary native products obtain their associations from Terminal instead.
-    let selected_instances = provider_planning::project_checked_provider_instances(
-        &selected_execution.program.typed,
-        &selected_execution.program.facts,
-        &selected_execution.selected_provider_plan_facts,
-    )?;
+    let selected_instances = selected_execution.provider_source.project_instances()?;
     let mut plans = selected_execution
         .selected_provider_provenance
         .as_slice()
@@ -75,7 +71,8 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
         .count();
     if projected_installation_reaches
         != selected_execution
-            .selected_provider_plan_facts
+            .provider_source
+            .plans()
             .installation_reach_resolutions()
             .len()
     {
@@ -111,7 +108,8 @@ fn project_plan(
     // names no authored provider type and deliberately covers only the
     // leaves the toolchain can bind honestly.
     let toolchain_settled = selected_execution
-        .selected_provider_plan_facts
+        .provider_source
+        .plans()
         .is_toolchain_settled(plan);
     let schema_declaration = nominal_identity(compilation, retained.provider.schema.symbol())?;
     validate_selected_provider_declaration_owner(

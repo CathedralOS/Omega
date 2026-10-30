@@ -130,7 +130,7 @@ satisfies CallingPolicy::plan
 
 public boundary trait OnceRegistrar: Calling<OnceCalling> {
     machine execute<machine Handler>(word: &mut i32, native callback initialize from Handler) -> i32
-    where machine Handler satisfies Initializer::call;
+    requires machine Handler satisfies Initializer::call;
     reaches
     invokes Initializer;
 }

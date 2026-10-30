@@ -2,13 +2,12 @@
 //! their port effects, reads, writes and settlement receipts.
 
 use crate::OptimizedBoundaryOccurrence;
-use crate::physical::derivation::evidence::{ranges_overlap, span};
+use crate::physical::derivation::evidence::{span, text_relocation_overlaps};
 pub(crate) use crate::physical::native_byte_span;
 use crate::physical::sole_terminal_operation;
 use crate::{NativeProviderExecution, NativeSelectedProviderPlan};
 use installation_evidence::ProviderExecutionEvidence;
 use machine_code::PortEffectRecord;
-use object_file::SectionKind;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use std::collections::BTreeSet;
 use target::{Architecture, NativeTarget};
@@ -150,15 +149,7 @@ pub(crate) fn metadata_port_effect_custody(
         .text_offset
         .checked_add(effect.byte_count)
         .ok_or("metadata port D41 effect relocation span overflow")?;
-    if object.relocations().records().any(|(_, relocation)| {
-        relocation.section == SectionKind::Text
-            && ranges_overlap(
-                object_effect.text_offset,
-                object_end,
-                relocation.offset,
-                relocation.offset.saturating_add(relocation.byte_width),
-            )
-    }) {
+    if text_relocation_overlaps(object, (object_effect.text_offset, object_end)) {
         return Err("metadata port D41 effect unexpectedly contains a relocation");
     }
     consumed_port_effects.insert(*effect_index);

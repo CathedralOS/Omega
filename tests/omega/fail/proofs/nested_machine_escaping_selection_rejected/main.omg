@@ -1,5 +1,5 @@
 machine apply<machine Transform>(left: u64, right: u64, tag: u64) -> Note
-where machine Transform(first: u64, second: u64, event: u64) -> Note;
+requires machine Transform(first: u64, second: u64, event: u64) -> Note;
 { Transform(left, right, tag) }
 // Expected exit: 0
 // Every actual arrival establishes the nested helper's equality.

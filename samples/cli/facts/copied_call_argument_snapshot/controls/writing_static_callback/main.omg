@@ -6,7 +6,7 @@ machine keep<'storage>(source: View<'storage>, counter: &mut Counter) -> View<'s
 ensures result.bytes.len == source.bytes.len, result.sibling.len == source.sibling.len
 { counter.called = !counter.called; let held: View = source; held }
 machine apply<'storage, machine Callback>(source: View<'storage>, counter: &mut Counter) -> View<'storage>
-where machine Callback<'fresh>(source: View<'fresh>, counter: &mut Counter) -> View<'fresh>
+requires machine Callback<'fresh>(source: View<'fresh>, counter: &mut Counter) -> View<'fresh>
 ensures result.bytes.len == source.bytes.len, result.sibling.len == source.sibling.len;
 ensures result.bytes.len == source.bytes.len, result.sibling.len == source.sibling.len
 { let held: View<'storage> = Callback(source, counter); held }

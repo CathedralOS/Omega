@@ -159,7 +159,7 @@ pub struct StateSignature {
     /// Erased borrow-region parameters owned by this callable requirement.
     pub lifetime_parameters: Vec<Identifier>,
     /// Generic parameters owned by this callable requirement. N7 uses this
-    /// on a `where machine` signature so a required machine may itself accept
+    /// on a `requires machine` signature so a required machine may itself accept
     /// compile-time machine symbols.
     pub type_parameters: HandleSpan<TypeParameter>,
     pub is_default: bool,

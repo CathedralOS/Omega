@@ -5,7 +5,7 @@ machine pick<'call>(context: Holder<'call>, item: &'call u64) -> &'call u64 {
 }
 
 machine apply<Context, machine Callback>(context: Context, item: &u64) -> &u64
-where machine Callback<'fresh>(context: Context, item: &'fresh u64) -> &'fresh u64;
+requires machine Callback<'fresh>(context: Context, item: &'fresh u64) -> &'fresh u64;
 { Callback(context, item) }
 
 machine relay<'call>(context: Holder<'call>, item: &'call u64) -> &'call u64 {

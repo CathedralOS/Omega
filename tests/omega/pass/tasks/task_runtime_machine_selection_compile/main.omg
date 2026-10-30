@@ -10,14 +10,14 @@ data CanaryTaskRuntime { }
 boundary machine CanaryTaskRuntime::start<T, Arguments, machine Target>(
     arguments: Arguments
 ) -> Task<T>
-where machine Target(arguments: Arguments) -> T suspends; blocks;
+requires machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies TaskRuntime::start
 ;
 
 boundary machine CanaryTaskRuntime::try_start<T, Arguments, machine Target>(
     arguments: Arguments
 ) -> StartOutcome<T, Arguments>
-where machine Target(arguments: Arguments) -> T suspends; blocks;
+requires machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies TaskRuntime::try_start
 ;
 

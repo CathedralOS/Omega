@@ -6,7 +6,7 @@ machine wrong_width(value: u32) -> u32 {
 }
 
 machine apply<machine F>(value: u16) -> u16
-where machine F(value: u16) -> u16;
+requires machine F(value: u16) -> u16;
 {
     F(value)
 }

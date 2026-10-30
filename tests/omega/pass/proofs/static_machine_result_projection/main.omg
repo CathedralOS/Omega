@@ -2,18 +2,18 @@
 use omega::language::core::nat;
 data Observation { value: Nat; other: Nat; }
 machine project<machine Read>(index: Nat) -> Nat
-where machine Read(index: Nat) -> Observation terminates;
+requires machine Read(index: Nat) -> Observation terminates;
 {
     let observation: Observation = Read(index);
     transition { _ -> observation.value }
 }
 machine forwarded<machine Read>(index: Nat) -> Nat
-where machine Read(index: Nat) -> Observation terminates;
+requires machine Read(index: Nat) -> Observation terminates;
 {
     transition { _ -> (project<Read>(index)) }
 }
 machine result_projection<machine Read>(index: Nat)
-where machine Read(index: Nat) -> Observation terminates;
+requires machine Read(index: Nat) -> Observation terminates;
 ensures
     project<Read>(index) == (Read(index)).value;
     forwarded<Read>(index) == (Read(index)).value

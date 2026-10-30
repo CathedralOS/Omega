@@ -54,7 +54,9 @@ generic declaration groups; [instance selection](../provider-selection/src/provi
 judges candidate counts, template agreement and complete closed-instance coverage
 without source. Psi retains checked identity handles; this plan boundary renders
 them into its existing normalized vocabulary. Check, callback preparation, reference interpretation and package
-review share this route. Review derives from original compiler custody, not its
+review share one lazy declaration product owned by the immutable checked program
+and whole selected-plan roster. Each consumer retains its own admission point;
+unused callback-free native requests skip preparation. Review derives from original compiler custody, not its
 supplied semantic candidate. These invocation-local records are not a portable
 provider artifact or an execution grant.
 

@@ -3,7 +3,6 @@
 //! Provider binding produces this immutable result. Terminal production borrows
 //! it; native admission still joins actual demand and receiving permissions.
 
-use checked_trees::CheckedTrees as CheckedProgram;
 use diagnostics::Diagnostic;
 use package_compilation::AcceptedSemanticBindingRole;
 use std::sync::Arc;
@@ -16,7 +15,9 @@ pub struct SelectedExecution {
     /// Complete direct-call supplies, constructed after host bindings resolve.
     /// Native demand and receiving authority still decide which may execute.
     pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
-    pub program: Arc<CheckedProgram>,
+    /// Immutable source and exact whole-plan ownership for lazy declarations.
+    /// Consumers borrow the same preparation rather than reopening source.
+    pub provider_source: Arc<provider_planning::SelectedProviderSource>,
     pub service_declarations: Arc<provider_planning::service_declarations::ServiceDeclarations>,
     pub declaration_catalog: Arc<psi_terminal_production::PreparedDeclarationCatalog>,
     /// Native handoff and executable exclusion admission demand these source
@@ -28,10 +29,6 @@ pub struct SelectedExecution {
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     /// Exact admitted deployment provider; absence retains the SSE2 baseline.
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
-    /// Authored selection and closed physical leaves. Checked adapter instances
-    /// come from Terminal for native consumers, or an explicit checked-source
-    /// projection for reference execution and review.
-    pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     /// Authored Build grants resolved to the exact selected plans.
     pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
     /// Selected canonical declarations for behavior admission, including dormant uses.
@@ -60,7 +57,10 @@ impl SelectedExecution {
         let Some(entry) = self.selected_program_entry.as_ref() else {
             return Vec::new();
         };
-        crate::program_entry_service_requirements(&self.program, entry.machine_symbol())
+        crate::program_entry_service_requirements(
+            self.provider_source.program(),
+            entry.machine_symbol(),
+        )
     }
 
     pub fn resolved_semantic_binding(

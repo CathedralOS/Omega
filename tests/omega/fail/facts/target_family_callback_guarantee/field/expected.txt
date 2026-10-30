@@ -1,2 +1,2 @@
-does not refine `Callback`
+does not refine `Selected`
 its ensures facts are not a conservative refinement

@@ -19,7 +19,7 @@ use psi::types::types;
 // carries its meaning, so an untyped one is neither assumed nor proved.
 
 // The clauses and parameters a call's callee declares: a machine's own, or
-// a machine binder's `where machine` contract's (wiki/spec/language/
+// a machine binder's `requires machine` contract's (wiki/spec/language/
 // generics.md#static-machine-binder-categories). A binder without a contract
 // and every other selection declare none.
 public data CallClauses [copy] {

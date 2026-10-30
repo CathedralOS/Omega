@@ -1,6 +1,6 @@
 # seq_consuming_combinators
 
-Consuming combinators over a recursive sum: `map<T, U, machine F>`/`filter<T, machine Predicate>` with `where machine F(value: T) -> U` / `where machine Predicate(value: &T) -> bool` contracts, `terminates by items` structural rank, and closed wrappers `map<increment>`/`filter<positive>` instantiating the machine-symbol params.
+Consuming combinators over a recursive sum: `map<T, U, machine F>`/`filter<T, machine Predicate>` with `requires machine F(value: T) -> U` / `requires machine Predicate(value: &T) -> bool` contracts, `terminates by items` structural rank, and closed wrappers `map<increment>`/`filter<positive>` instantiating the machine-symbol params.
 
 ## Learnings
 

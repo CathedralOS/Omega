@@ -4,7 +4,7 @@ public trait ElementStep<Element> {
 }
 
 public machine for_each<Element, machine Step>(items: &mut [Element])
-where machine Step satisfies ElementStep<Element>::apply;
+requires machine Step satisfies ElementStep<Element>::apply;
 terminates;
 terminates by items -> Slice::Length;
 {

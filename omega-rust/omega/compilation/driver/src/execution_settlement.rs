@@ -153,7 +153,7 @@ impl SelectedProductTarget {
         }
 
         let execution = &self.custody.execution;
-        let facts = &execution.selected_provider_plan_facts;
+        let facts = execution.provider_source.plans();
         let mut receiving_identities = None;
         let mut selected_components = Vec::new();
         let mut unavailable = None;
@@ -246,15 +246,11 @@ impl SelectedProductTarget {
         // A source-only stop owes selected-instance coverage without native
         // realization. Executable products obtain it from Terminal instead.
         let execution = &self.custody.execution;
-        provider_planning::project_checked_provider_instances(
-            &execution.program.typed,
-            &execution.program.facts,
-            &execution.selected_provider_plan_facts,
-        )?;
+        execution.provider_source.project_instances()?;
         match terminal {
             Some(module) => check_terminal_task_activations(
                 module,
-                &execution.selected_provider_plan_facts,
+                execution.provider_source.plans(),
                 execution.selected_target_profile,
             ),
             None => {
@@ -263,13 +259,13 @@ impl SelectedProductTarget {
                 // this complete source obligation bundle, including inert uses.
                 let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
                 let demands = psi_compiler::lower_task_activation_demands(
-                    &execution.program,
+                    execution.provider_source.program(),
                     &mut identities,
                 )?;
                 task_plans::realize_task_activations(
                     &demands,
                     &identities.build(),
-                    &execution.selected_provider_plan_facts,
+                    execution.provider_source.plans(),
                     execution
                         .selected_target_profile
                         .unwrap_or_else(target::TargetProfile::host),

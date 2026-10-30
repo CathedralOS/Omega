@@ -258,6 +258,24 @@ not a new language stage.
 
 ## Build and compiler ownership migration
 
+Provider settlement is complete only when target policy consumes canonical Psi
+declarations and explicit Build/package inputs, without reopening checked source.
+The remaining connected migration is:
+
+1. Publish candidate/default and requirement declaration inputs before target
+   choice; keep whole-plan, target and grant selection in Omega.
+2. Publish exact calling applications, signatures and checked contracts so
+   Build-sponsored completion and target ABI/materialization consume records.
+3. Move entry, selected-family reach and source-cycle obligations onto canonical
+   declaration/call evidence, including dormant obligations for rootless checks.
+4. Complete owner-bound service/qualification/role review and deferred constant
+   recipes, then remove selected-source policy from Terminal inventory discovery.
+
+Each step removes the replaced source-reading route across all its consumers;
+none is a separate implementation handoff. Native receiving admission remains
+source-free. Check and declaration review must still work without executable
+publication, and reviewed candidates never replace original compiler custody.
+
 The owner approved this implementation plan on 2026-10-24. It is the acceptance
 for **PIPELINE-ARCHITECTURE-ENFORCEMENT**, not a claim that the current Rust
 implementation already has these boundaries. Build suspension and helper
@@ -428,6 +446,12 @@ candidate cardinality, template-row agreement, complete closed-instance coverage
 and attachment to the selected plans. Review still prepares from the original
 compiler program, not the candidate under review. These are invocation-local
 declarations, not another portable format or permission to execute a provider.
+`SelectedProviderSource` now owns the immutable checked program and complete
+selected-plan roster together. It prepares that declaration payload lazily once;
+callback, Check, review and reference consumers borrow it and run source-free
+selection at their original admission points. Empty callback rosters do not
+initialize it. Clones share preparation, equality ignores only derived cache
+state, and no caller can replace the program independently of its plans.
 
 Numeric meaning and external satisfaction have one Psi declaration producer,
 shared by Terminal retention and rootless package projection. Checked-provider

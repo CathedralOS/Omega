@@ -58,9 +58,7 @@ pub fn bounded_byte_owner_capacity_in<'type_declaration, 'domain>(
     {
         return None;
     }
-    let expected_type = types
-        .clone()
-        .find(|row| row.id == expected.structural_type)?;
+    let expected_type = crate::structural_declaration(types.clone(), expected.structural_type)?;
     let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
         expected_type.shape
     else {
@@ -68,7 +66,7 @@ pub fn bounded_byte_owner_capacity_in<'type_declaration, 'domain>(
     };
     let required = crate::byte_parameter_predicates_in(domains.clone(), expected)?;
     let (actual_capacity, predicates) = if argument.path.is_empty() {
-        let declaration = types.clone().find(|row| row.id == actual.structural_type)?;
+        let declaration = crate::structural_declaration(types.clone(), actual.structural_type)?;
         let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
             declaration.shape
         else {

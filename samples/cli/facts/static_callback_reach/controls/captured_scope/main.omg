@@ -28,16 +28,16 @@ ensures result <= 37
 { value }
 trait Getter<Value> {
     machine get<machine Inner>(value: u64) -> u64
-    where machine Inner satisfies StepContract<Value>::step;
+    requires machine Inner satisfies StepContract<Value>::step;
     reaches Console blocks; terminates;
     requires value <= 37
     ensures result <= 37;
 }
 Selected<Value, machine Step> satisfies Getter<Value>
-where machine Step satisfies StepContract<Value>::step;
+requires machine Step satisfies StepContract<Value>::step;
 {
     machine get<machine Inner>(value: u64) -> u64
-    where machine Inner satisfies StepContract<Value>::step;
+    requires machine Inner satisfies StepContract<Value>::step;
     requires value <= 37
     ensures result <= 37
     { let prefix: u64 = Step(value); Inner(prefix) }

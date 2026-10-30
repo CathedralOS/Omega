@@ -375,32 +375,17 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         // A generic machine may forward one of its own compile-time static
         // parameters. Keep lexical bindings distinct from same-named concrete
         // declarations; the selected callee telescope validates the category.
-        let type_or_const_parameter = child_symbol_by_kinds(
-            symbols,
-            machine_symbol,
-            &[SymbolKind::TypeParameter],
-            target.as_str(),
-        );
-        if type_or_const_parameter.is_valid() {
-            return type_or_const_parameter;
-        }
-        let parameter = child_symbol_by_kinds(
-            symbols,
-            machine_symbol,
-            &[SymbolKind::MachineParameter],
-            target.as_str(),
-        );
-        if parameter.is_valid() {
-            return parameter;
-        }
-        let evidence_parameter = child_symbol_by_kinds(
-            symbols,
-            machine_symbol,
-            &[SymbolKind::ConformanceParameter],
-            target.as_str(),
-        );
-        if evidence_parameter.is_valid() {
-            return evidence_parameter;
+        // The category is named by the binder that owns the child slot, so the
+        // first listed kind that owns one wins.
+        for kind in [
+            SymbolKind::TypeParameter,
+            SymbolKind::MachineParameter,
+            SymbolKind::ConformanceParameter,
+        ] {
+            let binding = child_symbol_by_kinds(symbols, machine_symbol, &[kind], target.as_str());
+            if binding.is_valid() {
+                return binding;
+            }
         }
         let conformance = symbols
             .find_top_level_by_name_and_kinds_from_source(

@@ -1,0 +1,23 @@
+// Fact: a selected callback satisfies the public callable guarantee, and its bounded result permits subtraction from 64u64.
+// Expected exit: 0
+machine identity(value: u64) -> u64 requires value <= 64 ensures result <= 64 && result >= value { value }
+boundary trait CallbackApply {
+    machine apply<Selected>(value: u64) -> u64 reaches requires value <= 64
+        requires machine Selected(input: u64) -> u64
+            requires input <= 64 ensures result <= 64 && result >= input;
+        ensures result <= 64;
+}
+SharedApply satisfies CallbackApply {
+    machine apply<Action>(value: u64) -> u64 requires value <= 64
+        requires machine Action(input: u64) -> u64
+            requires input <= 64 ensures result <= 64 && result >= input;
+        ensures result <= 64
+    { Action(value) }
+}
+machine main() reaches CallbackApply invokes CallbackApply; crashes Trap {
+    let result: u64 = CallbackApply::apply<identity>(42);
+    let remaining: u64 = 64u64 - result;
+    transition remaining == 22 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

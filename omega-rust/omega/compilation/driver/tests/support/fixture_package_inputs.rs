@@ -780,7 +780,8 @@ fn assumed_fixture_permissions(
                 .collect();
         if preliminary
             .execution()
-            .selected_provider_plan_facts
+            .provider_source
+            .plans()
             .assumed_bindings()
             .is_empty()
         {

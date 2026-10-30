@@ -3,7 +3,7 @@ data Cell { value: u64; }
 machine positive(cell: &u64) -> u64 requires cell > 0 { cell }
 machine observe(cell: &u64) -> u64 terminates; { cell }
 machine keep<machine Read>(cell: &u64) -> u64
-where machine Read(cell: &u64) -> u64 terminates;
+requires machine Read(cell: &u64) -> u64 terminates;
 requires cell > 0
 {
     let observed: u64 = Read(cell);

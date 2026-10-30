@@ -1,5 +1,5 @@
 machine apply<'item, Context, machine Callback>(context: Context, item: &'item u64) -> &'item u64
-where machine Callback<'call>(context: Context, item: &'call u64) -> &'call u64;
+requires machine Callback<'call>(context: Context, item: &'call u64) -> &'call u64;
 {
     let local: u64 = 17u64;
     let result: &u64 = &local;

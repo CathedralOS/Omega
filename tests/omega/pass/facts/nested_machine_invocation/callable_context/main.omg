@@ -1,7 +1,7 @@
 // Expected exit: 0
 machine identity(value: u64) -> u64 { value }
 machine apply<machine Transform>(value: u64) -> u64
-where machine Transform(item: u64) -> u64;
+requires machine Transform(item: u64) -> u64;
 {
     inner(value)
     machine inner(item: u64) -> u64 { Transform(item) }

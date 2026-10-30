@@ -51,9 +51,20 @@ pub(crate) fn stored_data_predicate_holds(
         proven: true,
     };
     let complete = observe_runtime_state_prefix(program, machine, state, &mut visitor).is_some();
-    complete && visitor.observed && visitor.proven
+    if complete && visitor.has_positive_proof() {
+        return true;
+    }
+    // The declaration-only entry may not know a private invocation's exact
+    // incoming guard. Reuse the same closed-arrival owner as call requirements
+    // and completed operands; every actual arrival owes this post-store fact.
+    visitor.observed = false;
+    visitor.proven = true;
+    super::structural_prefix::observe_private_arrivals(program, machine, &mut visitor, false)
+        == Some(true)
+        && visitor.has_positive_proof()
 }
 
+#[derive(Clone)]
 struct StoredPredicate<'definition> {
     site: StructuralPrefixSite,
     place: crate::CanonicalPlace,
@@ -65,6 +76,10 @@ struct StoredPredicate<'definition> {
 }
 
 impl StructuralPrefixVisitor for StoredPredicate<'_> {
+    fn has_positive_proof(&self) -> bool {
+        self.observed && self.proven
+    }
+
     fn site(&self) -> StructuralPrefixSite {
         self.site
     }

@@ -72,7 +72,7 @@ public boundary trait Console {
 // and an empty destination returns Full(0). LF in the last slot still completes
 // the line. Finite storage does not promise a bound on waiting for host input.
 machine console_read_line<machine ReadByte>(out_line: &mut [u8]) -> LineReadResult
-where machine ReadByte satisfies Console::read_byte;
+requires machine ReadByte satisfies Console::read_byte;
 reaches Console {
     transition { _ -> block scan(out_line, 0) }
     machine scan(out_line: &mut [u8], position: u64) -> LineReadResult {
@@ -110,7 +110,7 @@ reaches Console {
 // cycle. Each guarded edge stages the head byte and tail slice; the helper's
 // body performs the byte effect only after that edge was selected.
 machine console_write_bytes<machine WriteByte>(bytes: &[u8], newline: bool)
-where machine WriteByte satisfies Console::write_byte;
+requires machine WriteByte satisfies Console::write_byte;
 terminates by bytes -> Slice::Length;
 reaches
     Console

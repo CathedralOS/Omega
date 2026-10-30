@@ -47,6 +47,19 @@ pub(crate) fn callable_contract_exposure(
     machine.interface_exposure
 }
 
+/// A service description does not change its declaration's source exposure.
+/// Private boundary traits remain audited without acquiring public visibility.
+pub(crate) fn trait_contract_exposure(
+    declaration: &typed_trees::trait_definition::TraitDefinition,
+) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+    if declaration.is_public {
+        AuthoredDeclarationSelectionExposure::PublicInterface
+    } else {
+        AuthoredDeclarationSelectionExposure::PrivateImplementation
+    }
+}
+
 pub(crate) fn project_callable_contracts(
     compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,

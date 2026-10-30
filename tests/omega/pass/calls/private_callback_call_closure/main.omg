@@ -169,7 +169,7 @@ public data OnceControl { signature: u64; opaque: u64; }
 
 public boundary trait OnceRegistrar: Calling<OnceCalling> {
     machine execute<machine Handler>(control: &mut OnceControl, native callback initialize from Handler) -> i32
-    where machine Handler satisfies Initializer::call;
+    requires machine Handler satisfies Initializer::call;
     reaches
     invokes Initializer;
 }

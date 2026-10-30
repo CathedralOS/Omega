@@ -1734,12 +1734,23 @@ fn call_machine_substitution(
         typed_trees::expression::StaticMachineArgument,
     )>,
 > {
-    let SelectedCallContract::Concrete(machine, _) = owner else {
-        return arguments.is_empty().then(Vec::new);
+    let parameters = match owner {
+        SelectedCallContract::Concrete(machine, _) => program
+            .machine_kind_type_parameters(machine)
+            .collect::<Vec<_>>(),
+        SelectedCallContract::Signature(signature)
+        | SelectedCallContract::DynamicSlot { signature, .. } => program
+            .requirement_invocation_contract_parameters(signature)
+            .iter()
+            .filter(|parameter| {
+                matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Machine { .. }
+                )
+            })
+            .collect(),
+        SelectedCallContract::Operator(_) => return arguments.is_empty().then(Vec::new),
     };
-    let parameters = program
-        .machine_kind_type_parameters(machine)
-        .collect::<Vec<_>>();
     if parameters.len() != arguments.len() {
         return None;
     }

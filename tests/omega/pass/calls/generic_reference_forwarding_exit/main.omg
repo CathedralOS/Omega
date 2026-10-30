@@ -21,25 +21,25 @@ CounterIncrementable satisfies Incrementable<Counter> {
 // The two helpers own distinct type parameters; the explicit applications
 // connect them by identity while preserving the existing mutable reference.
 machine nominal_step<StepSubject, machine Increment>(subject: &mut StepSubject)
-where machine Increment satisfies Incrementable<StepSubject>::increment;
+requires machine Increment satisfies Incrementable<StepSubject>::increment;
 {
     Increment(subject);
 }
 
 machine nominal_forward<ForwardedSubject, machine Increment>(subject: &mut ForwardedSubject)
-where machine Increment satisfies Incrementable<ForwardedSubject>::increment;
+requires machine Increment satisfies Incrementable<ForwardedSubject>::increment;
 {
     nominal_step<ForwardedSubject, Increment>(subject);
 }
 
 machine structural_step<StepSubject, machine Increment>(subject: &mut StepSubject)
-where machine Increment(target: &mut StepSubject);
+requires machine Increment(target: &mut StepSubject);
 {
     Increment(subject);
 }
 
 machine structural_forward<ForwardedSubject, machine Increment>(subject: &mut ForwardedSubject)
-where machine Increment(target: &mut ForwardedSubject);
+requires machine Increment(target: &mut ForwardedSubject);
 {
     structural_step<ForwardedSubject, Increment>(subject);
 }

@@ -42,8 +42,8 @@ pub(crate) fn reject_retired_operational_reach(
     )))
 }
 /// One `reaches` member plus its `,`/`+` separator, shared by the machine
-/// clause and trait signature clause loops. Members remain in independent
-/// clause scratch until the caller publishes each complete arena span.
+/// clause and trait signature clause loops. Each owner stages members until
+/// recursive callable parsing finishes, then publishes one contiguous span.
 pub(crate) fn take_service_reach_row_member<'tokens, 'source>(
     input: crate::input::token_cursor::Input<'tokens, 'source>,
     service_reaches: &mut Vec<syntax_trees::identifier::Identifier>,
@@ -66,8 +66,7 @@ pub(crate) fn take_service_reach_row_member<'tokens, 'source>(
 
 /// The whole `reaches <Service> + ...` clause both grammars share: the `<=`
 /// installation-bound rules plus the member loop bounded by the caller's own
-/// clause-boundary set. The caller stages this row separately from invocation
-/// identifiers, so interleaved clauses cannot become an accidental arena run.
+/// clause-boundary set. The caller publishes its staged members after parsing.
 pub(crate) fn take_operational_reaches_clause<'tokens, 'source>(
     input: crate::input::token_cursor::Input<'tokens, 'source>,
     service_reach_keyword_source_spans: &mut Vec<source::SourceSpan>,
@@ -107,13 +106,16 @@ pub(crate) fn take_operational_reaches_clause<'tokens, 'source>(
     Ok(input)
 }
 
-/// Append one capability contract to the owning table and record it in the
-/// caller's clause-span builder.
-pub(crate) fn record_capability_contract(
+/// Publish an owner's complete clause list only after its nested callable
+/// contracts have been parsed. Recursive owners may use the same arena without
+/// interleaving their rows into this owner's contiguous span.
+pub(crate) fn publish_capability_contracts(
     syntax_trees: &mut syntax_trees::SyntaxTrees,
-    contract: syntax_trees::item::CapabilityContract,
-    contracts: &mut crate::handle_spans::HandleSpanBuilder<syntax_trees::item::CapabilityContract>,
-) {
-    let handle = syntax_trees.items.append_capability_contract(contract);
-    contracts.push(handle);
+    contracts: Vec<syntax_trees::item::CapabilityContract>,
+) -> arena::HandleSpan<syntax_trees::item::CapabilityContract> {
+    let mut span = crate::handle_spans::HandleSpanBuilder::new();
+    for contract in contracts {
+        span.push(syntax_trees.items.append_capability_contract(contract));
+    }
+    span.finish()
 }

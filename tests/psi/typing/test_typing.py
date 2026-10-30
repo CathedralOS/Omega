@@ -574,7 +574,7 @@ def main() -> None:
         ),
         selections=((b"id(5u8)", "machine", 0), (b"id<u16>(7)", "machine", 0), (b"Box::get(&b)", "machine", 1)),
     )
-    # A `where machine` contract types a call through its binder; a static
+    # A `requires machine` contract types a call through its binder; a static
     # machine argument selects a machine whose signature refines the
     # contract, and a type binder the contract alone names is inferred from
     # the selected machine.
@@ -583,10 +583,10 @@ def main() -> None:
         "machine-binders-call-through-contracts",
         b"machine double(x: u8) -> u8 { x }\n"
         b"machine zero() -> u8 { 0 }\n"
-        b"machine apply<machine F>(x: u8) -> u8\nwhere machine F(value: u8) -> u8;\n{ F(x) }\n"
-        b"machine again<machine G>(x: u8) -> u8\nwhere machine G(value: u8) -> u8;\n{ apply<G>(x) }\n"
-        b"machine pick<T, machine K>(x: T) -> T\nwhere machine K(value: T) -> T;\n{ K(x) }\n"
-        b"machine make<U, machine M>() -> U\nwhere machine M() -> U;\n{ M() }\n"
+        b"machine apply<machine F>(x: u8) -> u8\nrequires machine F(value: u8) -> u8;\n{ F(x) }\n"
+        b"machine again<machine G>(x: u8) -> u8\nrequires machine G(value: u8) -> u8;\n{ apply<G>(x) }\n"
+        b"machine pick<T, machine K>(x: T) -> T\nrequires machine K(value: T) -> T;\n{ K(x) }\n"
+        b"machine make<U, machine M>() -> U\nrequires machine M() -> U;\n{ M() }\n"
         b"machine g() -> u8 {\n"
         b"    let a: u8 = apply<double>(3);\n"
         b"    let b: u8 = again<double>(a);\n"
@@ -940,7 +940,7 @@ def main() -> None:
     rejected(
         program,
         "binder-calls-match-their-contract",
-        b"machine apply<machine F>(x: u8) -> u8\nwhere machine F(value: u8) -> u8;\n{ F(x, x) }",
+        b"machine apply<machine F>(x: u8) -> u8\nrequires machine F(value: u8) -> u8;\n{ F(x, x) }",
         "NoMatchingMachine",
         b"F(x, x)",
     )
@@ -948,7 +948,7 @@ def main() -> None:
         program,
         "static-machine-arguments-refine-the-contract",
         b"machine widen(x: u8) -> u16 { x as u16 }\n"
-        b"machine apply<machine F>(x: u8) -> u8\nwhere machine F(value: u8) -> u8;\n{ F(x) }\n"
+        b"machine apply<machine F>(x: u8) -> u8\nrequires machine F(value: u8) -> u8;\n{ F(x) }\n"
         b"machine g() -> u8 { apply<widen>(3) }",
         "NoMatchingMachine",
         b"apply<widen>(3)",

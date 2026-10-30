@@ -55,11 +55,7 @@ fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
         }
         assert_non_return_refused(
             &format!("mutation {mutation}"),
-            instruction,
-            kind,
-            &encoding,
-            &layout,
-            &changed,
+            (instruction, kind, &encoding, &layout, &changed),
         );
     }
     let mut changed = store.clone();
@@ -67,10 +63,6 @@ fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
     footprint.encoded.control = MachineEncodedControlEffect::DirectRelativeCallV1;
     assert_non_return_refused(
         "a direct relative call leaves the function",
-        instruction,
-        kind,
-        &encoding,
-        &layout,
-        &changed,
+        (instruction, kind, &encoding, &layout, &changed),
     );
 }

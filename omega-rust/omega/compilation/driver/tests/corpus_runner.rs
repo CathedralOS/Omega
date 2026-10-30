@@ -831,7 +831,7 @@ fn interpret_checked_fixture(
         None
     };
     let outcome = checked_interpreter::interpret_entry(
-        &checked.execution().program,
+        checked.execution().provider_source.program(),
         checked_interpreter::BuildMachineEntry::Symbol(entry.machine_symbol()),
         &input_bytes,
         checked_interpreter::InterpretOptions {

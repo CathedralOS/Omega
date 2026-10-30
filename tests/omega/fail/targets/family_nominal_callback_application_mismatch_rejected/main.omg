@@ -2,11 +2,11 @@ trait Handler<Value> { machine call() -> bool; }
 machine yes() -> bool satisfies Handler<u64>::call { true }
 
 linux_arm64 machine choose<machine Selected>() -> bool
-where machine Selected satisfies Handler<u64>::call;
+requires machine Selected satisfies Handler<u64>::call;
 { Selected() }
 
 macos_arm64 machine choose<machine Callback>() -> bool
-where machine Callback satisfies Handler<bool>::call;
+requires machine Callback satisfies Handler<bool>::call;
 { Callback() }
 
 // Equal carriers and a first-member satisfaction do not grant the non-first

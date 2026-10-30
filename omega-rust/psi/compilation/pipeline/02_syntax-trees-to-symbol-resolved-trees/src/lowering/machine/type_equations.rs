@@ -85,12 +85,7 @@ fn lower_type_operand(
         }
         ExpressionNode::Borrow(borrow) => {
             let referee = lower_type_operand(lowerer, syntax, borrow.target)?;
-            let referee = lowerer
-                .symbol_resolved_trees
-                .tables
-                .declarations
-                .child_type_references
-                .append(referee);
+            let referee = lowerer.declaration_child_type_references().append(referee);
             TypeReference::Reference(ReferenceTypeReference {
                 storage: ReferenceTypeReferenceStorage {
                     supplied_operand_owner: Default::default(),
@@ -108,12 +103,7 @@ fn lower_type_operand(
                 .with_source_span(syntax.expressions.source_span(expression)));
             };
             let element = lower_type_operand(lowerer, syntax, *element)?;
-            let element_type = lowerer
-                .symbol_resolved_trees
-                .tables
-                .declarations
-                .child_type_references
-                .append(element);
+            let element_type = lowerer.declaration_child_type_references().append(element);
             TypeReference::Slice(SliceTypeReference {
                 storage: SliceTypeReferenceStorage {
                     supplied_operand_owner: Default::default(),
@@ -127,12 +117,7 @@ fn lower_type_operand(
                     .with_source_span(syntax.expressions.source_span(expression)));
             };
             let carrier = lower_type_operand(lowerer, syntax, indexed.collection)?;
-            let base_type = lowerer
-                .symbol_resolved_trees
-                .tables
-                .declarations
-                .child_type_references
-                .append(carrier);
+            let base_type = lowerer.declaration_child_type_references().append(carrier);
             let minimum = lower_expression_into_table(lowerer, syntax, range.start)?;
             let maximum = lower_expression_into_table(lowerer, syntax, range.end)?;
             let constraints = lowerer

@@ -27,7 +27,7 @@ requires value <= 37
 ensures result <= 37
 { value }
 machine traverse<machine Step>(value: u64) -> u64
-where machine Step satisfies StepContract<bounded, Anchor::anchor>::step;
+requires machine Step satisfies StepContract<bounded, Anchor::anchor>::step;
 terminates;
 requires value <= 37
 ensures result <= 37

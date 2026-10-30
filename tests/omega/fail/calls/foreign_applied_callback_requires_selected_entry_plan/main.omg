@@ -7,7 +7,7 @@ data RegistrarImports {}
 public boundary trait Handler { machine notify() reaches; }
 public boundary trait Registrar<Value> {
     machine install<machine Callback>() -> i32
-    where machine Callback satisfies Handler::notify;
+    requires machine Callback satisfies Handler::notify;
     reaches;
 }
 

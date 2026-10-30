@@ -561,6 +561,14 @@ pass/facts/narrow_to_wide_signed_8to64_extension_through_other_machine_exit buil
 pass/facts/narrow_to_wide_signed_8to64_extension_through_other_state_exit built 1774ms exit:0 @fa3b4abb52d1
 pass/facts/narrow_to_wide_signed_8to64_extension_through_parameter_exit built 1756ms exit:0 @fa3b4abb52d1
 pass/facts/narrow_to_wide_signed_8to64_extension_through_target_body_exit built 2058ms exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @fa3b4abb52d1
+pass/facts/narrow_to_wide_unsigned_16to32_extension_through_call_result_exit built 4281ms exit:0 @8a8e769965b2
+pass/facts/narrow_to_wide_unsigned_16to32_extension_through_const_name_exit built 4397ms exit:0 @8a8e769965b2
+pass/facts/narrow_to_wide_unsigned_16to32_extension_through_field_exit built 4425ms exit:0 @8a8e769965b2
+pass/facts/narrow_to_wide_unsigned_16to32_extension_through_local_exit built 4360ms exit:0 @8a8e769965b2
+pass/facts/narrow_to_wide_unsigned_16to32_extension_through_match_join_exit built 4679ms exit:0 @8a8e769965b2
+pass/facts/narrow_to_wide_unsigned_16to32_extension_through_other_machine_exit built 4238ms exit:0 @8a8e769965b2
+pass/facts/narrow_to_wide_unsigned_16to32_extension_through_parameter_exit built 3619ms exit:0 @8a8e769965b2
+pass/facts/narrow_to_wide_unsigned_16to32_extension_through_target_body_exit built 4408ms exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @8a8e769965b2
 pass/facts/narrow_to_wide_unsigned_16to64_extension_through_call_result_exit built 2176ms exit:0 @fa3b4abb52d1
 pass/facts/narrow_to_wide_unsigned_16to64_extension_through_const_name_exit built 2212ms exit:0 @fa3b4abb52d1
 pass/facts/narrow_to_wide_unsigned_16to64_extension_through_field_exit built 2209ms exit:0 @fa3b4abb52d1
@@ -642,6 +650,14 @@ pass/facts/nested_eighteen_level_record_field_bound_through_other_machine_exit b
 pass/facts/nested_eighteen_level_record_field_bound_through_other_state_exit built 1782ms exit:0 @4c23cc3391c2+wt
 pass/facts/nested_eighteen_level_record_field_bound_through_parameter_exit built 1907ms exit:0 @4c23cc3391c2+wt
 pass/facts/nested_eighteen_level_record_field_bound_through_target_body_exit built 2322ms exit:0 @4c23cc3391c2+wt
+pass/facts/nested_record_layout_geometry_through_call_result_exit built 3585ms exit:0 @8a8e769965b2
+pass/facts/nested_record_layout_geometry_through_const_name_exit built 3887ms exit:0 @8a8e769965b2
+pass/facts/nested_record_layout_geometry_through_field_exit built 3640ms exit:0 @8a8e769965b2
+pass/facts/nested_record_layout_geometry_through_local_exit built 3582ms exit:0 @8a8e769965b2
+pass/facts/nested_record_layout_geometry_through_match_join_exit built 3373ms exit:0 @8a8e769965b2
+pass/facts/nested_record_layout_geometry_through_other_machine_exit built 2767ms exit:0 @8a8e769965b2
+pass/facts/nested_record_layout_geometry_through_parameter_exit built 3147ms exit:0 @8a8e769965b2
+pass/facts/nested_record_layout_geometry_through_target_body_exit built 3367ms exit:0 @8a8e769965b2
 pass/facts/nested_twelve_level_record_field_bound_through_call_result_exit built 1375ms exit:0 @5648483032b7+wt
 pass/facts/nested_twelve_level_record_field_bound_through_const_name_exit built 1374ms exit:0 @5648483032b7+wt
 pass/facts/nested_twelve_level_record_field_bound_through_field_exit built 1267ms exit:0 @5648483032b7+wt
@@ -705,6 +721,7 @@ pass/facts/non_owning_reference_erasure_through_other_machine_exit built 1405ms 
 pass/facts/non_owning_reference_erasure_through_other_state_exit built 1609ms exit:0 @17f53e6295d2
 pass/facts/non_owning_reference_erasure_through_parameter_exit built 1397ms exit:0 @17f53e6295d2
 pass/facts/non_owning_reference_erasure_through_target_body_exit built 1610ms exit:0 @17f53e6295d2
+pass/facts/opaque_closed_carrier_exchange_exit built 21064ms exit:70 terminal-runtime.observe:unrequested terminal-inspections:match @8a8e769965b2
 pass/facts/opaque_inactive_carrier_payload_exit built 18929ms exit:70 @fa3b4abb52d1
 pass/facts/opaque_independent_copy_through_call_result_exit built 2099ms exit:0 @4d987059e887+wt
 pass/facts/opaque_independent_copy_through_const_name_exit built 2186ms exit:0 @4d987059e887+wt
@@ -972,6 +989,14 @@ pass/facts/signed_64bit_saturating_subtraction_bound_through_other_machine_exit 
 pass/facts/signed_64bit_saturating_subtraction_bound_through_other_state_exit built 2167ms exit:0 @fa3b4abb52d1
 pass/facts/signed_64bit_saturating_subtraction_bound_through_parameter_exit built 2383ms exit:0 @fa3b4abb52d1
 pass/facts/signed_64bit_saturating_subtraction_bound_through_target_body_exit built 2812ms exit:0 @fa3b4abb52d1
+pass/facts/signed_64bit_shift_right_arithmetic_bound_through_call_result built 3337ms exit:0 @8a8e769965b2
+pass/facts/signed_64bit_shift_right_arithmetic_bound_through_const_name built 2727ms exit:0 @8a8e769965b2
+pass/facts/signed_64bit_shift_right_arithmetic_bound_through_field built 3787ms exit:0 @8a8e769965b2
+pass/facts/signed_64bit_shift_right_arithmetic_bound_through_local built 3698ms exit:0 @8a8e769965b2
+pass/facts/signed_64bit_shift_right_arithmetic_bound_through_match_join built 2568ms exit:0 @8a8e769965b2
+pass/facts/signed_64bit_shift_right_arithmetic_bound_through_other_machine built 2426ms exit:0 @8a8e769965b2
+pass/facts/signed_64bit_shift_right_arithmetic_bound_through_parameter built 3203ms exit:0 @8a8e769965b2
+pass/facts/signed_64bit_shift_right_arithmetic_bound_through_target_body built 4062ms exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @8a8e769965b2
 pass/facts/signed_64bit_wrapping_multiplication_bound_through_call_result_exit built 2879ms exit:0 @fa3b4abb52d1
 pass/facts/signed_64bit_wrapping_multiplication_bound_through_const_name_exit built 3661ms exit:0 @fa3b4abb52d1
 pass/facts/signed_64bit_wrapping_multiplication_bound_through_field_exit built 3604ms exit:0 @fa3b4abb52d1
@@ -981,6 +1006,14 @@ pass/facts/signed_64bit_wrapping_multiplication_bound_through_other_machine_exit
 pass/facts/signed_64bit_wrapping_multiplication_bound_through_other_state_exit built 3252ms exit:0 @fa3b4abb52d1
 pass/facts/signed_64bit_wrapping_multiplication_bound_through_parameter_exit built 2637ms exit:0 @fa3b4abb52d1
 pass/facts/signed_64bit_wrapping_multiplication_bound_through_target_body_exit built 2379ms exit:0 @fa3b4abb52d1
+pass/facts/signed_64bit_wrapping_subtraction_bound_through_call_result_exit built 3339ms exit:0 @8a8e769965b2
+pass/facts/signed_64bit_wrapping_subtraction_bound_through_const_name_exit built 3131ms exit:0 @8a8e769965b2
+pass/facts/signed_64bit_wrapping_subtraction_bound_through_field_exit built 3102ms exit:0 @8a8e769965b2
+pass/facts/signed_64bit_wrapping_subtraction_bound_through_local_exit built 2561ms exit:0 @8a8e769965b2
+pass/facts/signed_64bit_wrapping_subtraction_bound_through_match_join_exit built 2528ms exit:0 @8a8e769965b2
+pass/facts/signed_64bit_wrapping_subtraction_bound_through_other_machine_exit built 2538ms exit:0 @8a8e769965b2
+pass/facts/signed_64bit_wrapping_subtraction_bound_through_parameter_exit built 2539ms exit:0 @8a8e769965b2
+pass/facts/signed_64bit_wrapping_subtraction_bound_through_target_body_exit built 2850ms exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @8a8e769965b2
 pass/facts/signed_8bit_saturating_subtraction_bound_through_call_result_exit built 1502ms exit:0 @d3b0020bf6a7+wt
 pass/facts/signed_8bit_saturating_subtraction_bound_through_const_name_exit built 1628ms exit:0 @d3b0020bf6a7+wt
 pass/facts/signed_8bit_saturating_subtraction_bound_through_field_exit built 1502ms exit:0 @d3b0020bf6a7+wt
@@ -4796,7 +4829,15 @@ pass/facts/unsigned_16bit_bitwise_or_bound_through_other_machine_exit built 3741
 pass/facts/unsigned_16bit_bitwise_or_bound_through_other_state_exit built 3999ms exit:0 @fa3b4abb52d1
 pass/facts/unsigned_16bit_bitwise_or_bound_through_parameter_exit built 3659ms exit:0 @fa3b4abb52d1
 pass/facts/unsigned_16bit_bitwise_or_bound_through_target_body_exit built 4731ms exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @fa3b4abb52d1
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_call_result_exit built 3770ms exit:0 @8a8e769965b2
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_const_name_exit built 3200ms exit:0 @8a8e769965b2
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_field_exit built 3132ms exit:0 @8a8e769965b2
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_local_exit built 3252ms exit:0 @8a8e769965b2
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_match_join_exit built 3535ms exit:0 @8a8e769965b2
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_other_machine_exit built 3133ms exit:0 @8a8e769965b2
 pass/facts/unsigned_16bit_bitwise_xor_bound_through_other_state_exit built 895ms exit:0 @f501d5f4e8eb
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_parameter_exit built 3386ms exit:0 @8a8e769965b2
+pass/facts/unsigned_16bit_bitwise_xor_bound_through_target_body_exit built 4700ms exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @8a8e769965b2
 pass/facts/unsigned_16bit_division_quotient_bound_through_call_result_exit built 3468ms exit:0 @fa3b4abb52d1
 pass/facts/unsigned_16bit_division_quotient_bound_through_const_name_exit built 3608ms exit:0 @fa3b4abb52d1
 pass/facts/unsigned_16bit_division_quotient_bound_through_field_exit built 3837ms exit:0 @fa3b4abb52d1
@@ -4860,7 +4901,15 @@ pass/facts/unsigned_16bit_saturating_multiplication_bound_through_other_machine_
 pass/facts/unsigned_16bit_saturating_multiplication_bound_through_other_state_exit built 3477ms exit:0 @fa3b4abb52d1
 pass/facts/unsigned_16bit_saturating_multiplication_bound_through_parameter_exit built 3414ms exit:0 @fa3b4abb52d1
 pass/facts/unsigned_16bit_saturating_multiplication_bound_through_target_body_exit built 3717ms exit:0 @fa3b4abb52d1
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_call_result_exit built 3606ms exit:0 @8a8e769965b2
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_const_name_exit built 3582ms exit:0 @8a8e769965b2
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_field_exit built 3415ms exit:0 @8a8e769965b2
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_local_exit built 3043ms exit:0 @8a8e769965b2
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_match_join_exit built 3433ms exit:0 @8a8e769965b2
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_other_machine_exit built 4022ms exit:0 @8a8e769965b2
 pass/facts/unsigned_16bit_saturating_subtraction_bound_through_other_state_exit built 893ms exit:0 @f501d5f4e8eb
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_parameter_exit built 4316ms exit:0 @8a8e769965b2
+pass/facts/unsigned_16bit_saturating_subtraction_bound_through_target_body_exit built 5011ms exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @8a8e769965b2
 pass/facts/unsigned_16bit_shift_left_bound_through_call_result_exit built 3753ms exit:0 @fa3b4abb52d1
 pass/facts/unsigned_16bit_shift_left_bound_through_const_name_exit built 3720ms exit:0 @fa3b4abb52d1
 pass/facts/unsigned_16bit_shift_left_bound_through_field_exit built 3515ms exit:0 @fa3b4abb52d1
@@ -5132,7 +5181,15 @@ pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_other_machine_exit 
 pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_other_state_exit built 3770ms exit:0 @fa3b4abb52d1
 pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_parameter_exit built 3305ms exit:0 @fa3b4abb52d1
 pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_target_body_exit built 3664ms exit:0 @fa3b4abb52d1
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_call_result_exit built 4787ms exit:0 @8a8e769965b2
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_const_name_exit built 4758ms exit:0 @8a8e769965b2
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_field_exit built 4560ms exit:0 @8a8e769965b2
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_local_exit built 4807ms exit:0 @8a8e769965b2
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_match_join_exit built 5440ms exit:0 @8a8e769965b2
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_other_machine_exit built 5716ms exit:0 @8a8e769965b2
 pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_other_state_exit built 892ms exit:0 @f501d5f4e8eb
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_parameter_exit built 6154ms exit:0 @8a8e769965b2
+pass/facts/unsigned_8bit_bitwise_and_mask_bound_through_target_body_exit built 7137ms exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @8a8e769965b2
 pass/facts/unsigned_8bit_bitwise_or_bound_through_call_result_exit built 3335ms exit:0 @fa3b4abb52d1
 pass/facts/unsigned_8bit_bitwise_or_bound_through_const_name_exit built 3264ms exit:0 @fa3b4abb52d1
 pass/facts/unsigned_8bit_bitwise_or_bound_through_field_exit built 3366ms exit:0 @fa3b4abb52d1
@@ -5205,7 +5262,15 @@ pass/facts/unsigned_8bit_exact_subtraction_bound_through_other_machine_exit buil
 pass/facts/unsigned_8bit_exact_subtraction_bound_through_other_state_exit built 5698ms exit:0 @f1b0d3326d2d+wt
 pass/facts/unsigned_8bit_exact_subtraction_bound_through_parameter_exit built 5297ms exit:0 @f1b0d3326d2d+wt
 pass/facts/unsigned_8bit_exact_subtraction_bound_through_target_body_exit built 5336ms exit:0 @f1b0d3326d2d+wt
+pass/facts/unsigned_8bit_saturating_multiplication_bound_through_call_result_exit built 6410ms exit:0 @8a8e769965b2
+pass/facts/unsigned_8bit_saturating_multiplication_bound_through_const_name_exit built 6406ms exit:0 @8a8e769965b2
+pass/facts/unsigned_8bit_saturating_multiplication_bound_through_field_exit built 6133ms exit:0 @8a8e769965b2
+pass/facts/unsigned_8bit_saturating_multiplication_bound_through_local_exit built 5953ms exit:0 @8a8e769965b2
+pass/facts/unsigned_8bit_saturating_multiplication_bound_through_match_join_exit built 5908ms exit:0 @8a8e769965b2
+pass/facts/unsigned_8bit_saturating_multiplication_bound_through_other_machine_exit built 5001ms exit:0 @8a8e769965b2
 pass/facts/unsigned_8bit_saturating_multiplication_bound_through_other_state_exit built 908ms exit:0 @f501d5f4e8eb
+pass/facts/unsigned_8bit_saturating_multiplication_bound_through_parameter_exit built 4344ms exit:0 @8a8e769965b2
+pass/facts/unsigned_8bit_saturating_multiplication_bound_through_target_body_exit built 4119ms exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @8a8e769965b2
 pass/facts/unsigned_8bit_saturating_subtraction_bound_through_call_result_exit built 4248ms exit:0 @fa3b4abb52d1
 pass/facts/unsigned_8bit_saturating_subtraction_bound_through_const_name_exit built 4482ms exit:0 @fa3b4abb52d1
 pass/facts/unsigned_8bit_saturating_subtraction_bound_through_field_exit built 4402ms exit:0 @fa3b4abb52d1

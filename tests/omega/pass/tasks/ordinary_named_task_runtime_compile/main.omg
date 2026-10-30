@@ -3,7 +3,7 @@
 public data Task<Value> { value: Value; }
 public boundary trait TaskRuntime {
     machine start<machine Target>() -> Task<i32>
-    where machine Target() -> i32;
+    requires machine Target() -> i32;
     reaches
     ensures true;
 }

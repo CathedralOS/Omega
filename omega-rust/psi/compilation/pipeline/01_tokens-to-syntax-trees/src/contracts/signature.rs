@@ -51,6 +51,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
     allow_clauses_after_operational_separator: bool,
+    type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
 ) -> Result<(SignatureClauses, Input<'tokens, 'source>), crate::diagnostics::parse_error::ParseError>
 {
     let mut service_reaches = Vec::new();
@@ -61,25 +62,41 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
     let mut blocks_keyword_source_spans = Vec::new();
     let mut suspends = false;
     let mut blocks = false;
-    let mut contracts = crate::handle_spans::HandleSpanBuilder::new();
+    let mut contracts = Vec::new();
     let mut terminates_guarantee = false;
     let mut where_facts = crate::handle_spans::HandleSpanBuilder::new();
 
     while !input.at_punctuation(PunctuationKind::Semicolon)
         && !input.at_punctuation(PunctuationKind::LeftBrace)
     {
+        if input.at_contextual("requires")
+            && input
+                .take_contextual("requires")?
+                .at_keyword(KeywordKind::Machine)
+        {
+            let ((), rest) = crate::parameters::contracts::parse_machine_parameter_contracts(
+                syntax_trees,
+                type_parameters,
+                input,
+            )?;
+            input = rest;
+            continue;
+        }
         if input.at_contextual("where") {
-            // Repeated machine-parameter requirements use one `where machine`
-            // clause per symbol, and `where proposition` belongs to the
-            // trait-parameter parser. Leave both to the owning parser rather
-            // than swallowing them as signature trivia. Any other `where`
+            // Logical-evidence clauses still belong to the trait-parameter
+            // parser. Static callable requirements use the canonical clause
+            // intake above; the retired spelling supplies no alternate route.
+            // Other remaining `where`
             // clause carries signature-level proof facts: a finite generic
             // method family is authored here as explicit equality
             // disjunctions such as `where Width == 16 || Width == 32`.
             let after_where = input.restarted(input.tokens.get(1..).unwrap_or_default());
-            if after_where.at_keyword(KeywordKind::Machine)
-                || after_where.at_contextual("proposition")
-            {
+            if after_where.at_keyword(KeywordKind::Machine) {
+                return Err(
+                    input.error_here("`where machine` is retired; write `requires machine`")
+                );
+            }
+            if after_where.at_contextual("proposition") {
                 break;
             }
             if where_facts.count() != 0 {
@@ -163,19 +180,15 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             let header_token_count = 2usize;
             let ((facts, fact_token_count), rest) =
                 parse_proof_facts_until(syntax_trees, after_header, signature_clause_boundary)?;
-            super::record_capability_contract(
-                syntax_trees,
-                CapabilityContract {
-                    kind: CapabilityContractKind::Crashes { cause },
-                    keyword_source_span,
-                    binding: None,
-                    facts,
-                    token_count: fact_token_count
-                        .checked_add(header_token_count)
-                        .expect("crash contract token count overflow"),
-                },
-                &mut contracts,
-            );
+            contracts.push(CapabilityContract {
+                kind: CapabilityContractKind::Crashes { cause },
+                keyword_source_span,
+                binding: None,
+                facts,
+                token_count: fact_token_count
+                    .checked_add(header_token_count)
+                    .expect("crash contract token count overflow"),
+            });
             input = rest;
             continue;
         }
@@ -202,17 +215,13 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                     "a named bodyless-signature contract must contain exactly one proposition",
                 ));
             }
-            super::record_capability_contract(
-                syntax_trees,
-                CapabilityContract {
-                    kind,
-                    keyword_source_span,
-                    binding,
-                    facts,
-                    token_count,
-                },
-                &mut contracts,
-            );
+            contracts.push(CapabilityContract {
+                kind,
+                keyword_source_span,
+                binding,
+                facts,
+                token_count,
+            });
             input = rest;
             continue;
         }
@@ -237,8 +246,18 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             continue;
         }
 
-        let (_, rest) = input.expect_token()?;
-        input = rest;
+        return Err(input.expected_one_of_here(&[
+            "`requires`",
+            "`ensures`",
+            "`reaches`",
+            "`invokes`",
+            "`suspends`",
+            "`blocks`",
+            "`crashes`",
+            "`terminates`",
+            "`;`",
+            "`{`",
+        ]));
     }
 
     Ok((
@@ -253,7 +272,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             blocks_keyword_source_spans,
             suspends,
             blocks,
-            contracts: contracts.finish(),
+            contracts: super::publish_capability_contracts(syntax_trees, contracts),
             terminates_guarantee,
             where_facts: where_facts.finish(),
         },
@@ -266,7 +285,12 @@ fn take_invokes_signature_clause<'tokens, 'source>(
     allow_following_contract_clauses: bool,
 ) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
     let after_semicolon = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    if after_semicolon.at_punctuation(PunctuationKind::LeftBrace)
+    // An explicit second semicolon belongs to the enclosing callable
+    // contract. Consume this operational clause's separator and leave that
+    // distinct terminator to its owner.
+    if after_semicolon.at_punctuation(PunctuationKind::Semicolon)
+        || (allow_following_contract_clauses
+            && after_semicolon.at_punctuation(PunctuationKind::LeftBrace))
         || after_semicolon.at_contextual("reaches")
         || after_semicolon.at_contextual("effects")
         || after_semicolon.at_contextual("invokes")

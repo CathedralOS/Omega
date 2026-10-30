@@ -61,7 +61,7 @@ crashes Trap
         Typer::type_layout_query(typer, syntax, index, expression, statics);
     }
 
-    // A machine binder is called through its `where machine` contract
+    // A machine binder is called through its `requires machine` contract
     // (binders.omg).
     machine binder(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression, parameter: u64 in Trapping) {
         Typer::type_binder_call(typer, syntax, resolution, index, expression, parameter);

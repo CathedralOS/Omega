@@ -136,6 +136,7 @@ pub use proof_contracts::contract_entailment::ranking_range::{
     closed_collection_length_at_place, closed_collection_length_under_matches,
     unique_literal_field,
 };
+pub use proof_contracts::contract_entailment::structural_prefix::private_invocation_entry_is_closed;
 pub use proof_contracts::contract_entailment::{
     ImmutableEntryReadIdentity, immutable_entry_indexed_read_identity,
     immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,

@@ -21,7 +21,7 @@ machine Main::with_marker(marker: u64, regions: [Region in Owned; 3]) -> [Region
 { regions }
 
 machine Main::through_call<machine Selected>(regions: [Region in Owned; 3]) -> [Region in Owned; 3]
-where machine Selected satisfies RegionsForward::call;
+requires machine Selected satisfies RegionsForward::call;
 {
     let forwarded: [Region in Owned; 3] = Selected(regions);
     let marked: [Region in Owned; 3] = Main::with_marker(7, forwarded);

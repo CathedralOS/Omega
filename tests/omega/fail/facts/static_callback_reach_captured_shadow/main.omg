@@ -34,7 +34,7 @@ trait Getter<const Limit: u64> {
     ensures result <= 37;
 }
 Selected<const Count: u64, machine Step> satisfies Getter<Count>
-where machine Step satisfies StepContract::step;
+requires machine Step satisfies StepContract::step;
 {
     machine get<const Count: u64>(value: u64) -> u64
     requires value <= 37

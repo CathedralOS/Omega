@@ -8,7 +8,7 @@ use terminal_psi::OperationKind;
 pub(super) mod fragment_call;
 mod fragment_comparison;
 
-pub(super) use super::derivation::evidence::{ranges_overlap, span};
+pub(super) use super::derivation::evidence::{ranges_overlap, span, text_relocation_overlaps};
 use super::{
     NativeByteSpan, OptimizedOperatorOccurrence, PhysicalRelocationDisposition, native_byte_span,
     sole_terminal_operation,
@@ -274,15 +274,7 @@ fn derive_integer_comparison_span(
     let object_end = object_offset
         .checked_add(row.attribution.byte_count)
         .ok_or("D29 integer comparison object end overflow")?;
-    if object.relocations().records().any(|(_, relocation)| {
-        relocation.section == SectionKind::Text
-            && ranges_overlap(
-                object_offset,
-                object_end,
-                relocation.offset,
-                relocation.offset.saturating_add(relocation.byte_width),
-            )
-    }) {
+    if text_relocation_overlaps(object, (object_offset, object_end)) {
         return Err("D29 integer comparison overlaps a relocation");
     }
     derive_span(

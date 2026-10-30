@@ -20,7 +20,7 @@ pub(super) fn project(
     staged: &mut Vec<StagedRealization>,
 ) -> Result<(), Vec<Diagnostic>> {
     let selected_execution = compilation.custody.execution();
-    let selected_plans = selected_execution.selected_provider_plan_facts.plans();
+    let selected_plans = selected_execution.provider_source.plans().plans();
     let provenance = selected_execution.selected_provider_provenance.as_slice();
     if selected_plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(

@@ -225,7 +225,7 @@ public boundary trait Comparator: Calling<ComparatorCalling> {
 }
 public boundary trait SortRegistrar: Calling<SortCalling> {
     machine sort<Unused, machine Handler>(elements: &mut Elements, count: u64, width: u64, native callback compare from Handler)
-    where machine Handler satisfies Comparator::compare;
+    requires machine Handler satisfies Comparator::compare;
     reaches
     invokes Comparator;
     requires count == 2 && width == 8;

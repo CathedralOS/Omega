@@ -183,7 +183,7 @@ public boundary trait Invoke: Calling<InvokeCalling> {
         interface: &PreparedInterface, native callback transform from Handler,
         result: &mut OwnedRecord, arguments: &ArgumentValues
     )
-    where machine Handler satisfies Transform::transform;
+    requires machine Handler satisfies Transform::transform;
     reaches
     invokes Transform;
 }

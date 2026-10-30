@@ -3,15 +3,15 @@
 machine yes<Value>(value: &Value) -> bool ensures result { true }
 
 linux_arm64 machine choose<Value, machine Selected>(value: &Value) -> bool
-where machine Selected(argument: &Value) -> bool ensures true;
+requires machine Selected(argument: &Value) -> bool ensures true;
 { Selected(value) }
 
 macos_arm64 machine choose<Element, machine Callback>(value: &Element) -> bool
-where machine Callback(argument: &Element) -> bool ensures result;
+requires machine Callback(argument: &Element) -> bool ensures result;
 { Callback(value) }
 
 linux_x86_64 machine choose<Element, machine Callback>(value: &Element) -> bool
-where machine Callback(argument: &Element) -> bool ensures result;
+requires machine Callback(argument: &Element) -> bool ensures result;
 { Callback(value) }
 
 machine main() crashes Trap {

@@ -1,6 +1,6 @@
 // An escaping helper cannot infer a bound from only its direct callers.
 machine invoke<machine Transform>(value: u64) -> u64
-where machine Transform(input: u64) -> u64;
+requires machine Transform(input: u64) -> u64;
 { Transform(value) }
 machine probe(value: u64, select: bool) -> u64 {
     let ignored: u64 = invoke<apply>(0);
