@@ -1,0 +1,19 @@
+// Refuting >= 4 does not justify reading the first four bytes.
+machine bounded(bytes: &[u8]) -> u64 {
+    let too_short: bool = bytes.len >= 4u64;
+    transition {
+        too_short -> 0u64
+        _ -> length(&bytes[0..4])
+    }
+    machine length(bytes: &[u8]) -> u64 { bytes.len }
+}
+machine main() crashes Trap {
+    let short: u64 = bounded("abc");
+    let long: u64 = bounded("abcdef");
+    transition short == 0u64 && long == 4u64 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
