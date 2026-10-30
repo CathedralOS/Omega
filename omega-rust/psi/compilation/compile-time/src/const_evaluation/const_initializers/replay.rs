@@ -434,11 +434,7 @@ pub(crate) fn validate(
 fn contains_floating_component(program: &TypedTrees, root: TypeReferenceHandle) -> bool {
     let mut pending = vec![root];
     let mut visited = Vec::new();
-    while let Some(reference) = pending.pop() {
-        if visited.contains(&reference) {
-            continue;
-        }
-        visited.push(reference);
+    while let Some(reference) = crate::worklist::unvisited(&mut pending, &mut visited) {
         if float_destination(program, reference).is_some() {
             return true;
         }
@@ -651,11 +647,7 @@ fn validate_float_value(
     let mut visited = Vec::new();
     let mut pending = vec![original];
     pending.extend(dependency_roots);
-    while let Some(expression) = pending.pop() {
-        if visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
+    while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
         if let Some(binary) = probe.expression_table.binary_node(expression) {
             if !validation::has_builtin_binary_expression_meaning(
                 probe,

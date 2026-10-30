@@ -186,11 +186,7 @@ fn require_schema_layouts(
 ) -> Result<(), String> {
     let mut records = vec![schema];
     let mut visited = Vec::new();
-    while let Some(symbol) = records.pop() {
-        if visited.contains(&symbol) {
-            continue;
-        }
-        visited.push(symbol);
+    while let Some(symbol) = crate::worklist::unvisited(&mut records, &mut visited) {
         if pending.contains(&symbol) {
             return Err(format!(
                 "schema contains {pending_kind} layout `{}`; nested schema arguments require exact retained invariant geometry",
