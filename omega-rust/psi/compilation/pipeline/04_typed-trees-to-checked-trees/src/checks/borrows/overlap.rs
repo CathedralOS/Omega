@@ -219,10 +219,9 @@ fn attached_field_place_under_receiver(
     });
     segments.extend_from_slice(&field_place.segments);
     Some(checked_trees::CapturedPlace {
-        incoming_reference: Default::default(),
-        incoming_owner_path: Default::default(),
         root: receiver.root,
         segments,
+        ..Default::default()
     })
 }
 
@@ -237,10 +236,9 @@ pub(super) fn canonical_place_for_loan(
         facts::PlaceRoot::Symbol(symbol) => {
             if facts::PlaceRoot::Symbol(symbol) == loan.root {
                 Some(checked_trees::CapturedPlace {
-                    incoming_reference: Default::default(),
-                    incoming_owner_path: Default::default(),
                     root: place.root,
                     segments: place.segments.clone(),
+                    ..Default::default()
                 })
             } else {
                 match place.segments.split_first() {
@@ -251,10 +249,9 @@ pub(super) fn canonical_place_for_loan(
                         remaining,
                     )) if facts::PlaceRoot::Symbol(*field_symbol) == loan.root => {
                         Some(checked_trees::CapturedPlace {
-                            incoming_reference: Default::default(),
-                            incoming_owner_path: Default::default(),
                             root: loan.root,
                             segments: remaining.to_vec(),
+                            ..Default::default()
                         })
                     }
                     Some((
@@ -267,26 +264,23 @@ pub(super) fn canonical_place_for_loan(
                         ],
                     )) if facts::PlaceRoot::Symbol(*field_symbol) == loan.root => {
                         Some(checked_trees::CapturedPlace {
-                            incoming_reference: Default::default(),
-                            incoming_owner_path: Default::default(),
                             root: loan.root,
                             segments: remaining.to_vec(),
+                            ..Default::default()
                         })
                     }
                     _ => Some(checked_trees::CapturedPlace {
-                        incoming_reference: Default::default(),
-                        incoming_owner_path: Default::default(),
                         root: place.root,
                         segments: place.segments.clone(),
+                        ..Default::default()
                     }),
                 }
             }
         }
         facts::PlaceRoot::Expression(_) => Some(checked_trees::CapturedPlace {
-            incoming_reference: Default::default(),
-            incoming_owner_path: Default::default(),
             root: place.root,
             segments: place.segments.clone(),
+            ..Default::default()
         }),
         facts::PlaceRoot::Unknown
         | facts::PlaceRoot::TypeReference(_)

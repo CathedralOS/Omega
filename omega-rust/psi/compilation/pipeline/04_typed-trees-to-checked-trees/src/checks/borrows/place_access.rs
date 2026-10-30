@@ -93,10 +93,9 @@ pub(in crate::checks::borrows) fn argument_backings(
     access: &checked_trees::BorrowArgumentAccessFact,
 ) -> Result<ArgumentBackings, &'static str> {
     let place = CapturedPlace {
-        incoming_reference: Default::default(),
-        incoming_owner_path: Default::default(),
         root: access.root,
         segments: facts.borrow.access_segments(access).to_vec(),
+        ..Default::default()
     };
 
     let selected = argument_capture(program, facts, state, call, access);
