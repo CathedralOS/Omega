@@ -75,6 +75,13 @@ impl TypeRegionScope for RegionScope<'_> {
         program: &dyn crate::CheckingInput,
         owner: symbols::SymbolHandle,
     ) -> Self {
+        let declaration = program.lifetime_declaration_owner(self.declaration);
+        if declaration.is_valid() && program.lifetime_declaration_owner(owner) == declaration {
+            // An annotation naming this telescope does not turn its fresh
+            // invocation binders into captured regions. Keep the active frame,
+            // including a simultaneous operand prefix selected by named_alias.
+            return self;
+        }
         self.regions = RegionEnvironment::Captured(owner);
         self.output_elisions = &[];
         if program.lifetime_declaration_owner(owner)

@@ -172,7 +172,7 @@ pub fn lifetime_parameter_identity(
 ) -> Option<LifetimeParameterIdentity> {
     let mut owner = program.lifetime_declaration_owner(lexical_owner);
     while owner.is_valid() {
-        let parameters = declaration_lifetimes(program, owner);
+        let parameters = declaration_lifetime_parameters(program, owner);
         if let Some(ordinal) = parameters.and_then(|parameters| {
             parameters
                 .iter()
@@ -195,10 +195,12 @@ pub fn lifetime_parameter_name(
     program: &TypedTrees,
     region: LifetimeParameterIdentity,
 ) -> Option<&crate::name::Identifier> {
-    declaration_lifetimes(program, region.declaration)?.get(region.ordinal)
+    declaration_lifetime_parameters(program, region.declaration)?.get(region.ordinal)
 }
 
-fn declaration_lifetimes(
+/// The exact declaration's own region telescope. This performs no lexical
+/// search, application substitution, region equality or supply admission.
+pub fn declaration_lifetime_parameters(
     program: &TypedTrees,
     owner: SymbolHandle,
 ) -> Option<&[crate::name::Identifier]> {

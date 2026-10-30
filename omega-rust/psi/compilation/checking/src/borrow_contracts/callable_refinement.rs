@@ -338,13 +338,19 @@ pub(crate) fn lexical_region_owner(
     mut symbol: SymbolHandle,
 ) -> SymbolHandle {
     while symbol.is_valid() {
-        if program.machine_by_symbol(symbol).is_some()
-            || program.trait_definition_by_symbol(symbol).is_some()
-            || program.conformance_by_symbol(symbol).is_some()
+        symbol = program.lifetime_declaration_owner(symbol);
+        if !symbol.is_valid() {
+            return symbol;
+        }
+        if typed_trees::type_identity::declaration_lifetime_parameters(
+            program.typed_program(),
+            symbol,
+        )
+        .is_some()
         {
             return symbol;
         }
-        symbol = program.symbols.get(symbol).parent;
+        symbol = program.declaration_scope_parent(symbol);
     }
     symbol
 }
@@ -358,34 +364,10 @@ pub(super) fn captured_lifetimes(
     // region declaration merely because its body received fresh symbols.
     let mut scopes = Vec::new();
     while owner.is_valid() {
-        let parameters = program
-            .machine_by_symbol(owner)
-            .map(|declaration| &declaration.lifetime_parameters)
-            .or_else(|| {
-                program
-                    .trait_definition_by_symbol(owner)
-                    .map(|declaration| &declaration.lifetime_parameters)
-            })
-            .or_else(|| {
-                program
-                    .conformance_by_symbol(owner)
-                    .map(|declaration| &declaration.lifetime_parameters)
-            })
-            .or_else(|| {
-                program
-                    .data_definition_by_symbol(owner)
-                    .map(|declaration| &declaration.lifetime_parameters)
-            })
-            .or_else(|| {
-                program
-                    .trait_machine_signature(owner)
-                    .map(|(_, signature)| &signature.lifetime_parameters)
-            })
-            .or_else(|| {
-                program
-                    .retained_static_machine_contract(owner)
-                    .map(|contract| &contract.signature().lifetime_parameters)
-            });
+        let parameters = typed_trees::type_identity::declaration_lifetime_parameters(
+            program.typed_program(),
+            owner,
+        );
         scopes.push((owner, parameters));
         owner = program.lifetime_declaration_owner(program.declaration_scope_parent(owner));
     }
