@@ -381,6 +381,15 @@ pub(super) fn structural_call_requirement(
         && callee.zip(callee_machine).is_some_and(|(state, machine)| {
             case_preservation::is_case_requirement(program, machine, state, expression)
         });
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        eprintln!(
+            "STRUCT call-case-mode caller={} state={:?} statement={} case_only={case_facts_only} goal={}",
+            machine.name,
+            state.symbol,
+            call_flow.statement_index,
+            program.expression_table.display_name(expression)
+        );
+    }
     let preserved = if case_facts_only {
         case_preservation::body_preserves_case_tags(program, facts, machine)
     } else if runtime_values {

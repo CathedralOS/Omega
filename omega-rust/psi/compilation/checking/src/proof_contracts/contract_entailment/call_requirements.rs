@@ -666,8 +666,12 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 let Some(value) = value else {
                     if super::struct_trace() {
                         eprintln!(
-                            "STRUCT call-prefix missing actual observation caller={} parameter={}",
-                            machine.name, predicate_parameter.name
+                            "STRUCT call-prefix missing actual observation caller={} parameter={} case_only={} subjects={} arguments={arguments:?}",
+                            machine.name,
+                            predicate_parameter.name,
+                            entry.judge.has_runtime_body_values()
+                                && !entry.judge.requires_value_preservation(),
+                            subjects.len()
                         );
                     }
                     let mut expressions = Vec::new();
