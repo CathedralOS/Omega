@@ -1,5 +1,6 @@
 //! Hoisting membership and comparison match subjects.
 
+use crate::lowering::expression::expression_table;
 use crate::lowering::statement::hoist_temps::mint_hoist_temp;
 use crate::lowering::statement::indexed_read_hoisting::{
     OperandHoisting, hoist_operand_indexed_reads, is_runtime_indexed_read,
@@ -23,15 +24,10 @@ pub(crate) fn borrow_membership_subject(
     lowerer: &mut Lowerer,
     subject: ExpressionHandle,
 ) -> ExpressionHandle {
-    lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .insert(ExpressionNode::Borrow(TableBorrowExpression {
-            target: subject,
-            access: language_semantics::ReferenceAccess::Shared,
-        }))
+    expression_table(lowerer).insert(ExpressionNode::Borrow(TableBorrowExpression {
+        target: subject,
+        access: language_semantics::ReferenceAccess::Shared,
+    }))
 }
 
 /// Hoists a runtime-indexed ENUM-VARIANT MATCH subject into a SINGLE shared temp so every arm of
@@ -54,11 +50,7 @@ pub(crate) fn hoist_membership_match_subject(
     hoisted: &mut Vec<Statement>,
 ) {
     // The LOWERED guard must be a Membership over a runtime-indexed subject.
-    let ExpressionNode::Membership(membership) = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
+    let ExpressionNode::Membership(membership) = expression_table(lowerer)
         .expression(guard_expression)
         .clone()
     else {
@@ -119,11 +111,7 @@ pub(crate) fn hoist_comparison_match_subject(
     hoisted: &mut Vec<Statement>,
 ) -> bool {
     // The LOWERED guard must be the bool-arm wrapper `SUBJECT ==/!= <bool>`.
-    let ExpressionNode::Binary(outer) = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
+    let ExpressionNode::Binary(outer) = expression_table(lowerer)
         .expression(guard_expression)
         .clone()
     else {
@@ -136,24 +124,14 @@ pub(crate) fn hoist_comparison_match_subject(
         return false;
     }
     if !matches!(
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .bodies
-            .expressions
-            .expression(outer.right),
+        expression_table(lowerer).expression(outer.right),
         ExpressionNode::Boolean(_)
     ) {
         return false;
     }
     // The subject must be a comparison containing a hoistable storage read.
     let subject_is_comparison = matches!(
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .bodies
-            .expressions
-            .expression(outer.left),
+        expression_table(lowerer).expression(outer.left),
         ExpressionNode::Binary(inner) if inner.operator.is_comparison()
     );
     if !subject_is_comparison || !subject_contains_hoistable(lowerer, outer.left) {

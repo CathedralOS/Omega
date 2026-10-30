@@ -8,6 +8,7 @@
 //! annotation.
 
 use super::place_operand_capture::{SelectorCapture, capture_reference_initializer_selectors};
+use crate::lowering::expression::expression_table;
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
@@ -70,12 +71,7 @@ pub(crate) fn mint_hoist_temp(
         Some((existing, source_span)) => (DiagnosticName::generated(existing), source_span),
         None => {
             let initial_value = initial(lowerer, hoisted);
-            let source_span = lowerer
-                .symbol_resolved_trees
-                .tables
-                .bodies
-                .expressions
-                .source_span(initial_value);
+            let source_span = expression_table(lowerer).source_span(initial_value);
             // Later arms and payload receivers read this temp's place again.
             capture_reference_initializer_selectors(
                 lowerer,
@@ -110,12 +106,7 @@ pub(crate) fn mint_hoist_temp(
     // name the expression evaluated here. Do not copy authored-selection
     // authority to this compiler-generated read. Match arms share the exact
     // captured occurrence, not a source label reconstructed from its temp name.
-    lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .set_source_span(reference, source_span);
+    expression_table(lowerer).set_source_span(reference, source_span);
     reference
 }
 

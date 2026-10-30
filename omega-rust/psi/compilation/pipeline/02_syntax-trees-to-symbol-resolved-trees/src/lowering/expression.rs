@@ -586,12 +586,7 @@ pub(crate) fn lower_static_machine_argument(
                                 })?;
                             let member =
                                 lower_static_machine_argument(lowerer, syntax_trees, source)?;
-                            lowerer
-                                .symbol_resolved_trees
-                                .tables
-                                .bodies
-                                .expressions
-                                .insert_static_member(member)
+                            expression_table(lowerer).insert_static_member(member)
                         } else {
                             arena::Handle::invalid()
                         },
