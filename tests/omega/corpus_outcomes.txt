@@ -2438,6 +2438,11 @@ fail/calls/nested_machine_runtime_capture rejected 610ms expected @b011da5f273a0
 	machine `read` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/calls/nested_range_call_out_of_bounds rejected 2130ms expected @a92f16431042
 	cannot prove subslice range end bound `..4` is within slice length 3
+fail/calls/nested_static_implementation_wrong_carrier rejected 1090ms expected @02eca83b1303
+	argument `value` for state `read` expects `&Value`, got `named value`
+	argument `value` for conformance requirement `Reader::read` does not match the binder's trait arguments
+	argument `value` for state `read` expects `&Item`, got `named value`
+	argument `value` for state `Selected::read::read` expects the `Item` data type but got `Other` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/calls/non_unit_compound_expression_requires_use rejected 509ms expected @a92f16431042
 	machine `invalid` state `entry` expression statement discards its non-Unit value; consume the value or discard a call explicitly with `_ = call(...);`
 fail/calls/nontail_value_self_call_rejected rejected 2404ms expected @a92f16431042
@@ -34681,6 +34686,8 @@ run/calls/nested_case_terminal_process_exit checked 4351ms check-target:macos_ar
 run/calls/nested_range_call_operands rejected 2385ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	machine `start` cites `mark`, but the callee's requires fact `digit <= 2` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
 	machine `end` cites `mark`, but the callee's requires fact `digit <= 2` is not established at this citation site under the citing machine's hypotheses -- add the matching requires (or cite at operands that satisfy it)
+run/calls/nested_static_implementation_context checked 2903ms check-target:macos_arm64 @02eca83b1303
+run/calls/nested_static_implementation_shadow checked 3219ms check-target:macos_arm64 @02eca83b1303
 run/calls/ordered_literal_call_operands checked 2741ms check-target:macos_arm64 @a92f16431042
 run/calls/outcome_specific_selected_guarantee_exit checked 6245ms check-target:macos_arm64 @a92f16431042
 run/calls/outcome_specific_selected_guarantee_input_exit checked 5985ms check-target:macos_arm64 @a92f16431042
