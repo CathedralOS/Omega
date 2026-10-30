@@ -24,7 +24,7 @@ use crate::flow::reference_spans;
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
-use facts::{Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint, QualificationEvidence};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, ProgramPoint};
 
 impl Execution<'_, '_, '_> {
     fn cast_predicate_observations(
@@ -251,10 +251,7 @@ impl Execution<'_, '_, '_> {
                 place: FactPlace::Place(place),
                 point,
                 origin: FactOrigin::StatementTransfer,
-                evidence: QualificationEvidence::from_origin(
-                    language_semantics::QualificationEvidenceOrigin::Propagated,
-                    self.state.symbol,
-                ),
+                evidence: crate::facts::propagated_evidence(self.state.symbol),
                 payload: FactPayload::AssignedIntegerBounds { bounds },
             });
             self.semantic.append_ref(&mut refs, fact);
@@ -273,10 +270,7 @@ impl Execution<'_, '_, '_> {
                 place: FactPlace::Place(field),
                 point,
                 origin: FactOrigin::StatementTransfer,
-                evidence: QualificationEvidence::from_origin(
-                    language_semantics::QualificationEvidenceOrigin::CheckedValidation,
-                    self.state.symbol,
-                ),
+                evidence: crate::facts::checked_validation_evidence(self.state.symbol),
                 payload: FactPayload::DomainMembership {
                     value: expression,
                     domain: HandleSpan::empty(),
@@ -291,10 +285,7 @@ impl Execution<'_, '_, '_> {
                 place: FactPlace::Place(place),
                 point,
                 origin: FactOrigin::StatementTransfer,
-                evidence: QualificationEvidence::from_origin(
-                    language_semantics::QualificationEvidenceOrigin::Propagated,
-                    self.state.symbol,
-                ),
+                evidence: crate::facts::propagated_evidence(self.state.symbol),
                 payload: FactPayload::DomainMembership {
                     value: expression,
                     domain: HandleSpan::empty(),
@@ -320,10 +311,7 @@ impl Execution<'_, '_, '_> {
                 place: FactPlace::Place(field),
                 point,
                 origin: FactOrigin::StatementTransfer,
-                evidence: QualificationEvidence::from_origin(
-                    language_semantics::QualificationEvidenceOrigin::CheckedValidation,
-                    self.state.symbol,
-                ),
+                evidence: crate::facts::checked_validation_evidence(self.state.symbol),
                 payload: FactPayload::FloatPredicate { predicate },
             });
             self.semantic.append_ref(&mut refs, fact);
@@ -333,10 +321,7 @@ impl Execution<'_, '_, '_> {
                 place: FactPlace::Place(place),
                 point,
                 origin: FactOrigin::StatementTransfer,
-                evidence: QualificationEvidence::from_origin(
-                    language_semantics::QualificationEvidenceOrigin::Propagated,
-                    self.state.symbol,
-                ),
+                evidence: crate::facts::propagated_evidence(self.state.symbol),
                 payload: FactPayload::FloatPredicate { predicate },
             });
             self.semantic.append_ref(&mut refs, fact);

@@ -22,7 +22,7 @@ use checked_trees::{
     BorrowCallFact, BorrowFacts, DomainFacts, FlowCallFact, FlowConstraintRef,
     FlowSemanticContextRef, ProofFacts,
 };
-use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, QualificationEvidence};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan};
 use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
@@ -499,10 +499,7 @@ fn append_call_result_field_domain_facts<'plans>(
         return;
     }
     let point = crate::flow::call_ensures_point(machine, state, borrow_call);
-    let evidence = QualificationEvidence::from_origin(
-        language_semantics::QualificationEvidenceOrigin::Propagated,
-        borrow_call.target_symbol,
-    );
+    let evidence = crate::facts::propagated_evidence(borrow_call.target_symbol);
     // A call that statically realizes a boundary requirement in a checked
     // machine is a direct call to that adapter, not the admitted crossing.
     // `facts::qualification_evidence::call_contract_evidence` already refuses
@@ -639,10 +636,7 @@ fn append_call_parameter_domain_facts<'plans>(
     }
     let arguments = validation::call_site_argument_expressions(program, &site);
     let point = crate::flow::call_ensures_point(machine, state, borrow_call);
-    let evidence = QualificationEvidence::from_origin(
-        language_semantics::QualificationEvidenceOrigin::Propagated,
-        borrow_call.target_symbol,
-    );
+    let evidence = crate::facts::propagated_evidence(borrow_call.target_symbol);
     for (position, domain_symbol, semantic_domain) in claims.iter() {
         // Declared child obligations belong to call_phases::referents. This
         // publisher owns authored routed ensures, never input annotations.
