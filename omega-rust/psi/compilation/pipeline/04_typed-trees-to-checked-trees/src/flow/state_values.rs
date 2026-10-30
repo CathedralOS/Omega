@@ -65,31 +65,6 @@ enum ArgumentInputs {
     Edges(Vec<ArgumentEdge>),
 }
 
-/// The greatest predicate set this state's incoming edges have ever jointly
-/// delivered for `root`/`segments` -- the co-inductive premise an element-store
-/// reseed may assume for the carrier. Empty when no edge has established any.
-///
-/// `root` is the destination-side carrier identity: the machine symbol for an
-/// attached `self` field, or the destination parameter's own symbol for a
-/// `&mut`/shared argument's storage.
-pub(super) fn field_predicate_ceiling<'a>(
-    build: &'a FlowBuildContext<'_>,
-    state: SymbolHandle,
-    root: facts::PlaceRoot,
-    segments: &[facts::PlaceSegment],
-) -> &'a [validation::field_domains::ByteSequencePredicate] {
-    let field = build
-        .state_value_inputs
-        .iter()
-        .find(|row| row.state == state)
-        .and_then(|row| {
-            row.fields
-                .iter()
-                .find(|field| field.root() == root && field.segments() == segments)
-        });
-    field.map_or(&[], |field| field.predicate_ceiling())
-}
-
 pub(super) fn entry_state_index(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
@@ -112,7 +87,9 @@ fn reachable(
     machine: &typed_trees::machine::Machine,
     state: SymbolHandle,
 ) -> bool {
-    entry_state(program, machine).is_some_and(|entry| entry.symbol == state)
+    let declared_entry = entry_state(program, machine).is_some_and(|entry| entry.symbol == state)
+        && !validation::private_invocation_entry_is_closed(program, machine);
+    declared_entry
         || build
             .state_value_inputs
             .iter()

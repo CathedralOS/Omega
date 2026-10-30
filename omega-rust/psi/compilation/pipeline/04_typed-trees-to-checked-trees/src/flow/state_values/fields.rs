@@ -47,12 +47,6 @@ struct EdgeDelivery {
     literal: ExpressionHandle,
     predicates: Vec<ByteSequencePredicate>,
     integer_bounds: Option<facts::IntegerRange>,
-    /// The greatest predicate set this edge could carry: the delivered
-    /// predicates unioned with the byte-class evidence of any element stores
-    /// on its path. Carrier classes are loop invariants proved
-    /// co-inductively, so what the edge can sustain -- not only what it
-    /// currently mints -- bounds the candidate the join verifies.
-    potential: Vec<ByteSequencePredicate>,
 }
 
 impl FieldValue {
@@ -61,34 +55,17 @@ impl FieldValue {
     /// already joined.
     pub(super) fn seed_delivery(&mut self, source: BoundsSource) {
         self.deliveries = vec![(source, EdgeDelivery::of(self))];
-        self.predicate_ceiling = self.edge_potential.clone();
-    }
-
-    /// The co-inductive premise an element-store reseed may assume for the
-    /// carrier: the greatest predicate claim this state's edges could jointly
-    /// sustain.
-    pub(super) fn predicate_ceiling(&self) -> &[ByteSequencePredicate] {
-        &self.predicate_ceiling
-    }
-
-    pub(super) fn segments(&self) -> &[facts::PlaceSegment] {
-        &self.segments
-    }
-
-    pub(super) fn root(&self) -> facts::PlaceRoot {
-        self.root
     }
 }
 
 impl EdgeDelivery {
     fn empty() -> Self {
-        // An unknown incoming value refutes a candidate it cannot establish.
-        // Only captured source evidence can forward a carrier predicate.
+        // An unknown incoming value carries no field evidence. Only a
+        // captured source observation can forward a carrier predicate.
         Self {
             literal: ExpressionHandle::invalid(),
             predicates: Vec::new(),
             integer_bounds: None,
-            potential: Vec::new(),
         }
     }
 
@@ -97,7 +74,6 @@ impl EdgeDelivery {
             literal: field.literal,
             predicates: field.predicates.clone(),
             integer_bounds: field.integer_bounds.clone(),
-            potential: field.edge_potential.clone(),
         }
     }
 }
@@ -120,22 +96,6 @@ pub(super) struct FieldValue {
     /// could only shrink them, and a mid-fixpoint under-approximation (a bound
     /// still unconstrained on one pass) would wedge the row forever.
     deliveries: Vec<(BoundsSource, EdgeDelivery)>,
-    /// What this field's edge is able to deliver for its carrier predicates:
-    /// the captured predicates plus, for an edge leaving a state that stored
-    /// into the carrier, the stores' accumulated byte-class evidence. Only
-    /// meaningful on a captured edge record; a stored row never consults it.
-    edge_potential: Vec<ByteSequencePredicate>,
-    /// The greatest predicate claim the current edges could jointly sustain:
-    /// the intersection over each delivery's potential. An element store
-    /// re-proves the carrier's byte classes under the co-inductive hypothesis
-    /// that this candidate stands -- it is the loop invariant the edges are
-    /// collectively maintaining. A weak mid-fixpoint delivery (a bound still
-    /// unconstrained on one pass) shrinks the stored join the next premise
-    /// reads; the ceiling still answers what the edges CAN deliver, so the
-    /// premise recovers when the byte-side evidence does. An edge whose
-    /// evidence is genuinely absent refutes the candidate by itself, so the
-    /// join can never ratify a predicate some path disproves.
-    predicate_ceiling: Vec<ByteSequencePredicate>,
     /// Joins that extended the accumulated interval. Repeated growth widens
     /// to authored thresholds or the primitive carrier. Unchanged deliveries
     /// preserve that widening; genuinely changed evidence can retighten it.
@@ -312,8 +272,7 @@ pub(super) fn meet(
             // Replaying the same evidence must preserve any sound widening.
             // Rejoining the raw deliveries would shrink that bound without
             // learning anything new and unnecessarily dirty the destination.
-            // Compare the full delivery, including a missing call edge's
-            // freshly derived potential, so changed ceilings still propagate.
+            // Compare the complete actual delivery, including an empty one.
             if slot.1 == delivery {
                 return true;
             }
@@ -347,8 +306,6 @@ pub(super) fn meet(
             predicates: Vec::new(),
             integer_bounds: None,
             deliveries,
-            edge_potential: Vec::new(),
-            predicate_ceiling: Vec::new(),
             bounds_growth: 0,
             bounds_shrink: 0,
         };
@@ -403,18 +360,6 @@ impl FieldValue {
             .collect();
         if self.predicates != predicates {
             self.predicates = predicates;
-            changed = true;
-        }
-        let ceiling: Vec<ByteSequencePredicate> = ByteSequencePredicate::ALL
-            .into_iter()
-            .filter(|predicate| {
-                self.deliveries
-                    .iter()
-                    .all(|(_, delivery)| delivery.potential.contains(predicate))
-            })
-            .collect();
-        if self.predicate_ceiling != ceiling {
-            self.predicate_ceiling = ceiling;
             changed = true;
         }
         let mut joined: Option<facts::IntegerRange> = None;
@@ -573,14 +518,7 @@ pub(super) fn capture(
         return Vec::new();
     }
     let contexts = crate::flow::active_context_handles(build, contexts);
-    capture_storage_fields(
-        program,
-        semantic,
-        build,
-        state.symbol,
-        &argument_roots,
-        &contexts,
-    )
+    capture_storage_fields(program, semantic, &argument_roots, &contexts)
 }
 
 /// One completed argument supplies its own value epoch and every possible
@@ -588,8 +526,6 @@ pub(super) fn capture(
 pub(super) fn capture_completed_argument(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
-    build: &FlowBuildContext,
-    operand: &checked_trees::FlowOperandFact,
     completed: &super::CompletedArgumentFacts,
     destination: SymbolHandle,
 ) -> Vec<FieldValue> {
@@ -600,14 +536,7 @@ pub(super) fn capture_completed_argument(
             place.projected.segments.clone(),
             destination,
         )];
-        let found = capture_storage_fields(
-            program,
-            semantic,
-            build,
-            operand.state_symbol,
-            &roots,
-            &completed.contexts,
-        );
+        let found = capture_storage_fields(program, semantic, &roots, &completed.contexts);
         common = Some(match common {
             None => found,
             Some(mut previous) => {
@@ -624,9 +553,7 @@ pub(super) fn capture_completed_argument(
                     field
                         .predicates
                         .retain(|predicate| next.predicates.contains(predicate));
-                    field
-                        .edge_potential
-                        .retain(|predicate| next.edge_potential.contains(predicate));
+
                     field.integer_bounds = field
                         .integer_bounds
                         .take()
@@ -647,8 +574,6 @@ pub(super) fn capture_completed_argument(
 fn capture_storage_fields(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
-    build: &FlowBuildContext,
-    state: SymbolHandle,
     argument_roots: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>, SymbolHandle)],
     contexts: &[facts::FactContextHandle],
 ) -> Vec<FieldValue> {
@@ -762,28 +687,6 @@ fn capture_storage_fields(
                 continue;
             };
 
-            // A conditional carrier claim belongs to the exact source
-            // storage. Record it before rebasing that storage to a formal;
-            // equal field paths under different roots are different values.
-            let mut edge_potential = predicates.clone();
-            for predicate in
-                super::field_predicate_ceiling(build, state, place.root, &place.segments)
-            {
-                crate::collections::push_unique(&mut edge_potential, *predicate);
-            }
-            if let Some((_, _, _, stored)) =
-                build
-                    .element_store_potentials
-                    .iter()
-                    .find(|(source, root, segments, _)| {
-                        *source == state && *root == place.root && *segments == place.segments
-                    })
-            {
-                for predicate in stored {
-                    crate::collections::push_unique(&mut edge_potential, *predicate);
-                }
-            }
-
             // Each destination identity this evidence serves: the shared
             // machine root for an attached `self` field, and every transition
             // argument whose storage prefix the fact's place extends. A
@@ -839,9 +742,6 @@ fn capture_storage_fields(
                     for predicate in predicates.iter().copied() {
                         crate::collections::push_unique(&mut field.predicates, predicate);
                     }
-                    for predicate in edge_potential.iter().copied() {
-                        crate::collections::push_unique(&mut field.edge_potential, predicate);
-                    }
                 } else {
                     bounds_ranks.push(if integer_bounds.is_some() {
                         bound_point_rank(fact.point)
@@ -855,8 +755,6 @@ fn capture_storage_fields(
                         predicates: predicates.clone(),
                         integer_bounds: integer_bounds.clone(),
                         deliveries: Vec::new(),
-                        edge_potential: edge_potential.clone(),
-                        predicate_ceiling: Vec::new(),
                         bounds_growth: 0,
                         bounds_shrink: 0,
                     });

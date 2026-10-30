@@ -274,29 +274,8 @@ pub(super) fn append_element_replacement_predicates(
         source_expression,
     );
 
-    // The carrier's classes are loop invariants: an element store re-proves
-    // them under the co-inductive hypothesis that the greatest claim the
-    // state's incoming edges could jointly sustain still holds. A weak
-    // mid-fixpoint delivery (a bound still unconstrained on one pass) shrinks
-    // the stored join below the invariant and the premise channel can never
-    // re-derive it, so the hypothesis is the recorded ceiling; the join
-    // itself still removes what no current edge can deliver, so a byte or
-    // propagation path that genuinely cannot carry a class refutes the
-    // candidate by itself.
-    let canonical_carrier =
-        canonical_place_from_semantic_place(program, semantic, semantic.places.get(carrier));
-    let carrier_ceiling: Vec<validation::field_domains::ByteSequencePredicate> = canonical_carrier
-        .as_ref()
-        .map(|place| {
-            crate::flow::state_values::field_predicate_ceiling(
-                contexts,
-                state_symbol,
-                place.root,
-                &place.segments,
-            )
-        })
-        .map(<[_]>::to_vec)
-        .unwrap_or_default();
+    // Carrier premises come only from the current pre-store snapshot.
+    // An entry candidate is not evidence after an overlapping replacement.
     // A read of one element inherits only per-byte classes from its live
     // container. UTF-8 membership alone says nothing about one selected byte.
     let source_element_facts = program
@@ -321,14 +300,14 @@ pub(super) fn append_element_replacement_predicates(
             let stored = predicate.is_subslice_preserving()
                 && source_element_facts
                     .as_ref()
-                    .is_some_and(|facts| carrier_proves_predicate(program, facts, predicate, &[]))
+                    .is_some_and(|facts| carrier_proves_predicate(program, facts, predicate))
                 || bounds
                     .is_some_and(|(minimum, maximum)| predicate.holds_for(&[minimum, maximum]))
                 || source_place.is_some_and(|place| {
                     let facts = source_facts.get_or_insert_with(|| {
                         facts_about_place(program, semantic, &active_facts, place)
                     });
-                    carrier_proves_predicate(program, facts, predicate, &[])
+                    carrier_proves_predicate(program, facts, predicate)
                 });
             (predicate, stored)
         })
@@ -339,45 +318,6 @@ pub(super) fn append_element_replacement_predicates(
             .any(|(class, stored)| *class == predicate && *stored)
     };
     let ascii_stored = stored_in(validation::field_domains::ByteSequencePredicate::AsciiOnly);
-    if let Some(carrier_place) = canonical_carrier.as_ref() {
-        // The byte side of this store alone -- no carrier premise -- is what
-        // the outgoing edges could deliver for the carrier if the state's
-        // predicate candidate holds. `valid_utf8` on the byte side is only
-        // `ascii_stored`: whether the carrier held ASCII (and so could not
-        // split a scalar) is the premise the candidate answers.
-        let byteok: Vec<_> = validation::field_domains::ByteSequencePredicate::ALL
-            .into_iter()
-            .filter(|predicate| {
-                if predicate.is_subslice_preserving() {
-                    stored_in(*predicate)
-                } else {
-                    *predicate == validation::field_domains::ByteSequencePredicate::ValidUtf8
-                        && ascii_stored
-                }
-            })
-            .collect();
-        if let Some((_, _, _, joined)) =
-            contexts
-                .element_store_potentials
-                .iter_mut()
-                .find(|(state, root, segments, _)| {
-                    *state == state_symbol
-                        && *root == carrier_place.root
-                        && *segments == carrier_place.segments
-                })
-        {
-            // Every store into the carrier must keep the class, so the
-            // deliverable set is the intersection over the state's stores.
-            joined.retain(|predicate| byteok.contains(predicate));
-        } else {
-            contexts.element_store_potentials.push((
-                state_symbol,
-                carrier_place.root,
-                carrier_place.segments.clone(),
-                byteok,
-            ));
-        }
-    }
     let mut carrier_facts = None;
     for predicate in validation::field_domains::ByteSequencePredicate::ALL {
         // Both supported per-byte classes are intervals. Their endpoints
@@ -396,7 +336,6 @@ pub(super) fn append_element_replacement_predicates(
                     program,
                     facts,
                     validation::field_domains::ByteSequencePredicate::AsciiOnly,
-                    &carrier_ceiling,
                 )
             }
         } else {
@@ -407,7 +346,7 @@ pub(super) fn append_element_replacement_predicates(
         }
         let facts = carrier_facts
             .get_or_insert_with(|| facts_about_place(program, semantic, &active_facts, carrier));
-        if !carrier_proves_predicate(program, facts, predicate, &carrier_ceiling) {
+        if !carrier_proves_predicate(program, facts, predicate) {
             continue;
         }
         let fact = semantic.append_transfer_at_point(
@@ -473,11 +412,7 @@ fn carrier_proves_predicate(
     program: &dyn ::validation::CheckingInput,
     carrier_facts: &[Fact],
     predicate: validation::field_domains::ByteSequencePredicate,
-    ceiling: &[validation::field_domains::ByteSequencePredicate],
 ) -> bool {
-    if ceiling.contains(&predicate) {
-        return true;
-    }
     carrier_facts.iter().any(|fact| match fact.payload {
         FactPayload::AssignedValue { value } => {
             typed_trees::byte_predicates::literal_bytes(program, value)

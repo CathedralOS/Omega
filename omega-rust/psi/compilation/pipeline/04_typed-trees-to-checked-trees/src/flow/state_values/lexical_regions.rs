@@ -17,6 +17,12 @@ pub(in crate::flow) fn record<'plans>(
     captured: &[FlowOperandFact],
     invocation: HandleSpan<FlowSemanticContextRef>,
 ) {
+    // An unreached private activation supplies no incoming edge. Emitting
+    // an unknown backedge before its first actual call would erase the facts
+    // that call establishes and force an ungrounded loop-candidate premise.
+    if !super::reachable(build, program, machine, state.symbol) {
+        return;
+    }
     let Some((owner_index, state_index)) = build.state_location(program, call.target_symbol) else {
         return;
     };
@@ -39,7 +45,8 @@ pub(in crate::flow) fn record<'plans>(
         call.call_ordinal,
     );
     let parameters = program.state_parameters(destination);
-    let authenticated = !owner.is_public
+    let authenticated = validation::private_invocation_entry_is_closed(program, owner)
+        && !owner.is_public
         && !owner.target_family_interface
         && owner.supplies_checked_body()
         && site.is_some_and(|site| {
@@ -147,8 +154,6 @@ pub(in crate::flow) fn record<'plans>(
             fields.extend(super::fields::capture_completed_argument(
                 program,
                 semantic,
-                build,
-                capture,
                 completed,
                 parameter.symbol,
             ));
