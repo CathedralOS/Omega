@@ -31,6 +31,25 @@ fn operation_shape_spine(
         && node.ownership.is_empty()
 }
 
+/// The declaration shape every admitted `Establish*` node and structural
+/// subslice shares on top of [`operation_shape_spine`]: the node defines no
+/// scalar value, and its declared result roster — when the operation spells
+/// one — is claim-free with vacuous qualification and projected-qualification
+/// rosters.
+fn declaration_spine(
+    node: &OptimizationNode,
+    psi_operation: semantic_vocabulary::OperationId,
+    result: Option<&terminal_psi::StructuralOperationResult>,
+) -> bool {
+    operation_shape_spine(node, psi_operation)
+        && node.definitions.is_empty()
+        && result.is_none_or(|result| {
+            result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
+        })
+}
+
 /// The two-operand use shape the dynamic index/length byte reads spell.
 fn uses_index_length(node: &OptimizationNode, index: ValueId, length: ValueId) -> bool {
     node.uses.len() == 2 && node.uses[0].value == index && node.uses[1].value == length
@@ -242,16 +261,12 @@ pub(crate) fn admissible_invariant_subslice(
         } => (psi_operation, result, source, start, end, length),
         _ => return None,
     };
-    (operation_shape_spine(node, *psi_operation)
-        && node.definitions.is_empty()
+    (declaration_spine(node, *psi_operation, Some(result))
         && node.uses.len() == 3
         && node.uses[0].value == *start
         && node.uses[1].value == *end
-        && node.uses[2].value == *length
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty())
-    .then_some((source.place, *start, *end, *length))
+        && node.uses[2].value == *length)
+        .then_some((source.place, *start, *end, *length))
 }
 
 /// An `EstablishByteSequenceLiteral` is the first structural establishment
@@ -274,9 +289,7 @@ pub(crate) fn admissible_invariant_byte_literal(node: &OptimizationNode) -> bool
     let O::EstablishByteSequenceLiteral { psi_operation, .. } = &node.operation else {
         return false;
     };
-    operation_shape_spine(node, *psi_operation)
-        && node.definitions.is_empty()
-        && node.uses.is_empty()
+    declaration_spine(node, *psi_operation, None) && node.uses.is_empty()
 }
 
 /// An `EstablishPrimitiveLocal` is the second structural establishment
@@ -311,15 +324,11 @@ pub(crate) fn admissible_invariant_primitive_local(
     else {
         return None;
     };
-    (operation_shape_spine(node, *psi_operation)
-        && node.definitions.is_empty()
+    (declaration_spine(node, *psi_operation, Some(result))
         && node.uses.len() == 1
         && node.uses[0].value == value.value
-        && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty())
-    .then(|| result.clone())
+        && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted)
+        .then(|| result.clone())
 }
 
 /// The complete primitive-local-establishment admission shared by the
@@ -397,8 +406,7 @@ pub(crate) fn admissible_invariant_record(
     else {
         return None;
     };
-    (operation_shape_spine(node, *psi_operation)
-        && node.definitions.is_empty()
+    (declaration_spine(node, *psi_operation, Some(result))
         && node.uses.len()
             == fields
                 .iter()
@@ -424,10 +432,7 @@ pub(crate) fn admissible_invariant_record(
             || (result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                 && fields.iter().all(|field| {
                     matches!(field.value, terminal_psi::RecordFieldValue::Scalar { .. })
-                })))
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty())
+                }))))
     .then(|| result.clone())
 }
 
@@ -552,19 +557,15 @@ pub(crate) fn admissible_invariant_scalar_array(
     else {
         return None;
     };
-    (operation_shape_spine(node, *psi_operation)
-        && node.definitions.is_empty()
+    (declaration_spine(node, *psi_operation, Some(result))
         && node.uses.len() == elements.len()
         && node
             .uses
             .iter()
             .zip(elements.iter())
             .all(|(value_use, element)| value_use.value == *element)
-        && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty())
-    .then(|| result.clone())
+        && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted)
+        .then(|| result.clone())
 }
 
 /// The complete scalar-array-establishment admission shared by the proposal
@@ -627,8 +628,7 @@ pub(crate) fn admissible_invariant_scalar_case(
     else {
         return None;
     };
-    (operation_shape_spine(node, *psi_operation)
-        && node.definitions.is_empty()
+    (declaration_spine(node, *psi_operation, Some(result))
         && node.uses.len() == fields.len()
         && node
             .uses
@@ -639,10 +639,7 @@ pub(crate) fn admissible_invariant_scalar_case(
             result.multiplicity,
             terminal_psi::StructuralMultiplicity::Unrestricted
                 | terminal_psi::StructuralMultiplicity::Affine
-        )
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty())
+        ))
     .then(|| result.clone())
 }
 
@@ -704,10 +701,7 @@ pub(crate) fn admissible_invariant_trivial_affine_local(
     else {
         return None;
     };
-    (operation_shape_spine(node, *psi_operation)
-        && node.definitions.is_empty()
-        && node.uses.is_empty())
-    .then_some(*place)
+    (declaration_spine(node, *psi_operation, None) && node.uses.is_empty()).then_some(*place)
 }
 
 /// The complete trivial-affine-local-establishment admission shared by the
