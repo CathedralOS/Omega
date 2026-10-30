@@ -512,6 +512,7 @@ fn rebase_borrow_places_following(
                 representation_address.as_ref().and_then(|address| {
                     if address.root != place.root
                         || address.incoming_reference != place.incoming_reference
+                        || address.incoming_owner_path != place.incoming_owner_path
                         || !owner_path_matches(program, &source_loan.owner_path, &address.segments)
                     {
                         return None;

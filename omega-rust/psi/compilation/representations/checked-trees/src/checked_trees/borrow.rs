@@ -825,6 +825,10 @@ impl BorrowFacts {
 
     pub fn state_owns_loan(&self, state: &StateBorrowFact, loan: Handle<BorrowLoanFact>) -> bool {
         self.loans_contain(state.loans, loan)
+            && self
+                .access_segments
+                .span(self.loans.get(loan).incoming_owner_path)
+                .is_some()
     }
 
     pub fn state_loans(
@@ -948,6 +952,8 @@ impl BorrowFacts {
                 completed.lineage == loan.lineage
                     && completed.established_by_call == call
                     && completed.incoming_reference == loan.incoming_reference
+                    && self.access_segments.span(completed.incoming_owner_path)
+                        == self.access_segments.span(loan.incoming_owner_path)
                     && completed.root == loan.root
                     && completed.segments.is_empty()
                     && completed.storage_owner == loan.storage_owner

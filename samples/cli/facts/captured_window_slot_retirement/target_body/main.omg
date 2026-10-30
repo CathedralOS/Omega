@@ -45,60 +45,90 @@ requires windows.len == 2
     valid && adjacent && original[0].value == 9 && original[0].tag == 17
 }
 
-windows_x86_64 machine exercise() crashes Trap {
-    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
-    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
-    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
-    let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
-    windows[first_slot()].values = &mut replacement[..];
-    transition check(&mut windows[..], &mut original) {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() { crash Trap; }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_x86_64 machine exercise() crashes Trap {
-    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
-    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
-    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
-    let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
-    windows[first_slot()].values = &mut replacement[..];
-    transition check(&mut windows[..], &mut original) {
-        true -> done()
-        false -> bad()
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine done() {}
-    machine bad() { crash Trap; }
 }
 
-linux_arm64 machine exercise() crashes Trap {
-    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
-    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
-    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
-    let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
-    windows[first_slot()].values = &mut replacement[..];
-    transition check(&mut windows[..], &mut original) {
-        true -> done()
-        false -> bad()
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine done() {}
-    machine bad() { crash Trap; }
 }
 
-macos_arm64 machine exercise() crashes Trap {
-    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
-    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
-    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
-    let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
-    windows[first_slot()].values = &mut replacement[..];
-    transition check(&mut windows[..], &mut original) {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() { crash Trap; }
+boundary trait SelectedProbe {
+    machine exercise()
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap;
 }
 
-machine main() crashes Trap { exercise(); }
+X86Probe satisfies SelectedProbe {
+    machine exercise()
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
+        let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
+        let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
+        let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
+        windows[first_slot()].values = &mut replacement[..];
+        transition check(&mut windows[..], &mut original) {
+            true -> done()
+            false -> bad()
+        }
+        machine done() {}
+        machine bad() { crash Trap; }
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise()
+        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
+        let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
+        let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
+        let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
+        windows[first_slot()].values = &mut replacement[..];
+        transition check(&mut windows[..], &mut original) {
+            true -> done()
+            false -> bad()
+        }
+        machine done() {}
+        machine bad() { crash Trap; }
+    }
+}
+
+
+
+
+
+
+
+
+
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
+{ SelectedProbe::exercise(); }
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}
