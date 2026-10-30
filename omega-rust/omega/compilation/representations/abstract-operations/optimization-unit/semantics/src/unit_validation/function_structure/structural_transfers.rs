@@ -12,13 +12,13 @@
 //! or linear arrival. Geometry supplies no claim: current-ownership replay must
 //! relocate the selected claims before cleanup and leave sibling custody intact.
 use crate::OptimizationUnitValidationError;
+use crate::unit_validation::structural_catalog::shared_view_declaration;
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralTypeShape,
+    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeShape,
 };
 
 pub(super) fn validate(
@@ -635,15 +635,8 @@ fn source_contract(
                 let access = if source.access == StructuralAccess::Owned
                     && types
                         .get(&source.structural_type)
-                        .is_some_and(|declaration| {
-                            matches!(
-                                declaration.shape,
-                                StructuralTypeShape::ElementView { .. }
-                                    | StructuralTypeShape::ByteSequence(
-                                        ByteSequenceCarrier::BorrowedView { .. },
-                                    )
-                            )
-                        }) {
+                        .is_some_and(|row| shared_view_declaration(row))
+                {
                     backing
                 } else {
                     source.access

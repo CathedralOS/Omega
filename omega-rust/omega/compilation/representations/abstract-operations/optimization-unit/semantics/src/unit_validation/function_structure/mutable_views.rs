@@ -5,12 +5,13 @@
 //! depend on the evolving arrival sets; rediscovering them for every destination
 //! in every round made validation scan the whole graph quadratically. Keeping
 //! edge occurrences (not predecessor sets) also preserves parallel-edge loans.
+use crate::unit_validation::structural_catalog::shared_view_declaration;
 use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeShape};
+use terminal_psi::StructuralAccess;
 
 fn exclusive_access(access: StructuralAccess) -> bool {
     matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
@@ -134,14 +135,7 @@ pub(crate) fn current_mutable_borrows(
                     (exclusive_access(source.access)
                         && types
                             .get(&source.structural_type)
-                            .is_some_and(|declaration| {
-                                matches!(
-                                    declaration.shape,
-                                    StructuralTypeShape::ByteSequence(
-                                        ByteSequenceCarrier::BorrowedView { .. }
-                                    ) | StructuralTypeShape::ElementView { .. }
-                                )
-                            }))
+                            .is_some_and(|row| shared_view_declaration(row)))
                     .then_some(result.place)
                 })
                 .collect::<BTreeSet<_>>();
@@ -154,25 +148,18 @@ pub(crate) fn current_mutable_borrows(
         .chain(function.block_structural_parameters())
         .filter(|parameter| {
             exclusive_access(parameter.access)
-                && types
-                    .get(&parameter.structural_type)
-                    .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            StructuralTypeShape::ByteSequence(
-                                ByteSequenceCarrier::BorrowedView { .. }
-                            ) | StructuralTypeShape::ElementView { .. }
-                        ) || {
-                            // A mutable record join carries the same exclusive
-                            // permission as an incoming mutable record. Its
-                            // source name expires on transfer, even though the
-                            // physical pointer still names the same referent.
-                            abstract_operations::control_flow::address_joins::is_address_join(
-                                parameter,
-                                |identity| types.get(&identity).copied(),
-                            )
-                        }
-                    })
+                && types.get(&parameter.structural_type).is_some_and(|row| {
+                    shared_view_declaration(row) || {
+                        // A mutable record join carries the same exclusive
+                        // permission as an incoming mutable record. Its
+                        // source name expires on transfer, even though the
+                        // physical pointer still names the same referent.
+                        abstract_operations::control_flow::address_joins::is_address_join(
+                            parameter,
+                            |identity| types.get(&identity).copied(),
+                        )
+                    }
+                })
         })
         .map(|parameter| parameter.place)
         .chain(produced.values().flatten().copied())
@@ -197,14 +184,7 @@ pub(crate) fn current_mutable_borrows(
             mutable.contains(&parameter.place)
                 && types
                     .get(&parameter.structural_type)
-                    .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            StructuralTypeShape::ByteSequence(
-                                ByteSequenceCarrier::BorrowedView { .. }
-                            ) | StructuralTypeShape::ElementView { .. }
-                        )
-                    })
+                    .is_some_and(|row| shared_view_declaration(row))
         })
         .map(|parameter| parameter.place)
         .chain(produced.values().flatten().copied())
