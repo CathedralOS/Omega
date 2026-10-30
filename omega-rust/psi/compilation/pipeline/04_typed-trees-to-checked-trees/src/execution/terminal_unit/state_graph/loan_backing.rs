@@ -19,6 +19,71 @@ use typed_trees::expression::ExpressionHandle;
 
 use crate::borrow::accesses::is_image_storage_root;
 
+// One graph request borrows one complete checking input. Only declaration
+// geometry is shared: roots, selected paths, constraints, loans and dependency
+// verdicts remain live inputs to every retention question below.
+type DeclaredOwnerPaths = std::sync::Arc<[Vec<checked_trees::BorrowLoanOwnerSegment>]>;
+
+pub(in crate::execution::terminal_unit) struct DeclaredStoragePlans<'program> {
+    program: &'program dyn validation::CheckingInput,
+    owner_paths: std::cell::RefCell<
+        symbols::SymbolKeyMap<typed_trees::types::TypeReferenceHandle, Option<DeclaredOwnerPaths>>,
+    >,
+}
+
+impl<'program> DeclaredStoragePlans<'program> {
+    pub(super) fn new(program: &'program dyn validation::CheckingInput) -> Self {
+        Self {
+            program,
+            owner_paths: Default::default(),
+        }
+    }
+
+    fn for_carrier(
+        &self,
+        carrier: typed_trees::types::TypeReferenceHandle,
+    ) -> Option<DeclaredOwnerPaths> {
+        if let Some(paths) = self.owner_paths.borrow().get(&carrier).cloned() {
+            return paths;
+        }
+        // No map borrow survives the original complete query or its origin
+        // conversion. None remains refusal, distinct from an empty frontier.
+        let paths: Option<DeclaredOwnerPaths> =
+            validation::reference_result_custody::declared_carrier_references(
+                self.program,
+                carrier,
+            )
+            .and_then(|sources| {
+                sources
+                    .into_iter()
+                    .map(|source| {
+                        let segments = validation::reference_result_custody::origin_place_segments(
+                            self.program,
+                            carrier,
+                            source.path,
+                        )?;
+                        Some(crate::borrow::owner_path_from_place_segments(
+                            self.program,
+                            &segments,
+                        ))
+                    })
+                    .collect::<Option<Vec<_>>>()
+            })
+            .map(std::sync::Arc::from);
+        self.owner_paths.borrow_mut().insert(carrier, paths.clone());
+        paths
+    }
+}
+
+struct IngressStorageCarrier<'plan> {
+    root: PlaceRoot,
+    carrier: typed_trees::types::TypeReferenceHandle,
+    declarations: &'plan DeclaredStoragePlans<'plan>,
+}
+
+#[cfg(test)]
+mod declared_storage_plan_tests;
+
 fn selected_call(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
@@ -65,7 +130,7 @@ pub(super) struct RetainedStorage {
 }
 
 pub(super) fn retained_storage(
-    program: &dyn validation::CheckingInput,
+    declarations: &DeclaredStoragePlans<'_>,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -76,6 +141,7 @@ pub(super) fn retained_storage(
     operations: &[CheckedUnitEffectOperationPlan],
     address_source: Option<CheckedUnitStructuralArgumentSourcePlan>,
 ) -> Result<RetainedStorage, &'static str> {
+    let program = declarations.program;
     let call_handle = selected_call(program, facts, machine, state, statement, target, arguments)
         .ok_or("state loan: exact captured call")?;
     let operand = facts
@@ -88,7 +154,7 @@ pub(super) fn retained_storage(
         .nth(argument_position)
         .ok_or("state loan: captured operand position")?;
     let (parents, mut operand_parents) = retained_parents(
-        program,
+        declarations,
         facts,
         machine,
         state,
@@ -303,7 +369,7 @@ fn local_storage_binding(
 /// current checked roots, never replay construction syntax or stale initializers.
 /// A dependency is storage lifetime only: cleanup still needs its own action.
 fn retained_parents(
-    program: &dyn validation::CheckingInput,
+    declarations: &DeclaredStoragePlans<'_>,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -322,6 +388,7 @@ fn retained_parents(
     ),
     &'static str,
 > {
+    let program = declarations.program;
     let call = facts.flow.control.calls.get(call_handle);
     let capture = facts.flow.control.operands.get(operand);
     // State ingress already owns opaque carried permissions, not fresh local
@@ -360,7 +427,11 @@ fn retained_parents(
                 program,
                 parameter.type_reference,
             )
-            .map(|carrier| (PlaceRoot::Symbol(parameter.symbol), carrier))
+            .map(|carrier| IngressStorageCarrier {
+                root: PlaceRoot::Symbol(parameter.symbol),
+                carrier,
+                declarations,
+            })
         })
         .collect::<Vec<_>>();
     let paths =
@@ -1078,7 +1149,7 @@ struct Dependencies<'a> {
     /// lifetime, not for proving relocation independence. That judgment passes
     /// no ingress assumptions and retains its existing fail-closed behavior.
     ingress: &'a [(PlaceRoot, &'a [checked_trees::BorrowLoanOwnerSegment])],
-    ingress_storage: &'a [(PlaceRoot, typed_trees::types::TypeReferenceHandle)],
+    ingress_storage: &'a [IngressStorageCarrier<'a>],
 }
 
 impl Dependencies<'_> {
@@ -1296,42 +1367,36 @@ impl Dependencies<'_> {
                 None => return false,
             }
         }
-        let paths = if opaque_referent {
-            Some(Vec::new())
-        } else if let Some((_, carrier)) = self
-            .ingress_storage
-            .iter()
-            .find(|(owner, _)| *owner == root)
-        {
-            validation::reference_result_custody::declared_carrier_references(
-                self.program,
-                *carrier,
-            )
-            .and_then(|sources| {
-                sources
-                    .into_iter()
-                    .map(|source| {
-                        let segments = validation::reference_result_custody::origin_place_segments(
-                            self.program,
-                            *carrier,
-                            source.path,
-                        )?;
-                        Some(crate::borrow::owner_path_from_place_segments(
-                            self.program,
-                            &segments,
-                        ))
-                    })
-                    .collect::<Option<Vec<_>>>()
-            })
-        } else {
-            validation::borrow_contracts::borrow_carrying_owner_paths(self.program, reference)
-        };
-        let Some(mut paths) = paths else {
-            return false;
-        };
+        let declared;
+        let paths: std::borrow::Cow<'_, [Vec<checked_trees::BorrowLoanOwnerSegment>]> =
+            if opaque_referent {
+                std::borrow::Cow::Borrowed(&[])
+            } else if let Some(ingress) = self
+                .ingress_storage
+                .iter()
+                .find(|ingress| ingress.root == root)
+            {
+                declared = ingress.declarations.for_carrier(ingress.carrier);
+                let Some(paths) = declared.as_ref() else {
+                    return false;
+                };
+                std::borrow::Cow::Borrowed(paths.as_ref())
+            } else {
+                let Some(paths) = validation::borrow_contracts::borrow_carrying_owner_paths(
+                    self.program,
+                    reference,
+                ) else {
+                    return false;
+                };
+                std::borrow::Cow::Owned(paths)
+            };
         // This is a selected storage frontier, not its current siblings. An
         // unresolved selector retains every possibly selected dependency.
-        paths.retain(|path| self.selected_path(path, selected));
+        // Select into fresh local scratch; the declaration roster never changes.
+        let paths = paths
+            .iter()
+            .filter(|path| self.selected_path(path, selected))
+            .collect::<Vec<_>>();
         let loans = self
             .facts
             .flow

@@ -120,6 +120,7 @@ pub(in crate::execution::terminal_unit) struct EdgeCalls<'a> {
 pub(in crate::execution::terminal_unit) fn successor(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    declarations: &super::loan_backing::DeclaredStoragePlans<'_>,
     fused: &FusedStates<'_>,
     source_index: usize,
     signatures: &[Signature],
@@ -134,6 +135,7 @@ pub(in crate::execution::terminal_unit) fn successor(
     let successor = successor_bindings(
         program,
         facts,
+        declarations,
         fused,
         source_index,
         signatures,
@@ -173,6 +175,7 @@ pub(in crate::execution::terminal_unit) fn successor(
 pub(in crate::execution::terminal_unit) fn successor_bindings(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    declarations: &super::loan_backing::DeclaredStoragePlans<'_>,
     fused: &FusedStates<'_>,
     source_index: usize,
     signatures: &[Signature],
@@ -977,7 +980,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         trace.phase("state loan: captured backing");
         trace.statement(Some(ordinal));
         let storage = super::loan_backing::retained_storage(
-            program,
+            declarations,
             facts,
             machine.symbol,
             source.symbol,

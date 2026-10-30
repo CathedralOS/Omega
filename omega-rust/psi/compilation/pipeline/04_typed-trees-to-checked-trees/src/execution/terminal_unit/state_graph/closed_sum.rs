@@ -35,6 +35,7 @@ use crate::semantic::calls::dispatch_subjects;
 pub(super) fn build(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    declarations: &super::loan_backing::DeclaredStoragePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     fused: &FusedStates<'_>,
     state_index: usize,
@@ -526,6 +527,7 @@ pub(super) fn build(
                 let successor = successor_bindings(
                     program,
                     facts,
+                    declarations,
                     fused,
                     state_index,
                     signatures,
