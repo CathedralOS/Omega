@@ -214,3 +214,8 @@ reference inventory, and checks intrinsic snapshot death before backing cleanup.
 carry the same fact through a separately captured selector and a case-bearing
 array element across all nine places. Both selectors execute with counter and
 neighbor-canary oracles; exact zero-decrement twins reject strict non-descent.
+
+[Declared field and identity measures](local/declared_measure/README.md) retain
+the explicitly selected view through the private component, normalize its
+authenticated numeric coordinate, and execute all nine places. A scalar-only
+helper demonstrates that inference does not force the authored record type.
