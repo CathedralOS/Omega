@@ -594,6 +594,15 @@ impl Resolver<'_> {
         }
     }
 
+    fn program_owned_descriptor(
+        &self,
+        reference: typed_trees::types::TypeReferenceHandle,
+        projection: &[PlaceSegment],
+    ) -> bool {
+        crate::owned_projection_type_reference(self.program, reference, projection)
+            .is_some_and(|selected| crate::reference_shell(self.program, selected).is_some())
+    }
+
     fn stored(&mut self, stored: StoredOperand, suffix: &[PlaceSegment]) -> Selection {
         match stored {
             StoredOperand::Unavailable => Selection::Unavailable,
@@ -609,7 +618,28 @@ impl Resolver<'_> {
                 ..
             } => {
                 projection.extend_from_slice(suffix);
-                self.select(capture, &projection)
+                let selected = self.select(capture, &projection);
+                if matches!(selected, Selection::Unavailable) {
+                    return selected;
+                }
+                // Keep the completed installation owner for an inline
+                // descriptor. Flattening it to constructor children or match
+                // arms loses the current descriptor's formation identity.
+                // A pointer crossing is different: its stored leaves belong
+                // to the consumer's current cut and keep the selected sources.
+                let reference = self.control.operands.get(capture).type_reference;
+                if self.program_owned_descriptor(reference, &projection) {
+                    Selection::Sources {
+                        incoming: Vec::new(),
+                        values: vec![StoredCapture {
+                            capture,
+                            reference,
+                            projection,
+                        }],
+                    }
+                } else {
+                    selected
+                }
             }
             StoredOperand::Alternatives(alternatives) => {
                 let selections = alternatives

@@ -610,7 +610,13 @@ impl Resolver<'_> {
                 capture,
                 projection,
                 ..
-            } => self.retained_descriptor(capture, &projection, ancestors, forwarded_inputs),
+            } => {
+                if let Some(formed) = self.current_formation(capture, &projection, operand)? {
+                    Ok(formed)
+                } else {
+                    self.retained_descriptor(capture, &projection, ancestors, forwarded_inputs)
+                }
+            }
             StoredOperand::Alternatives(alternatives) => {
                 if alternatives.is_empty() {
                     return Err("the stored descriptor has no incoming alternatives");
@@ -627,6 +633,114 @@ impl Resolver<'_> {
                 Ok(result)
             }
         }
+    }
+
+    /// The storage owner selected this exact produced descriptor. Rejoin its
+    /// active installed occurrence before following older construction inputs:
+    /// those inputs retain backing, but cannot exempt a current descriptor's
+    /// own loan from interference. Every matching formation alternative stays.
+    fn current_formation(
+        &self,
+        capture: Handle<FlowOperandFact>,
+        projection: &[PlaceSegment],
+        observation: &FlowOperandFact,
+    ) -> Result<Option<BackingFrontier>, &'static str> {
+        let control = &self.facts.flow.control;
+        if !control.operands.is_valid(capture) {
+            return Err("the installed descriptor has no completed formation");
+        }
+        let source = control.operands.get(capture);
+        if source.state_symbol != self.state.state_symbol {
+            return Err("the installed descriptor formation belongs to another state");
+        }
+        let (_, owner) = self
+            .facts
+            .borrow
+            .first_state_borrow(self.state.machine_symbol, self.state.state_symbol)
+            .ok_or("the installed descriptor has no owning borrow state")?;
+        let mut candidates = Vec::new();
+        for handle in self
+            .facts
+            .flow
+            .borrow_loan_constraints(observation.constraints)
+        {
+            if !self.facts.borrow.state_owns_loan(owner, handle) {
+                return Err("the installed descriptor roster contains a foreign loan");
+            }
+            let loan = self.facts.borrow.loans.get(handle);
+            if loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency
+                || loan.formation_expression != source.expression
+                || loan.statement_index != source.statement_index
+            {
+                continue;
+            }
+            let Some(formed) = loan.formation_owner_path else {
+                continue;
+            };
+            let path = self
+                .facts
+                .borrow
+                .owner_segments
+                .span(formed)
+                .ok_or("the installed descriptor formation has an incomplete leaf path")?;
+            if path.contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
+                || !crate::borrow::owner_path_selects_leaf(self.program, path, projection)
+            {
+                continue;
+            }
+            candidates.push(super::aliases::ResolvedPlace {
+                place: CapturedPlace {
+                    incoming_reference: loan.incoming_reference,
+                    incoming_owner_path: self
+                        .facts
+                        .borrow
+                        .access_segments
+                        .span_or_empty(loan.incoming_owner_path)
+                        .to_vec(),
+                    root: loan.root,
+                    segments: self.facts.borrow.loan_segments(loan).to_vec(),
+                },
+                local_loan: handle,
+            });
+        }
+        if candidates.is_empty() {
+            return Ok(None);
+        }
+        let coordinate = validation::canonical_place_from_expression_in_state(
+            self.program,
+            self.state.state_symbol,
+            observation.statement_index,
+            observation.expression,
+        )
+        .ok_or("the installed descriptor observation has no captured storage coordinate")?;
+        // The completed storage query selected one owned descriptor from one
+        // installed value. Matching formation rows are its alternative input
+        // debts, even when its receiving owner uses a dynamic index. This does
+        // not group raw wildcard storage paths or unrelated descriptors.
+        let alternatives = candidates
+            .iter()
+            .map(|candidate| candidate.local_loan)
+            .collect::<Vec<_>>();
+        let mut places = super::access_sources::retain_captured_lineage(
+            self.program,
+            self.facts,
+            self.state,
+            observation.statement_index,
+            CapturedPlace {
+                incoming_reference: Handle::invalid(),
+                incoming_owner_path: Vec::new(),
+                root: coordinate.root,
+                segments: coordinate.segments,
+            },
+            candidates,
+        )
+        .ok_or("the installed descriptor has incomplete formation lineage")?;
+        for place in &mut places {
+            for alternative in &alternatives {
+                crate::collections::push_unique(&mut place.lineage, *alternative);
+            }
+        }
+        Ok(Some(BackingFrontier::borrowed(places)))
     }
 
     fn input_descriptor(
