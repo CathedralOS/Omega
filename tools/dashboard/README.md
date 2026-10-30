@@ -80,10 +80,14 @@ The owner-private hosted snapshot is registered in `hosting.json`. To update it:
   is not a fixed-cohort success rate. Point selection
   exposes the exact count, timestamp and golden revision. No daily points are
   invented between records.
-  Current host counts and cohorts use the most recently committed execution golden
-  (dual-engine wins a timestamp tie). Sources are selected whole, never unioned or
-  chosen for the largest passing count; chart points link to their own golden.
-  A dual-engine file's exit facts count native execution, not automatic engine agreement.
+  Native-only and dual-engine goldens are reconciled by fixture ID, selecting the
+  observation with the newest recorded producer commit date; a dual-engine row wins
+  a tie. Unstamped or unresolved revisions rank below dated observations. Carried
+  rows retain their original stamps; editing a golden does not refresh every row.
+  Counts, fixed cohorts and each historical point use this same rule. Historical
+  reconciliation reads both files as they existed at that point's commit; chart
+  points link to that commit, and receipts link to both source files. No fixture
+  is counted twice. Exit facts do not automatically establish engine agreement.
 - **Fact observation chart:** categorical bars aggregate the grid's selected
   target into recorded pass, historical/qualified pass, recorded failure and
   unmeasured places. All four counts are directly labeled in a full-width chart
