@@ -628,7 +628,7 @@ fn installation_reach_settlement_consumes_prepared_rows() {
 #[test]
 fn checked_operator_choice_consumes_retained_candidates() {
     let admission = include_str!(
-        "../../realization/provider-planning/src/provider_planning/operator_provider_evidence.rs"
+        "../../realization/provider-planning/src/provider_planning/source_provider_selections.rs"
     );
     let dispatch = include_str!(
         "../../realization/selected-dispatch/src/selected_dispatch/operator_adapter.rs"
@@ -648,9 +648,13 @@ fn checked_operator_choice_consumes_retained_candidates() {
             );
         }
     }
-    assert!(admission.contains("boundary_declarations"));
-    assert!(admission.contains("boundary_body_candidates"));
-    assert!(admission.contains(".span(application.body_candidates)"));
+    assert!(admission.contains(".project_body_candidates(application,"));
+    let projection = include_str!(
+        "../../../../psi/compilation/representations/checked-trees/src/checked_trees/operators.rs"
+    );
+    assert!(projection.contains("boundary_declarations"));
+    assert!(projection.contains("boundary_body_candidates"));
+    assert!(projection.contains(".span(application.body_candidates)"));
     let policy = include_str!("../../realization/provider-selection/src/checked_bodies.rs");
     for forbidden in [
         "checked_trees",
@@ -872,7 +876,7 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
     assert!(publication.contains("candidate.explicitly_selected"));
     assert!(publication.contains("module.boundary_machines"));
     assert!(publication.contains("crate::choose("));
-    assert!(publication.contains("crate::admit(selected, &[])?"));
+    assert!(publication.contains("crate::admit("));
     assert!(publication.contains("TerminalTargetProviderSelection::from_plans"));
     let production = include_str!("terminal/terminal_artifact.rs");
     assert!(production.contains("provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication"));
@@ -1040,14 +1044,13 @@ fn selected_execution_does_not_copy_checked_programs() {
 
 #[test]
 fn selected_numeric_admission_consumes_retained_declarations() {
-    let evidence = include_str!(
-        "../../realization/provider-planning/src/provider_planning/operator_provider_evidence.rs"
-    );
-    assert!(evidence.contains("numeric_providers.require_selected("));
+    let evidence = include_str!("../../realization/provider-selection/src/boundary_review.rs");
+    assert!(evidence.contains("requirement.numeric_requirement?"));
+    assert!(evidence.contains("selected_execution_for_identity("));
     assert!(!evidence.contains(".execution_identity(typed)"));
     assert!(!evidence.contains(".intrinsic_realization_matches(typed,"));
     let preparation = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
-    assert!(preparation.contains("correspondence: external_providers.correspondence()"));
+    assert!(preparation.contains("review: &external_providers.boundary_provider_review()"));
     assert!(
         preparation.find(".require_owner(").unwrap()
             < preparation
@@ -1065,20 +1068,18 @@ fn boundary_application_policy_has_one_source_free_owner() {
     assert!(settlement.contains("TerminalBoundaryApplicationCoverage::new("));
     assert!(!settlement.contains("ProviderBinding::"));
     assert!(!settlement.contains("boundary_application_candidates"));
-    let source = include_str!("../../realization/provider-planning/src/intrinsic_requirements.rs");
-    assert!(source.contains("provider_selection::selected_external_execution("));
+    let source = include_str!("../../realization/provider-selection/src/boundary_review.rs");
+    assert!(source.contains("selected_execution_for_identity("));
     assert!(!source.contains("effects::external_providers::selected_numeric_provider("));
 }
 
 #[test]
 fn selected_boundary_admission_reads_checked_classification() {
-    let source = include_str!(
-        "../../realization/provider-planning/src/provider_planning/operator_provider_evidence.rs"
-    );
-    // Source-only selection adapters below this entrance still serve early
-    // interpretation. Product admission must not call back into typed source.
-    let admission = source.split("pub fn selected_use_plan").next().unwrap();
+    let admission = include_str!("../../realization/provider-selection/src/boundary_review.rs");
     for forbidden in [
+        "CheckFacts",
+        "SymbolHandle",
+        "checked_trees",
         "typed:",
         "typed.",
         "IntrinsicRequirement::",
@@ -1090,9 +1091,19 @@ fn selected_boundary_admission_reads_checked_classification() {
             "Product admission reconstructs {forbidden}"
         );
     }
-    assert!(admission.contains("provider_requirements"));
-    assert!(admission.contains("operator_use.is_generic_template"));
-    assert!(admission.contains("selected_checked_operator_body(check_facts, application, plan)"));
+    assert!(admission.contains("BoundaryOperatorApplication::GenericTemplate"));
+    assert!(admission.contains("crate::select_checked_body(plan,"));
+    let projection = include_str!(
+        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/external_provider_declarations/boundary_review.rs"
+    );
+    assert!(projection.contains("provider_requirements"));
+    assert!(projection.contains("usage.is_generic_template"));
+    assert!(projection.contains("operators.project_body_candidates(application,"));
+    let adapters = include_str!(
+        "../../realization/provider-planning/src/provider_planning/source_provider_selections.rs"
+    );
+    assert!(!adapters.contains("validate_selected_operator_provider_evidence"));
+    assert!(!adapters.contains("validate_selected_requirement_provider_evidence"));
 }
 
 #[test]

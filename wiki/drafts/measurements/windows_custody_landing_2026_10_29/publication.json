@@ -1,0 +1,52 @@
+{
+  "headRefOid": "3b1b161d70714bf956bad0a5e5b0ed659817e1b4",
+  "mergeCommit": {
+    "oid": "bc1ed575da8c741b6b464776ad326a85d506510f"
+  },
+  "mergedAt": "2026-10-30T05:02:55Z",
+  "state": "MERGED",
+  "url": "https://github.com/CathedralOS/Omega/pull/864",
+  "fetched_main": "aa9e154379ffc5c15b58fc370605f51c2ab058a5",
+  "published_is_ancestor": true,
+  "source_admission": {
+    "url": "https://github.com/CathedralOS/Omega/actions/runs/41005431360",
+    "conclusion": "success"
+  },
+  "queue_admission": {
+    "url": "https://github.com/CathedralOS/Omega/actions/runs/41006019668",
+    "head_sha": "bc1ed575da8c741b6b464776ad326a85d506510f",
+    "conclusion": "success"
+  },
+  "postmerge_smoke": [
+    {
+      "conclusion": "",
+      "databaseId": 41006429743,
+      "headSha": "aa9e154379ffc5c15b58fc370605f51c2ab058a5",
+      "status": "in_progress",
+      "url": "https://github.com/CathedralOS/Omega/actions/runs/41006429743"
+    },
+    {
+      "conclusion": "cancelled",
+      "databaseId": 41006227794,
+      "headSha": "bc1ed575da8c741b6b464776ad326a85d506510f",
+      "status": "completed",
+      "url": "https://github.com/CathedralOS/Omega/actions/runs/41006227794"
+    },
+    {
+      "conclusion": "cancelled",
+      "databaseId": 41006017335,
+      "headSha": "0e59f2184bd69641551f59608988d510aa89f6fc",
+      "status": "completed",
+      "url": "https://github.com/CathedralOS/Omega/actions/runs/41006017335"
+    },
+    {
+      "conclusion": "success",
+      "databaseId": 41005358088,
+      "headSha": "cd88cef27bfd9dd8f897e02dfcb118abf1a91698",
+      "status": "completed",
+      "url": "https://github.com/CathedralOS/Omega/actions/runs/41005358088"
+    }
+  ],
+  "runtime_observation_revision": "244e4de7fabae4c8a2ee43f4002805abe0ec63ee",
+  "runtime_not_relabelled_as_publication": true
+}

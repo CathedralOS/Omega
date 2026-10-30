@@ -666,7 +666,8 @@ impl StructuralJudge<'_> {
         reference: TypeReferenceHandle,
         value: StructuralTerm,
     ) {
-        self.intake_admitted_scalar_bounds(reference, &value);
+        // Integer observation owns intrinsic carrier bounds. Reintaking them as
+        // rewrite predicates repeatedly normalizes unrelated producer bodies.
         let program = self.program;
         // Only independently admitted values donate declared refinements.
         // A pending cast or constructor may know its carrier before admission.
@@ -776,48 +777,8 @@ impl StructuralJudge<'_> {
         }
     }
 
-    /// The carrier belongs to this completed value, even after conversion or
-    /// a later write to its former source. A reference descriptor alone does
-    /// not establish a scalar observation. These intrinsic integer facts say
-    /// nothing about user domains, a call's private body or a pending result.
-    pub(super) fn intake_admitted_scalar_bounds(
-        &mut self,
-        reference: TypeReferenceHandle,
-        value: &StructuralTerm,
-    ) {
-        let program = self.program;
-        let Some(meaning) =
-            crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
-        else {
-            return;
-        };
-        // Address geometry remains symbolic and target-independent; the
-        // hosted implementation's Addr integer_bounds is not that contract.
-        if !meaning.0.is_fixed_integer() {
-            return;
-        }
-        let Some((minimum, maximum)) = meaning.0.integer_bounds() else {
-            return;
-        };
-        if !super::super::structural_terms::scalar_operand_is_observed(program, reference, value) {
-            return;
-        }
-        for (operator, bound) in [
-            (BinaryOperator::GreaterOrEqual, minimum),
-            (BinaryOperator::LessOrEqual, maximum),
-        ] {
-            self.intake_observed_integer_bound(
-                reference,
-                meaning,
-                value,
-                operator,
-                numerics::bignum::BigInt::from_i128(bound),
-            );
-        }
-    }
-
-    /// Both callers already authenticated this exact observed integer and
-    /// its intrinsic/resident interval. Only fold the completed comparison;
+    /// The caller already authenticated this exact observed integer and
+    /// its resident interval. Only fold the completed comparison;
     /// resolving its value would replay an unrelated descriptive call body.
     fn intake_observed_integer_bound(
         &mut self,
@@ -966,10 +927,6 @@ impl StructuralJudge<'_> {
             });
             bindings.push((name, index));
         }
-        let has_where_facts = !program
-            .proof_facts
-            .span_or_empty(definition.where_facts)
-            .is_empty();
         // Unknown case identity admits only common fields. Payload predicates
         // enter through the separately authenticated selected-case arm; reading
         // every variant here would project inactive same-named payloads onto
@@ -1002,9 +959,6 @@ impl StructuralJudge<'_> {
                 ..Default::default()
             });
             bindings.push((field.name.to_string(), projected.clone()));
-            if has_where_facts || has_projected_equations {
-                self.intake_admitted_scalar_bounds(projected_type, &projected);
-            }
             self.intake_admitted_data_predicates(projected_type, projected, active);
         }
         for fact in program.proof_facts.span_or_empty(definition.where_facts) {

@@ -754,6 +754,40 @@ impl CheckedOperatorRealizationContract {
 }
 
 impl CheckedOperatorFacts {
+    /// Borrow one exact application's checked eligibility. The caller selects
+    /// only its payload; requirement/declaration correspondence stays here.
+    pub fn project_body_candidates<'facts, Body>(
+        &'facts self,
+        application: &CheckedBoundaryOperatorApplicationDemand,
+        payload: impl Fn(&'facts CheckedBoundaryBodyCandidate) -> Body,
+    ) -> Result<
+        Vec<language_semantics::CheckedBodyCandidate<'facts, Body>>,
+        language_semantics::boundary_provider_review::BoundaryApplicationEvidenceError,
+    > {
+        use language_semantics::boundary_provider_review::BoundaryApplicationEvidenceError as Error;
+        let bodies = self
+            .boundary_body_candidates
+            .span(application.body_candidates)
+            .ok_or(Error::MissingBodySpan)?;
+        let mut candidates = Vec::with_capacity(bodies.len());
+        for body in bodies {
+            if !self.boundary_declarations.is_valid(body.declaration) {
+                return Err(Error::MissingDeclaration);
+            }
+            let declaration = self.boundary_declarations.get(body.declaration);
+            if declaration.requirement != application.requirement_symbol {
+                return Err(Error::DifferentRequirement);
+            }
+            candidates.push(language_semantics::CheckedBodyCandidate {
+                body: payload(body),
+                declaration: &declaration.selection,
+                target: body.target.as_deref(),
+                is_product: body.is_product,
+            });
+        }
+        Ok(candidates)
+    }
+
     /// Whether checking decided every formation condition of this integer
     /// operation occurrence.
     pub fn formation_is_decided(&self, expression: ExpressionHandle) -> bool {

@@ -9,6 +9,7 @@ use terminal_psi::{
     ExternalProviderConformance, NominalDeclarationIdentity, TerminalIdentityTable,
 };
 
+mod boundary_review;
 mod prepared;
 pub use prepared::PreparedExternalProviderDeclarations;
 

@@ -1,0 +1,9 @@
+{
+  "path": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-plain.exe",
+  "sha256": "055b078090d693606126c472c2a97640778ebadcf74b4f94a6790902e32a6b3f",
+  "profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  },
+  "version": "omega 0.1.0-dev (unrecorded; x86_64-pc-windows-msvc)"
+}

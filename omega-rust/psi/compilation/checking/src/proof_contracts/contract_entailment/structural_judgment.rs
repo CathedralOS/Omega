@@ -523,7 +523,9 @@ pub(super) struct StructuralJudge<'program> {
     // A recurrent call consumes its checked contract instead of unfolding again.
     body_invocations: Arc<Vec<SymbolHandle>>,
     active_application: Option<Arc<resolution_queries::ApplicationResolution<'program>>>,
-    resolution_results: Option<Arc<resolution_queries::ResolutionResults<'program>>>,
+    completed_resolutions:
+        Option<Arc<std::sync::Mutex<resolution_queries::CompletedResolutions<'program>>>>,
+    resolution_observations: Option<Arc<resolution_queries::ResolutionObservations<'program>>>,
     normal_memberships: Arc<Vec<MembershipGuarantee>>,
     pub(super) normal_content_guarantees:
         Arc<Vec<super::content_conservation::ObservedContentEquation>>,
@@ -595,7 +597,8 @@ impl Clone for StructuralJudge<'_> {
             returned_field_trace: self.returned_field_trace.clone(),
             body_invocations: Arc::clone(&self.body_invocations),
             active_application: self.active_application.clone(),
-            resolution_results: self.resolution_results.clone(),
+            completed_resolutions: self.completed_resolutions.clone(),
+            resolution_observations: self.resolution_observations.clone(),
             normal_memberships: Arc::clone(&self.normal_memberships),
             normal_content_guarantees: Arc::clone(&self.normal_content_guarantees),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
@@ -1057,7 +1060,8 @@ impl<'program> StructuralJudge<'program> {
             returned_field_trace: None,
             body_invocations: Arc::new(Vec::new()),
             active_application: None,
-            resolution_results: None,
+            completed_resolutions: Some(Arc::new(std::sync::Mutex::new(Default::default()))),
+            resolution_observations: None,
             normal_memberships: Arc::new(Vec::new()),
             normal_content_guarantees: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
@@ -1593,10 +1597,42 @@ impl<'program> StructuralJudge<'program> {
     /// fields resolve recursively under the same budget.
     /// Semantic term equality deliberately ignores observation authority and
     /// literal landing metadata. Resolution preserves those payloads, so an
-    /// equal term is not an interchangeable memoized result. Resolution reuse
-    /// retains the complete payload, context, depth and active question history.
+    /// equal term is not an interchangeable memoized result. Completed queries
+    /// retain full payload, immutable context, active stack and exact depth.
     pub(super) fn resolve(&self, term: StructuralTerm) -> StructuralTerm {
-        self.resolve_at(term, 0)
+        self.resolve_at(term, self.application_resolution_depth())
+    }
+
+    fn resolve_at(&self, term: StructuralTerm, depth: usize) -> StructuralTerm {
+        self.resolve_with_at(term, depth, ResolutionPurpose::General)
+    }
+
+    fn resolve_with_at(
+        &self,
+        term: StructuralTerm,
+        depth: usize,
+        purpose: ResolutionPurpose,
+    ) -> StructuralTerm {
+        let depth = depth.max(self.application_resolution_depth());
+        // Mutable dependency collection cannot be replaced by a completed
+        // answer, including when the collector belongs to an ancestor.
+        if self.has_resolution_dependency_collector() {
+            self.invalidate_resolution_observations();
+            return self.resolve_uncached(term, depth, purpose);
+        }
+        // General answers and numeric completed-leaf retention use distinct
+        // namespaces. Keep the shared completed-query owner General-only.
+        if purpose != ResolutionPurpose::General
+            || !matches!(
+                term,
+                StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. }
+            )
+        {
+            return self.resolve_uncached(term, depth, purpose);
+        }
+        self.completed_resolution(term, depth, |judge, term| {
+            judge.resolve_uncached(term, depth, purpose)
+        })
     }
 
     fn resolve_uncached(
@@ -2240,7 +2276,7 @@ impl<'program> StructuralJudge<'program> {
         // ordinary and normalized terminal values use that same admission.
         let mut specification = self.clone();
         specification.specification_terms = true;
-        let specification = specification.resolving_application(application)?;
+        let specification = specification.resolving_application(application, depth)?;
 
         let mut environment = environment;
         let statements = program.statement_table.statements(state.statement_nodes);

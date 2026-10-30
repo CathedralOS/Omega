@@ -1,0 +1,9 @@
+{
+  "path": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-allocation.exe",
+  "sha256": "ff27346345339c529fe4481efc60f0ada4954baa2046e5569a5b1268c49b12d6",
+  "profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  },
+  "version": "omega 0.1.0-dev+allocation-observation (unrecorded; x86_64-pc-windows-msvc)"
+}

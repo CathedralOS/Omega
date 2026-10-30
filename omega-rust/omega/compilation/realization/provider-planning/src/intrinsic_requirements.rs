@@ -8,58 +8,6 @@ pub use checked_trees::typed_trees::typed_trees::declarations::intrinsic_require
 pub use checked_trees::typed_trees::typed_trees::declarations::numeric_intrinsics::primitive_numeric_type;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema};
 
-/// Borrow Psi's already-produced catalog and its exact source correspondence.
-/// This view owns no second registry and performs no source classification.
-/// Invocation-local nominal identities remain distinct even when portable
-/// overload and package coordinates happen to agree.
-#[derive(Clone, Copy)]
-pub struct CheckedNumericProviders<'a> {
-    pub identities: &'a terminal_psi::TerminalIdentityTable,
-    pub conformances: &'a [terminal_psi::ExternalProviderConformance],
-    pub correspondence: &'a [(
-        symbols::SymbolHandle,
-        terminal_psi::NominalDeclarationIdentity,
-    )],
-}
-
-impl CheckedNumericProviders<'_> {
-    pub fn require_selected(
-        &self,
-        requirement: symbols::SymbolHandle,
-        plan: &ProviderPlan,
-        row: &ProviderPlanRow,
-    ) -> Result<effects::CompilerIntrinsicExecutionIdentity, diagnostics::Diagnostic> {
-        let join = || -> Result<_, String> {
-            let mut declarations = self
-                .correspondence
-                .iter()
-                .filter(|(symbol, _)| *symbol == requirement);
-            let (_, declaration) = declarations
-                .next()
-                .ok_or("numeric requirement has no checked nominal declaration")?;
-            if declarations.next().is_some() {
-                return Err("numeric requirement has competing nominal declarations".into());
-            }
-            provider_selection::selected_external_execution(
-                self.conformances,
-                self.identities,
-                declaration,
-                plan,
-                row,
-                None,
-                None,
-            )?
-            .ok_or_else(|| "numeric selection has no exact checked external satisfaction".into())
-        };
-        join().map_err(|reason| {
-            diagnostics::Diagnostic::error(format!(
-                "selected ProviderPlan `{}`: {reason}",
-                plan.name,
-            ))
-        })
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IntrinsicRequirement<'typed>(SourceRequirement<'typed>);
 

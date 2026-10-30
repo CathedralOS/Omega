@@ -12,7 +12,7 @@ use crate::proof_contracts::contract_entailment::{
 };
 use std::sync::Arc;
 use symbols::SymbolHandle;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
 
 impl StructuralJudge<'_> {
@@ -83,6 +83,36 @@ impl StructuralJudge<'_> {
         else {
             return StructuralJudgment::Unknown;
         };
+        // A subject whose declared type is a closed generic application
+        // observes its prepared carrier's tags. The authored case reference
+        // names the template; rejoin it on the exact applied declaration the
+        // same way `applied_case_membership_variant` does for machine scopes.
+        let mut case_owner = definition.symbol;
+        let mut case_symbol = variant.symbol;
+        let mut subject_expression = binary.left;
+        while let ExpressionNode::Borrow(borrow) =
+            self.program.expression_table.expression(subject_expression)
+        {
+            subject_expression = borrow.target;
+        }
+        if let Some(reference) = crate::value_custody::places::parameter_scoped_type_reference(
+            self.program,
+            parameters,
+            subject_expression,
+        ) {
+            let reference = self
+                .program
+                .type_reference_table
+                .peeled_type_reference(reference);
+            if let Some(applied) = self.program.closed_data_definition(reference)
+                && let Some(applied_variant) =
+                    self.program
+                        .closed_data_constructor_case(reference, variant.symbol)
+            {
+                case_owner = applied.symbol;
+                case_symbol = applied_variant.symbol;
+            }
+        }
         let Some(subject) = structural_terms::structural_term(
             self.program,
             None,
@@ -94,8 +124,8 @@ impl StructuralJudge<'_> {
         };
         self.judge_case(
             Self::substitute_call_term(&subject, map, machine_map),
-            definition.symbol,
-            variant.symbol,
+            case_owner,
+            case_symbol,
         )
     }
 

@@ -12,9 +12,6 @@
 //! executable tuple separately, without inflating original schema coverage.
 
 use crate::ProviderPlanningContext;
-use crate::provider_planning::operator_provider_evidence::{
-    provider_type_package_identity, provider_type_symbol,
-};
 use crate::provider_planning::provenance_replay::requirement_identities::{
     exact_installed_external_binding_identity, exact_satisfied_requirement_identity,
     external_provider_binding, inferred_compiler_leaf_binding, realization_machine_identity,
@@ -22,6 +19,9 @@ use crate::provider_planning::provenance_replay::requirement_identities::{
 use crate::provider_planning::provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderRowRealization, ProviderSchemaDeclaration,
     SelectedTargetMachineOrigin, satisfies_plan_name,
+};
+use crate::provider_planning::source_provider_selections::{
+    provider_type_package_identity, provider_type_symbol,
 };
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use effects::provider_plan::{ProviderIdentityId, ProviderIdentityTable};

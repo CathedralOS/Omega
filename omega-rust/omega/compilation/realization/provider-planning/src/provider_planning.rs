@@ -7,8 +7,8 @@
 //!
 //! This file binds, derives and selects provider plans.
 //! `selected_plan_bindings.rs` carries selected facts and grants;
-//! `operator_provider_evidence.rs` plans selected operator provider
-//! evidence, `synchronous_cycles.rs` validates synchronous invocation
+//! `source_provider_selections.rs` supplies early/reference source adapters;
+//! `synchronous_cycles.rs` validates synchronous invocation
 //! cycles, and `selection_provenance.rs` projects exact source correspondence
 //! into the shared source-free `provider-selection` owner for whole-map choice
 //! and independent-component admission;
@@ -19,12 +19,12 @@
 pub(crate) mod external_binding_rows;
 mod external_requirements;
 mod installation_reach;
-mod operator_provider_evidence;
 mod provenance_replay;
 pub(crate) mod provider_rows;
 mod selected_plan_bindings;
 pub(crate) mod selection_declarations;
 mod selection_provenance;
+mod source_provider_selections;
 mod synchronous_cycles;
 
 pub use effects::{
@@ -32,9 +32,6 @@ pub use effects::{
     CompilerPrimitiveIntegerComparisonOperation,
 };
 pub(crate) use external_binding_rows::extract_native_external_binding_rows;
-pub use operator_provider_evidence::{
-    selected_checked_operator_body, selected_requirement_plan, selected_use_plan,
-};
 pub(crate) use provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
 };
@@ -49,6 +46,9 @@ pub use selection_provenance::{
 };
 pub(crate) use selection_provenance::{
     SelectedProviderPlanWithProvenance, selected_provider_plan_facts_with_independent_components,
+};
+pub use source_provider_selections::{
+    selected_checked_operator_body, selected_requirement_plan, selected_use_plan,
 };
 pub(crate) use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 
@@ -65,7 +65,7 @@ use installation_reach::derive_selected_installation_reach_resolutions;
 pub fn bind_selected_provider_plan_facts(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
-    numeric_providers: crate::CheckedNumericProviders<'_>,
+    boundary_admission: provider_selection::BoundaryProviderAdmission<'_>,
     candidates: &[&ProviderPlan],
     facts: effects::SelectedProviderPlanFacts,
     provenance: &[SelectedProviderReviewProvenance],
@@ -89,18 +89,7 @@ pub fn bind_selected_provider_plan_facts(
         &facts,
         &provider_grants,
     )?;
-    operator_provider_evidence::validate_selected_operator_provider_evidence(
-        check_facts,
-        numeric_providers,
-        candidates,
-        &facts,
-    )?;
-    operator_provider_evidence::validate_selected_requirement_provider_evidence(
-        check_facts,
-        numeric_providers,
-        candidates,
-        &facts,
-    )?;
+    boundary_admission.admit(candidates, &facts)?;
     let (installation_reach_resolutions, installation_reach_identities) =
         derive_selected_installation_reach_resolutions(typed, check_facts, &facts, provenance)?;
     let (specialized_requirement_rows, specialized_identities) =

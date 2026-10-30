@@ -68,6 +68,7 @@ pub(crate) fn substitute_member(
     member: DataMember,
     substitution: &HashMap<String, TypeReferenceHandle>,
     type_identities: &HashMap<String, ClosedArgumentIdentity>,
+    impossible_variants: &HashSet<String>,
     selection: Option<&declaration_selection::ConstantSelection>,
     instance_name: &str,
     const_values: &HashMap<String, i128>,
@@ -138,6 +139,21 @@ pub(crate) fn substitute_member(
                 instance_name,
                 warnings,
             )?;
+            // A case the data-level `requires` replay refuted on this
+            // instance carries the same literal `0` witness an authored or
+            // instance-decided case `where false` produces: coverage drops
+            // it, construction refuses it, and zero gating cannot select it.
+            // The arena append lands contiguously after the copied case facts.
+            if impossible_variants.contains(variant.name.as_str(syntax)) {
+                let witness = syntax.expressions.insert(ExpressionNode::Integer(
+                    IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "0")
+                        .expect("literal `0` is a valid integer literal"),
+                ));
+                let fact = syntax
+                    .items
+                    .append_proof_fact(ProofFact::Expression(witness));
+                variant.where_facts.push_contiguous(fact);
+            }
             DataMember::Variant(variant)
         }
         DataMember::Retired(identity) => DataMember::Retired(identity),
@@ -525,6 +541,202 @@ fn decide_type_equality_conjunct(
     } else {
         ConjunctDecision::Refuted
     })
+}
+
+/// Fold every `type`-binder `==`/`!=` node inside one copied data-predicate
+/// expression against the instance's closed argument identities. Data-level
+/// `requires` nests those equations under `&&`/`||` beside memberships and
+/// value couplings (`(self in C && T == i32) || ...`), so the whole-fact
+/// conjunct decision used by case `where` facts does not reach them: each
+/// decided equality is replaced in place by a `true`/`false` literal, and
+/// the surrounding predicate keeps its undecided leaves. A binder equality
+/// whose opposite name is not a closed type is an authored-fact error, same
+/// as a top-level conjunct.
+pub(crate) fn decide_instance_type_equalities(
+    syntax: &mut SyntaxTrees,
+    expression: ExpressionHandle,
+    type_identities: &HashMap<String, ClosedArgumentIdentity>,
+    selection: Option<&declaration_selection::ConstantSelection>,
+    instance_name: &str,
+) -> Result<(), Vec<Diagnostic>> {
+    if type_identities.is_empty() {
+        return Ok(());
+    }
+    let single_name = |side: ExpressionHandle| -> Option<Identifier> {
+        let ExpressionNode::Name(path) = syntax.expressions.expression(side) else {
+            return None;
+        };
+        let [member] = syntax.expressions.identifier_path_members(*path) else {
+            return None;
+        };
+        Some(member.clone())
+    };
+    if let ExpressionNode::Binary(binary) = syntax.expressions.expression(expression).clone() {
+        if matches!(
+            binary.operator,
+            BinaryOperator::Equal | BinaryOperator::NotEqual
+        ) {
+            let binder = match (single_name(binary.left), single_name(binary.right)) {
+                (Some(left), Some(_))
+                    if type_identities.contains_key(left.as_str(syntax)) =>
+                {
+                    Some((left, binary.right))
+                }
+                (Some(_), Some(right))
+                    if type_identities.contains_key(right.as_str(syntax)) =>
+                {
+                    Some((right, binary.left))
+                }
+                _ => None,
+            };
+            if let Some((parameter, other)) = binder {
+                let parameter_identity = type_identities
+                    .get(parameter.as_str(syntax))
+                    .expect("the gate admits only listed type binders");
+                let other_identity = single_name(other).and_then(|other| {
+                    closed_name_identity(syntax, selection, &other)
+                });
+                let Some(other_identity) = other_identity else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "data constraint on generic instance `{instance_name}` cannot decide `{}`: the opposite side does not name a closed type",
+                        parameter.as_str(syntax),
+                    ))]);
+                };
+                let equal = *parameter_identity == other_identity;
+                let holds = match binary.operator {
+                    BinaryOperator::Equal => equal,
+                    BinaryOperator::NotEqual => !equal,
+                    _ => unreachable!("the equality check above admits only == or !="),
+                };
+                // A decided type equality folds to the boolean literal that
+                // keeps the surrounding `&&`/`||` well-typed: `T == name`
+                // discharged reads `true`, refuted reads `false`, so the
+                // impossible disjunct collapses while the surviving
+                // membership and value couplings carry the case forward.
+                syntax.expressions.replace_expression(
+                    expression,
+                    ExpressionNode::Boolean(holds),
+                );
+                return Ok(());
+            }
+        }
+        for operand in [binary.left, binary.right] {
+            decide_instance_type_equalities(
+                syntax,
+                operand,
+                type_identities,
+                selection,
+                instance_name,
+            )?;
+        }
+        return Ok(());
+    }
+    if let ExpressionNode::Unary(unary) = syntax.expressions.expression(expression).clone() {
+        decide_instance_type_equalities(
+            syntax,
+            unary.operand,
+            type_identities,
+            selection,
+            instance_name,
+        )?;
+    }
+    Ok(())
+}
+
+/// What one copied data `requires` fact says about one case holding on this
+/// instance: `self in DataName::Case` membership leaves decide for and
+/// against the candidate, literal `0`/`1` leaves (the folded type-equality
+/// witnesses) read themselves, `&&`/`||`/`!` fold, and every other leaf —
+/// value couplings, named-domain memberships, calls — stays undecided.
+/// `Refuted` means the fact cannot hold while the value's case is
+/// `variant_name`, so this instance can never carry it; `Undecided` keeps the
+/// case possible, since establishment and observation still own those terms.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum VariantFactVerdict {
+    Holds,
+    Refuted,
+    Undecided,
+}
+
+pub(crate) fn variant_fact_verdict(
+    syntax: &SyntaxTrees,
+    expression: ExpressionHandle,
+    type_name: &str,
+    variant_name: &str,
+) -> VariantFactVerdict {
+    use VariantFactVerdict::*;
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Integer(literal) => {
+            if literal.decimal_value_i128() == Some(0) {
+                Refuted
+            } else {
+                Holds
+            }
+        }
+        ExpressionNode::Boolean(value) => {
+            if *value {
+                Holds
+            } else {
+                Refuted
+            }
+        }
+        ExpressionNode::Membership(membership) => {
+            let ExpressionNode::Name(path) =
+                syntax.expressions.expression(membership.value)
+            else {
+                return Undecided;
+            };
+            let [self_member] = syntax.expressions.identifier_path_members(*path) else {
+                return Undecided;
+            };
+            if self_member.as_str(syntax) != "self" {
+                return Undecided;
+            }
+            match syntax
+                .expressions
+                .identifier_path_members(membership.domain)
+            {
+                [head, case] if head.as_str(syntax) == type_name => {
+                    if case.as_str(syntax) == variant_name {
+                        Holds
+                    } else {
+                        Refuted
+                    }
+                }
+                _ => Undecided,
+            }
+        }
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
+            match (
+                variant_fact_verdict(syntax, binary.left, type_name, variant_name),
+                variant_fact_verdict(syntax, binary.right, type_name, variant_name),
+            ) {
+                (Refuted, _) | (_, Refuted) => Refuted,
+                (Holds, Holds) => Holds,
+                _ => Undecided,
+            }
+        }
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Or => {
+            match (
+                variant_fact_verdict(syntax, binary.left, type_name, variant_name),
+                variant_fact_verdict(syntax, binary.right, type_name, variant_name),
+            ) {
+                (Holds, _) | (_, Holds) => Holds,
+                (Refuted, Refuted) => Refuted,
+                _ => Undecided,
+            }
+        }
+        ExpressionNode::Unary(unary)
+            if unary.operator == syntax_trees::expression::UnaryOperator::LogicalNot =>
+        {
+            match variant_fact_verdict(syntax, unary.operand, type_name, variant_name) {
+                Holds => Refuted,
+                Refuted => Holds,
+                Undecided => Undecided,
+            }
+        }
+        _ => Undecided,
+    }
 }
 
 /// The closed identity of a fact-position type name: builtins by their atom,

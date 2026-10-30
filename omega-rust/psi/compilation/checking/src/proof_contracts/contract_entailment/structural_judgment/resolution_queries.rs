@@ -1,113 +1,412 @@
-//! Active application questions belong to the whole cloned judge tree.
+//! Symbolic resolution retains exact inputs and the recurrence checks it reads.
 //!
-//! Integer premise projection can return to the resolver with a fresh local
-//! depth. Retain the exact question and its premise context until its contract
-//! or body finishes instead of treating that return as a new independent
-//! computation. The caller chooses its term mode before entering the question;
-//! guarding contract equations must not change the surrounding proof meaning.
+//! An unresolved helper can cause arithmetic-premise projection to re-enter
+//! the resolver with a fresh depth. Recurrence still consumes the exact active
+//! application and proof context. A completed query may reuse its result only
+//! if those external membership questions still have the same answers.
+//! Locally entered applications belong to that query's execution, not its
+//! caller dependencies. Each read retains the caller-selected term mode; entering
+//! a question never changes that mode. Cache hits replay their external reads into every
+//! enclosing query. Changed immutable inputs or dependency observers decline
+//! memoization; no partial read set can authorize reuse.
 
-use super::{ResolutionPurpose, StructuralJudge, StructuralTerm};
-use std::sync::Arc;
-
-#[derive(Default)]
-pub(super) struct ResolutionResults<'program> {
-    completed: std::sync::Mutex<Vec<CompletedResolution<'program>>>,
-}
-
-struct CompletedResolution<'program> {
-    input: StructuralTerm,
-    depth: usize,
-    context: StructuralJudge<'program>,
-    output: StructuralTerm,
-}
+use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
+use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hasher};
+use std::sync::{Arc, Mutex};
 
 pub(super) struct ApplicationResolution<'program> {
     application: StructuralTerm,
+    fingerprint: u64,
+    depth: usize,
     context: StructuralJudge<'program>,
     previous: Option<Arc<Self>>,
 }
 
-impl<'program> StructuralJudge<'program> {
-    pub(super) fn resolve_at(&self, term: StructuralTerm, depth: usize) -> StructuralTerm {
-        self.resolve_with_at(term, depth, ResolutionPurpose::General)
+#[derive(Default)]
+pub(super) struct CompletedResolutions<'program> {
+    entries: Vec<CompletedResolution<'program>>,
+    buckets: HashMap<u64, Vec<usize>>,
+    ages: Vec<u64>,
+    clock: u64,
+}
+
+#[derive(Clone)]
+struct ApplicationRead {
+    application: StructuralTerm,
+    fingerprint: u64,
+    was_active: bool,
+    specification_terms: bool,
+}
+
+pub(super) struct ResolutionObservations<'program> {
+    base_active: Option<Arc<ApplicationResolution<'program>>>,
+    context: StructuralJudge<'program>,
+    reads: Mutex<Option<Vec<ApplicationRead>>>,
+    previous: Option<Arc<Self>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum StructuralQueryKind {
+    Resolution,
+    Predicate,
+}
+
+#[derive(Clone)]
+enum StructuralQueryAnswer {
+    Resolution(StructuralTerm),
+    Predicate(StructuralJudgment),
+}
+
+struct CompletedResolution<'program> {
+    fingerprint: u64,
+    kind: StructuralQueryKind,
+    term: StructuralTerm,
+    context: StructuralJudge<'program>,
+    reads: Vec<ApplicationRead>,
+    depth: usize,
+    resolution_depth: usize,
+    value: StructuralQueryAnswer,
+}
+
+// Formatting supplies only a bucket filter; full authority-bearing equality
+// still decides reuse, including payload omitted by semantic Debug output.
+fn fingerprint(term: &StructuralTerm) -> u64 {
+    struct Writer(DefaultHasher);
+    impl std::fmt::Write for Writer {
+        fn write_str(&mut self, text: &str) -> std::fmt::Result {
+            self.0.write(text.as_bytes());
+            Ok(())
+        }
+    }
+    let mut writer = Writer(DefaultHasher::new());
+    std::fmt::write(&mut writer, format_args!("{term:?}")).expect("fingerprint writer cannot fail");
+    writer.0.finish()
+}
+
+impl<'program> CompletedResolutions<'program> {
+    fn lookup(
+        &mut self,
+        judge: &StructuralJudge<'program>,
+        kind: StructuralQueryKind,
+        term: &StructuralTerm,
+        depth: usize,
+        fingerprint: u64,
+    ) -> Option<(StructuralQueryAnswer, Vec<ApplicationRead>)> {
+        let index = self
+            .buckets
+            .get(&fingerprint)?
+            .iter()
+            .rev()
+            .copied()
+            .find(|&index| {
+                let entry = &self.entries[index];
+                entry.kind == kind
+                    && entry.depth == depth
+                    && entry.resolution_depth == judge.application_resolution_depth()
+                    && entry.context.same_resolution_context(judge)
+                    && entry.term.same_resolution_payload(term)
+                    && entry.reads.iter().all(|read| {
+                        judge.application_is_active_in_mode(
+                            &read.application,
+                            read.fingerprint,
+                            read.specification_terms,
+                        ) == read.was_active
+                    })
+            })?;
+        self.clock = self.clock.wrapping_add(1);
+        self.ages[index] = self.clock;
+        let entry = &self.entries[index];
+        Some((entry.value.clone(), entry.reads.clone()))
     }
 
-    pub(super) fn resolve_with_at(
+    fn insert(&mut self, entry: CompletedResolution<'program>) {
+        self.clock = self.clock.wrapping_add(1);
+        let fingerprint = entry.fingerprint;
+        let position = if self.entries.len() < 8192 {
+            let position = self.entries.len();
+            self.entries.push(entry);
+            self.ages.push(self.clock);
+            position
+        } else {
+            let position = (0..self.ages.len())
+                .min_by_key(|&position| self.ages[position])
+                .expect("a full cache has an eviction candidate");
+            let previous = self.entries[position].fingerprint;
+            if let Some(bucket) = self.buckets.get_mut(&previous) {
+                bucket.retain(|&index| index != position);
+                if bucket.is_empty() {
+                    self.buckets.remove(&previous);
+                }
+            }
+            self.entries[position] = entry;
+            self.ages[position] = self.clock;
+            position
+        };
+        self.buckets.entry(fingerprint).or_default().push(position);
+    }
+}
+
+impl<'program> StructuralJudge<'program> {
+    pub(super) fn application_resolution_depth(&self) -> usize {
+        self.active_application
+            .as_ref()
+            .map_or(0, |active| active.depth)
+    }
+
+    pub(super) fn completed_resolution(
         &self,
         term: StructuralTerm,
         depth: usize,
-        purpose: ResolutionPurpose,
+        compute: impl FnOnce(&Self, StructuralTerm) -> StructuralTerm,
     ) -> StructuralTerm {
-        // Completed general answers cannot replace numeric leaf retention or
-        // omit the effects of an active dependency collector.
-        if purpose != ResolutionPurpose::General || self.has_resolution_dependency_collector() {
-            return self.resolve_uncached(term, depth, purpose);
-        }
-        let Some(results) = &self.resolution_results else {
-            let mut resolver = self.clone();
-            resolver.resolution_results = Some(Arc::default());
-            return resolver.resolve_at(term, depth);
-        };
-        if !matches!(
+        match self.completed_query(
+            StructuralQueryKind::Resolution,
             term,
-            StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. }
+            depth,
+            |judge, term| StructuralQueryAnswer::Resolution(compute(judge, term)),
         ) {
-            return self.resolve_uncached(term, depth, purpose);
+            StructuralQueryAnswer::Resolution(value) => value,
+            StructuralQueryAnswer::Predicate(_) => unreachable!("resolution query kind changed"),
         }
-        if let Ok(completed) = results.completed.lock()
-            && let Some(previous) = completed.iter().find(|previous| {
-                previous.depth == depth
-                    && match (
-                        &previous.context.active_application,
-                        &self.active_application,
-                    ) {
-                        (Some(left), Some(right)) => Arc::ptr_eq(left, right),
-                        (None, None) => true,
-                        _ => false,
-                    }
-                    && previous.context.same_resolution_context(self)
-                    && previous.input.same_resolution_payload(&term)
-            })
-        {
-            phase_profile::count("05.resolution.hit", 1);
-            return previous.output.clone();
-        }
-        phase_profile::count("05.resolution.miss", 1);
-        let output = self.resolve_uncached(term.clone(), depth, purpose);
-        let mut context = self.clone();
-        context.resolution_results = None;
-        if let Ok(mut completed) = results.completed.lock() {
-            completed.push(CompletedResolution {
-                input: term,
-                depth,
-                context,
-                output: output.clone(),
-            });
-        }
-        output
     }
 
-    pub(super) fn resolving_application(mut self, application: &StructuralTerm) -> Option<Self> {
-        let mut context = self.clone();
-        // The context holds its semantic owners, not the active query chain.
-        // The separate predecessor edge below keeps this an acyclic history.
-        context.active_application = None;
-        context.resolution_results = None;
-        let mut previous = self.active_application.as_deref();
-        while let Some(active) = previous {
-            if active.application.same_resolution_payload(application)
-                && active.context.same_resolution_context(&context)
-            {
-                return None;
-            }
-            previous = active.previous.as_deref();
+    pub(super) fn completed_predicate(
+        &self,
+        term: StructuralTerm,
+        depth: usize,
+        compute: impl FnOnce(&Self, StructuralTerm) -> StructuralJudgment,
+    ) -> StructuralJudgment {
+        match self.completed_query(
+            StructuralQueryKind::Predicate,
+            term,
+            depth,
+            |judge, term| StructuralQueryAnswer::Predicate(compute(judge, term)),
+        ) {
+            StructuralQueryAnswer::Predicate(value) => value,
+            StructuralQueryAnswer::Resolution(_) => unreachable!("predicate query kind changed"),
         }
-        self.active_application = Some(Arc::new(ApplicationResolution {
+    }
+
+    fn completed_query(
+        &self,
+        kind: StructuralQueryKind,
+        term: StructuralTerm,
+        depth: usize,
+        compute: impl FnOnce(&Self, StructuralTerm) -> StructuralQueryAnswer,
+    ) -> StructuralQueryAnswer {
+        // Field inference must retain every transitive dependency observation.
+        if self.has_resolution_dependency_collector() {
+            self.invalidate_resolution_observations();
+            return compute(self, term);
+        }
+        let Some(cache) = &self.completed_resolutions else {
+            return compute(self, term);
+        };
+        let fingerprint = fingerprint(&term);
+        if let Ok(mut cache) = cache.lock()
+            && let Some((value, reads)) = cache.lookup(self, kind, &term, depth, fingerprint)
+        {
+            drop(cache);
+            for read in reads {
+                self.observe_application_read(
+                    &read.application,
+                    read.fingerprint,
+                    read.was_active,
+                    read.specification_terms,
+                );
+            }
+            phase_profile::count(
+                match kind {
+                    StructuralQueryKind::Resolution => "05.resolution.completed.hit",
+                    StructuralQueryKind::Predicate => "05.resolution.predicate.hit",
+                },
+                1,
+            );
+            return value;
+        }
+        phase_profile::count(
+            match kind {
+                StructuralQueryKind::Resolution => "05.resolution.completed.miss",
+                StructuralQueryKind::Predicate => "05.resolution.predicate.miss",
+            },
+            1,
+        );
+        let context = self.resolution_input_context();
+        let observations = Arc::new(ResolutionObservations {
+            base_active: self.active_application.clone(),
+            context: context.clone(),
+            reads: Mutex::new(Some(Vec::new())),
+            previous: self.resolution_observations.clone(),
+        });
+        let mut computing = self.clone();
+        computing.resolution_observations = Some(Arc::clone(&observations));
+        let input = term.clone();
+        let value = compute(&computing, term);
+        drop(computing);
+        let reads = observations
+            .reads
+            .lock()
+            .ok()
+            .and_then(|reads| reads.clone());
+        if let Some(reads) = reads {
+            phase_profile::count("05.resolution.dependencies.retained", reads.len() as u64);
+            if let Ok(mut cache) = cache.lock() {
+                cache.insert(CompletedResolution {
+                    fingerprint,
+                    kind,
+                    term: input,
+                    context,
+                    reads,
+                    depth,
+                    resolution_depth: self.application_resolution_depth(),
+                    value: value.clone(),
+                });
+            }
+        } else {
+            phase_profile::count("05.resolution.dependencies.unavailable", 1);
+        }
+        value
+    }
+
+    fn resolution_input_context(&self) -> Self {
+        let mut context = self.clone();
+        // Keys retain immutable inputs, never their containing cache or observer.
+        context.active_application = None;
+        context.completed_resolutions = None;
+        context.resolution_observations = None;
+        context
+    }
+
+    fn application_is_active(&self, application: &StructuralTerm, fingerprint: u64) -> bool {
+        self.application_is_active_in_mode(application, fingerprint, self.specification_terms)
+    }
+
+    fn application_is_active_in_mode(
+        &self,
+        application: &StructuralTerm,
+        fingerprint: u64,
+        specification_terms: bool,
+    ) -> bool {
+        let mut active = self.active_application.as_deref();
+        while let Some(frame) = active {
+            if frame.fingerprint == fingerprint
+                && frame.application.same_resolution_payload(application)
+                && frame.context.specification_terms == specification_terms
+                && frame.context.same_resolution_inputs(self)
+            {
+                return true;
+            }
+            active = frame.previous.as_deref();
+        }
+        false
+    }
+
+    pub(super) fn invalidate_resolution_observations(&self) {
+        let mut observation = self.resolution_observations.as_deref();
+        while let Some(current) = observation {
+            if let Ok(mut reads) = current.reads.lock() {
+                *reads = None;
+            }
+            observation = current.previous.as_deref();
+        }
+    }
+
+    /// Whether this question matches an application entered inside the query.
+    /// An absent base marker means the lineage changed and cannot be reused.
+    fn locally_active_application(
+        &self,
+        application: &StructuralTerm,
+        fingerprint: u64,
+        base: Option<&Arc<ApplicationResolution<'program>>>,
+        specification_terms: bool,
+    ) -> Option<bool> {
+        let mut active = self.active_application.as_ref();
+        let mut local_match = false;
+        loop {
+            match (active, base) {
+                (None, None) => return Some(local_match),
+                (Some(frame), Some(base)) if Arc::ptr_eq(frame, base) => {
+                    return Some(local_match);
+                }
+                (Some(frame), _) => {
+                    local_match |= frame.fingerprint == fingerprint
+                        && frame.application.same_resolution_payload(application)
+                        && frame.context.specification_terms == specification_terms
+                        && frame.context.same_resolution_inputs(self);
+                    active = frame.previous.as_ref();
+                }
+                (None, Some(_)) => return None,
+            }
+        }
+    }
+
+    fn observe_application_read(
+        &self,
+        application: &StructuralTerm,
+        fingerprint: u64,
+        was_active: bool,
+        specification_terms: bool,
+    ) {
+        let mut observation = self.resolution_observations.as_deref();
+        while let Some(current) = observation {
+            let local = self.locally_active_application(
+                application,
+                fingerprint,
+                current.base_active.as_ref(),
+                specification_terms,
+            );
+            if let Ok(mut recorded) = current.reads.lock() {
+                if !current.context.same_resolution_inputs(self) || local.is_none() {
+                    *recorded = None;
+                } else if local == Some(false)
+                    && let Some(reads) = recorded.as_mut()
+                {
+                    if let Some(previous) = reads.iter().find(|read| {
+                        read.fingerprint == fingerprint
+                            && read.specification_terms == specification_terms
+                            && read.application.same_resolution_payload(application)
+                    }) {
+                        if previous.was_active != was_active {
+                            *recorded = None;
+                        }
+                    } else if reads.len() >= 256 {
+                        *recorded = None;
+                    } else {
+                        reads.push(ApplicationRead {
+                            application: application.clone(),
+                            fingerprint,
+                            was_active,
+                            specification_terms,
+                        });
+                    }
+                }
+            }
+            observation = current.previous.as_deref();
+        }
+    }
+
+    pub(super) fn resolving_application(
+        &self,
+        application: &StructuralTerm,
+        depth: usize,
+    ) -> Option<Self> {
+        let fingerprint = fingerprint(application);
+        let active = self.application_is_active(application, fingerprint);
+        self.observe_application_read(application, fingerprint, active, self.specification_terms);
+        if active {
+            return None;
+        }
+        let context = self.resolution_input_context();
+        let mut resolving = self.clone();
+        resolving.active_application = Some(Arc::new(ApplicationResolution {
             application: application.clone(),
+            fingerprint,
+            depth: depth.max(self.application_resolution_depth()),
             context,
             previous: self.active_application.clone(),
         }));
-        Some(self)
+        Some(resolving)
     }
 
     /// Opaque leaf retention must not omit mutable dependency collection.
@@ -130,10 +429,16 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn same_resolution_context(&self, other: &Self) -> bool {
+        self.specification_terms == other.specification_terms && self.same_resolution_inputs(other)
+    }
+
+    fn same_resolution_inputs(&self, other: &Self) -> bool {
         // Each active frame keeps these immutable owners alive. Pointer
         // equality therefore identifies the same premises/storage epoch, not
         // a recycled address. COW fact changes remain independent questions.
-        // Program-pure memo cells and diagnostic traces supply no premises.
+        // Each membership read supplies its exact term mode separately. Other
+        // inputs stay exact; completed-result keys also compare the caller mode.
+        // Program-pure memo cells and query observers supply no premises.
         std::ptr::eq(self.program, other.program)
             && Arc::ptr_eq(&self.entry_machines, &other.entry_machines)
             && self.machine_symbol == other.machine_symbol
@@ -166,7 +471,6 @@ impl<'program> StructuralJudge<'program> {
             && self.resolve_applications == other.resolve_applications
             && self.require_closed_computation == other.require_closed_computation
             && self.runtime_body_values == other.runtime_body_values
-            && self.specification_terms == other.specification_terms
             && self.case_facts_only == other.case_facts_only
             && Arc::ptr_eq(&self.substitutions, &other.substitutions)
             && Arc::ptr_eq(&self.rewrites, &other.rewrites)
@@ -174,5 +478,568 @@ impl<'program> StructuralJudge<'program> {
             && Arc::ptr_eq(&self.case_facts, &other.case_facts)
             && Arc::ptr_eq(&self.case_substitutions, &other.case_substitutions)
             && self.hypotheses_contradictory == other.hypotheses_contradictory
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+    use typed_trees::types::TypeReferenceHandle;
+
+    #[test]
+    fn completed_queries_keep_full_authority_depth_and_premise_context() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let calls = Cell::new(0);
+        let compute = |_: &StructuralJudge<'_>, term| {
+            calls.set(calls.get() + 1);
+            term
+        };
+        let term = StructuralTerm::ObservedValue {
+            observed_type: TypeReferenceHandle::from_arena_index(1),
+            value: Box::new(StructuralTerm::Variable("input".to_owned())),
+            descriptor: None,
+        };
+        assert!(judge.completed_resolution(term.clone(), 0, compute) == term);
+        assert!(judge.clone().completed_resolution(term.clone(), 0, compute) == term);
+        assert_eq!(calls.get(), 1);
+        judge.completed_resolution(term.clone(), 1, compute);
+        let mut changed = judge.clone();
+        changed.capture_sequence += 1;
+        changed.completed_resolution(term.clone(), 0, compute);
+        let mut authority = term.clone();
+        if let StructuralTerm::ObservedValue { observed_type, .. } = &mut authority {
+            *observed_type = TypeReferenceHandle::from_arena_index(2);
+        }
+        assert!(authority == term);
+        assert_eq!(fingerprint(&authority), fingerprint(&term));
+        judge.completed_resolution(authority, 0, compute);
+        assert_eq!(calls.get(), 4);
+    }
+
+    #[test]
+    fn recurrence_reads_allow_unrelated_frames_but_reject_changed_cycle_answers() {
+        let program = typed_trees::TypedTrees::default();
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        judge.specification_terms = true;
+        let question = StructuralTerm::Variable("question".to_owned());
+        let unrelated = StructuralTerm::Variable("unrelated".to_owned());
+        let goal = StructuralTerm::Variable("goal".to_owned());
+        let active = judge.resolving_application(&question, 0).unwrap();
+        let value = active.completed_resolution(goal.clone(), 0, |judge, _| {
+            assert!(judge.resolving_application(&question, 0).is_none());
+            StructuralTerm::Opaque("blocked".to_owned())
+        });
+        assert!(value == StructuralTerm::Opaque("blocked".to_owned()));
+        let equivalent = active.resolving_application(&unrelated, 0).unwrap();
+        let reused = equivalent.completed_resolution(goal.clone(), 0, |_, _| {
+            panic!("the additional frame did not change the observed recurrence answer")
+        });
+        assert!(reused == value);
+        drop(equivalent);
+        let outside = judge.completed_resolution(goal, 0, |judge, _| {
+            assert!(judge.resolving_application(&question, 0).is_some());
+            StructuralTerm::Opaque("open".to_owned())
+        });
+        assert!(outside != value);
+        let cache = Arc::downgrade(judge.completed_resolutions.as_ref().unwrap());
+        drop(active);
+        drop(judge);
+        assert!(
+            cache.upgrade().is_none(),
+            "keys must not retain their cache or observers"
+        );
+    }
+
+    #[test]
+    fn cached_child_reads_reach_the_parent_without_exporting_local_cycles() {
+        let program = typed_trees::TypedTrees::default();
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        judge.specification_terms = true;
+        let local = StructuralTerm::Variable("local".to_owned());
+        let external = StructuralTerm::Variable("external".to_owned());
+        let child_calls = Cell::new(0);
+        let child = |judge: &StructuralJudge<'_>| {
+            judge.completed_resolution(
+                StructuralTerm::Variable("child".to_owned()),
+                1,
+                |judge, _| {
+                    child_calls.set(child_calls.get() + 1);
+                    assert!(judge.resolving_application(&local, 0).is_none());
+                    StructuralTerm::Variable(
+                        if judge.resolving_application(&external, 0).is_some() {
+                            "open".to_owned()
+                        } else {
+                            "blocked".to_owned()
+                        },
+                    )
+                },
+            )
+        };
+        let primed = judge.resolving_application(&local, 0).unwrap();
+        assert!(child(&primed) == StructuralTerm::Variable("open".to_owned()));
+        let root_calls = Cell::new(0);
+        let root = |judge: &StructuralJudge<'_>| {
+            judge.completed_resolution(
+                StructuralTerm::Variable("root".to_owned()),
+                0,
+                |judge, _| {
+                    root_calls.set(root_calls.get() + 1);
+                    child(&judge.resolving_application(&local, 0).unwrap())
+                },
+            )
+        };
+        assert!(root(&judge) == StructuralTerm::Variable("open".to_owned()));
+        assert_eq!(
+            child_calls.get(),
+            1,
+            "the parent consumed the primed child result"
+        );
+        assert!(root(&judge) == StructuralTerm::Variable("open".to_owned()));
+        assert_eq!(
+            root_calls.get(),
+            1,
+            "the child's local cycle is not an external dependency"
+        );
+        let changed = judge.resolving_application(&external, 0).unwrap();
+        assert!(root(&changed) == StructuralTerm::Variable("blocked".to_owned()));
+        assert_eq!(
+            root_calls.get(),
+            2,
+            "the cached child's external read reaches its parent"
+        );
+        assert_eq!(child_calls.get(), 2);
+    }
+
+    #[test]
+    fn changed_query_inputs_decline_dependency_reuse() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let calls = Cell::new(0);
+        for _ in 0..2 {
+            judge.completed_resolution(
+                StructuralTerm::Variable("goal".to_owned()),
+                0,
+                |judge, term| {
+                    calls.set(calls.get() + 1);
+                    let mut changed = judge.clone();
+                    changed.capture_sequence += 1;
+                    changed.resolving_application(&term, 0);
+                    term
+                },
+            );
+        }
+        assert_eq!(calls.get(), 2);
+    }
+
+    #[test]
+    fn conditional_reuse_matches_uncached_queries_for_every_three_question_stack() {
+        fn question(name: &str) -> StructuralTerm {
+            StructuralTerm::Variable(name.to_owned())
+        }
+        fn stacked<'program>(
+            base: &StructuralJudge<'program>,
+            names: &[&str],
+        ) -> StructuralJudge<'program> {
+            let mut judge = base.clone();
+            for name in names {
+                judge = judge.resolving_application(&question(name), 0).unwrap();
+            }
+            judge
+        }
+        fn evaluate(judge: &StructuralJudge<'_>, calls: &Cell<usize>) -> StructuralTerm {
+            judge.completed_resolution(question("root"), 0, |judge, _| {
+                calls.set(calls.get() + 1);
+                let Some(entered) = judge.resolving_application(&question("a"), 0) else {
+                    return question("a-blocked");
+                };
+                entered.completed_resolution(question("child"), 1, |judge, _| {
+                    if let Some(entered) = judge.resolving_application(&question("b"), 0) {
+                        question(
+                            if entered.resolving_application(&question("c"), 0).is_some() {
+                                "c-open"
+                            } else {
+                                "c-blocked"
+                            },
+                        )
+                    } else {
+                        question("b-blocked")
+                    }
+                })
+            })
+        }
+        let program = typed_trees::TypedTrees::default();
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        judge.specification_terms = true;
+        let mut reference = judge.clone();
+        reference.completed_resolutions = None;
+        let mut stacks = vec![Vec::new()];
+        let mut frontier = vec![Vec::new()];
+        for _ in 0..3 {
+            let mut next = Vec::new();
+            for prefix in frontier {
+                for name in ["a", "b", "c"] {
+                    if !prefix.contains(&name) {
+                        let mut extended = prefix.clone();
+                        extended.push(name);
+                        next.push(extended);
+                    }
+                }
+            }
+            stacks.extend(next.iter().cloned());
+            frontier = next;
+        }
+        assert_eq!(stacks.len(), 16);
+        let cached_calls = Cell::new(0);
+        let reference_calls = Cell::new(0);
+        for stack in stacks {
+            assert!(
+                evaluate(&stacked(&judge, &stack), &cached_calls).same_resolution_payload(
+                    &evaluate(&stacked(&reference, &stack), &reference_calls)
+                ),
+                "stack {stack:?} changed the result"
+            );
+        }
+        assert!(cached_calls.get() < reference_calls.get());
+    }
+
+    #[test]
+    fn field_dependency_recording_keeps_every_query_observation() {
+        let program = typed_trees::TypedTrees::default();
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        judge.returned_field_trace = Some(Arc::new(std::sync::Mutex::new(
+            super::super::returned_fields::ReturnedFieldTrace::default(),
+        )));
+        let calls = Cell::new(0);
+        for _ in 0..2 {
+            judge.completed_resolution(
+                StructuralTerm::Variable("value".to_owned()),
+                0,
+                |_, term| {
+                    calls.set(calls.get() + 1);
+                    term
+                },
+            );
+        }
+        assert_eq!(calls.get(), 2);
+    }
+}
+
+#[cfg(test)]
+mod work_domain_tests {
+    use super::*;
+    #[test]
+    fn bucket_eviction_keeps_recent_queries_and_removes_old_indices() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let calls = std::cell::Cell::new(0);
+        let compute = |_: &StructuralJudge<'_>, term| {
+            calls.set(calls.get() + 1);
+            term
+        };
+        let term = |position| StructuralTerm::Variable(format!("question-{position}"));
+        for position in 0..8192 {
+            judge.completed_resolution(term(position), 0, compute);
+        }
+        judge.completed_resolution(term(0), 0, compute);
+        judge.completed_resolution(term(8192), 0, compute);
+        judge.completed_resolution(term(0), 0, compute);
+        assert_eq!(calls.get(), 8193);
+        judge.completed_resolution(term(1), 0, compute);
+        assert_eq!(calls.get(), 8194);
+        let cache = judge
+            .completed_resolutions
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap();
+        assert_eq!(cache.entries.len(), 8192);
+        for (fingerprint, indices) in &cache.buckets {
+            for &index in indices {
+                assert_eq!(cache.entries[index].fingerprint, *fingerprint);
+            }
+        }
+        assert_eq!(cache.buckets.values().map(Vec::len).sum::<usize>(), 8192);
+    }
+
+    #[test]
+    fn cheap_leaf_queries_do_not_evict_completed_applications() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let expensive = StructuralTerm::Variable("retained application witness".to_owned());
+        judge.completed_resolution(expensive.clone(), 0, |_, term| term);
+        for _ in 0..1024 {
+            judge.resolve(StructuralTerm::Variable("cheap leaf".to_owned()));
+        }
+        let entries = judge
+            .completed_resolutions
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap();
+        assert_eq!(entries.entries.len(), 1);
+        assert!(entries.entries[0].term.same_resolution_payload(&expensive));
+    }
+}
+
+#[cfg(test)]
+mod predicate_tests {
+    use super::*;
+    #[test]
+    fn value_resolution_and_predicate_answers_remain_distinct() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let question = StructuralTerm::Variable("question".to_owned());
+        assert_eq!(
+            judge.completed_resolution(question.clone(), 0, |_, term| term),
+            question
+        );
+        assert!(matches!(
+            judge.completed_predicate(question.clone(), 0, |_, _| StructuralJudgment::Refuted),
+            StructuralJudgment::Refuted
+        ));
+        assert!(matches!(
+            judge.completed_predicate(question.clone(), 0, |_, _| panic!(
+                "completed predicate was recomputed"
+            )),
+            StructuralJudgment::Refuted
+        ));
+        assert_eq!(
+            judge.completed_resolution(question.clone(), 0, |_, _| panic!(
+                "value answer was displaced"
+            )),
+            question
+        );
+    }
+}
+
+#[cfg(test)]
+mod depth_tests {
+    use super::*;
+
+    #[test]
+    fn nested_arithmetic_queries_keep_the_active_resolution_budget() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let question = StructuralTerm::Variable("outer".to_owned());
+        let nested = judge.resolving_application(&question, 31).unwrap();
+        let inner = nested
+            .resolving_application(&StructuralTerm::Variable("inner".to_owned()), 32)
+            .unwrap();
+        assert_eq!(judge.application_resolution_depth(), 0);
+        assert_eq!(nested.clone().application_resolution_depth(), 31);
+        assert_eq!(inner.application_resolution_depth(), 32);
+        let mut root = judge.clone();
+        Arc::make_mut(&mut root.substitutions).push((
+            "value".to_owned(),
+            StructuralTerm::Variable("resolved".to_owned()),
+        ));
+        let value = StructuralTerm::Variable("value".to_owned());
+        assert_eq!(
+            root.resolve(value.clone()),
+            StructuralTerm::Variable("resolved".to_owned())
+        );
+        root.active_application = inner.active_application.clone();
+        assert_eq!(root.resolve(value.clone()), value);
+        assert_eq!(root.resolve_at(value.clone(), 0), value);
+        assert!(nested.resolving_application(&question, 31).is_none());
+    }
+}
+
+#[cfg(test)]
+mod guard_depth_tests {
+    use super::*;
+    #[test]
+    fn completed_guards_keep_the_active_resolution_depth() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let question = StructuralTerm::Variable("guard".to_owned());
+        assert!(matches!(
+            judge.completed_predicate(question.clone(), 0, |_, _| StructuralJudgment::Proven),
+            StructuralJudgment::Proven
+        ));
+        let nested = judge
+            .resolving_application(&StructuralTerm::Variable("active".to_owned()), 31)
+            .unwrap();
+        assert!(matches!(
+            nested.completed_predicate(question, 0, |_, _| StructuralJudgment::Unknown),
+            StructuralJudgment::Unknown
+        ));
+    }
+}
+
+#[cfg(test)]
+mod term_mode_tests {
+    use super::*;
+
+    #[test]
+    fn entering_a_question_preserves_its_caller_term_mode() {
+        let program = typed_trees::TypedTrees::default();
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let question = StructuralTerm::Variable("question".to_owned());
+        for mode in [false, true] {
+            judge.specification_terms = mode;
+            let entered = judge.resolving_application(&question, 0).unwrap();
+            assert_eq!(entered.specification_terms, mode);
+            assert!(entered.resolving_application(&question, 0).is_none());
+            let mut other_mode = entered;
+            other_mode.specification_terms = !mode;
+            assert!(other_mode.resolving_application(&question, 0).is_some());
+        }
+    }
+
+    fn read_specification_question(
+        judge: &StructuralJudge<'_>,
+        _: StructuralTerm,
+    ) -> StructuralTerm {
+        let mut specification = judge.clone();
+        specification.specification_terms = true;
+        StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(i64::from(
+            specification
+                .resolving_application(&StructuralTerm::Variable("external".to_owned()), 0)
+                .is_none(),
+        )))
+    }
+
+    #[test]
+    fn completed_reads_keep_the_observed_mode_across_caller_mode_changes() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let question = StructuralTerm::Variable("external".to_owned());
+        let task = StructuralTerm::Variable("query".to_owned());
+        let integer = |value| StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(value));
+        assert_eq!(
+            judge.completed_resolution(task.clone(), 0, read_specification_question),
+            integer(0)
+        );
+        let mut specification = judge.clone();
+        specification.specification_terms = true;
+        let mut active = specification.resolving_application(&question, 0).unwrap();
+        active.specification_terms = false;
+        assert_eq!(
+            active.completed_resolution(task.clone(), 0, read_specification_question),
+            integer(1)
+        );
+        let ordinary = judge.resolving_application(&question, 0).unwrap();
+        assert_eq!(
+            ordinary.completed_resolution(task.clone(), 0, read_specification_question),
+            integer(0)
+        );
+        assert_eq!(
+            active.completed_resolution(task, 0, read_specification_question),
+            integer(1)
+        );
+    }
+
+    #[test]
+    fn cached_child_reads_replay_their_original_mode_into_the_parent() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let child = StructuralTerm::Variable("child".to_owned());
+        let parent = StructuralTerm::Variable("parent".to_owned());
+        let integer = |value| StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(value));
+        judge.completed_resolution(child.clone(), 0, read_specification_question);
+        let compute_parent = |scope: &StructuralJudge<'_>, _| {
+            scope.completed_resolution(child.clone(), 0, read_specification_question)
+        };
+        assert_eq!(
+            judge.completed_resolution(parent.clone(), 0, compute_parent),
+            integer(0)
+        );
+        let mut specification = judge.clone();
+        specification.specification_terms = true;
+        let mut active = specification
+            .resolving_application(&StructuralTerm::Variable("external".to_owned()), 0)
+            .unwrap();
+        active.specification_terms = false;
+        assert_eq!(
+            active.completed_resolution(parent, 0, compute_parent),
+            integer(1)
+        );
     }
 }

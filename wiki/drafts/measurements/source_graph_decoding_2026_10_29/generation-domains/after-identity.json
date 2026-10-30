@@ -1,0 +1,15 @@
+{
+  "path": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\generation-domains\\omega-after.exe",
+  "sha256": "24d724782914175d7f0a001c1287399fca017cbcda3ac6e1288e1c411c561012",
+  "base_revision": "b1d401fd1d3ddc5470d915bc5ab5044c2e093677",
+  "source_overlay_sha256": {
+    "omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/tests.rs": "e7bb1cff420530f5018415aff7d7dbe89dd89a023abd5ba4dd8151c22b651f9f",
+    "omega-rust/psi/foundation/compiler-storage/src/buffer.rs": "900d8abb96dc8b378e855ed049cdf5f7b0eaea39b88ef5b54bb6e82747d2bf83",
+    "omega-rust/psi/foundation/compiler-storage/src/tests.rs": "46974b3dc5fb7d27f42cb50ef6fce26b8c41cb39938aef4f5401db804c2c2a20"
+  },
+  "profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  },
+  "version": "omega 0.1.0-dev (unrecorded; x86_64-pc-windows-msvc)"
+}

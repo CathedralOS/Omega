@@ -39,6 +39,7 @@ use resolved::SymbolResolvedTrees;
 use resolved::data::{DataDefinition, DataMember};
 use resolved::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use resolved::statement::{StatementNode, TransitionGuardNode};
+use resolved::types::TypeReference;
 use symbol_resolved_trees as resolved;
 
 pub(crate) fn validate_case_dispatch_exhaustiveness_in(
@@ -51,6 +52,11 @@ pub(crate) fn validate_case_dispatch_exhaustiveness_in(
         }
         for state_handle in program.machine_state_handles(machine.states) {
             let state = program.machine_state(*state_handle);
+            let scope = DispatchScope {
+                program,
+                machine,
+                state,
+            };
             let statements = program
                 .tables
                 .bodies
@@ -74,19 +80,19 @@ pub(crate) fn validate_case_dispatch_exhaustiveness_in(
                         run.push(&transition.guard);
                         run_has_continuation |= transition.continuation.is_valid();
                         if transition.ends_dispatch {
-                            check_dispatch_run(program, &run, run_has_continuation, &location)?;
+                            check_dispatch_run(&scope, &run, run_has_continuation, &location)?;
                             run.clear();
                             run_has_continuation = false;
                         }
                     }
                     _ => {
-                        check_dispatch_run(program, &run, run_has_continuation, &location)?;
+                        check_dispatch_run(&scope, &run, run_has_continuation, &location)?;
                         run.clear();
                         run_has_continuation = false;
                     }
                 }
             }
-            check_dispatch_run(program, &run, run_has_continuation, &location)?;
+            check_dispatch_run(&scope, &run, run_has_continuation, &location)?;
         }
     }
 
@@ -152,12 +158,24 @@ enum LeafContribution {
     NotCase,
 }
 
+/// The dispatch's enclosing declaration scope. Coverage resolves each
+/// case subject's declared type through the owning machine and state --
+/// parameters, locals, owned data and consts -- so a `Value<bool>` subject
+/// counts the synthesized instance's case roster rather than the generic
+/// template's.
+struct DispatchScope<'a> {
+    program: &'a SymbolResolvedTrees,
+    machine: &'a resolved::machine::Machine,
+    state: &'a resolved::state::State,
+}
+
 fn check_dispatch_run(
-    program: &SymbolResolvedTrees,
+    scope: &DispatchScope<'_>,
     run: &[&TransitionGuardNode],
     has_continuation: bool,
     location: &str,
 ) -> Result<(), Diagnostic> {
+    let program = scope.program;
     if run.is_empty() {
         return Ok(());
     }
@@ -171,7 +189,7 @@ fn check_dispatch_run(
     let mut has_opaque_arm = false;
 
     for guard in run {
-        match classify_arm(program, guard) {
+        match classify_arm(scope, guard) {
             // A `_` arm catches every fallthrough: the dispatch is closed no
             // matter what the other arms rely on.
             ArmShape::Default => return Ok(()),
@@ -586,7 +604,8 @@ fn closed_boolean_guard_through_names(
     closed_boolean_guard(program, declaration.initializer)
 }
 
-fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> ArmShape {
+fn classify_arm(scope: &DispatchScope<'_>, guard: &TransitionGuardNode) -> ArmShape {
+    let program = scope.program;
     let TransitionGuardNode::When(expression) = guard else {
         return ArmShape::Default;
     };
@@ -595,7 +614,7 @@ fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> A
     flatten_binary(program, *expression, BinaryOperator::And, &mut conjuncts);
 
     if let [conjunct] = conjuncts[..] {
-        if let Some(claim) = classify_membership_union(program, conjunct) {
+        if let Some(claim) = classify_membership_union(scope, conjunct) {
             return if claim.covered.is_some() {
                 ArmShape::Finite(vec![FiniteConstraint::Case(claim)])
             } else {
@@ -679,7 +698,7 @@ fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> A
     let mut first_case_claim = None;
     let mut countable = true;
     for conjunct in conjuncts {
-        if let Some(claim) = classify_membership_union(program, conjunct) {
+        if let Some(claim) = classify_membership_union(scope, conjunct) {
             if first_case_claim.is_none() {
                 first_case_claim = Some(CaseClaim {
                     data_index: claim.data_index,
@@ -733,9 +752,10 @@ fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> A
 /// `None` when the expression has any other shape, or when no leaf touches a
 /// case-bearing type.
 fn classify_membership_union(
-    program: &SymbolResolvedTrees,
+    scope: &DispatchScope<'_>,
     expression: ExpressionHandle,
 ) -> Option<CaseClaim> {
+    let program = scope.program;
     let mut leaves = Vec::new();
     flatten_binary(program, expression, BinaryOperator::Or, &mut leaves);
 
@@ -760,7 +780,7 @@ fn classify_membership_union(
             subject = membership.value;
         }
 
-        match classify_membership_leaf(program, membership) {
+        match classify_membership_leaf(scope, membership) {
             LeafContribution::Tags {
                 data_index: leaf_data,
                 variants: leaf_variants,
@@ -793,17 +813,19 @@ fn classify_membership_union(
 }
 
 fn classify_membership_leaf(
-    program: &SymbolResolvedTrees,
+    scope: &DispatchScope<'_>,
     membership: &resolved::expression::TableMembershipExpression,
 ) -> LeafContribution {
+    let program = scope.program;
     // A resolved domain symbol names a DECLARED domain; the bare `Type::Case`
     // path is the implicit case domain. Same precedence as the executable
     // membership lowering (`crate::expressions::expression::domain_membership`).
     if membership.domain_symbol.is_valid() {
-        return classify_declared_domain(program, membership.domain_symbol);
+        return classify_declared_domain(scope, membership.domain_symbol);
     }
 
-    match find_case(program, membership) {
+    let subject_data = subject_data_index(scope, membership.value);
+    match find_case(program, subject_data, membership) {
         Some((data_index, variant)) => LeafContribution::Tags {
             data_index,
             variants: vec![variant],
@@ -817,9 +839,10 @@ fn classify_membership_leaf(
 /// subject membership in `Type::A | Type::B | ...` over its own target type.
 /// Anything else over a case-bearing target is a predicate domain.
 fn classify_declared_domain(
-    program: &SymbolResolvedTrees,
+    scope: &DispatchScope<'_>,
     domain_symbol: symbols::SymbolHandle,
 ) -> LeafContribution {
+    let program = scope.program;
     let Some(domain) = program.domain_definition_by_symbol(domain_symbol) else {
         return LeafContribution::NotCase;
     };
@@ -871,7 +894,7 @@ fn classify_declared_domain(
         if leaf_membership.domain_symbol.is_valid() {
             return LeafContribution::Predicate { data_index };
         }
-        match find_case(program, leaf_membership) {
+        match find_case(program, Some(data_index), leaf_membership) {
             Some((leaf_data, variant)) if leaf_data == data_index => variants.push(variant),
             _ => return LeafContribution::Predicate { data_index },
         }
@@ -905,10 +928,29 @@ fn is_domain_subject(
 /// tag). Selection already pins the exact owner and case symbols onto the
 /// node, so classify by them first: a consumer package may declare the same
 /// spelling without capturing this source's dispatch.
+///
+/// `subject_data` is the data definition the SUBJECT's declared type names.
+/// The pattern's `Type::Case` always resolves to the generic template, but
+/// coverage must count the subject's type: when it names a synthesized
+/// closed instance (`v: Value<bool>`), that instance's variants carry the
+/// literal-false witnesses generic synthesis records for cases whose
+/// `requires` the argument tuple refutes.
 fn find_case(
     program: &SymbolResolvedTrees,
+    subject_data: Option<usize>,
     membership: &resolved::expression::TableMembershipExpression,
 ) -> Option<(usize, usize)> {
+    // Variant ordinals transfer across a generic family because instances
+    // copy the template's member list in declaration order.
+    let subject_index = |data_index| match subject_data {
+        Some(subject_index)
+            if generic_base_symbol(&program.data_definitions[subject_index])
+                == Some(program.data_definitions[data_index].symbol) =>
+        {
+            subject_index
+        }
+        _ => data_index,
+    };
     if membership.case_type_symbol.is_valid() {
         let data_index = program
             .data_definitions
@@ -917,7 +959,7 @@ fn find_case(
         let variant = variant_index(program, &program.data_definitions[data_index], |variant| {
             variant.symbol == membership.case_symbol
         })?;
-        return Some((data_index, variant));
+        return Some((subject_index(data_index), variant));
     }
     let members = program
         .tables
@@ -931,7 +973,7 @@ fn find_case(
     let variant = variant_index(program, &program.data_definitions[data_index], |variant| {
         variant.name.as_str() == case_name.as_str()
     })?;
-    Some((data_index, variant))
+    Some((subject_index(data_index), variant))
 }
 
 /// Index the data definition a source-backed name denotes within its own
@@ -1135,4 +1177,243 @@ fn name_paths_equal(
             .iter()
             .zip(right.iter())
             .all(|(left, right)| left.as_str() == right.as_str())
+}
+
+/// The `data_definitions` index a case subject's declared type names. A
+/// declared `Value<bool>` resolves to the synthesized closed instance --
+/// the definition whose variants carry the literal-false `where` witnesses
+/// generic synthesis records when the instance's argument tuple refutes a
+/// case `requires` -- so coverage reads that instance's possible cases.
+fn subject_data_index(scope: &DispatchScope<'_>, subject: ExpressionHandle) -> Option<usize> {
+    let type_reference = subject_declared_type(scope, subject);
+    type_reference
+        .as_ref()
+        .and_then(|t| data_index_for_type(scope.program, t))
+}
+
+fn subject_declared_type(
+    scope: &DispatchScope<'_>,
+    subject: ExpressionHandle,
+) -> Option<TypeReference> {
+    let expressions = &scope.program.tables.bodies.expressions;
+    let resolved = match expressions.expression(subject) {
+        ExpressionNode::Member(member) => {
+            field_declared_type(scope, member.member_symbol).or_else(|| {
+                // `member_symbol` is not yet bound on this stage's copies;
+                // read the field by name through the receiver's declared data.
+                let receiver = subject_declared_type(scope, member.receiver)?;
+                let definition = &scope.program.data_definitions
+                    [data_index_for_type(scope.program, &receiver)?];
+                scope
+                    .program
+                    .data_members(definition.members)
+                    .iter()
+                    .find_map(|member_| match member_ {
+                        DataMember::Field(field)
+                            if field.name.as_str() == member.member.as_str() =>
+                        {
+                            Some(field.type_reference.clone())
+                        }
+                        _ => None,
+                    })
+            })
+        }
+        ExpressionNode::Name(path) => name_declared_type(scope, path),
+        ExpressionNode::Call(call) if call.target_symbol.is_valid() => crate::expressions::call_results::declared_call_return(
+            scope.program,
+            call.target_symbol,
+        )
+        .cloned(),
+        ExpressionNode::SavedSubject(saved) => {
+            subject_declared_type(scope, expressions.match_subject(saved.capture).subject)
+        }
+        _ => None,
+    };
+    resolved
+}
+
+/// The declared type a bare case-subject name resolves to: a state
+/// parameter, a local `data` binding, a constant, or a field the name
+/// spells inside its scope.
+fn name_declared_type(
+    scope: &DispatchScope<'_>,
+    path: &resolved::expression::TableNamePath,
+) -> Option<TypeReference> {
+    for symbol in [path.symbol, path.head_symbol] {
+        if !symbol.is_valid() {
+            continue;
+        }
+        if let Some(parameter) = scope
+            .program
+            .state_parameters(scope.state.parameters)
+            .iter()
+            .find(|parameter| parameter.symbol == symbol)
+        {
+            return Some(parameter.type_reference.clone());
+        }
+        if let Some(local) = scope
+            .program
+            .state_statements(scope.state.statements)
+            .iter()
+            .find_map(|statement| {
+                let resolved::statement::Statement::LocalData(local) = statement else {
+                    return None;
+                };
+                (local.symbol == symbol).then_some(local)
+            })
+        {
+            // A generated operand capture is a Unit-typed hoist of the real
+            // subject expression; its declared type does not carry the
+            // captured value's data. Read the type through the initializer.
+            if local.is_operand_capture || matches!(local.type_reference, TypeReference::Unit) {
+                return subject_declared_type(scope, local.initial_value)
+                    .or_else(|| Some(local.type_reference.clone()));
+            }
+            return Some(local.type_reference.clone());
+        }
+        if let Some(declaration) = scope.program.const_declaration(symbol) {
+            return Some(declaration.declared_type.clone());
+        }
+        if let Some(type_reference) = field_declared_type(scope, symbol) {
+            return Some(type_reference);
+        }
+    }
+    None
+}
+
+/// The declared type a field or owned-data symbol carries, found across
+/// machine-owned `data` members, record fields and case payload fields.
+fn field_declared_type(
+    scope: &DispatchScope<'_>,
+    symbol: symbols::SymbolHandle,
+) -> Option<TypeReference> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    for owned in scope.program.machine_owned_data(scope.machine.owned_data) {
+        if owned.symbol == symbol {
+            return Some(owned.type_reference.clone());
+        }
+    }
+    for definition in &scope.program.data_definitions {
+        for member in scope.program.data_members(definition.members) {
+            match member {
+                DataMember::Field(field) if field.symbol == symbol => {
+                    return Some(field.type_reference.clone());
+                }
+                DataMember::Variant(variant) => {
+                    for field in scope.program.data_payload_fields(variant.payload) {
+                        if field.symbol == symbol {
+                            return Some(field.type_reference.clone());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    None
+}
+
+/// The data definition index a declared type names. `Named` references
+/// already carry exact instance identity; a `Generic` application resolves
+/// through `generic_instance` to the closed definition synthesized for that
+/// argument tuple; reference and constrained wrappers peel to their base.
+fn data_index_for_type(
+    program: &SymbolResolvedTrees,
+    type_reference: &TypeReference,
+) -> Option<usize> {
+    match type_reference {
+        TypeReference::Named { symbol, .. } => program
+            .data_definitions
+            .iter()
+            .position(|definition| definition.symbol == *symbol),
+        TypeReference::Generic(generic) => program
+            .data_definitions
+            .iter()
+            .position(|definition| {
+                matches!(
+                    &definition.generic_instance,
+                    Some(TypeReference::Generic(instance))
+                        if instance.base_symbol == generic.base_symbol
+                            && type_arguments_equal(
+                                program,
+                                instance.arguments,
+                                generic.arguments,
+                            )
+                )
+            }),
+        TypeReference::Reference(reference) => data_index_for_type(
+            program,
+            program.child_type_reference(reference.referee),
+        ),
+        TypeReference::Constrained(constrained) => data_index_for_type(
+            program,
+            program.child_type_reference(constrained.base_type),
+        ),
+        _ => None,
+    }
+}
+
+/// The template symbol a synthesized closed instance records as its
+/// generic application base.
+fn generic_base_symbol(definition: &DataDefinition) -> Option<symbols::SymbolHandle> {
+    match &definition.generic_instance {
+        Some(TypeReference::Generic(application)) => Some(application.base_symbol),
+        _ => None,
+    }
+}
+
+/// Structural equality of two generic argument tuples. Spans index the
+/// shared child-type arena, so compare elementwise by kind; positions that
+/// cannot decide by identity stay unequal, which only keeps the template's
+/// unrefuted case list.
+fn type_arguments_equal(
+    program: &SymbolResolvedTrees,
+    left: arena::HandleSpan<TypeReference>,
+    right: arena::HandleSpan<TypeReference>,
+) -> bool {
+    let left = program.child_type_references(left);
+    let right = program.child_type_references(right);
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right.iter())
+            .all(|(left, right)| type_references_equal(program, left, right))
+}
+
+fn type_references_equal(
+    program: &SymbolResolvedTrees,
+    left: &TypeReference,
+    right: &TypeReference,
+) -> bool {
+    match (left, right) {
+        (
+            TypeReference::Named {
+                symbol: left, ..
+            },
+            TypeReference::Named {
+                symbol: right, ..
+            },
+        ) => left == right,
+        (TypeReference::Generic(left), TypeReference::Generic(right)) => {
+            left.base_symbol == right.base_symbol
+                && type_arguments_equal(program, left.arguments, right.arguments)
+        }
+        (TypeReference::Reference(left), TypeReference::Reference(right)) => {
+            type_references_equal(
+                program,
+                program.child_type_reference(left.referee),
+                program.child_type_reference(right.referee),
+            )
+        }
+        (TypeReference::Constrained(left), TypeReference::Constrained(right)) => {
+            type_references_equal(
+                program,
+                program.child_type_reference(left.base_type),
+                program.child_type_reference(right.base_type),
+            )
+        }
+        _ => left == right,
+    }
 }

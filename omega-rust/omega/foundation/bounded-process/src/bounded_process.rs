@@ -168,6 +168,7 @@ pub(crate) fn capture_child(
                 .map_err(|error| BoundedProcessRunError::Finalize(error.to_string()))?;
             return Ok(BoundedProcessOutput {
                 status: completion.status(),
+                resource_usage: completion.resource_usage().cloned(),
                 stdout,
                 stderr,
             });

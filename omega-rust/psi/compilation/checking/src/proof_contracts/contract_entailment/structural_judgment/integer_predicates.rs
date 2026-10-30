@@ -658,6 +658,16 @@ impl<'program> StructuralJudge<'program> {
         predicate: StructuralTerm,
         depth: usize,
     ) -> StructuralJudgment {
+        self.completed_predicate(predicate, depth, |judge, predicate| {
+            judge.judge_observed_predicate_uncached(predicate, depth)
+        })
+    }
+
+    fn judge_observed_predicate_uncached(
+        &self,
+        predicate: StructuralTerm,
+        depth: usize,
+    ) -> StructuralJudgment {
         let resolved = self.resolve_at(predicate.clone(), depth + 1);
         match self.judge_equation(
             resolved.clone(),
@@ -2184,6 +2194,42 @@ impl<'program> StructuralJudge<'program> {
 
 fn atom_name(position: usize) -> String {
     format!("\0captured-integer:{position}")
+}
+
+#[cfg(test)]
+mod carrier_bound_tests {
+    use super::*;
+    #[test]
+    fn observed_integer_atoms_supply_exactly_their_carrier_bounds() {
+        let program = typed_trees::TypedTrees::default();
+        for primitive in [PrimitiveType::I32, PrimitiveType::U64] {
+            let mut observations = IntegerObservations {
+                engine: Engine::for_explicit_bindings(&program),
+                atoms: Vec::new(),
+                operations: Vec::new(),
+                carrier_bounds: Vec::new(),
+                installed_carrier_bounds: 0,
+                next_operation_id: 0,
+                operand_resolutions: None,
+            };
+            let value = observations
+                .observed_atom(StructuralTerm::Variable("observed".to_owned()), primitive)
+                .unwrap();
+            assert!(observations.install_premises(&mut Vec::new()));
+            let (low, high) = primitive.integer_bounds().unwrap();
+            let queries = observations.engine.lower_bound_queries();
+            assert!(queries.prove_at_least(&value, &BigInt::from_i128(low)));
+            assert!(queries.prove_at_least(
+                &Polynomial::constant(BigInt::zero()).sub(&value),
+                &BigInt::from_i128(-high)
+            ));
+            assert!(!queries.prove_at_least(&value, &BigInt::from_i128(low + 1)));
+            assert!(!queries.prove_at_least(
+                &Polynomial::constant(BigInt::zero()).sub(&value),
+                &BigInt::from_i128(-high + 1)
+            ));
+        }
+    }
 }
 
 #[cfg(test)]

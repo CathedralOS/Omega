@@ -1997,7 +1997,6 @@ impl<'program> StructuralJudge<'program> {
         };
         self.intake_current_storage_fields(scope.0, scope.1, expression, &value);
         if let StructuralTerm::CapturedValue { result_type, .. } = &value {
-            self.intake_admitted_scalar_bounds(*result_type, &value);
             self.intake_atomic_observation_bounds(
                 scope.0,
                 scope.1,

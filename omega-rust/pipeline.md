@@ -930,9 +930,14 @@ belongs to a generic machine; admission no longer reconstructs those facts from
 typed declarations. Requirement rows exist without implementations or uses.
 Product root pruning projects direct-call rows and template applicability with
 the machine roster while preserving independent operator declarations. The
-checked-tree bridge remains: source admission still owns complete-inventory
-applicability and plan cardinality, including unused declarations and dead
-concrete uses. Those cannot be replaced by emitted-operation demand.
+prepared Psi declaration owner now projects that complete inventory into a
+borrowed, source-free review view. The complete dormant/operator/direct-call
+admission sequence and plan cardinality belong to `provider-selection`.
+Unavailable application or numeric evidence remains data until the selected
+binding requires it; projection never rejects an unused declaration or a skipped
+generic template. Declaration strings and body eligibility remain borrowed from
+the exact immutable owner, without a second cache or portable-publication demand.
+Unused declarations and dead concrete uses cannot be replaced by emitted demand.
 `provider-selection/boundary_applications.rs` owns the canonical executable
 application operation: exact selected-row/provenance joins, checked body choice
 and numeric execution admission. Stage 00 constructs operation-bound physical
@@ -941,8 +946,10 @@ satisfaction and callable/package/target selection; source eligibility additiona
 checks Product, provider application and lifetime coordinates, while canonical
 admission checks nominal requirement and closed application. Neither fabricates
 the other's metadata. Unused invocation-local declarations are not forced into
-portable publication. Moving the remaining complete source-admission adapter
-behind the Psi facade is still unfinished.
+portable publication. The surrounding selected-execution coordinator still
+consumes source installation reach, leaf specialization, callback roots and
+service declarations; its complete source-to-Terminal facade migration remains
+unfinished. Early/reference source adapters remain distinct from Product policy.
 The optional reference checked interpreter prepares adapter dispatch and selected
 float executions at its own entrance. `SelectedExecution` retains no reference
 dispatch table, and ordinary Product installation does not scan source to prepare

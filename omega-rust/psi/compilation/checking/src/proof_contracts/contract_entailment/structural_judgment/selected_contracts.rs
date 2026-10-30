@@ -426,10 +426,20 @@ impl StructuralJudge<'_> {
         // through this same application with a fresh local recursion depth.
         // Contracts and bodies share one exact question history; recurrence
         // supplies no equation and never makes the required premise true.
-        let resolving = self.clone().resolving_application(application)?;
+        let resolving = self.resolving_application(application, depth)?;
         let SelectedApplicationCarrier {
             owner, parameters, ..
         } = resolving.selected_application_carrier(application, depth)?;
+        // An empty equation query must not re-prove entry requirements.
+        // Portable families may supply equations through their selected bodies.
+        if !matches!(&owner, SelectedCallContract::Concrete(machine, _) if machine.target_family_interface)
+            && !owner_contracts(self.program, &owner)
+                .any(|contract| contract.kind == SignatureContractKind::Ensures)
+            && resolving.recorded_body_boolean(&owner, depth + 1).is_none()
+        {
+            phase_profile::count("05.selected.empty_result_equations", 1);
+            return None;
+        }
         let StructuralTerm::Application { arguments, .. } = application else {
             return None;
         };
