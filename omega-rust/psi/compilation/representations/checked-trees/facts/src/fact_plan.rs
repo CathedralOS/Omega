@@ -101,6 +101,12 @@ macro_rules! fact_plan_root_impls {
                 }
             }
 
+            /// Declaration pages and their fact-context index are the sealed baseline.
+            pub fn shares_declaration_baseline(&self, baseline: &Self) -> bool {
+                self.contexts.shares_sealed_index(&baseline.contexts)
+                    && self.facts.shares_first_page(&baseline.facts)
+            }
+
             /// Share the established baseline before independent producers fork it.
             /// Every arena and the derived context index freeze together; later
             /// pages belong to their producer and do not rewrite this baseline.
@@ -137,6 +143,33 @@ macro_rules! fact_plan_root_impls {
 }
 
 fact_plan_root_roster!(fact_plan_root_impls);
+
+static SHARED_DECLARATION_FORKS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+static COPIED_DECLARATION_FORKS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// Flow-group forks of a nonempty declaration baseline.
+/// The pair is `(shared pages and index, copied pages or index)`.
+pub fn declaration_page_fork_totals() -> (u64, u64) {
+    (
+        SHARED_DECLARATION_FORKS.load(std::sync::atomic::Ordering::Relaxed),
+        COPIED_DECLARATION_FORKS.load(std::sync::atomic::Ordering::Relaxed),
+    )
+}
+
+/// Record whether one flow group kept the sealed declaration pages and index.
+pub fn note_declaration_page_fork(worker: &FactPlan, baseline: &FactPlan) {
+    if baseline.facts.is_empty() {
+        return;
+    }
+    let counter = if worker.shares_declaration_baseline(baseline) {
+        &SHARED_DECLARATION_FORKS
+    } else {
+        &COPIED_DECLARATION_FORKS
+    };
+    counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
 
 impl FactPlan {
     /// Actual admitted occurrences, including facts outside emitted roots.

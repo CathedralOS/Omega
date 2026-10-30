@@ -45,6 +45,11 @@ pub(crate) fn inferred_normal_return_interval(
     target_primitive: Option<typed_trees::types::PrimitiveType>,
     actuals: &[ActualRange],
 ) -> Option<(Interval, Option<checked_trees::IntegerRangeRecipe>)> {
+    crate::note_dependency_body_read(
+        program,
+        machine.symbol,
+        crate::DependencyBodyRead::ReturnInterval,
+    );
     ReturnInference::default().infer(program, machine, entry, target_primitive, actuals)
 }
 

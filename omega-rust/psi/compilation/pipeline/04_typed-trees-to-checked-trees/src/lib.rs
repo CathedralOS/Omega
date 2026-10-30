@@ -35,6 +35,7 @@ mod labels;
 mod package_review;
 mod product_pruning;
 
+pub use ::facts::declaration_page_fork_totals;
 pub use checking::{
     CheckingOutcome, CheckingRequest, RetainedCheck, lower_typed_trees, lower_typed_trees_reusing,
     reuse_retained_check,

@@ -33,6 +33,16 @@ pub(in crate::machine_calls::calls::write_frames) fn calls_expose_bindings(
         let Some(call) = program.expression_table.call_node(expression) else {
             return false;
         };
+        if let Some(callee) = program
+            .machine(call.target_symbol)
+            .or_else(|| program.machine_holding_state(call.target_symbol))
+        {
+            crate::note_dependency_body_read(
+                program,
+                callee.symbol,
+                crate::DependencyBodyRead::BindingStability,
+            );
+        }
         program
             .expression_table
             .expression_handles(call.arguments)

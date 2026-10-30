@@ -28,6 +28,15 @@ use super::statements::statement_source_span;
 /// One strict check's entailment judgment for a single non-instance machine.
 /// Ordinals index that machine's expression `ensures` list, which is stable
 /// for a matching correspondence and is remapped into the consumer's arena.
+/// One dependency body whose declaration, state, and expression
+/// correspondence already matched a strict check. Later queries read that
+/// frozen body; this row does not transfer entailment ordinals.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct FrozenDependencyBody {
+    pub identity: String,
+    pub correspondence: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct DependencyBodyJudgment {
     pub identity: String,
@@ -61,6 +70,7 @@ pub(super) struct DependencyBodyIndex {
     correspondences: Vec<Option<u64>>,
     callees: Vec<Vec<u32>>,
     priors: Vec<PriorJudgment>,
+    frozen_priors: Vec<FrozenDependencyBody>,
 }
 
 impl DependencyBodyIndex {
@@ -72,12 +82,14 @@ impl DependencyBodyIndex {
             correspondences: Vec::new(),
             callees: Vec::new(),
             priors: Vec::new(),
+            frozen_priors: Vec::new(),
         }
     }
 
     pub(super) fn prepare(
         program: &dyn crate::CheckingInput,
         priors: &[DependencyBodyJudgment],
+        frozen_priors: &[FrozenDependencyBody],
         record: bool,
     ) -> Self {
         if priors.is_empty() && !record {
@@ -134,7 +146,66 @@ impl DependencyBodyIndex {
             correspondences,
             callees,
             priors: collapse_prior_judgments(priors),
+            frozen_priors: frozen_priors.to_vec(),
         }
+    }
+
+    /// The body text and its callee correspondences match a retained body.
+    pub(super) fn admits_frozen_body(&self, machine_index: usize) -> bool {
+        let Some(correspondence) = self
+            .correspondences
+            .get(machine_index)
+            .and_then(Option::as_ref)
+        else {
+            return false;
+        };
+        let Some(identity) = self.identities.get(machine_index).and_then(Option::as_ref) else {
+            return false;
+        };
+        self.frozen_priors
+            .iter()
+            .any(|prior| prior.identity == *identity && prior.correspondence == *correspondence)
+            && self.frozen_callees_match(machine_index)
+    }
+
+    pub(super) fn frozen_bodies(&self) -> Vec<FrozenDependencyBody> {
+        if !self.record {
+            return Vec::new();
+        }
+        self.identities
+            .iter()
+            .zip(&self.correspondences)
+            .filter_map(|(identity, correspondence)| {
+                Some(FrozenDependencyBody {
+                    identity: identity.as_ref()?.clone(),
+                    correspondence: *correspondence.as_ref()?,
+                })
+            })
+            .collect()
+    }
+
+    fn frozen_callees_match(&self, machine_index: usize) -> bool {
+        let Some(callees) = self.callees.get(machine_index) else {
+            return false;
+        };
+        for callee in callees {
+            let callee = *callee as usize;
+            let Some(correspondence) = self.correspondences.get(callee).and_then(Option::as_ref)
+            else {
+                return false;
+            };
+            let Some(identity) = self.identities.get(callee).and_then(Option::as_ref) else {
+                return false;
+            };
+            if !self
+                .frozen_priors
+                .iter()
+                .any(|prior| prior.identity == *identity && prior.correspondence == *correspondence)
+            {
+                return false;
+            }
+        }
+        true
     }
 
     pub(super) fn active_observation(&self) -> bool {
