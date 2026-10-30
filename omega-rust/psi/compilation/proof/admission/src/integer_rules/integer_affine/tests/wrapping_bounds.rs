@@ -1,9 +1,9 @@
 use super::{literal, unsigned_literal, value};
 use crate::integer_rules::integer_affine::{
-    IntegerAffineBoundConversionError, IntegerAffineWitness, IntegerAffineWitnessError,
-    check_integer_affine_witness, integer_affine_wrapping_evidence, map_integer_affine_bound,
+    IntegerAffineBoundConversionError, IntegerAffineWitnessError, check_integer_affine_witness,
+    integer_affine_wrapping_evidence, map_integer_affine_bound,
 };
-use crate::value_context;
+use crate::{affine_witness, value_context};
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::Proposition;
 use semantic_vocabulary::PropositionContext;
@@ -54,12 +54,7 @@ fn wrapping_product_bounds_require_the_entire_rectangle_to_fit() {
         let form = check_integer_affine_witness(
             &context,
             &[],
-            &IntegerAffineWitness {
-                root: left.clone(),
-                target: product.clone(),
-                definition_axioms: vec![],
-                literal_axioms: vec![],
-            },
+            &affine_witness(left.clone(), product.clone(), vec![], vec![]),
         )
         .unwrap();
         let integer = |number: i128| {
@@ -156,12 +151,7 @@ fn wrapping_add_backward_maps_strict_bounds_with_headroom_evidence() {
     let checked = check_integer_affine_witness(
         &context,
         &axioms,
-        &IntegerAffineWitness {
-            root: defined.clone(),
-            target: operand.clone(),
-            definition_axioms: vec![0],
-            literal_axioms: vec![None],
-        },
+        &affine_witness(defined.clone(), operand.clone(), vec![0], vec![None]),
     )
     .expect("wrapping add traverses toward its operand");
 
@@ -234,12 +224,7 @@ fn wrapping_add_backward_lands_a_sibling_literal_and_rejects_ambiguity() {
     let checked = check_integer_affine_witness(
         &context,
         &[landing.clone(), definition],
-        &IntegerAffineWitness {
-            root: defined.clone(),
-            target: operand.clone(),
-            definition_axioms: vec![1],
-            literal_axioms: vec![Some(0)],
-        },
+        &affine_witness(defined.clone(), operand.clone(), vec![1], vec![Some(0)]),
     )
     .expect("landed sibling resolves the wrapping operand");
     let upper = Proposition::LessOrEqual(defined.clone(), unsigned_literal(integer_type, 10));
@@ -267,12 +252,7 @@ fn wrapping_add_backward_lands_a_sibling_literal_and_rejects_ambiguity() {
         check_integer_affine_witness(
             &context,
             &[landed_operand, ambiguous],
-            &IntegerAffineWitness {
-                root: defined,
-                target: operand,
-                definition_axioms: vec![1],
-                literal_axioms: vec![Some(0)],
-            },
+            &affine_witness(defined, operand, vec![1], vec![Some(0)]),
         ),
         Err(IntegerAffineWitnessError::AmbiguousDefinition(1)),
     );
@@ -297,12 +277,7 @@ fn wrapping_divide_maps_both_directions_and_rejects_zero() {
         )
         .unwrap(),
     )];
-    let witness = IntegerAffineWitness {
-        root: root.clone(),
-        target: target.clone(),
-        definition_axioms: vec![0],
-        literal_axioms: vec![None],
-    };
+    let witness = affine_witness(root.clone(), target.clone(), vec![0], vec![None]);
     let checked = check_integer_affine_witness(&context, &axioms, &witness)
         .expect("unsigned wrapping divide traverses forward");
     assert_eq!(
@@ -356,12 +331,7 @@ fn signed_wrapping_division_maps_truncating_bounds_except_overflow() {
         (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
     ])
     .unwrap();
-    let witness = IntegerAffineWitness {
-        root: root.clone(),
-        target: target.clone(),
-        definition_axioms: vec![0],
-        literal_axioms: vec![None],
-    };
+    let witness = affine_witness(root.clone(), target.clone(), vec![0], vec![None]);
     for divisor in [-128, -3, -1, 0, 1, 3, 127] {
         let axioms = [Proposition::Equal(
             target.clone(),
@@ -420,12 +390,7 @@ fn signed_wrapping_remainder_bounds_include_minimum_by_negative_one() {
         (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
     ])
     .unwrap();
-    let witness = IntegerAffineWitness {
-        root: root.clone(),
-        target: target.clone(),
-        definition_axioms: vec![0],
-        literal_axioms: vec![None],
-    };
+    let witness = affine_witness(root.clone(), target.clone(), vec![0], vec![None]);
     for divisor in [-128_i128, -3, -1, 0, 1, 3, 127] {
         let axioms = [Proposition::Equal(
             target.clone(),
@@ -510,12 +475,7 @@ fn signed_wrapping_witnesses(
         check_integer_affine_witness(
             &context,
             &axioms,
-            &IntegerAffineWitness {
-                root: root.clone(),
-                target: destination.clone(),
-                definition_axioms: vec![0],
-                literal_axioms: vec![None],
-            },
+            &affine_witness(root.clone(), destination.clone(), vec![0], vec![None]),
         )
         .expect("signed wrapping add traverses")
     };

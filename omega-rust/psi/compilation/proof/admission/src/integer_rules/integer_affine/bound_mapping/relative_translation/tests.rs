@@ -1,7 +1,7 @@
 use crate::{
     IntegerAffineBoundConversionError, IntegerAffineWitness, PrimitiveJudgment, ProofNode,
-    ProofRule, check_certificate, check_integer_affine_witness, integer_affine_wrapping_evidence,
-    map_integer_affine_bound, value_context,
+    ProofRule, affine_witness, check_certificate, check_integer_affine_witness,
+    integer_affine_wrapping_evidence, map_integer_affine_bound, value_context,
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
@@ -54,12 +54,12 @@ fn operation(
     }
 }
 fn witness(carrier: IntegerType, end: u64, count: usize) -> IntegerAffineWitness {
-    IntegerAffineWitness {
-        root: value(carrier, 1),
-        target: value(carrier, end),
-        definition_axioms: (0..count).collect(),
-        literal_axioms: vec![None; count],
-    }
+    affine_witness(
+        value(carrier, 1),
+        value(carrier, end),
+        (0..count).collect(),
+        vec![None; count],
+    )
 }
 fn reflexive(root: &ScalarTerm) -> ProofNode {
     ProofNode {

@@ -4,8 +4,8 @@ use crate::integer_rules::integer_affine::{
     integer_affine_wrapping_evidence, map_integer_affine_bound,
 };
 use crate::proof::assumption_proof;
-use crate::value_context;
 use crate::{ProofNode, ProofRule, check_certificate};
+use crate::{affine_witness, value_context};
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::Proposition;
 use semantic_vocabulary::PropositionContext;
@@ -28,12 +28,7 @@ fn direct_literal_remainder_maps_and_certifies_without_invented_definitions() {
         ScalarType::Integer(integer_type),
     )])
     .unwrap();
-    let witness = IntegerAffineWitness {
-        root: root.clone(),
-        target: target.clone(),
-        definition_axioms: Vec::new(),
-        literal_axioms: Vec::new(),
-    };
+    let witness = affine_witness(root.clone(), target.clone(), Vec::new(), Vec::new());
     let form = check_integer_affine_witness(&context, &[], &witness).unwrap();
     let premise = Proposition::LessOrEqual(root, unsigned_literal(integer_type, 57));
     let goal = Proposition::LessOrEqual(target.clone(), unsigned_literal(integer_type, 57));
@@ -142,12 +137,7 @@ fn wrapping_remainder_retains_landed_divisor_and_carrier_specific_bounds() {
             ScalarTerm::wrapping_integer_remainder(integer_type, root.clone(), divisor).unwrap(),
         ),
     ];
-    let witness = IntegerAffineWitness {
-        root: root.clone(),
-        target: target.clone(),
-        definition_axioms: vec![1],
-        literal_axioms: vec![Some(0)],
-    };
+    let witness = affine_witness(root.clone(), target.clone(), vec![1], vec![Some(0)]);
     let form = check_integer_affine_witness(&context, &axioms, &witness).unwrap();
     for (input_bound, expected) in [(100, 9), (7, 7), (0, 0)] {
         let premise =
@@ -208,12 +198,7 @@ fn wrapping_remainder_retains_landed_divisor_and_carrier_specific_bounds() {
         ScalarTerm::wrapping_integer_remainder(signed, value(1, signed), literal(signed, 10))
             .unwrap(),
     );
-    let signed_witness = IntegerAffineWitness {
-        root: value(1, signed),
-        target: value(3, signed),
-        definition_axioms: vec![0],
-        literal_axioms: vec![None],
-    };
+    let signed_witness = affine_witness(value(1, signed), value(3, signed), vec![0], vec![None]);
     let signed_axioms = [signed_axiom];
     let signed_form =
         check_integer_affine_witness(&signed_context, &signed_axioms, &signed_witness).unwrap();
@@ -284,12 +269,12 @@ fn checks_ordered_add_subtract_multiply_normalization() {
     let checked = check_integer_affine_witness(
         &context,
         &axioms,
-        &IntegerAffineWitness {
-            root: root.clone(),
-            target: target.clone(),
-            definition_axioms: vec![0, 1, 2],
-            literal_axioms: vec![None, None, None],
-        },
+        &affine_witness(
+            root.clone(),
+            target.clone(),
+            vec![0, 1, 2],
+            vec![None, None, None],
+        ),
     )
     .expect("ordered affine witness");
     assert_eq!(checked.root(), &root);
@@ -310,12 +295,7 @@ fn checks_landed_literal_sibling_and_rejects_stale_or_unused_custody() {
         target.clone(),
         ScalarTerm::exact_integer_add(integer_type, root.clone(), sibling.clone()).unwrap(),
     );
-    let witness = IntegerAffineWitness {
-        root: root.clone(),
-        target: target.clone(),
-        definition_axioms: vec![1],
-        literal_axioms: vec![Some(0)],
-    };
+    let witness = affine_witness(root.clone(), target.clone(), vec![1], vec![Some(0)]);
 
     let checked =
         check_integer_affine_witness(&context, &[landing.clone(), definition.clone()], &witness)
@@ -384,12 +364,7 @@ fn exact_add_backward_maps_bounds_and_rejects_ambiguity() {
     let checked = check_integer_affine_witness(
         &context,
         &[landing, definition],
-        &IntegerAffineWitness {
-            root: defined.clone(),
-            target: operand.clone(),
-            definition_axioms: vec![1],
-            literal_axioms: vec![Some(0)],
-        },
+        &affine_witness(defined.clone(), operand.clone(), vec![1], vec![Some(0)]),
     )
     .expect("exact add traverses toward its operand");
     assert_eq!(checked.coefficient(), 1);
@@ -434,12 +409,7 @@ fn exact_add_backward_maps_bounds_and_rejects_ambiguity() {
         check_integer_affine_witness(
             &context,
             &[landed_operand, ambiguous],
-            &IntegerAffineWitness {
-                root: defined,
-                target: operand,
-                definition_axioms: vec![1],
-                literal_axioms: vec![Some(0)],
-            },
+            &affine_witness(defined, operand, vec![1], vec![Some(0)]),
         ),
         Err(IntegerAffineWitnessError::AmbiguousDefinition(1)),
     );
@@ -501,12 +471,7 @@ fn rejects_non_value_roots_stale_unsigned_words_and_checked_overflow() {
                 ScalarTerm::exact_integer_add(i8_type, literal(i8_type, 0), literal(i8_type, 1),)
                     .unwrap(),
             )],
-            &IntegerAffineWitness {
-                root: literal(i8_type, 0),
-                target: i8_target,
-                definition_axioms: vec![0],
-                literal_axioms: vec![None],
-            },
+            &affine_witness(literal(i8_type, 0), i8_target, vec![0], vec![None]),
         ),
         Err(IntegerAffineWitnessError::RootNotValue),
     );
@@ -523,12 +488,7 @@ fn rejects_non_value_roots_stale_unsigned_words_and_checked_overflow() {
         check_integer_affine_witness(
             &u8_context,
             &[],
-            &IntegerAffineWitness {
-                root: u8_root,
-                target: u8_target,
-                definition_axioms: vec![0],
-                literal_axioms: vec![None],
-            },
+            &affine_witness(u8_root, u8_target, vec![0], vec![None]),
         ),
         Err(IntegerAffineWitnessError::UnknownSemanticAxiom(0)),
     );
@@ -576,12 +536,7 @@ fn bitwise_and_mask_witness_rejects_negative_and_unlanded_masks() {
     let sibling = value(2, integer_type);
     let target = value(3, integer_type);
     let context = value_context(ScalarType::Integer(integer_type), 3);
-    let witness = || IntegerAffineWitness {
-        root: root.clone(),
-        target: target.clone(),
-        definition_axioms: vec![0],
-        literal_axioms: vec![None],
-    };
+    let witness = || affine_witness(root.clone(), target.clone(), vec![0], vec![None]);
 
     // A negative signed mask leaves the sign bit reachable: no `[0, mask]`
     // image exists, so the step fails closed in either operand order.

@@ -140,6 +140,23 @@ pub(crate) fn value_context(
     .unwrap()
 }
 
+/// One affine witness record over the root and target terms: the cited
+/// definition and literal-axiom indices in witness order.
+#[cfg(test)]
+pub(crate) fn affine_witness(
+    root: semantic_vocabulary::ScalarTerm,
+    target: semantic_vocabulary::ScalarTerm,
+    definition_axioms: Vec<usize>,
+    literal_axioms: Vec<Option<usize>>,
+) -> IntegerAffineWitness {
+    IntegerAffineWitness {
+        root,
+        target,
+        definition_axioms,
+        literal_axioms,
+    }
+}
+
 macro_rules! debug_display {
     ($type:ty) => {
         impl std::fmt::Display for $type {
