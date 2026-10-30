@@ -1,0 +1,5 @@
+machine apply<Selected>(value: u64) -> u64
+requires machine Selected(input: u64) -> u64;
+requires input <= 64
+{ Selected(value) }
+machine main() -> u64 { 0 }

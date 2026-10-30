@@ -122,7 +122,7 @@ pub(super) fn infer_hoist_temp_type(
                     })
                     .or_else(|| {
                         // MP3/MP4: a call through a static machine parameter
-                        // has the authored `where machine F(..) -> R` return
+                        // has the authored `requires machine F(..) -> R` return
                         // type even before a concrete selection is known.
                         lowerer
                             .source_trees

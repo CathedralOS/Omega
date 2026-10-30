@@ -240,7 +240,7 @@ public boundary trait HookRegistrar: Calling<RegistrarPolicyCallingPolicy> {
         native callback procedure from Handler,
         module: u64
     )
-    where machine Handler satisfies HookProcedure::call;
+    requires machine Handler satisfies HookProcedure::call;
     reaches;
 }
 
@@ -263,7 +263,7 @@ public linux_x86_64 machine install_binding() -> ForeignBinding<9, 19, 7> {
 }
 
 linux_x86_64 machine install_leaf<machine Handler>(kind: u64, module: u64)
-where machine Handler satisfies HookProcedure::call;
+requires machine Handler satisfies HookProcedure::call;
 satisfies HookRegistrar::install
 via install_binding();
 

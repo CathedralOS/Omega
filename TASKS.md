@@ -826,7 +826,10 @@ helper that passes does not close an item.
     repeated predicates conjoin only within their owning scope. Keep a nested
     callable's complete contract and terminating semicolon distinct from its
     enclosing declaration's requirements and guarantees, including higher-order
-    and logical-evidence requirements.
+    and logical-evidence requirements. The single-semicolon boundary between
+    nested and enclosing operational clauses is **OWNER-BLOCKED** on the narrow
+    punctuation question in [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md); explicit
+    distinct terminators and the other requirement forms remain engineering work.
   - Parse body-level assembly `requires`, `ensures` and `clobbers` directly
     after `asm`, including headers without predicates. Preserve label scopes,
     incoming-edge and exit proofs, exact clobbers, instruction-catalog checks

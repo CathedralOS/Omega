@@ -182,6 +182,8 @@ fn project_with_binders(
         ));
     };
     let requirement = trait_requirement_identity(compilation, &application.owner, signature)?;
+    let selection_exposure =
+        crate::capture::contracts::facts::trait_contract_exposure(&application.owner);
     let requirement_lifetime_arguments = application
         .lifetime_arguments
         .iter()
@@ -257,7 +259,7 @@ fn project_with_binders(
         &substitutions,
         &contract_scopes,
         false,
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+        selection_exposure,
     )?;
     let source_parameters = compilation
         .state_signature_parameters(signature)
@@ -284,7 +286,7 @@ fn project_with_binders(
                 &substitutions,
                 &[],
                 false,
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+                selection_exposure,
             )?,
             is_mutable: parameter.is_mutable,
             is_const: parameter.is_const,
@@ -308,7 +310,7 @@ fn project_with_binders(
             &substitutions,
             &[],
             false,
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+            selection_exposure,
         )?)
     } else {
         None

@@ -1,6 +1,6 @@
 // Machine parameters with const-param schemas and reach bounds:
 // `apply<machine Schema, machine Unused>` takes two machines, each
-// bound by `where machine X<const Number: u64>(value: u64) -> u64
+// bound by `requires machine X<const Number: u64>(value: u64) -> u64
 // reaches Console` — a generic callback constraint combining a
 // const-generic signature AND a reach ceiling. Calls spell
 // `Schema<2>(value)`.
@@ -15,8 +15,8 @@
 boundary trait Console { machine ping() reaches; }
 
 machine apply<machine Schema, machine Unused>(value: u64) -> u64
-where machine Schema<const Number: u64>(value: u64) -> u64 reaches Console;
-where machine Unused<const Number: u64>(value: u64) -> u64 reaches Console;
+requires machine Schema<const Number: u64>(value: u64) -> u64 reaches Console;
+requires machine Unused<const Number: u64>(value: u64) -> u64 reaches Console;
 {
     let first: u64 = Schema<2>(value);
     Schema<3>(first)

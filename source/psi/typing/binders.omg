@@ -7,7 +7,7 @@ use psi::typing::generics;
 use psi::typing::typer;
 
 // Static machine binders (wiki/spec/language/generics.md, Static machine
-// binder categories). A `machine F` binder with a `where machine F(...)`
+// binder categories). A `machine F` binder with a `requires machine F(...)`
 // contract is called through that contract: its arguments meet the
 // contract's parameters and the call has the contract's result. A call of
 // a generic machine supplies each machine binder a static argument naming

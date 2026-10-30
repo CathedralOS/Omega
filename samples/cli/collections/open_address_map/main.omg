@@ -34,8 +34,8 @@ machine blank<K [copy], V [copy]>(table: &mut Table<K, V>, key: &K, value: &V) {
 // returns the first tombstone seen while scanning (for insertion reuse)
 // or the empty slot that ends the probe, or 16 when the table is full.
 machine probe<K, V, machine H, machine E>(table: &Table<K, V>, key: &K) -> u64
-where machine H(key: &K) -> u64
-where machine E(left: &K, right: &K) -> bool;
+requires machine H(key: &K) -> u64
+requires machine E(left: &K, right: &K) -> bool;
 {
     let home: u64 = H(key) % 16;
     transition { _ -> scan(table, key, home, 0, 16) }
@@ -108,8 +108,8 @@ where machine E(left: &K, right: &K) -> bool;
 // insert writes `key -> value`; an existing live key updates in place and
 // a tombstone or empty slot fills. A full table leaves the row unchanged.
 machine insert<K [copy], V [copy], machine H, machine E>(table: &mut Table<K, V>, key: &K, value: &V)
-where machine H(key: &K) -> u64
-where machine E(left: &K, right: &K) -> bool;
+requires machine H(key: &K) -> u64
+requires machine E(left: &K, right: &K) -> bool;
 {
     let slot: u64 = probe<H, E>(table, key);
     transition slot < 16 { true -> place(table, key, value, slot) _ -> full() }
@@ -143,8 +143,8 @@ where machine E(left: &K, right: &K) -> bool;
 
 // remove tombstones a live key; absent keys leave the table unchanged.
 machine remove<K, V, machine H, machine E>(table: &mut Table<K, V>, key: &K)
-where machine H(key: &K) -> u64
-where machine E(left: &K, right: &K) -> bool;
+requires machine H(key: &K) -> u64
+requires machine E(left: &K, right: &K) -> bool;
 {
     let slot: u64 = probe<H, E>(table, key);
     transition slot < 16 { true -> kill(table, slot) _ -> {} }
@@ -165,8 +165,8 @@ where machine E(left: &K, right: &K) -> bool;
 
 // lookup reports the live value for `key`, or `miss` when absent.
 machine lookup<K, V [copy], machine H, machine E>(table: &Table<K, V>, key: &K, miss: &V) -> V
-where machine H(key: &K) -> u64
-where machine E(left: &K, right: &K) -> bool;
+requires machine H(key: &K) -> u64
+requires machine E(left: &K, right: &K) -> bool;
 {
     let slot: u64 = probe<H, E>(table, key);
     transition slot < 16 { true -> read(table, miss, slot) _ -> miss }

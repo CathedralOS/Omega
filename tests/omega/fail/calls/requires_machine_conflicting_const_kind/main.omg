@@ -1,0 +1,4 @@
+machine apply<const Selected: u64>(value: u64) -> u64
+requires machine Selected(input: u64) -> u64;
+{ value }
+machine main() -> u64 { 0 }

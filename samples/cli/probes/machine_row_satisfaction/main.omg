@@ -1,6 +1,6 @@
 // A signature-free nominal machine binder requires its authored satisfaction
 // row: `chosen` satisfies `Handler::call` directly on its declaration, and
-// `register<chosen>` selects it under `where machine Selected satisfies`.
+// `register<chosen>` selects it under `requires machine Selected satisfies`.
 trait Handler {
     machine call(value: i32) -> i32;
 }
@@ -10,7 +10,7 @@ satisfies Handler::call
     value
 }
 machine register<machine Selected>(value: i32) -> i32
-where machine Selected satisfies Handler::call;
+requires machine Selected satisfies Handler::call;
 {
     Selected(value)
 }

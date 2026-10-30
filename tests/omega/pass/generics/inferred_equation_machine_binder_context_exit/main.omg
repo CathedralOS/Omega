@@ -5,7 +5,7 @@ where Length == [u8; Capacity]
 { Capacity }
 machine marker() -> u64 { 0 }
 machine forward<Value [copy], machine Callback>(value: Value) -> Value
-where machine Callback() -> u64;
+requires machine Callback() -> u64;
 { value }
 machine main() crashes Trap {
     let items: [u8; 2] = [7, 11];

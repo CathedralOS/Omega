@@ -3,7 +3,7 @@ data Cell { value: i32; spare: i32; }
 data Slot<'storage> { target: &'storage write Cell; }
 machine write_slot<'storage>(value: Slot<'storage>) { value.target.value = 61; }
 machine callback<'storage, machine Write>(value: Slot<'storage>)
-where machine Write(value: Slot<'storage>);
+requires machine Write(value: Slot<'storage>);
 { Write(value); }
 machine prepare<'storage>(cell: &'storage write Cell) {
     callback<write_slot>(Slot { target: cell });

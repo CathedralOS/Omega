@@ -3,7 +3,7 @@
 Compile-scope probe. No standard-library dependency.
 
 - machine_param_schema: `apply<machine Schema, machine Unused>`
-  with `where machine X<const Number: u64>(v) -> u64 reaches
+  with `requires machine X<const Number: u64>(v) -> u64 reaches
   Console` const+reach bounds; `Schema<2>(v)` calls;
   const-generic machines passed by name.
 - ensures_fact_list: multi-clause `ensures` rosters

@@ -19,13 +19,13 @@ CounterIncrementable satisfies Incrementable<Counter> {
 }
 
 machine step<T, machine Increment>(subject: &mut T)
-where machine Increment(target: &mut T);
+requires machine Increment(target: &mut T);
 {
     Increment(subject);
 }
 
 machine forward<T, machine Increment>(subject: &mut T)
-where machine Increment(target: &mut T);
+requires machine Increment(target: &mut T);
 {
     step<T, Increment>(subject);
 }

@@ -28,21 +28,21 @@ ensures result <= 37
 { value }
 trait Traversal {
     machine traverse<machine Step>(value: u64) -> u64
-    where machine Step satisfies StepContract::step;
+    requires machine Step satisfies StepContract::step;
     reaches Console terminates;
     requires value <= 37
     ensures result <= 37;
 }
 TraversalCode satisfies Traversal {
     machine traverse<machine Step>(value: u64) -> u64
-    where machine Step satisfies StepContract::step;
+    requires machine Step satisfies StepContract::step;
     terminates;
     requires value <= 37
     ensures result <= 37
     { Step(value) }
 }
 machine ordinary<machine Step>(value: u64) -> u64
-where machine Step satisfies StepContract::step;
+requires machine Step satisfies StepContract::step;
 terminates;
 requires value <= 37
 ensures result <= 37

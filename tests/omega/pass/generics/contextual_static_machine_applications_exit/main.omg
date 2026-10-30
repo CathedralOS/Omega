@@ -1,7 +1,7 @@
 machine identity<Kind>(value: Kind) -> Kind { value }
 
 machine apply<Context, machine Selected>(value: Context) -> Context
-where machine Selected(value: Context) -> Context;
+requires machine Selected(value: Context) -> Context;
 { Selected(value) }
 
 machine main() crashes Trap {

@@ -6,7 +6,7 @@ min-heap parameterized by an ordering machine.
 
 `Heap<T>` stores sixteen cells. `push_heap<T, Less>` and
 `pop_heap<T, Less>` take the ordering as a `machine Less(left: &T,
-right: &T) -> bool` binder — the corpus `where machine` signature clause —
+right: &T) -> bool` binder — the corpus `requires machine` signature clause —
 and sift entirely through state loops, so no rank proof is needed.
 Entries pack `dist * 256 + node` into a `u64`, so `ent_less` is ordinary
 comparison ordered distance-major with node as tiebreak. `pop_heap`

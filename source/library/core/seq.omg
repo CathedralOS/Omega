@@ -38,7 +38,7 @@ public machine Bag(items: &[u64]) -> BagView
 // recursive `map<F>` / `filter<Predicate>` edges become direct calls. There is
 // no runtime callable, dictionary, or hidden capture object.
 machine map<T, U, machine F>(items: Seq<T>) -> Seq<U>
-where machine F(value: T) -> U;
+requires machine F(value: T) -> U;
 terminates by items;
 {
     transition items {
@@ -51,7 +51,7 @@ terminates by items;
 }
 
 machine filter<T, machine Predicate>(items: Seq<T>) -> Seq<T>
-where machine Predicate(value: &T) -> bool;
+requires machine Predicate(value: &T) -> bool;
 terminates by items;
 {
     transition items {

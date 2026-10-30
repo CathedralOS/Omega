@@ -1,6 +1,6 @@
 # reach_through_machine_param
 
-`pub machine traverse<machine Step>(value: u64) -> u64 where machine Step
+`pub machine traverse<machine Step>(value: u64) -> u64 requires machine Step
 satisfies StepContract::step` — a machine parameter bound by a
 trait-member satisfaction; `Step(value)` inherits the member's declared
 `reaches Console` ceiling. Call-site spelling is `traverse<quiet>(v)` —

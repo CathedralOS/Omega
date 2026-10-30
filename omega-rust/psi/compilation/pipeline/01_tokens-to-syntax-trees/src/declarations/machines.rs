@@ -68,7 +68,12 @@ pub(crate) fn parse_machine<'tokens, 'source>(
              `satisfies Trait::machine via Binding::Case(...)`",
         ));
     }
-    let (clauses, next) = parse_machine_clauses(syntax_trees, next)?;
+    let (clauses, next) = parse_machine_clauses(syntax_trees, next, type_parameters)?;
+    crate::parameters::contracts::validate_machine_parameter_contracts(
+        syntax_trees,
+        type_parameters,
+        next,
+    )?;
     let conformance_bounds = generic_parameters.conformance_bounds;
     input = next;
     // `-> T` is written either before the clauses or after them

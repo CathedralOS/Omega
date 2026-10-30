@@ -961,7 +961,7 @@ crashes Trap
 }
 
 // Record a call to a machine for crash-route settlement. A machine binder's
-// call derives the causes its `where machine` contract declares.
+// call derives the causes its `requires machine` contract declares.
 public machine Checker::record_call(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, selection: Selection)
 crashes Trap
 {

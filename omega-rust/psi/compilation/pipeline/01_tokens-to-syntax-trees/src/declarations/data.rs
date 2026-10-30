@@ -44,6 +44,11 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         type_parameters,
         input,
     )?;
+    crate::parameters::contracts::validate_machine_parameter_contracts(
+        syntax_trees,
+        type_parameters,
+        next,
+    )?;
     input = next;
     let (cleanup_selection, next) = super::domain::parse_cleanup_selection(syntax_trees, input)?;
     input = next;
@@ -197,6 +202,11 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
     let lifetime_parameters = generic_parameters.lifetime_parameters;
     let (properties, input) = parse_property_brackets(input)?;
     let ((), input) = crate::parameters::contracts::parse_machine_parameter_contracts(
+        syntax_trees,
+        type_parameters,
+        input,
+    )?;
+    crate::parameters::contracts::validate_machine_parameter_contracts(
         syntax_trees,
         type_parameters,
         input,

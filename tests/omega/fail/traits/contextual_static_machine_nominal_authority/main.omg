@@ -7,7 +7,7 @@ satisfies Alternate<Kind>::test
 { true }
 
 machine apply<machine Selected>(value: &Heavy) -> bool
-where machine Selected satisfies Expected<Heavy>::test;
+requires machine Selected satisfies Expected<Heavy>::test;
 { Selected(value) }
 
 machine main() {

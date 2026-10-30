@@ -3,7 +3,7 @@ data Other { code: u64; }
 
 trait Visitor<Value> {
     machine visit<Context, machine Callback>(value: &Value, context: Context) -> bool
-    where machine Callback(value: &Value, context: Context) -> bool;
+    requires machine Callback(value: &Value, context: Context) -> bool;
     ;
 }
 
@@ -11,21 +11,21 @@ machine item_matches<Kind>(value: &Item, context: Kind) -> bool { value.code == 
 machine other_matches<Kind>(value: &Other, context: Kind) -> bool { value.code == 73u64 }
 
 machine item_visit<Kind, machine Callback>(value: &Item, context: Kind) -> bool
-where machine Callback(value: &Item, context: Kind) -> bool;
+requires machine Callback(value: &Item, context: Kind) -> bool;
 satisfies Visitor<Item>::visit
 { Callback(value, context) }
 
 machine other_visit<Kind, machine Callback>(value: &Other, context: Kind) -> bool
-where machine Callback(value: &Other, context: Kind) -> bool;
+requires machine Callback(value: &Other, context: Kind) -> bool;
 satisfies Visitor<Other>::visit
 { Callback(value, context) }
 
 machine apply_item<machine Routine>(value: &Item) -> bool
-where machine Routine satisfies Visitor<Item>::visit;
+requires machine Routine satisfies Visitor<Item>::visit;
 { Routine<u64, item_matches>(value, 3u64) }
 
 machine apply_other<machine Routine>(value: &Other) -> bool
-where machine Routine satisfies Visitor<Other>::visit;
+requires machine Routine satisfies Visitor<Other>::visit;
 { Routine<bool, other_matches>(value, true) }
 
 machine main() crashes Trap {
