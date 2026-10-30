@@ -1,0 +1,18 @@
+# Snapshot intersection fusion, 2026-10-29
+
+Hypothesis: retain_common_snapshot scans to detect a missing retained premise and then restarts both retained and incoming cursors in retain_common_premises. Continue from the first loss, compact survivors in place with read/write indices, and preserve unchanged snapshot sharing. Scope is this helper and its two State::meet callers; shared-predicate hoisting and previous parked candidates are absent.
+
+Baseline scans_joins counts: 2,512,992 detection visits and 7,185,680 retain_common_premises visits across all callers; snapshot input sum 8,267,548, 5,076,178 COW handle copies and 14,456 shared detachments. The exact subset of second-pass work attributable to snapshots is measured in the candidate comparison; do not assume every common-premise call belongs to this helper.
+
+Source contract: sorted, unique premise rosters; full proposition ordering/equality; exact intersection and changed status; no union of path facts; unchanged allocations preserved. When a first loss exists, write starts at that hole, reads continue strictly after it, and the incoming cursor is not reset. Swaps keep survivor order, preserve the individual Arc handles, and move discarded handles into the truncated suffix. Proposition storage is immutable compiler data, not executable user cleanup. No unsafe compaction, new cache, index, or eager ownership is introduced.
+
+Research query: site.doc.rust-lang.org Vec retain visits exactly once order Arc make_mut clone weak pointers. Read official Rust Vec::retain and Arc::make_mut docs (2026-10-29):
+https://doc.rust-lang.org/std/vec/struct.Vec.html#method.retain
+https://doc.rust-lang.org/std/sync/struct.Arc.html#method.make_mut
+Vec retention preserves order and visits rows once; Arc::make_mut clones with additional strong owners, or disassociates weak-only owners. Applicability is storage/order correctness, not a performance prediction. Rejected approach: eagerly make_mut every snapshot would copy unchanged shared rosters; preserve lazy ownership instead. Read local Rust skill storage/execution reference and Terminal fact_validity premise availability rules. No additional algorithm/provider research is needed once the one-pass candidate is concrete.
+
+Checks: standalone exhaustive ordered-set cases compile the exact extracted candidate and original function bodies against an ordered root/version proposition model, covering unique, shared, weak-only and incoming-alias storage. Then existing focused payload tests, real-Dungeon byte-identical native oracle and explicit native/Terminal agreement; a separate untimed count build checks actual propositions against the old helper on every snapshot intersection. Timing producer has only the original outer probe.
+
+Acceptance and stopping rule: six pre-scheduled alternating original/fused pairs, fresh private caches, same 203 authored inputs and EOF oracle, normal producer-specific accepted locks, verified optimized profiles. Preserve all valid observations and report paired changes, CPU, elapsed time, replay and peak memory. Promote only with preserved semantics and a credible whole-workload benefit; otherwise park with patches and records. Never extend unchanged repetitions merely to obtain a favorable result. Claim registry unavailable on the initial status/claim attempt; continue only in the retained isolated proof-profile worktree with this scope recorded locally.
+
+Coordination read-back subsequently confirmed ticket `3dd5270eaccc40fdb824da341856a41c` registered despite the transport timeout; the initial result was an uncertain push outcome rather than an absent claim. No duplicate claim was issued.

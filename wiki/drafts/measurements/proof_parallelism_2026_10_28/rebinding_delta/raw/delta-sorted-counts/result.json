@@ -1,0 +1,140 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\rebinding-delta-sorted\\omega.exe",
+    "--timings",
+    "--target",
+    "windows_x86_64",
+    "--build-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\delta-sorted-counts\\native",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 20.050082400000065,
+  "exit_code": 0,
+  "cpu_seconds": 27.0,
+  "peak_working_set_bytes": 2080813056,
+  "peak_commit_bytes": 3460517888,
+  "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+  "runtime_wall_seconds": 0.023293700000067474,
+  "producer": "rebinding-delta-sorted",
+  "compiler_sha256": "dfa148f8693f8c4aea9d123156b91fb358d3515e06583e601253e311a5547f4e",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "6d1ff91d38d7c318d00ecf03440c0a8216e78db50a36d5e355b84443379c130e",
+  "cache_mode": "fresh private cache",
+  "reconciliation_mode": "counts",
+  "reconciliation": [
+    {
+      "operation": "places",
+      "machines": 7,
+      "wall_ns": 27300,
+      "metrics": {
+        "declarations_added": 0,
+        "leaf_copy_results": 26,
+        "operations_scanned": 55
+      }
+    },
+    {
+      "operation": "residences",
+      "machines": 7,
+      "wall_ns": 14300,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 7,
+      "wall_ns": 4700,
+      "metrics": {}
+    },
+    {
+      "operation": "places",
+      "machines": 2,
+      "wall_ns": 3100,
+      "metrics": {
+        "declarations_added": 0,
+        "leaf_copy_results": 2,
+        "operations_scanned": 5
+      }
+    },
+    {
+      "operation": "residences",
+      "machines": 2,
+      "wall_ns": 5100,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 2,
+      "wall_ns": 1500,
+      "metrics": {}
+    },
+    {
+      "operation": "places",
+      "machines": 202,
+      "wall_ns": 225400,
+      "metrics": {
+        "declarations_added": 0,
+        "leaf_copy_results": 281,
+        "operations_scanned": 2702
+      }
+    },
+    {
+      "operation": "residences",
+      "machines": 202,
+      "wall_ns": 39100,
+      "metrics": {}
+    },
+    {
+      "operation": "memberships",
+      "machines": 202,
+      "wall_ns": 2799068900,
+      "metrics": {
+        "analysis_constructions": 1,
+        "analysis_drop_ns": 2124400,
+        "candidate_machines": 109,
+        "changing_rounds": 18,
+        "discovery_ns": 64500,
+        "eligible_operations": 418,
+        "fixed_point_rounds": 127,
+        "graph_drop_ns": 2045400,
+        "graph_preparation_ns": 146596100,
+        "history_creation_ns": 26100,
+        "history_drop_ns": 12577300,
+        "leaf_query_formation_ns": 52500,
+        "leaf_root_lookup_ns": 238200,
+        "merge_ns": 1036700,
+        "operand_queries_ns": 30513700,
+        "operations_scanned": 3313,
+        "payload_contract_queries_ns": 4862100,
+        "payload_target_queries": 173,
+        "payload_target_queries_ns": 3676400,
+        "proposed_updates": 439,
+        "reachability_drop_ns": 200,
+        "reference_context_constructions": 127,
+        "reference_context_drop_ns": 3504200,
+        "reference_queries": 418,
+        "reference_queries_ns": 986621900,
+        "source_contract_queries_ns": 1586651200,
+        "types_drop_ns": 10300,
+        "view_queries_ns": 4580800
+      }
+    }
+  ],
+  "delta_counts": true,
+  "delta_metrics": {
+    "hot": {
+      "requests": 7683,
+      "computed_rows": 3146452,
+      "allocated_rows": 61299,
+      "empty_results": 6921
+    },
+    "global_counts": {
+      "requests": 7742,
+      "computed_rows": 3147825,
+      "allocated_rows": 61788,
+      "empty_results": 6941
+    },
+    "windows": 418
+  }
+}
