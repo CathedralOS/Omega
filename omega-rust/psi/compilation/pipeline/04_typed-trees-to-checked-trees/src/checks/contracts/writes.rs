@@ -21,6 +21,7 @@
 //! The record describes source membership only, not permission to copy or
 //! transfer its carrier, and supplies no independent Terminal certificate.
 
+use crate::flow::active_context_handles;
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -583,14 +584,8 @@ impl ConstructionWalk<'_, '_> {
                             && call.authored_expression == expression
                     });
                 if let Some(call) = calls.next() {
-                    *contexts = facts
-                        .flow
-                        .contexts
-                        .semantic_context_refs
-                        .span_or_empty(call.exit_semantic_contexts)
-                        .iter()
-                        .map(|reference| reference.context)
-                        .collect();
+                    *contexts =
+                        active_context_handles(&facts.flow.contexts, call.exit_semantic_contexts);
                     // One source occurrence can retain several evaluation rows.
                     // Only contexts surviving every row may feed later children.
                     for call in calls {

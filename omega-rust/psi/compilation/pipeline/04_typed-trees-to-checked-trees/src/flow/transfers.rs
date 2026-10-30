@@ -71,7 +71,7 @@ pub(super) fn propagate_statement_transfers(
     let source_place = write.source_place;
 
     let mut refs = HandleSpan::empty();
-    let context_handles = crate::flow::active_context_handles(build, *active_contexts);
+    let context_handles = crate::flow::active_context_handles(&build.contexts, *active_contexts);
     let target_place = write.target_place;
     let point = ProgramPoint::Statement {
         machine_symbol,

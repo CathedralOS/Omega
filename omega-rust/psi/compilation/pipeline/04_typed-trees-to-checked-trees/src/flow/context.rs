@@ -1019,12 +1019,11 @@ impl<'plans> FlowBuildContext<'plans> {
 }
 
 /// The semantic context handles active at one program point, in span order.
-pub(super) fn active_context_handles(
-    contexts: &FlowBuildContext<'_>,
+pub(crate) fn active_context_handles(
+    contexts: &checked_trees::FlowContextFacts,
     active: arena::HandleSpan<checked_trees::FlowSemanticContextRef>,
 ) -> Vec<facts::FactContextHandle> {
     contexts
-        .contexts
         .semantic_context_refs
         .span_or_empty(active)
         .iter()
@@ -1064,7 +1063,7 @@ pub(super) fn source_transfer_cases_selected(
     root: facts::PlaceRoot,
     segments: Vec<facts::PlaceSegment>,
 ) -> bool {
-    let context_handles = active_context_handles(contexts, active);
+    let context_handles = active_context_handles(&contexts.contexts, active);
     let facts::ProgramPoint::Statement {
         machine_symbol,
         state_symbol,

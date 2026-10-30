@@ -284,7 +284,7 @@ pub(super) fn capture_bounds(
         selected_statement(program, context, state, statement_index, statement)
         && builtin
     {
-        let contexts = crate::flow::active_context_handles(context, active);
+        let contexts = crate::flow::active_context_handles(&context.contexts, active);
         let (machine_index, state_index) = located?;
         return validation::selected_scalar_interval(
             expression,

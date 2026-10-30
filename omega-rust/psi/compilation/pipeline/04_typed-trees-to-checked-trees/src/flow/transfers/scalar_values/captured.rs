@@ -214,7 +214,7 @@ impl CapturedValue for IntegerRange {
         symbols: &[SymbolHandle],
         live: &LiveValues<'_, '_>,
     ) -> Option<Self> {
-        let contexts = crate::flow::active_context_handles(live.context, live.active);
+        let contexts = crate::flow::active_context_handles(&live.context.contexts, live.active);
         validation::selected_scalar_interval(
             expression,
             &mut crate::values::LivePlaceIntervals {
@@ -285,7 +285,7 @@ impl CapturedValue for IntegerRange {
                 statement_index,
                 expression,
             )?)?;
-        let contexts = crate::flow::active_context_handles(live.context, live.active);
+        let contexts = crate::flow::active_context_handles(&live.context.contexts, live.active);
         crate::values::LivePlaceIntervals {
             program,
             semantic: live.semantic,

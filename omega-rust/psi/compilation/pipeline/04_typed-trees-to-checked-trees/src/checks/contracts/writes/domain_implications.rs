@@ -4,6 +4,7 @@
 //! instance identity, and payload reads require the currently selected case.
 //! Recast sources and contextual predicate proofs retain their distinct duties.
 
+use crate::flow::active_context_handles;
 use checked_trees::{CheckFacts, FlowStateFact};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -89,14 +90,7 @@ fn value_semantic_contexts(
                     statement.entry_semantic_contexts
                 })
         });
-    facts
-        .flow
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(contexts)
-        .iter()
-        .map(|reference| reference.context)
-        .collect::<Vec<_>>()
+    active_context_handles(&facts.flow.contexts, contexts)
 }
 
 /// Construction children are already evaluated observations, not syntax replay.

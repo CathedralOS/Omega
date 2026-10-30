@@ -235,7 +235,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                             })
                             .collect()
                     } else {
-                        crate::flow::active_context_handles(build, *active_contexts)
+                        crate::flow::active_context_handles(&build.contexts, *active_contexts)
                     }
                 } else {
                     Vec::new()

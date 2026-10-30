@@ -54,7 +54,7 @@ impl Execution<'_, '_, '_> {
         let Some(source) = self.completed_value_place(cast.value) else {
             return Vec::new();
         };
-        let handles = crate::flow::active_context_handles(self.context, contexts);
+        let handles = crate::flow::active_context_handles(&self.context.contexts, contexts);
         if !crate::flow::place_cases_are_selected(
             self.program,
             self.semantic,
