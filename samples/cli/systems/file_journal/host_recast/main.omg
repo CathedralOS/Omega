@@ -30,6 +30,11 @@ machine main() reaches NativeFill crashes Trap {
     // original native home. Later out-of-window native writes become visible.
     let observed: i32 = native_check(&bytes, &bytes, 256);
     let first: u64 = fill(&mut bytes[8..152]);
+    let snapshot: [u8; 256] = bytes;
+    bytes[8] = 29;
+    transition bytes[8] == 29 && snapshot[8] == 17 {
+        true -> {} false -> wrong()
+    }
     let second: u64 = fill(&mut bytes[8..152]);
     transition observed == 0 && first != 0 && first == second && bytes[8] == 17 && bytes[56] == 17 && bytes[151] == 17
         && bytes[7] == 23 && bytes[152] == 37 {

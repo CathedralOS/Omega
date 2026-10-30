@@ -26,7 +26,9 @@ window starting eight bytes into a larger array through a checked foreign
 call twice. A preceding shared whole-array comparison establishes the canaries
 in that same native residence without lending them mutably. Its oracle checks that both returned addresses are nonzero and
 identical, and checks the first, interior and last bytes and both adjacent
-canaries. The [reject twin](host_recast/invalid/main.omg) shortens only that
+canaries. Between calls, an ordinary guest array copy retains byte 17 while
+an in-place write changes the original byte to 29; the next native call must
+write through that same original home. The [reject twin](host_recast/invalid/main.omg) shortens only that
 window to 143 bytes and must fail the same minimum-length contract. This
 macOS host witness uses the existing native binding surface while the
 Build-owned binding migration remains open. It establishes original-cell
