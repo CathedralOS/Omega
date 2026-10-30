@@ -97,10 +97,11 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// trivia), but trivia between tokens is retained, so every peek past the
     /// head continues from here instead of re-skipping by hand.
     fn peek(&self, index: usize) -> Option<&'tokens Token> {
-        if index == 0 {
-            return self.tokens.first();
+        let mut remaining = self.tokens;
+        for _ in 0..index {
+            remaining = skip_non_semantic_tokens(remaining.get(1..)?);
         }
-        skip_non_semantic_tokens(self.tokens.get(1..)?).get(index - 1)
+        remaining.first()
     }
 
     pub(crate) fn depth(&self) -> u16 {
@@ -474,6 +475,17 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
                 matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
                     && self.text(token).as_str() == name
             })
+    }
+
+    /// A retired declaration head, recognized only for a directed migration
+    /// diagnostic and preceding-contract termination. This creates no machine
+    /// or target identity; ordinary names and target values remain expressions.
+    pub(crate) fn at_retired_target_machine(&self) -> bool {
+        self.at_identifier_then_contextual("machine")
+            || (self.at_identifier_then_contextual("boundary")
+                && self
+                    .peek(2)
+                    .is_some_and(|token| token.keyword() == Some(KeywordKind::Machine)))
     }
 
     /// A contextual prefix such as `move value` applies only to a following

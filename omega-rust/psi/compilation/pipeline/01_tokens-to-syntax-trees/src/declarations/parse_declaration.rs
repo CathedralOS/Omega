@@ -41,7 +41,7 @@ pub(crate) fn starts_following_item(syntax_trees: &mut SyntaxTrees, input: Input
         || input.at_keyword(KeywordKind::Use)
         || input.at_keyword(KeywordKind::Let)
         || input.at_keyword(KeywordKind::Capability)
-        || starts_retired_target_machine(input)
+        || input.at_retired_target_machine()
         || named_implementation_prefix(input).is_some()
     {
         return true;
@@ -141,19 +141,6 @@ pub(crate) fn named_implementation_prefix<'tokens, 'source>(
     None
 }
 
-/// Recognize a retired declaration head only to terminate a preceding contract
-/// and report the migration at its original source token. No machine or target
-/// identity is constructed from this spelling.
-fn starts_retired_target_machine(input: Input<'_, '_>) -> bool {
-    if input.at_identifier_then_contextual("machine") {
-        return true;
-    }
-    input.at_identifier_then_contextual("boundary")
-        && input
-            .peek(2)
-            .is_some_and(|token| token.keyword() == Some(KeywordKind::Machine))
-}
-
 /// The same machine introducers are legal at module and lexical scope. This
 /// lookahead only finds the statement/declaration boundary; `parse_item` owns
 /// the full head and its diagnostics.
@@ -163,7 +150,7 @@ pub(crate) fn starts_machine_declaration(input: Input<'_, '_>) -> bool {
             input.restarted(input.tokens.get(1..).unwrap_or_default()),
         );
     }
-    input.at_keyword(KeywordKind::Machine) || starts_retired_target_machine(input)
+    input.at_keyword(KeywordKind::Machine) || input.at_retired_target_machine()
 }
 
 pub(crate) fn parse_item<'tokens, 'source>(
@@ -439,7 +426,7 @@ fn parse_declared_item<'tokens, 'source>(
         return Ok((Item::Trait(item), rest));
     }
 
-    if starts_retired_target_machine(input) {
+    if input.at_retired_target_machine() {
         return Err(input.error_here(
             "target-prefixed machine declarations are retired; declare ordinary named implementations and select them with target-keyed Build::select_provider rows",
         ));
