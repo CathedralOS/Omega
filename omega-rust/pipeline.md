@@ -958,9 +958,17 @@ open declaration scope for a captured receiving application. The temporary view
 borrows the existing selected plan/provenance rather than creating a second
 candidate cache. Early/reference instance projection shares Psi's closed-leaf
 roster but remains separate from ordinary Product preparation.
-The surrounding selected-execution coordinator still consumes source callback
-roots and service declarations; its complete source-to-Terminal facade migration
-remains unfinished. Early/reference source adapters remain distinct from Product policy.
+Callback-root selection likewise belongs to source-free `provider-selection`:
+Psi supplies each original nominal use's registration classification and checked
+entry facts. The source adapter prepares exact selected-row body evidence and
+calling-plan associations, retaining the whole selected-instance validation
+before per-use policy. Registration failures suppress only that occurrence's
+plan diagnostics; inactive declarations still owe their calling-plan obligations.
+Occurrence order and duplicate roots survive without exported indices.
+The surrounding selected-execution coordinator still consumes this source
+preparation and service declarations; shared checked-instance/adapter projection
+and the complete source-to-Terminal facade migration remain unfinished.
+Early/reference source adapters remain distinct from Product policy.
 The optional reference checked interpreter prepares adapter dispatch and selected
 float executions at its own entrance. `SelectedExecution` retains no reference
 dispatch table, and ordinary Product installation does not scan source to prepare

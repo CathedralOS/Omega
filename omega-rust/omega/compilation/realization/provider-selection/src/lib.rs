@@ -8,6 +8,8 @@
 
 mod boundary_applications;
 mod boundary_review;
+mod callback_roots;
+pub use callback_roots::{CallbackRootCandidate, SelectedCallbackRow, select_callback_roots};
 mod selected_binding;
 pub use boundary_review::BoundaryProviderAdmission;
 pub use selected_binding::{

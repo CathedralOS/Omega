@@ -1337,11 +1337,49 @@ fn executable_callback_placement_is_owned_by_terminal_settlement() {
         "../../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/codec.rs"
     );
     assert!(selection.contains("callback_roots"));
-    assert!(source.contains("select_nominal_callback_roots"));
+    let roots = include_str!("../../realization/provider-planning/src/callback_roots.rs");
+    assert!(roots.contains("provider_selection::select_callback_roots(candidates)"));
     for source in [selection, source, persisted] {
         assert!(!source.contains("NativeCallbackPlacement"));
         assert!(!source.contains("SelectedCallbackPlacement"));
     }
     assert!(!request.contains("pub callback_placements:"));
     assert!(request.contains("callback_settlement::place_callbacks"));
+}
+
+#[test]
+fn callback_root_policy_consumes_prepared_source_correspondence() {
+    let preparation = include_str!("../../realization/provider-planning/src/callback_roots.rs");
+    assert!(preparation.contains("project_checked_provider_instances("));
+    assert!(preparation.contains("program.callback_declaration(usage)"));
+    assert!(preparation.contains("selected_instances.selected_requirement_row(identity)"));
+    assert!(preparation.contains("crate::exact_checked_adapter(context, plan, row)"));
+    assert!(preparation.contains("realization.boundary_arguments.is_empty()"));
+    let policy = include_str!("../../realization/provider-selection/src/callback_roots.rs");
+    for forbidden in [
+        "TypedTrees",
+        "CheckFacts",
+        "SymbolHandle",
+        "provider_planning",
+        "checked_trees",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "callback root policy reopens {forbidden}"
+        );
+    }
+    let source = include_str!(
+        "../../../../psi/compilation/representations/checked-trees/src/callback_declarations.rs"
+    );
+    for forbidden in [
+        "ProviderPlan",
+        "selected_requirement_row",
+        "calling_plan_matches",
+        "realized_row_machine",
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "callback source facts decide {forbidden}"
+        );
+    }
 }
