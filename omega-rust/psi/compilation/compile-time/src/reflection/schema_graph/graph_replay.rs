@@ -509,7 +509,7 @@ fn resolve_requester(
 /// diagnostic coordinate, never identity (matching the repository's
 /// fingerprint rule).
 pub(crate) fn graph_revision(authority: &SchemaQueryAuthority, nodes: &[SchemaNode]) -> u64 {
-    use crate::fnv::{byte, bytes, optional_text, query_authority, text, uint};
+    use crate::fnv::{byte, bytes, optional_text, optional_uint, query_authority, text, uint};
     fn handle(hash: &mut u64, value: SchemaNodeHandle) {
         uint(hash, value.0 as u64);
     }
@@ -570,13 +570,7 @@ pub(crate) fn graph_revision(authority: &SchemaQueryAuthority, nodes: &[SchemaNo
                 text(&mut hash, &field.member_identity);
                 text(&mut hash, &field.name);
                 uint(&mut hash, u64::from(field.declaration_position));
-                match field.stable_number {
-                    Some(number) => {
-                        byte(&mut hash, 1);
-                        uint(&mut hash, number);
-                    }
-                    None => byte(&mut hash, 0),
-                }
+                optional_uint(&mut hash, field.stable_number);
                 byte(&mut hash, field.erased as u8);
                 text(&mut hash, &field.qualified_type);
                 handles(&mut hash, &field.nominal_references);
@@ -587,13 +581,7 @@ pub(crate) fn graph_revision(authority: &SchemaQueryAuthority, nodes: &[SchemaNo
                 text(&mut hash, &case.member_identity);
                 text(&mut hash, &case.name);
                 uint(&mut hash, u64::from(case.declaration_position));
-                match case.stable_number {
-                    Some(number) => {
-                        byte(&mut hash, 1);
-                        uint(&mut hash, number);
-                    }
-                    None => byte(&mut hash, 0),
-                }
+                optional_uint(&mut hash, case.stable_number);
                 handles(&mut hash, &case.payload_fields);
                 identities(&mut hash, &case.retired_payload_identities);
             }
