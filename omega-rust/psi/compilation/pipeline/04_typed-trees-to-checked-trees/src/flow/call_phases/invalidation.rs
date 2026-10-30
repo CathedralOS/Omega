@@ -112,6 +112,22 @@ pub(in crate::flow) fn call_storage_writes(
             })
         },
     );
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        eprintln!(
+            "CHECKSITE invocation-storage-writes machine={} state={} statement={} target={:?} known={} contributions={:?}",
+            machine.name,
+            state.name,
+            borrow_call.statement_index,
+            borrow_call.target_symbol,
+            writes.is_some(),
+            writes.as_ref().map(|writes| writes
+                .contributions
+                .iter()
+                .take(4)
+                .map(|row| (&row.write.region, &row.observations))
+                .collect::<Vec<_>>()),
+        );
+    }
     build
         .call_sites
         .entry(occurrence)

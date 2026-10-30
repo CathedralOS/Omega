@@ -252,6 +252,14 @@ fn build_state_mutation_summaries(
                                     },
                                 )
                             });
+                        if !complete && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                            eprintln!(
+                                "CHECKSITE state-mutation-summary-refusal state={:?} direct_complete={direct_complete} signature={} frame={:?}",
+                                state.symbol,
+                                state_has_concrete_body_signature(program, state),
+                                call_frames.and_then(|resolver| validation::find_state(program, state.symbol).map(|(machine, _)| resolver.inferred_state_write_frame(machine, state))),
+                            );
+                        }
                         Some((
                             StateMutationSummary {
                                 state_symbol: state.symbol,
