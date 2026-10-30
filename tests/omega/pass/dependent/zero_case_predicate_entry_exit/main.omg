@@ -4,9 +4,11 @@
 use omega_language_std::console;
 
 const level: i32 = 999;
-data Command<const Maximum: i32> {
-    case SetLevel(level: i32) where level >= 0 && level <= Maximum;
-    case Dim(amount: i32) where amount >= 0 && amount <= 10;
+data Command<const Maximum: i32> 
+    requires ((self in Command::SetLevel) && (self.level >= 0 && self.level <= Maximum)) || ((self in Command::Dim) && (self.amount >= 0 && self.amount <= 10)) || (self in Command::Off)
+{
+    case SetLevel(level: i32);
+    case Dim(amount: i32);
     case Off;
 }
 data Main where brightness >= 0 && brightness <= 100 {

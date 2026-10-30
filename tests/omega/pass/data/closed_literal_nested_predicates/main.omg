@@ -2,10 +2,12 @@
 // selected field, omitted zero and case clause. The array is deliberately not
 // needed by any predicate: unsupported denotations must not hide other fields.
 data Cell [copy] where value <= 7 { value: u64; }
-data Packet [copy] where count <= 2 {
+data Packet [copy] where count <= 2 
+    requires ((self in Packet::Ready) && (self.marker == 9))
+{
     count: u64;
     cells: [Cell; 2];
-    case Ready(marker: u64) where marker == 9;
+    case Ready(marker: u64);
 }
 
 machine main() {

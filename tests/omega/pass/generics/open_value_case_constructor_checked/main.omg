@@ -1,3 +1,5 @@
-data Tagged<T,Limit:u64>{case At(value:T) where Limit<10;}
+data Tagged<T,Limit:u64>
+    requires ((self in Tagged::At) && (Limit<10))
+{case At(value:T);}
 machine make<T>(value:T){let item:Tagged<T,9> = Tagged::At{value:value};}
 machine main(){}

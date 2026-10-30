@@ -4,24 +4,26 @@
 const MAX_RES: u64 = 80u64;
 const MIN_RES: u64 = 40u64;
 
-data Packet [copy] {
-    case V1(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V2(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V3(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V4(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V5(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V6(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V7(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V8(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V9(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V10(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V11(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V12(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V13(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V14(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V15(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V16(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V17(v: u64) where v >= MIN_RES && v <= MAX_RES;
+data Packet [copy] 
+    requires ((self in Packet::V1) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V2) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V3) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V4) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V5) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V6) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V7) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V8) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V9) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V10) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V11) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V12) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V13) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V14) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V15) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V16) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in Packet::V17) && (self.v >= MIN_RES && self.v <= MAX_RES))
+{
+    case V1(v: u64);
+    case V2(v: u64);
+    case V3(v: u64);
+    case V4(v: u64);
+    case V5(v: u64);
+    case V6(v: u64);
+    case V7(v: u64);
+    case V8(v: u64);
+    case V9(v: u64);
+    case V10(v: u64);
+    case V11(v: u64);
+    case V12(v: u64);
+    case V13(v: u64);
+    case V14(v: u64);
+    case V15(v: u64);
+    case V16(v: u64);
+    case V17(v: u64);
 }
 
 machine verify_payload(value: u64) -> u64

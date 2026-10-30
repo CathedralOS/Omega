@@ -1,8 +1,10 @@
 // Constructing and matching a multi-variant case value preserves its exact variant payload bound (payload <= 64u64) alongside its target layout geometry (size_of / align_of), discharging exact subtraction 64u64 - payload across all nine places.
 
-data Packet [copy] {
+data Packet [copy] 
+    requires (self in Packet::Empty) || ((self in Packet::Bounded) && (self.payload <= 80u64))
+{
     case Empty;
-    case Bounded(payload: u64) where payload <= 80u64;
+    case Bounded(payload: u64);
 }
 
 machine fetch(flag: bool) -> Packet {

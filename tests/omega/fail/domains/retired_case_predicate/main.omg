@@ -1,0 +1,4 @@
+data Interval {
+    case Range(lo: u64, hi: u64) where lo <= hi;
+}
+machine check() {}

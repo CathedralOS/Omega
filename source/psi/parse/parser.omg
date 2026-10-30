@@ -160,6 +160,8 @@ where
     expression_result: u64 in Trapping;
     expression_allow_construct: bool;
     expression_allow_membership: bool;
+    // `self` is a name only inside a domain or data default-domain predicate.
+    expression_allow_subject: bool;
     path_first_member: u64 in Trapping;
     path_start: u64 in Trapping;
     committed_first: u64 in Trapping;

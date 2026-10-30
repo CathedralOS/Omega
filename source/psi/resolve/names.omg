@@ -700,9 +700,8 @@ crashes Trap
     }
 
     machine subject_named(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
-        let item: DomainItem = SyntaxTrees::domain_item(syntax, scope.subject_domain);
-        let spelled: bool = SourceSet::spans_equal(sources, item.subject.source_span, name);
-        transition item.has_subject && spelled {
+        let spelled: bool = SourceSet::span_spells(sources, name, "self");
+        transition spelled {
             true -> found(ValueBinding::DomainSubject { domain: scope.subject_domain })
             _ -> returned(resolution, sources, syntax, scope, name)
         }

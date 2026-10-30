@@ -226,8 +226,17 @@ crashes Trap
     // name here (`data(...)` targets a state named `data`).
     machine keyword_operand(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode, keyword: KeywordKind) {
         transition keyword {
-            KeywordKind::SelfValue -> reject(parser, input, code)
+            KeywordKind::SelfValue -> logical_subject(parser, input, code)
             _ -> path(parser, input)
+        }
+    }
+
+    // Predicate `self` is the fixed logical subject. Outside a domain or data
+    // `requires` it is not a name (wiki/spec/language/domains.md).
+    machine logical_subject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        transition parser.expression_allow_subject {
+            true -> path(parser, input)
+            _ -> reject(parser, input, code)
         }
     }
 

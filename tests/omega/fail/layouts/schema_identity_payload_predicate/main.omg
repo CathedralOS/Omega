@@ -1,8 +1,10 @@
 // Host-supplied enum payloads owe the declared active-case predicate too.
 // This policy uses a smaller schema roster, not the bundled metadata shape.
-data Identity {
+data Identity 
+    requires (self in Identity::None) || ((self in Identity::Some) && (self.value < 7))
+{
     case None;
-    case Some(value: u64) where value < 7;
+    case Some(value: u64);
 }
 data SchemaField { key: u64; identity: Identity; }
 data Schema { fields: [SchemaField; 32]; field_count: u64; }

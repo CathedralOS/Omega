@@ -891,6 +891,8 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedArrayElementEnd;
     case MissingBoundaryReachCeiling;
     case RetiredWhereMachineRequirement;
+    case RetiredDomainSubject;
+    case RetiredCasePredicate;
 }
 
 public data ParseDiagnostic [copy] {

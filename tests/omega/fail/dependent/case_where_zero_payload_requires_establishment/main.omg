@@ -1,6 +1,8 @@
 // Zero selects the first case; satisfying another case proves nothing about it.
-data Choice {
-    case Selected(value: i32) where value >= 1 && value <= 100;
+data Choice 
+    requires ((self in Choice::Selected) && (self.value >= 1 && self.value <= 100)) || (self in Choice::Empty)
+{
+    case Selected(value: i32);
     case Empty;
 }
 data Context { choice: Choice; }
