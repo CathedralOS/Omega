@@ -33772,7 +33772,7 @@ pass/providers/boundary_scalar_field_store checked 6248ms check-target:macos_arm
 pass/providers/build_product_adapter_frontiers_exit checked 2508ms check-target:macos_arm64 @a92f16431042
 pass/providers/calling_application_region_scopes_exit checked 2025ms check-target:macos_arm64 @a92f16431042
 pass/providers/checked_boundary_operator_const_application_alternate_exit checked 6785ms check-target:macos_arm64 @a92f16431042
-pass/providers/checked_boundary_operator_physical_custody checked 6320ms check-target:macos_arm64 @a92f16431042
+pass/providers/checked_boundary_operator_physical_custody checked 9520ms check-target:macos_arm64 boundary-provider-controls:match terminal-inspections:match @478546d89e31
 pass/providers/checked_boundary_requirement_dispatch_exit checked 7003ms check-target:macos_arm64 @a92f16431042
 pass/providers/checked_fixed_operator_dispatch_exit checked 5686ms check-target:macos_arm64 @a92f16431042
 pass/providers/checked_fixed_operator_physical_custody checked 6312ms check-target:macos_arm64 @a92f16431042
