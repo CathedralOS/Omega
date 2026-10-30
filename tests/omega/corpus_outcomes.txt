@@ -5940,6 +5940,24 @@ fail/facts/case_const_unequal_literals_subtraction_rejected rejected 508ms expec
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_const_unequal_predicate_rejected rejected 21ms expected @a92f16431042
 	constant `INTERVAL` is invalid: data constant `Interval` violates its case predicate
+fail/facts/case_dependent_default_domain_through_call_result_rejected rejected 9291ms expected @e1fc6f12ecda+wt
+	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+fail/facts/case_dependent_default_domain_through_const_name_rejected rejected 9149ms expected @e1fc6f12ecda+wt
+	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+fail/facts/case_dependent_default_domain_through_field_rejected rejected 9134ms expected @e1fc6f12ecda+wt
+	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+fail/facts/case_dependent_default_domain_through_local_rejected rejected 8032ms expected @e1fc6f12ecda+wt
+	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+fail/facts/case_dependent_default_domain_through_match_join_rejected rejected 9058ms expected @e1fc6f12ecda+wt
+	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+fail/facts/case_dependent_default_domain_through_other_machine_rejected rejected 10600ms expected @e1fc6f12ecda+wt
+	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+fail/facts/case_dependent_default_domain_through_other_state_rejected rejected 3935ms expected @e1fc6f12ecda+wt
+	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+fail/facts/case_dependent_default_domain_through_parameter_rejected rejected 4556ms expected @e1fc6f12ecda+wt
+	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+fail/facts/case_dependent_default_domain_through_target_body_rejected rejected 5062ms expected @e1fc6f12ecda+wt
+	`as ... in AtMost<32>` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
 fail/facts/case_equality_through_call_result_compile rejected 513ms expected @a92f16431042
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_equality_through_const_name_compile rejected 804ms expected @a92f16431042
@@ -26965,6 +26983,15 @@ pass/facts/captured_window_slot_retirement_through_target_body_exit checked 1387
 pass/facts/case_const_equal_literals_with_predicate checked 3348ms @a92f16431042
 pass/facts/case_const_equal_literals_without_predicate checked 1637ms @a92f16431042
 pass/facts/case_const_forwarded_binder_compile checked 2047ms @a92f16431042
+pass/facts/case_dependent_default_domain_through_call_result_exit checked 23893ms check-target:macos_arm64 @e1fc6f12ecda+wt
+pass/facts/case_dependent_default_domain_through_const_name_exit checked 22070ms check-target:macos_arm64 @e1fc6f12ecda+wt
+pass/facts/case_dependent_default_domain_through_field_exit checked 21420ms check-target:macos_arm64 @e1fc6f12ecda+wt
+pass/facts/case_dependent_default_domain_through_local_exit checked 21997ms check-target:macos_arm64 @e1fc6f12ecda+wt
+pass/facts/case_dependent_default_domain_through_match_join_exit checked 20262ms check-target:macos_arm64 @e1fc6f12ecda+wt
+pass/facts/case_dependent_default_domain_through_other_machine_exit checked 21410ms check-target:macos_arm64 @e1fc6f12ecda+wt
+pass/facts/case_dependent_default_domain_through_other_state_exit checked 21906ms check-target:macos_arm64 @e1fc6f12ecda+wt
+pass/facts/case_dependent_default_domain_through_parameter_exit checked 21572ms check-target:macos_arm64 @e1fc6f12ecda+wt
+pass/facts/case_dependent_default_domain_through_target_body_exit checked 18451ms check-target:macos_arm64 @e1fc6f12ecda+wt
 pass/facts/case_equality_through_call_result_compile checked 1618ms @a92f16431042
 pass/facts/case_equality_through_const_name_compile checked 2532ms @a92f16431042
 pass/facts/case_equality_through_field_compile checked 2320ms @a92f16431042
