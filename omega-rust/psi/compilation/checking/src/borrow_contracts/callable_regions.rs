@@ -39,6 +39,7 @@ pub(super) struct CallableRegions {
     pub(super) applications: Vec<Vec<(String, RegionIdentity)>>,
     pub(super) fresh_count: usize,
     pub(super) bindings: Vec<AppliedRegionBinding>,
+    pub(super) own_lifetimes: Vec<(LifetimeParameterIdentity, RegionIdentity)>,
 }
 
 pub(super) fn resolve(
@@ -90,9 +91,9 @@ pub(super) fn resolve(
             CallableLifetimeApplication::Enclosing { bindings }
             | CallableLifetimeApplication::Invocation { bindings } => *bindings,
         };
-        // All arguments of one frame see only preceding frames. Repeated
-        // enclosing scopes compose without rebinding a simultaneous actual.
-        let preceding = bindings.len();
+        // Values were normalized in their supplying context before entering
+        // this receiver. Reapplying a receiver frame would capture a recursive
+        // same-declaration operand a second time.
         for (position, binding) in supplied.iter().enumerate() {
             if program.lifetime_declaration_owner(binding.parameter.declaration)
                 != binding.parameter.declaration
@@ -122,12 +123,8 @@ pub(super) fn resolve(
             {
                 continue;
             }
-            let argument = applied_region(program, &bindings[..preceding], binding.argument)
-                .cloned()
-                .unwrap_or(RegionIdentity::Captured(
-                    binding.argument.declaration,
-                    binding.argument.ordinal,
-                ));
+            let argument =
+                RegionIdentity::Captured(binding.argument.declaration, binding.argument.ordinal);
             names.push((parameter_name.as_str().to_owned(), argument.clone()));
             bindings.push(AppliedRegionBinding {
                 parameter: binding.parameter,
@@ -136,10 +133,13 @@ pub(super) fn resolve(
         }
     }
     let mut fresh_count = 0;
+    let mut own_lifetimes = Vec::with_capacity(fresh_parameters.len());
     for (parameter, declaration) in contract.lifetime_parameters.iter().zip(fresh_parameters) {
-        if applied_region(program, &bindings, declaration).is_some() {
+        if let Some(region) = applied_region(program, &bindings, declaration) {
+            own_lifetimes.push((declaration, region.clone()));
             continue;
         }
+        own_lifetimes.push((declaration, RegionIdentity::Fresh(fresh_count)));
         names.push((
             parameter.as_str().to_owned(),
             RegionIdentity::Fresh(fresh_count),
@@ -152,5 +152,6 @@ pub(super) fn resolve(
         applications,
         fresh_count,
         bindings,
+        own_lifetimes,
     })
 }

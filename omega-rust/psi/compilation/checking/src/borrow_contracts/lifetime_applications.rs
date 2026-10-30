@@ -12,6 +12,15 @@ pub struct CallableLifetimeBinding {
     pub argument: LifetimeParameterIdentity,
 }
 
+/// One already established enclosing comparison. Each side retains its own
+/// source-to-canonical normalization. Reversal swaps sides; captured supplied
+/// arguments are not invertible binder permutations.
+#[derive(Clone, Default)]
+pub(crate) struct CallableLifetimeFrame {
+    pub(crate) required: Vec<CallableLifetimeBinding>,
+    pub(crate) actual: Vec<CallableLifetimeBinding>,
+}
+
 #[derive(Clone, Copy)]
 pub enum CallableLifetimeApplication<'scope> {
     /// Captured outer frame; this contract's own fresh binders mask it.
@@ -31,6 +40,7 @@ pub fn resolve_callable_lifetime_bindings(
     declaration: SymbolHandle,
     argument_owner: SymbolHandle,
     rows: &[StaticMachineLifetimeBinding],
+    preceding: &[CallableLifetimeApplication<'_>],
 ) -> Result<Vec<CallableLifetimeBinding>, &'static str> {
     let owner = program.lifetime_declaration_owner(declaration);
     let mut resolved: Vec<CallableLifetimeBinding> = Vec::with_capacity(rows.len());
@@ -45,12 +55,28 @@ pub fn resolve_callable_lifetime_bindings(
         if resolved.iter().any(|prior| prior.parameter == parameter) {
             return Err("callable application repeats a receiving lifetime parameter");
         }
-        let argument = typed_trees::type_identity::lifetime_parameter_identity(
+        let mut argument = typed_trees::type_identity::lifetime_parameter_identity(
             program.typed_program(),
             argument_owner,
             row.argument.as_str(),
         )
         .ok_or("callable application lost its exact supplying lifetime scope")?;
+        // Preceding frames already contain canonical values. Resolve this
+        // supplying occurrence once, outside the new receiving frame.
+        for application in preceding.iter().rev() {
+            let bindings = match application {
+                CallableLifetimeApplication::Enclosing { bindings }
+                | CallableLifetimeApplication::Invocation { bindings } => *bindings,
+            };
+            if let Some(binding) = bindings
+                .iter()
+                .rev()
+                .find(|binding| binding.parameter == argument)
+            {
+                argument = binding.argument;
+                break;
+            }
+        }
         resolved.push(CallableLifetimeBinding {
             parameter,
             argument,

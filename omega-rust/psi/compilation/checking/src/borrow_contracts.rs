@@ -168,6 +168,8 @@ pub use provider_outputs::{
 pub(crate) use callable_refinement::lexical_region_owner;
 pub use callable_refinement::{CallableBorrowContract, validate_callable_borrow_refinement};
 
+pub(crate) use callable_refinement::PreparedCallableBorrowRefinement;
+pub(crate) use lifetime_applications::CallableLifetimeFrame;
 pub use lifetime_applications::{
     CallableLifetimeApplication, CallableLifetimeBinding, resolve_callable_lifetime_bindings,
 };

@@ -968,7 +968,8 @@ fn machine_parameter_contract(
     symbol: SymbolHandle,
 ) -> Option<(&TypeParameter, &typed_trees::signature::StateSignature)> {
     let (parameter, contract) = machine_parameter_contract_definition(program, symbol)?;
-    Some((parameter, machine_parameter_signature(program, contract)))
+    let view = program.machine_parameter_contract_view(contract)?;
+    Some((parameter, view.signature()))
 }
 
 fn machine_parameter_contract_definition(
@@ -1017,7 +1018,11 @@ fn machine_parameter_contract_definition_in<'program>(
         if parameter.symbol == symbol {
             return Some((parameter, contract));
         }
-        let signature = machine_parameter_signature(program, contract);
+        let Some(view) = program.machine_parameter_contract_view(contract) else {
+            // Identity-only operands have no nested callable telescope.
+            continue;
+        };
+        let signature = view.signature();
         if let Some(found) = machine_parameter_contract_definition_in(
             program,
             program.state_signature_type_parameters(signature),

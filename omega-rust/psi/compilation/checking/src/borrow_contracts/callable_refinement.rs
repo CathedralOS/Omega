@@ -114,11 +114,18 @@ fn captured_type_parameters(
     captured
 }
 
-pub fn validate_callable_borrow_refinement(
+fn prepare_callable_inputs(
     program: &dyn crate::CheckingInput,
-    required: CallableBorrowContract<'_>,
-    actual: CallableBorrowContract<'_>,
-) -> Result<(), String> {
+    required: &CallableBorrowContract<'_>,
+    actual: &CallableBorrowContract<'_>,
+) -> Result<
+    (
+        ContractFrontier,
+        ContractFrontier,
+        super::region_inference::InputRegionApplication,
+    ),
+    String,
+> {
     let symbolic_parameters = program
         .data_type_parameters
         .iter()
@@ -129,108 +136,264 @@ pub fn validate_callable_borrow_refinement(
         .collect::<Vec<_>>();
     let required_frontier = contract_frontier(
         program,
-        &required,
+        required,
         &symbolic_parameters,
         required.substitution_scope_starts,
     )?;
-    let mut actual_frontier = contract_frontier(
+    let actual_frontier = contract_frontier(
         program,
-        &actual,
+        actual,
         &symbolic_parameters,
         actual.substitution_scope_starts,
     )?;
     let application = super::region_correspondence::infer_inputs(
         program,
-        &required,
-        &actual,
+        required,
+        actual,
         &required_frontier.regions,
         &actual_frontier.regions,
         &actual_frontier.inputs,
     )?;
-    for (_, region) in &mut actual_frontier.regions.names {
-        application.apply(region);
+    Ok((required_frontier, actual_frontier, application))
+}
+
+/// A single input analysis owns the enclosing context and the later output
+/// judgment. Nested bounds consume its frame; they cannot replace its input
+/// application or silently change the substitutions that established it.
+pub(crate) struct PreparedCallableBorrowRefinement {
+    required_frontier: ContractFrontier,
+    actual_frontier: ContractFrontier,
+    application: super::region_inference::InputRegionApplication,
+    required_substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    actual_substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+}
+
+impl PreparedCallableBorrowRefinement {
+    pub(crate) fn prepare(
+        program: &dyn crate::CheckingInput,
+        required: &CallableBorrowContract<'_>,
+        actual: &CallableBorrowContract<'_>,
+    ) -> Result<Self, String> {
+        let (required_frontier, actual_frontier, application) =
+            prepare_callable_inputs(program, required, actual)?;
+        Ok(Self {
+            required_frontier,
+            actual_frontier,
+            application,
+            required_substitutions: required.substitutions.to_vec(),
+            actual_substitutions: actual.substitutions.to_vec(),
+        })
     }
-    for (ordinal, leaves) in actual_frontier.inputs.iter_mut().enumerate() {
-        for leaf in leaves {
-            if let Some(region) = &mut leaf.lifetime {
-                application.apply(region);
-            } else if let Some((_, _, region)) =
-                application.elided.iter().find(|(parameter, reference, _)| {
-                    *parameter == ordinal && *reference == leaf.reference
+
+    pub(crate) fn lifetime_frame(
+        &self,
+        program: &dyn crate::CheckingInput,
+        required: &CallableBorrowContract<'_>,
+        actual: &CallableBorrowContract<'_>,
+    ) -> Result<super::CallableLifetimeFrame, String> {
+        let own_parameters = |contract: &CallableBorrowContract<'_>| {
+            typed_trees::type_identity::declaration_lifetime_parameters(
+                program.typed_program(),
+                program.lifetime_declaration_owner(contract.lexical_owner),
+            )
+            .ok_or("callable lifetime partition has no retained declaration telescope")
+        };
+        if own_parameters(&required)?.is_empty() && own_parameters(&actual)?.is_empty() {
+            // This query emits rows only for own source slots. An empty partition
+            // adds no enclosing facts; final input/output refinement still runs.
+            return Ok(super::CallableLifetimeFrame::default());
+        }
+        let required_frontier = &self.required_frontier;
+        let actual_frontier = &self.actual_frontier;
+        let application = &self.application;
+        let rows = |contract: &CallableBorrowContract<'_>,
+                    regions: &super::callable_regions::CallableRegions,
+                    apply: bool|
+         -> Result<Vec<super::CallableLifetimeBinding>, String> {
+            let declaration = program.lifetime_declaration_owner(contract.lexical_owner);
+            let parameters = typed_trees::type_identity::declaration_lifetime_parameters(
+                program.typed_program(),
+                declaration,
+            )
+            .ok_or("callable lifetime partition has no retained declaration telescope")?;
+            if regions.own_lifetimes.len() != parameters.len()
+                || parameters.iter().enumerate().any(|(ordinal, _)| {
+                    regions
+                        .own_lifetimes
+                        .iter()
+                        .filter(|(slot, _)| {
+                            slot.declaration == declaration && slot.ordinal == ordinal
+                        })
+                        .count()
+                        != 1
                 })
             {
-                leaf.lifetime = Some(region.clone());
+                return Err(
+                "callable lifetime application does not partition its complete source telescope"
+                    .to_owned(),
+            );
             }
-        }
+            regions
+                .own_lifetimes
+                .iter()
+                .map(|(parameter, region)| {
+                    let mut region = region.clone();
+                    if apply {
+                        application.apply(&mut region);
+                    }
+                    let argument = match region {
+                        RegionIdentity::Declared(_) => {
+                            return Err(
+                                "callable lifetime partition retains an unresolved declared region"
+                                    .to_owned(),
+                            );
+                        }
+                        RegionIdentity::Captured(declaration, ordinal) => {
+                            typed_trees::type_identity::LifetimeParameterIdentity {
+                                declaration,
+                                ordinal,
+                            }
+                        }
+                        RegionIdentity::Fresh(ordinal) => required_frontier
+                            .regions
+                            .own_lifetimes
+                            .iter()
+                            .find_map(|(slot, region)| {
+                                (*region == RegionIdentity::Fresh(ordinal)).then_some(*slot)
+                            })
+                            // An unused extra body binder has no demanded variable.
+                            // Preserve its independent source coordinate; never donate
+                            // a demanded fresh slot or invent a supplying declaration.
+                            .unwrap_or(*parameter),
+                    };
+                    Ok(super::CallableLifetimeBinding {
+                        parameter: *parameter,
+                        argument,
+                    })
+                })
+                .collect()
+        };
+        Ok(super::CallableLifetimeFrame {
+            required: rows(&required, &required_frontier.regions, false)?,
+            actual: rows(&actual, &actual_frontier.regions, true)?,
+        })
     }
-    for leaf in &mut actual_frontier.outputs {
-        if let Some(region) = &mut leaf.lifetime {
+
+    pub(crate) fn validate(
+        self,
+        program: &dyn crate::CheckingInput,
+        required: CallableBorrowContract<'_>,
+        actual: CallableBorrowContract<'_>,
+    ) -> Result<(), String> {
+        if self.required_substitutions != required.substitutions
+            || self.actual_substitutions != actual.substitutions
+        {
+            return Err(
+                "nested callable formation changed its parent input substitution premises"
+                    .to_owned(),
+            );
+        }
+        let Self {
+            required_frontier,
+            mut actual_frontier,
+            application,
+            ..
+        } = self;
+        for (_, region) in &mut actual_frontier.regions.names {
             application.apply(region);
         }
-    }
-    // Input instantiation can merge previously distinct regions. Recompute
-    // the result relation from the complete mapped frontier rather than retain
-    // a pre-instantiation source that could conceal newly ambiguous storage.
-    actual_frontier.sources = frontier_sources(
-        &actual_frontier.inputs,
-        &actual_frontier.outputs,
-        actual.parameters,
-    );
-    for (required_leaves, actual_leaves) in
-        required_frontier.inputs.iter().zip(&actual_frontier.inputs)
-    {
-        for required_leaf in required_leaves {
-            let Some(actual_leaf) = actual_leaves.iter().find(|leaf| {
-                required_leaf.source == leaf.source
-                    && contract_paths_correspond(
-                        program,
-                        &required_leaf.owner_path,
-                        &leaf.owner_path,
-                    )
-            }) else {
-                return Err("callable input has a different carried region frontier".to_owned());
-            };
-            if let Some(required_region) = &required_leaf.lifetime
-                && actual_leaf.lifetime.as_ref() != Some(required_region)
-            {
-                return Err(match required_region {
-                    RegionIdentity::Fresh(_) => {
-                        "fresh invocation region is replaced by a captured or different region"
-                    }
-                    _ => "callable input does not preserve its captured region identity",
+        for (ordinal, leaves) in actual_frontier.inputs.iter_mut().enumerate() {
+            for leaf in leaves {
+                if let Some(region) = &mut leaf.lifetime {
+                    application.apply(region);
+                } else if let Some((_, _, region)) =
+                    application.elided.iter().find(|(parameter, reference, _)| {
+                        *parameter == ordinal && *reference == leaf.reference
+                    })
+                {
+                    leaf.lifetime = Some(region.clone());
                 }
-                .to_owned());
             }
         }
-    }
-    // Elision is meaningful only after the independent returned-source
-    // relation agrees. One input leaf can supply its region; a nominal tag
-    // or a matching spelling cannot manufacture that authority. Retain the
-    // enumerated output Type handles: a reference's referee and phantom Type
-    // operands do not acquire the physical leaf's elision.
-    let refined = sources_refine(
-        program,
-        &required_frontier.sources,
-        &actual_frontier.sources,
-    );
-    let mut input_leaves = actual_frontier.inputs.iter().flatten();
-    let input_region = input_leaves.next().and_then(|input| {
-        input_leaves
-            .next()
-            .is_none()
-            .then_some(input.lifetime.as_ref())
-            .flatten()
-    });
-    let output_elisions = actual_frontier
-        .outputs
-        .iter()
-        .filter(|output| output.lifetime.is_none())
-        .filter_map(|output| input_region.map(|region| (output.reference, region.clone())))
-        .collect::<Vec<_>>();
-    if let Err(error) = refined {
-        // A definite captured/fresh mismatch is actionable even when either
-        // source frontier is incomplete. This remains a refusal: an agreeing
-        // region axis cannot promote an incomplete returned-source relation.
+        for leaf in &mut actual_frontier.outputs {
+            if let Some(region) = &mut leaf.lifetime {
+                application.apply(region);
+            }
+        }
+        // Input instantiation can merge previously distinct regions. Recompute
+        // the result relation from the complete mapped frontier rather than retain
+        // a pre-instantiation source that could conceal newly ambiguous storage.
+        actual_frontier.sources = frontier_sources(
+            &actual_frontier.inputs,
+            &actual_frontier.outputs,
+            actual.parameters,
+        );
+        for (required_leaves, actual_leaves) in
+            required_frontier.inputs.iter().zip(&actual_frontier.inputs)
+        {
+            for required_leaf in required_leaves {
+                let Some(actual_leaf) = actual_leaves.iter().find(|leaf| {
+                    required_leaf.source == leaf.source
+                        && contract_paths_correspond(
+                            program,
+                            &required_leaf.owner_path,
+                            &leaf.owner_path,
+                        )
+                }) else {
+                    return Err("callable input has a different carried region frontier".to_owned());
+                };
+                if let Some(required_region) = &required_leaf.lifetime
+                    && actual_leaf.lifetime.as_ref() != Some(required_region)
+                {
+                    return Err(match required_region {
+                        RegionIdentity::Fresh(_) => {
+                            "fresh invocation region is replaced by a captured or different region"
+                        }
+                        _ => "callable input does not preserve its captured region identity",
+                    }
+                    .to_owned());
+                }
+            }
+        }
+        // Elision is meaningful only after the independent returned-source
+        // relation agrees. One input leaf can supply its region; a nominal tag
+        // or a matching spelling cannot manufacture that authority. Retain the
+        // enumerated output Type handles: a reference's referee and phantom Type
+        // operands do not acquire the physical leaf's elision.
+        let refined = sources_refine(
+            program,
+            &required_frontier.sources,
+            &actual_frontier.sources,
+        );
+        let mut input_leaves = actual_frontier.inputs.iter().flatten();
+        let input_region = input_leaves.next().and_then(|input| {
+            input_leaves
+                .next()
+                .is_none()
+                .then_some(input.lifetime.as_ref())
+                .flatten()
+        });
+        let output_elisions = actual_frontier
+            .outputs
+            .iter()
+            .filter(|output| output.lifetime.is_none())
+            .filter_map(|output| input_region.map(|region| (output.reference, region.clone())))
+            .collect::<Vec<_>>();
+        if let Err(error) = refined {
+            // A definite captured/fresh mismatch is actionable even when either
+            // source frontier is incomplete. This remains a refusal: an agreeing
+            // region axis cannot promote an incomplete returned-source relation.
+            super::region_correspondence::validate(
+                program,
+                &required,
+                &actual,
+                &required_frontier.regions,
+                &actual_frontier.regions,
+                &application.elided,
+                &output_elisions,
+            )?;
+            return Err(error.to_owned());
+        }
         super::region_correspondence::validate(
             program,
             &required,
@@ -239,18 +402,17 @@ pub fn validate_callable_borrow_refinement(
             &actual_frontier.regions,
             &application.elided,
             &output_elisions,
-        )?;
-        return Err(error.to_owned());
+        )
     }
-    super::region_correspondence::validate(
-        program,
-        &required,
-        &actual,
-        &required_frontier.regions,
-        &actual_frontier.regions,
-        &application.elided,
-        &output_elisions,
-    )
+}
+
+pub fn validate_callable_borrow_refinement(
+    program: &dyn crate::CheckingInput,
+    required: CallableBorrowContract<'_>,
+    actual: CallableBorrowContract<'_>,
+) -> Result<(), String> {
+    PreparedCallableBorrowRefinement::prepare(program, &required, &actual)?
+        .validate(program, required, actual)
 }
 
 fn contract_frontier(

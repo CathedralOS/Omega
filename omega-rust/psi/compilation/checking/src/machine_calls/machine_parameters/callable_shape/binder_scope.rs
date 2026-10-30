@@ -3,35 +3,17 @@
 //! borrows the same parent frames without consuming their captures.
 
 use super::BinderBinding;
-use crate::borrow_contracts::CallableLifetimeBinding;
+use crate::borrow_contracts::{CallableLifetimeBinding, CallableLifetimeFrame};
 use symbols::SymbolHandle;
 use typed_trees::{name::Identifier, type_identity::LifetimeParameterIdentity};
 
 #[derive(Clone, Default)]
 pub(super) struct CallableBinderScope {
     pub(super) static_bindings: Vec<BinderBinding>,
-    pub(super) lifetime_frames: Vec<Vec<CallableLifetimeBinding>>,
+    pub(super) lifetime_frames: Vec<CallableLifetimeFrame>,
 }
 
 impl CallableBinderScope {
-    pub(super) fn push_callable(
-        &mut self,
-        program: &dyn crate::CheckingInput,
-        required: SymbolHandle,
-        required_parameters: &[Identifier],
-        actual: SymbolHandle,
-        actual_parameters: &[Identifier],
-    ) -> Result<(), &'static str> {
-        let (required, complete_required) = callable_parameters(program, required)?;
-        let (actual, complete_actual) = callable_parameters(program, actual)?;
-        if complete_required != required_parameters || complete_actual != actual_parameters {
-            return Err(
-                "enclosing callable lifetime correspondence lost its complete own declarations",
-            );
-        }
-        self.push_frame(required, complete_required, actual, complete_actual)
-    }
-
     pub(super) fn push_declarations(
         &mut self,
         program: &dyn crate::CheckingInput,
@@ -59,8 +41,9 @@ impl CallableBinderScope {
         // The actual declaration is compared in the required declaration's
         // arbitrary enclosing environment. Current invocation binders are
         // introduced separately by the ordinary region judgment.
-        self.lifetime_frames.push(
-            (0..required_parameters.len())
+        self.lifetime_frames.push(CallableLifetimeFrame {
+            required: Vec::new(),
+            actual: (0..required_parameters.len())
                 .map(|ordinal| CallableLifetimeBinding {
                     parameter: LifetimeParameterIdentity {
                         declaration: actual,
@@ -72,7 +55,7 @@ impl CallableBinderScope {
                     },
                 })
                 .collect(),
-        );
+        });
         Ok(())
     }
 
@@ -89,14 +72,9 @@ impl CallableBinderScope {
             lifetime_frames: self
                 .lifetime_frames
                 .iter()
-                .map(|frame| {
-                    frame
-                        .iter()
-                        .map(|binding| CallableLifetimeBinding {
-                            parameter: binding.argument,
-                            argument: binding.parameter,
-                        })
-                        .collect()
+                .map(|frame| CallableLifetimeFrame {
+                    required: frame.actual.clone(),
+                    actual: frame.required.clone(),
                 })
                 .collect(),
         }

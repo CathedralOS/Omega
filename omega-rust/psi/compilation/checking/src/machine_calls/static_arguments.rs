@@ -1,4 +1,4 @@
-//! Admit authored type and const operands at the immutable checking boundary.
+//! Admit authored static operands at the immutable checking boundary.
 //!
 //! Executable specialization may erase operands and constant folding may erase
 //! a type root. Retained applications keep source declarations, payloads and
@@ -15,6 +15,8 @@ use typed_trees::references::StaticArgumentCall;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+mod declaration_identity;
+pub(crate) use declaration_identity::validate_declaration_identity_argument;
 mod invocation_parameters;
 mod product_operands;
 mod requirement_predicates;

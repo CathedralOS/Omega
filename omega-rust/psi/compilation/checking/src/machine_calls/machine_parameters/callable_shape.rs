@@ -6,6 +6,7 @@ use super::{
     MachineBlockingRow, MachineStateIndex, MachineSuspensionRow, machine_and_state,
     machine_parameter_contract, machine_parameter_signature,
 };
+use crate::borrow_contracts::CallableBorrowContract;
 use crate::machine_calls::effect_inference::full_parameter_invocation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -267,33 +268,27 @@ fn validate_callable_formation(
 ) {
     let formation_diagnostic_count = diagnostics.len();
     let actual_parameters = actual.parameters;
-    let previous_frames = binder_bindings.lifetime_frames.len();
-    if let Err(reason) = binder_bindings.push_callable(
-        program,
-        requirement.symbol,
-        &requirement.lifetime_parameters,
-        actual.contract_owner,
-        actual.lifetime_parameters,
-    ) {
+    let required_types = program.state_signature_type_parameters(requirement);
+    if required_types.len() != actual.type_parameters.len() {
         diagnostics.push(Diagnostic::error(format!(
-            "{label} does not refine `{}`: {reason}",
-            parameter.name
+            "{label} does not refine `{}`: its callable signature expects {} generic parameter(s), got {}",
+            parameter.name, required_types.len(), actual.type_parameters.len(),
         )));
         return;
     }
-    validate_callable_type_parameters(
-        program,
-        label,
-        parameter,
-        requirement,
-        actual.type_parameters,
-        generic_types,
-        bindings,
-        binder_bindings,
-        diagnostics,
-    );
-    binder_bindings.lifetime_frames.truncate(previous_frames);
-
+    // Register the complete static telescope before deriving any input-region
+    // application or descending into a nested callable's bounds.
+    binder_bindings
+        .static_bindings
+        .extend(
+            required_types
+                .iter()
+                .zip(actual.type_parameters)
+                .map(|(required, actual)| BinderBinding {
+                    required: required.symbol,
+                    actual: actual.symbol,
+                }),
+        );
     let required_parameters = program.state_signature_parameters(requirement);
     if required_parameters.len() != actual_parameters.len() {
         diagnostics.push(Diagnostic::error(format!(
@@ -369,11 +364,69 @@ fn validate_callable_formation(
         return;
     }
 
+    let mut input_binders = binder_bindings.static_bindings.clone();
+    input_binders.extend(
+        program
+            .state_signature_parameters(requirement)
+            .iter()
+            .zip(actual.parameters)
+            .map(|(required, actual)| BinderBinding {
+                required: required.symbol,
+                actual: actual.symbol,
+            }),
+    );
+    let input_substitutions = bindings
+        .iter()
+        .map(|binding| (binding.symbol, binding.actual))
+        .collect::<Vec<_>>();
+    let (prepared_borrow, frame) = match with_callable_region_contracts(
+        program,
+        requirement,
+        actual,
+        applied,
+        &input_substitutions,
+        &input_binders,
+        &binder_bindings.lifetime_frames,
+        |required, actual| {
+            let prepared = crate::borrow_contracts::PreparedCallableBorrowRefinement::prepare(
+                program, &required, &actual,
+            )?;
+            let frame = prepared.lifetime_frame(program, &required, &actual)?;
+            Ok((prepared, frame))
+        },
+    ) {
+        Ok(value) => value,
+        Err(reason) => {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label} does not refine `{}`: {reason}",
+                parameter.name
+            )));
+            return;
+        }
+    };
+    let previous_frames = binder_bindings.lifetime_frames.len();
+    binder_bindings.lifetime_frames.push(frame);
+    validate_callable_type_parameters(
+        program,
+        label,
+        parameter,
+        requirement,
+        actual.type_parameters,
+        generic_types,
+        bindings,
+        binder_bindings,
+        diagnostics,
+    );
+    binder_bindings.lifetime_frames.truncate(previous_frames);
+
+    if diagnostics.len() != formation_diagnostic_count {
+        return;
+    }
     let substitutions = bindings
         .iter()
         .map(|binding| (binding.symbol, binding.actual))
         .collect::<Vec<_>>();
-    if let Err(message) = validate_callable_regions(
+    if let Err(message) = with_callable_region_contracts(
         program,
         requirement,
         actual,
@@ -381,6 +434,7 @@ fn validate_callable_formation(
         &substitutions,
         &formation_binders,
         &binder_bindings.lifetime_frames,
+        |required, actual| prepared_borrow.validate(program, required, actual),
     ) {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: {message}",
@@ -409,16 +463,17 @@ fn validate_callable_formation(
     );
 }
 
-fn validate_callable_regions(
+fn with_callable_region_contracts<R>(
     program: &dyn crate::CheckingInput,
     requirement: &typed_trees::signature::StateSignature,
     actual: &CallableParts<'_>,
     applied: Option<&AppliedMachineCallable<'_>>,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     binder_bindings: &[BinderBinding],
-    enclosing_lifetimes: &[Vec<crate::borrow_contracts::CallableLifetimeBinding>],
-) -> Result<(), String> {
-    use crate::borrow_contracts::{CallableBorrowContract, CallableLifetimeApplication};
+    enclosing_lifetimes: &[crate::borrow_contracts::CallableLifetimeFrame],
+    judge: impl FnOnce(CallableBorrowContract<'_>, CallableBorrowContract<'_>) -> Result<R, String>,
+) -> Result<R, String> {
+    use crate::borrow_contracts::CallableLifetimeApplication;
     let binders = binder_bindings
         .iter()
         .enumerate()
@@ -429,7 +484,15 @@ fn validate_callable_regions(
         .collect::<Vec<_>>();
     let mut actual_applications = enclosing_lifetimes
         .iter()
-        .map(|bindings| CallableLifetimeApplication::Enclosing { bindings })
+        .map(|frame| CallableLifetimeApplication::Enclosing {
+            bindings: &frame.actual,
+        })
+        .collect::<Vec<_>>();
+    let mut required_applications = enclosing_lifetimes
+        .iter()
+        .map(|frame| CallableLifetimeApplication::Enclosing {
+            bindings: &frame.required,
+        })
         .collect::<Vec<_>>();
     let mut required = CallableBorrowContract {
         lexical_owner: crate::borrow_contracts::lexical_region_owner(program, requirement.symbol),
@@ -457,7 +520,6 @@ fn validate_callable_regions(
     };
     let caller_substitutions;
     let caller_lifetimes;
-    let caller_application;
     let selected_lifetimes;
     let provider_substitutions;
     let provider_lifetimes;
@@ -503,11 +565,12 @@ fn validate_callable_regions(
                 .static_machine_application(applied.invocation)
                 .lexical_owner,
             applied.caller_lifetimes,
+            &required_applications,
         )
         .map_err(str::to_owned)?;
-        caller_application = CallableLifetimeApplication::Enclosing {
+        required_applications.push(CallableLifetimeApplication::Enclosing {
             bindings: &caller_lifetimes,
-        };
+        });
         required = CallableBorrowContract {
             lexical_owner: crate::borrow_contracts::lexical_region_owner(
                 program,
@@ -520,7 +583,7 @@ fn validate_callable_regions(
             substitution_scope_starts: &[0],
             application_scopes: &[],
             binders: &binders,
-            lifetime_applications: std::slice::from_ref(&caller_application),
+            lifetime_applications: &[],
             argument_owner: program
                 .expression_table
                 .static_machine_application(applied.invocation)
@@ -534,6 +597,7 @@ fn validate_callable_regions(
             machine.symbol,
             source.lexical_owner,
             &provider_lifetimes,
+            &actual_applications,
         )
         .map_err(str::to_owned)?;
         actual_applications.push(CallableLifetimeApplication::Invocation {
@@ -548,12 +612,13 @@ fn validate_callable_regions(
             substitution_scope_starts: &[0],
             application_scopes: &[],
             binders: &binders,
-            lifetime_applications: &actual_applications,
+            lifetime_applications: &[],
             argument_owner: applied.lexical_owner,
         };
     }
+    required.lifetime_applications = &required_applications;
     selected.lifetime_applications = &actual_applications;
-    crate::borrow_contracts::validate_callable_borrow_refinement(program, required, selected)
+    judge(required, selected)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -843,16 +908,6 @@ fn validate_callable_type_parameters(
         return;
     }
 
-    // Establish every positional binder mapping before descending into any
-    // one nested requirement. Sibling contracts may mention one another, and
-    // their authored names are intentionally irrelevant to refinement.
-    for (required, actual) in required_parameters.iter().zip(actual_parameters) {
-        binder_bindings.static_bindings.push(BinderBinding {
-            required: required.symbol,
-            actual: actual.symbol,
-        });
-    }
-
     for (index, (required, actual)) in required_parameters
         .iter()
         .zip(actual_parameters)
@@ -959,6 +1014,20 @@ fn validate_callable_input(
     binder_bindings: &CallableBinderScope,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    match (promised, demanded) {
+        (
+            typed_trees::data::MachineParameterContract::RequirementIdentity,
+            typed_trees::data::MachineParameterContract::RequirementIdentity,
+        ) => return,
+        (typed_trees::data::MachineParameterContract::RequirementIdentity, _)
+        | (_, typed_trees::data::MachineParameterContract::RequirementIdentity) => {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label}: declaration identity and callable requirement are different parameter roles"
+            )));
+            return;
+        }
+        _ => {}
+    }
     nominal_inputs::validate(
         program,
         label,

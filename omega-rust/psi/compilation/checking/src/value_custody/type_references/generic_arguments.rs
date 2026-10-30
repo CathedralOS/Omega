@@ -71,6 +71,27 @@ pub(crate) fn validate_machine_data_argument(
         return;
     };
 
+    if let Some(definition) = program.data_definition_by_symbol(base_symbol)
+        && !program
+            .proof_only_classification()
+            .is_proof_only(definition.symbol)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "finite-layout data `{base_name}` cannot be indexed by static machine parameters; machine indexes belong to proof-only data families",
+        )));
+        return;
+    }
+    if matches!(contract, MachineParameterContract::RequirementIdentity) {
+        crate::machine_calls::static_arguments::validate_declaration_identity_argument(
+            program,
+            parameter,
+            argument,
+            &format!("proof data `{base_name}`"),
+            diagnostics,
+        );
+        return;
+    }
+
     // Recursive references inside the family (`CauchySeq<S>`) forward the
     // family parameter governed by this exact declaration-site contract.
     if *symbol == parameter.symbol {
