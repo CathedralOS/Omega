@@ -1172,28 +1172,29 @@ fn call_claim_events<'facts>(
     state: SymbolHandle,
     call: &checked_trees::FlowCallFact,
 ) -> Vec<&'facts checked_trees::FlowPermissionEventFact> {
-    flow.ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == machine
-                && event.state_symbol == state
-                && event.source
-                    == PermissionEventSource::Call {
-                        statement_index: call.statement_index,
-                        call_ordinal: call.call_ordinal,
-                        target_symbol: call.target_symbol,
-                    }
-                && matches!(
-                    event.kind,
-                    PermissionEventKind::Transfer | PermissionEventKind::Consume
-                )
-                && event.access == PermissionAccess::Owned
-                && event.multiplicity == Multiplicity::Linear
-                && event.obligation_live
-        })
-        .map(|(_, event)| event)
-        .collect()
+    flow.ownership.with_state_permissions(state, |handles| {
+        handles
+            .iter()
+            .map(|&handle| flow.ownership.permissions.get(handle))
+            .filter(|event| {
+                event.machine_symbol == machine
+                    && event.state_symbol == state
+                    && event.source
+                        == PermissionEventSource::Call {
+                            statement_index: call.statement_index,
+                            call_ordinal: call.call_ordinal,
+                            target_symbol: call.target_symbol,
+                        }
+                    && matches!(
+                        event.kind,
+                        PermissionEventKind::Transfer | PermissionEventKind::Consume
+                    )
+                    && event.access == PermissionAccess::Owned
+                    && event.multiplicity == Multiplicity::Linear
+                    && event.obligation_live
+            })
+            .collect()
+    })
 }
 
 /// The claims one owned operand carries across its call: the events rooted at
