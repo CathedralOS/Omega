@@ -25,7 +25,7 @@ pass/build/provider_applied_const29_exit built 2469ms exit:0 interpreter-exit:0 
 pass/build/provider_nested_type_application_exit built 2392ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @bad69cc2a485
 pass/build/provider_structural_type_application_exit built 2830ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @b86bab8d85ef
 pass/calls/converted_call_value_private_arrival_exit built 1448ms exit:0 interpreter-exit:0 interpreter:agrees @8b519ca647cd+wt
-pass/calls/requires_machine_explicit_operational_closers_exit built 1272ms exit:0 interpreter-exit:0 interpreter:agrees @3e904b088348+wt
+pass/calls/requires_machine_explicit_operational_closers_exit built 1338ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
 pass/calls/returned_nested_record_disjoint_field_move_exit built 1382ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
 pass/calls/returned_nested_record_newer_child_exit built 1292ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
 pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit built 1389ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
@@ -900,20 +900,20 @@ pass/facts/structural_issuer_forwarding_other_machine built 2730ms exit:0 interp
 pass/facts/structural_issuer_forwarding_other_state built 2334ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/structural_issuer_forwarding_parameter built 2891ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/structural_issuer_forwarding_target_body built 2606ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/target_family_callback_guarantee/bare_interleaved built 1507ms exit:0 interpreter-exit:0 interpreter:agrees @3e904b088348+wt
-pass/facts/target_family_callback_guarantee/call_result built 1577ms exit:0 interpreter-exit:0 interpreter:agrees @3e904b088348
-pass/facts/target_family_callback_guarantee/const_name built 1316ms exit:0 interpreter-exit:0 interpreter:agrees @3e904b088348
-pass/facts/target_family_callback_guarantee/evaluation_once built 1413ms exit:0 interpreter-exit:0 interpreter:agrees @3e904b088348+wt
-pass/facts/target_family_callback_guarantee/field built 1232ms exit:0 interpreter-exit:0 interpreter:agrees @3e904b088348
-pass/facts/target_family_callback_guarantee/local built 1306ms exit:0 interpreter-exit:0 interpreter:agrees @3e904b088348
-pass/facts/target_family_callback_guarantee/match_join built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @3e904b088348
-pass/facts/target_family_callback_guarantee/other_machine built 1341ms exit:0 interpreter-exit:0 interpreter:agrees @3e904b088348
-pass/facts/target_family_callback_guarantee/other_state built 1230ms exit:0 interpreter-exit:0 interpreter:agrees @3e904b088348
-pass/facts/target_family_callback_guarantee/parameter built 1235ms exit:0 interpreter-exit:0 interpreter:agrees @3e904b088348
-pass/facts/target_family_callback_guarantee/repeated_application built 1206ms exit:0 interpreter-exit:0 interpreter:agrees @3e904b088348+wt
-pass/facts/target_family_callback_guarantee/sibling_helper built 1412ms exit:0 interpreter-exit:0 interpreter:agrees @3e904b088348
-pass/facts/target_family_callback_guarantee/target_body built 2127ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @3e904b088348+wt
-pass/facts/target_family_callback_guarantee/target_values built 2232ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @3e904b088348+wt
+pass/facts/target_family_callback_guarantee/bare_interleaved built 4535ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
+pass/facts/target_family_callback_guarantee/call_result built 3113ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
+pass/facts/target_family_callback_guarantee/const_name built 4076ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
+pass/facts/target_family_callback_guarantee/evaluation_once built 4272ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
+pass/facts/target_family_callback_guarantee/field built 3767ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
+pass/facts/target_family_callback_guarantee/local built 3869ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
+pass/facts/target_family_callback_guarantee/match_join built 3243ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
+pass/facts/target_family_callback_guarantee/other_machine built 3977ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
+pass/facts/target_family_callback_guarantee/other_state built 4374ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
+pass/facts/target_family_callback_guarantee/parameter built 2596ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
+pass/facts/target_family_callback_guarantee/repeated_application built 2631ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
+pass/facts/target_family_callback_guarantee/sibling_helper built 2656ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
+pass/facts/target_family_callback_guarantee/target_body built 3182ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @45fb2a705c96
+pass/facts/target_family_callback_guarantee/target_values built 3221ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @45fb2a705c96
 pass/facts/target_family_open_const/call_result built 1473ms exit:0 interpreter-exit:0 interpreter:agrees @101f66e2f97e
 pass/facts/target_family_open_const/const_name built 1563ms exit:0 interpreter-exit:0 interpreter:agrees @101f66e2f97e
 pass/facts/target_family_open_const/field built 1217ms exit:0 interpreter-exit:0 interpreter:agrees @101f66e2f97e

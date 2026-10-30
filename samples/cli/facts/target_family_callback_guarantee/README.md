@@ -64,22 +64,26 @@ boundary calls carry their scalar arguments through the same computation owner,
 so a nested producer executes once. Private service-contract exposure follows
 the authored declaration; public contracts still reject private constants.
 
-Optimized producer3e904b0883480a9d77d894c302271d43fbdea979 has34proper Source
+Optimized producer45fb2a705c966e39738d33b6b48204d9ca550642 has34proper Source
 outcomes (15positives,19reject controls) and14actual sample native0/Terminal0
-observations on macOSARM64. The pinned corpus has14ARM native/Terminal
-agreements and one x86macOS/Rosetta agreement. The target-body and target-values
+observations on macOSARM64. The pinned corpus has35proper Source outcomes,
+15ARM native/Terminal agreements (including the explicit operational-closer
+control) and one x86macOS/Rosetta agreement. The target-body and target-values
 controls also execute one unchanged Terminal artifact across all five authored
 target installations. ARM/x86captured products retain the actual portable bytes
 and component inputs. Other-host native execution is not established here.
 Terminal-only counterfactuals retain a positive0 and typedTraps for a wrong
 payload, wrong match marker and duplicated inner-counter effect.
 
-Against fixed Source base472bcd85026456652e414e1f834301b662558674, the534affected
-fixture comparison has no losses and the six added fixtures have their intended
-outcomes. All329samples changed by the static-clause migration retain their
+Against fixed Source base472bcd85026456652e414e1f834301b662558674, all329samples
+changed by the static-clause migration retain their
 original checking outcomes (155acceptances and174refusals); this comparison is
-Source evidence, not329native runs. The Omega-written prefix parser's retained
-native artifact passes503decoder cases. The original explicit `terminates;;`
+Source evidence, not329native runs. The scoped540fixture comparison retains one
+borrowed applied-payload refusal in the integrated compiler; the six added
+callback fixtures have their intended outcomes. This row does not establish
+borrowed case-fact transport. The Omega-written prefix parser's historical
+native artifact passes503decoder cases; its producer and frozen source closure
+remain recorded separately from producer45fb. The original explicit `terminates;;`
 control is pinned as
 `tests/omega/pass/calls/requires_machine_explicit_operational_closers_exit`
 and runs native0/Terminal0. Its full nested/interleaved requirement
