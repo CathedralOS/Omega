@@ -1,7 +1,7 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, ScalarAbiCase,
-    abi_case_context, baseline_target_register_environment, convention_for, declaration_mut,
-    produced_effects, scalar_abi_cases, units_for_names, validate_effects,
+    abi_case_context, assert_storage_free, baseline_target_register_environment, convention_for,
+    declaration_mut, produced_effects, scalar_abi_cases, units_for_names, validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
@@ -247,16 +247,7 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
                     // encoded `ret` itself reads only the link register.
                     assert_eq!(encoded.implicit_unit_uses, link.units, "{key:?}");
                     assert_eq!(encoded.implicit_unit_defs, program_counter.units, "{key:?}");
-                    assert_eq!(
-                        encoded.memory,
-                        MachineEncodedMemoryEffect::NoneV1,
-                        "{key:?}"
-                    );
-                    assert_eq!(
-                        encoded.stack,
-                        MachineEncodedStackEffect::UnchangedV1,
-                        "{key:?}"
-                    );
+                    assert_storage_free(encoded, *key);
                     assert_eq!(
                         encoded.control,
                         MachineEncodedControlEffect::ReturnIndirectRegisterV1 { target: link.id },

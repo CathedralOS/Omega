@@ -25,6 +25,7 @@ use register_model::{
 };
 use selected_instructions::{
     MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
+    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
     MachineSemanticKind, ValidatedMachineEffectCatalog,
 };
 use target::{Architecture, NativeTarget};
@@ -235,6 +236,22 @@ fn produced_effects(
         Architecture::X86_64 => x86_64_machine_effect_catalog(case.target, constraints).unwrap(),
         Architecture::Aarch64 => aarch64_machine_effect_catalog(case.target, constraints).unwrap(),
     }
+}
+
+/// One encoded rule that touches no memory and leaves the stack alone: its
+/// contribution is register custody plus whatever control and trap shape its
+/// own family declares.
+fn assert_storage_free(encoded: &MachineEncodedEffects, key: RegisterConstraintKey) {
+    assert_eq!(
+        encoded.memory,
+        MachineEncodedMemoryEffect::NoneV1,
+        "{key:?}"
+    );
+    assert_eq!(
+        encoded.stack,
+        MachineEncodedStackEffect::UnchangedV1,
+        "{key:?}"
+    );
 }
 
 #[derive(Debug, PartialEq, Eq)]

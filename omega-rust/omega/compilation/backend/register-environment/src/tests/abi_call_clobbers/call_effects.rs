@@ -1,7 +1,7 @@
 use super::{
-    Architecture, BTreeSet, RegisterConstraintKey, baseline_target_register_environment,
-    convention_for, declaration_mut, named_view, produced_effects, scalar_abi_cases,
-    validated_effects,
+    Architecture, BTreeSet, RegisterConstraintKey, assert_storage_free,
+    baseline_target_register_environment, convention_for, declaration_mut, named_view,
+    produced_effects, scalar_abi_cases, validated_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
@@ -253,16 +253,7 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
                         );
                     }
                     (Architecture::Aarch64, _) | (Architecture::X86_64, true) => {
-                        assert_eq!(
-                            encoded.memory,
-                            MachineEncodedMemoryEffect::NoneV1,
-                            "{key:?}"
-                        );
-                        assert_eq!(
-                            encoded.stack,
-                            MachineEncodedStackEffect::UnchangedV1,
-                            "{key:?}"
-                        );
+                        assert_storage_free(encoded, *key);
                     }
                 }
             }

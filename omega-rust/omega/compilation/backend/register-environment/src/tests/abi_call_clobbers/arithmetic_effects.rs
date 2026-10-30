@@ -1,7 +1,7 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
-    baseline_target_register_environment, declaration_mut, named_view, produced_effects,
-    scalar_abi_cases, units_for_names, validate_effects,
+    assert_storage_free, baseline_target_register_environment, declaration_mut, named_view,
+    produced_effects, scalar_abi_cases, units_for_names, validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::SaturatingCarrier;
@@ -887,16 +887,7 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
                 assert_eq!(encoded.implicit_unit_uses, row.implicit_uses, "{key:?}");
                 assert_eq!(encoded.implicit_unit_defs, row.implicit_defs, "{key:?}");
                 assert_eq!(encoded.implicit_unit_clobbers, row.clobbers, "{key:?}");
-                assert_eq!(
-                    encoded.memory,
-                    MachineEncodedMemoryEffect::NoneV1,
-                    "{key:?}"
-                );
-                assert_eq!(
-                    encoded.stack,
-                    MachineEncodedStackEffect::UnchangedV1,
-                    "{key:?}"
-                );
+                assert_storage_free(encoded, *key);
                 assert_eq!(
                     encoded.trap,
                     if contract.faulting {
