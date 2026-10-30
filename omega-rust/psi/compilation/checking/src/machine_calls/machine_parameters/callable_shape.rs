@@ -399,7 +399,7 @@ fn validate_callable_regions(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     binder_bindings: &[BinderBinding],
 ) -> Result<(), &'static str> {
-    use crate::borrow_contracts::CallableBorrowContract;
+    use crate::borrow_contracts::{CallableBorrowContract, CallableLifetimeApplication};
     let binders = binder_bindings
         .iter()
         .enumerate()
@@ -417,9 +417,8 @@ fn validate_callable_regions(
         substitution_scope_starts: &[0],
         application_scopes: &[],
         binders: &binders,
-        lifetime_bindings: &[],
+        lifetime_application: None,
         argument_owner: actual.lexical_owner,
-        supplied_telescope: false,
     };
     let mut selected = CallableBorrowContract {
         lexical_owner: actual.lexical_owner,
@@ -430,9 +429,8 @@ fn validate_callable_regions(
         substitution_scope_starts: &[0],
         application_scopes: &[],
         binders: &binders,
-        lifetime_bindings: &[],
+        lifetime_application: None,
         argument_owner: actual.lexical_owner,
-        supplied_telescope: false,
     };
     let caller_substitutions;
     let provider_substitutions;
@@ -479,9 +477,17 @@ fn validate_callable_regions(
             substitution_scope_starts: &[0],
             application_scopes: &[],
             binders: &binders,
-            lifetime_bindings: applied.caller_lifetimes,
-            argument_owner: applied.lexical_owner,
-            supplied_telescope: false,
+            lifetime_application: Some(CallableLifetimeApplication {
+                declaration: program
+                    .expression_table
+                    .static_machine_application(applied.invocation)
+                    .binding_declaration,
+                bindings: applied.caller_lifetimes,
+            }),
+            argument_owner: program
+                .expression_table
+                .static_machine_application(applied.invocation)
+                .lexical_owner,
         };
         selected = CallableBorrowContract {
             lexical_owner: machine.symbol,
@@ -492,11 +498,13 @@ fn validate_callable_regions(
             substitution_scope_starts: &[0],
             application_scopes: &[],
             binders: &binders,
-            lifetime_bindings: program
-                .expression_table
-                .static_machine_application_lifetimes(applied.provider),
+            lifetime_application: Some(CallableLifetimeApplication {
+                declaration: machine.symbol,
+                bindings: program
+                    .expression_table
+                    .static_machine_application_lifetimes(applied.provider),
+            }),
             argument_owner: applied.lexical_owner,
-            supplied_telescope: true,
         };
     }
     crate::borrow_contracts::validate_callable_borrow_refinement(program, required, selected)

@@ -226,6 +226,9 @@ pub struct CallableSubstitution {
 
 /// A symbolic application is a checking view, not an executable instance.
 pub struct AppliedMachineCallable<'a> {
+    /// Exact receiving call; its declaration owns the caller-lifetime formals
+    /// and its lexical owner supplies their actuals. Provider custody is separate.
+    pub invocation: crate::static_applications::StaticMachineApplicationHandle,
     pub lexical_owner: SymbolHandle,
     pub provider: crate::static_applications::StaticMachineApplicationHandle,
     /// Executable entry selected by this occurrence. The substituted source

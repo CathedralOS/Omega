@@ -61,6 +61,7 @@ impl TypedTrees {
                     && *prepared_demand == demand
                     && source_required == expected)
                     .then_some(AppliedMachineCallable {
+                        invocation,
                         lexical_owner: self
                             .expression_table
                             .static_machine_application(*provider)

@@ -165,7 +165,9 @@ pub use provider_outputs::{
 };
 
 pub(crate) use callable_refinement::lexical_region_owner;
-pub use callable_refinement::{CallableBorrowContract, validate_callable_borrow_refinement};
+pub use callable_refinement::{
+    CallableBorrowContract, CallableLifetimeApplication, validate_callable_borrow_refinement,
+};
 
 /// Call admission and caller-side loans consume one applied requirement
 /// relation. Invocation binders retain their declaration identity independently
@@ -223,9 +225,8 @@ pub fn resolve_applied_signature_view_return_source(
             substitution_scope_starts: scope_starts,
             application_scopes: &[],
             binders: &[],
-            lifetime_bindings: &[],
+            lifetime_application: None,
             argument_owner,
-            supplied_telescope: false,
         },
         scope_starts,
     )

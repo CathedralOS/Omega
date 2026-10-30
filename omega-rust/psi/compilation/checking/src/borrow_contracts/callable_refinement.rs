@@ -15,6 +15,15 @@ use typed_trees::static_applications::StaticMachineLifetimeBinding;
 use typed_trees::type_identity::AppliedTypeIdentityScope;
 use typed_trees::types::TypeReferenceHandle;
 
+/// The exact declaration whose lifetime formals this invocation supplies.
+/// Its arguments belong to the borrow contract's separate argument owner;
+/// an enclosing telescope cannot capture a nested same-spelled fresh binder.
+#[derive(Clone, Copy)]
+pub struct CallableLifetimeApplication<'contract> {
+    pub declaration: SymbolHandle,
+    pub bindings: &'contract [StaticMachineLifetimeBinding],
+}
+
 pub struct CallableBorrowContract<'contract> {
     pub lexical_owner: SymbolHandle,
     pub lifetime_parameters: &'contract [Identifier],
@@ -24,9 +33,8 @@ pub struct CallableBorrowContract<'contract> {
     pub substitution_scope_starts: &'contract [usize],
     pub application_scopes: &'contract [AppliedTypeIdentityScope<'contract>],
     pub binders: &'contract [(SymbolHandle, String)],
-    pub lifetime_bindings: &'contract [StaticMachineLifetimeBinding],
+    pub lifetime_application: Option<CallableLifetimeApplication<'contract>>,
     pub argument_owner: SymbolHandle,
-    pub supplied_telescope: bool,
 }
 
 struct ContractFrontier {
@@ -228,23 +236,18 @@ pub fn validate_callable_borrow_refinement(
         .filter_map(|output| input_region.map(|region| (output.reference, region.clone())))
         .collect::<Vec<_>>();
     if let Err(error) = refined {
-        // An actual whose elided result could come from several input
-        // regions is unresolved, not refined. When the required callable
-        // names one relation, a definite region-identity mismatch is the
-        // refusal the program can act on; report it before the gap.
-        if matches!(actual_frontier.sources, ViewReturnSource::Ambiguous(_))
-            && !matches!(required_frontier.sources, ViewReturnSource::Ambiguous(_))
-        {
-            super::region_correspondence::validate(
-                program,
-                &required,
-                &actual,
-                &required_frontier.regions,
-                &actual_frontier.regions,
-                &application.elided,
-                &output_elisions,
-            )?;
-        }
+        // A definite captured/fresh mismatch is actionable even when either
+        // source frontier is incomplete. This remains a refusal: an agreeing
+        // region axis cannot promote an incomplete returned-source relation.
+        super::region_correspondence::validate(
+            program,
+            &required,
+            &actual,
+            &required_frontier.regions,
+            &actual_frontier.regions,
+            &application.elided,
+            &output_elisions,
+        )?;
         return Err(error);
     }
     super::region_correspondence::validate(
@@ -275,6 +278,7 @@ fn contract_frontier(
             &regions.names,
             &regions.arguments,
             &regions.applications,
+            &regions.bindings,
             contract.lexical_owner,
             true,
             frontier,

@@ -36,32 +36,20 @@ pub(crate) trait TypeRegionScope: Copy {
         slot: usize,
         spelling: Option<&Identifier>,
     ) -> Option<Self> {
-        let regions = program.type_reference_table.operand_lifetimes(reference);
-        if regions.is_empty() {
-            return Some(self);
-        }
-        let expected = match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference {
-                lifetime: Some(_), ..
-            } => 1,
-            TypeReferenceNode::Generic {
-                lifetime_arguments, ..
-            } => lifetime_arguments.len(),
-            _ => 0,
-        };
-        if regions.len() != expected {
-            return None;
-        }
-        let region = *regions.get(slot)?;
-        if !region.declaration.is_valid() {
-            return Some(self);
-        }
-        if typed_trees::type_identity::lifetime_parameter_name(program.typed_program(), region)
-            != spelling
-        {
-            return None;
-        }
-        Some(self.enter_operand(program, region.declaration))
+        Some(
+            match retained_lifetime_identity(program, reference, slot, spelling).ok()? {
+                Some(region) => self.enter_lifetime(program, region),
+                None => self,
+            },
+        )
+    }
+
+    fn enter_lifetime(
+        self,
+        program: &dyn crate::CheckingInput,
+        region: typed_trees::type_identity::LifetimeParameterIdentity,
+    ) -> Self {
+        self.enter_operand(program, region.declaration)
     }
 
     /// One named alias of this scope's rosters: `None` when the name is not an
@@ -128,6 +116,44 @@ pub(crate) trait TypeRegionScope: Copy {
             return Some((reference, self));
         }
     }
+}
+
+/// Authenticate the same retained slot before either structural identity or
+/// physical-loan traversal selects its supplying environment.
+pub(crate) fn retained_lifetime_identity(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    slot: usize,
+    spelling: Option<&Identifier>,
+) -> Result<Option<typed_trees::type_identity::LifetimeParameterIdentity>, &'static str> {
+    let regions = program.type_reference_table.operand_lifetimes(reference);
+    if regions.is_empty() {
+        return Ok(None);
+    }
+    let expected = match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Reference {
+            lifetime: Some(_), ..
+        } => 1,
+        TypeReferenceNode::Generic {
+            lifetime_arguments, ..
+        } => lifetime_arguments.len(),
+        _ => 0,
+    };
+    if regions.len() != expected {
+        return Err("retained lifetime slots do not match the type's telescope");
+    }
+    let region = *regions
+        .get(slot)
+        .ok_or("retained lifetime slot is absent")?;
+    if !region.declaration.is_valid() {
+        return Ok(None);
+    }
+    if typed_trees::type_identity::lifetime_parameter_name(program.typed_program(), region)
+        != spelling
+    {
+        return Err("retained lifetime slot lost its exact declaration ordinal");
+    }
+    Ok(Some(region))
 }
 
 /// One named-alias step of the reference walk: chase the substituted operand
