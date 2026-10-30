@@ -117,6 +117,7 @@ pub(super) fn check(
         &facts.semantic,
         state.machine_symbol,
     );
+    let mut result_memberships = crate::flow::CapturedResultMemberships::new(facts);
     let receiver_offset = usize::from(
         matches!(&site, validation::CallSite::Expression { call, .. } if call.receiver.is_valid()),
     );
@@ -176,9 +177,8 @@ pub(super) fn check(
                                 .last();
                             if invocation.is_some_and(|observation| {
                                 observation.storage_snapshot == call.invocation_storage
-                                    && crate::flow::captured_result_membership(
+                                    && result_memberships.contains(
                                         program,
-                                        facts,
                                         captured,
                                         observation,
                                         *domain_symbol,
