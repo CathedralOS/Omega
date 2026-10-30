@@ -41,7 +41,7 @@ pub(super) fn validate(
                 substitution_scope_starts: &application.substitution_scope_starts,
                 application_scopes: scopes,
                 binders: &binders,
-                lifetime_application: None,
+                lifetime_applications: &[],
                 argument_owner: application.argument_owner,
             },
             CallableBorrowContract {
@@ -53,7 +53,7 @@ pub(super) fn validate(
                 substitution_scope_starts: &[],
                 application_scopes: &[],
                 binders: &binders,
-                lifetime_application: None,
+                lifetime_applications: &[],
                 argument_owner: machine.symbol,
             },
         )

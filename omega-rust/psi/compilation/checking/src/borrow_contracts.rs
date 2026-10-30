@@ -155,6 +155,7 @@ pub fn substituted_returns_borrow(
 mod callable_refinement;
 mod callable_regions;
 mod carried_lifetimes;
+mod lifetime_applications;
 mod provider_outputs;
 mod region_correspondence;
 mod region_inference;
@@ -165,8 +166,10 @@ pub use provider_outputs::{
 };
 
 pub(crate) use callable_refinement::lexical_region_owner;
-pub use callable_refinement::{
-    CallableBorrowContract, CallableLifetimeApplication, validate_callable_borrow_refinement,
+pub use callable_refinement::{CallableBorrowContract, validate_callable_borrow_refinement};
+
+pub use lifetime_applications::{
+    CallableLifetimeApplication, CallableLifetimeBinding, resolve_callable_lifetime_bindings,
 };
 
 /// Call admission and caller-side loans consume one applied requirement
@@ -225,7 +228,7 @@ pub fn resolve_applied_signature_view_return_source(
             substitution_scope_starts: scope_starts,
             application_scopes: &[],
             binders: &[],
-            lifetime_application: None,
+            lifetime_applications: &[],
             argument_owner,
         },
         scope_starts,

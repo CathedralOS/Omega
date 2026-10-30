@@ -237,6 +237,8 @@ fn validate_machine_top_level_requirement_conformance(
     crate::machine_calls::machine_parameters::validate_trait_callable_parameter_refinement(
         program,
         &label,
+        requirement.symbol,
+        machine.symbol,
         required_type_parameters,
         actual_type_parameters,
         &generic_types,

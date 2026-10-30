@@ -3,6 +3,7 @@
 //! spellings in a caller and a callback never imply equal region identities.
 //! Opaque types remain under the preceding complete formation proof.
 
+use super::CallableLifetimeApplication;
 use super::carried_lifetimes::{
     CarriedLifetime, LifetimeFrontier, RegionIdentity, scoped_carried_lifetimes,
 };
@@ -11,27 +12,8 @@ use checked_trees::BorrowLoanOwnerSegment;
 use symbols::SymbolHandle;
 use typed_trees::name::Identifier;
 use typed_trees::signature::StateParameter;
-use typed_trees::static_applications::StaticMachineLifetimeBinding;
 use typed_trees::type_identity::AppliedTypeIdentityScope;
 use typed_trees::types::TypeReferenceHandle;
-
-/// The exact declaration whose lifetime formals this invocation supplies.
-/// Its arguments belong to the borrow contract's separate argument owner;
-/// an enclosing telescope cannot capture a nested same-spelled fresh binder.
-#[derive(Clone, Copy)]
-pub enum CallableLifetimeApplication<'contract> {
-    /// Apply an enclosing call without binding this contract's fresh telescope,
-    /// including when recursive nominal contracts share a declaration.
-    Enclosing {
-        declaration: SymbolHandle,
-        bindings: &'contract [StaticMachineLifetimeBinding],
-    },
-    /// These arguments supply this selected callable's own invocation binders.
-    Invocation {
-        declaration: SymbolHandle,
-        bindings: &'contract [StaticMachineLifetimeBinding],
-    },
-}
 
 pub struct CallableBorrowContract<'contract> {
     pub lexical_owner: SymbolHandle,
@@ -42,7 +24,7 @@ pub struct CallableBorrowContract<'contract> {
     pub substitution_scope_starts: &'contract [usize],
     pub application_scopes: &'contract [AppliedTypeIdentityScope<'contract>],
     pub binders: &'contract [(SymbolHandle, String)],
-    pub lifetime_application: Option<CallableLifetimeApplication<'contract>>,
+    pub lifetime_applications: &'contract [CallableLifetimeApplication<'contract>],
     pub argument_owner: SymbolHandle,
 }
 

@@ -16,7 +16,9 @@ use typed_trees::state::State;
 use typed_trees::typed_trees::AppliedMachineCallable;
 use typed_trees::types::TypeReferenceHandle;
 
+mod binder_scope;
 mod nominal_inputs;
+use binder_scope::CallableBinderScope;
 
 /// The shape one callable presents for refinement against a machine
 /// parameter's requirement: a machine entry, a forwarded machine parameter or
@@ -92,7 +94,7 @@ pub(super) fn validate_selected_callable_shape(
                 Some(&applied),
                 generic_types,
                 bindings,
-                &mut Vec::new(),
+                &mut CallableBinderScope::default(),
                 diagnostics,
             );
             return;
@@ -154,7 +156,7 @@ pub(super) fn validate_selected_callable_shape(
             selected,
             generic_types,
             bindings,
-            &mut Vec::new(),
+            &mut CallableBinderScope::default(),
             diagnostics,
         );
         return;
@@ -204,7 +206,7 @@ fn validate_callable_shape(
         None,
         generic_types,
         bindings,
-        &mut Vec::new(),
+        &mut CallableBinderScope::default(),
         diagnostics,
     );
 }
@@ -219,7 +221,7 @@ fn validate_callable_parts(
     actual_signature: &typed_trees::signature::StateSignature,
     generic_types: &[&TypeParameter],
     bindings: &mut Vec<TypeBinding>,
-    binder_bindings: &mut Vec<BinderBinding>,
+    binder_bindings: &mut CallableBinderScope,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_callable_formation(
@@ -260,11 +262,25 @@ fn validate_callable_formation(
     applied: Option<&AppliedMachineCallable<'_>>,
     generic_types: &[&TypeParameter],
     bindings: &mut Vec<TypeBinding>,
-    binder_bindings: &mut Vec<BinderBinding>,
+    binder_bindings: &mut CallableBinderScope,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let formation_diagnostic_count = diagnostics.len();
     let actual_parameters = actual.parameters;
+    let previous_frames = binder_bindings.lifetime_frames.len();
+    if let Err(reason) = binder_bindings.push_callable(
+        program,
+        requirement.symbol,
+        &requirement.lifetime_parameters,
+        actual.contract_owner,
+        actual.lifetime_parameters,
+    ) {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} does not refine `{}`: {reason}",
+            parameter.name
+        )));
+        return;
+    }
     validate_callable_type_parameters(
         program,
         label,
@@ -276,6 +292,7 @@ fn validate_callable_formation(
         binder_bindings,
         diagnostics,
     );
+    binder_bindings.lifetime_frames.truncate(previous_frames);
 
     let required_parameters = program.state_signature_parameters(requirement);
     if required_parameters.len() != actual_parameters.len() {
@@ -288,7 +305,7 @@ fn validate_callable_formation(
         return;
     }
 
-    let mut formation_binders = binder_bindings.clone();
+    let mut formation_binders = binder_bindings.static_bindings.clone();
     formation_binders.extend(required_parameters.iter().zip(actual_parameters).map(
         |(required, actual)| BinderBinding {
             required: required.symbol,
@@ -363,6 +380,7 @@ fn validate_callable_formation(
         applied,
         &substitutions,
         &formation_binders,
+        &binder_bindings.lifetime_frames,
     ) {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: {message}",
@@ -398,6 +416,7 @@ fn validate_callable_regions(
     applied: Option<&AppliedMachineCallable<'_>>,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     binder_bindings: &[BinderBinding],
+    enclosing_lifetimes: &[Vec<crate::borrow_contracts::CallableLifetimeBinding>],
 ) -> Result<(), String> {
     use crate::borrow_contracts::{CallableBorrowContract, CallableLifetimeApplication};
     let binders = binder_bindings
@@ -408,6 +427,10 @@ fn validate_callable_regions(
             [(binding.required, name.clone()), (binding.actual, name)]
         })
         .collect::<Vec<_>>();
+    let mut actual_applications = enclosing_lifetimes
+        .iter()
+        .map(|bindings| CallableLifetimeApplication::Enclosing { bindings })
+        .collect::<Vec<_>>();
     let mut required = CallableBorrowContract {
         lexical_owner: crate::borrow_contracts::lexical_region_owner(program, requirement.symbol),
         lifetime_parameters: &requirement.lifetime_parameters,
@@ -417,7 +440,7 @@ fn validate_callable_regions(
         substitution_scope_starts: &[0],
         application_scopes: &[],
         binders: &binders,
-        lifetime_application: None,
+        lifetime_applications: &[],
         argument_owner: actual.lexical_owner,
     };
     let mut selected = CallableBorrowContract {
@@ -429,10 +452,13 @@ fn validate_callable_regions(
         substitution_scope_starts: &[0],
         application_scopes: &[],
         binders: &binders,
-        lifetime_application: None,
+        lifetime_applications: &[],
         argument_owner: actual.lexical_owner,
     };
     let caller_substitutions;
+    let caller_lifetimes;
+    let caller_application;
+    let selected_lifetimes;
     let provider_substitutions;
     let provider_lifetimes;
     if let Some(applied) = applied {
@@ -466,6 +492,22 @@ fn validate_callable_regions(
                 _ => None,
             })
             .collect::<Vec<_>>();
+        caller_lifetimes = crate::borrow_contracts::resolve_callable_lifetime_bindings(
+            program,
+            program
+                .expression_table
+                .static_machine_application(applied.invocation)
+                .lifetime_binding_declaration,
+            program
+                .expression_table
+                .static_machine_application(applied.invocation)
+                .lexical_owner,
+            applied.caller_lifetimes,
+        )
+        .map_err(str::to_owned)?;
+        caller_application = CallableLifetimeApplication::Enclosing {
+            bindings: &caller_lifetimes,
+        };
         required = CallableBorrowContract {
             lexical_owner: crate::borrow_contracts::lexical_region_owner(
                 program,
@@ -478,13 +520,7 @@ fn validate_callable_regions(
             substitution_scope_starts: &[0],
             application_scopes: &[],
             binders: &binders,
-            lifetime_application: Some(CallableLifetimeApplication::Enclosing {
-                declaration: program
-                    .expression_table
-                    .static_machine_application(applied.invocation)
-                    .lifetime_binding_declaration,
-                bindings: applied.caller_lifetimes,
-            }),
+            lifetime_applications: std::slice::from_ref(&caller_application),
             argument_owner: program
                 .expression_table
                 .static_machine_application(applied.invocation)
@@ -493,6 +529,16 @@ fn validate_callable_regions(
         provider_lifetimes = program
             .static_application_lifetimes_for_declaration(applied.provider, machine.symbol)
             .map_err(str::to_owned)?;
+        selected_lifetimes = crate::borrow_contracts::resolve_callable_lifetime_bindings(
+            program,
+            machine.symbol,
+            source.lexical_owner,
+            &provider_lifetimes,
+        )
+        .map_err(str::to_owned)?;
+        actual_applications.push(CallableLifetimeApplication::Invocation {
+            bindings: &selected_lifetimes,
+        });
         selected = CallableBorrowContract {
             lexical_owner: machine.symbol,
             lifetime_parameters: &machine.lifetime_parameters,
@@ -502,13 +548,11 @@ fn validate_callable_regions(
             substitution_scope_starts: &[0],
             application_scopes: &[],
             binders: &binders,
-            lifetime_application: Some(CallableLifetimeApplication::Invocation {
-                declaration: machine.symbol,
-                bindings: &provider_lifetimes,
-            }),
+            lifetime_applications: &actual_applications,
             argument_owner: applied.lexical_owner,
         };
     }
+    selected.lifetime_applications = &actual_applications;
     crate::borrow_contracts::validate_callable_borrow_refinement(program, required, selected)
 }
 
@@ -722,13 +766,15 @@ fn validate_callable_effects(
 pub fn validate_trait_callable_parameter_refinement(
     program: &dyn crate::CheckingInput,
     label: &str,
+    required_declaration: SymbolHandle,
+    actual_declaration: SymbolHandle,
     requirement_parameters: &[TypeParameter],
     actual_parameters: &[TypeParameter],
     generic_types: &[&TypeParameter],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut bindings = Vec::new();
-    let binder_bindings = requirement_parameters
+    let static_bindings = requirement_parameters
         .iter()
         .zip(actual_parameters)
         .map(|(required, provider)| BinderBinding {
@@ -736,6 +782,16 @@ pub fn validate_trait_callable_parameter_refinement(
             actual: provider.symbol,
         })
         .collect::<Vec<_>>();
+    let mut binder_bindings = CallableBinderScope {
+        static_bindings,
+        ..Default::default()
+    };
+    if let Err(reason) =
+        binder_bindings.push_declarations(program, required_declaration, actual_declaration)
+    {
+        diagnostics.push(Diagnostic::error(format!("{label}: {reason}")));
+        return;
+    }
 
     for (required, actual) in requirement_parameters.iter().zip(actual_parameters) {
         let (
@@ -773,7 +829,7 @@ fn validate_callable_type_parameters(
     actual_parameters: &[TypeParameter],
     generic_types: &[&TypeParameter],
     bindings: &mut Vec<TypeBinding>,
-    binder_bindings: &mut Vec<BinderBinding>,
+    binder_bindings: &mut CallableBinderScope,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let required_parameters = program.state_signature_type_parameters(requirement);
@@ -791,7 +847,7 @@ fn validate_callable_type_parameters(
     // one nested requirement. Sibling contracts may mention one another, and
     // their authored names are intentionally irrelevant to refinement.
     for (required, actual) in required_parameters.iter().zip(actual_parameters) {
-        binder_bindings.push(BinderBinding {
+        binder_bindings.static_bindings.push(BinderBinding {
             required: required.symbol,
             actual: actual.symbol,
         });
@@ -822,7 +878,7 @@ fn validate_callable_type_parameters(
                     actual_contract,
                     generic_types,
                     bindings,
-                    binder_bindings,
+                    &binder_bindings.static_bindings,
                     diagnostics,
                 );
             }
@@ -868,7 +924,7 @@ fn validate_callable_type_parameters(
                         required_type,
                         generic_types,
                         bindings,
-                        binder_bindings,
+                        &binder_bindings.static_bindings,
                     ) {
                         diagnostics.push(Diagnostic::error(format!(
                             "{label} does not refine `{}`: const generic parameter {} has a different type",
@@ -900,7 +956,7 @@ fn validate_callable_input(
     demanded: &typed_trees::data::MachineParameterContract,
     generic_types: &[&TypeParameter],
     bindings: &mut Vec<TypeBinding>,
-    binder_bindings: &[BinderBinding],
+    binder_bindings: &CallableBinderScope,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     nominal_inputs::validate(
@@ -910,18 +966,12 @@ fn validate_callable_input(
         demanded,
         generic_types,
         bindings,
-        binder_bindings,
+        &binder_bindings.static_bindings,
         diagnostics,
     );
     let promised = machine_parameter_signature(program, promised);
     let demanded = machine_parameter_signature(program, demanded);
-    let mut reversed = binder_bindings
-        .iter()
-        .map(|binding| BinderBinding {
-            required: binding.actual,
-            actual: binding.required,
-        })
-        .collect::<Vec<_>>();
+    let mut reversed = binder_bindings.reversed();
     validate_callable_parts(
         program,
         label,

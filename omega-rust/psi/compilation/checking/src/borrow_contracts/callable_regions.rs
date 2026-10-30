@@ -3,9 +3,8 @@
 //! borrows its preceding environment. Fresh invocation binders overlay only
 //! the original signature: a compound operand may also retain captured regions.
 
-use super::callable_refinement::{
-    CallableBorrowContract, CallableLifetimeApplication, captured_lifetimes,
-};
+use super::CallableLifetimeApplication;
+use super::callable_refinement::{CallableBorrowContract, captured_lifetimes};
 use super::carried_lifetimes::RegionIdentity;
 use typed_trees::type_identity::{
     LifetimeParameterIdentity, applied_lifetime_parameter_identity, lifetime_parameter_identity,
@@ -27,6 +26,7 @@ pub(super) fn applied_region<'scope>(
     }
     bindings
         .iter()
+        .rev()
         .find(|binding| {
             binding.parameter.ordinal == parameter.ordinal && binding.parameter.declaration == owner
         })
@@ -85,49 +85,52 @@ pub(super) fn resolve(
         })
         .collect::<Result<Vec<_>, &'static str>>()?;
     let mut bindings = Vec::new();
-    if let Some(application) = contract.lifetime_application {
-        let (declaration, supplied) = match application {
-            CallableLifetimeApplication::Enclosing {
-                declaration,
-                bindings,
-            }
-            | CallableLifetimeApplication::Invocation {
-                declaration,
-                bindings,
-            } => (declaration, bindings),
+    for application in contract.lifetime_applications {
+        let supplied = match application {
+            CallableLifetimeApplication::Enclosing { bindings }
+            | CallableLifetimeApplication::Invocation { bindings } => *bindings,
         };
-        let receiver = program.lifetime_declaration_owner(declaration);
+        // All arguments of one frame see only preceding frames. Repeated
+        // enclosing scopes compose without rebinding a simultaneous actual.
+        let preceding = bindings.len();
         for (position, binding) in supplied.iter().enumerate() {
-            let parameter = lifetime_parameter_identity(
+            if program.lifetime_declaration_owner(binding.parameter.declaration)
+                != binding.parameter.declaration
+                || program.lifetime_declaration_owner(binding.argument.declaration)
+                    != binding.argument.declaration
+            {
+                return Err("callable lifetime frame lost its canonical declaration coordinates");
+            }
+            let parameter_name = typed_trees::type_identity::lifetime_parameter_name(
                 program.typed_program(),
-                declaration,
-                binding.parameter.as_str(),
+                binding.parameter,
             )
-            .filter(|parameter| parameter.declaration == receiver && receiver.is_valid())
-            .ok_or("callable capture lost its exact receiving lifetime telescope")?;
+            .ok_or("callable capture lost its exact receiving lifetime ordinal")?;
+            typed_trees::type_identity::lifetime_parameter_name(
+                program.typed_program(),
+                binding.argument,
+            )
+            .ok_or("callable input region lost its exact supplying lifetime ordinal")?;
             if supplied[..position]
                 .iter()
                 .any(|prior| prior.parameter == binding.parameter)
             {
                 return Err("callable capture repeats a receiving lifetime parameter");
             }
-            let argument = arguments
-                .iter()
-                .rev()
-                .find(|(name, _)| name == binding.argument.as_str())
-                .map(|(_, identity)| identity.clone())
-                .ok_or("callable input region has no lexical declaration custody")?;
-            // The enclosing invocation and this callback may reuse the same
-            // declaration. Its own fresh slots still shadow that outer frame;
-            // supplied Type operands leave through their independent prefix.
             if matches!(application, CallableLifetimeApplication::Enclosing { .. })
-                && fresh_parameters.contains(&parameter)
+                && fresh_parameters.contains(&binding.parameter)
             {
                 continue;
             }
-            names.push((binding.parameter.as_str().to_owned(), argument.clone()));
+            let argument = applied_region(program, &bindings[..preceding], binding.argument)
+                .cloned()
+                .unwrap_or(RegionIdentity::Captured(
+                    binding.argument.declaration,
+                    binding.argument.ordinal,
+                ));
+            names.push((parameter_name.as_str().to_owned(), argument.clone()));
             bindings.push(AppliedRegionBinding {
-                parameter,
+                parameter: binding.parameter,
                 argument,
             });
         }
