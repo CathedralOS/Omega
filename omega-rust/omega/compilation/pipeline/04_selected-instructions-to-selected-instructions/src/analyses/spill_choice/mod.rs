@@ -59,27 +59,17 @@ seal_plan!(
     }
 );
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SpillChoiceValidationReceipt {
-    pub(crate) identity: SpillChoiceIdentity,
-    pub(crate) legality: AllocationLegalityIdentity,
-    pub(crate) ranges: LiveRangeIdentity,
-    pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
-    pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
-    pub(crate) policy: SpillChoicePolicy,
-    pub(crate) usage: OptimizationWorkUsage,
-}
-
-impl SpillChoiceValidationReceipt {
-    receipt_accessor_rows!(SpillChoiceValidationReceipt {
-        identity: SpillChoiceIdentity,
-        policy: SpillChoicePolicy,
-        usage: OptimizationWorkUsage,
-        legality: AllocationLegalityIdentity,
-        ranges: LiveRangeIdentity,
-        register_environment: TargetRegisterEnvironmentIdentity,
-        allocator_availability: AllocatorAvailabilityIdentity,
-    });
+copy_receipt! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct SpillChoiceValidationReceipt {
+        pub(crate) identity: SpillChoiceIdentity,
+        pub(crate) legality: AllocationLegalityIdentity,
+        pub(crate) ranges: LiveRangeIdentity,
+        pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
+        pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
+        pub(crate) policy: SpillChoicePolicy,
+        pub(crate) usage: OptimizationWorkUsage,
+    }
 }
 
 validated_plan_carrier!(ValidatedSpillChoices: SpillChoicePlan, SpillChoiceValidationReceipt);

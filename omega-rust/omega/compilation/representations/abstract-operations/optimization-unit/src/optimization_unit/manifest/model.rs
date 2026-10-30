@@ -83,15 +83,9 @@ pub enum PrePhysicalOptimizationManifestDecodeError {
     TrailingBytes,
 }
 
-impl std::fmt::Display for PrePhysicalOptimizationManifestDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid pre-physical manifest encoding: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for PrePhysicalOptimizationManifestDecodeError {}
+optimization_core::invalid_error_display!(
+    PrePhysicalOptimizationManifestDecodeError,
+    "pre-physical manifest encoding"
+);
 
 optimization_core::take_error_from_adapter!(PrePhysicalOptimizationManifestDecodeError);

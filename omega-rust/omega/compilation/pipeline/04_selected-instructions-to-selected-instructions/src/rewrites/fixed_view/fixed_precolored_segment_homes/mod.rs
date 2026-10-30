@@ -133,21 +133,14 @@ impl StagedOptimizedFixedPrecoloredSegmentHomes {
     });
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
-    upstream: StagedOptimizedAllocationLegalityCustodyReceipt,
-    fixed: FixedPrecoloredIntervalValidationReceipt,
-    requirements: FixedPrecoloredSplitRequirementValidationReceipt,
-    homes: FixedPrecoloredSegmentHomeValidationReceipt,
-}
-
-impl StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
-    receipt_accessor_rows!(StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
+copy_receipt! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt {
         upstream: StagedOptimizedAllocationLegalityCustodyReceipt,
         fixed: FixedPrecoloredIntervalValidationReceipt,
         requirements: FixedPrecoloredSplitRequirementValidationReceipt,
         homes: FixedPrecoloredSegmentHomeValidationReceipt,
-    });
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

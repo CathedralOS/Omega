@@ -12,6 +12,7 @@ use machine_code::{ScalarDivisionBranchEvidence, ScalarStackEvidence};
 use semantic_vocabulary::MachineId;
 use target::Architecture;
 
+use super::invalid_conditional_evidence as rejected;
 use super::stack_mutation::{ScalarReplay, replay_scalar_mutation, validate_x86_scalar_mutation};
 use crate::{ObjectError, ObjectScalarCallStack, ObjectScalarStack};
 
@@ -90,10 +91,7 @@ fn validate_scalar_division_branch_instructions(
         || join.flow_control() != iced_x86::FlowControl::UnconditionalBranch
         || usize::try_from(join.near_branch_target()).ok() != Some(branch.merge_offset)
     {
-        return Err(ObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: branch.branch_offset,
-        });
+        return Err(rejected(machine, branch.branch_offset));
     }
     Ok(())
 }
@@ -109,10 +107,7 @@ fn replay_x86_scalar_linear_region(
     peak: &mut u32,
 ) -> Result<(), ObjectError> {
     if start > end || end > bytes.len() {
-        return Err(ObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: start,
-        });
+        return Err(rejected(machine, start));
     }
     let mut decoder = iced_x86::Decoder::with_ip(
         64,
@@ -188,17 +183,11 @@ fn replay_x86_scalar_division_branches(
         let branch_end = branch
             .branch_offset
             .checked_add(branch.branch_byte_count)
-            .ok_or(ObjectError::InvalidScalarConditionalEvidence {
-                machine,
-                offset: branch.branch_offset,
-            })?;
+            .ok_or(rejected(machine, branch.branch_offset))?;
         let join_end = branch
             .join_offset
             .checked_add(branch.join_byte_count)
-            .ok_or(ObjectError::InvalidScalarConditionalEvidence {
-                machine,
-                offset: branch.join_offset,
-            })?;
+            .ok_or(rejected(machine, branch.join_offset))?;
         if cursor > branch.branch_offset
             || branch.branch_offset < start
             || branch.branch_offset >= branch_end
@@ -207,10 +196,7 @@ fn replay_x86_scalar_division_branches(
             || branch.ordinary_arm_offset >= branch.merge_offset
             || branch.merge_offset > end
         {
-            return Err(ObjectError::InvalidScalarConditionalEvidence {
-                machine,
-                offset: branch.branch_offset,
-            });
+            return Err(rejected(machine, branch.branch_offset));
         }
         validate_scalar_division_branch_instructions(machine, bytes, branch)?;
         replay_x86_scalar_linear_region(
@@ -278,10 +264,7 @@ pub(crate) fn replay_x86_scalar_division_region(
     walk: &mut ScalarReplay<'_>,
 ) -> Result<u32, ObjectError> {
     if branches.is_empty() || start > end || end > bytes.len() {
-        return Err(ObjectError::InvalidScalarConditionalEvidence {
-            machine,
-            offset: start,
-        });
+        return Err(rejected(machine, start));
     }
     let (depth, peak) = replay_x86_scalar_division_branches(
         machine,

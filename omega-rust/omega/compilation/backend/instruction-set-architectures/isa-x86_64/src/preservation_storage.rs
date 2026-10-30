@@ -16,16 +16,10 @@ pub enum X86_64PreservationStorageCatalogError {
     InvalidCatalog(PreservationStorageCatalogValidationError),
 }
 
-impl std::fmt::Display for X86_64PreservationStorageCatalogError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid x86-64 preservation-storage catalog: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for X86_64PreservationStorageCatalogError {}
+optimization_core::invalid_error_display!(
+    X86_64PreservationStorageCatalogError,
+    "x86-64 preservation-storage catalog"
+);
 
 /// Select and validate the exact preservation-storage catalog for one x86-64
 /// target. Windows and UEFI intentionally share the indistinguishable

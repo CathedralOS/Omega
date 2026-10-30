@@ -76,7 +76,7 @@ pub(super) fn write(
         length,
         obligation,
         accepted_fact,
-        row.operation,
+        row,
     )?;
     memory(
         builder,

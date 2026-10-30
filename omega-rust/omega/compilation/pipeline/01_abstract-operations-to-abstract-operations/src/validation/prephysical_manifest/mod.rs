@@ -69,13 +69,7 @@ pub enum PrePhysicalOptimizationManifestError {
     StructuralStatisticsOverflow,
 }
 
-impl std::fmt::Display for PrePhysicalOptimizationManifestError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid pre-physical optimization manifest: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for PrePhysicalOptimizationManifestError {}
+failed_display!(
+    PrePhysicalOptimizationManifestError,
+    "invalid pre-physical optimization manifest"
+);

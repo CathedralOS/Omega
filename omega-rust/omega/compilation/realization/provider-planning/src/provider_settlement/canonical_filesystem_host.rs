@@ -66,51 +66,22 @@ type ToolchainFilesystemLeaf = super::ToolchainSettledLeaf;
 /// contract. Leaves needing path/spelling adaptation, slice carriers, error
 /// reading (`errno`, `get_last_error`), or the `get_osfhandle` host seam have
 /// no honest positional syscall and stay uncovered on purpose.
+const fn filesystem_leaf(method: &'static str, number: i64) -> ToolchainFilesystemLeaf {
+    ToolchainFilesystemLeaf { method, number }
+}
+
 const LINUX_X86_64_FILESYSTEM_LEAVES: &[ToolchainFilesystemLeaf] = &[
-    ToolchainFilesystemLeaf {
-        method: "close",
-        number: 3,
-    },
-    ToolchainFilesystemLeaf {
-        method: "find_close",
-        number: 3,
-    },
-    ToolchainFilesystemLeaf {
-        method: "close_handle",
-        number: 3,
-    },
-    ToolchainFilesystemLeaf {
-        method: "seek",
-        number: 8,
-    },
-    ToolchainFilesystemLeaf {
-        method: "duplicate",
-        number: 32,
-    },
-    ToolchainFilesystemLeaf {
-        method: "lock_file",
-        number: 73,
-    },
-    ToolchainFilesystemLeaf {
-        method: "sync",
-        number: 74,
-    },
-    ToolchainFilesystemLeaf {
-        method: "sync_data",
-        number: 75,
-    },
-    ToolchainFilesystemLeaf {
-        method: "set_len",
-        number: 77,
-    },
-    ToolchainFilesystemLeaf {
-        method: "set_file_permissions",
-        number: 91,
-    },
-    ToolchainFilesystemLeaf {
-        method: "change_file_owner",
-        number: 93,
-    },
+    filesystem_leaf("close", 3),
+    filesystem_leaf("find_close", 3),
+    filesystem_leaf("close_handle", 3),
+    filesystem_leaf("seek", 8),
+    filesystem_leaf("duplicate", 32),
+    filesystem_leaf("lock_file", 73),
+    filesystem_leaf("sync", 74),
+    filesystem_leaf("sync_data", 75),
+    filesystem_leaf("set_len", 77),
+    filesystem_leaf("set_file_permissions", 91),
+    filesystem_leaf("change_file_owner", 93),
 ];
 
 /// Per-target canonical realization tables. A target with no reviewed table

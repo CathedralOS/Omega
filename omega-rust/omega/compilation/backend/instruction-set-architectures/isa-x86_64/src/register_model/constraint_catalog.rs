@@ -490,41 +490,28 @@ pub fn x86_64_register_constraint_catalog(
     // than left allocatable over an early-clobbered RDX. The RDX scratch is an
     // ordinary late definition: the row's two outputs both define at the
     // instruction's after-point, which the fixed precolored contract accepts.
-    constraints.push(rflags_clobbering_row(
-        RegisterConstraintId(0),
-        X86_64_REMAINDER_I64,
-        vec![
-            fixed(0, RegisterOperandAccess::Use, "rax"),
-            fixed(1, RegisterOperandAccess::Use, "rcx"),
-            fixed(2, RegisterOperandAccess::Def, "rax"),
-            fixed(3, RegisterOperandAccess::Def, "rdx"),
-        ],
-    ));
+    macro_rules! fixed_rax_pair {
+        ($key:expr) => {
+            constraints.push(rflags_clobbering_row(
+                RegisterConstraintId(0),
+                $key,
+                vec![
+                    fixed(0, RegisterOperandAccess::Use, "rax"),
+                    fixed(1, RegisterOperandAccess::Use, "rcx"),
+                    fixed(2, RegisterOperandAccess::Def, "rax"),
+                    fixed(3, RegisterOperandAccess::Def, "rdx"),
+                ],
+            ));
+        };
+    }
+    fixed_rax_pair!(X86_64_REMAINDER_I64);
     // Signed wrapping division shares the signed remainder's fixed row: RAX
     // carries the dividend and result quotient, RCX owns the divisor so the
     // CQO clobber cannot consume it, and RDX is the sign-extension output.
-    constraints.push(rflags_clobbering_row(
-        RegisterConstraintId(0),
-        X86_64_DIVIDE_I64,
-        vec![
-            fixed(0, RegisterOperandAccess::Use, "rax"),
-            fixed(1, RegisterOperandAccess::Use, "rcx"),
-            fixed(2, RegisterOperandAccess::Def, "rax"),
-            fixed(3, RegisterOperandAccess::Def, "rdx"),
-        ],
-    ));
+    fixed_rax_pair!(X86_64_DIVIDE_I64);
     // Unsigned remainder keeps the same fixed row: the realized form zeroes
     // RDX before DIV, then moves the RDX remainder into the RAX result home.
-    constraints.push(rflags_clobbering_row(
-        RegisterConstraintId(0),
-        X86_64_REMAINDER_U64,
-        vec![
-            fixed(0, RegisterOperandAccess::Use, "rax"),
-            fixed(1, RegisterOperandAccess::Use, "rcx"),
-            fixed(2, RegisterOperandAccess::Def, "rax"),
-            fixed(3, RegisterOperandAccess::Def, "rdx"),
-        ],
-    ));
+    fixed_rax_pair!(X86_64_REMAINDER_U64);
     // Variable shifts read the count through CL, so the count operand is
     // pinned to RCX. The result is an early-clobber definition: it is written
     // by the value copy before the shift reads CL, so it can share neither
@@ -598,29 +585,11 @@ pub fn x86_64_register_constraint_catalog(
     // Saturating u64 multiplication shares the unsigned remainder's fixed row:
     // MUL reads RAX and the RCX-pinned right operand and defines the RDX high
     // half, whose overflow borrow then saturates RAX.
-    constraints.push(rflags_clobbering_row(
-        RegisterConstraintId(0),
-        X86_64_SATURATING_MULTIPLY_U64,
-        vec![
-            fixed(0, RegisterOperandAccess::Use, "rax"),
-            fixed(1, RegisterOperandAccess::Use, "rcx"),
-            fixed(2, RegisterOperandAccess::Def, "rax"),
-            fixed(3, RegisterOperandAccess::Def, "rdx"),
-        ],
-    ));
+    fixed_rax_pair!(X86_64_SATURATING_MULTIPLY_U64);
     // Trapping division, remainder, and u64 multiplication share the same
     // fixed row: the guards read the RCX-pinned divisor before RDX is
     // defined by the XOR, CQO, or MUL high half, and the result is RAX.
-    constraints.push(rflags_clobbering_row(
-        RegisterConstraintId(0),
-        X86_64_TRAPPING_FIXED_PAIR,
-        vec![
-            fixed(0, RegisterOperandAccess::Use, "rax"),
-            fixed(1, RegisterOperandAccess::Use, "rcx"),
-            fixed(2, RegisterOperandAccess::Def, "rax"),
-            fixed(3, RegisterOperandAccess::Def, "rdx"),
-        ],
-    ));
+    fixed_rax_pair!(X86_64_TRAPPING_FIXED_PAIR);
     // Trapping shifts read the count through CL like the wrapping shifts, and
     // add an early-clobber scratch for the left shift's round-trip or range
     // check, which runs while the value and count are still live.
@@ -1175,16 +1144,10 @@ pub enum X86_64RegisterConstraintCatalogValidationError {
     TargetSemanticMismatch(RegisterConstraintKey),
 }
 
-impl std::fmt::Display for X86_64RegisterConstraintCatalogValidationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid x86-64 register constraint catalog: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for X86_64RegisterConstraintCatalogValidationError {}
+optimization_core::invalid_error_display!(
+    X86_64RegisterConstraintCatalogValidationError,
+    "x86-64 register constraint catalog"
+);
 
 /// Validate generic catalog structure, then independently require every row
 /// to equal the x86-64 target owner's canonical semantics for that exact key.

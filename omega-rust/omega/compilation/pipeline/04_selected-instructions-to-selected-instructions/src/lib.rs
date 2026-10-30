@@ -63,6 +63,34 @@ macro_rules! receipt_accessor_rows {
     };
 }
 
+/// A by-value receipt whose accessor rows are exactly its fields. The struct
+/// and `receipt_accessor_rows!` stay one roster.
+macro_rules! copy_receipt {
+    (
+        $(#[$meta:meta])*
+        $vis:vis struct $name:ident {
+            $(
+                $(#[$fmeta:meta])*
+                $fvis:vis $field:ident : $ty:ty
+            ),* $(,)?
+        }
+    ) => {
+        $(#[$meta])*
+        $vis struct $name {
+            $(
+                $(#[$fmeta])*
+                $fvis $field: $ty
+            ),*
+        }
+
+        impl $name {
+            receipt_accessor_rows!($name {
+                $($(#[$fmeta])* $field: $ty),*
+            });
+        }
+    };
+}
+
 /// The producer rows a staged shell re-serves unchanged: one internal rule per
 /// accessor, so a shell names its producer field and the rows it re-serves
 /// instead of restating each delegation body and its doc. `$producer` is the
@@ -200,9 +228,10 @@ macro_rules! seal_plan {
     };
 }
 
-/// `Display` for the crate's `<context>: {self:?}` refusal convention. The
-/// caller passes the whole context, so both the `invalid <rewrite>` and the
-/// `<analysis> failed` spellings render from one owner.
+/// `Display` and `Error` for the crate's `<context>: {self:?}` refusal
+/// convention. The caller passes the whole context, so both the
+/// `invalid <rewrite>` and the `<analysis> failed` spellings render from one
+/// owner.
 macro_rules! failed_display {
     ($type:ty, $message:literal) => {
         impl std::fmt::Display for $type {
@@ -210,17 +239,9 @@ macro_rules! failed_display {
                 write!(formatter, concat!($message, ": {:?}"), self)
             }
         }
-    };
-}
 
-/// `std::error::Error` for the crate's refusal types: each one already
-/// carries its own `Display`, so the marker impl is a declarative row rather
-/// than a per-type block. The refusal a private module keeps unexported stays
-/// beside its declaration, where only that module can name it.
-macro_rules! std_error {
-    ($($error:ty),+ $(,)?) => {$(
-        impl std::error::Error for $error {}
-    )+};
+        impl std::error::Error for $type {}
+    };
 }
 
 mod analyses;
@@ -353,45 +374,3 @@ pub use rewrites::{
     FixedOccurrencesError, ValidatedFixedOccurrences, materialize_selected_fixed_occurrences,
 };
 
-// The refusal types this root re-exports carry the shared error marker; the
-// decode refusals a private module keeps stay beside their own declarations.
-std_error!(
-    AddressFoldError,
-    AllocationLegalityError,
-    AllocatorAvailabilityError,
-    ConstantBooleanError,
-    ConstantBranchError,
-    CopiedCallOperandError,
-    CopyRemovalError,
-    DeadCompareError,
-    EquivalentCompareError,
-    FixedOccurrencesError,
-    FixedPrecoloredIntervalError,
-    FixedPrecoloredSegmentHomeError,
-    FixedPrecoloredSplitRequirementError,
-    FixedViewCopyError,
-    LiteralFoldError,
-    LiveRangeError,
-    LivenessError,
-    MachineEffectError,
-    MachineEffectStageError,
-    OptimizedAllocationLegalityCustodyError,
-    OptimizedFixedPrecoloredSegmentHomeCustodyError,
-    OptimizedFixedViewCopyCustodyError,
-    OptimizedLiteralFoldCustodyError,
-    OptimizedLiveRangeCustodyError,
-    OptimizedLivenessCustodyError,
-    OptimizedPreAllocationCustodyError,
-    OptimizedSelectedReanalysisError,
-    PressureRematerializationError,
-    RecoveryClassificationError,
-    RedundantCompareError,
-    RedundantExtensionError,
-    RuntimeRematerializationError,
-    RuntimeSpillError,
-    RuntimeSplitError,
-    SelectedInstructionOptimizationError,
-    SpillChoiceError,
-    StoredLoadForwardingError,
-    WorkDefect,
-);

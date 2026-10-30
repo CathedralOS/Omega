@@ -322,12 +322,13 @@ pub(crate) fn validate_stack(
 
 #[cfg(test)]
 mod tests {
+    use super::super::stack_mutation as row;
     use super::{
         Architecture, Block, MachineId, Predicate, ScalarDirectConditionalBranchEvidence,
         ScalarStackEvidence, SemanticCodeAttribution, SemanticCodeSite, Terminator,
         reconstruct_scalar_control_flow, validate_stack,
     };
-    use machine_code::{ScalarControlFlowEvidence, ScalarStackMutation, ScalarStackMutationKind};
+    use machine_code::{ScalarControlFlowEvidence, ScalarStackMutationKind as Kind};
     use semantic_vocabulary::EdgeId;
 
     fn fixture(architecture: Architecture) -> (Vec<u8>, Vec<SemanticCodeAttribution>) {
@@ -496,18 +497,7 @@ mod tests {
             },
         ];
         let mut evidence = stack(blocks.clone());
-        evidence.mutations = vec![
-            ScalarStackMutation {
-                offset: 2,
-                byte_count: 1,
-                kind: ScalarStackMutationKind::X86Push,
-            },
-            ScalarStackMutation {
-                offset: 7,
-                byte_count: 1,
-                kind: ScalarStackMutationKind::X86Pop,
-            },
-        ];
+        evidence.mutations = vec![row(2, 1, Kind::X86Push), row(7, 1, Kind::X86Pop)];
         assert!(validate_stack(Architecture::X86_64, machine, &bytes, &evidence, &blocks).is_err());
         let ScalarControlFlowEvidence::Acyclic { blocks } = &evidence.control_flow else {
             unreachable!()

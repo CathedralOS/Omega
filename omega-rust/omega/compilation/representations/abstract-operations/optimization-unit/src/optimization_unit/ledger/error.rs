@@ -14,13 +14,10 @@ pub enum InvalidPsiTransformationLedger {
     DuplicatePrunedSourceOrdinal,
 }
 
-impl std::fmt::Display for InvalidPsiTransformationLedger {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid Psi transformation ledger: {self:?}")
-    }
-}
-
-impl std::error::Error for InvalidPsiTransformationLedger {}
+optimization_core::invalid_error_display!(
+    InvalidPsiTransformationLedger,
+    "Psi transformation ledger"
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PsiTransformationLedgerDecodeError {
@@ -37,15 +34,9 @@ pub enum PsiTransformationLedgerDecodeError {
     InvalidLedger(InvalidPsiTransformationLedger),
 }
 
-impl std::fmt::Display for PsiTransformationLedgerDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid Psi transformation-ledger encoding: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for PsiTransformationLedgerDecodeError {}
+optimization_core::invalid_error_display!(
+    PsiTransformationLedgerDecodeError,
+    "Psi transformation-ledger encoding"
+);
 
 optimization_core::take_error_from_adapter!(PsiTransformationLedgerDecodeError);

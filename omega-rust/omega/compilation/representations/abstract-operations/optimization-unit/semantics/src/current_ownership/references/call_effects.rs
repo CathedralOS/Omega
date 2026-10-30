@@ -486,32 +486,14 @@ fn resolve_slot(
             path: argument.path.clone(),
         });
     };
+    let reject = |reason| invalid(function, block, Some(node), reason);
     let custody = access_reference_custody(function, types, block, node, live, argument)?;
-    let root = structural_source_contract(function, argument.place).ok_or_else(|| {
-        invalid(
-            function,
-            block,
-            Some(node),
-            "stored reference root is absent",
-        )
-    })?;
+    let root = structural_source_contract(function, argument.place)
+        .ok_or_else(|| reject("stored reference root is absent"))?;
     let reference = access_path_type(types, root.structural_type, &argument.path[..crossing])
-        .ok_or_else(|| {
-            invalid(
-                function,
-                block,
-                Some(node),
-                "stored reference crossing is untyped",
-            )
-        })?;
-    let referent = leaf_referent(types, reference, &[]).ok_or_else(|| {
-        invalid(
-            function,
-            block,
-            Some(node),
-            "stored reference crossing has no referent",
-        )
-    })?;
+        .ok_or_else(|| reject("stored reference crossing is untyped"))?;
+    let referent = leaf_referent(types, reference, &[])
+        .ok_or_else(|| reject("stored reference crossing has no referent"))?;
     let mut slots = Vec::new();
     for origin in custody.origins {
         let mut slot = match origin {
@@ -519,45 +501,22 @@ fn resolve_slot(
                 place,
                 path: Vec::new(),
             },
-            ReferenceOrigin::IngressLeaf(identity) => {
-                identity.exact_identity().ok_or_else(|| {
-                    invalid(
-                        function,
-                        block,
-                        Some(node),
-                        "stored reference carrier has no exact storage identity",
-                    )
-                })?
-            }
+            ReferenceOrigin::IngressLeaf(identity) => identity
+                .exact_identity()
+                .ok_or_else(|| reject("stored reference carrier has no exact storage identity"))?,
             ReferenceOrigin::Invocation { .. } | ReferenceOrigin::Alternatives { .. } => {
-                return Err(invalid(
-                    function,
-                    block,
-                    Some(node),
-                    "stored reference carrier has alternative storage",
-                ));
+                return Err(reject("stored reference carrier has alternative storage"));
             }
         };
-        slot = storage_cursor(function, types, slot, referent).ok_or_else(|| {
-            invalid(
-                function,
-                block,
-                Some(node),
-                "stored reference origin has no exact storage cursor",
-            )
-        })?;
+        slot = storage_cursor(function, types, slot, referent)
+            .ok_or_else(|| reject("stored reference origin has no exact storage cursor"))?;
         slot.path.extend_from_slice(&argument.path[crossing + 1..]);
         if !slots.contains(&slot) {
             slots.push(slot);
         }
     }
     if slots.len() != 1 {
-        return Err(invalid(
-            function,
-            block,
-            Some(node),
-            "stored reference requires one exact carrier slot",
-        ));
+        return Err(reject("stored reference requires one exact carrier slot"));
     }
     Ok(slots.remove(0))
 }

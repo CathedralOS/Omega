@@ -2,7 +2,7 @@
 use super::{
     Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, PlaceId, ScalarType, SelectedInstructionKind,
-    SelectedMemoryAccessRole, VirtualRegisterId, memory, obligation_provenance,
+    SelectedMemoryAccessRole, ValueId, VirtualRegisterId, memory, obligation_provenance,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -60,43 +60,27 @@ pub(super) fn write(
     // A block-parameter view destination reaches the roots every incoming
     // edge binds; an un-sliced view place is its own root and keeps the
     // sequence row.
-    match crate::selection::byte_view_homes::view_backing_roots(
+    charge_backing_roots(
         function,
-        &builder.transport.views,
+        builder,
+        row,
         destination,
         length,
-    )? {
-        Some(roots) => {
-            for (root, extent) in roots {
-                memory(
-                    builder,
-                    row,
-                    root,
-                    0,
-                    0,
-                    SelectedMemoryAccessRole::WriteByteSpan {
-                        length: extent,
-                        obligation,
-                        accepted_fact,
-                    },
-                )?;
-            }
-        }
-        None => memory(
-            builder,
-            row,
-            destination,
-            0,
-            1,
-            SelectedMemoryAccessRole::WriteByteSequence {
-                index,
-                value,
-                length,
-                obligation,
-                accepted_fact,
-            },
-        )?,
-    }
+        |extent| SelectedMemoryAccessRole::WriteByteSpan {
+            length: extent,
+            obligation,
+            accepted_fact,
+        },
+        0,
+        1,
+        SelectedMemoryAccessRole::WriteByteSequence {
+            index,
+            value,
+            length,
+            obligation,
+            accepted_fact,
+        },
+    )?;
     builder.emit_store(
         0,
         1,
@@ -200,48 +184,26 @@ fn byte_sequence_read(
     // so the roster never compares `Place(view)` with `Place(root)` as
     // disjoint storage; an un-sliced view source is its own root and keeps
     // the sequence row.
-    match crate::selection::byte_view_homes::view_backing_roots(
+    charge_backing_roots(
         function,
-        &builder.transport.views,
+        builder,
+        row,
         source,
         length,
-    )? {
-        Some(roots) => {
-            for (root, extent) in roots {
-                memory(
-                    builder,
-                    row,
-                    root,
-                    0,
-                    0,
-                    SelectedMemoryAccessRole::ReadByteSpan {
-                        length: extent,
-                        obligation,
-                        accepted_fact,
-                    },
-                )?;
-            }
-        }
-        None => memory(
-            builder,
-            row,
-            source,
-            if crate::selection::byte_concatenation_input::owner_layout_type(function, source)
-                .is_some()
-            {
-                8
-            } else {
-                0
-            },
-            1,
-            SelectedMemoryAccessRole::ReadByteSequence {
-                index,
-                length,
-                obligation,
-                accepted_fact,
-            },
-        )?,
-    }
+        |extent| SelectedMemoryAccessRole::ReadByteSpan {
+            length: extent,
+            obligation,
+            accepted_fact,
+        },
+        unsliced_payload_offset(function, source),
+        1,
+        SelectedMemoryAccessRole::ReadByteSequence {
+            index,
+            length,
+            obligation,
+            accepted_fact,
+        },
+    )?;
     builder.emit(
         SelectedInstructionKind::Load8Indexed,
         builder
@@ -253,6 +215,53 @@ fn byte_sequence_read(
         operation_provenance(row, vec![index, length, definition.value]),
     )?;
     Ok(output)
+}
+
+/// Charge every retained backing root, or the place itself when the view is
+/// its own root. Span rows name the root extent. The unsliced row keeps the
+/// caller's sequence role, displacement, and byte count.
+pub(super) fn charge_backing_roots(
+    function: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    length: ValueId,
+    span: impl Fn(ValueId) -> SelectedMemoryAccessRole,
+    sequence_offset: u32,
+    sequence_count: u32,
+    sequence: SelectedMemoryAccessRole,
+) -> Result<(), SelectedInstructionError> {
+    match crate::selection::byte_view_homes::view_backing_roots(
+        function,
+        &builder.transport.views,
+        place,
+        length,
+    )? {
+        Some(roots) => {
+            for (root, extent) in roots {
+                memory(builder, row, root, 0, 0, span(extent))?;
+            }
+        }
+        None => memory(
+            builder,
+            row,
+            place,
+            sequence_offset,
+            sequence_count,
+            sequence,
+        )?,
+    }
+    Ok(())
+}
+
+/// Un-sliced owned inline storage starts after the length word. A borrowed
+/// or view descriptor starts at the first payload byte.
+pub(super) fn unsliced_payload_offset(function: &LegalizedScalarFunction, place: PlaceId) -> u32 {
+    if crate::selection::byte_concatenation_input::owner_layout_type(function, place).is_some() {
+        8
+    } else {
+        0
+    }
 }
 
 /// Reads and writes index the same retained backing, including nested cuts.

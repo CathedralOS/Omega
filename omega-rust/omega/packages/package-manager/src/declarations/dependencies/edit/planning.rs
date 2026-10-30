@@ -122,6 +122,17 @@ pub(crate) fn plan_dependency_replacement_from_source(
     let digest = source_digest(&source);
     let current_statement = canonical_dependency_statement(purpose, accepted);
     let proposed_statement = canonical_dependency_statement(purpose, candidate);
+    macro_rules! patch {
+        ($reason:expr) => {
+            manual_patch(
+                build_path,
+                digest,
+                $reason,
+                Some(current_statement),
+                proposed_statement,
+            )
+        };
+    }
     let accepted_indices = requests
         .iter()
         .enumerate()
@@ -135,58 +146,30 @@ pub(crate) fn plan_dependency_replacement_from_source(
         } else {
             BuildDependencyManualReason::AcceptedRequestAmbiguous
         };
-        return Ok(manual_patch(
-            build_path,
-            digest,
-            reason,
-            Some(current_statement),
-            proposed_statement,
-        ));
+        return Ok(patch!(reason));
     };
     if scoped_contains(candidate) {
-        return Ok(manual_patch(
-            build_path,
-            digest,
-            BuildDependencyManualReason::CandidateAlreadyPresent,
-            Some(current_statement),
-            proposed_statement,
-        ));
+        return Ok(patch!(BuildDependencyManualReason::CandidateAlreadyPresent));
     }
     let Some(layout) = discover_build_layout(&source)? else {
-        return Ok(manual_patch(
-            build_path,
-            digest,
-            BuildDependencyManualReason::NonCanonicalBuildBodyLayout,
-            Some(current_statement),
-            proposed_statement,
+        return Ok(patch!(
+            BuildDependencyManualReason::NonCanonicalBuildBodyLayout
         ));
     };
     let Some(layout) = layout else {
-        return Ok(manual_patch(
-            build_path,
-            digest,
-            BuildDependencyManualReason::NonCanonicalBuildSignature,
-            Some(current_statement),
-            proposed_statement,
+        return Ok(patch!(
+            BuildDependencyManualReason::NonCanonicalBuildSignature
         ));
     };
     if layout.dependency_rows().len() != requests.len() {
-        return Ok(manual_patch(
-            build_path,
-            digest,
-            BuildDependencyManualReason::NonCanonicalDependencyRows,
-            Some(current_statement),
-            proposed_statement,
+        return Ok(patch!(
+            BuildDependencyManualReason::NonCanonicalDependencyRows
         ));
     }
     let row = &layout.dependency_rows()[*accepted_index];
     if row.contains_comment {
-        return Ok(manual_patch(
-            build_path,
-            digest,
-            BuildDependencyManualReason::DependencyRowContainsComment,
-            Some(current_statement),
-            proposed_statement,
+        return Ok(patch!(
+            BuildDependencyManualReason::DependencyRowContainsComment
         ));
     }
     let mut replacement = source.clone();
@@ -194,13 +177,7 @@ pub(crate) fn plan_dependency_replacement_from_source(
     let mut expected = requests;
     expected[*accepted_index] = (purpose, candidate.clone());
     if extract_scoped_from_source(&replacement).ok().as_ref() != Some(&expected) {
-        return Ok(manual_patch(
-            build_path,
-            digest,
-            BuildDependencyManualReason::GeneratedEditRejected,
-            Some(current_statement),
-            proposed_statement,
-        ));
+        return Ok(patch!(BuildDependencyManualReason::GeneratedEditRejected));
     }
     Ok(BuildDependencyEditPlan::Automatic(
         BuildFileReplacement::new(build_path, digest, replacement),

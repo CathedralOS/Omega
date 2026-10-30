@@ -2,7 +2,7 @@
 use super::super::IntegerValue;
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    ScalarType, SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterId,
+    ScalarType, SelectedInstructionKind, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -128,10 +128,7 @@ pub(in crate::selection) fn observe(
         SelectedInstructionKind::MaterializeBooleanEqual,
         builder.constraints.keys.materialize_boolean,
         &[output],
-        SelectedInstructionProvenance {
-            values: vec![result.value],
-            ..Default::default()
-        },
+        super::super::value_provenance(result.value),
     )?;
     Ok(output)
 }
