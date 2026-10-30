@@ -467,17 +467,9 @@ use crate::obligations::{ProofPlan, proof_obligation_key};
 #[test]
 fn kernel_rejected_candidates_are_passed_over_not_accepted() {
     let mut program = program();
-    let base = program.int_reference();
+    let (base, obligation) = program.count_value();
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::new();
-    let obligation = bounded_value(
-        program.machine,
-        "Main",
-        program.data[0],
-        "count",
-        base,
-        arena::HandleSpan::empty(),
-    );
 
     // A stale or hostile entry under the right key gets the same treatment
     // as an honest one: the kernel re-decides it. This package's own claim
@@ -505,17 +497,9 @@ fn kernel_rejected_candidates_are_passed_over_not_accepted() {
 #[test]
 fn capacity_refusal_is_explicit_and_keeps_the_verdict_path() {
     let mut program = program();
-    let base = program.int_reference();
+    let (base, obligation) = program.count_value();
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::with_capacity(0);
-    let obligation = bounded_value(
-        program.machine,
-        "Main",
-        program.data[0],
-        "count",
-        base,
-        arena::HandleSpan::empty(),
-    );
 
     let certificate =
         closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 65)
@@ -531,21 +515,13 @@ fn capacity_refusal_is_explicit_and_keeps_the_verdict_path() {
 #[test]
 fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
     let mut program = program();
-    let base = program.int_reference();
+    let (base, count) = program.count_value();
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::new();
 
     let certificate =
         closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 66)
             .expect("certificate");
-    let count = bounded_value(
-        program.machine,
-        "Main",
-        program.data[0],
-        "count",
-        base,
-        arena::HandleSpan::empty(),
-    );
     DerivationConsultation::new(&plan, &count, &mut cache).retain(certificate);
 
     // A dependency change — here a different resolved owner — produces a
@@ -623,18 +599,10 @@ fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
 #[test]
 fn dependency_invalidation_drops_affected_entries_and_is_tallied() {
     let mut program = program();
-    let base = program.int_reference();
+    let (base, count_obligation) = program.count_value();
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::new();
 
-    let count_obligation = bounded_value(
-        program.machine,
-        "Main",
-        program.data[0],
-        "count",
-        base,
-        arena::HandleSpan::empty(),
-    );
     let total_obligation = bounded_value(
         program.machine,
         "Main",
