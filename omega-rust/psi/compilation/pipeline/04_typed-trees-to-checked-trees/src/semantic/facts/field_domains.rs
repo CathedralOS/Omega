@@ -149,12 +149,7 @@ fn append_zero_initialized_field_domain_facts(
                 point,
                 origin,
                 evidence,
-                payload: FactPayload::DomainMembership {
-                    value: typed_trees::expression::ExpressionHandle::invalid(),
-                    domain: arena::HandleSpan::empty(),
-                    domain_symbol,
-                    semantic_domain,
-                },
+                payload: domain_membership_payload(domain_symbol, semantic_domain),
             });
             facts.append_ref(refs, fact);
         }
@@ -300,10 +295,7 @@ pub(super) fn append_state_parameter_domain_facts(
                         place: FactPlace::Place(place),
                         point: state_point(machine.symbol, state.symbol),
                         origin: obligation_origin,
-                        evidence: QualificationEvidence::from_origin(
-                            language_semantics::QualificationEvidenceOrigin::Propagated,
-                            state.symbol,
-                        ),
+                        evidence: propagated_evidence(state.symbol),
                         payload: FactPayload::FloatPredicate { predicate },
                     });
                     facts.append_ref(&mut refs, fact);
@@ -328,10 +320,7 @@ pub(super) fn append_state_parameter_domain_facts(
                             // Numeric range admission already has its own
                             // incoming-value obligation, not a membership row.
                             origin: FactOrigin::StatementTransfer,
-                            evidence: QualificationEvidence::from_origin(
-                                language_semantics::QualificationEvidenceOrigin::Propagated,
-                                state.symbol,
-                            ),
+                            evidence: propagated_evidence(state.symbol),
                             payload: FactPayload::FloatPredicate { predicate },
                         });
                         facts.append_ref(&mut refs, fact);
@@ -424,6 +413,30 @@ fn state_parameter_domain_is_resource_claim(
             })
 }
 
+/// Evidence for a row the state's own declaration already establishes: the
+/// caller inherited the claim, it did not validate it here.
+fn propagated_evidence(state_symbol: SymbolHandle) -> QualificationEvidence {
+    QualificationEvidence::from_origin(
+        language_semantics::QualificationEvidenceOrigin::Propagated,
+        state_symbol,
+    )
+}
+
+/// A domain-membership row keyed at a symbol place. No authored expression
+/// produced it and no expression span narrows its domain: the row claims the
+/// place's declared domain, so both expression fields stay empty.
+fn domain_membership_payload(
+    domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+) -> FactPayload {
+    FactPayload::DomainMembership {
+        value: typed_trees::expression::ExpressionHandle::invalid(),
+        domain: arena::HandleSpan::empty(),
+        domain_symbol,
+        semantic_domain,
+    }
+}
+
 /// The `Place(parameter_symbol)` + `State` point + `StateParameterDomain`
 /// origin + `Propagated` evidence scaffolding both carry facts share.
 fn append_state_parameter_carry(
@@ -442,10 +455,7 @@ fn append_state_parameter_carry(
             machine_symbol,
             state_symbol,
         },
-        evidence: QualificationEvidence::from_origin(
-            language_semantics::QualificationEvidenceOrigin::Propagated,
-            state_symbol,
-        ),
+        evidence: propagated_evidence(state_symbol),
         payload,
     });
     facts.append_ref(refs, fact);
@@ -568,16 +578,8 @@ fn append_state_parameter_domain_fact(
         place: FactPlace::Place(place),
         point: state_point(machine_symbol, state_symbol),
         origin,
-        evidence: QualificationEvidence::from_origin(
-            language_semantics::QualificationEvidenceOrigin::Propagated,
-            state_symbol,
-        ),
-        payload: FactPayload::DomainMembership {
-            value: typed_trees::expression::ExpressionHandle::invalid(),
-            domain: arena::HandleSpan::empty(),
-            domain_symbol,
-            semantic_domain,
-        },
+        evidence: propagated_evidence(state_symbol),
+        payload: domain_membership_payload(domain_symbol, semantic_domain),
     });
     facts.append_ref(refs, fact);
 }
@@ -654,12 +656,7 @@ pub(super) fn append_local_zii_field_domain_facts(
                         point,
                         origin,
                         evidence,
-                        payload: FactPayload::DomainMembership {
-                            value: typed_trees::expression::ExpressionHandle::invalid(),
-                            domain: arena::HandleSpan::empty(),
-                            domain_symbol,
-                            semantic_domain,
-                        },
+                        payload: domain_membership_payload(domain_symbol, semantic_domain),
                     });
                     facts.append_ref(&mut refs, fact);
                 }
