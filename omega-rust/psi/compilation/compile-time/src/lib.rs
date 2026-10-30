@@ -70,7 +70,6 @@ pub use layouts::placed_views::{PlacedViewRecord, desugar_placed_views};
 pub use layouts::placement_lifecycles::{
     admit_placement_lifecycle_plans, retain_placement_lifecycle_plans,
 };
-pub use layouts::plan_laid::{PlanLaidRecord, desugar_plan_laid_value_types};
 pub use machine_execution::admission::{
     BuildTimeAdmissionPlan, BuildTimeAdmissionRejection, BuildTimeInvocationCustody,
     BuildTimeProgram, BuildTimeSelectionAuthority,

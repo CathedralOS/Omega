@@ -40,6 +40,7 @@ mod provider_regions;
 pub mod refinement_fit;
 mod requirements;
 mod trait_implementation_arguments;
+pub(crate) use trait_implementation_arguments::validate_implementation_application;
 
 pub use conformance::GenericBoundRequirement;
 pub use conformance::compose_forwarded_trait_arguments;

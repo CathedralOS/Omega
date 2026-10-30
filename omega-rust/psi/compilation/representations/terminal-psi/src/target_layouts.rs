@@ -3,10 +3,9 @@
 //! Geometry is semantic input, as for invariant authored records. These rows
 //! retain the unclosed application and every checked member's result; selecting
 //! one row establishes neither policy evaluation nor permission to access bytes.
-use crate::TargetMachineCallable;
 use crate::TerminalIdentityIndex;
 use semantic_vocabulary::{
-    AuthoredFieldStorage, AuthoredRecordStorage, MachineId, StructuralFieldId, StructuralTypeId,
+    AuthoredFieldStorage, AuthoredRecordStorage, StructuralFieldId, StructuralTypeId,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -32,7 +31,8 @@ pub struct TargetLayoutApplication {
     pub record: StructuralTypeId,
     pub schema: StructuralTypeId,
     pub policy_identity: TerminalIdentityIndex,
-    pub family: TargetMachineCallable,
+    /// Exact checked plan callable contract, independent from a runtime family.
+    pub plan_identity: TerminalIdentityIndex,
     pub schema_argument: TargetLayoutSchemaArgument,
     pub realizations: Vec<TargetLayoutRealization>,
 }
@@ -67,7 +67,9 @@ pub struct TargetLayoutSchemaField {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetLayoutRealization {
     pub target: String,
-    pub member: MachineId,
+    pub pointer_size: u64,
+    pub pointer_alignment: u64,
+    pub little_endian: bool,
     pub storage: AuthoredRecordStorage,
     pub fields: Vec<TargetLayoutFieldStorage>,
 }

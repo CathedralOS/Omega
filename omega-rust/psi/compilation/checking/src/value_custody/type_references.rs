@@ -796,13 +796,22 @@ fn validate_type_reference_node(
                         argument_handles.len()
                     )));
                 }
+                crate::declarations::traits::validate_implementation_application(
+                    program,
+                    definition.symbol,
+                    parameters,
+                    &definition.lifetime_parameters,
+                    &definition.conformance_bounds,
+                    argument_handles,
+                    lifetime_arguments,
+                    type_parameter_scope.lexical_owner,
+                    &format!("data `{base_name}`"),
+                    diagnostics,
+                );
                 for (parameter, argument) in parameters.iter().zip(argument_handles) {
                     match &parameter.kind {
                         TypeParameterKind::Implementation => {
-                            diagnostics.push(Diagnostic::error(format!(
-                                "data `{base_name}` declares implementation binder `{}`; implementation parameters belong to trait or machine contracts, not stored data",
-                                parameter.name
-                            )));
+                            // The complete data evidence telescope is checked below.
                         }
                         TypeParameterKind::Const { type_reference }
                         | TypeParameterKind::Value { type_reference } => {

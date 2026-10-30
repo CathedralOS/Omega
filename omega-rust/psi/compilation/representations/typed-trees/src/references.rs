@@ -312,7 +312,18 @@ pub struct TypeOccurrence {
 /// Retain the supplying declaration for every live type operand. A shared
 /// arena handle does not transfer its author's lexical checking scope.
 pub fn collect_program_type_occurrences(program: &TypedTrees) -> Vec<TypeOccurrence> {
-    let mut occurrences = TypeOccurrences::default();
+    collect_selected_program_type_occurrences(program, &DeclarationSelection::default())
+}
+
+/// Source-owned type operands under one operation's declaration roster.
+pub fn collect_selected_program_type_occurrences(
+    program: &TypedTrees,
+    selection: &DeclarationSelection,
+) -> Vec<TypeOccurrence> {
+    let mut occurrences = TypeOccurrences {
+        selection: selection.clone(),
+        ..TypeOccurrences::default()
+    };
     visit_program(program, &mut occurrences);
     occurrences.types
 }
@@ -395,6 +406,7 @@ pub(crate) fn collect_program_application_occurrences(
 
 #[derive(Default)]
 struct TypeOccurrences {
+    selection: DeclarationSelection,
     owner: SymbolHandle,
     outer_owners: Vec<SymbolHandle>,
     types: Vec<TypeOccurrence>,
@@ -479,6 +491,9 @@ impl TypedReferences for TypeOccurrences {
     }
 
     fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+        if !self.selection.contains(symbol) {
+            return false;
+        }
         self.owner = symbol;
         true
     }
@@ -1353,6 +1368,30 @@ fn visit_declaration_dependencies(
 ) {
     visit_constant_evaluation_entries(program, retained, owner);
     visit_product_operand_inputs(program, retained, owner);
+    for (_, selected) in program
+        .data_implementation_applications
+        .iter()
+        .filter(|(_, selected)| selected.lexical_owner == owner)
+    {
+        visit_type_reference(program, retained, selected.source_application);
+        visit_type_reference(program, retained, selected.argument);
+        visit_static_machine_bindings(program, retained, selected.supplying_application);
+        visit_closed_conformance(program, retained, &selected.application);
+        for (_, capture) in program
+            .captured_machine_applications
+            .iter()
+            .filter(|(_, capture)| {
+                capture.conformance_application == selected.application
+                    && program
+                        .expression_table
+                        .static_machine_application(capture.supplying_application)
+                        .lexical_owner
+                        == owner
+            })
+        {
+            visit_symbol(retained, capture.instance);
+        }
+    }
     if program.trait_implementation_applications.is_empty() {
         return;
     }
@@ -1436,6 +1475,12 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             }
         }
         visit_type_parameters(program, retained, data.type_parameters);
+        for bound in &data.conformance_bounds {
+            visit_symbol(retained, bound.trait_symbol);
+            for argument in &bound.arguments {
+                visit_type_reference(program, retained, *argument);
+            }
+        }
         if data.predicate_subject_symbol.is_valid() {
             visit_symbol(retained, data.predicate_subject_symbol);
             visit_type_reference(program, retained, data.predicate_subject_type);

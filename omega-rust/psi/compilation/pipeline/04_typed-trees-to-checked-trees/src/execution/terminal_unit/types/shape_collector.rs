@@ -1259,7 +1259,10 @@ impl<'program> ShapeCollector<'program> {
         }
 
         let program = self.program;
-        let authored_layout = program.plan_laid_layout(data.symbol);
+        let authored_layout = program
+            .plan_laid_layouts
+            .iter()
+            .find(|plan| program.normalized_type_identity(plan.application) == identity);
         let placed_view = program.placed_view_plans.iter().find_map(|view| {
             let definition = program.data_definition_by_symbol(view.data_symbol)?;
             (closed_data_identity(program, definition, binders) == identity).then_some(view)
@@ -1284,10 +1287,10 @@ impl<'program> ShapeCollector<'program> {
                         },
                     ),
                     None => {
-                        let schema = program.data_definition_by_symbol(layout.schema_symbol)?;
-                        let schema_type_identity = self.add_attached_data(schema, binders)?;
+                        let schema_type_identity =
+                            self.add_type(layout.semantic_type, binders, &[])?;
                         checked_trees::CheckedUnitRecordStorage::TargetLayout {
-                            application: layout.data_symbol,
+                            application: layout.application,
                             schema_type_identity,
                         }
                     }

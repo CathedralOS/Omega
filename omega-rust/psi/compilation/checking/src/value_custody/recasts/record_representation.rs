@@ -6,7 +6,7 @@ use super::scalar_representation::{
 use std::collections::HashSet;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
-type SymbolIdentity = (u32, u32);
+type SymbolIdentity = (symbols::SymbolHandle, Option<TypeReferenceHandle>);
 
 const MAX_RECAST_REPRESENTATION_DEPTH: usize = 256;
 const MAX_RECAST_REPRESENTATION_WORK: usize = 16384;
@@ -619,10 +619,21 @@ fn mutable_record_representation_inner(
     budget: &mut RepresentationBudget,
     allow_lifetime_shell: bool,
 ) -> Option<MutableRecordRepresentation> {
+    let data = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
+    mutable_record_representation_for_data(program, data, visiting, budget, allow_lifetime_shell)
+}
+
+fn mutable_record_representation_for_data(
+    program: &dyn crate::CheckingInput,
+    data: &typed_trees::data::DataDefinition,
+    visiting: &mut HashSet<SymbolIdentity>,
+    budget: &mut RepresentationBudget,
+    allow_lifetime_shell: bool,
+) -> Option<MutableRecordRepresentation> {
     budget.enter()?;
     let representation = mutable_record_representation_inner_body(
         program,
-        symbol,
+        data,
         visiting,
         budget,
         allow_lifetime_shell,
@@ -633,28 +644,24 @@ fn mutable_record_representation_inner(
 
 fn mutable_record_representation_inner_body(
     program: &dyn crate::CheckingInput,
-    symbol: symbols::SymbolHandle,
+    data: &typed_trees::data::DataDefinition,
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
     allow_lifetime_shell: bool,
 ) -> Option<MutableRecordRepresentation> {
-    if !symbol.is_valid() {
+    if !data.symbol.is_valid() {
         return None;
     }
-    let symbol_identity = (symbol.arena_index(), symbol.generation());
+    let symbol_identity = (data.symbol, data.generic_instance);
     if !visiting.insert(symbol_identity) {
         return None;
     }
-    let data = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
-    let layout = program.plan_laid_layout(data.symbol);
+    let layout = program.plan_laid_layout_for_data(data);
     // The synthesized layout owns geometry, while its retained schema owns
     // authored validity. Copying fields into a physical declaration must not
     // erase the schema's where facts at an alias or foreign-write boundary.
     let semantic_data = match layout {
-        Some(plan) => crate::declarations::data_queries::data_definition_by_symbol(
-            program,
-            plan.schema_symbol,
-        )?,
+        Some(plan) => program.closed_data_definition(plan.semantic_type)?,
         None => data,
     };
     let Some(where_bounds) =
@@ -736,7 +743,7 @@ fn mutable_record_representation_inner_body(
         field_symbols.push(field.symbol);
     }
 
-    let (size, align, offsets) = if let Some(plan) = program.plan_laid_layout(data.symbol) {
+    let (size, align, offsets) = if let Some(plan) = program.plan_laid_layout_for_data(data) {
         if plan.field_symbols != field_symbols {
             return None;
         }
@@ -913,6 +920,10 @@ fn mutable_record_type_representation_body(
             budget,
             allow_lifetime_shell,
         ),
+        TypeReferenceNode::Generic { .. } if program.closed_data_definition(type_reference).is_some() => {
+            mutable_record_representation_for_data(program,
+                program.closed_data_definition(type_reference)?, visiting, budget, allow_lifetime_shell)
+        }
         TypeReferenceNode::Generic { .. }
             if allow_lifetime_shell
                 && budget.lifetime_shell_depth > 0

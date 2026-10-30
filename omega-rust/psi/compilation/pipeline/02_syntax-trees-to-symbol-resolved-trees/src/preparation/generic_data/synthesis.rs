@@ -133,7 +133,7 @@ pub(crate) fn desugar_generic_data_instances_in(
         // quotient fences reject representation literals; synthesizing an
         // empty record with `quotient: None` would make the class freely
         // constructible.
-        if definition.quotient.is_some() {
+        if definition.quotient.is_some() || !definition.conformance_bounds.is_empty() {
             continue;
         }
         // These compiler-owned proof algebras never acquire runtime layout.
@@ -823,6 +823,7 @@ fn synthesize_instance(
         supply_mode: base_info.supply_mode,
         lifetime_parameters: base_info.lifetime_parameters.clone(),
         type_parameters: HandleSpan::default(),
+        conformance_bounds: Vec::new(),
         generic_instance: Some(generic_instance),
         cleanup_selection,
         properties,

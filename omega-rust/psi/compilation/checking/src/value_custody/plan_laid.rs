@@ -11,14 +11,14 @@ pub(crate) fn validate_plans(
 ) {
     let mut data_symbols = Vec::with_capacity(program.plan_laid_layouts.len());
     for plan in &program.plan_laid_layouts {
-        if data_symbols.contains(&plan.data_symbol) {
+        if data_symbols.contains(&program.normalized_type_identity(plan.application)) {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` repeats its exact synthesized data identity",
                 plan.data_name
             )));
             continue;
         }
-        data_symbols.push(plan.data_symbol);
+        data_symbols.push(program.normalized_type_identity(plan.application));
         if !crate::layout_checking::layout_family_is_complete(program, plan) {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` lost its complete exact target-family application roster",
@@ -27,9 +27,7 @@ pub(crate) fn validate_plans(
             continue;
         }
 
-        let Some(data) =
-            crate::declarations::data_queries::data_definition_by_symbol(program, plan.data_symbol)
-        else {
+        let Some(data) = program.closed_data_definition(plan.application) else {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` no longer names its exact synthesized data identity",
                 plan.data_name
@@ -53,10 +51,7 @@ pub(crate) fn validate_plans(
             continue;
         }
 
-        let Some(schema) = crate::declarations::data_queries::data_definition_by_symbol(
-            program,
-            plan.schema_symbol,
-        ) else {
+        let Some(schema) = program.closed_data_definition(plan.semantic_type) else {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` no longer names its exact source schema identity",
                 plan.data_name
@@ -131,33 +126,38 @@ pub(crate) fn validate_plans(
             continue;
         }
 
-        let Some(policy) = crate::declarations::data_queries::data_definition_by_symbol(
-            program,
-            plan.policy_symbol,
-        ) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` no longer names its exact nominal policy identity",
-                plan.data_name
-            )));
+        let Some(storage) = program.layout_storage_arguments(plan.application) else {
+            diagnostics.push(Diagnostic::error(
+                "fixed representation lost its core constructor application",
+            ));
             continue;
         };
-        let Some(machine) = program.machine(plan.policy_plan_machine_symbol) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` no longer names its exact policy plan machine",
-                plan.data_name
-            )));
-            continue;
-        };
-        if machine
-            .attached_data
-            .as_ref()
-            .is_none_or(|attached| attached.as_str() != policy.name.as_str())
-            || machine.name.as_str() != format!("{}::plan", policy.name.as_str())
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "plan-laid value type `{}` changed its exact nominal policy binding",
-                plan.data_name
-            )));
+        let reclosed = program.static_operand_from_type_reference(storage.policy)
+            .map_err(|reason| reason.to_owned())
+            .and_then(|operand| crate::declarations::traits::conformance_applications::close_conformance_application(program, &operand)
+                .map_err(|error| error.to_string()));
+        match reclosed {
+            Ok(application)
+                if application == plan.policy_application
+                    && application.declaration == plan.policy_symbol
+                    && application.trait_definition == storage.contract
+                    && application.rows.iter().any(|row| {
+                        row.realization_machine == plan.policy_plan_machine_symbol
+                            || program
+                                .captured_machine_applications
+                                .iter()
+                                .any(|(_, captured)| {
+                                    captured.instance == plan.policy_plan_machine_symbol
+                                        && captured.template == row.realization_machine
+                                        && captured.conformance_application == application
+                                })
+                    }) => {}
+            Ok(_) => diagnostics.push(Diagnostic::error(
+                "fixed representation changed its exact selected implementation application",
+            )),
+            Err(reason) => diagnostics.push(Diagnostic::error(format!(
+                "fixed representation policy reclosure: {reason}"
+            ))),
         }
     }
 }

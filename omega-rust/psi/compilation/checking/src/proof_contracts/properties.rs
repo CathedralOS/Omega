@@ -334,6 +334,14 @@ pub fn type_satisfies_declared_property(
     type_reference: typed_trees::types::TypeReferenceHandle,
     property: DeclaredPropertyRequirement,
 ) -> bool {
+    if let Some(storage) = program.layout_storage_arguments(type_reference) {
+        return type_satisfies_declared_property(
+            program,
+            type_parameters,
+            storage.semantic_type,
+            property,
+        );
+    }
     match property {
         DeclaredPropertyRequirement::Carry(required) => {
             CarryDerivation::new(program, type_parameters)

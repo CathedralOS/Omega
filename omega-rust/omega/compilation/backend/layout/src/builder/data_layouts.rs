@@ -87,12 +87,7 @@ impl<'program> LayoutBuilder<'program> {
         // instance is placed at its validated plan's offsets instead of the
         // native packing; downstream field-offset resolution reads the baked
         // `FieldLayout.offset` exactly as for packed records.
-        if let Some(plan) = self
-            .program
-            .plan_laid_layouts
-            .iter()
-            .find(|plan| definition.symbol == plan.data_symbol)
-        {
+        if let Some(plan) = self.program.plan_laid_layout_for_data(definition) {
             let geometry = plan.invariant_geometry().ok_or_else(|| {
                 Diagnostic::error(format!(
                     "plan-laid data `{}` retains an unresolved target-family layout; the typed layout backend requires an invariant layout or a target-closed Terminal view",

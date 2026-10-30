@@ -26,7 +26,9 @@ use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNod
 /// only as an explicit `DataLayoutQueryRequest`, so the field's presence is
 /// the complete deferral condition — no admission or selection closure is
 /// needed to know the answer is target-dependent. Ownership traversal excludes
-/// unselected declarations and stale arena nodes.
+/// unselected declarations and stale arena nodes. Closed fixed-storage
+/// applications also consume target facts even when the authored policy returns
+/// literal placements; open recipes remain templates until their exact use.
 pub(crate) fn has_pending_target_observations(
     typed: &TypedTrees,
     selection: &typed_trees::references::DeclarationSelection,
@@ -40,6 +42,18 @@ pub(crate) fn has_pending_target_observations(
                 _ => false,
             },
         )
+        || typed_trees::references::collect_selected_program_type_occurrences(typed, selection)
+            .into_iter()
+            .any(|occurrence| {
+                typed
+                    .layout_storage_arguments(occurrence.reference)
+                    .is_some_and(|storage| {
+                        typed
+                            .closed_data_definition(storage.semantic_type)
+                            .is_some()
+                            && typed_trees::domain::index_argument_is_closed(typed, storage.policy)
+                    })
+            })
         || typed.const_declarations().iter().any(|declaration| {
             selection.contains(declaration.symbol)
                 && declaration.pending_target_observation
@@ -54,6 +68,10 @@ pub trait LayoutQueryProvider {
     type Measurements: LayoutQueryMeasurements;
 
     fn prepare(&self, program: &TypedTrees) -> Self::Measurements;
+    /// Complete applicable target inputs, supplied by Omega's target catalog.
+    fn layout_target_inputs(&self) -> Vec<layout_plans::LayoutTargetFacts> {
+        Vec::new()
+    }
 }
 
 /// Read-only geometry for the exact supplied source operand. None means an
@@ -175,36 +193,8 @@ fn plan_laid_operand_pending_installation(
     program: &TypedTrees,
     operand: TypeReferenceHandle,
 ) -> bool {
-    let TypeReferenceNode::Generic {
-        base_symbol,
-        arguments,
-        ..
-    } = program.type_reference_table.type_reference(operand)
-    else {
-        return false;
-    };
-    if arguments.is_empty() || !base_symbol.is_valid() {
-        return false;
-    }
-    let argument_handles = program
-        .type_reference_table
-        .type_reference_handles(*arguments);
-    let installed = program.plan_laid_layouts.iter().any(|plan| {
-        plan.policy_symbol == *base_symbol
-            && argument_handles
-                .iter()
-                .any(|argument| program.type_reference_symbol(*argument) == plan.schema_symbol)
-    });
-    if installed {
-        return false;
-    }
-    let Some(definition) = program.data_definition_by_symbol(*base_symbol) else {
-        return false;
-    };
-    program.machines().iter().any(|machine| {
-        machine.attached_data_symbol == *base_symbol
-            && machine.name.as_str() == format!("{}::plan", definition.name)
-    })
+    program.layout_storage_arguments(operand).is_some()
+        && program.plan_laid_layout_for_type(operand).is_none()
 }
 
 /// A `layout_type_reference` of an unresolved fixed array returns the

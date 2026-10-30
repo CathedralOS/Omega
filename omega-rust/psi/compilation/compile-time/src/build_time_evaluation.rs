@@ -13,6 +13,7 @@ use typed_trees::references::DeclarationSelection;
 /// operand must never promote a Product implementation into callable context.
 #[derive(Clone, compiler_storage::Record)]
 pub(crate) struct EvaluationDomain {
+    pub(crate) layout_targets: Vec<layout_plans::LayoutTargetFacts>,
     work: DeclarationSelection,
     execution: DeclarationSelection,
     product_frontier: Option<Arc<typed_trees::TypedTrees>>,
@@ -24,7 +25,8 @@ pub(crate) struct EvaluationDomain {
 // returned deferred work drops it before any later admission can resume.
 impl PartialEq for EvaluationDomain {
     fn eq(&self, other: &Self) -> bool {
-        self.work == other.work
+        self.layout_targets == other.layout_targets
+            && self.work == other.work
             && self.execution == other.execution
             && self.product_frontier == other.product_frontier
     }
@@ -50,6 +52,7 @@ impl EvaluationDomain {
     }
     pub(crate) fn selected(work: DeclarationSelection, execution: DeclarationSelection) -> Self {
         Self {
+            layout_targets: Vec::new(),
             work,
             execution,
             product_frontier: None,
@@ -59,6 +62,7 @@ impl EvaluationDomain {
 
     pub(crate) fn all() -> Self {
         Self {
+            layout_targets: Vec::new(),
             work: DeclarationSelection::all(),
             execution: DeclarationSelection::all(),
             product_frontier: None,
@@ -109,6 +113,7 @@ impl EvaluationDomain {
             &[],
         );
         domain.execution = domain.execution.intersect(&self.execution);
+        domain.layout_targets = self.layout_targets.clone();
         domain.product_frontier = self.product_frontier.clone();
         domain.accounting = self.accounting.clone();
         domain
@@ -140,7 +145,7 @@ impl EvaluationDomain {
 }
 
 use crate::{
-    BuildTimeSelectionAuthority, PlacedViewRecord, PlanLaidRecord, SelectedBuildTimeBinaryOperator,
+    BuildTimeSelectionAuthority, PlacedViewRecord, SelectedBuildTimeBinaryOperator,
     SelectedBuildTimeProviderBody, const_evaluation::const_applications,
     const_evaluation::const_domain_facts, const_evaluation::const_generic_calls,
     const_evaluation::const_generic_expressions, const_evaluation::const_initializers,
@@ -202,7 +207,6 @@ pub fn evaluate_pre_resolution(
             source_context.clone(),
         )?;
     }
-    let plan_laid_records = plan_laid::desugar_plan_laid_value_types(&mut syntax_trees)?;
     Ok(PreResolutionEvaluation {
         syntax_trees,
         pre_check: PreCheckEvaluation {
@@ -210,7 +214,6 @@ pub fn evaluate_pre_resolution(
             domain: EvaluationDomain::all(),
             wire_schema_frontier: 0,
             placed_view_records,
-            plan_laid_records,
             selection_authority: source_context.selection_authority,
             selected_operators: Vec::new(),
             provider_bodies: Vec::new(),
@@ -341,7 +344,6 @@ pub struct PreCheckEvaluation {
     domain: EvaluationDomain,
     wire_schema_frontier: usize,
     placed_view_records: Vec<PlacedViewRecord>,
-    plan_laid_records: Vec<PlanLaidRecord>,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     /// Exact selected rows supplied only when the deferred continuation is
     /// finished under Omega's settled plans. They stay empty on the early
@@ -483,11 +485,6 @@ impl PreCheckEvaluation {
                             .iter()
                             .flat_map(|record| record.invocation_sources.iter().copied()),
                     );
-                    sites.extend(
-                        self.plan_laid_records
-                            .iter()
-                            .flat_map(|record| record.invocation_sources.iter().copied()),
-                    );
                     recorded.require_current_sites(
                         authority.as_deref(),
                         program,
@@ -527,7 +524,6 @@ impl PreCheckEvaluation {
             && self.domain == other.domain
             && self.wire_schema_frontier == other.wire_schema_frontier
             && self.placed_view_records == other.placed_view_records
-            && self.plan_laid_records == other.plan_laid_records
             && self.selected_operators == other.selected_operators
             && self.provider_bodies == other.provider_bodies
             && match (&self.selection_authority, &other.selection_authority) {
@@ -553,6 +549,7 @@ impl PreCheckEvaluation {
         self.select(
             original,
             EvaluationDomain {
+                layout_targets: self.domain.layout_targets.clone(),
                 work: self.domain.work.intersect(&selected),
                 execution: self.domain.execution.intersect(&selected),
                 product_frontier: projection.product_declaration_frontier.clone(),
@@ -590,6 +587,7 @@ impl PreCheckEvaluation {
         self.select(
             original,
             EvaluationDomain {
+                layout_targets: self.domain.layout_targets.clone(),
                 work: self
                     .domain
                     .work
@@ -606,12 +604,6 @@ impl PreCheckEvaluation {
         original: &typed_trees::TypedTrees,
         domain: EvaluationDomain,
     ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
-        let mut plan_laid_records = Vec::new();
-        for record in &self.plan_laid_records {
-            if domain.contains_data(original, &record.synthetic_name)? {
-                plan_laid_records.push(record.clone());
-            }
-        }
         let mut placed_view_records = Vec::new();
         for record in &self.placed_view_records {
             if domain.contains_data(original, &record.synthetic_name)? {
@@ -633,7 +625,6 @@ impl PreCheckEvaluation {
             domain,
             wire_schema_frontier: self.wire_schema_frontier,
             placed_view_records,
-            plan_laid_records,
             selection_authority: self.selection_authority.clone(),
             selected_operators: self.selected_operators.clone(),
             provider_bodies: self.provider_bodies.clone(),
@@ -752,6 +743,14 @@ impl PreCheckEvaluation {
     /// const positions (range endpoints, concrete domain-fact memberships, and
     /// retained const-generic applications) observe the same rows when the
     /// continuation resumes.
+    pub(crate) fn with_layout_targets(
+        mut self,
+        targets: &[layout_plans::LayoutTargetFacts],
+    ) -> Self {
+        self.domain.layout_targets = targets.to_vec();
+        self
+    }
+
     pub fn evaluate_selected_operators(
         mut self,
         typed: &mut typed_trees::TypedTrees,
@@ -842,7 +841,6 @@ impl PreCheckEvaluation {
         phase_profile::scope("evaluate_or_defer.evaluate_work.plan_laid_layouts", || {
             plan_laid::compute_plan_laid_layouts_in(
                 typed,
-                &self.plan_laid_records,
                 self.selection_authority.clone(),
                 &self.domain,
             )
@@ -890,7 +888,6 @@ impl compiler_storage::Record for PreCheckEvaluation {
             self.domain.write(output)?;
             self.wire_schema_frontier.write(output)?;
             self.placed_view_records.write(output)?;
-            self.plan_laid_records.write(output)?;
             let captured;
             let authority = match &self.recorded_authority {
                 Some(authority) => authority,
@@ -915,7 +912,6 @@ impl compiler_storage::Record for PreCheckEvaluation {
                 domain: compiler_storage::Record::read(input)?,
                 wire_schema_frontier: compiler_storage::Record::read(input)?,
                 placed_view_records: compiler_storage::Record::read(input)?,
-                plan_laid_records: compiler_storage::Record::read(input)?,
                 recorded_authority: Some(compiler_storage::Record::read(input)?),
                 selection_authority: None,
                 selected_operators: compiler_storage::Record::read(input)?,

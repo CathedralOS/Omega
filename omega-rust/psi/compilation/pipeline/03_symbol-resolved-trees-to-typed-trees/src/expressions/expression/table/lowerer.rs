@@ -1435,6 +1435,25 @@ pub(super) fn resolved_data_definition_for_type<'program>(
     program: &'program resolved::SymbolResolvedTrees,
     type_reference: &'program resolved::types::TypeReference,
 ) -> Option<&'program resolved::data::DataDefinition> {
+    if let resolved::types::TypeReference::Generic(application) = type_reference {
+        let constructor = program
+            .data_definitions
+            .iter()
+            .find(|definition| definition.symbol == application.base_symbol);
+        if constructor.is_some_and(|constructor| {
+            constructor.name.as_str() == "LayoutStorage"
+                && constructor.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
+                && program.symbols.symbol_source_origin(constructor.symbol)
+                    == Some(source::SourceOrigin::Toolchain)
+                && constructor.conformance_bounds.len() == 1
+                && program.child_type_references(application.arguments).len() == 2
+        }) {
+            return resolved_data_definition_for_type(
+                program,
+                &program.child_type_references(application.arguments)[0],
+            );
+        }
+    }
     let (symbol, name) = match type_reference {
         resolved::types::TypeReference::Named { symbol, name, .. } => (*symbol, Some(name)),
         resolved::types::TypeReference::Generic(reference) => {

@@ -269,6 +269,11 @@ pub(crate) fn named_type_reference_through_shells(
 /// target-family alternatives remain guarded until target closure.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidLayout {
+    /// Complete core constructor application; semantic T remains independently named.
+    pub application: crate::types::TypeReferenceHandle,
+    pub semantic_type: crate::types::TypeReferenceHandle,
+    pub policy_application: crate::typed_trees::ClosedConformanceApplication,
+    pub target_inputs: Vec<layout_plans::LayoutTargetFacts>,
     /// Name of the synthesized data definition (e.g. `CLayout<GdtEntryish>`).
     /// Diagnostic/source-oriented presentation only.
     pub data_name: String,
@@ -318,12 +323,13 @@ pub enum PlanLaidSchemaFieldKind {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum PlanLaidRealizations {
     Invariant(PlanLaidGeometry),
-    TargetFamily(arena::HandleSpan<PlanLaidTargetLayout>),
+    TargetInputs(arena::HandleSpan<PlanLaidTargetLayout>),
 }
 
 /// Exact member identity accompanies its geometry even for literal-only policies.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidTargetLayout {
+    pub target_facts: layout_plans::LayoutTargetFacts,
     pub target: crate::name::Identifier,
     pub machine: symbols::SymbolHandle,
     pub geometry: PlanLaidGeometry,
@@ -334,7 +340,7 @@ impl PlanLaidLayout {
     pub fn invariant_geometry(&self) -> Option<&PlanLaidGeometry> {
         match &self.realizations {
             PlanLaidRealizations::Invariant(geometry) => Some(geometry),
-            PlanLaidRealizations::TargetFamily(_) => None,
+            PlanLaidRealizations::TargetInputs(_) => None,
         }
     }
 
@@ -347,7 +353,7 @@ impl PlanLaidLayout {
     ) -> Option<&'a PlanLaidGeometry> {
         match &self.realizations {
             PlanLaidRealizations::Invariant(geometry) => Some(geometry),
-            PlanLaidRealizations::TargetFamily(span) => {
+            PlanLaidRealizations::TargetInputs(span) => {
                 let target = target?;
                 typed
                     .plan_laid_target_layouts
@@ -366,7 +372,7 @@ impl PlanLaidLayout {
     ) -> impl Iterator<Item = &'a PlanLaidGeometry> {
         let invariant = match &self.realizations {
             PlanLaidRealizations::Invariant(geometry) => Some(geometry),
-            PlanLaidRealizations::TargetFamily(_) => None,
+            PlanLaidRealizations::TargetInputs(_) => None,
         };
         invariant
             .into_iter()
@@ -378,7 +384,7 @@ impl PlanLaidLayout {
     pub fn target_layouts<'a>(&self, typed: &'a crate::TypedTrees) -> &'a [PlanLaidTargetLayout] {
         match self.realizations {
             PlanLaidRealizations::Invariant(_) => &[],
-            PlanLaidRealizations::TargetFamily(span) => {
+            PlanLaidRealizations::TargetInputs(span) => {
                 typed.plan_laid_target_layouts.span_or_empty(span)
             }
         }

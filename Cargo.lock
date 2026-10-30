@@ -264,6 +264,7 @@ name = "build-time-values"
 version = "0.1.0"
 dependencies = [
  "compiler-storage",
+ "layout-plans",
  "numerics",
 ]
 
