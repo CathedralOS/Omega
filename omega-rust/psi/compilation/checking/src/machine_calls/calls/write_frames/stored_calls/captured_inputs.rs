@@ -279,11 +279,15 @@ pub(super) fn completed_result(
         symbols,
         entry: &captured.context,
     };
-    aggregate_value(
+    // Dispatch on the completed value's declared shape before asking for
+    // stored aggregate projections. A reference owns its captured descriptor;
+    // treating it as the aggregate behind it loses that boundary and its cut.
+    reference_leaves(
         program,
         machine,
         captured.expression,
         expected,
+        "",
         symbols,
         &mut captured.inference.clone(),
         true,
