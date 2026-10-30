@@ -420,6 +420,18 @@ pub(super) fn clone_single_specialized_machine(
         }
     }
 
+    let authored_symbols = symbol_map
+        .iter()
+        .copied()
+        .filter(|(symbol, _)| {
+            !matches!(
+                source.unwrap_or(program).symbols.get(*symbol).kind,
+                SymbolKind::Machine | SymbolKind::State
+            )
+        })
+        .collect::<Vec<_>>();
+    let rebinding = typed_trees::SymbolRebinding::new(&symbol_map, &authored_symbols);
+
     let mut cloned = source_machine.clone();
     cloned.structural_type_equations_pending = !predicates_closed;
     // Published progress premises are declaration-owned identities, like
@@ -511,7 +523,7 @@ pub(super) fn clone_single_specialized_machine(
         .to_vec();
     let predicates = predicates
         .into_iter()
-        .map(|expression| copy_expression(source, program, expression, &symbol_map))
+        .map(|expression| copy_expression(source, program, expression, rebinding))
         .collect::<Vec<_>>();
     cloned.declared_type_predicates = program
         .expression_table
@@ -564,7 +576,7 @@ pub(super) fn clone_single_specialized_machine(
     .unwrap_or_default()
     .into_iter()
     .map(|expression| {
-        let copied = copy_expression(source, program, expression, &symbol_map);
+        let copied = copy_expression(source, program, expression, rebinding);
         if let Some(realized) = state_realized_parameters.first() {
             program.expression_table.remap_symbols_in(copied, realized);
         }
@@ -578,7 +590,7 @@ pub(super) fn clone_single_specialized_machine(
     .unwrap_or_default()
     .into_iter()
     .map(|expression| {
-        let copied = copy_expression(source, program, expression, &symbol_map);
+        let copied = copy_expression(source, program, expression, rebinding);
         if let Some(realized) = state_realized_parameters.first() {
             program.expression_table.remap_symbols_in(copied, realized);
         }
@@ -590,7 +602,7 @@ pub(super) fn clone_single_specialized_machine(
         .ranking_expression_custody_for(source_machine.symbol)
         .and_then(|custody| custody.rank_range)
         .map(|expression| {
-            let copied = copy_expression(source, program, expression, &symbol_map);
+            let copied = copy_expression(source, program, expression, rebinding);
             if let Some(realized) = state_realized_parameters.first() {
                 program.expression_table.remap_symbols_in(copied, realized);
             }
@@ -616,8 +628,7 @@ pub(super) fn clone_single_specialized_machine(
         item.symbol = symbol_map[owned_symbol_offset + index].1;
         item.type_reference =
             copy_type_reference(source, program, source_item.type_reference, &symbol_map)?;
-        item.initial_value =
-            copy_expression(source, program, source_item.initial_value, &symbol_map);
+        item.initial_value = copy_expression(source, program, source_item.initial_value, rebinding);
         program.push_machine_owned_data(&mut cloned, item);
     }
     // Satisfaction quantifies over the authored family. Keep its edge operands
@@ -658,7 +669,7 @@ pub(super) fn clone_single_specialized_machine(
             copy_statements(source, program, source_state.statement_nodes, &symbol_map)?;
         program
             .tables
-            .remap_statement_symbols(state.statement_nodes, &symbol_map);
+            .remap_statement_symbols(state.statement_nodes, rebinding);
 
         // Executable uses of a runtime-bound `Value` binder read the realized
         // parameter. The plain map intentionally leaves binder symbols in type
@@ -790,7 +801,7 @@ pub(super) fn clone_single_specialized_machine(
     for mut call in proof_output_calls {
         call.machine_symbol = cloned.symbol;
         call.state_symbol = remapped_symbol(call.state_symbol, &symbol_map);
-        call.call = copy_expression(source, program, call.call, &symbol_map);
+        call.call = copy_expression(source, program, call.call, rebinding);
         program.proof_output_calls.push(call);
     }
     for state in program.machine_states(&cloned).to_vec() {
@@ -1117,11 +1128,11 @@ pub(super) fn copy_statements(
     Ok(copied)
 }
 
-pub(super) fn copy_expression(
+pub(super) fn copy_expression<'scope>(
     source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     expression: ExpressionHandle,
-    symbols: &[(SymbolHandle, SymbolHandle)],
+    symbols: impl Into<typed_trees::SymbolRebinding<'scope>>,
 ) -> ExpressionHandle {
     if !expression.is_valid() {
         return ExpressionHandle::invalid();

@@ -199,12 +199,13 @@ impl TypeReferenceTable {
     /// Remap lexical symbols reachable from a type reference copied into a
     /// fresh scope. Constraint expressions remain owned by the expression
     /// table and are remapped there.
-    pub fn remap_symbols_in(
+    pub fn remap_symbols_in<'scope>(
         &mut self,
         type_reference: TypeReferenceHandle,
         expressions: &mut crate::expression::ExpressionTable,
-        symbols: &[(SymbolHandle, SymbolHandle)],
+        symbols: impl Into<crate::SymbolRebinding<'scope>>,
     ) {
+        let symbols = symbols.into();
         if !type_reference.is_valid() {
             return;
         }

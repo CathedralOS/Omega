@@ -218,11 +218,12 @@ impl TypedTreeTables {
     /// Remap lexical symbols in a copied statement graph. Expression and type
     /// payloads are delegated to their owning tables so no arena internals
     /// escape this representation layer.
-    pub fn remap_statement_symbols(
+    pub fn remap_statement_symbols<'scope>(
         &mut self,
         statements: HandleSpan<StatementNode>,
-        symbols: &[(SymbolHandle, SymbolHandle)],
+        symbols: impl Into<crate::SymbolRebinding<'scope>>,
     ) {
+        let symbols = symbols.into();
         let statement_handles: Vec<_> = statements.handles().collect();
         for handle in statement_handles {
             let statement = self.statement_table.statement(handle).clone();
@@ -280,7 +281,7 @@ impl TypedTreeTables {
                     let mut arguments = std::mem::take(&mut current.machine_arguments);
                     for argument in &mut arguments {
                         self.expression_table
-                            .remap_static_argument_symbols(argument, symbols);
+                            .remap_static_argument_symbols(argument, symbols.execution());
                     }
                     let StatementNode::Call(current) =
                         self.statement_table.statements.get_mut(handle)
@@ -463,7 +464,7 @@ impl TypedTreeTables {
     fn remap_proof_fact_symbols(
         &mut self,
         handle: Handle<ProofFact>,
-        symbols: &[(SymbolHandle, SymbolHandle)],
+        symbols: crate::SymbolRebinding<'_>,
     ) {
         for expression in self.proof_fact_expression_roots(handle) {
             self.expression_table.remap_symbols_in(expression, symbols);
