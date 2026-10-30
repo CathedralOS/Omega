@@ -43,6 +43,9 @@ alternatives before following construction inputs. Source retirement and native
 custody read the same recorded installation home; a stable exact store can refine
 a coarse dynamic owner, while unavailable and unknown stores remain conservative.
 This supplies geometry and correspondence, not new access, bounds or lifetime.
+Independent native replay also recognizes block-carried byte and element
+descriptors through the same admitted arrival role. It retains the exact block,
+place, declared type, access, multiplicity and dominating storage declaration.
 
 The [composition witnesses](compositions/) exercise arbitrary incoming selectors,
 distinct selected family permissions, nested record owners, a saved descriptor
@@ -61,10 +64,13 @@ provider rows. Distinct architecture tags make wrong provider selection observab
 at runtime without exporting private implementation guarantees. Every positive
 binds the four required hosted targets; this place also binds macOS x86-64.
 
-Fresh optimized producer `c719bad8ddf365b4342b240f9e0b3c250515946c`
+Fresh optimized producer `4266cde1867088c2498660aeef6405715cab856b`
 ran the nine original positives and seven composition positives with native 0
 and Terminal 0 on macOS ARM64. The nine original twins and six composition
-controls reject their authored obligations. A Terminal positive exits 0 and two
-wrong-provider counterfactuals produce typed Trap. Focused pinned-fixture and
-host-installation qualification accompanies the PR; other-host native execution
-and the wider borrowed-storage restoration acceptance remain open.
+controls reject their authored obligations. Pinned corpus capture records 31
+Source outcomes, 17 ARM64 native/Terminal agreements (including an existing
+reborrow-extent audit repair), and the target-body agreement on macOS x86-64.
+The target-body Terminal container is identical across both native realizations;
+all five declared target installations exit 0. A Terminal positive exits 0 and
+two wrong-provider counterfactuals produce typed Trap. Windows/Linux native
+execution and the wider borrowed-storage restoration acceptance remain open.
