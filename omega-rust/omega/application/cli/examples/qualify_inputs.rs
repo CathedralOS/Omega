@@ -107,7 +107,7 @@ fn qualify() -> Result<(), Box<dyn std::error::Error>> {
             fuel_allowance: 10_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(std::fs::File::open(&input)?)),
-            clock: Some(terminal_runtime::TerminalClockSnapshot::capture_host_epoch()?),
+            clock: Some(terminal_runtime::TerminalClockSnapshot::capture_host_epoch()?.into()),
         })?;
         std::fs::write(directory.join("terminal.stdout"), terminal.stdout)?;
         std::fs::write(directory.join("terminal.stderr"), terminal.stderr)?;

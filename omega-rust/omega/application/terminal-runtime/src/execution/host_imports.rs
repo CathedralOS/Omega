@@ -212,7 +212,7 @@ pub(super) fn matches_platform_c_symbol(
 pub(super) struct HostContext<'host> {
     output: buffered_output::BufferedStreams,
     input: Option<std::sync::Arc<std::sync::Mutex<Box<dyn std::io::Read + Send + 'host>>>>,
-    clock: Option<std::sync::Arc<std::sync::Mutex<clock::TerminalClockSnapshot>>>,
+    clock: Option<std::sync::Arc<std::sync::Mutex<clock::TerminalClockEnvironment>>>,
     addresses: std::sync::Arc<std::sync::Mutex<network_address::AddressValues>>,
     native: native_provider::NativeContext,
     filesystem: filesystem::FilesystemContext,
@@ -226,7 +226,7 @@ impl<'host> HostContext<'host> {
     }
     pub(super) fn new(
         input: Option<Box<dyn std::io::Read + Send + 'host>>,
-        clock: Option<clock::TerminalClockSnapshot>,
+        clock: Option<clock::TerminalClockEnvironment>,
         native_provider: Option<std::process::Command>,
         filesystem: super::TerminalFilesystemDelegation,
     ) -> Self {

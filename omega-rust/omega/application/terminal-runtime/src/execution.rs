@@ -24,15 +24,15 @@
 //! raw kernel errors are not guessed from libc or host replay errors.
 //! Slots share finite input and independent ordered stdout/stderr captures;
 //! checked Console wrappers still run in Psi.
-//! Exact Darwin imports and Linux clock syscalls consume a supplied private time
-//! model shared across slots. Guest calibration/retry code remains executable;
-//! simulated waits neither sleep the host nor establish native latency evidence.
+//! Exact Darwin imports and Linux clock syscalls consume an explicit clock
+//! environment shared across slots. Snapshots retain private simulated waits;
+//! live host observations remain coherent with real filesystem timestamps.
 
 mod components;
 mod entry;
 mod host_imports;
 
-pub use host_imports::clock::TerminalClockSnapshot;
+pub use host_imports::clock::{TerminalClockEnvironment, TerminalClockSnapshot};
 
 /// A trusted embedding choice, not a permission inferred from guest metadata.
 /// The default supplies no exit authority. A standalone sponsor may explicitly
@@ -93,9 +93,9 @@ pub struct TerminalRuntimeRequest<'program> {
     /// this snapshot, never a temporarily empty live pipe. Absence supplies no
     /// stdin capability; input-demanding imports reject before guest effects.
     pub standard_input: Option<Box<dyn std::io::Read + Send + 'program>>,
-    /// Explicit clock model for this isolated invocation. Absence supplies no
-    /// clock capability. Modeled time is not evidence of native timing behavior.
-    pub clock: Option<TerminalClockSnapshot>,
+    /// Explicit clock supply. Absence supplies no clock capability. A snapshot
+    /// remains private modeled time; Host observes the actual matching host.
+    pub clock: Option<TerminalClockEnvironment>,
 }
 
 /// The exact semantic outcome and preceding buffered output. An external exit

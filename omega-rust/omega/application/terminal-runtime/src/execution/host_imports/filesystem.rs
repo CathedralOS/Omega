@@ -477,7 +477,11 @@ impl FilesystemCall {
         } else {
             match self.context.descriptors.borrow().get(&guest_descriptor) {
                 Some(NativeDescriptor::Open(native)) => *native,
-                Some(NativeDescriptor::Uncertain) => return Err(rejection("filesystem descriptor state is uncertain after a failed close")),
+                Some(NativeDescriptor::Uncertain) => {
+                    return Err(rejection(
+                        "filesystem descriptor state is uncertain after a failed close",
+                    ));
+                }
                 None => -1,
             }
         });
@@ -499,14 +503,26 @@ impl FilesystemCall {
             ));
         };
         if matches!(self.descriptor, DescriptorEffect::Close) {
-            let Some(TerminalScalarValue::Integer { value: IntegerValue::Signed(guest), .. }) = arguments.first() else { return Err(rejection("closed descriptor lost its guest identity")); };
-            let guest = i32::try_from(*guest).map_err(|_| rejection("closed descriptor exceeds its carrier"))?;
+            let Some(TerminalScalarValue::Integer {
+                value: IntegerValue::Signed(guest),
+                ..
+            }) = arguments.first()
+            else {
+                return Err(rejection("closed descriptor lost its guest identity"));
+            };
+            let guest = i32::try_from(*guest)
+                .map_err(|_| rejection("closed descriptor exceeds its carrier"))?;
             let mut descriptors = self.context.descriptors.borrow_mut();
-            if *value == 0 { descriptors.remove(&guest); }
-            else if let Some(state) = descriptors.get_mut(&guest) { *state = NativeDescriptor::Uncertain; }
+            if *value == 0 {
+                descriptors.remove(&guest);
+            } else if let Some(state) = descriptors.get_mut(&guest) {
+                *state = NativeDescriptor::Uncertain;
+            }
             return Ok(result);
         }
-        if *value < 0 { return Ok(result); }
+        if *value < 0 {
+            return Ok(result);
+        }
         match self.descriptor {
             DescriptorEffect::Acquire | DescriptorEffect::OpenAt | DescriptorEffect::Duplicate => {
                 let native = i32::try_from(*value)

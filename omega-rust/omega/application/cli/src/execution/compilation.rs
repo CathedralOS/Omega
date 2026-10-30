@@ -111,6 +111,6 @@ pub(super) fn interpret_product(
         // this CLI or invalidate another instance's storage/capabilities.
         domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: input.map(|file| Box::new(file) as Box<dyn std::io::Read + Send>),
-        clock: Some(terminal_runtime::TerminalClockSnapshot::capture_host_epoch()?),
+        clock: Some(terminal_runtime::TerminalClockEnvironment::Host),
     })
 }

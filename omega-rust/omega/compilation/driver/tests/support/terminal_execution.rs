@@ -329,7 +329,7 @@ pub(super) fn interpret(
         fuel_allowance,
         domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: Some(standard_input),
-        clock: Some(clock),
+        clock: Some(clock.into()),
     }) {
         Ok(result) => result,
         Err(TerminalRuntimeError::MissingProvision { capability, reason }) => {
