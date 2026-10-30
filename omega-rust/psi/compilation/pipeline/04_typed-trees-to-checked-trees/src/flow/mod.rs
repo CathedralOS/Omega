@@ -218,6 +218,23 @@ pub(crate) fn resolved_operator_statement_symbol(
     operator_calls::resolve_operator_statement_call(program, call)
         .map(|resolved| resolved.operator.symbol)
 }
+
+/// The `CallEnsures` point a call's flow facts carry: the call's machine,
+/// state, statement, and ordinal, so every phase that publishes or reads those
+/// rows names the same point.
+pub(crate) fn call_ensures_point(
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    call: &checked_trees::BorrowCallFact,
+) -> facts::ProgramPoint {
+    facts::ProgramPoint::CallEnsures {
+        machine_symbol: machine.symbol,
+        state_symbol: state.symbol,
+        statement_index: call.statement_index,
+        call_ordinal: call.call_ordinal,
+    }
+}
+
 pub(crate) use ownership::{
     DiscoveredMoveEvent, FlowOwnershipEventSource, call_permission_evaluation,
     discover_state_move_events, owned_call_operand_places, owned_operand_transfer_place,

@@ -18,9 +18,7 @@ mod guarantees;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{BorrowCallFact, DomainFacts, FlowSemanticContextRef};
-use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
-};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, QualificationEvidence};
 use symbols::SymbolHandle;
 
 /// Re-seed the declared field facts of every exclusive borrowed referent the
@@ -455,12 +453,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     if rows.is_empty() && preserved.is_empty() {
         return;
     }
-    let point = ProgramPoint::CallEnsures {
-        machine_symbol: machine.symbol,
-        state_symbol: state.symbol,
-        statement_index: borrow_call.statement_index,
-        call_ordinal: borrow_call.call_ordinal,
-    };
+    let point = crate::flow::call_ensures_point(machine, state, borrow_call);
     let evidence = QualificationEvidence::from_origin(
         language_semantics::QualificationEvidenceOrigin::Propagated,
         borrow_call.target_symbol,
