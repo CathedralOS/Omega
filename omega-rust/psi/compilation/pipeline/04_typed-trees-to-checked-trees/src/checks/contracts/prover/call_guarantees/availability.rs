@@ -193,42 +193,6 @@ pub(in crate::checks) fn available<'program>(
         {
             continue;
         }
-        if std::env::var("OMEGA_COMPILER_PREDICATE_SITES")
-            .ok()
-            .is_some_and(|filter| {
-                filter
-                    .split(',')
-                    .any(|name| caller_machine.name.as_str() == name)
-            })
-        {
-            let mut occurrences = Vec::new();
-            crate::facts::contract_occurrences::append_expression_occurrences(
-                program,
-                expression,
-                &mut occurrences,
-            );
-            eprintln!(
-                "PRED guarantee callable={:?} expression={} owns={} stable={} preserved={} builtin={} occurrences={:?}",
-                supplied.callable.owner_symbol(),
-                program.expression_table.display_name(expression),
-                owns_guarantee(program, &supplied, source, expression),
-                stable_predicate_inputs(program, facts, caller, &supplied, expression),
-                capture_preserved(
-                    program,
-                    &facts.operators,
-                    &facts.borrow,
-                    caller_machine,
-                    &supplied,
-                    expression,
-                    frames
-                ),
-                builtin_predicate(program, &facts.operators, &supplied, expression),
-                occurrences
-                    .iter()
-                    .map(|occurrence| program.expression_table.display_name(*occurrence))
-                    .collect::<Vec<_>>()
-            );
-        }
         if !owns_guarantee(program, &supplied, source, expression)
             || !stable_predicate_inputs(program, facts, caller, &supplied, expression)
             || !capture_preserved(

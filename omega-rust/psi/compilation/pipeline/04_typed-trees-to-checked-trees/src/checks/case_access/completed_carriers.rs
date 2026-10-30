@@ -68,14 +68,35 @@ pub(super) fn case_path_is_selected(
     {
         return false;
     }
-    let Some(mut current) = validation::canonical_place_from_expression_in_state(
-        program,
-        receiver.state_symbol,
-        receiver.statement_index,
-        receiver.expression,
-    ) else {
+    let Some((machine, body)) = validation::find_state(program, receiver.state_symbol) else {
         return false;
     };
+    // A selected operation may return a different value from the storage its
+    // source syntax resembles. Only builtin coordinates can name that storage;
+    // otherwise the completed expression remains its own exact namespace.
+    let mut current =
+        if validation::value_has_builtin_coordinates(program, machine, body, receiver.expression) {
+            let Some(place) = validation::canonical_place_from_expression_in_state(
+                program,
+                receiver.state_symbol,
+                receiver.statement_index,
+                receiver.expression,
+            ) else {
+                return false;
+            };
+            place
+        } else {
+            CanonicalPlace {
+                root: PlaceRoot::Expression(receiver.expression),
+                segments: Vec::new(),
+            }
+        };
+    let receiver_identity = program.type_identity(
+        typed_trees::type_identity::TypeIdentityRequest::ordinary(receiver.type_reference),
+    );
+    if receiver_identity == Default::default() {
+        return false;
+    }
     // Find an actual owned subtree relation. Geometry, equal scalar contents,
     // names and old initializer syntax are never identity evidence.
     for prefix_length in 0..=path.len() {
@@ -90,9 +111,7 @@ pub(super) fn case_path_is_selected(
         if validation::reference_shell(program, reference).is_some()
             || program.type_identity(typed_trees::type_identity::TypeIdentityRequest::ordinary(
                 reference,
-            )) != program.type_identity(
-                typed_trees::type_identity::TypeIdentityRequest::ordinary(receiver.type_reference),
-            )
+            )) != receiver_identity
         {
             continue;
         }
