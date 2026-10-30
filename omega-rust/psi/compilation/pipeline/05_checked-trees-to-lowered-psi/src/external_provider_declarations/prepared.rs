@@ -42,6 +42,14 @@ impl std::ops::Deref for PreparedExternalProviderDeclarations {
 }
 
 impl PreparedExternalProviderDeclarations {
+    /// Project complete declaration eligibility independently of portable demand.
+    /// Unavailable evidence remains deferred until selected policy requires it.
+    pub fn boundary_provider_review(
+        &self,
+    ) -> language_semantics::boundary_provider_review::BoundaryProviderReview<'_> {
+        super::boundary_review::prepare(&self.checked.facts, &self.declarations)
+    }
+
     /// Prepare source declarations without selecting a target or granting execution.
     pub fn prepare(
         checked: Arc<CheckedTrees>,

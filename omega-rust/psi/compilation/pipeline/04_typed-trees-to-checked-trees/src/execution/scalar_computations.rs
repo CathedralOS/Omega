@@ -35,6 +35,7 @@ mod boundary_calls;
 mod byte_comparisons;
 mod call_arguments;
 mod cases;
+mod coordinate_reads;
 mod dispatch;
 mod dispatch_copies;
 mod dynamic_calls;

@@ -3,10 +3,10 @@
 //! partial retirement: an ancestor's initialization cannot revive a removed
 //! child. Constructor staging and retirement fund every new row before commit.
 
-use crate::byte_sequences::ByteSequenceView;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::program::ProgramDeclarations;
 use crate::runtime_rows::RuntimeRows;
+use crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage;
 use crate::values::StructuralRuntimePlace;
 use evaluation_accounting::EvaluationInvocationAccount;
 use semantic_vocabulary::StructuralTypeId;
@@ -86,7 +86,7 @@ impl EmptyArrayStorage {
     pub(crate) fn initialized(
         &self,
         types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
-        bytes: &RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
+        bytes: &RuntimeRows<StructuralRuntimePlace, StructuralByteArrayStorage>,
         home: &StructuralRuntimePlace,
         structural_type: StructuralTypeId,
     ) -> Result<bool, TerminalInterpretError> {
@@ -169,7 +169,7 @@ impl EmptyArrayStorage {
     pub(crate) fn initialized_type(
         &self,
         types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
-        bytes: &RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
+        bytes: &RuntimeRows<StructuralRuntimePlace, StructuralByteArrayStorage>,
         home: &StructuralRuntimePlace,
     ) -> Result<Option<StructuralTypeId>, TerminalInterpretError> {
         let Some((parent, state)) = self.containing(home, false) else {
@@ -188,7 +188,7 @@ impl EmptyArrayStorage {
     pub(crate) fn initialized_byte_array(
         &self,
         types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
-        bytes: &RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
+        bytes: &RuntimeRows<StructuralRuntimePlace, StructuralByteArrayStorage>,
         home: &StructuralRuntimePlace,
     ) -> Result<bool, TerminalInterpretError> {
         Ok(self
@@ -202,7 +202,7 @@ impl EmptyArrayStorage {
         &mut self,
         types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
         original: &Self,
-        bytes: &RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
+        bytes: &RuntimeRows<StructuralRuntimePlace, StructuralByteArrayStorage>,
         source: &StructuralRuntimePlace,
         destination: &StructuralRuntimePlace,
     ) -> Result<(), TerminalInterpretError> {

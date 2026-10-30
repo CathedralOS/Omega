@@ -1,12 +1,17 @@
 ---
 name: Omega Compiler Observatory
-description: A dark evidence workspace centered on a shared host comparison.
+description: Visible history, fixed-cohort and growth charts in charcoal cards.
 colors:
-  paper: "#101318"
-  card: "#191d24"
-  ink: "#edf0f5"
-  muted: "#a6afbd"
-  line: "#2c333e"
+  paper: "#101010"
+  card: "#1b1b19"
+  ink: "#eeeee9"
+  muted: "#aaa9a2"
+  line: "#343431"
+  cohort-baseline: "#898b87"
+  cohort-current: "#63a5ed"
+  cohort-all: "#e2ae78"
+  fact-pass: "#8dd9b5"
+  fact-pass-soft: "#20372d"
   orange: "#f2a16b"
   orange-soft: "#35271e"
   blue: "#71adff"
@@ -45,8 +50,8 @@ components:
     textColor: "{colors.ink}"
     rounded: "{rounded.card}"
   cell-pass:
-    backgroundColor: "{colors.green-soft}"
-    textColor: "{colors.green}"
+    backgroundColor: "{colors.fact-pass-soft}"
+    textColor: "{colors.fact-pass}"
     rounded: "{rounded.cell}"
 ---
 
@@ -75,25 +80,40 @@ remain at least 12px, and provenance uses monospace. Names and notes wrap.
 
 ## Layout
 
-The workspace caps at 1440px with 32px desktop gutters. A short introduction and
-revision strip precede the full-width host comparison. Three compact metrics,
-expandable native receipts, then a fact grid with a secondary outcome chart and
-full-width claims follow. At 1100px the evidence workspace stacks; at 700px the
-whole page uses one column and 16px gutters. The nine-place table scrolls locally.
+The workspace caps at 1280px with 32px desktop gutters. Plain tabs show one view
+at a time. Overview leads with full-width history, then the fixed-cohort and
+growth charts side by side. All three remain visible without a chart selector.
+Facts places a full-width horizontal result chart above the full-width grid.
+Performance leads with historical normalized compile observations, then a
+LOC/time scatter and directly labeled runtime bars. Absolute times and resource
+measurements remain in a visible table. Host selection filters recorded settings,
+not unrelated machines merged into one trend. Dates and missing producer settings
+are visible above the charts; measurement details retain raw samples and provenance.
+Work uses a two-column card list, with active and unresolved lease counts above.
+Cards stack on narrow screens; the fact names stay fixed during horizontal
+grid scrolling. Evidence
+details opens a native dialog for methods, receipts and provenance. At 900px
+the comparisons stack; at 700px the page uses 14px gutters. The nine-place
+table scrolls locally.
 
 ## Elevation & Depth
 
-Thin neutral borders and a faint 0 6px 24px shadow separate panels. The chart's
-charcoal gradient is subtle. Controls brighten on hover; panels do not move.
-Refresh uses a short tonal flash; reduced-motion mode disables transitions.
+Charcoal cards have thin neutral borders and no shadows or gradients. History
+uses the host colors and direct endpoint labels from the reference. Charts
+appear immediately without entrance animation; short captions replace prose.
 
 ## Shapes
 
-Cards use 16px corners, controls 8px, status cells 5px. The Omega mark is circular.
+Cards use 16px corners, controls 8px, status cells 5px. The Omega mark is plain.
 Avoid extra decorative badges or artwork around the data.
 
 ## Components
 
+- Fixed cohort uses three bars per host on a shared 0–100% axis: gray baseline,
+  blue same set now, warm full corpus now. Growth separates recovered old IDs
+  from new running IDs with direct counts; green is recovered, gray is new.
+- Tabs support arrow keys and maintain one selected panel. Evidence details
+  uses native dialog focus handling and Escape dismissal.
 - The shared chart defaults to all available hosts on common zero-based count
   and date axes. Desktop end labels separate vertically and use leader lines
   when values are close. Mobile labels move below the plot without shrinking.
@@ -102,7 +122,13 @@ Avoid extra decorative badges or artwork around the data.
 - Native receipts expand to expose exit oracles, row revisions and host freshness.
 - The fact grid keeps source coverage separate from measured acceptance; its
   inspector is revealed and focused, with focus restored to the cell on close.
-- Claims expose owner notes and leases as reported coordination, not completion.
+  A compact Source column shows positive/reject coverage out of nine. Readable
+  names and original identifiers both work in search.
+- Work cards directly expose owner, full note, scope and expiry. Only exact
+  identifiers live under Details. Expired leases remain unresolved, never complete.
+- Performance uses logarithmic axes for orders-of-magnitude differences. Project
+  KLOC is distinct from the full compiler input closure. Unpaired runtime data
+  displays process milliseconds and ranges, never a manufactured speedup.
 
 ## Do's and Don'ts
 

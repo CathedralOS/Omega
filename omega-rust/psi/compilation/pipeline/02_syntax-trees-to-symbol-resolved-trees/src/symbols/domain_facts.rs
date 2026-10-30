@@ -10,6 +10,8 @@ use super::expressions::assign_membership_symbol;
 use super::lookup::diagnostic_path_source_span;
 use super::targets::resolve_free_call_target_symbol;
 
+mod case_members;
+
 pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
     let domain_symbols = program
         .domain_definitions
@@ -476,6 +478,7 @@ struct ProofExpressionContext<'visit> {
     local_symbols: &'visit [(String, SymbolHandle)],
     logical_data_subject: bool,
     expression_table: &'visit mut symbol_resolved_trees::expression::ExpressionTable,
+    case_selections: Vec<case_members::CaseSelection>,
 }
 
 fn assign_proof_expression_symbols(
@@ -498,6 +501,7 @@ fn assign_proof_expression_symbols(
         local_symbols,
         logical_data_subject,
         expression_table,
+        case_selections: Vec::new(),
     }
     .assign(expression);
 }
@@ -574,7 +578,12 @@ impl ProofExpressionContext<'_> {
             }
             symbol_resolved_trees::expression::ExpressionNode::Binary(binary) => {
                 self.assign(binary.left);
+                let selection_count = self.case_selections.len();
+                if binary.operator == symbol_resolved_trees::expression::BinaryOperator::And {
+                    self.collect_case_selections(binary.left);
+                }
                 self.assign(binary.right);
+                self.case_selections.truncate(selection_count);
             }
             symbol_resolved_trees::expression::ExpressionNode::Call(call) => {
                 if call.receiver.is_valid() {
@@ -720,6 +729,7 @@ impl ProofExpressionContext<'_> {
                     }
                 }
                 self.assign(member.receiver);
+                self.assign_guarded_case_member(expression);
             }
             symbol_resolved_trees::expression::ExpressionNode::Borrow(inner) => {
                 self.assign(inner.target);

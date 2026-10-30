@@ -169,7 +169,8 @@ pub(super) fn record(
             scalar_occurrences: Vec::new(),
             integer_occurrences: Vec::new(),
         };
-        if let Some(root) = observation(&mut builder, rank, subject, &bindings, admitted) {
+        let root = observation(&mut builder, rank, subject, &bindings, admitted);
+        if let Some(root) = root {
             let _ = builder.push_scalar_root(CheckedScalarExpressionRole::RankObservation, root);
         }
     }
@@ -229,7 +230,7 @@ fn input_coordinate(
     };
     // Bare parameter coordinates require no authored expression; projected
     // coordinates retain their original occurrence for structural access.
-    builder.scalar_coordinate(subject.unwrap_or_default(), &source, primitive_type)
+    builder.scalar_coordinate(subject.unwrap_or_default(), &source, primitive_type, &[])
 }
 
 fn observation(
@@ -314,6 +315,7 @@ fn observation(
                     segments: path.to_vec(),
                 },
                 primitive_type,
+                admitted.entry_indexes.span(coordinate.entry_indexes)?,
             )
         }
         CheckedNaturalRankMeasure::SequenceLength { coordinate } => {

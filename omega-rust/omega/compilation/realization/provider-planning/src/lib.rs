@@ -2,7 +2,7 @@
 
 //! Omega provider-plan derivation and realization.
 //!
-//! This crate owns provider selection, calling-policy realization, component
+//! This crate prepares source provider declarations, calling-policy realization, component
 //! progress and task activation planning. The
 //! compiler coordinator supplies checked inputs and consumes the resulting
 //! plans; it does not define their domain model. Exact grants are resolved by
@@ -14,11 +14,15 @@
 //! facade-free typed spelling returns.
 //!
 //! Start at `provider_settlement.rs` for typed candidate derivation and selection,
-//! then `provider_planning.rs` for checked-program binding;
+//! then `provider_planning.rs` for selected source correspondence;
 //! every other folder is one public vocabulary the compiler consumes by path.
+//! Whole-map choice, selected-plan binding and composition admission belong to `provider-selection`;
+//! this crate supplies exact invocation correspondence for Check/review and
+//! canonical declaration records for artifact publication.
 //! Source selection declarations are owned by Psi compile-time admission; the
 //! re-exported selection records below are inputs, not a second source decoder.
 
+pub mod callback_roots;
 pub mod calling_policy_plans;
 pub mod data_layout_queries;
 pub mod native_bindings;
@@ -65,12 +69,11 @@ pub use provider_planning::provider_rows::{
 pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderSchemaDeclaration,
-    ProviderSelectionProvenance, SelectedProviderReviewProvenance,
-    bind_selected_provider_plan_facts, derive_satisfies_plans, exact_checked_adapter,
-    project_checked_provider_instances, same_semantic_name, satisfies_plan_name,
-    select_derived_provider_plans, selected_provider_plan_facts,
+    ProviderSelectionProvenance, SelectedProviderReviewProvenance, derive_satisfies_plans,
+    exact_checked_adapter, prepare_selected_plan_declarations, project_checked_provider_instances,
+    same_semantic_name, satisfies_plan_name, select_derived_provider_plans,
+    selected_checked_operator_body, selected_provider_plan_facts,
     selected_requirement_checked_adapter, selected_requirement_plan, selected_use_plan,
-    specialized_provider_machines,
 };
 pub(crate) use provider_planning::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,

@@ -1,0 +1,9 @@
+{
+  "base": "fb37124e244cf436f99976b0a508ed24cc28d285",
+  "applies": true,
+  "files": {
+    "omega-rust/omega/foundation/artifacts/src/compile_timings/mod.rs": "bf135ca64095f4e18a2952a71ea68b23232b5c925a76c5d38eb3475206b4214e",
+    "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/reference_origins/memberships.rs": "35b857ca81c184fef8d10fe229b76119a75cf761df439652a8d21e8da2b1bcb8",
+    "omega-rust/omega/foundation/artifacts/src/compile_timings/cpu_probe.rs": "5c89a96ee1e093d3c7db662d98dda051e76e2cc86d0df8096b70ea47b7d1eee1"
+  }
+}

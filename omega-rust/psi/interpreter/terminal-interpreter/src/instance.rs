@@ -37,6 +37,7 @@ use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
 use crate::program::TerminalProgram;
 use crate::results::TerminalExecutionStatus;
+use crate::values::TerminalScalarValue;
 
 /// Identity only: creating a domain grants no exit authority. Each instance
 /// owns a fresh simulated domain; no host or sibling process belongs to it.
@@ -689,10 +690,19 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
         self.adapter_for(effect)?.poll_effect_readiness(effect)
     }
 
-    fn requires_original_storage(&self, boundary: BoundaryMachineId) -> bool {
-        self.bindings
-            .get(&boundary)
-            .is_some_and(|binding| binding.adapter.requires_original_storage(boundary))
+    fn storage_requirements(
+        &self,
+        boundary: BoundaryMachineId,
+        scalar_arguments: &[TerminalScalarValue],
+    ) -> crate::TerminalCallStorageRequirements<'_> {
+        self.bindings.get(&boundary).map_or_else(
+            crate::TerminalCallStorageRequirements::default,
+            |binding| {
+                binding
+                    .adapter
+                    .storage_requirements(boundary, scalar_arguments)
+            },
+        )
     }
 
     fn prepare_original_storage(
@@ -709,12 +719,6 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
             .adapter
             .prepare_original_storage(boundary, requests)
     }
-    fn storage_arguments(&self, boundary: BoundaryMachineId) -> &[usize] {
-        self.bindings
-            .get(&boundary)
-            .map_or(&[], |binding| binding.adapter.storage_arguments(boundary))
-    }
-
     fn handle_effect_with_buffers(
         &mut self,
         effect: &TerminalEffect,

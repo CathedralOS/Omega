@@ -1,12 +1,11 @@
-use register_model::ValidatedRegisterConstraintCatalog;
+use register_model::{TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog};
 use selected_instructions::{
-    IsaCatalogValidation, MachineAlternative, MachineAlternativeApplicability,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
+    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
+    MachineCallEffect, MachineCleanupEffect, MachineEffectCatalog, MachineEffectDeclaration,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
     MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    SaturatingOperation, SelectedConstraintKeys, ValidatedMachineEffectCatalog,
+    SaturatingOperation, SelectedConstraintKeys, isa_machine_effect_catalog_plumbing,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -26,21 +25,13 @@ use crate::{
     AARCH64_SUBTRACT_I64_IMMEDIATE, aarch64_aapcs64_register_call_keys,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Aarch64MachineEffectCatalogValidationError {
-    TargetArchitectureMismatch,
-    UnsupportedTargetAbi,
-    Structural(MachineEffectCatalogValidationError),
-    TargetSemanticMismatch,
-}
-
-impl std::fmt::Display for Aarch64MachineEffectCatalogValidationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid AArch64 machine effects: {self:?}")
-    }
-}
-
-impl std::error::Error for Aarch64MachineEffectCatalogValidationError {}
+isa_machine_effect_catalog_plumbing!(
+    Aarch64MachineEffectCatalogValidationError,
+    validate_aarch64_machine_effect_catalog,
+    Architecture::Aarch64,
+    "AArch64",
+    aarch64_machine_effect_catalog
+);
 
 pub fn aarch64_machine_effect_catalog(
     target: NativeTarget,
@@ -174,32 +165,6 @@ pub fn aarch64_machine_effect_catalog(
     })
 }
 
-pub fn validate_aarch64_machine_effect_catalog(
-    target: NativeTarget,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    catalog: MachineEffectCatalog,
-) -> Result<ValidatedMachineEffectCatalog, Aarch64MachineEffectCatalogValidationError> {
-    selected_instructions::validate_isa_machine_effect_catalog(
-        Architecture::Aarch64,
-        target,
-        constraints,
-        catalog,
-        aarch64_machine_effect_catalog,
-    )
-    .map_err(|failure| match failure {
-        IsaCatalogValidation::ArchitectureMismatch => {
-            Aarch64MachineEffectCatalogValidationError::TargetArchitectureMismatch
-        }
-        IsaCatalogValidation::Structural(error) => {
-            Aarch64MachineEffectCatalogValidationError::Structural(error)
-        }
-        IsaCatalogValidation::SemanticMismatch => {
-            Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch
-        }
-        IsaCatalogValidation::Builder(error) => error,
-    })
-}
-
 /// The AArch64 encoding matrix declares one call/return ABI family per
 /// supported (architecture, object-format) pair: AAPCS64 under ELF and the
 /// Darwin AAPCS64 variant under Mach-O. An undeclared pair — including every
@@ -251,8 +216,7 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
         Aarch64SelectedAbi::Darwin => AARCH64_DARWIN_RETURN_UNIT,
     };
     Some({
-        let mut completed = SelectedConstraintKeys {
-            invoke_no_normal: Vec::new(),
+        let rows = TargetRegisterEnvironmentConstraintKeys {
             port_write: None,
             system_register_read: Some(crate::AARCH64_SYSTEM_REGISTER_READ),
             system_register_write: Some(crate::AARCH64_SYSTEM_REGISTER_WRITE),
@@ -403,6 +367,10 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             return_i64,
             return_unit,
         };
+        let mut completed = SelectedConstraintKeys {
+            rows,
+            invoke_no_normal: Vec::new(),
+        };
         completed.invoke_no_normal = completed.ordinary_call_constraints();
         completed
     })
@@ -425,7 +393,6 @@ macro_rules! form_alternative {
         }]
     };
 }
-pub(crate) use form_alternative;
 
 fn declaration(
     semantic: MachineSemanticKind,

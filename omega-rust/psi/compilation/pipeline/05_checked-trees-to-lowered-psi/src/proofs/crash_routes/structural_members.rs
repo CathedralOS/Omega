@@ -183,16 +183,8 @@ pub(crate) fn lower_structural_indexed_term(
         &checked_trees::CheckedScalarExpression,
     ) -> Result<ScalarTerm, LoweringError>,
 ) -> Result<ScalarTerm, LoweringError> {
-    use checked_trees::CheckedScalarReadProjection;
-    use semantic_vocabulary::ScalarReadProjection;
-    let checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
-        root,
-        path,
-        index,
-        element_path,
-        primitive_type,
-        ..
-    } = expression
+    let checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead { root, .. } =
+        expression
     else {
         return unsupported("indexed contract observation has no selected read");
     };
@@ -205,7 +197,65 @@ pub(crate) fn lower_structural_indexed_term(
         .ok_or(LoweringError::Unsupported(
             "indexed contract formal is absent",
         ))?;
-    if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+    lower_structural_indexed_place(
+        identities,
+        expression,
+        parameter.place,
+        parameter.structural_type,
+        parameter.access,
+        structural_types,
+        lower_selector,
+    )
+}
+
+/// Normal result observations use the declared owned result place, never an
+/// invocation formal with a coincidentally equal coordinate.
+pub(crate) fn lower_structural_result_indexed_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    expression: &checked_trees::CheckedScalarExpression,
+    result: &terminal_psi::StructuralResultDeclaration,
+    structural_types: &[StructuralTypeDeclaration],
+    lower_selector: &mut impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
+        &checked_trees::CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError>,
+) -> Result<ScalarTerm, LoweringError> {
+    lower_structural_indexed_place(
+        identities,
+        expression,
+        result.place,
+        result.structural_type,
+        terminal_psi::StructuralAccess::Owned,
+        structural_types,
+        lower_selector,
+    )
+}
+
+fn lower_structural_indexed_place(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    expression: &checked_trees::CheckedScalarExpression,
+    root: PlaceId,
+    root_type: StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+    structural_types: &[StructuralTypeDeclaration],
+    lower_selector: &mut impl FnMut(
+        &mut terminal_psi::TerminalIdentityTableBuilder,
+        &checked_trees::CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError>,
+) -> Result<ScalarTerm, LoweringError> {
+    use checked_trees::CheckedScalarReadProjection;
+    use semantic_vocabulary::ScalarReadProjection;
+    let checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
+        path,
+        index,
+        element_path,
+        primitive_type,
+        ..
+    } = expression
+    else {
+        return unsupported("indexed contract observation has no selected read");
+    };
+    if access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
         return unsupported("indexed contract observation requires readable access");
     }
     let mut projections = path
@@ -216,7 +266,7 @@ pub(crate) fn lower_structural_indexed_term(
     projections.push(CheckedScalarReadProjection::RuntimeIndex((**index).clone()));
     projections.extend_from_slice(element_path);
     let mut terminal_path = Vec::new();
-    let mut selected = StructuralFieldType::Structural(parameter.structural_type);
+    let mut selected = StructuralFieldType::Structural(root_type);
     let mut cursor = 0;
     while cursor < projections.len() {
         if matches!(&projections[cursor], CheckedScalarReadProjection::Static(_)) {
@@ -231,7 +281,7 @@ pub(crate) fn lower_structural_indexed_term(
             let observation = structural_observation_path(
                 identities,
                 structural_type,
-                parameter.access,
+                access,
                 &static_path,
                 structural_types,
             )?;
@@ -311,7 +361,7 @@ pub(crate) fn lower_structural_indexed_term(
     }
     let actual = terminal_semantics::structural_read_scalar_type(
         structural_types.iter(),
-        parameter.structural_type,
+        root_type,
         &terminal_path,
     );
     let expected = crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?;
@@ -329,14 +379,14 @@ pub(crate) fn lower_structural_indexed_term(
         .collect::<Option<Vec<_>>>();
     let term = match (fixed, expected) {
         (Some(path), ScalarType::Integer(integer)) => {
-            ScalarTerm::integer_field_path(parameter.place, path, integer)
+            ScalarTerm::integer_field_path(root, path, integer)
         }
-        (Some(path), ScalarType::Boolean) => ScalarTerm::boolean_field_path(parameter.place, path),
+        (Some(path), ScalarType::Boolean) => ScalarTerm::boolean_field_path(root, path),
         (Some(path), ScalarType::IeeeFloat(format)) => {
-            ScalarTerm::ieee_float_field_path(parameter.place, path, format)
+            ScalarTerm::ieee_float_field_path(root, path, format)
         }
         (None, _) => ScalarTerm::StructuralRead {
-            root: parameter.place,
+            root,
             path: terminal_path,
             scalar_type: expected,
         },

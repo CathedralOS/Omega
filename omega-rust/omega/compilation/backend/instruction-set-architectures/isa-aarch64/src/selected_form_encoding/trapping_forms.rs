@@ -31,14 +31,12 @@
 //! whether any bit at or above the destination's value bits is set with one
 //! `tst` bitmask immediate. Every form declares NZCV clobbered.
 use super::decoding::DecodedWord;
-use crate::machine_effects::form_alternative;
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior, SaturatingCarrier, TrappingForm, TrappingOperation,
+    MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration,
+    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedTrapBehavior,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    SaturatingCarrier, TrappingForm, TrappingOperation,
 };
 use semantic_vocabulary::IntegerSign;
 
@@ -90,23 +88,19 @@ pub(crate) fn declaration(
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
     let sources = form.source_count() as u16;
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::TrappingInteger(form),
+    MachineEffectDeclaration::single(
+        MachineSemanticKind::TrappingInteger(form),
         constraint,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::TrappingIntegerV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: form_alternative!(
-            MachineAlternativeFamily::TrappingInteger(form),
-            MachineSizeKnowledge::ExactBytes(byte_size(form)),
-            effects(
-                (0..sources).collect(),
-                (sources..operand_count(form) as u16).collect(),
-            )
+        MachineMemoryEffect::NoneV1,
+        MachineTrapBehavior::TrappingIntegerV1,
+        MachineBarrier::ExternalEffect,
+        MachineAlternativeFamily::TrappingInteger(form),
+        MachineSizeKnowledge::ExactBytes(byte_size(form)),
+        effects(
+            (0..sources).collect(),
+            (sources..operand_count(form) as u16).collect(),
         ),
-    }
+    )
 }
 
 /// `[left, right, result, scratch]` for binary arithmetic and shifts,

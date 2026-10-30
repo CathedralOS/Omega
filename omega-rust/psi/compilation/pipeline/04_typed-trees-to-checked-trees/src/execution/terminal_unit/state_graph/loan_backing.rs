@@ -1145,6 +1145,16 @@ impl Dependencies<'_> {
                     self.facts.borrow.loans.is_valid(*handle) && {
                         let loan = self.facts.borrow.loans.get(*handle);
                         loan.incoming_reference == resource.backing_incoming_reference
+                            && self
+                                .facts
+                                .borrow
+                                .access_segments
+                                .span_or_empty(loan.incoming_owner_path)
+                                == self
+                                    .facts
+                                    .borrow
+                                    .call_loan_backing_paths
+                                    .span_or_empty(resource.backing_incoming_owner_path)
                             && loan.root == root
                     }
                 }) && sources.iter().all(|handle| {
@@ -1425,7 +1435,18 @@ impl Dependencies<'_> {
             let same_output_supplier = suppliers.iter().any(|parent| {
                 self.facts.borrow.loans.is_valid(*parent) && {
                     let source = self.facts.borrow.loans.get(*parent);
-                    source.incoming_reference == loan.incoming_reference && source.root == loan.root
+                    source.incoming_reference == loan.incoming_reference
+                        && self
+                            .facts
+                            .borrow
+                            .access_segments
+                            .span_or_empty(source.incoming_owner_path)
+                            == self
+                                .facts
+                                .borrow
+                                .access_segments
+                                .span_or_empty(loan.incoming_owner_path)
+                        && source.root == loan.root
                 }
             });
             if self.facts.borrow.output_origin_call(handle).is_none() && !same_output_supplier {

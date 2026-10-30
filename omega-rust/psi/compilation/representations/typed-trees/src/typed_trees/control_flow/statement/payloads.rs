@@ -15,6 +15,17 @@ impl TypedTreeTables {
         source_tables: &crate::typed_trees::TypedTreeTables,
         statements: HandleSpan<StatementNode>,
     ) -> HandleSpan<StatementNode> {
+        self.copy_statement_nodes_with_type_expressions(source_tables, statements, &mut Vec::new())
+    }
+
+    /// Preserve correspondence for the type-owned expressions copied with
+    /// local declarations; lexical specialization consumes it with type copies.
+    pub fn copy_statement_nodes_with_type_expressions(
+        &mut self,
+        source_tables: &crate::typed_trees::TypedTreeTables,
+        statements: HandleSpan<StatementNode>,
+        expressions: &mut Vec<crate::types::TypeExpressionCopy>,
+    ) -> HandleSpan<StatementNode> {
         let source = &source_tables.statement_table;
         let mut copied = Vec::new();
         let mut assembly_blocks = Vec::new();
@@ -129,11 +140,12 @@ impl TypedTreeTables {
                 ),
                 StatementNode::LocalData(local) => {
                     let type_reference = local.type_reference.is_valid().then(|| {
-                        self.type_reference_table.copy_from(
+                        self.type_reference_table.copy_with_expressions(
                             &source_tables.type_reference_table,
                             &source_tables.expression_table,
                             &mut self.expression_table,
                             local.type_reference,
+                            expressions,
                         )
                     });
                     let initial_value = local.initial_value.is_valid().then(|| {

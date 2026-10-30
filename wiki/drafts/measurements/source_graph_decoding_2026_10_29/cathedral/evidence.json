@@ -1,0 +1,10 @@
+{
+  "frozen-inputs.zip": {
+    "sha256": "be1c70b30aa52728dfab8b7100d49882d40107791d36fa4f68dea8795b21de2c",
+    "bytes": 2069242
+  },
+  "setup-observations.zip": {
+    "sha256": "92eea945e0241fffac11a88034cb096386b4cc984f4883776d4ee64cf4efbcaa",
+    "bytes": 229175
+  }
+}

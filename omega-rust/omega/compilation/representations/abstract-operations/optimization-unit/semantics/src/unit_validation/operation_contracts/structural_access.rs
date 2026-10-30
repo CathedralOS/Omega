@@ -8,6 +8,8 @@ use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_semantics::structural_paths_may_overlap;
 
+mod descriptor_access;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StructuralProjectionPolicy {
     Unit,
@@ -17,6 +19,8 @@ pub(crate) enum StructuralProjectionPolicy {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct StructuralSourceContract<'a> {
+    caller: &'a PsiOptimizationFunction,
+    place: PlaceId,
     pub(crate) structural_type: StructuralTypeId,
     pub(crate) multiplicity: terminal_psi::StructuralMultiplicity,
     pub(crate) access: terminal_psi::StructuralAccess,
@@ -34,6 +38,15 @@ impl StructuralSourceContract<'_> {
     /// permission over its backing. Explicit incoming loans keep their declared
     /// access; this ceiling applies before selecting any element of the view.
     pub(crate) fn backing_access<'types>(
+        &self,
+        types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+    ) -> Option<terminal_psi::StructuralAccess> {
+        descriptor_access::backing_access(self.caller, self.place, types)
+    }
+
+    /// Declared result/arrival ceiling. This is lineage metadata; consumers
+    /// requiring referent authority use the typed backing_access query above.
+    fn claimed_backing_access<'types>(
         &self,
         types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
     ) -> terminal_psi::StructuralAccess {
@@ -356,14 +369,15 @@ where
                 terminal_psi::StructuralTypeShape::ElementView { .. }
             )
         }) && argument.access != terminal_psi::StructuralAccess::Owned
-            && !terminal_semantics::descriptor_source_projection_accessible(
-                types.values().copied(),
-                source.structural_type,
-                source.multiplicity,
-                source.access,
-                &argument.path,
-                argument.access,
-            )
+            && (source.backing_access(types.values().copied()).is_none()
+                || !terminal_semantics::descriptor_source_projection_accessible(
+                    types.values().copied(),
+                    source.structural_type,
+                    source.multiplicity,
+                    source.access,
+                    &argument.path,
+                    argument.access,
+                ))
         {
             return false;
         }
@@ -476,10 +490,9 @@ where
         // also fit the backing permission; Owned is not permission to mutate
         // through a returned or copied shared descriptor.
         if argument.access != terminal_psi::StructuralAccess::Owned
-            && !structural_access_can_supply(
-                source.backing_access(types.values().copied()),
-                argument.access,
-            )
+            && !source
+                .backing_access(types.values().copied())
+                .is_some_and(|access| structural_access_can_supply(access, argument.access))
         {
             return false;
         }
@@ -1111,6 +1124,8 @@ pub(crate) fn structural_source_contract(
     caller
         .arrival_parameter(place)
         .map(|parameter| StructuralSourceContract {
+            caller,
+            place,
             structural_type: parameter.structural_type,
             multiplicity: parameter.multiplicity,
             access: parameter.access,
@@ -1141,6 +1156,8 @@ pub(crate) fn structural_source_contract(
                     return None;
                 };
                 (declaration.id == place).then_some(StructuralSourceContract {
+                    caller,
+                    place,
                     structural_type: structural_type.id,
                     multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                     access: terminal_psi::StructuralAccess::SharedBorrow,
@@ -1166,6 +1183,8 @@ fn trivial_affine_local_contract(
             structural_type,
             ..
         } if declaration.id == place => Some(StructuralSourceContract {
+            caller,
+            place,
             structural_type: structural_type.id,
             multiplicity: terminal_psi::StructuralMultiplicity::Affine,
             access: terminal_psi::StructuralAccess::Owned,
@@ -1181,7 +1200,7 @@ fn trivial_affine_local_contract(
 /// Owning a result row is not sufficient: local storage and view operations
 /// expose loans, while a reference result owns only its permission carrier.
 pub(crate) fn structural_operation_result_contract<'a>(
-    caller: &PsiOptimizationFunction,
+    caller: &'a PsiOptimizationFunction,
     operation: &'a O,
 ) -> Option<StructuralSourceContract<'a>> {
     let (result, access) = match operation {
@@ -1223,6 +1242,8 @@ pub(crate) fn structural_operation_result_contract<'a>(
                 _ => return None,
             };
     Some(StructuralSourceContract {
+        caller,
+        place: result.place,
         structural_type: result.structural_type,
         multiplicity: result.multiplicity,
         access,
@@ -1363,12 +1384,10 @@ fn view_access(
                 destination,
                 ..
             } => {
-                // A reference crossing needs the typed referent-permission
-                // validator; ownership of the carrier grants no such access.
-                if source
-                    .path
-                    .contains(&terminal_psi::StructuralPathSegment::Referent)
-                    || *destination != result.place
+                // This walk authenticates producer lineage and requested
+                // access. Typed backing_access independently checks each full
+                // source path, including every stored-reference ceiling.
+                if *destination != result.place
                     || !matches!(
                         (source.access, result.multiplicity),
                         (Access::SharedBorrow, Multiplicity::Unrestricted)

@@ -1,28 +1,21 @@
 //! A full coherent-memory barrier, independent of cell width or value storage.
-use crate::machine_effects::form_alternative;
 use register_model::RegisterConstraintKey;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    MachineAlternativeFamily, MachineBarrier, MachineEffectDeclaration, MachineEncodedEffects,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::AtomicFence,
+    MachineEffectDeclaration::single(
+        MachineSemanticKind::AtomicFence,
         constraint,
-        memory: MachineMemoryEffect::AtomicFenceV1,
-        trap: MachineTrapBehavior::NeverV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: form_alternative!(
-            MachineAlternativeFamily::AtomicFence,
-            MachineSizeKnowledge::ExactBytes(4),
-            MachineEncodedEffects::atomic_fence_v1()
-        ),
-    }
+        MachineMemoryEffect::AtomicFenceV1,
+        MachineTrapBehavior::NeverV1,
+        MachineBarrier::ExternalEffect,
+        MachineAlternativeFamily::AtomicFence,
+        MachineSizeKnowledge::ExactBytes(4),
+        MachineEncodedEffects::atomic_fence_v1(),
+    )
 }
 
 #[cfg(test)]

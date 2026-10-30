@@ -49,7 +49,7 @@ Resume a reviewed candidate with `--resume-review` using the same directory.
 After preparation, capture both products and validate their numerical output:
 
 ```
-target/debug/hmm-terminal-validation samples/cli/independent/hidden_markov_inference samples/cli/independent/hidden_markov_inference/build/terminal
+target/debug/hmm-terminal-validation samples/cli/independent/hidden_markov_inference/main.omg samples/cli/independent/hidden_markov_inference/build/terminal
 python3 samples/cli/independent/hidden_markov_inference/validate.py --native /absolute/path/from/native-path.txt --terminal samples/cli/independent/hidden_markov_inference/build/terminal --producer target/debug/hmm-terminal-validation
 ```
 

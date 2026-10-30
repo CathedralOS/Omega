@@ -1,0 +1,41 @@
+// Fact: querying size_of and align_of on a two-field u64 structural record (Pair { lo: u64, hi: u64 }) establishes its exact layout geometry (size == 16u64 and align == 8u64), discharging exact subtraction size - (align * 2u64) across all nine places.
+// Composition: queried scalar actuals survive helper terminal returns before the private consuming arrival.
+// Expected exit: 0
+
+data Pair {
+    lo: u64;
+    hi: u64;
+}
+
+machine relay(value: u64) -> u64 {
+    transition true { true -> deliver(value) _ -> deliver(value) }
+    machine deliver(value: u64) -> u64 { value }
+}
+
+machine query_size() -> u64 {
+    transition { _ -> selected() }
+    machine selected() -> u64 { size_of<Pair>() }
+}
+
+machine query_align() -> u64 {
+    transition { _ -> selected() }
+    machine selected() -> u64 { align_of<Pair>() }
+}
+
+machine main() crashes Trap {
+    let s: u64 = relay(query_size());
+    let a: u64 = relay(query_align());
+    transition true {
+        true -> compute(s, a)
+        _ -> bad()
+    }
+    machine compute(size: u64, align: u64) {
+        let diff: u64 = size - (align * 2u64);
+        transition diff == 0 && size == 16u64 && align == 8u64 {
+            true -> done()
+            _ -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

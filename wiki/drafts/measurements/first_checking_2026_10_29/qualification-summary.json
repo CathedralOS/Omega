@@ -1,0 +1,15 @@
+{
+  "id": "d2183e9f80c24bd095183ac66e58ef9a",
+  "check": "candidate-native-replay",
+  "revision": "308d50d1b7c08a575c57deffda5662cd50f3aebf",
+  "exit": 0,
+  "duration_seconds": 98.71538249999867,
+  "invalidations": [],
+  "receipt": {
+    "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\qualification.records\\d2183e9f80c24bd095183ac66e58ef9a.json",
+    "sha256": "efca76647f2ecd0d0640e8ed501049efa0c45b5170bb37609133567062bfc93e"
+  },
+  "state_path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\qualification.json",
+  "state_revision": 4,
+  "note": "The full immutable receipt and source/artifact stamp roster remain under ignored build, per tools/qualification.md. This summary does not replace that receipt."
+}

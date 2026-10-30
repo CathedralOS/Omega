@@ -262,11 +262,11 @@ impl LoanChains {
                 continue;
             }
             for (edge_index, edge) in state.successors().into_iter().enumerate() {
-                let target =
-                    plan.state_position(edge.target_state)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph loan chain target state is absent",
-                        ))?;
+                let target = plan
+                    .successor_position(edge)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph loan chain target state is absent",
+                    ))?;
                 for (dense, (parameter, transfer)) in plan.states[target]
                     .structural_parameters
                     .iter()

@@ -1,0 +1,153 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "d9c92de878a42e495f45fdf49ba228d64294f4aa",
+  "dirty": false,
+  "leg": "both",
+  "target": "windows_x86_64",
+  "golden": "tests/omega/corpus_both_windows_x86_64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 8630
+  },
+  "subset": true,
+  "filter": "pass/borrows/returned_reference_source_guarantee_exit,pass/borrows/completed_reference_result_preserves_input_holds_exit,pass/borrows/runtime_selected_shared_reference_cohort_exit,pass/calls/runtime_cyclic_state_reference_result_exit",
+  "shard": null,
+  "verdict": "moved",
+  "exit_code": 1,
+  "counts": {
+    "fixtures": 4,
+    "by_status": {
+      "built": 4
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {
+      "new": 1
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 3,
+    "legacy": 0,
+    "unknown_revisions": 0,
+    "oldest": {
+      "revision": "5f668826adf3",
+      "commits_behind": 711
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 32,
+      "jobs": "8",
+      "load1_end": null,
+      "load1_start": null,
+      "machine": "amd64",
+      "platform": "windows",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": "1",
+      "cpus": 32,
+      "platform": "windows",
+      "machine": "amd64",
+      "load1_start": null,
+      "load1_end": null
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "pass/borrows/completed_reference_result_preserves_input_holds_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1629,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrows/returned_reference_source_guarantee_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 1695,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/borrows/runtime_selected_shared_reference_cohort_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 8661,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/calls/runtime_cyclic_state_reference_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6985,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/borrows/completed_reference_result_preserves_input_holds_exit",
+      "verdict": "new",
+      "reasons": [
+        "fixture added"
+      ],
+      "before": null,
+      "after": {
+        "fixture": "pass/borrows/completed_reference_result_preserves_input_holds_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 1629,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

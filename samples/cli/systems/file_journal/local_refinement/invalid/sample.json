@@ -1,0 +1,1 @@
+{"role": "intended-invalid", "entry": "main.omg", "rejection_contains": ["cannot prove scalar result domain for return from issue at statement 0: u64::Nonzero"]}

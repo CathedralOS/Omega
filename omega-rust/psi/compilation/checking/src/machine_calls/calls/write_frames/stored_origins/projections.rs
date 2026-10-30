@@ -5,16 +5,15 @@
 use super::super::path_instantiation::aggregate_arguments::{
     AggregateMove, AggregateOrigins, ReferenceLeaf, ReferenceSource,
 };
-use super::super::type_instantiation::DeclarationScopes;
 use super::StoredLocalOrigins;
+use super::storage_projection::{projected_storage_type, projected_type};
 use facts::{FactPlan, PlaceSegment};
 use symbols::SymbolKind;
-use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableLocalData};
-use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn moved_reference_leaves(
     program: &dyn crate::CheckingInput,
@@ -669,140 +668,4 @@ pub(in crate::machine_calls::calls::write_frames) fn selected_slot_sources(
         }
     }
     (!origins.is_empty()).then_some(origins)
-}
-
-pub(in crate::machine_calls::calls::write_frames) fn projected_type(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-    segments: &[PlaceSegment],
-) -> Option<TypeReferenceHandle> {
-    let reference = projected_storage_type(program, reference, segments)?;
-    (!super::super::type_reference_is_reference(program, reference)).then_some(reference)
-}
-
-/// Walk owned structure up to a slot, without dereferencing a reference leaf.
-/// Exact-reference demand may then use separately frozen evidence for that slot.
-pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
-    program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
-    segments: &[PlaceSegment],
-) -> Option<TypeReferenceHandle> {
-    let mut selected_case = None;
-    // Projection and inventory share exact declaration scopes. Finite generic
-    // preparation does not promise a materialized row for every nested field.
-    let mut scopes = DeclarationScopes::default();
-    let mut scope = 0;
-    for segment in segments {
-        (reference, scope) = scopes.head(program, reference, scope);
-        reference = unconstrained_type(program, reference)?;
-        match (
-            program.type_reference_table.type_reference(reference),
-            segment,
-        ) {
-            (
-                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. },
-                PlaceSegment::Case { variant },
-            ) => {
-                if selected_case.is_some()
-                    || program.symbols.get(*variant).kind != SymbolKind::Variant
-                {
-                    return None;
-                }
-                let (definition, nested_scope) = scopes.definition(program, reference, scope)?;
-                scope = nested_scope;
-                selected_case =
-                    program
-                        .data_members(definition)
-                        .iter()
-                        .find_map(|member| match member {
-                            DataMember::Variant(candidate) if candidate.symbol == *variant => {
-                                Some(candidate)
-                            }
-                            _ => None,
-                        });
-                selected_case?;
-            }
-            (
-                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. },
-                PlaceSegment::Field { symbol: field },
-            ) => {
-                if program.symbols.get(*field).kind != SymbolKind::Field {
-                    return None;
-                }
-                reference = if let Some(variant) = selected_case.take() {
-                    program
-                        .data_payload_field_by_symbol(variant, *field)?
-                        .type_reference
-                } else {
-                    let (definition, nested_scope) =
-                        scopes.definition(program, reference, scope)?;
-                    scope = nested_scope;
-                    program
-                        .data_members(definition)
-                        .iter()
-                        .find_map(|member| match member {
-                            DataMember::Field(candidate) if candidate.symbol == *field => {
-                                Some(candidate.type_reference)
-                            }
-                            _ => None,
-                        })?
-                };
-            }
-            (
-                TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: FixedArrayLength::Literal(length),
-                },
-                index,
-            ) => {
-                if selected_case.is_some() {
-                    return None;
-                }
-                match index {
-                    PlaceSegment::FixedIndex { index } if index < length => {}
-                    PlaceSegment::Index { expression }
-                        if *length > 0
-                            && program
-                                .expression_table
-                                .constant_integer_value(*expression)
-                                .is_none()
-                            && !matches!(
-                                program.expression_table.expression(*expression),
-                                ExpressionNode::Range(_)
-                            ) => {}
-                    _ => return None,
-                }
-                reference = *element_type;
-            }
-            (
-                TypeReferenceNode::Slice { element_type },
-                PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. },
-            ) => {
-                if selected_case.is_some() {
-                    return None;
-                }
-                // Storage shape supplies the element type, never evidence
-                // that an element exists. Executable access still needs the
-                // selected descriptor's checked bound and loan authority.
-                reference = *element_type;
-            }
-            // Never peel a reference to turn a loaded carrier into an owned
-            // value move. Reference result relations have their own evidence.
-            _ => return None,
-        }
-    }
-    if selected_case.is_some() {
-        return None;
-    }
-    unconstrained_type(program, scopes.head(program, reference, scope).0)
-}
-
-fn unconstrained_type(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    let reference = program
-        .type_reference_table
-        .unconstrained_type_reference(reference);
-    reference.is_valid().then_some(reference)
 }

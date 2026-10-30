@@ -1,0 +1,196 @@
+Source: tools/benchmark/src/workloads.rs
+Profile: opt-level 1, x86_64-pc-windows-msvc
+Full assembly SHA256: e1f4520c3aab5774935738a7a9d6204a56dd7b34195a651ed20aba7b416e6da7
+
+866: 	movq	%rbx, %rcx
+867: 	movq	%r14, %r8
+868: 	callq	memcmp
+869: 	testl	%eax, %eax
+870: 	jne	.LBB8_126
+871: 	movq	%rdi, 96(%rbp)
+872: 	leaq	96(%rbp), %rax
+873: 	#APP
+874: 	#NO_APP
+875: 	movq	96(%rbp), %rax
+876: 	movq	%rax, -48(%rbp)
+877: 	testq	%rax, %rax
+878: 	je	.LBB8_141
+879: 	movb	%r12b, 152(%rbp)
+880: 	xorl	%r15d, %r15d
+881: 	leaq	96(%rbp), %rdi
+882: 	movq	%r12, %r13
+883: 	jmp	.LBB8_93
+884: .LBB8_92:
+885: 	addq	%r14, %r13
+886: 	addq	%r13, %r12
+887: 	incq	%r15
+888: 	movq	%r12, %r13
+889: 	cmpq	-48(%rbp), %r15
+890: 	jae	.LBB8_141
+891: .LBB8_93:
+892: 	movzbl	%r15b, %r14d
+893: 	leaq	64(%r14), %rax
+894: 	movq	%rax, 96(%rbp)
+895: 	movq	%rdi, %rbx
+896: 	#APP
+897: 	#NO_APP
+898: 	movq	96(%rbp), %rdi
+899: 	cmpb	$0, 152(%rbp)
+900: 	je	.LBB8_96
+901: 	movb	$1, %r12b
+902: 	testq	%rdi, %rdi
+903: 	jns	.LBB8_98
+904: 	movq	$0, 160(%rbp)
+905: 	jmp	.LBB8_105
+906: .LBB8_96:
+907: 	movb	$1, %r12b
+908: 	testq	%rdi, %rdi
+909: 	jns	.LBB8_101
+910: 	movq	$0, 160(%rbp)
+911: 	jmp	.LBB8_109
+912: .LBB8_98:
+913: 	je	.LBB8_104
+914: 	callq	_RNvCs51UXNSTQqWW_7___rustc35___rust_no_alloc_shim_is_unstable_v2
+915: 	movl	$1, %eax
+916: 	movq	%rax, 160(%rbp)
+917: 	movl	$1, %edx
+918: 	movq	%rdi, %rcx
+919: 	callq	_RNvCs51UXNSTQqWW_7___rustc12___rust_alloc
+920: 	movq	%rdi, %rdx
+921: 	testq	%rax, %rax
+922: 	je	.LBB8_105
+923: 	xorl	%r12d, %r12d
+924: 	movq	%rax, %rdx
+925: 	movq	%rdi, 160(%rbp)
+926: 	jmp	.LBB8_105
+927: .LBB8_101:
+928: 	je	.LBB8_108
+929: 	callq	_RNvCs51UXNSTQqWW_7___rustc35___rust_no_alloc_shim_is_unstable_v2
+930: 	movl	$1, %eax
+931: 	movq	%rax, 160(%rbp)
+932: 	movl	$1, %edx
+933: 	movq	%rdi, %rcx
+934: 	callq	_RNvCs51UXNSTQqWW_7___rustc19___rust_alloc_zeroed
+935: 	movq	%rdi, %rdx
+936: 	testq	%rax, %rax
+937: 	je	.LBB8_109
+938: 	xorl	%r12d, %r12d
+939: 	movq	%rax, %rdx
+940: 	movq	%rdi, 160(%rbp)
+941: 	jmp	.LBB8_109
+942: .LBB8_104:
+943: 	movl	$1, %edx
+944: 	movq	$0, 160(%rbp)
+945: 	xorl	%r12d, %r12d
+946: .LBB8_105:
+947: 	testb	%r12b, %r12b
+948: 	jne	.LBB8_170
+949: 	cmpq	160(%rbp), %rdi
+950: 	ja	.LBB8_163
+951: 	movq	%rdx, %r12
+952: 	movq	%rdx, %rcx
+953: 	movzbl	152(%rbp), %edx
+954: 	movq	%rdi, %r8
+955: 	callq	memset
+956: 	jmp	.LBB8_111
+957: .LBB8_108:
+958: 	movl	$1, %edx
+959: 	movq	$0, 160(%rbp)
+960: 	xorl	%r12d, %r12d
+961: .LBB8_109:
+962: 	testb	%r12b, %r12b
+963: 	jne	.LBB8_173
+964: 	movq	%rdx, %r12
+965: .LBB8_111:
+966: 	testq	%rdi, %rdi
+967: 	je	.LBB8_178
+968: 	movb	%r15b, (%r12)
+969: 	leaq	63(%r14), %rcx
+970: 	cmpq	%rdi, %rcx
+971: 	jae	.LBB8_179
+972: 	movq	%r12, %rcx
+973: 	movzbl	63(%r12,%r14), %r12d
+974: 	movq	%rcx, 96(%rbp)
+975: 	movq	%rdi, 104(%rbp)
+976: 	movq	%rbx, %rdi
+977: 	#APP
+978: 	#NO_APP
+979: 	movq	160(%rbp), %rdx
+980: 	testq	%rdx, %rdx
+981: 	je	.LBB8_92
+982: 	movl	$1, %r8d
+983: 	callq	_RNvCs51UXNSTQqWW_7___rustc14___rust_dealloc
+984: 	jmp	.LBB8_92
+985: .LBB8_46:
+
+1079: .LBB8_122:
+1080: 	movzwl	%r8w, %ecx
+1081: 	movq	88(%rbp), %rdx
+1082: 	cmpq	%rdx, %rcx
+1083: 	jae	.LBB8_180
+1084: 	movq	80(%rbp), %rdx
+1085: 	movq	(%rdx,%rcx,8), %rdx
+1086: 	movq	%rdx, 96(%rbp)
+1087: 	#APP
+1088: 	#NO_APP
+1089: 	movq	88(%rbp), %rdx
+1090: 	cmpq	%rdx, %rcx
+1091: 	jae	.LBB8_181
+1092: 	movq	96(%rbp), %rdx
+1093: 	leaq	(%r10,%rdx), %r11
+1094: 	movq	80(%rbp), %rdi
+1095: 	movq	%r11, (%rdi,%rcx,8)
+1096: 	addq	%rdx, %r12
+1097: 	incq	%r10
+1098: 	addq	$17, %r8
+1099: 	cmpq	%rax, %r10
+1100: 	jb	.LBB8_122
+1101: 	jmp	.LBB8_141
+
+1160: 	movq	%r12, %rax
+1161: .LBB8_135:
+1162: 	cmpq	%rbx, %r8
+1163: 	jae	.LBB8_140
+1164: 	leaq	1(%r8), %r14
+1165: 	movl	%r8d, %ecx
+1166: 	xorl	%r12d, %ecx
+1167: 	andl	$1, %ecx
+1168: 	shll	$4, %ecx
+1169: 	movups	32(%rbp,%rcx), %xmm0
+1170: 	movups	%xmm0, 96(%rbp)
+1171: 	#APP
+1172: 	#NO_APP
+1173: 	movq	96(%rbp), %rcx
+1174: 	movq	104(%rbp), %r9
+1175: .Ltmp30:
+1176: 	movq	%rax, %rdx
+1177: 	callq	*24(%r9)
+1178: 	nop
+1179: .Ltmp31:
+1180: 	movq	%r14, %r8
+1181: 	jmp	.LBB8_135
+1182: .LBB8_137:
+1183: 	movq	%rdi, 96(%rbp)
+1184: 	leaq	96(%rbp), %rax
+1185: 	#APP
+1186: 	#NO_APP
+1187: 	movq	96(%rbp), %rax
+1188: 	testq	%rax, %rax
+1189: 	je	.LBB8_141
+1190: 	xorl	%ecx, %ecx
+1191: 	leaq	96(%rbp), %rdx
+1192: .LBB8_139:
+1193: 	rolq	$7, %r12
+1194: 	addq	%rcx, %r12
+1195: 	movq	%r12, 96(%rbp)
+1196: 	#APP
+1197: 	#NO_APP
+1198: 	movq	96(%rbp), %r12
+1199: 	addq	$31, %rcx
+1200: 	decq	%rax
+1201: 	jne	.LBB8_139
+1202: 	jmp	.LBB8_141
+1203: .LBB8_140:
+1204: 	movq	%rax, %r12
+1205: .LBB8_141:
+1206: .Ltmp36:

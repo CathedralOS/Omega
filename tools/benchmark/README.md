@@ -1,5 +1,17 @@
 # Benchmark harness
 
+For new paired compiler and runtime experiments, use the Rust
+[`omega-bench` tooling](comparison.md). It runs paired comparisons and explicit
+suites, validates retained evidence, checks regression budgets, compares compatible
+histories, and captures separate phase, allocation, WPR or Linux perf profiles.
+It retains warmups, alternates baseline/candidate order, checks authored results,
+and records uncertainty, CPU, memory and every observation. Build it with
+`mbx build -p omega-bench`.
+
+The Python workflow below retains the existing optimizer-selection records and
+host matrix. Its record schema is separate from the Rust comparison journal;
+historical measurements are not silently converted into paired experiments.
+
 `benchmark.py` measures the reference compiler on a chosen subject and
 writes one versioned JSON record per (subject, target, exact rule
 selection) row under `records/`. It exists so optimizer work can cite
@@ -35,7 +47,7 @@ samples' `press Enter` idiom) receive EOF immediately.
 
 `--enable <ExactName>` augments the enabled-selection key for subjects
 whose `build.omg` cannot express it; normally the enabled set is read
-from the subject's sibling `build.omg` `optimizations.enable(...)`
+from the subject's sibling `build.omg` `Optimizations::enable(...)`
 calls, because the CLI can only disable. `--no-run` marks the runtime
 leg `skipped` for cross targets the host cannot execute. New target
 profiles need no code change — pass the profile name to `--target`.
@@ -59,6 +71,13 @@ record. A failed runtime observation is not benchmark evidence, and
 `exit_code_match: false`.
 
 ## Package-review preparation
+
+`measure` records `metrics.package_preparation_ms` separately from compile time
+when the project lacks `omega.lock`. It includes update, review acceptance and
+resume. An already accepted lock records this leg as skipped; historical rows
+without it remain unknown. The dashboard keeps preparation seconds visible in
+the measurements table. This is one setup observation with uncontrolled file
+caches, not a cold-cache throughput measurement.
 
 Compiling a project that `depend()`s on packages requires the
 package-review gate to be settled first, otherwise every compile exits
@@ -91,6 +110,11 @@ state when cleaning up the task's worktree.
 
 ## Record schema `omega-benchmark-record/2`
 
+Optional `observation_warnings` strings qualify the recorded observation or its
+measurement batch. The dashboard shows the newest observation's warnings above
+the charts. Retain raw diagnostics alongside a failed attempt; warnings never
+turn a refusal or timeout into a successful timing.
+
 Each file in `records/` is one JSON object. Committed `/1` rows remain
 readable and valid under their own rules; `measure` only writes `/2`.
 
@@ -98,7 +122,7 @@ readable and valid under their own rules; `measure` only writes `/2`.
 | --- | --- |
 | `schema` | The literal string `omega-benchmark-record/2`. Bumping it requires updating this section and `SCHEMA` in `benchmark.py` together; the guard test fails on drift. |
 | `recorded_utc` | UTC timestamp of the measurement run. |
-| `subject` | `name`, `root` (repository-relative .omg path), and `source_revision` (full lowercase commit the subject and compiler were taken from). |
+| `subject` | `name`, `root` (repository-relative .omg path), and `source_revision` (full lowercase commit of the source checkout). The producer has its own exact binary hash/version in `host`; it may be a newer compiler measuring a frozen source checkout. |
 | `key` | The row identity: `target` (a target profile name like `linux_x86_64`) and `selection`, a sorted-unique `enabled`/`disabled` pair of exact rule names as `Optimization::` identifiers. The empty selection serializes as `enabled: []`, `disabled: []` and lands in the `default` filename slot. `key.selection_receipt` carries the compile's verbatim `optimizer rollback:` receipt (`requested`/`applied`/`effective`) whenever one was emitted — always for `/2` measured rows with a nonempty request — and `key.probe_disable` names the no-op probe used to elicit it. |
 | `host` | `os`, `machine`, `cpu`, `logical_cpus`, `python`, `rustc`, `omega_binary`, `omega_binary_sha256`, `omega_version`, and `omega_profile` of the measuring host. `/2` rows bind the exact binary that produced the numbers: the hash pins its bytes and the version string is its self-reported identity. Numbers from different hosts are different rows' context, never silently mixed. |
 | `metrics.compile_time_ms` | `measured`; per-sample wall-clock milliseconds plus `median_ms`, `min_ms`, and the last sample's `--timings` stage table. |
@@ -106,6 +130,32 @@ readable and valid under their own rules; `measure` only writes `/2`.
 | `metrics.code_size_bytes` | `measured`; published executable size per sample plus `stable` (whether every sample produced the identical size). |
 | `metrics.runtime_ms` | `measured` with per-sample wall-clock milliseconds, observed `exit_codes`, `exit_code_expected`, and `exit_code_match`; `skipped` for `--no-run` (e.g. a cross target with no host runtime); `unavailable` if no artifact was produced. Each non-measured status carries a `reason`. `exit_code_match` present is always `true` — a false observation fails the measurement instead of publishing. |
 | `notes` | Free-form strings supplied through `--note`. Each note describes the measurement — subject, leg, host — never the lane or agent that ran it; a re-measurement overwrites the record in place, so a refreshed row's notes replace rather than append. |
+| `measurement` | Optional on retained rows; new measurements record protocol `omega-benchmark-process-v1/fresh-build-dir`, clean tracked/untracked `.omg` source checks before and after measurement, stdin identity, dependency-lock digest and stability, hashed node identity, verified effective compiler profile, `runtime_scope: whole-process-including-startup`, and `file_cache: uncontrolled`. A changed checkout revision or producer binary refuses publication. A changing dependency lock retains raw timings but prevents pairing. |
+
+`--work-units N` optionally records a positive, author-declared operation count
+per whole run. It is not inferred from LOC and does not prove those operations
+survive optimization; the benchmark must make their result observable and use
+an authored exit oracle. Without it, runtime remains whole-process milliseconds.
+Runtime timing includes startup, and source cleanliness does not audit arbitrary
+external files the subject may read. Run repeated comparisons in an isolated,
+fixed source checkout with controlled inputs and inspect all samples.
+
+The dashboard recovers historical versions of these records from Git. It counts
+nonblank, non-comment lines in tracked `.omg` files below each subject directory
+at that record's source revision, with file digests and a project-inventory hash.
+This is **project KLOC**, including potentially unused project files and excluding
+sources outside that directory; it is not a measurement of the full imported
+compiler source closure. Modified measured sources cannot bind a Git LOC count.
+Missing Git objects leave normalization unknown and preserve raw timings.
+
+The earliest matched runtime observation supplies a descriptive median baseline.
+Pairing requires clean source, identical source revision/root, recorded machine,
+target, toolchain, effective profile, protocol, input and dependency lock, work
+unit count, and a matching expected exit. Unpaired records show no speedup.
+Legacy records retain their measurements; missing comparison provenance is never
+backfilled from the current host. Cache/load effects and full stdout correctness
+remain separate qualification requirements. Records' Git history provides the
+timeline; there is no second metrics ledger to update.
 
 Filenames are `<subject>__<target>__<selection>.json` where the
 selection slot is `default` for an empty selection or `sel-<hash>`

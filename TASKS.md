@@ -157,7 +157,8 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and private helper coordinates for
-    indexed/case projections, further independently captured reference loads, and declared-view or
+    case projections behind additional independently captured index
+    loads, and declared-view or
     dependent-distance joint SCC measures without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
@@ -183,19 +184,14 @@ retired-syntax deletions to completion.
   customers migrate.
   - Carry field/case propositions through construction
     (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
-    nonliteral and indexed writes, record-field and owned-array predicate
-    handback with current storage versions (the indexed-store production is
-    qualified across [nine saved-observation places](samples/cli/facts/saved_observation_snapshot/predicate_handback/README.md)),
+    nonliteral and indexed writes, remaining record-field and owned-array
+    predicate handback with current storage versions,
     reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
-    [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md)
-    and running `pass/float/named_integer_conversion_source_proofs_exit` (exit 78)
-    on Linux/Windows without rebuilding `proven_predicates_grant_domain`
-    (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/calls.rs`).
-  - Migrate the 16 recursive filesystem parameter suffixes with
-    **FILESYSTEM-PLATFORM-SERVICES**, and qualify
-    `samples/cli/facts/ieee_guard_i32_from_f64`.
+    [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md).
+  - Qualify the applicable migrated filesystem customers' native/Terminal
+    oracles with **FILESYSTEM-PLATFORM-SERVICES**.
   Acceptance: spec/guide/compiler docs, bundled libraries, samples, `source/psi`,
   the corpus, `bootstrap/5_omega/parser.epsilon` and
   `tests/bootstrap/omega-parser` are migrated and each customer's native/Terminal
@@ -474,13 +470,17 @@ narrows realization only.
   `omega-rust/psi/compilation/driver/`,
   `omega-rust/omega/compilation/native-production/`, and workspace architecture
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
-  - Implement pre-execution dependency input assignment and shared-node conflict
-    checks at dependency activation admission without inheriting the root's
-    slots (keeping required-output path byte results refused).
+  - Admit each dependency occurrence under its exact delegated execution context
+    before effects, without inheriting root authority, combining grants or
+    reusing an inapplicable result, under
+    [execution contexts and reuse](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse)
+    (keeping required-output path byte results refused).
   - Carry foreign-helper Product query fixtures through ordinary dependency discovery,
-    not only pre-admitted package contexts. The old direct-import fixture shape
-    is retired by explicit readiness; shared non-core interface admission before
-    the first Build needs the decision in [Q2](OWNER_QUESTIONS.md#q2-shared-interfaces-known-before-the-first-build-activation).
+    not only pre-admitted package contexts. Use explicit preparation and
+    [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages)
+    to admit shared non-core interfaces before their dependent continuations
+    execute; do not restore pre-known-only import checking or the retired
+    direct-import fixture shape.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
     `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
@@ -1334,6 +1334,8 @@ defines the complete product bar.
   missing or substituted relations, locations, orderings or outcomes reject in
   checking; concurrent witnesses run once **TR3-TR8** lands.
 
+<a id="checked-assembly-control-flow"></a>
+
 - **CHECKED-ASM-LABEL-CONTRACTS.** (also covers **ASM-INSTRUCTION-CATALOG-EXPANSION**,
   **PRIVILEGED-PORT-EFFECT-SETTLEMENTS**, and **INTERPRETED-ASSEMBLY**)
   Implement the ratified checked-assembly control-flow, catalog, effect-settlement,
@@ -1348,6 +1350,24 @@ defines the complete product bar.
   admission, `image-emission/src/function_fragments/{production,validation}.rs`,
   `native-artifact/src/physical/derivation/provider_custody.rs`, and the
   shared Terminal/native execution paths.
+  - Implement explicit `asm machine` bodies and nested basic-block declarations
+    in both producers; retire colon labels and implicit conditional successors
+    across source, libraries, samples, fixtures and tooling. Conditional jumps
+    terminate their block with an explicit not-taken `transition`; adjacency
+    transitions emit no instruction and reject unrealizable layouts.
+  - Preserve exact incoming register/flag state, nested entry/exit contracts
+    and local clobber footprints; initialize working registers once from the
+    complete incoming values without overlapping-register setup corruption.
+    Local edges must not introduce frames, prologues or repeated initialization.
+  - Drive checked returns and multi-component/indirect results from the selected
+    calling plan, with no separate `outputs` interface; retain exact storage
+    relationships through pointer lanes, copies, offsets and joins, including
+    hidden result destinations and slice bounds/loans. Carry ordinary generic
+    machine satisfaction through assembly callbacks.
+  - Implement value-location `align_of(value)` for addressable storage,
+    references and nonempty slices, with static/runtime observation, exact
+    location validity and admitted interpreted geometry; preserve the separate
+    type-layout meaning of `align_of<T>()`.
   - Complete remaining flag-producing instructions, remaining AArch64 register
     views, and checked hardware-effect retirement of exact linear obligations on
     every normal exit (assembly body contracts and label `ensures` are proof goals, never
@@ -1383,7 +1403,11 @@ defines the complete product bar.
   provider; wrong-edge invariants, unmodeled memory, wrong controller/port/target
   coordinates, missing effects/order/clobbers, live linear exits, and
   forged/replayed/double-completion controls reject (existing `fail/inline_asm/*`
-  stay rejected).
+  stay rejected). The machine-body and value-alignment witnesses additionally
+  pin missing conditional successors, nonadjacent zero-cost transitions, wrong
+  return lanes or uninitialized result fields, stale pointer/alignment facts,
+  empty-slice location queries, implicit clobbers and corrupted setup inputs as
+  rejecting controls; both producers, Terminal and native retain those contracts.
 
 - **SAMPLE-CORPUS.** Close every maintained `samples/cli|gui|uefi` project
   through checked semantics, native publication for its authored targets, and

@@ -12,6 +12,17 @@ on:
         description: Also build executables and run the native/Terminal smoke (not admission)
         type: boolean
         default: false
+      fixtures:
+        description: Optional comma-separated exact pass/group/name and fail/group/name IDs; replaces smoke
+        type: string
+        default: ''
+      native_host:
+        description: Matching native host for manual executable observations
+        type: choice
+        options:
+          - linux_x86_64
+          - windows_x86_64
+        default: linux_x86_64
 
 permissions:
   contents: read
@@ -19,13 +30,13 @@ permissions:
 # A new PR revision supersedes its old check; never cancel a merge-group check
 # merely because another PR entered the queue.
 concurrency:
-  group: compiler-pilot-${{ github.event.pull_request.number || github.ref }}
+  group: compiler-pilot-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   compiler-pilot:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'windows-2022' || 'ubuntu-24.04' }}
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
     env:
       CARGO_BUILD_JOBS: '2'
       CARGO_INCREMENTAL: '0'
@@ -33,6 +44,7 @@ jobs:
       CARGO_BUILD_FINGERPRINT: content
       OMEGA_CORPUS_JOBS: '2'
       RUST_MIN_STACK: '67108864'
+      CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || 'target' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -40,26 +52,36 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
+      - name: Test the gate's refusal paths
+        run: python tools/tests/test_compiler_pilot.py -v
+      - name: Validate exact fixture selection before building
+        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
+        env:
+          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
+        run: python -c "from tools.ci.compiler_pilot import select_fixtures; import os; print(select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']))"
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
+            ${{ env.CARGO_TARGET_DIR }}
           key: compiler-pilot-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
             compiler-pilot-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-      - name: Test the gate's refusal paths
-        run: python tools/tests/test_compiler_pilot.py -v
       - name: Check the exact integration candidate
         run: cargo check --locked -p omega
-      - name: Optional executable smoke
-        if: github.event_name == 'workflow_dispatch' && inputs.smoke
+      - name: Optional executable smoke or exact fixtures
+        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '')
+        env:
+          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
         run: python tools/ci/compiler_pilot.py
+      - name: Report actual producer and fixture observations
+        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '')
+        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json') if (root / name).is_file()]"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.smoke
+        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '')
         with:
-          name: compiler-pilot-${{ github.sha }}-${{ github.run_attempt }}
+          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
           path: build/compiler-pilot/
           if-no-files-found: warn
           compression-level: 0

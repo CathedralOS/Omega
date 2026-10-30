@@ -7,6 +7,9 @@
 //! invalid authored body. Host effects and provider dispatch are not inputs.
 
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::{
+    ExecutedProductSelection, ProductDeclarationRequest,
+};
 use representation_selections::OpaqueRepresentationSelection;
 use std::sync::Arc;
 
@@ -14,16 +17,58 @@ mod constant_entries;
 
 pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedCheck};
 
-/// Evaluated source permissions and representation facts for this invocation.
+/// Evaluated source permissions and representation custody for this invocation.
 /// These are not provider selections or execution authority.
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
     pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
-    pub opaque_properties: &'request [validation::OpaqueDataPropertyReceipt],
-    pub opaque_representations: &'request [OpaqueRepresentationSelection],
+    pub representations: ProductRepresentationInput<'request>,
     pub asm_authority: Option<validation::AsmAuthorityAdmission>,
     pub wire_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
     pub declarations: Option<&'request dyn validation::DeclarationSelectionAuthority>,
+}
+
+/// Retained execution custody, not permission to mint semantic-copy facts.
+/// Authored and generated source may have completed since Build selected these
+/// applications; checking must reclose them against the final typed graph.
+#[derive(Default)]
+pub struct ProductRepresentationInput<'request> {
+    pub activation: Option<symbols::SymbolHandle>,
+    pub declared: &'request [Arc<ProductDeclarationRequest>],
+    pub executed: &'request [ExecutedProductSelection],
+    pub retained: &'request [OpaqueRepresentationSelection],
+}
+
+struct AdmittedRepresentations {
+    selections: Vec<OpaqueRepresentationSelection>,
+    copy_properties: Vec<validation::OpaqueDataPropertyReceipt>,
+}
+
+impl ProductRepresentationInput<'_> {
+    fn admit(
+        &self,
+        program: &typed_trees::TypedTrees,
+    ) -> Result<AdmittedRepresentations, Vec<Diagnostic>> {
+        let selections = representation_planning::rederive_opaque_representation_selections(
+            program,
+            self.activation,
+            self.declared,
+            self.executed,
+            self.retained,
+        )?;
+        let copy_properties = selections
+            .iter()
+            .filter(|selection| {
+                selection.copy_disposition()
+                    == representation_selections::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
+            })
+            .map(|selection| validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
+            .collect();
+        Ok(AdmittedRepresentations {
+            selections,
+            copy_properties,
+        })
+    }
 }
 
 /// Consume a complete typed program. Previous judgments belong to the same
@@ -56,6 +101,9 @@ impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
         let _profile = phase_profile::guard("05");
         let mut program = self.program;
+        // A retained language judgment cannot bypass final application custody.
+        // Reclosure also derives copy properties; callers cannot supply them.
+        let representations = self.admission.representations.admit(&program)?;
         phase_profile::scope("05.a.source_completion", || {
             validation::source_completion::prepare_source_completion(
                 &mut program,
@@ -64,8 +112,8 @@ impl CheckRequest<'_> {
         })?;
         constant_entries::retain_evaluation_entries(&mut program)?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
-            .with_opaque_property_receipts(self.admission.opaque_properties)
-            .with_opaque_representation_selections(self.admission.opaque_representations)
+            .with_opaque_property_receipts(&representations.copy_properties)
+            .with_opaque_representation_selections(&representations.selections)
             .with_wire_compatibility_demands(self.admission.wire_demands);
         if let Some(authority) = self.admission.asm_authority {
             preparation = preparation.with_asm_authority(authority);

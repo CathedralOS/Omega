@@ -1,0 +1,56 @@
+{
+  "length": {
+    "authored": {
+      ".gitignore": "d260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c",
+      "build.omg": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f",
+      "main.omg": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+      "invalid\\.gitignore": "d260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c",
+      "invalid\\build.omg": "4497f74067c281cf873cea3c356f131cf7f85cc971b2654dc3bcbbd455668fdd",
+      "invalid\\main.omg": "e8de45017d4c04b6dc0c7b9cfbdcb2bdc6d6ec6ed5ca4aa9c337b6de4ac97a76",
+      "invalid\\sample.json": "4c27420bdd1f7d4ead89107750fda4cbcb71770b6cc7089d88b77c4b44501645"
+    },
+    "a": {
+      "lock_sha256": "7c069e4d4cca8d661cbe1e815c696728a8f5da36bd4ff9933c79f6a9ca49a03f",
+      "graphs": {
+        "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\fc669099d2cbccc6c08fbbb401d434a9bacd52d93fb6a13a6cd81945dfea5a3a.rec": {
+          "bytes": 89265743,
+          "sha256": "365ef6bc7134fc0de49228df1d181e21fb8bd216bef09ff01fd3d871c1967fbe"
+        }
+      }
+    },
+    "b": {
+      "lock_sha256": "7cbb9f4eff4bf9c8f0e83a8135cb5e5eeac609a30e6cdff7a4c316c052604f8f",
+      "graphs": {
+        "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\47405a84e760f1afac7560e18a5566617eb9188a7ee528dcd0bbfeff563e802c.rec": {
+          "bytes": 89265743,
+          "sha256": "ee63ecd674621e17070c824be1260d05e644bde3cbfa459af2ab5c10d925c33b"
+        }
+      }
+    }
+  },
+  "square": {
+    "authored": {
+      ".gitignore": "020c2606e8ed484089c2083e0be438b9d0736bee1558a6b76af0d58bd23f69cf",
+      "build.omg": "9813449ec4cd31761ff0dfe63aa76b1a050d9985e279f56a80414a02795faa87",
+      "main.omg": "4bbf23f08bfe3a4a27f09ff0023cadbbaf8ca3178d292600127769401abfdaa0"
+    },
+    "a": {
+      "lock_sha256": "e97349e012bf17b441720ae1809ce4364936c983f9fd2e04b9dc155320feae4f",
+      "graphs": {
+        "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\fc669099d2cbccc6c08fbbb401d434a9bacd52d93fb6a13a6cd81945dfea5a3a.rec": {
+          "bytes": 90504543,
+          "sha256": "43ec7d42726c76018be449790c1e014f0e3d9b33486d181b114678d170c29285"
+        }
+      }
+    },
+    "b": {
+      "lock_sha256": "8827ba2a5c466de1d69124f284199c17b1fa9293fa8e81d89bd43943556232b7",
+      "graphs": {
+        "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\47405a84e760f1afac7560e18a5566617eb9188a7ee528dcd0bbfeff563e802c.rec": {
+          "bytes": 90504543,
+          "sha256": "242a1f61f69122a20854ce4a45b7f2b0538b3c4ce44b6b2fa9b713214f30036d"
+        }
+      }
+    }
+  }
+}

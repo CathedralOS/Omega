@@ -340,6 +340,35 @@ than silently ignoring it. `layouts/access_plan_inaccessible_seed` and
 `layouts/placed_view_source_access_compile` exercise the public construction
 route and repeated replacement; they do not claim a hosted runtime entry.
 
+## Audited filesystem parameter history
+
+The original 16 positions at `7a9a7b8287` are four `name_len` parameters in
+each `std/targets/{linux_arm64,linux_x86_64,macos_arm64,macos_x86_64}/filesystem_impl.omg`.
+Commit `b3bc01f500a7` replaces every `u64[0..=255]` with bare `u64` and
+`requires name_len <= 255`; the unsigned carrier retains the zero lower bound.
+Provider consolidation (`6d0b8da07bdd`, `323fbc4788cd`) moves their operations
+to the shared [POSIX adapter](../../../source/library/std/posix_filesystem_adapter.omg).
+
+| Original declaration in each of four targets | Current shared declaration | Preserved requirement |
+| --- | --- | --- |
+| `rds_rm_child_go.name_len` | `posix_filesystem_rda_step::rds_rm_child_go.name_len` | `name_len <= 255` |
+| `rds_kind.name_len` | `posix_filesystem_rda_step::rds_kind.name_len` | `name_len <= 255` |
+| `rds_unlink.name_len` | `posix_filesystem_rda_step::rds_unlink.name_len` | `name_len <= 255` |
+| `rds_descend.name_len` | `posix_filesystem_rda_step::rds_descend.name_len` | `name_len <= 255` |
+
+Commit `e95da6c81fa8` canonicalizes a later, different 16-position filesystem
+cohort: ten shared-adapter parameters (five name-length and five release-stack
+parameters), plus six directory-offset results across Linux ARM64, Linux x86-64
+and macOS ARM64. Those results retain `18 <= result <= 20` or
+`19 <= result <= 21` as `ensures`. Its count is not the original 16-parameter
+inventory; its additional callback parameter is outside both filesystem counts.
+
+This reconciles source positions, not complete filesystem execution acceptance.
+Matching-host native/Terminal service and occurrence-bound release obligations
+remain under **FILESYSTEM-PLATFORM-SERVICES**. Historical compile/native records
+do not establish all of them or authorize parser retirement; the parent still
+requires the remaining customer audit and applicable runtime evidence.
+
 ## Audited IEEE conversion contracts
 
 The 29 historical scalar positions in the three IEEE conversion customers and
@@ -652,3 +681,68 @@ The unrelated closed-local-types callback control still refuses its static
 binder on the pre-repair producer too; it is retained as nonaccepted baseline
 evidence, not a passing control. This does not close the parent migration or
 claim execution on another host.
+
+## Audited copied scalar field and restricted peer
+
+Commit `7516f0970de014e3c13009bf67d9c69f087d4671` introduced three later
+suffix positions in the copied-field regression pair. These positions are
+additional to the earlier 30-position census above.
+
+| Original declaration | Canonical replacement |
+| --- | --- |
+| `pass/borrows/copied_scalar_field_with_restricted_peer`: `Limits.value: u64 [0..=5]` | Bare `u64` field with complete-data `requires value <= 5`. |
+| Same positive: `bounded.value: &u64 [0..=5]` | Bare `&u64` parameter with machine `requires value <= 5`. |
+| `fail/borrows/copied_scalar_field_without_restriction`: `bounded.value: &u64 [0..=5]` | The same borrowed parameter and invocation requirement; `Limits` stays unconstrained. |
+
+The unsigned carrier retains the zero floor. No nominal scalar domain replaces
+the anonymous interval. The copied `Frame` still contains 42 and sibling 99;
+the case selection, observed-value guard and exit-0 oracle are unchanged.
+The positive executes with native/Terminal agreement. Its twin now rejects the
+missing `limits.value <= 5` invocation fact rather than a range-type mismatch.
+Its later equality guard cannot establish the earlier call's requirement.
+
+Producer: optimized `867738eb9535b2fba0b8300eeaccd64d2c2e6474` on macOS
+ARM64. The original positive also ran 0/0 and the original negative rejected
+before migration. This closes only these three source positions, not the
+historical audit, parser retirement, a new fact row or the parent task.
+
+## Audited bootstrap parser customer
+
+The two accepted `data R` inputs in
+`tests/bootstrap/omega-parser/main.epsilon` declared `b: u32 [0..=9]`.
+Both now retain `b: u32` with complete-data `requires b <= 9`; the unsigned
+carrier supplies the zero floor. Their array, shared reference and named-domain
+neighbors and the repeated-invocation `Exit(0)` / stdout `A` oracle remain.
+The former hexadecimal endpoint controls instead refuse the retired suffix at
+its opening bracket, before an endpoint can be parsed. Independent hexadecimal
+array, expression and transition controls retain their original obligations.
+
+The Epsilon implementation records repeated data requirements as ordered roots
+in its ordinary expression arena, associated with the enclosing data row. The
+existing customer checks those roots, exact operand/operator spans, grouping,
+precedence and ownership across adjacent declarations with and without clauses.
+Missing and unfinished predicates refuse, and the same receiver rebuilds its
+live rows after failures. The obsolete suffix parser, range discriminator,
+endpoint payloads, scratch and diagnostics are removed together. Named-domain
+qualification retains its exact path; array and slice expressions are separate.
+
+This maps the bootstrap customer's original declarations and syntax controls.
+Epsilon execution of that customer is not Omega native/Terminal evidence and
+does not close the historical declaration audit, Rust Range retirement or the
+parent task. The existing qualification records distinguish model observations
+from actual lower-chain execution and retain their exact compiler subjects.
+
+## Case-payload customer contracts
+
+The `arm_pattern_rest_optout_exit` and `case_pattern_rename_waive_exit`
+control-flow programs retain both Move coordinates in `0..=50` through guarded
+`Msg` predicates, and retain the renamed argument's numeric call requirement.
+The arithmetic range program retains Dim's `0..=10` on `Cmd` and the scale/apply
+requirements; its entry constructs the original zero representation explicitly
+before borrowing Main. Their original operations and exit 70 remain.
+
+`sum_payload_non_case_guard_unproven` keeps One's `0..=50` and Two's `0..=1000`
+on the containing sum. Its unrelated flag cannot select One, so the exact
+payload-access obligation still rejects. No interval-only nominal domains are
+needed by these four customers. The wire-decoder customer's containing-data
+predicate establishment remains a separate open repair in this migration.

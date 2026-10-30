@@ -1,0 +1,8 @@
+No accepted lock baseline: reviewing the complete candidate graph.
+windows_x86_64: checked 1 source packages.
+New package source: copied_call_argument_snapshot_through_match_join [156cc59e0c91]: no prior revision to compare.
+Standalone candidate source: copied_call_argument_snapshot_through_match_join [156cc59e0c91]: 2 changed entries.
+Source-code output (separate from editable capability review): \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\operand-order-overflow\cases\candidate-copied_call_argument_snapshot_through_match_join_exit\input\build\package-manager\source-diff.txt
+
+Published build.omg and omega.lock for 1 packages across 1 targets.
+review: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\operand-order-overflow\cases\candidate-copied_call_argument_snapshot_through_match_join_exit\input\build\package-manager\review-windows_x86_64.txt

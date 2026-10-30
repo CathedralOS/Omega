@@ -1,0 +1,8 @@
+{
+  "fixture": "pass/calls/runtime_numeric_operand_order_exit",
+  "stage": "first omega update",
+  "timeout_seconds": 180,
+  "producer_sha256": "5f0e2fc5dde252263b64b47a6dd593fb3a41c19585f78f45ccd15998b897501e",
+  "outcome": "bounded timeout; subprocess killed; no result or speedup claimed",
+  "limitation": "initial capture wrapper did not persist partial stdout/stderr"
+}

@@ -14,6 +14,9 @@ from pathlib import Path
 import re
 import sys
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
+import tempfile
 
 import worktree_testkit as kit
 
@@ -131,6 +134,22 @@ def legacy_record():
 
 
 class Validation(unittest.TestCase):
+    def test_preparation_requires_real_positive_timings(self):
+        record = minimal_record()
+        for value in (0, -1, True, float('inf'), float('nan')):
+            record['metrics']['package_preparation_ms'] = {'status': 'measured', 'samples': [value]}
+            self.assertTrue(any('package_preparation_ms' in error
+                                for error in benchmark.validate_record(record, '<test>')))
+        record['metrics']['package_preparation_ms'] = {'status': 'measured', 'samples': [50]}
+        self.assertEqual(benchmark.validate_record(record, '<test>'), [])
+
+    def test_observation_warnings_preserve_unknown_results_without_fake_metrics(self):
+        record = minimal_record()
+        record['observation_warnings'] = ['Another workload timed out during preparation']
+        self.assertEqual(benchmark.validate_record(record, '<test>'), [])
+        record['observation_warnings'] = 'not a list'
+        self.assertTrue(any('observation_warnings' in error for error in benchmark.validate_record(record, '<test>')))
+
     def assert_invalid(self, record):
         problems = benchmark.validate_record(record, "<fixture>")
         self.assertTrue(problems)
@@ -269,11 +288,15 @@ class SelectionIdentity(unittest.TestCase):
                 "        Optimization::CopyPropagation,\n"
                 "    );\n"
                 "    builder.optimizations.enable(Optimization::DeadPureScalarElimination);\n"
+                "    Optimizations::enable(\n"
+                "        &mut builder.optimizations,\n"
+                "        Optimization::ControlFlowCleanup,\n"
+                "    );\n"
                 "}\n"
             )
             self.assertEqual(
                 benchmark.authored_selection(root),
-                ["CopyPropagation", "DeadPureScalarElimination"],
+                ["ControlFlowCleanup", "CopyPropagation", "DeadPureScalarElimination"],
             )
 
     def test_authored_selection_without_build_file(self):
@@ -351,10 +374,11 @@ class HostRowMatrix(unittest.TestCase):
         self.assertIn("default", row)
 
     def test_skipped_runtime_keeps_the_pending_host_row(self):
-        # windows_x86_64 and linux_arm64 carry committed compile rows, but
-        # every runtime leg there was skipped: the named host environment is
-        # still unrun, so its projected pending row must not be suppressed.
-        output = self.matrix()
+        records = copy.deepcopy(benchmark.load_records(RECORDS))
+        for record in records:
+            if record['key']['target'] in ('windows_x86_64', 'linux_arm64'):
+                record['metrics']['runtime_ms']['status'] = 'skipped'
+        output = benchmark.matrix_markdown(records)
         self.assertTrue(any(
             "windows_x86_64" in line
             and "pending Windows x86-64 host" in line
@@ -557,6 +581,57 @@ class ProbeSelection(unittest.TestCase):
         self.assertIn("CopyPropagation", names)
         self.assertIn("ControlFlowCleanup", names)
         self.assertIn("Psi", {phase for _name, phase in rules})
+
+
+class MeasurementContextTests(unittest.TestCase):
+    def test_optional_context_rejects_invalid_units_identity_and_profile(self):
+        row=minimal_record()
+        row['measurement']={'protocol':'omega-benchmark-process-v1/fresh-build-dir','source_clean':True,'dependency_lock_stable':True,
+                            'input_sha256':'a'*64,'dependency_lock_sha256':'b'*64,'machine_id':'c'*64,
+                            'work_units':100,'runtime_scope':'whole-process-including-startup',
+                            'compiler_profile':{'schema':'omega-compiler-build-profile-v1','opt_level':'3'}}
+        self.assertEqual(benchmark.validate_record(row,'test'),[])
+        for key,value in [('work_units',0),('input_sha256','unknown'),('source_clean','yes'),('compiler_profile',{'opt_level':'0'})]:
+            changed=copy.deepcopy(row);changed['measurement'][key]=value
+            self.assertTrue(benchmark.validate_record(changed,'test'),key)
+
+
+class RecorderContextTests(unittest.TestCase):
+    def test_recorder_captures_context_and_qualifies_source_and_producer_changes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            original_mkdtemp=tempfile.mkdtemp
+            root=Path(folder);subject=root/'subject';subject.mkdir()
+            program=subject/'main.omg';program.write_text('machine main() {}')
+            compiler=root/'omega.exe';compiler.write_bytes(b'unit-test producer')
+            args=SimpleNamespace(root=str(program),omega=str(compiler),target='windows_x86_64',name='probe',enable=[],disable=[],prepare=False,compile_samples=1,run_samples=1,no_run=False,expected_exit=0,note=[],work_units=100)
+            for mode in ('normal','lock','source','producer','revision','prepare'):
+                lock=subject/'omega.lock';lock.write_text('locked inputs')
+                args.prepare = mode == 'prepare'
+                if args.prepare: lock.unlink()
+                keep=root/mode;keep.mkdir();heads=[0]
+                def output(argv,**kwargs):
+                    if '--show-toplevel' in argv:return str(root)
+                    if argv[-1]=='HEAD':
+                        heads[0]+=1
+                        return ('b' if mode=='revision' and heads[0]>1 else 'a')*40
+                    return b'source.omg' if mode=='source' else b''
+                def compile_sample(argv,repository):
+                    artifact=Path(argv[argv.index('--build-dir')+1])/'out.exe';artifact.write_bytes(b'unit-test artifact')
+                    if mode=='lock':lock.write_text('updated checkpoint')
+                    return 0,10,1024,'optimizer rollback: requested=[Probe]; applied=[]; effective=[]\npublished native output to '+str(artifact)+'\n'
+                host=minimal_record()['host'];host['omega_binary_sha256']=('c' if mode=='producer' else 'b')*64
+                profile={'schema':'omega-compiler-build-profile-v1','opt_level':'3'}
+                with patch.object(benchmark.subprocess,'check_output',side_effect=output), patch.object(benchmark,'require_optimized',return_value={'sha256':'b'*64,'profile':profile}), patch.object(benchmark,'host_block',return_value=host), patch.object(benchmark,'catalog_rules',return_value=[('Probe','TypedInput')]), patch.object(benchmark,'capture_compile',side_effect=compile_sample), patch.object(benchmark,'run_measured',return_value=(0,2,512)), patch.object(benchmark,'settle_package_review',side_effect=lambda *a: lock.write_text('locked inputs')), patch.object(benchmark.tempfile,'mkdtemp',side_effect=lambda *a,**kw: str(keep) if kw.get('prefix')=='omega-benchmark-exe-' else original_mkdtemp(*a,**kw)):
+                    if mode in ('producer','revision'):
+                        with self.assertRaises(SystemExit):benchmark.measure(args)
+                    else:
+                        measured=benchmark.measure(args)
+                        self.assertEqual(measured['measurement']['source_clean'],mode!='source')
+                        self.assertEqual(measured['measurement']['dependency_lock_stable'],mode!='lock')
+                        self.assertEqual(measured['measurement']['work_units'],100)
+                        self.assertEqual(measured['metrics']['package_preparation_ms']['status'],
+                                         'measured' if mode == 'prepare' else 'skipped')
+                        self.assertEqual(benchmark.validate_record(measured,'test'),[])
 
 
 if __name__ == "__main__":

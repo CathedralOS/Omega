@@ -91,6 +91,7 @@ pub(super) fn interpret_product(
         ))?;
     terminal_runtime::execute(TerminalRuntimeRequest {
         entry: None,
+        filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
         native_provider: Some(std::process::Command::new(
             std::env::current_exe().map_err(|error| TerminalRuntimeError::MissingProvision {
                 capability: "native-provider-sponsor",
@@ -110,6 +111,6 @@ pub(super) fn interpret_product(
         // this CLI or invalidate another instance's storage/capabilities.
         domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: input.map(|file| Box::new(file) as Box<dyn std::io::Read + Send>),
-        clock: Some(terminal_runtime::TerminalClockSnapshot::capture_host_epoch()?),
+        clock: Some(terminal_runtime::TerminalClockEnvironment::Host),
     })
 }

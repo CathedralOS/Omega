@@ -1,0 +1,17 @@
+{
+  "schema": "cathedral-matrix-measurement-evidence/1",
+  "archives": {
+    "observations.zip": {
+      "sha256": "0c62f0f4c0eef440b5d627a3fba5b84e68bd88ffa9545340e04a31409c560559",
+      "bytes": 404698,
+      "entries": 565
+    }
+  },
+  "files": {
+    "result.json": "dacf7802003077334ac2404971992b8f0de34db8a8850096fa0ef7bea224363d",
+    "audit.json": "eeeaad01673f4f21cc844cb5b28ed428112109271cedbe92992be04334a2a619",
+    "before-identity.json": "f4025e8f684a8a86a53ac35b89a189463293ecfbcfab8aa02e03c9f5add93092",
+    "after-identity.json": "28c01c83fa62d395f5f48d22e39ec206a1ea9b33ebfaeedfcf7dc8276d0618e5"
+  },
+  "exclusions": "Compiler binaries, native payloads and private graphs remain ignored locally; exact identities, artifact hashes, source, accepted locks and all observation records are archived."
+}

@@ -88,24 +88,11 @@ pub(crate) fn plan_elf_procedure_linkage_templates(
     linkage: ValidatedElfProcedureLinkageRelocationPlan,
 ) -> Result<ValidatedElfProcedureLinkageTemplatePlan, Box<ElfProcedureLinkageTemplatePlanningError>>
 {
-    checked::plan_candidate(
-        linkage,
-        derive_contents,
-        |linkage, contents| {
-            non_authoritative_template_compatibility_fingerprint(&linkage, &contents)
-        },
-        |linkage, contents, fingerprint| Candidate {
-            linkage: linkage,
-            contents: contents,
-            non_authoritative_template_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.linkage,
-        |linkage, diagnostic| {
-            Box::new(ElfProcedureLinkageTemplatePlanningError {
-                linkage: linkage,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: linkage,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_template_compatibility_fingerprint,
+        error: ElfProcedureLinkageTemplatePlanningError,
     )
 }

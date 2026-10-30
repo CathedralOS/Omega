@@ -290,7 +290,12 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         return proposition_parameter;
     }
 
-    match crate::symbols::lookup::lexical_machine_lookup(symbols, machine.symbol, target.as_str()) {
+    match crate::symbols::lookup::lexical_declaration_lookup(
+        symbols,
+        machine.symbol,
+        target.as_str(),
+        &[SymbolKind::Machine],
+    ) {
         SymbolLookup::Unique(declaration) => {
             machine_entry_symbol(symbols, declaration, target.as_str())
         }
@@ -427,10 +432,11 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         if concrete_type.is_valid() {
             return concrete_type;
         }
-        return match crate::symbols::lookup::lexical_machine_lookup(
+        return match crate::symbols::lookup::lexical_declaration_lookup(
             symbols,
             machine_symbol,
             target.as_str(),
+            &[SymbolKind::Machine],
         ) {
             SymbolLookup::Unique(declaration) => {
                 machine_entry_symbol(symbols, declaration, target.as_str())

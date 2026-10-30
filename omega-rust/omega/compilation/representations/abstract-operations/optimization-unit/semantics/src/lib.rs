@@ -36,6 +36,13 @@ pub use error::{OperationSite, OptimizationUnitValidationError};
 /// neither acceptance nor the provenance accounting a rewrite still owes.
 pub use candidates::rewrite_accounting::threading::reconstruct_linear_thread_bindings;
 
+/// The empty-block threads' shared ownership predicate: the six frontier sites
+/// the thread touches must carry one snapshot at the unit's identity. Proposing
+/// rules and the replay checkers share it, so neither restates the site list;
+/// like the bindings predicate it decides only, granting neither acceptance nor
+/// the provenance accounting a rewrite still owes.
+pub use candidates::rewrite_accounting::threading::reconstruct_linear_thread_ownership_is_identity;
+
 // Declaration custody shared by validation and target realization. This query
 // grants neither current availability nor permission for a particular access.
 pub use unit_validation::function_structure::{byte_field_root, declared_descriptor_home};
@@ -82,6 +89,7 @@ pub fn descriptor_argument_accessible(
         return false;
     };
     requested.admits(argument.access)
+        && source.backing_access(types.iter()).is_some()
         && terminal_semantics::descriptor_source_projection_accessible(
             types.iter(),
             source.structural_type,
@@ -109,6 +117,7 @@ pub fn descriptor_metadata_argument_accessible(
         return false;
     };
     requested.admits(argument.access)
+        && source.backing_access(types.iter()).is_some()
         && terminal_semantics::reference_source_projection_accessible(
             types.iter(),
             source.structural_type,
@@ -139,7 +148,7 @@ pub fn structural_place_backing_access<'types>(
         return terminal_semantics::descriptor_parameter_access(parameter, types);
     }
     unit_validation::operation_contracts::structural_source_contract(function, place)
-        .map(|source| source.backing_access(types))
+        .and_then(|source| source.backing_access(types))
 }
 
 /// Check a write against the current root's complete membership roster. The

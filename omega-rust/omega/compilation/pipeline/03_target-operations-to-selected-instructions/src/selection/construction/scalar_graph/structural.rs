@@ -130,29 +130,7 @@ pub(super) fn transport_register(
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
-    let instruction = SelectedInstructionId(
-        builder
-            .instructions
-            .len()
-            .try_into()
-            .map_err(|_| invalid())?,
-    );
-    builder.registers.push(VirtualRegister {
-        id,
-        scalar_type: ScalarType::Integer(
-            IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
-        ),
-        class: builder.class,
-        origin: VirtualRegisterOrigin::AbiTransport {
-            instruction,
-            place,
-            byte_offset,
-        },
-        definition_site: None,
-        entry_fixed_view: None,
-    });
-    Ok(id)
+    super::structural_case::register(builder, place, byte_offset, 64, false)
 }
 
 /// The byte offset of element `index` inside `place`'s view home:

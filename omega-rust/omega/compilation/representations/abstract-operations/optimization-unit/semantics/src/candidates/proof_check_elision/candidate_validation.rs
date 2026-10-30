@@ -3,16 +3,16 @@ use crate::candidates::rewrite_accounting::scalar_identity::reconstruct_proof_ce
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::sparse_conditional_constant_propagation::scalar_value_definition;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
-use abstract_operations::AbstractOperation as O;
-use optimization_core::{AnalysisKind, OptimizationRuleIdentity, OptimizationSafetyClass};
+use optimization_core::{AnalysisKind, OptimizationSafetyClass};
 use optimization_unit::{
-    OptimizationFact, ProofCertifiedScalarIdentityKind, PsiOptimizationUnit, PsiRewriteCandidate,
-    PsiRewritePatch, ScalarConstantValue, ScalarSubstitution, ValueDefinitionSite,
-    literal_scalar_constant_fact_identity,
+    OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
+    ScalarConstantValue, ScalarSubstitution, literal_scalar_constant_fact_identity,
 };
 use semantic_vocabulary::ScalarType;
 
 use super::identity_classification::independent_proof_certified_scalar_identity;
+use super::literal_operand::materialized_integer_constant;
+use super::rule_catalog::{is_operand_substitution_rule, operand_substitution_row};
 use crate::candidates::{
     accept_region_rewrite, candidate_block, candidate_function, contract, retire_node_custody,
     sweep_output_nodes,
@@ -27,34 +27,7 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
     contract::admit_origin(input, candidate)?;
-    let exact_identity_rule = OptimizationRuleIdentity::from_canonical_bytes(
-        b"omega.psi-rule.live-proof-certified-integer-identity-elimination.v1",
-    );
-    let divide_by_one_rule = OptimizationRuleIdentity::from_canonical_bytes(
-        b"omega.psi-rule.live-proof-certified-integer-divide-by-one-elimination.v1",
-    );
-    let multiply_by_zero_rule = OptimizationRuleIdentity::from_canonical_bytes(
-        b"omega.psi-rule.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1",
-    );
-    let zero_dividend_rule = OptimizationRuleIdentity::from_canonical_bytes(
-        b"omega.psi-rule.live-proof-certified-integer-zero-dividend-elimination.v1",
-    );
-    let zero_value_shift_rule = OptimizationRuleIdentity::from_canonical_bytes(
-        b"omega.psi-rule.live-proof-certified-exact-integer-zero-value-shift-elimination.v1",
-    );
-    let negative_one_shift_right_rule = OptimizationRuleIdentity::from_canonical_bytes(
-        b"omega.psi-rule.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1",
-    );
-    if ![
-        exact_identity_rule,
-        divide_by_one_rule,
-        multiply_by_zero_rule,
-        zero_dividend_rule,
-        zero_value_shift_rule,
-        negative_one_shift_right_rule,
-    ]
-    .contains(&candidate.rule())
-    {
+    if !is_operand_substitution_rule(candidate.rule()) {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
     contract::admit_roster(
@@ -71,75 +44,9 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
     let PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch) = candidate.patch() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    let validator = match candidate.rule() {
-        rule if rule == exact_identity_rule
-            && matches!(
-                patch.identity,
-                ProofCertifiedScalarIdentityKind::ExactIntegerAddZeroLeft
-                    | ProofCertifiedScalarIdentityKind::ExactIntegerAddZeroRight
-                    | ProofCertifiedScalarIdentityKind::ExactIntegerSubtractZeroRight
-                    | ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyOneLeft
-                    | ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyOneRight
-                    | ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroCount
-                    | ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroCount
-            ) =>
-        {
-            b"omega.validator.live-proof-certified-integer-identity-elimination.v1".as_slice()
-        }
-        rule if rule == divide_by_one_rule
-            && matches!(
-                patch.identity,
-                ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight
-                    | ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight
-                    | ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight
-            ) =>
-        {
-            b"omega.validator.live-proof-certified-integer-divide-by-one-elimination.v1".as_slice()
-        }
-        rule if rule == multiply_by_zero_rule
-            && matches!(
-                patch.identity,
-                ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroLeft
-                    | ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroRight
-            ) =>
-        {
-            b"omega.validator.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1"
-                .as_slice()
-        }
-        rule if rule == zero_dividend_rule
-            && matches!(
-                patch.identity,
-                ProofCertifiedScalarIdentityKind::ExactIntegerDivideZeroLeft
-                    | ProofCertifiedScalarIdentityKind::WrappingIntegerDivideZeroLeft
-                    | ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideZeroLeft
-                    | ProofCertifiedScalarIdentityKind::ExactIntegerRemainderZeroLeft
-                    | ProofCertifiedScalarIdentityKind::WrappingIntegerRemainderZeroLeft
-                    | ProofCertifiedScalarIdentityKind::SaturatingIntegerRemainderZeroLeft
-            ) =>
-        {
-            b"omega.validator.live-proof-certified-integer-zero-dividend-elimination.v1".as_slice()
-        }
-        rule if rule == zero_value_shift_rule
-            && matches!(
-                patch.identity,
-                ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroValue
-                    | ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroValue
-            ) =>
-        {
-            b"omega.validator.live-proof-certified-exact-integer-zero-value-shift-elimination.v1"
-                .as_slice()
-        }
-        rule if rule == negative_one_shift_right_rule
-            && matches!(
-                patch.identity,
-                ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightNegativeOneValue
-            ) =>
-        {
-            b"omega.validator.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1"
-                .as_slice()
-        }
-        _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
-    };
+    let validator = operand_substitution_row(candidate.rule(), patch.identity)
+        .map(|row| row.validator_domain)
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     if candidate.node_decision_point() != Some(patch.location)
         || candidate.substitutions()
             != [ScalarSubstitution {
@@ -179,38 +86,15 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
     if identity_definition.scalar_type != ScalarType::Integer(shape.identity_type) {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     }
-    let ValueDefinitionSite::Node {
-        block: literal_block,
-        node: literal_node,
-    } = identity_definition.site
-    else {
-        return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
-    };
-    let literal = function
-        .block(literal_block)
-        .and_then(|block| {
-            usize::try_from(literal_node)
-                .ok()
-                .and_then(|node| block.nodes.get(node))
-        })
-        .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
-    let O::IntegerConstant {
-        psi_operation: literal_support,
-        result: literal_result,
-        scalar_type: literal_type,
-        value: literal_value,
-    } = literal.operation
-    else {
-        return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
-    };
-    if literal_result != shape.identity_operand
-        || literal_type != ScalarType::Integer(shape.identity_type)
-        || literal_value != shape.identity_constant
+    let literal = materialized_integer_constant(function, identity_definition)?;
+    if literal.result != shape.identity_operand
+        || literal.scalar_type != ScalarType::Integer(shape.identity_type)
+        || literal.value != shape.identity_constant
         || !function.facts.iter().any(|fact| {
             matches!(fact, OptimizationFact::IntegerConstant { value, constant, support }
                 if *value == shape.identity_operand
                     && *constant == shape.identity_constant
-                    && *support == literal_support)
+                    && *support == literal.operation)
         })
     {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
@@ -220,7 +104,7 @@ pub(crate) fn validate_proof_certified_scalar_identity_candidate(
         function.machine,
         identity_definition,
         ScalarConstantValue::Integer(shape.identity_constant),
-        literal_support,
+        literal.operation,
     )
     .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
     let Some((constant_fact, obligation_fact)) =

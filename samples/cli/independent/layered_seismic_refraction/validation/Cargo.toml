@@ -1,0 +1,11 @@
+[package]
+name = "layered-seismic-refraction-validation"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "layered-seismic-refraction-validation"
+path = "terminal.rs"
+
+[dependencies]
+sample-runner = { path = "../../sample-runner" }

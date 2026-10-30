@@ -2,12 +2,12 @@
 //! original representation; reading one byte does not materialize the array.
 
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::values::TerminalScalarValue;
+use crate::scalar_storage::ScalarCell;
 
 #[derive(Debug, Clone, Copy)]
 enum ByteStorage<'storage> {
     Contiguous(&'storage [u8]),
-    Scalars(&'storage [TerminalScalarValue]),
+    Cells(&'storage [ScalarCell]),
 }
 
 /// Read-only bytes borrowed from an invocation. No backing, qualification or
@@ -20,8 +20,18 @@ pub struct TerminalByteRead<'storage> {
 
 impl PartialEq for TerminalByteRead<'_> {
     fn eq(&self, other: &Self) -> bool {
+        if let (ByteStorage::Cells(left), ByteStorage::Cells(right)) = (self.storage, other.storage)
+            && left == right
+        {
+            return true;
+        }
         self.len() == other.len()
-            && (0..self.len()).all(|byte_index| self.read(byte_index) == other.read(byte_index))
+            && (0..self.len()).all(|byte_index| {
+                match (self.read(byte_index), other.read(byte_index)) {
+                    (Ok(left), Ok(right)) => left == right,
+                    _ => false,
+                }
+            })
     }
 }
 
@@ -34,23 +44,21 @@ impl<'storage> TerminalByteRead<'storage> {
         }
     }
 
-    pub(crate) fn scalars(
-        values: &'storage [TerminalScalarValue],
-    ) -> Result<Self, TerminalInterpretError> {
-        // Preserve snapshot formation's refusal of malformed bytes anywhere
-        // in the requested window, not only at an eventual indexed read.
-        for value in values {
-            crate::structural_inputs::byte_arrays::storage::scalar_byte(value)?;
+    /// Borrow the actual packed cells, including live original native homes.
+    /// Formation observes every cell but never materializes an array copy.
+    pub(crate) fn cells(values: &'storage [ScalarCell]) -> Result<Self, TerminalInterpretError> {
+        for cell in values {
+            crate::structural_inputs::byte_arrays::storage::scalar_byte(&cell.read()?)?;
         }
         Ok(Self {
-            storage: ByteStorage::Scalars(values),
+            storage: ByteStorage::Cells(values),
         })
     }
 
     pub fn len(&self) -> usize {
         match self.storage {
             ByteStorage::Contiguous(bytes) => bytes.len(),
-            ByteStorage::Scalars(values) => values.len(),
+            ByteStorage::Cells(values) => values.len(),
         }
     }
 
@@ -63,9 +71,9 @@ impl<'storage> TerminalByteRead<'storage> {
     pub fn read(&self, byte_index: usize) -> Result<u8, TerminalInterpretError> {
         match self.storage {
             ByteStorage::Contiguous(bytes) => bytes.get(byte_index).copied().ok_or_else(malformed),
-            ByteStorage::Scalars(values) => {
-                let value = values.get(byte_index).ok_or_else(malformed)?;
-                crate::structural_inputs::byte_arrays::storage::scalar_byte(value)
+            ByteStorage::Cells(values) => {
+                let value = values.get(byte_index).ok_or_else(malformed)?.read()?;
+                crate::structural_inputs::byte_arrays::storage::scalar_byte(&value)
             }
         }
     }
@@ -80,7 +88,7 @@ impl<'storage> TerminalByteRead<'storage> {
         }
         match self.storage {
             ByteStorage::Contiguous(bytes) => destination.copy_from_slice(bytes),
-            ByteStorage::Scalars(_) => {
+            ByteStorage::Cells(_) => {
                 for (byte_index, byte) in destination.iter_mut().enumerate() {
                     *byte = self.read(byte_index)?;
                 }
@@ -93,6 +101,7 @@ impl<'storage> TerminalByteRead<'storage> {
 #[cfg(test)]
 mod tests {
     use super::{ByteStorage, TerminalByteRead};
+    use crate::scalar_storage::ScalarCell;
     use crate::values::TerminalScalarValue;
     use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
@@ -106,14 +115,14 @@ mod tests {
     #[test]
     fn byte_read_borrows_both_storage_representations_and_copies_only_on_request() {
         let backing = [4, 8, 15, 16];
-        let scalar_backing = backing.map(|byte| scalar(u128::from(byte)));
+        let scalar_backing = backing.map(|byte| ScalarCell::Local(scalar(u128::from(byte))));
         let contiguous = TerminalByteRead::contiguous(&backing[1..3]);
-        let scalars = TerminalByteRead::scalars(&scalar_backing[1..3]).unwrap();
+        let scalars = TerminalByteRead::cells(&scalar_backing[1..3]).unwrap();
         assert_eq!(contiguous, scalars);
         let ByteStorage::Contiguous(bytes) = contiguous.storage else {
             panic!("contiguous")
         };
-        let ByteStorage::Scalars(values) = scalars.storage else {
+        let ByteStorage::Cells(values) = scalars.storage else {
             panic!("scalars")
         };
         assert_eq!(bytes.as_ptr(), backing[1..].as_ptr());
@@ -134,11 +143,20 @@ mod tests {
 
     #[test]
     fn byte_read_checks_the_whole_window_before_exposing_malformed_scalars() {
-        assert!(TerminalByteRead::scalars(&[scalar(8), scalar(256)]).is_err());
-        assert!(TerminalByteRead::scalars(&[TerminalScalarValue::Boolean(true)]).is_err());
+        assert!(
+            TerminalByteRead::cells(&[
+                ScalarCell::Local(scalar(8)),
+                ScalarCell::Local(scalar(256))
+            ])
+            .is_err()
+        );
+        assert!(
+            TerminalByteRead::cells(&[ScalarCell::Local(TerminalScalarValue::Boolean(true))])
+                .is_err()
+        );
         for empty in [
             TerminalByteRead::contiguous(&[]),
-            TerminalByteRead::scalars(&[]).unwrap(),
+            TerminalByteRead::cells(&[]).unwrap(),
         ] {
             assert!(empty.is_empty());
             assert!(empty.read(0).is_err());

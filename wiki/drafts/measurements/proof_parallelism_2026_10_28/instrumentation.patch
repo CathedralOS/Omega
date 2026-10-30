@@ -1,0 +1,515 @@
+--- a/omega-rust/psi/compilation/checking/src/lib.rs
++++ b/omega-rust/psi/compilation/checking/src/lib.rs
+@@ -11,6 +11,7 @@
+ //! `execution_projection.rs` selects executable declaration contexts without
+ //! granting a checked judgment; compile-time evaluation and checking share it.
+ 
++mod checking_measurement;
+ pub use declarations::traits::conformance_applications;
+ pub mod execution_projection;
+ pub mod product_queries;
+--- a/omega-rust/psi/compilation/checking/src/program_validation.rs
++++ b/omega-rust/psi/compilation/checking/src/program_validation.rs
+@@ -197,6 +197,7 @@
+     prior_dependency_bodies: &[DependencyBodyJudgment],
+     record_dependency_bodies: bool,
+ ) -> Result<ProgramValidation, Vec<Diagnostic>> {
++    let measurement = crate::checking_measurement::JobGuard::begin();
+     let mut formation_obligations = Vec::new();
+     let pre_machine_guard = phase_profile::guard("05.d.2.a.1.pre_machine_validators");
+     let mut diagnostics = Vec::new();
+@@ -500,6 +501,7 @@
+         Option<crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'program>>,
+     )|
+      -> MachineValidation {
++        let _measurement = measurement.machine(machine_index, machine.name.as_str());
+         let mut diagnostics = Vec::new();
+         let mut proven_machine_contract = None;
+         let mut arithmetic_decisions = arithmetic_domains::ArithmeticDecisions::default();
+@@ -959,6 +961,7 @@
+         }
+     };
+     let machines = program.machines();
++    measurement.parallel_start(checking_thread_pool().current_num_threads());
+     let judged = checking_thread_pool().install(|| {
+         machines
+             .par_iter()
+@@ -971,6 +974,7 @@
+             )
+             .collect::<Vec<_>>()
+     });
++    measurement.parallel_end();
+     let mut captured_entailments = Vec::with_capacity(judged.len());
+     for machine in judged {
+         captured_entailments.push(machine.captured_entailment);
+@@ -996,6 +1000,7 @@
+         }
+         self_call_descents.extend(machine.self_call_descents);
+     }
++    measurement.merge_end();
+     let dependency_body_judgments = body_index.judgments(&captured_entailments);
+     drop(machine_loop_guard);
+     let _post_machine_guard = phase_profile::guard("05.d.2.a.3.post_machine_validators");
+@@ -1309,6 +1314,7 @@
+     static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
+     POOL.get_or_init(|| {
+         rayon::ThreadPoolBuilder::new()
++            .num_threads(crate::checking_measurement::worker_count())
+             .thread_name(|index| format!("omega-check-{index}"))
+             .stack_size(CHECKING_STACK_SIZE)
+             .build()
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/expression_analysis.rs
+@@ -362,6 +362,31 @@
+         decisions: &mut ArithmeticDecisions,
+     ) -> Analysis {
+         let node = self.program.expression_table.expression(expression);
++        if crate::checking_measurement::counting() {
++            crate::checking_measurement::record_expression(
++                expression,
++                crate::checking_measurement::ContextView {
++                    program: self.program as *const dyn crate::CheckingInput as *const () as usize,
++                    machine: self
++                        .machine
++                        .map(|machine| machine.symbol)
++                        .unwrap_or_default(),
++                    state: self.state.map(|state| state.symbol).unwrap_or_default(),
++                    lexical_owner: self.lexical_owner,
++                    parameters: self.parameters,
++                    declarations: self.declaration_facts,
++                    environment: self.environment,
++                    target_primitive: self.target_primitive,
++                    target_domain: self.target_domain,
++                    flags: u8::from(self.checks_occurrence_fit)
++                        | (u8::from(self.retain_trap_receipts) << 1)
++                        | (u8::from(self.infer_call_bodies) << 2)
++                        | (u8::from(self.checks_trap_coverage) << 3),
++                    owner: self.owner,
++                },
++                node,
++            );
++        }
+         let before_children_diagnostics = diagnostics.len();
+         let before_children_values = decisions.expression_values.len();
+         if !matches!(
+--- /dev/null
++++ b/omega-rust/psi/compilation/checking/src/checking_measurement.rs
+@@ -0,0 +1,418 @@
++//! Temporary observer for the fixed-source proof-parallelism experiment.
++//!
++//! Timing mode records only validation and machine boundaries. Counting mode
++//! separately compares complete recorded analysis inputs; its allocation and
++//! comparison costs must never be presented as ordinary compiler timings.
++//! Nothing in this module supplies a semantic decision or skips analysis.
++
++use std::cell::RefCell;
++use std::collections::HashMap;
++use std::fmt::Write as _;
++use std::path::PathBuf;
++use std::sync::atomic::{AtomicU64, Ordering};
++use std::sync::{Arc, Mutex, OnceLock};
++use std::time::Instant;
++
++use checked_trees::types::PrimitiveType;
++use numerics::arithmetic::ArithmeticDomain;
++use symbols::SymbolHandle;
++use typed_trees::expression::{ExpressionHandle, ExpressionNode};
++use typed_trees::signature::StateParameter;
++
++use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
++
++#[derive(Clone, Copy, PartialEq, Eq)]
++enum Mode {
++    Off,
++    Timing,
++    Counts,
++}
++
++struct Configuration {
++    mode: Mode,
++    output: PathBuf,
++    workers: usize,
++}
++
++fn configuration() -> &'static Configuration {
++    static CONFIGURATION: OnceLock<Configuration> = OnceLock::new();
++    CONFIGURATION.get_or_init(|| Configuration {
++        mode: match std::env::var("OMEGA_CHECK_MEASUREMENT").as_deref() {
++            Ok("timing") => Mode::Timing,
++            Ok("counts") => Mode::Counts,
++            _ => Mode::Off,
++        },
++        output: std::env::var_os("OMEGA_CHECK_MEASUREMENT_DIR")
++            .map(PathBuf::from)
++            .unwrap_or_else(|| PathBuf::from("build/proof-profile/unassigned")),
++        workers: std::env::var("OMEGA_CHECK_MEASUREMENT_WORKERS")
++            .ok()
++            .and_then(|value| value.parse().ok())
++            .unwrap_or(0),
++    })
++}
++
++pub(crate) fn worker_count() -> usize {
++    configuration().workers
++}
++
++#[inline]
++pub(crate) fn counting() -> bool {
++    configuration().mode == Mode::Counts
++}
++
++fn nanos(started: Instant) -> u64 {
++    u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX)
++}
++
++struct Job {
++    identity: u64,
++    started: Instant,
++    parallel_start: AtomicU64,
++    parallel_end: AtomicU64,
++    merge_end: AtomicU64,
++    workers: AtomicU64,
++    machines: Mutex<Vec<MachineRecord>>,
++}
++
++pub(crate) struct JobGuard {
++    job: Option<Arc<Job>>,
++}
++
++impl JobGuard {
++    pub(crate) fn begin() -> Self {
++        static NEXT_JOB: AtomicU64 = AtomicU64::new(1);
++        Self {
++            job: (configuration().mode != Mode::Off).then(|| {
++                Arc::new(Job {
++                    identity: NEXT_JOB.fetch_add(1, Ordering::Relaxed),
++                    started: Instant::now(),
++                    parallel_start: AtomicU64::new(0),
++                    parallel_end: AtomicU64::new(0),
++                    merge_end: AtomicU64::new(0),
++                    workers: AtomicU64::new(0),
++                    machines: Mutex::new(Vec::new()),
++                })
++            }),
++        }
++    }
++
++    pub(crate) fn parallel_start(&self, workers: usize) {
++        if let Some(job) = &self.job {
++            job.workers.store(workers as u64, Ordering::Relaxed);
++            job.parallel_start
++                .store(nanos(job.started), Ordering::Relaxed);
++        }
++    }
++
++    pub(crate) fn parallel_end(&self) {
++        if let Some(job) = &self.job {
++            job.parallel_end
++                .store(nanos(job.started), Ordering::Relaxed);
++        }
++    }
++
++    pub(crate) fn merge_end(&self) {
++        if let Some(job) = &self.job {
++            job.merge_end.store(nanos(job.started), Ordering::Relaxed);
++        }
++    }
++
++    pub(crate) fn machine(&self, position: usize, name: &str) -> MachineGuard {
++        let counting = self.job.is_some() && counting();
++        let previous_counts = if counting {
++            COUNTS.with(|current| current.replace(Some(Counts::default())))
++        } else {
++            None
++        };
++        MachineGuard {
++            job: self.job.clone(),
++            position,
++            name: self.job.as_ref().map(|_| name.to_owned()),
++            started: self.job.as_ref().map(|job| nanos(job.started)).unwrap_or(0),
++            thread: self
++                .job
++                .as_ref()
++                .map(|_| format!("{:?}", std::thread::current().id())),
++            counting,
++            previous_counts,
++        }
++    }
++}
++
++impl Drop for JobGuard {
++    fn drop(&mut self) {
++        let Some(job) = &self.job else {
++            return;
++        };
++        let finished = nanos(job.started);
++        let mut machines = job
++            .machines
++            .lock()
++            .unwrap_or_else(std::sync::PoisonError::into_inner);
++        machines.sort_by_key(|machine| machine.position);
++        let mode = if counting() { "counts" } else { "timing" };
++        let mut output = format!(
++            "J\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
++            job.identity,
++            mode,
++            finished,
++            job.parallel_start.load(Ordering::Relaxed),
++            job.parallel_end.load(Ordering::Relaxed),
++            job.merge_end.load(Ordering::Relaxed),
++            job.workers.load(Ordering::Relaxed)
++        );
++        for machine in machines.iter() {
++            let _ = writeln!(
++                output,
++                "M\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
++                machine.position,
++                machine.name,
++                machine.started,
++                machine.finished,
++                machine.thread,
++                machine.visits,
++                machine.expressions.len(),
++                machine.contexts
++            );
++            for expression in &machine.expressions {
++                let _ = writeln!(
++                    output,
++                    "E\t{}\t{}\t{}\t{}\t{}\t{}",
++                    machine.position,
++                    expression.identity,
++                    expression.visits,
++                    expression.contexts,
++                    expression.visits.saturating_sub(expression.contexts),
++                    expression.description
++                );
++            }
++        }
++        let configuration = configuration();
++        if let Err(error) = std::fs::create_dir_all(&configuration.output).and_then(|()| {
++            std::fs::write(
++                configuration
++                    .output
++                    .join(format!("check-{}.tsv", job.identity)),
++                output,
++            )
++        }) {
++            eprintln!("checking_measurement: output failed: {error}");
++        }
++    }
++}
++
++pub(crate) struct MachineGuard {
++    job: Option<Arc<Job>>,
++    position: usize,
++    name: Option<String>,
++    started: u64,
++    thread: Option<String>,
++    counting: bool,
++    previous_counts: Option<Counts>,
++}
++
++impl Drop for MachineGuard {
++    fn drop(&mut self) {
++        let Some(job) = &self.job else {
++            return;
++        };
++        let finished = nanos(job.started);
++        let counts = if self.counting {
++            COUNTS
++                .with(|current| current.replace(self.previous_counts.take()))
++                .unwrap_or_default()
++        } else {
++            Counts::default()
++        };
++        let mut expressions = counts
++            .expressions
++            .into_iter()
++            .map(|((_, identity), expression)| ExpressionRecord {
++                identity: format!("{identity:?}"),
++                visits: expression.visits,
++                contexts: expression.contexts.len() as u64,
++                description: expression.description,
++            })
++            .collect::<Vec<_>>();
++        expressions.sort_by(|left, right| left.identity.cmp(&right.identity));
++        let contexts = expressions
++            .iter()
++            .map(|expression| expression.contexts)
++            .sum();
++        job.machines
++            .lock()
++            .unwrap_or_else(std::sync::PoisonError::into_inner)
++            .push(MachineRecord {
++                position: self.position,
++                name: self.name.take().unwrap_or_default(),
++                started: self.started,
++                finished,
++                thread: self.thread.take().unwrap_or_default(),
++                visits: counts.visits,
++                contexts,
++                expressions,
++            });
++    }
++}
++
++struct MachineRecord {
++    position: usize,
++    name: String,
++    started: u64,
++    finished: u64,
++    thread: String,
++    visits: u64,
++    contexts: u64,
++    expressions: Vec<ExpressionRecord>,
++}
++
++struct ExpressionRecord {
++    identity: String,
++    visits: u64,
++    contexts: u64,
++    description: String,
++}
++
++#[derive(Default)]
++struct Counts {
++    visits: u64,
++    expressions: HashMap<(usize, ExpressionHandle), ExpressionCounts>,
++}
++
++struct ExpressionCounts {
++    visits: u64,
++    description: String,
++    contexts: Vec<Context>,
++}
++
++thread_local! { static COUNTS: RefCell<Option<Counts>> = const { RefCell::new(None) }; }
++
++pub(crate) struct ContextView<'a> {
++    pub(crate) program: usize,
++    pub(crate) machine: SymbolHandle,
++    pub(crate) state: SymbolHandle,
++    pub(crate) lexical_owner: SymbolHandle,
++    pub(crate) parameters: &'a [StateParameter],
++    pub(crate) declarations: &'a [ExpressionHandle],
++    pub(crate) environment: &'a ValueEnvironment,
++    pub(crate) target_primitive: Option<PrimitiveType>,
++    pub(crate) target_domain: ArithmeticDomain,
++    pub(crate) flags: u8,
++    pub(crate) owner: &'a str,
++}
++
++struct Context {
++    machine: SymbolHandle,
++    state: SymbolHandle,
++    lexical_owner: SymbolHandle,
++    parameters: Vec<StateParameter>,
++    declarations: Vec<ExpressionHandle>,
++    environment: ValueEnvironment,
++    target_primitive: Option<PrimitiveType>,
++    target_domain: ArithmeticDomain,
++    flags: u8,
++    owner: String,
++}
++
++impl Context {
++    fn matches(&self, view: &ContextView<'_>) -> bool {
++        self.machine == view.machine
++            && self.state == view.state
++            && self.lexical_owner == view.lexical_owner
++            && self.target_primitive == view.target_primitive
++            && self.target_domain == view.target_domain
++            && self.flags == view.flags
++            && self.owner == view.owner
++            && self.parameters == view.parameters
++            && self.declarations == view.declarations
++            && self.environment == *view.environment
++    }
++
++    fn capture(view: &ContextView<'_>) -> Self {
++        Self {
++            machine: view.machine,
++            state: view.state,
++            lexical_owner: view.lexical_owner,
++            parameters: view.parameters.to_vec(),
++            declarations: view.declarations.to_vec(),
++            environment: view.environment.clone(),
++            target_primitive: view.target_primitive,
++            target_domain: view.target_domain,
++            flags: view.flags,
++            owner: view.owner.to_owned(),
++        }
++    }
++}
++
++pub(crate) fn record_expression(
++    expression: ExpressionHandle,
++    context: ContextView<'_>,
++    node: &ExpressionNode,
++) {
++    COUNTS.with(|current| {
++        let mut current = current.borrow_mut();
++        let Some(counts) = current.as_mut() else {
++            return;
++        };
++        counts.visits += 1;
++        let expression = counts
++            .expressions
++            .entry((context.program, expression))
++            .or_insert_with(|| ExpressionCounts {
++                visits: 0,
++                description: format!("{node:?}")
++                    .chars()
++                    .take(256)
++                    .map(|character| {
++                        if matches!(character, '\t' | '\n' | '\r') {
++                            ' '
++                        } else {
++                            character
++                        }
++                    })
++                    .collect(),
++                contexts: Vec::new(),
++            });
++        expression.visits += 1;
++        if !expression
++            .contexts
++            .iter()
++            .any(|previous| previous.matches(&context))
++        {
++            expression.contexts.push(Context::capture(&context));
++        }
++    });
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn context_comparison_uses_values_and_checking_policy() {
++        let environment = ValueEnvironment::default();
++        let copied_environment = environment.clone();
++        let mut view = ContextView {
++            program: 1,
++            machine: SymbolHandle::default(),
++            state: SymbolHandle::default(),
++            lexical_owner: SymbolHandle::default(),
++            parameters: &[],
++            declarations: &[],
++            environment: &environment,
++            target_primitive: None,
++            target_domain: ArithmeticDomain::Exact,
++            flags: 0,
++            owner: "measurement test",
++        };
++        let context = Context::capture(&view);
++        view.environment = &copied_environment;
++        assert!(context.matches(&view));
++        view.flags = 1;
++        assert!(!context.matches(&view));
++        view.flags = 0;
++        view.target_domain = ArithmeticDomain::Wrapping;
++        assert!(!context.matches(&view));
++    }
++}

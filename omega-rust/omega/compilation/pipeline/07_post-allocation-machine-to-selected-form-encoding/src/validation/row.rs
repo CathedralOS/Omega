@@ -1,7 +1,7 @@
 use isa_aarch64::validate_aarch64_selected_form_encoding;
 use isa_x86_64::validate_x86_64_selected_form_encoding;
 use physical_instructions::PostAllocationMachineInstruction;
-use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+use register_model::{RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     MachineEncodedEffects, MachineSizeKnowledge, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind,
@@ -30,6 +30,8 @@ macro_rules! decoded_row_footprint {
         )
     }};
 }
+
+pub(crate) use decoded_row_footprint;
 
 pub(crate) fn validate(
     target: NativeTarget,
@@ -448,22 +450,9 @@ fn validate_external_operands(
     machine: &PostAllocationMachineInstruction,
     decoded: &SelectedFormDecodedFootprint,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let resolve = |operand: u16| machine.operand_footprint(operand).map(|row| row.view);
-    let expected_reads = decoded
-        .encoded
-        .external_operand_reads
-        .iter()
-        .map(|operand| resolve(*operand))
-        .collect::<Option<Vec<_>>>()
-        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction))?;
-    let expected_writes = decoded
-        .encoded
-        .external_operand_writes
-        .iter()
-        .map(|operand| resolve(*operand))
-        .collect::<Option<Vec<_>>>()
-        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction))?;
-    if decoded.register_reads != expected_reads || decoded.register_writes != expected_writes {
+    if decoded.register_reads != views_for_effects(machine, &decoded.encoded, true)?
+        || decoded.register_writes != views_for_effects(machine, &decoded.encoded, false)?
+    {
         return Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction));
     }
     Ok(())
@@ -496,6 +485,16 @@ fn operand_views(machine: &PostAllocationMachineInstruction) -> Vec<RegisterView
         .operands
         .iter()
         .map(|operand| operand.view)
+        .collect()
+}
+
+/// The access class of every machine operand, in the same order: the hosted
+/// and call-form validators take both rosters.
+fn operand_accesses(machine: &PostAllocationMachineInstruction) -> Vec<RegisterOperandAccess> {
+    machine
+        .operands
+        .iter()
+        .map(|operand| operand.access)
         .collect()
 }
 

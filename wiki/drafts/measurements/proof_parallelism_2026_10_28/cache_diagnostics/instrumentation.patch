@@ -1,0 +1,1000 @@
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs
+index 118aa389c02..41427a30787 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs
+@@ -35,6 +35,7 @@ struct Residence {
+ /// Ordinary reference slots and byte/element view slots share one inventory;
+ /// an address to the carrier itself must remain an observation of its home.
+ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError> {
++    let mut probe = crate::reconciliation_probe::Probe::new("residences", module.machines.len());
+     let copyable_types =
+         super::affine_cleanup::copyable_descriptor_type_ids(&module.structural_types);
+     if copyable_types.is_empty() {
+@@ -48,6 +49,11 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+     if machine_residences.iter().all(Vec::is_empty) {
+         return Ok(());
+     }
++    probe.count(
++        "candidate_residences",
++        machine_residences.iter().map(Vec::len).sum(),
++    );
++    let graph_started = probe.clock();
+     let graph = terminal_semantics::descriptor_results::terminal_borrowed_storage_graph(module);
+     let rules = module
+         .machines
+@@ -63,6 +69,8 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+         .collect::<Vec<_>>();
+     let mut analysis =
+         DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
++    probe.elapsed("graph_preparation_ns", graph_started);
++    probe.count("analysis_constructions", 1);
+     for ((machine, residences), rules) in module
+         .machines
+         .iter_mut()
+@@ -75,10 +83,16 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+         let Some(mut rules) = rules else {
+             continue;
+         };
+-        let Some(flow) = analysis.residence_flow(machine.id, &mut rules) else {
++        probe.count("candidate_machines", 1);
++        let flow_started = probe.clock();
++        let flow = analysis.residence_flow(machine.id, &mut rules);
++        probe.elapsed("residence_flow_ns", flow_started);
++        probe.count("residence_flow_queries", 1);
++        let Some(flow) = flow else {
+             // Incomplete return/effect coverage is not a dead-lifetime proof.
+             continue;
+         };
++        let normal_started = probe.clock();
+         let normal = NormalEdges::new(
+             machine,
+             &module.structural_types,
+@@ -86,11 +100,15 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+             flow,
+             residences.len(),
+         )?;
++        probe.elapsed("normal_edges_ns", normal_started);
++        let solve_started = probe.clock();
+         let mut motions = Vec::<Motion>::new();
+         loop {
++            probe.count("fixed_point_rounds", 1);
+             let scheduled = normal.scheduled_flow(&motions);
+             let mut additions = Vec::new();
+             for residence in &residences {
++                probe.count("residence_plan_queries", 1);
+                 if let Some(motion) =
+                     plan_residence(machine, &normal, &scheduled, &rules, residence, &motions)?
+                 {
+@@ -111,10 +129,12 @@ pub(crate) fn complete(module: &mut TerminalModule) -> Result<(), LoweringError>
+                 break;
+             }
+             for motion in additions {
++                probe.count("motion_updates", 1);
+                 motions.retain(|previous| previous.place != motion.place);
+                 motions.push(motion);
+             }
+         }
++        probe.elapsed("planning_ns", solve_started);
+         normal.install(machine, &residences, &motions);
+     }
+     Ok(())
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs
+index 7d5d3ec78c0..11f3fb56b75 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs
+@@ -20,11 +20,13 @@ use semantic_vocabulary::StructuralPlaceKind;
+ use terminal_psi::{StructuralPlaceDeclaration, TerminalModule};
+ 
+ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule) {
++    let mut probe = crate::reconciliation_probe::Probe::new("places", module.machines.len());
+     for machine in &mut module.machines {
+         let mut declared: Option<BTreeSet<_>> = None;
+         let mut additions = Vec::new();
+         for block in &machine.blocks {
+             for operation in &block.operations {
++                probe.count("operations_scanned", 1);
+                 if !matches!(
+                     operation.kind,
+                     terminal_psi::structural_leaf_copy_pair_pattern!()
+@@ -34,6 +36,7 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
+                 let Some(result) = operation.result.structural() else {
+                     continue;
+                 };
++                probe.count("leaf_copy_results", 1);
+                 let declared = declared.get_or_insert_with(|| {
+                     machine
+                         .structural_places
+@@ -53,8 +56,10 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
+                 });
+             }
+         }
++        probe.count("declarations_added", additions.len());
+         machine.structural_places.extend(additions);
+         if !machine.structural_places.is_sorted_by_key(|place| place.id) {
++            probe.count("place_rosters_sorted", 1);
+             machine.structural_places.sort_by_key(|place| place.id);
+         }
+     }
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs
+index 80a49bf885b..7000c16e876 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs
+@@ -53,6 +53,7 @@
+ pub(crate) use optimization::digest_encoder;
+ mod machine_lowering;
+ mod program_roots;
++mod reconciliation_probe;
+ pub use program_roots::TerminalProgramRoots;
+ 
+ // The plan families `machine_dispatch` selects between, in their dependency
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
+index 36057700012..627722eac27 100644
+--- a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
+@@ -22,9 +22,13 @@ use terminal_psi::{OperationKind, OperationResult, TerminalModule};
+ use terminal_semantics::descriptor_results::{self as descriptors, PayloadMembershipContract};
+ 
+ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
++    let mut probe = crate::reconciliation_probe::Probe::new("memberships", module.machines.len());
++    let edge_profile = std::env::var("OMEGA_EDGE_REBIND_PROFILE")
++        .is_ok_and(|value| matches!(value.as_str(), "counts" | "timing"));
+     if module.structural_domains.is_empty() {
+         return Ok(());
+     }
++    let discovery_started = probe.clock();
+     let memberships = membership_reachability::MembershipReachability::new(
+         &module.structural_types,
+         module
+@@ -51,40 +55,58 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+     if !candidate_machines.iter().any(|&has| has) {
+         return Ok(());
+     }
++    probe.count(
++        "candidate_machines",
++        candidate_machines.iter().filter(|&&has| has).count(),
++    );
++    probe.elapsed("discovery_ns", discovery_started);
++    let graph_started = probe.clock();
+     let types = module.structural_types.clone();
+     let graph = descriptors::terminal_graph(module);
+     let mut analysis = descriptors::DescriptorAnalysis::new(&types, &graph);
++    probe.elapsed("graph_preparation_ns", graph_started);
++    probe.count("analysis_constructions", 1);
+     for (machine_index, has_candidate) in candidate_machines.into_iter().enumerate() {
+         if !has_candidate {
+             continue;
+         }
+         loop {
++            probe.count("fixed_point_rounds", 1);
+             let mut copies = Vec::new();
+             let reference_memberships = terminal_semantics::ReferenceResultMemberships::new(module);
++            probe.count("reference_context_constructions", 1);
+             {
+                 let machine = &module.machines[machine_index];
++                let history_started = probe.clock();
+                 let mut history = descriptors::PayloadMembershipHistory::new(
+                     &types,
+                     &module.structural_domains,
+                     &graph,
+                     machine,
+                 );
++                probe.elapsed("history_creation_ns", history_started);
+                 for (block_index, block) in machine.blocks.iter().enumerate() {
+                     for (ordinal, operation) in block.operations.iter().enumerate() {
++                        probe.count("operations_scanned", 1);
+                         let Some(result) = operation.result.structural() else {
+                             continue;
+                         };
+                         if !memberships.may_contain(result.structural_type) {
+                             continue;
+                         }
++                        probe.count("eligible_operations", 1);
+                         let position = (
+                             block.id,
+                             u32::try_from(ordinal).map_err(|_| {
+                                 LoweringError::Unsupported("membership operation ordinal overflow")
+                             })?,
+                         );
+-                        if let Ok(projected_qualifications) =
+-                            reference_memberships.for_operation(machine, operation)
++                        let reference_started = probe.clock();
++                        let reference_result =
++                            reference_memberships.for_operation(machine, operation);
++                        probe.elapsed("reference_queries_ns", reference_started);
++                        probe.count("reference_queries", 1);
++                        if let Ok(projected_qualifications) = reference_result
+                             && !projected_qualifications.is_empty()
+                         {
+                             copies.push((
+@@ -99,17 +121,21 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                                 },
+                             ));
+                         }
+-                        if let Some(contract) = view_memberships::retained(
++                        let view_started = probe.clock();
++                        let view_contract = view_memberships::retained(
+                             module,
+                             machine,
+                             operation,
+                             position,
+                             &mut analysis,
+                             &memberships,
+-                        ) {
++                        );
++                        probe.elapsed("view_queries_ns", view_started);
++                        if let Some(contract) = view_contract {
+                             copies.push((block_index, ordinal, contract));
+                         }
+-                        if let Some(contract) = operand_memberships::retained(
++                        let operand_started = probe.clock();
++                        let operand_contract = operand_memberships::retained(
+                             module,
+                             machine,
+                             operation,
+@@ -117,12 +143,18 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                             &mut analysis,
+                             &mut history,
+                             &memberships,
+-                        ) {
++                        );
++                        probe.elapsed("operand_queries_ns", operand_started);
++                        if let Some(contract) = operand_contract {
+                             copies.push((block_index, ordinal, contract));
+                         }
+                         // Every value transfer observes its source at this operation,
+                         // including copies emitted directly by control-flow edges.
+                         // Declaration-time metadata alone can miss preceding stores.
++                        if edge_profile {
++                            eprintln!("SOURCE_QUERY_BEGIN\t{:?}", std::thread::current().id());
++                        }
++                        let source_started = probe.clock();
+                         let selected_source = match &operation.kind {
+                             OperationKind::MoveStructuralValue { source } => {
+                                 Some((source.place, source.path.as_slice()))
+@@ -161,33 +193,48 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                                 ));
+                             }
+                         }
++                        probe.elapsed("source_contract_queries_ns", source_started);
++                        if edge_profile {
++                            eprintln!("SOURCE_QUERY_END\t{:?}", std::thread::current().id());
++                        }
+                         let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
+                         else {
+                             continue;
+                         };
+-                        let Some(root) = descriptors::terminal_payload_contract(machine, *source)
+-                        else {
++                        let root_started = probe.clock();
++                        let root = descriptors::terminal_payload_contract(machine, *source);
++                        probe.elapsed("leaf_root_lookup_ns", root_started);
++                        let Some(root) = root else {
+                             continue;
+                         };
+-                        let Some(query) = descriptors::descriptor_contents_query(
++                        let query_started = probe.clock();
++                        let query = descriptors::descriptor_contents_query(
+                             &types,
+                             *source,
+                             root.carrier,
+                             path,
+                             None,
+-                        ) else {
++                        );
++                        probe.elapsed("leaf_query_formation_ns", query_started);
++                        let Some(query) = query else {
+                             continue;
+                         };
+-                        let Some(targets) = analysis.payload_targets(machine.id, position, &query)
+-                        else {
++                        probe.count("payload_target_queries", 1);
++                        let targets_started = probe.clock();
++                        let targets = analysis.payload_targets(machine.id, position, &query);
++                        probe.elapsed("payload_target_queries_ns", targets_started);
++                        let Some(targets) = targets else {
+                             continue;
+                         };
+-                        let Some(contract) = descriptors::payload_memberships(
++                        let memberships_started = probe.clock();
++                        let contract = descriptors::payload_memberships(
+                             &types,
+                             &module.structural_domains,
+                             targets,
+                             |place| descriptors::terminal_payload_contract(machine, place),
+-                        ) else {
++                        );
++                        probe.elapsed("payload_contract_queries_ns", memberships_started);
++                        let Some(contract) = contract else {
+                             continue;
+                         };
+                         if contract.carrier == result.structural_type
+@@ -198,9 +245,25 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                         }
+                     }
+                 }
++                let drop_started = probe.clock();
++                if edge_profile {
++                    eprintln!(
++                        "SOURCE_HISTORY_DROP_BEGIN\t{:?}",
++                        std::thread::current().id()
++                    );
++                }
++                drop(history);
++                if edge_profile {
++                    eprintln!("SOURCE_HISTORY_DROP_END\t{:?}", std::thread::current().id());
++                }
++                probe.elapsed("history_drop_ns", drop_started);
+             }
++            let reference_drop_started = probe.clock();
+             drop(reference_memberships);
++            probe.elapsed("reference_context_drop_ns", reference_drop_started);
++            let merge_started = probe.clock();
+             let mut changed = false;
++            probe.count("proposed_updates", copies.len());
+             let machine = &mut module.machines[machine_index];
+             for (block, operation, contract) in copies {
+                 let OperationResult::Structural(result) =
+@@ -214,11 +277,25 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
+                     contract.projected_qualifications,
+                 );
+             }
++            probe.elapsed("merge_ns", merge_started);
+             if !changed {
+                 break;
+             }
++            probe.count("changing_rounds", 1);
+         }
+     }
++    let drop_started = probe.clock();
++    drop(analysis);
++    probe.elapsed("analysis_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(graph);
++    probe.elapsed("graph_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(types);
++    probe.elapsed("types_drop_ns", drop_started);
++    let drop_started = probe.clock();
++    drop(memberships);
++    probe.elapsed("reachability_drop_ns", drop_started);
+     Ok(())
+ }
+ 
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs
+index eb9c0bf433c..ed862f70ee6 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs
+@@ -25,6 +25,7 @@ mod compatibility;
+ mod contents;
+ mod payload_entry;
+ pub(crate) use payload_entry::prove as prove_payload_predicate;
++mod edge_rebinding_probe;
+ mod payload_history;
+ pub(crate) use payload_history::completed_payload_contract;
+ mod payload_predicates;
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+index 44565c76071..a28d9fb51a0 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+@@ -6,6 +6,7 @@
+ mod entry_snapshots;
+ 
+ use super::contents::select_payload_memberships;
++use super::edge_rebinding_probe::Probe;
+ use super::*;
+ use crate::descriptor_lifetimes::descriptor_path;
+ use std::borrow::Borrow;
+@@ -138,6 +139,45 @@ impl State {
+ struct CachedHistory {
+     relevant: super::payload_reachability::Reachability,
+     snapshots: BTreeMap<DescriptorPosition, State>,
++    scalar_rebindings: ScalarRebindingCache,
++}
++
++#[derive(Default)]
++struct ScalarRebindingCache {
++    rows: BTreeMap<(DescriptorPosition, usize), super::scalar_contracts::ScalarArrivalRebinding>,
++}
++
++impl Drop for ScalarRebindingCache {
++    fn drop(&mut self) {
++        let mut probe = Probe::new("cleanup");
++        if probe.active() {
++            probe.count("entries", self.rows.len() as u128);
++            for row in self.rows.values() {
++                probe.count("input_rows_referenced", row.incoming.len() as u128);
++                probe.count("output_rows_retained", row.rebound.len() as u128);
++                probe.count(
++                    "output_capacity_bytes",
++                    (row.rebound.capacity()
++                        * std::mem::size_of::<Arc<semantic_vocabulary::Proposition>>())
++                        as u128,
++                );
++                probe.count(
++                    "binding_capacity_bytes_inline",
++                    (row.bindings.capacity()
++                        * std::mem::size_of::<(
++                            semantic_vocabulary::ValueId,
++                            semantic_vocabulary::ScalarTerm,
++                        )>()
++                        + row.parameters.capacity()
++                            * std::mem::size_of::<semantic_vocabulary::ValueId>())
++                        as u128,
++                );
++            }
++        }
++        let started = probe.clock();
++        drop(std::mem::take(&mut self.rows));
++        probe.elapsed("destroy_ns", started);
++    }
+ }
+ 
+ /// Exact declaration data in one current executable representation. Prepared
+@@ -558,6 +598,8 @@ fn payload_contract_at_cut(
+     cached: &mut Option<CachedHistory>,
+     cut: PayloadMembershipCut,
+ ) -> Result<PayloadMembershipContract, &'static str> {
++    let mut edge_probe = Probe::new("query");
++    let cache_enabled = Probe::cache_enabled();
+     let mut failure = "descriptor machine is absent";
+     let result = (|| {
+         let machine = descriptor?;
+@@ -569,7 +611,12 @@ fn payload_contract_at_cut(
+             )?,
+             None => super::payload_reachability::predecessors(machine, position)?,
+         };
+-        let previous = cached.take();
++        let mut previous = cached.take();
++        // Edges belong to this history's immutable machine, independently of query prefixes.
++        let mut scalar_rebindings = previous
++            .as_mut()
++            .map(|previous| std::mem::take(&mut previous.scalar_rebindings))
++            .unwrap_or_default();
+         let frontier = previous
+             .as_ref()
+             .and_then(|previous| relevant.compatible_frontier(&previous.relevant, &machine.flow));
+@@ -630,7 +677,9 @@ fn payload_contract_at_cut(
+             failure = "payload history flow position is absent";
+             let mut before = snapshots.get(&current)?.clone();
+             if let Some(definitions) = machine.payload_scalar_definitions.get(&current) {
+-                retire_scalar_instances(&mut before, definitions);
++                let started = edge_probe.clock();
++                retire_scalar_instances(&mut before, definitions, &mut edge_probe);
++                edge_probe.elapsed("operation_retirement_ns", started);
+             }
+             let step = machine.flow.get(&current)?;
+             // Only derivation actuals read the pre-write payloads below. Keep
+@@ -1023,27 +1072,80 @@ fn payload_contract_at_cut(
+                     && let Some(parameters) = machine.payload_scalar_parameters.get(&edge.target.0)
+                 {
+                     let incoming_requirements = arrival.scalar_requirements.clone();
+-                    retire_scalar_instances(&mut arrival, parameters);
++                    let started = edge_probe.clock();
++                    retire_scalar_instances(&mut arrival, parameters, &mut edge_probe);
++                    edge_probe.elapsed("edge_retirement_ns", started);
+                     if let Some(bindings) = machine
+                         .payload_scalar_bindings
+                         .get(&current)
+                         .and_then(|edges| edges.get(ordinal))
+                     {
+-                        let rebound = super::scalar_contracts::arrival_requirements(
+-                            &incoming_requirements,
+-                            bindings,
+-                            parameters,
+-                        );
+-                        // Rebinding can return the complete incoming theory
+-                        // unchanged. Appending it would detach and deep-clone
+-                        // a snapshot only to deduplicate it immediately below.
+-                        // Still compute every substitution: even an empty map
+-                        // can normalize a proposition into a genuinely new row.
+-                        if !contains_rebound_premises(&arrival.scalar_requirements, &rebound) {
+-                            Arc::make_mut(&mut arrival.scalar_requirements)
+-                                .extend(rebound.into_iter().map(Arc::new));
++                        if cache_enabled {
++                            let started = edge_probe.clock();
++                            let entry = scalar_rebindings.rows.entry((current, ordinal));
++                            edge_probe.elapsed("lookup_ns", started);
++                            let row = match entry {
++                                std::collections::btree_map::Entry::Vacant(entry) => entry.insert(
++                                    super::scalar_contracts::ScalarArrivalRebinding::new(
++                                        bindings,
++                                        parameters,
++                                        &incoming_requirements,
++                                        &mut edge_probe,
++                                    ),
++                                ),
++                                std::collections::btree_map::Entry::Occupied(entry) => {
++                                    entry.into_mut()
++                                }
++                            };
++                            let rebound = row.requirements(&incoming_requirements, &mut edge_probe);
++                            let started = edge_probe.clock();
++                            let contained =
++                                contains_rebound_premises(&arrival.scalar_requirements, rebound);
++                            edge_probe.elapsed("containment_ns", started);
++                            edge_probe.count("returned_output_rows", rebound.len() as u128);
++                            if contained {
++                                edge_probe.count("contained_requests", 1);
++                                edge_probe.count("contained_output_rows", rebound.len() as u128);
++                            } else {
++                                edge_probe.count("appended_output_rows", rebound.len() as u128);
++                                edge_probe.detach("append_cow", &arrival.scalar_requirements);
++                                let started = edge_probe.clock();
++                                Arc::make_mut(&mut arrival.scalar_requirements)
++                                    .extend(rebound.iter().cloned());
++                                edge_probe.elapsed("append_ns", started);
++                            }
++                        } else {
++                            edge_probe.count("requests", 1);
++                            edge_probe
++                                .count("requested_input_rows", incoming_requirements.len() as u128);
++                            edge_probe.count("transform_calls", 1);
++                            let started = edge_probe.clock();
++                            let rebound = super::scalar_contracts::arrival_requirements(
++                                &incoming_requirements,
++                                bindings,
++                                parameters,
++                            );
++                            edge_probe.elapsed("transform_ns", started);
++                            let started = edge_probe.clock();
++                            let contained =
++                                contains_rebound_premises(&arrival.scalar_requirements, &rebound);
++                            edge_probe.elapsed("containment_ns", started);
++                            edge_probe.count("returned_output_rows", rebound.len() as u128);
++                            if contained {
++                                edge_probe.count("contained_requests", 1);
++                                edge_probe.count("contained_output_rows", rebound.len() as u128);
++                            } else {
++                                edge_probe.count("appended_output_rows", rebound.len() as u128);
++                                edge_probe.detach("append_cow", &arrival.scalar_requirements);
++                                let started = edge_probe.clock();
++                                Arc::make_mut(&mut arrival.scalar_requirements)
++                                    .extend(rebound.into_iter().map(Arc::new));
++                                edge_probe.elapsed("append_ns", started);
++                            }
+                         }
++                        let started = edge_probe.clock();
+                         canonicalize_snapshot(&mut arrival.scalar_requirements);
++                        edge_probe.elapsed("canonical_ns", started);
+                     }
+                 }
+                 for contract in arrival.values.values_mut() {
+@@ -1085,6 +1187,7 @@ fn payload_contract_at_cut(
+         *cached = Some(CachedHistory {
+             relevant,
+             snapshots,
++            scalar_rebindings,
+         });
+         failure = "requested payload root has no reached incoming membership history";
+         let mut current = match cut {
+@@ -1141,19 +1244,22 @@ fn payload_contract_at_cut(
+ /// before testing its complete theory by a single ordered scan. Normalization
+ /// can reorder IEEE/math propositions, so unordered results retain the exact
+ /// binary-search path. Equal duplicates reuse one retained row; no input moves.
+-fn contains_rebound_premises(
++fn contains_rebound_premises<Rebound: Borrow<semantic_vocabulary::Proposition>>(
+     retained: &[Arc<semantic_vocabulary::Proposition>],
+-    rebound: &[semantic_vocabulary::Proposition],
++    rebound: &[Rebound],
+ ) -> bool {
+-    if rebound.windows(2).any(|pair| pair[0] > pair[1]) {
+-        return rebound.iter().all(|premise| {
++    if rebound
++        .windows(2)
++        .any(|pair| pair[0].borrow() > pair[1].borrow())
++    {
++        return rebound.iter().map(Borrow::borrow).all(|premise| {
+             retained
+                 .binary_search_by(|stored| stored.as_ref().cmp(premise))
+                 .is_ok()
+         });
+     }
+     let mut remaining = retained.iter().map(Arc::as_ref).peekable();
+-    rebound.iter().all(|premise| {
++    rebound.iter().map(Borrow::borrow).all(|premise| {
+         while remaining
+             .peek()
+             .is_some_and(|candidate| *candidate < premise)
+@@ -1427,7 +1533,11 @@ fn append_scalar_observations(
+ /// SSA names acquire new dynamic instances on repeated execution. Completed
+ /// payload memberships survive; observations and premises naming old instances
+ /// must not classify newly read values or rebound block formals.
+-fn retire_scalar_instances(state: &mut State, definitions: &[semantic_vocabulary::ValueId]) {
++fn retire_scalar_instances(
++    state: &mut State,
++    definitions: &[semantic_vocabulary::ValueId],
++    probe: &mut Probe,
++) {
+     if definitions.is_empty() {
+         return;
+     }
+@@ -1436,6 +1546,7 @@ fn retire_scalar_instances(state: &mut State, definitions: &[semantic_vocabulary
+         .iter()
+         .any(|premise| premise.any_value_id(|value| definitions.contains(&value)))
+     {
++        probe.detach("retire_ambient_cow", &state.scalar_requirements);
+         Arc::make_mut(&mut state.scalar_requirements)
+             .retain(|premise| !premise.any_value_id(|value| definitions.contains(&value)));
+     }
+@@ -1444,6 +1555,7 @@ fn retire_scalar_instances(state: &mut State, definitions: &[semantic_vocabulary
+         .iter()
+         .any(|premise| !survives_payload_retirement(premise, definitions))
+     {
++        probe.detach("retire_shared_cow", &state.shared_requirements);
+         retire_payload_premises(Arc::make_mut(&mut state.shared_requirements), definitions);
+     }
+     for contract in state.values.values_mut() {
+@@ -1756,7 +1868,11 @@ mod tests {
+                     expected.qualifications.clear();
+                 }
+                 Change::RetireInstance => {
+-                    retire_scalar_instances(&mut later, &[ValueId::new(1).unwrap()]);
++                    retire_scalar_instances(
++                        &mut later,
++                        &[ValueId::new(1).unwrap()],
++                        &mut Probe::new("test"),
++                    );
+                     expected.scalar_observations.clear();
+                     // Opaque local premises also retire; the ambient filter is
+                     // deliberately insufficient for this payload-local theory.
+@@ -1822,7 +1938,11 @@ mod tests {
+             scalar_requirements: Arc::default(),
+             shared_requirements: Arc::default(),
+         };
+-        retire_scalar_instances(&mut state, &[ValueId::new(1).unwrap()]);
++        retire_scalar_instances(
++            &mut state,
++            &[ValueId::new(1).unwrap()],
++            &mut Probe::new("test"),
++        );
+         assert_eq!(
+             observe_scalar(state.values.get_mut(&root).unwrap(), &path, &value(5)),
+             None
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs
+index f836d799185..ac9d2b1c506 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/scalar_contracts.rs
+@@ -3,9 +3,160 @@
+ //! the payload owner resolves backing and invalidates them after mutation.
+ //! Call adapters supply exact typed formal/result bindings from the current
+ //! checked signature, never implementation-private facts or receiving domains.
++use super::edge_rebinding_probe::Probe;
+ use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
+ use std::borrow::Borrow;
+ use std::collections::BTreeMap;
++use std::sync::Arc;
++
++/// One edge's fixed substitution, retaining only its last immutable input.
++pub(super) struct ScalarArrivalRebinding {
++    pub(super) bindings: Vec<(ValueId, ScalarTerm)>,
++    pub(super) parameters: Vec<ValueId>,
++    pub(super) incoming: Arc<Vec<Arc<Proposition>>>,
++    pub(super) rebound: Vec<Arc<Proposition>>,
++}
++
++impl ScalarArrivalRebinding {
++    pub(super) fn new(
++        bindings: &[(ValueId, ScalarTerm)],
++        parameters: &[ValueId],
++        incoming: &Arc<Vec<Arc<Proposition>>>,
++        probe: &mut Probe,
++    ) -> Self {
++        probe.count("cold_entries", 1);
++        probe.count("cold_input_rows", incoming.len() as u128);
++        let started = probe.clock();
++        let bindings = bindings.to_vec();
++        let parameters = parameters.to_vec();
++        let captured = incoming.clone();
++        probe.elapsed("capture_ns", started);
++        let started = probe.clock();
++        let rebound = arrival_requirements(incoming, &bindings, &parameters);
++        probe.elapsed("transform_ns", started);
++        probe.count("transform_calls", 1);
++        probe.count("wrapped_output_rows", rebound.len() as u128);
++        let started = probe.clock();
++        let rebound = rebound.into_iter().map(Arc::new).collect();
++        probe.elapsed("wrap_ns", started);
++        Self {
++            bindings,
++            parameters,
++            incoming: captured,
++            rebound,
++        }
++    }
++
++    pub(super) fn requirements(
++        &mut self,
++        incoming: &Arc<Vec<Arc<Proposition>>>,
++        probe: &mut Probe,
++    ) -> &[Arc<Proposition>] {
++        probe.count("requests", 1);
++        probe.count("requested_input_rows", incoming.len() as u128);
++        let started = probe.clock();
++        let same = Arc::ptr_eq(&self.incoming, incoming);
++        probe.elapsed("identity_ns", started);
++        if same {
++            // Includes the constructor's immediate check; the analyzer subtracts cold entries.
++            probe.count("same_allocation_checks", 1);
++            probe.count("same_allocation_input_rows", incoming.len() as u128);
++        } else {
++            probe.count("changed_allocation_misses", 1);
++            if probe.counts() {
++                let equal = self.incoming.as_ref() == incoming.as_ref();
++                probe.count("equal_contents_misses", u128::from(equal));
++                probe.count("different_contents_misses", u128::from(!equal));
++            }
++            let started = probe.clock();
++            let rebound = arrival_requirements(incoming, &self.bindings, &self.parameters);
++            probe.elapsed("transform_ns", started);
++            probe.count("transform_calls", 1);
++            probe.count("wrapped_output_rows", rebound.len() as u128);
++            let started = probe.clock();
++            let rebound = rebound.into_iter().map(Arc::new).collect();
++            probe.elapsed("wrap_ns", started);
++            probe.count("replaced_output_rows", self.rebound.len() as u128);
++            let started = probe.clock();
++            self.rebound = rebound;
++            self.incoming = incoming.clone();
++            probe.elapsed("replace_ns", started);
++        }
++        &self.rebound
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use semantic_vocabulary::ScalarType;
++
++    #[test]
++    fn payload_scalar_rebinding_reuses_only_the_exact_immutable_input() {
++        let identity = |value| ValueId::new(value).unwrap();
++        let value = |value| ScalarTerm::value(identity(value), ScalarType::Boolean);
++        let bindings = vec![(identity(1), value(2)), (identity(2), value(1))];
++        let parameters = vec![identity(1), identity(2), identity(3)];
++        for mask in 0..16 {
++            let mut incoming = Arc::new(
++                (1..=4)
++                    .filter(|index| mask & (1 << (index - 1)) != 0)
++                    .map(|index| {
++                        Arc::new(Proposition::Equal(value(index), ScalarTerm::Boolean(true)))
++                    })
++                    .collect::<Vec<_>>(),
++            );
++            let mut cache = ScalarArrivalRebinding::new(
++                &bindings,
++                &parameters,
++                &incoming,
++                &mut Probe::new("test"),
++            );
++            let expected = arrival_requirements(&incoming, &bindings, &parameters);
++            assert_eq!(
++                cache
++                    .requirements(&incoming, &mut Probe::new("test"))
++                    .iter()
++                    .map(Arc::as_ref)
++                    .collect::<Vec<_>>(),
++                expected.iter().collect::<Vec<_>>()
++            );
++            let retained = cache
++                .requirements(&incoming, &mut Probe::new("test"))
++                .to_vec();
++            assert!(
++                cache
++                    .requirements(&incoming, &mut Probe::new("test"))
++                    .iter()
++                    .zip(&retained)
++                    .all(|(left, right)| Arc::ptr_eq(left, right))
++            );
++
++            Arc::make_mut(&mut incoming).push(Arc::new(Proposition::Falsehood));
++            let expected = arrival_requirements(&incoming, &bindings, &parameters);
++            assert_eq!(
++                cache
++                    .requirements(&incoming, &mut Probe::new("test"))
++                    .iter()
++                    .map(Arc::as_ref)
++                    .collect::<Vec<_>>(),
++                expected.iter().collect::<Vec<_>>()
++            );
++
++            let equal_allocation = Arc::new(incoming.as_ref().clone());
++            assert!(!Arc::ptr_eq(&incoming, &equal_allocation));
++            assert_eq!(
++                cache
++                    .requirements(&equal_allocation, &mut Probe::new("test"))
++                    .iter()
++                    .map(Arc::as_ref)
++                    .collect::<Vec<_>>(),
++                expected.iter().collect::<Vec<_>>()
++            );
++            assert!(Arc::ptr_eq(&cache.incoming, &equal_allocation));
++        }
++    }
++}
+ 
+ pub(super) fn scalar_conjuncts(propositions: &[Proposition]) -> Vec<Proposition> {
+     let mut pending = propositions.iter().rev().collect::<Vec<_>>();
+diff --git a/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/reconciliation_probe.rs b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/reconciliation_probe.rs
+new file mode 100644
+index 00000000000..6ed8174a3bd
+--- /dev/null
++++ b/omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/reconciliation_probe.rs
+@@ -0,0 +1,87 @@
++//! Temporary, read-only attribution for the Dungeon reconciliation experiment.
++//! Local counters avoid a lock per operation; detailed counts are a separate run.
++
++use std::collections::BTreeMap;
++use std::sync::OnceLock;
++use std::time::Instant;
++
++pub(crate) struct Probe {
++    operation: &'static str,
++    machines: usize,
++    started: Option<Instant>,
++    counting: bool,
++    values: BTreeMap<&'static str, u64>,
++}
++
++impl Probe {
++    pub(crate) fn new(operation: &'static str, machines: usize) -> Self {
++        static MODE: OnceLock<String> = OnceLock::new();
++        let mode = MODE.get_or_init(|| std::env::var("OMEGA_RECONCILE_PROBE").unwrap_or_default());
++        Self {
++            operation,
++            machines,
++            started: matches!(mode.as_str(), "timing" | "counts").then(Instant::now),
++            counting: mode == "counts",
++            values: BTreeMap::new(),
++        }
++    }
++
++    pub(crate) fn count(&mut self, name: &'static str, amount: usize) {
++        if self.counting {
++            *self.values.entry(name).or_default() += amount as u64;
++        }
++    }
++
++    pub(crate) fn clock(&self) -> Option<Instant> {
++        self.started.map(|_| Instant::now())
++    }
++
++    pub(crate) fn elapsed(&mut self, name: &'static str, started: Option<Instant>) {
++        if let Some(started) = started {
++            *self.values.entry(name).or_default() +=
++                u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
++        }
++    }
++}
++
++impl Drop for Probe {
++    fn drop(&mut self) {
++        let Some(started) = self.started else {
++            return;
++        };
++        let elapsed = started.elapsed().as_nanos();
++        let values = self
++            .values
++            .iter()
++            .map(|(name, value)| format!("\t{name}={value}"))
++            .collect::<String>();
++        eprintln!(
++            "RECONCILE\t{}\t{}\t{}{}",
++            self.operation, self.machines, elapsed, values
++        );
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn counts_are_local_and_disabled_without_counting() {
++        let mut probe = Probe {
++            operation: "calibration",
++            machines: 0,
++            started: None,
++            counting: false,
++            values: BTreeMap::new(),
++        };
++        probe.count("visits", 2);
++        assert!(probe.values.is_empty());
++        probe.counting = true;
++        probe.count("visits", 2);
++        probe.count("visits", 3);
++        assert_eq!(probe.values["visits"], 5);
++        probe.elapsed("time_ns", None);
++        assert!(!probe.values.contains_key("time_ns"));
++    }
++}
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/edge_rebinding_probe.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/edge_rebinding_probe.rs
+new file mode 100644
+index 00000000000..6f8f4ada03c
+--- /dev/null
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/edge_rebinding_probe.rs
+@@ -0,0 +1,84 @@
++//! Temporary, query-owned diagnostics; no global lock or proof-result cache.
++use semantic_vocabulary::Proposition;
++use std::collections::BTreeMap;
++use std::sync::{Arc, OnceLock};
++use std::time::Instant;
++
++pub(super) struct Probe {
++    kind: &'static str,
++    mode: u8,
++    started: Option<Instant>,
++    metrics: BTreeMap<&'static str, u128>,
++}
++
++impl Probe {
++    pub(super) fn new(kind: &'static str) -> Self {
++        static MODE: OnceLock<u8> = OnceLock::new();
++        let mode =
++            *MODE.get_or_init(
++                || match std::env::var("OMEGA_EDGE_REBIND_PROFILE").as_deref() {
++                    Ok("counts") => 1,
++                    Ok("timing") => 2,
++                    _ => 0,
++                },
++            );
++        Self {
++            kind,
++            mode,
++            started: (mode == 2).then(Instant::now),
++            metrics: BTreeMap::new(),
++        }
++    }
++
++    pub(super) fn cache_enabled() -> bool {
++        static ENABLED: OnceLock<bool> = OnceLock::new();
++        *ENABLED.get_or_init(|| std::env::var("OMEGA_EDGE_CACHE").as_deref() != Ok("off"))
++    }
++
++    pub(super) fn active(&self) -> bool {
++        self.mode != 0
++    }
++    pub(super) fn counts(&self) -> bool {
++        self.mode == 1
++    }
++    pub(super) fn clock(&self) -> Option<Instant> {
++        (self.mode == 2).then(Instant::now)
++    }
++    pub(super) fn count(&mut self, name: &'static str, value: u128) {
++        if self.active() {
++            *self.metrics.entry(name).or_default() += value;
++        }
++    }
++    pub(super) fn elapsed(&mut self, name: &'static str, started: Option<Instant>) {
++        if let Some(started) = started {
++            self.count(name, started.elapsed().as_nanos());
++        }
++    }
++    pub(super) fn detach(&mut self, name: &'static str, rows: &Arc<Vec<Arc<Proposition>>>) {
++        if self.active() && Arc::strong_count(rows) > 1 {
++            self.count(name, 1);
++            self.count("cow_row_handles", rows.len() as u128);
++        }
++    }
++}
++
++impl Drop for Probe {
++    fn drop(&mut self) {
++        if !self.active() {
++            return;
++        }
++        let elapsed = self
++            .started
++            .map_or(0, |started| started.elapsed().as_nanos());
++        let mut row = format!(
++            "REBIND\t{}\t{:?}\t{}",
++            self.kind,
++            std::thread::current().id(),
++            elapsed
++        );
++        for (name, value) in &self.metrics {
++            row.push_str(&format!("\t{name}={value}"));
++        }
++        eprintln!("{row}");
++    }
++}

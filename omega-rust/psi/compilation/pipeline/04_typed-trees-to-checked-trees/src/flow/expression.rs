@@ -37,7 +37,6 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod boolean_completions;
 mod call_storage;
-mod constructed_values;
 mod dispatch;
 mod dispatch_copies;
 mod live_memberships;
@@ -50,6 +49,7 @@ mod returned_regions;
 mod selected_call_stores;
 mod stored_call_values;
 mod transitions;
+mod value_observations;
 mod view_footprints;
 mod view_referents;
 mod view_retention;
@@ -91,6 +91,7 @@ struct CompletedValue {
     evaluated_inputs: HandleSpan<checked_trees::FlowOperandFact>,
     conditional_inputs_from: Option<usize>,
     referents: Option<HandleSpan<checked_trees::FlowOperandReferent>>,
+    possible_storage: Option<HandleSpan<checked_trees::FlowOperandReferent>>,
     retention: Option<Handle<checked_trees::FlowOperandRetention>>,
     /// Descriptor contents substituted after operands, before callee writes.
     reference_leaves: Option<HandleSpan<checked_trees::FlowCapturedReferenceLeaf>>,
@@ -842,12 +843,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 .expression_result_type_at(self.program, self.machine, self.state, expression)
                 .unwrap_or_default()
         };
-        self.append_invocation_memberships(
-            completed.invocation,
-            &mut capture,
-            contexts,
-            constraints,
-        );
         let carries_borrows = !binds_view
             && validation::borrow_contracts::is_borrow_carrying_data(
                 self.program,
@@ -867,6 +862,24 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             } else {
                 Handle::invalid()
             };
+        }
+        if let Some(backing) = self.capture_invocation_backing(completed.invocation, &capture) {
+            self.retain_possible_storage(&mut capture, &backing);
+        }
+        self.append_invocation_memberships(
+            completed.invocation,
+            &mut capture,
+            contexts,
+            constraints,
+        );
+        if !binds_view {
+            let mut evaluated = EvaluatedOperand {
+                boolean,
+                boolean_completion: completed.boolean_completion,
+                capture,
+            };
+            self.publish_completed_owned_value(&mut evaluated, contexts, constraints);
+            capture = evaluated.capture;
         }
         if carries_borrows
             && matches!(
@@ -1066,6 +1079,26 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         } else {
             capture.retention =
                 self.capture_storage_retention(&capture, completed.retention, completed.backing);
+        }
+        if let Some(possible_storage) = completed.possible_storage
+            && !possible_storage.is_empty()
+            && self
+                .context
+                .control
+                .operand_retentions
+                .is_valid(capture.retention)
+        {
+            let profile = *self
+                .context
+                .control
+                .operand_retentions
+                .get(capture.retention);
+            capture.retention = self.context.control.operand_retentions.insert(
+                checked_trees::FlowOperandRetention {
+                    possible_storage,
+                    ..profile
+                },
+            );
         }
         capture
     }
@@ -1508,6 +1541,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             evaluated_inputs,
             conditional_inputs_from,
             referents,
+            possible_storage,
             retention,
             reference_leaves,
         } = completed;
@@ -1594,6 +1628,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     &receiver.capture,
                     *constraints,
                     case_access,
+                    possible_storage,
                 ));
                 *retention = self.capture_member_retention(expression, &receiver.capture);
                 self.retain_value_observation(
@@ -1754,7 +1789,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 // this call expression. The binding transport then keeps the
                 // tag; the call is not replayed at the payload projection.
                 if let Some(variant) = returned_constructor_case(self.program, call) {
-                    self.append_constructed_observation(
+                    self.append_value_observation(
                         expression,
                         &[],
                         facts::FactPayload::CaseValue {
@@ -1825,7 +1860,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     let child_type = self.constructed_child_type(expression, destination, &path);
                     let evaluated =
                         self.evaluated_operand_as(*value, child_type, contexts, constraints);
-                    self.append_constructed_values(
+                    self.append_owned_value_observations(
                         expression,
                         &path,
                         child_type,
@@ -1876,7 +1911,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     let child_type = self.constructed_child_type(expression, destination, &path);
                     let evaluated =
                         self.evaluated_operand_as(field.value, child_type, contexts, constraints);
-                    self.append_constructed_values(
+                    self.append_owned_value_observations(
                         expression,
                         &path,
                         child_type,
@@ -1896,7 +1931,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     && self.program.symbols.get(variant).kind == symbols::SymbolKind::Variant
                     && self.program.symbols.get(variant).parent == value.type_symbol
                 {
-                    self.append_constructed_observation(
+                    self.append_value_observation(
                         expression,
                         &[],
                         facts::FactPayload::CaseValue {
@@ -1949,6 +1984,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         &collection_operand,
                         &start_operand,
                         Some(&end_operand),
+                        possible_storage,
                     ));
                     // `self.expression(indexed.index)` would publish the
                     // range node's own result tags after evaluating both
@@ -1977,6 +2013,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         &collection_operand,
                         &index_operand,
                         None,
+                        possible_storage,
                     ));
                     self.record_operator_invocation(
                         expression,
@@ -2194,7 +2231,16 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             .span_or_empty(places)
             .iter()
             .any(|place| place.formation.is_valid());
-        if source_has_case || observed_has_case || formed_reference {
+        // A descriptor read needs its own observation namespace even when
+        // its home is not itself a case payload. A later tag read selects
+        // this one descriptor, not every candidate backing it may point to.
+        let descriptor_read = !places.is_empty()
+            && expression != self.reference_slot_target
+            && self
+                .context
+                .expression_result_type_at(self.program, self.machine, self.state, expression)
+                .is_some_and(|reference| self.is_view_type(reference));
+        if source_has_case || observed_has_case || formed_reference || descriptor_read {
             return self
                 .context
                 .control

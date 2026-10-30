@@ -1,0 +1,230 @@
+{
+  "meaning": "Instrumented completed inclusive scopes only; still-active scopes are not reported, so this does not prove the exact current operation or nontermination.",
+  "checkpoints": 12,
+  "no_completed_row_change_after_second_checkpoint": true,
+  "latest_top_completed_scopes": [
+    {
+      "ms": 21746.016,
+      "count": 348,
+      "name": "05.d.7.3b.1.cap.2d.local_init"
+    },
+    {
+      "ms": 626.99,
+      "count": 4,
+      "name": "05.c.prepare_typed_trees"
+    },
+    {
+      "ms": 438.295,
+      "count": 3,
+      "name": "05"
+    },
+    {
+      "ms": 381.889,
+      "count": 4,
+      "name": "05.c.2.specialization_loop"
+    },
+    {
+      "ms": 364.122,
+      "count": 3,
+      "name": "05.d.lower_typed_trees"
+    },
+    {
+      "ms": 299.482,
+      "count": 4008,
+      "name": "05.d.7.3b.1.cap.2d.assign"
+    },
+    {
+      "ms": 261.287,
+      "count": 4,
+      "name": "psi.source.prepare"
+    },
+    {
+      "ms": 214.787,
+      "count": 3,
+      "name": "05.d.3.build_check_facts"
+    },
+    {
+      "ms": 179.689,
+      "count": 300,
+      "name": "05.d.2.a.2.machine.std_or_core"
+    },
+    {
+      "ms": 175.146,
+      "count": 303,
+      "name": "05.d.2.a.2b.state_statements"
+    },
+    {
+      "ms": 157.435,
+      "count": 4,
+      "name": "05.c.3.post_specialization"
+    },
+    {
+      "ms": 156.506,
+      "count": 1,
+      "name": "psi.source.complete_authored"
+    },
+    {
+      "ms": 148.638,
+      "count": 303,
+      "name": "05.d.3.b.flow.state_statements"
+    },
+    {
+      "ms": 108.688,
+      "count": 3,
+      "name": "05.d.3.b.flow_fixed_point"
+    },
+    {
+      "ms": 87.644,
+      "count": 4,
+      "name": "05.c.1.pre_specialization"
+    }
+  ],
+  "cold_graph_count": 1,
+  "local_initializer_callsite": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_case_arms.rs:1329",
+  "raw_checkpoints": [
+    {
+      "checkpoint": 1,
+      "nominal_elapsed_s": 15,
+      "printed_rows_sha256": "56c85543441af6f9d2edf349ba600a90e9b996374e682ea46a11ad69d6beff85",
+      "timed_scope_count": 280,
+      "counter_count": 22,
+      "local_initializer": {
+        "ms": 2822.635,
+        "count": 347,
+        "name": "05.d.7.3b.1.cap.2d.local_init"
+      }
+    },
+    {
+      "checkpoint": 2,
+      "nominal_elapsed_s": 30,
+      "printed_rows_sha256": "30a0ac5c3d485d1a4cb327eb8436b6aa330e13c394bf5e9c9b34375ad7a163b9",
+      "timed_scope_count": 280,
+      "counter_count": 22,
+      "local_initializer": {
+        "ms": 21746.016,
+        "count": 348,
+        "name": "05.d.7.3b.1.cap.2d.local_init"
+      }
+    },
+    {
+      "checkpoint": 3,
+      "nominal_elapsed_s": 45,
+      "printed_rows_sha256": "30a0ac5c3d485d1a4cb327eb8436b6aa330e13c394bf5e9c9b34375ad7a163b9",
+      "timed_scope_count": 280,
+      "counter_count": 22,
+      "local_initializer": {
+        "ms": 21746.016,
+        "count": 348,
+        "name": "05.d.7.3b.1.cap.2d.local_init"
+      }
+    },
+    {
+      "checkpoint": 4,
+      "nominal_elapsed_s": 60,
+      "printed_rows_sha256": "30a0ac5c3d485d1a4cb327eb8436b6aa330e13c394bf5e9c9b34375ad7a163b9",
+      "timed_scope_count": 280,
+      "counter_count": 22,
+      "local_initializer": {
+        "ms": 21746.016,
+        "count": 348,
+        "name": "05.d.7.3b.1.cap.2d.local_init"
+      }
+    },
+    {
+      "checkpoint": 5,
+      "nominal_elapsed_s": 75,
+      "printed_rows_sha256": "30a0ac5c3d485d1a4cb327eb8436b6aa330e13c394bf5e9c9b34375ad7a163b9",
+      "timed_scope_count": 280,
+      "counter_count": 22,
+      "local_initializer": {
+        "ms": 21746.016,
+        "count": 348,
+        "name": "05.d.7.3b.1.cap.2d.local_init"
+      }
+    },
+    {
+      "checkpoint": 6,
+      "nominal_elapsed_s": 90,
+      "printed_rows_sha256": "30a0ac5c3d485d1a4cb327eb8436b6aa330e13c394bf5e9c9b34375ad7a163b9",
+      "timed_scope_count": 280,
+      "counter_count": 22,
+      "local_initializer": {
+        "ms": 21746.016,
+        "count": 348,
+        "name": "05.d.7.3b.1.cap.2d.local_init"
+      }
+    },
+    {
+      "checkpoint": 7,
+      "nominal_elapsed_s": 105,
+      "printed_rows_sha256": "30a0ac5c3d485d1a4cb327eb8436b6aa330e13c394bf5e9c9b34375ad7a163b9",
+      "timed_scope_count": 280,
+      "counter_count": 22,
+      "local_initializer": {
+        "ms": 21746.016,
+        "count": 348,
+        "name": "05.d.7.3b.1.cap.2d.local_init"
+      }
+    },
+    {
+      "checkpoint": 8,
+      "nominal_elapsed_s": 120,
+      "printed_rows_sha256": "30a0ac5c3d485d1a4cb327eb8436b6aa330e13c394bf5e9c9b34375ad7a163b9",
+      "timed_scope_count": 280,
+      "counter_count": 22,
+      "local_initializer": {
+        "ms": 21746.016,
+        "count": 348,
+        "name": "05.d.7.3b.1.cap.2d.local_init"
+      }
+    },
+    {
+      "checkpoint": 9,
+      "nominal_elapsed_s": 135,
+      "printed_rows_sha256": "30a0ac5c3d485d1a4cb327eb8436b6aa330e13c394bf5e9c9b34375ad7a163b9",
+      "timed_scope_count": 280,
+      "counter_count": 22,
+      "local_initializer": {
+        "ms": 21746.016,
+        "count": 348,
+        "name": "05.d.7.3b.1.cap.2d.local_init"
+      }
+    },
+    {
+      "checkpoint": 10,
+      "nominal_elapsed_s": 150,
+      "printed_rows_sha256": "30a0ac5c3d485d1a4cb327eb8436b6aa330e13c394bf5e9c9b34375ad7a163b9",
+      "timed_scope_count": 280,
+      "counter_count": 22,
+      "local_initializer": {
+        "ms": 21746.016,
+        "count": 348,
+        "name": "05.d.7.3b.1.cap.2d.local_init"
+      }
+    },
+    {
+      "checkpoint": 11,
+      "nominal_elapsed_s": 165,
+      "printed_rows_sha256": "30a0ac5c3d485d1a4cb327eb8436b6aa330e13c394bf5e9c9b34375ad7a163b9",
+      "timed_scope_count": 280,
+      "counter_count": 22,
+      "local_initializer": {
+        "ms": 21746.016,
+        "count": 348,
+        "name": "05.d.7.3b.1.cap.2d.local_init"
+      }
+    },
+    {
+      "checkpoint": 12,
+      "nominal_elapsed_s": 180,
+      "printed_rows_sha256": "30a0ac5c3d485d1a4cb327eb8436b6aa330e13c394bf5e9c9b34375ad7a163b9",
+      "timed_scope_count": 280,
+      "counter_count": 22,
+      "local_initializer": {
+        "ms": 21746.016,
+        "count": 348,
+        "name": "05.d.7.3b.1.cap.2d.local_init"
+      }
+    }
+  ]
+}

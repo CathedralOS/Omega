@@ -95,7 +95,7 @@ impl<'program> Evaluator<'program> {
         slot: &[u8],
         occurrence: source::SourceSpan,
     ) -> EvalResult<Value> {
-        let compatibility = self.product_entry_compatibility.ok_or_else(|| {
+        let compatibility = self.product_entry_slots.ok_or_else(|| {
             Halt::Trap(
                 "product entry selection requires the build owner's slot compatibility check"
                     .to_owned(),

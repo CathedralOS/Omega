@@ -1,0 +1,639 @@
+{
+  "metric": "child-reported compiler process wall ns per one complete native compile",
+  "batches": {
+    "initial": {
+      "pairs": 32,
+      "baseline_median_ms": 7621.0799,
+      "candidate_median_ms": 7722.70215,
+      "paired_difference_median_ms": 10.21305,
+      "paired_percent_median": 0.14502467285860687,
+      "paired_percent_change_bootstrap_95": [
+        -2.899687342206214,
+        3.1362774735143484
+      ],
+      "median_difference_bootstrap_95_ms": [
+        -235.6256,
+        228.4374
+      ]
+    },
+    "confirmation": {
+      "pairs": 16,
+      "baseline_median_ms": 9385.8735,
+      "candidate_median_ms": 8302.7784,
+      "paired_difference_median_ms": -362.52605,
+      "paired_percent_median": -3.6804850959707425,
+      "paired_percent_change_bootstrap_95": [
+        -12.306528180108788,
+        0.5170360319017409
+      ],
+      "median_difference_bootstrap_95_ms": [
+        -1148.9388,
+        42.4585
+      ]
+    }
+  },
+  "exploratory_all_pairs": {
+    "pairs": 48,
+    "baseline_median_ms": 8770.4061,
+    "candidate_median_ms": 8106.74865,
+    "paired_difference_median_ms": -104.84305,
+    "paired_percent_median": -1.281890223968496,
+    "paired_percent_change_bootstrap_95": [
+      -3.4331837847699886,
+      1.7816691428675258
+    ],
+    "median_difference_bootstrap_95_ms": [
+      -294.3071,
+      133.3853
+    ]
+  },
+  "raw_pairs": [
+    {
+      "batch": "initial",
+      "round": 0,
+      "baseline_ns": 7628485000.0,
+      "candidate_ns": 7508541100.0
+    },
+    {
+      "batch": "initial",
+      "round": 1,
+      "baseline_ns": 7368337000.0,
+      "candidate_ns": 7657312200.0
+    },
+    {
+      "batch": "initial",
+      "round": 2,
+      "baseline_ns": 7402282400.0,
+      "candidate_ns": 8666955500.0
+    },
+    {
+      "batch": "initial",
+      "round": 3,
+      "baseline_ns": 7267733500.0,
+      "candidate_ns": 8612590700.0
+    },
+    {
+      "batch": "initial",
+      "round": 4,
+      "baseline_ns": 7060389900.0,
+      "candidate_ns": 7530090100.0
+    },
+    {
+      "batch": "initial",
+      "round": 5,
+      "baseline_ns": 7271684700.0,
+      "candidate_ns": 7022034400.0
+    },
+    {
+      "batch": "initial",
+      "round": 6,
+      "baseline_ns": 7064539700.0,
+      "candidate_ns": 7299522000.0
+    },
+    {
+      "batch": "initial",
+      "round": 7,
+      "baseline_ns": 7045110600.0,
+      "candidate_ns": 7066155700.0
+    },
+    {
+      "batch": "initial",
+      "round": 8,
+      "baseline_ns": 8552784700.0,
+      "candidate_ns": 8743517400.0
+    },
+    {
+      "batch": "initial",
+      "round": 9,
+      "baseline_ns": 7504850500.0,
+      "candidate_ns": 7287233300.0
+    },
+    {
+      "batch": "initial",
+      "round": 10,
+      "baseline_ns": 7605317600.0,
+      "candidate_ns": 7236877100.0
+    },
+    {
+      "batch": "initial",
+      "round": 11,
+      "baseline_ns": 7472644900.0,
+      "candidate_ns": 7701093100.0
+    },
+    {
+      "batch": "initial",
+      "round": 12,
+      "baseline_ns": 7645079500.0,
+      "candidate_ns": 9179296100.0
+    },
+    {
+      "batch": "initial",
+      "round": 13,
+      "baseline_ns": 12061595100.0,
+      "candidate_ns": 8026425300.0
+    },
+    {
+      "batch": "initial",
+      "round": 14,
+      "baseline_ns": 11831426300.0,
+      "candidate_ns": 9479966100.0
+    },
+    {
+      "batch": "initial",
+      "round": 15,
+      "baseline_ns": 12375239000.0,
+      "candidate_ns": 11149111700.0
+    },
+    {
+      "batch": "initial",
+      "round": 16,
+      "baseline_ns": 11916576200.0,
+      "candidate_ns": 12849099900.0
+    },
+    {
+      "batch": "initial",
+      "round": 17,
+      "baseline_ns": 13837495500.0,
+      "candidate_ns": 13361785300.0
+    },
+    {
+      "batch": "initial",
+      "round": 18,
+      "baseline_ns": 10433071300.0,
+      "candidate_ns": 10179437300.0
+    },
+    {
+      "batch": "initial",
+      "round": 19,
+      "baseline_ns": 11025461300.0,
+      "candidate_ns": 10415092900.0
+    },
+    {
+      "batch": "initial",
+      "round": 20,
+      "baseline_ns": 11475245800.0,
+      "candidate_ns": 10521027500.0
+    },
+    {
+      "batch": "initial",
+      "round": 21,
+      "baseline_ns": 9408953800.0,
+      "candidate_ns": 10198901200.0
+    },
+    {
+      "batch": "initial",
+      "round": 22,
+      "baseline_ns": 8988027500.0,
+      "candidate_ns": 7548907200.0
+    },
+    {
+      "batch": "initial",
+      "round": 23,
+      "baseline_ns": 9952737700.0,
+      "candidate_ns": 7744311200.0
+    },
+    {
+      "batch": "initial",
+      "round": 24,
+      "baseline_ns": 9302649000.0,
+      "candidate_ns": 12295557600.0
+    },
+    {
+      "batch": "initial",
+      "round": 25,
+      "baseline_ns": 7347453000.0,
+      "candidate_ns": 8248200600.0
+    },
+    {
+      "batch": "initial",
+      "round": 26,
+      "baseline_ns": 7613674800.0,
+      "candidate_ns": 7524153600.0
+    },
+    {
+      "batch": "initial",
+      "round": 27,
+      "baseline_ns": 7652463000.0,
+      "candidate_ns": 7689677600.0
+    },
+    {
+      "batch": "initial",
+      "round": 28,
+      "baseline_ns": 7200513000.0,
+      "candidate_ns": 7361501200.0
+    },
+    {
+      "batch": "initial",
+      "round": 29,
+      "baseline_ns": 7139658600.0,
+      "candidate_ns": 7139039600.0
+    },
+    {
+      "batch": "initial",
+      "round": 30,
+      "baseline_ns": 7170787300.0,
+      "candidate_ns": 7036060100.0
+    },
+    {
+      "batch": "initial",
+      "round": 31,
+      "baseline_ns": 7075027700.0,
+      "candidate_ns": 7296920200.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 0,
+      "baseline_ns": 7138932100.0,
+      "candidate_ns": 7283624600.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 1,
+      "baseline_ns": 8211903500.0,
+      "candidate_ns": 8254362000.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 2,
+      "baseline_ns": 7486535900.0,
+      "candidate_ns": 7619921200.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 3,
+      "baseline_ns": 9413098700.0,
+      "candidate_ns": 7951675400.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 4,
+      "baseline_ns": 9130220100.0,
+      "candidate_ns": 8351194800.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 5,
+      "baseline_ns": 9336010800.0,
+      "candidate_ns": 8187072000.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 6,
+      "baseline_ns": 7392054600.0,
+      "candidate_ns": 7302312400.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 7,
+      "baseline_ns": 9566433900.0,
+      "candidate_ns": 7874757600.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 8,
+      "baseline_ns": 10902988400.0,
+      "candidate_ns": 14149244400.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 9,
+      "baseline_ns": 13772299300.0,
+      "candidate_ns": 14665660100.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 10,
+      "baseline_ns": 10669760500.0,
+      "candidate_ns": 10375453400.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 11,
+      "baseline_ns": 13054857000.0,
+      "candidate_ns": 10560023500.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 12,
+      "baseline_ns": 10554982600.0,
+      "candidate_ns": 7583056000.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 13,
+      "baseline_ns": 9358648300.0,
+      "candidate_ns": 8927903300.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 14,
+      "baseline_ns": 9120163100.0,
+      "candidate_ns": 8997064200.0
+    },
+    {
+      "batch": "confirmation",
+      "round": 15,
+      "baseline_ns": 9753817000.0,
+      "candidate_ns": 9214090300.0
+    }
+  ],
+  "phase_medians_ms": {
+    "a": {
+      "05": 30.863,
+      "05.01.a_discover_call_catalog": 104.143,
+      "05.01.b_admit_bodies": 2.965,
+      "05.01.c_lower_structural_types": 25.828,
+      "05.01.d_lower_domains_and_services": 165.826,
+      "05.01.e_prepare_qualifications": 4.117,
+      "05.01.f_lower_signatures": 36.036,
+      "05.01.g1.1_setup": 16.6,
+      "05.01.g1.2_emit_states": 393.795,
+      "05.01.g1.3_finish": 21.643,
+      "05.01.g1.3a_requires": 0.415,
+      "05.01.g1.3b_places": 3.638,
+      "05.01.g1.3c_loans": 0.164,
+      "05.01.g1.3d_continuations": 2.063,
+      "05.01.g1.3e.1_owned_extractions": 0.057,
+      "05.01.g1.3e.2_complete_carriers": 14.566,
+      "05.01.g1.3e.3_projected_transfers": 0.67,
+      "05.01.g1.3e.4_retire_borrowed": 0.099,
+      "05.01.g1.3e_affine_cleanup": 14.413,
+      "05.01.g1.3f_crash_and_ranking": 0.182,
+      "05.01.g1_emit_composed_body": 510.958,
+      "05.01.g2_emit_ordinary_body": 76.045,
+      "05.01.h_provider_conformances": 0.066,
+      "05.01_lower_selected_machine": 951.822,
+      "05.02_declarations_retain": 5.617,
+      "05.03_nominal_cleanup_roles": 0.189,
+      "05.04_closed_reach_applications": 0.009,
+      "05.05_reborrow_restored_call_use": 0.008,
+      "05.06_placed_and_suspension": 0.029,
+      "05.07_operation_crash_contracts": 0.154,
+      "05.08_conformance_and_dyn": 0.048,
+      "05.09_build_providers": 0.018,
+      "05.10_reconcile_and_residences": 703.628,
+      "05.11_evidence_artifacts": 0.215,
+      "05.a.source_completion": 0.011,
+      "05.b.retained_match": 7.424,
+      "05.boundary_applications": 0.217,
+      "05.callback_applications": 0.003,
+      "05.debug_map": 0.001,
+      "05.e.declaration_authority": 12.298,
+      "05.identities_build": 0.007,
+      "05.lower_terminal_selection": 1627.025,
+      "05.validate_runtime_evidence_inputs": 0.01,
+      "06.0.b_admit_permissions_and_trust": 0.492,
+      "06.0.c_report_prepare": 0.015,
+      "06.0.d_finish_terminal_application": 4.493,
+      "06.0.e_produce_native_product": 2847.503,
+      "06.0.f_settlement_finish_native": 0.019,
+      "06.1.a_prepare_terminal": 0.005,
+      "06.1.b_admit_target_layouts": 0.001,
+      "06.1.c1_prepare_native_execution": 19.483,
+      "06.1.c2_prepare_native_providers": 0.008,
+      "06.1.c3_admit_prepared_native_realization": 1.931,
+      "06.1.c4_admit_executable_entry": 3.182,
+      "06.1.c5_capture_native_admission": 0.014,
+      "06.1.d.01_lower_to_target": 342.607,
+      "06.1.d.04_stage_instruction_selection": 217.887,
+      "06.1.d.04b_optimize_selected_instructions": 124.016,
+      "06.1.d.05.b_fixed_occurrences": 19.849,
+      "06.1.d.05.c2_initial_assign": 0.107,
+      "06.1.d.05.c_initial_analyze": 53.119,
+      "06.1.d.05.d_split_probe": 30.042,
+      "06.1.d.05.e_remat_probe": 14.106,
+      "06.1.d.05.f_crossing_spill": 17.444,
+      "06.1.d.05.g2_crossing_probe_all": 8.37,
+      "06.1.d.05.g_crossing_reanalyze": 16.196,
+      "06.1.d.05.h_bounded_spill": 286.734,
+      "06.1.d.05.i.1_liveness": 125.406,
+      "06.1.d.05.i.2_live_ranges": 147.707,
+      "06.1.d.05.i.3_legality": 86.653,
+      "06.1.d.05.i_batch_reanalyze": 302.576,
+      "06.1.d.05.j.1_build_domains": 54.101,
+      "06.1.d.05.j.2_prepared_conflicts": 51.108,
+      "06.1.d.05.j.3_compute_bitmask": 81.207,
+      "06.1.d.05.j_probe_all": 183.532,
+      "06.1.d.05.k_seal_and_manifest": 89.694,
+      "06.1.d.05.pressure.unplaced_victim": 0.597,
+      "06.1.d.05.spill.derive": 166.358,
+      "06.1.d.05.spill.mutate": 95.157,
+      "06.1.d.05.spill.seal": 38.539,
+      "06.1.d.05_stage_register_allocation": 1166.932,
+      "06.1.d.06.a_post_allocation_machine": 249.647,
+      "06.1.d.06.b_stage_function_frame": 22.59,
+      "06.1.d.06.c_selected_form_encoding": 163.776,
+      "06.1.d.06.d_resolved_selected_form_layout": 84.107,
+      "06.1.d.06.e_resolved_layout_opt": 0.006,
+      "06.1.d.06.f_assemble_fixed_frame": 168.341,
+      "06.1.d.06.g_emit_fragment_object": 164.785,
+      "06.1.d.06_stage_frame_realization": 874.016,
+      "06.1.d_emit_realization_object": 31.193,
+      "06.1.e_emit_admitted_image": 1.261,
+      "build.admit_outputs": 2.619,
+      "build.create_session": 194.836,
+      "build.resolve_sources": 1630.643,
+      "component.cache.recovery": 1129.026,
+      "evaluate_or_defer.check_defer": 1.458,
+      "evaluate_or_defer.check_defer.const_applications": 0.329,
+      "evaluate_or_defer.check_defer.endpoint_calls": 0.404,
+      "evaluate_or_defer.check_defer.independent_lengths": 0.45,
+      "evaluate_or_defer.check_defer.memberships": 0.01,
+      "evaluate_or_defer.evaluate_work": 4.692,
+      "evaluate_or_defer.evaluate_work.const_applications": 1.133,
+      "evaluate_or_defer.evaluate_work.const_array_lengths": 1.528,
+      "evaluate_or_defer.evaluate_work.domain_facts": 0.008,
+      "evaluate_or_defer.evaluate_work.dynamic_call_targets": 0.521,
+      "evaluate_or_defer.evaluate_work.placed_view_plans": 0.004,
+      "evaluate_or_defer.evaluate_work.plan_laid_layouts": 0.005,
+      "evaluate_or_defer.evaluate_work.range_endpoints": 1.767,
+      "evaluate_or_defer.evaluate_work.wire_plans": 0.006,
+      "evaluate_or_defer.finish": 0.222,
+      "evaluate_or_defer.finish.settle_target_observations": 0.133,
+      "evaluate_or_defer.finish.validate_retained_invocations": 0.087,
+      "psi.source.complete_authored": 4.788,
+      "psi.source.finish": 8.297,
+      "source.graph.decode.checks": 591.165,
+      "source.graph.decode.finish": 1.083,
+      "source.graph.decode.preparation": 168.309,
+      "source.graph.decode.sources": 138.615,
+      "source.graph.load.decode": 864.827,
+      "source.graph.load.digest": 182.495,
+      "source.graph.load.read": 168.564,
+      "source.graph.load.require_after": 28.637,
+      "source.graph.load.require_before": 27.493,
+      "typed_trees::collect_program_references": 124.828,
+      "typed_trees::program_scoped_proof_facts": 0.263
+    },
+    "b": {
+      "05": 28.705,
+      "05.01.a_discover_call_catalog": 109.309,
+      "05.01.b_admit_bodies": 3.104,
+      "05.01.c_lower_structural_types": 26.562,
+      "05.01.d_lower_domains_and_services": 134.035,
+      "05.01.e_prepare_qualifications": 3.466,
+      "05.01.f_lower_signatures": 32.3,
+      "05.01.g1.1_setup": 17.003,
+      "05.01.g1.2_emit_states": 396.726,
+      "05.01.g1.3_finish": 20.858,
+      "05.01.g1.3a_requires": 0.373,
+      "05.01.g1.3b_places": 3.624,
+      "05.01.g1.3c_loans": 0.142,
+      "05.01.g1.3d_continuations": 2.059,
+      "05.01.g1.3e.1_owned_extractions": 0.061,
+      "05.01.g1.3e.2_complete_carriers": 13.522,
+      "05.01.g1.3e.3_projected_transfers": 0.687,
+      "05.01.g1.3e.4_retire_borrowed": 0.108,
+      "05.01.g1.3e_affine_cleanup": 13.714,
+      "05.01.g1.3f_crash_and_ranking": 0.163,
+      "05.01.g1_emit_composed_body": 505.861,
+      "05.01.g2_emit_ordinary_body": 97.43,
+      "05.01.h_provider_conformances": 0.044,
+      "05.01_lower_selected_machine": 910.354,
+      "05.02_declarations_retain": 5.813,
+      "05.03_nominal_cleanup_roles": 0.17,
+      "05.04_closed_reach_applications": 0.01,
+      "05.05_reborrow_restored_call_use": 0.007,
+      "05.06_placed_and_suspension": 0.039,
+      "05.07_operation_crash_contracts": 0.143,
+      "05.08_conformance_and_dyn": 0.034,
+      "05.09_build_providers": 0.015,
+      "05.10_reconcile_and_residences": 750.432,
+      "05.11_evidence_artifacts": 0.196,
+      "05.a.source_completion": 0.011,
+      "05.b.retained_match": 6.027,
+      "05.boundary_applications": 0.223,
+      "05.callback_applications": 0.002,
+      "05.debug_map": 0.001,
+      "05.e.declaration_authority": 11.731,
+      "05.identities_build": 0.004,
+      "05.lower_terminal_selection": 1666.41,
+      "05.validate_runtime_evidence_inputs": 0.009,
+      "06.0.b_admit_permissions_and_trust": 0.699,
+      "06.0.c_report_prepare": 0.015,
+      "06.0.d_finish_terminal_application": 6.074,
+      "06.0.e_produce_native_product": 3009.896,
+      "06.0.f_settlement_finish_native": 0.022,
+      "06.1.a_prepare_terminal": 0.005,
+      "06.1.b_admit_target_layouts": 0.0,
+      "06.1.c1_prepare_native_execution": 22.525,
+      "06.1.c2_prepare_native_providers": 0.005,
+      "06.1.c3_admit_prepared_native_realization": 1.421,
+      "06.1.c4_admit_executable_entry": 3.006,
+      "06.1.c5_capture_native_admission": 0.02,
+      "06.1.d.01_lower_to_target": 370.685,
+      "06.1.d.04_stage_instruction_selection": 258.35,
+      "06.1.d.04b_optimize_selected_instructions": 134.275,
+      "06.1.d.05.b_fixed_occurrences": 19.593,
+      "06.1.d.05.c2_initial_assign": 0.099,
+      "06.1.d.05.c_initial_analyze": 61.017,
+      "06.1.d.05.d_split_probe": 30.794,
+      "06.1.d.05.e_remat_probe": 14.795,
+      "06.1.d.05.f_crossing_spill": 17.544,
+      "06.1.d.05.g2_crossing_probe_all": 8.674,
+      "06.1.d.05.g_crossing_reanalyze": 17.881,
+      "06.1.d.05.h_bounded_spill": 310.963,
+      "06.1.d.05.i.1_liveness": 129.352,
+      "06.1.d.05.i.2_live_ranges": 159.945,
+      "06.1.d.05.i.3_legality": 86.427,
+      "06.1.d.05.i_batch_reanalyze": 304.743,
+      "06.1.d.05.j.1_build_domains": 55.052,
+      "06.1.d.05.j.2_prepared_conflicts": 51.775,
+      "06.1.d.05.j.3_compute_bitmask": 82.948,
+      "06.1.d.05.j_probe_all": 186.527,
+      "06.1.d.05.k_seal_and_manifest": 109.018,
+      "06.1.d.05.pressure.unplaced_victim": 0.681,
+      "06.1.d.05.spill.derive": 185.263,
+      "06.1.d.05.spill.mutate": 100.43,
+      "06.1.d.05.spill.seal": 39.429,
+      "06.1.d.05_stage_register_allocation": 1251.251,
+      "06.1.d.06.a_post_allocation_machine": 273.828,
+      "06.1.d.06.b_stage_function_frame": 23.482,
+      "06.1.d.06.c_selected_form_encoding": 139.262,
+      "06.1.d.06.d_resolved_selected_form_layout": 88.853,
+      "06.1.d.06.e_resolved_layout_opt": 0.013,
+      "06.1.d.06.f_assemble_fixed_frame": 168.903,
+      "06.1.d.06.g_emit_fragment_object": 186.145,
+      "06.1.d.06_stage_frame_realization": 875.393,
+      "06.1.d_emit_realization_object": 34.941,
+      "06.1.e_emit_admitted_image": 1.324,
+      "build.admit_outputs": 2.446,
+      "build.create_session": 241.455,
+      "build.resolve_sources": 1823.687,
+      "component.cache.recovery": 1197.863,
+      "evaluate_or_defer.check_defer": 1.8,
+      "evaluate_or_defer.check_defer.const_applications": 0.403,
+      "evaluate_or_defer.check_defer.endpoint_calls": 0.465,
+      "evaluate_or_defer.check_defer.independent_lengths": 0.553,
+      "evaluate_or_defer.check_defer.memberships": 0.009,
+      "evaluate_or_defer.evaluate_work": 4.548,
+      "evaluate_or_defer.evaluate_work.const_applications": 0.872,
+      "evaluate_or_defer.evaluate_work.const_array_lengths": 1.614,
+      "evaluate_or_defer.evaluate_work.domain_facts": 0.009,
+      "evaluate_or_defer.evaluate_work.dynamic_call_targets": 0.58,
+      "evaluate_or_defer.evaluate_work.placed_view_plans": 0.004,
+      "evaluate_or_defer.evaluate_work.plan_laid_layouts": 0.005,
+      "evaluate_or_defer.evaluate_work.range_endpoints": 1.274,
+      "evaluate_or_defer.evaluate_work.wire_plans": 0.005,
+      "evaluate_or_defer.finish": 0.269,
+      "evaluate_or_defer.finish.settle_target_observations": 0.121,
+      "evaluate_or_defer.finish.validate_retained_invocations": 0.119,
+      "psi.source.complete_authored": 3.83,
+      "psi.source.finish": 6.805,
+      "source.graph.decode.checks": 460.824,
+      "source.graph.decode.finish": 1.508,
+      "source.graph.decode.preparation": 142.517,
+      "source.graph.decode.sources": 126.362,
+      "source.graph.load.decode": 715.993,
+      "source.graph.load.digest": 184.946,
+      "source.graph.load.read": 178.063,
+      "source.graph.load.require_after": 35.965,
+      "source.graph.load.require_before": 37.845,
+      "typed_trees::collect_program_references": 112.686,
+      "typed_trees::program_scoped_proof_facts": 0.266
+    }
+  },
+  "validated_image": {
+    "sha256": "684381a49a8c10a800488f83e2d3cf5cd230ecd82b6bafddf8f930eb4a7187a3",
+    "bytes": 5346755
+  },
+  "compile_observations": 112,
+  "descriptive_spread": {
+    "initial": {
+      "before": {
+        "minimum_s": 7.0451106,
+        "observed_p95_s": 12.375239,
+        "maximum_s": 13.8374955
+      },
+      "after": {
+        "minimum_s": 7.0220344,
+        "observed_p95_s": 12.8490999,
+        "maximum_s": 13.3617853
+      }
+    },
+    "confirmation": {
+      "before": {
+        "minimum_s": 7.1389321,
+        "observed_p95_s": 13.7722993,
+        "maximum_s": 13.7722993
+      },
+      "after": {
+        "minimum_s": 7.2836246,
+        "observed_p95_s": 14.6656601,
+        "maximum_s": 14.6656601
+      }
+    }
+  },
+  "ordinary_resource_observations": {
+    "a": {
+      "observations": 53,
+      "peak_job_committed_median_bytes": 2264039424,
+      "peak_job_committed_max_bytes": 4770422784
+    },
+    "b": {
+      "observations": 53,
+      "peak_job_committed_median_bytes": 2261651456,
+      "peak_job_committed_max_bytes": 5005094912
+    }
+  }
+}

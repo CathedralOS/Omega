@@ -5,6 +5,8 @@
 
 mod applications;
 mod body_candidates;
+mod provider_requirements;
 
 pub(crate) use applications::bind_boundary_operator_application_demands;
 pub(crate) use body_candidates::retain_boundary_body_candidates;
+pub(crate) use provider_requirements::retain_provider_requirements;

@@ -1,0 +1,55 @@
+{
+  "pass/calls/runtime_numeric_operand_order_exit": {
+    "build.omg": "6fd974fd8880bee344acc5dfa233ad321dfd6d85d6893ec7990a8a5026761171",
+    "expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "main.omg": "30acb6433f417e223a8c6c2526aa03bc85d8dce44620bc39bdfd159578a11f00"
+  },
+  "pass/calls/runtime_numeric_operand_single_evaluation_exit": {
+    "build.omg": "b6726fdb71393fe1cd9597b742f9ecbb65b55ece48650138f0c8febc7fe3cb3a",
+    "expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "main.omg": "ac844f079f13e30c249930db40ff91ff9bd564097b3fd94e623d83a6ba3c43ed"
+  },
+  "pass/calls/selected_contract_equation_reentry_exit": {
+    "build.omg": "56b650139c1eb42a68d192cb5767f0c2db6a6670f4111a8f2e8e836501aeccee",
+    "expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "main.omg": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d"
+  },
+  "pass/borrows/runtime_reference_call_scalar_snapshot_exit": {
+    "build.omg": "ad8218a980a883e44fc2f44eeb541e02e675420a13aeafe26ed8b3c5eb5ed3b6",
+    "expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "main.omg": "30b57a72075d7f8d09cbb0359f378a7a4ea033045726eb2899bc5a9fcd94f7bb"
+  },
+  "pass/facts/copied_call_argument_snapshot_through_match_join_exit": {
+    "build.omg": "1be529ba4fa1d701ab880a8fc146cab37454763f848d4936c2761976995965d6",
+    "expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "main.omg": "c18ec1b1ab65aff37eb08db26e8e7cea8bf220bce466c91ef6a7066bf7759ab0"
+  },
+  "fail/calls/authored_numeric_name_requires": {
+    "expected.txt": "410e5c3ed3cd594f859dca54763c2343151f04b7afc14ab023365c9f604dc67e",
+    "main.omg": "efc010e06bb1fddfd534a7a9f38e6a5a35d4565a726f816dda2745f3c22d4403"
+  },
+  "fail/calls/selected_contract_equation_reentry_unproved_requirement": {
+    "expected.txt": "4d4d7c446ba4ed580871f5ca36ba6a5a08f2dc20c6ec91244c9588ec912fac3e",
+    "main.omg": "be9246b95e2b785a7e6b3658ddf10d022781833dfaaba179031ce89c92e97868"
+  },
+  "fail/arithmetic/numeric_operand_abs_unrepresentable": {
+    "build.omg": "91126f1d6cc5ce634dc6249e9324631182aeba45ec566cde71c4cf40733e2a42",
+    "expected.txt": "53ed6a9b824119e9ca743caa79a9697b6bfef0f03d477288bc606c33b730b12b",
+    "main.omg": "44af9d36521dd5b6d5062c74120c2a0b019d92a5fef0e24812b695ac948b6926"
+  },
+  "fail/calls/closed_constructor_requires_restricted_nested_call_rejected": {
+    "build.omg": "9cfc34086d56d96e65a1f74500cee5f851a36ec60f9449e412ff7c174ac7ca4e",
+    "expected.txt": "ed1433f89ef013df5087054f15ff949e0aea2a61ed7f2850e81c7078ffef4309",
+    "main.omg": "6e9be0f33a8fe89a8a88bc9c28cc8e8234abd8a4902e60a921d6fc300f63e187"
+  },
+  "fail/borrow/scalar_reference_result_does_not_preserve_mutated_bound": {
+    "expected.txt": "2a8c9002e80f12293061175e06692cc32fadc2c8c17b3cfdd73fd33bb96d67a4",
+    "main.omg": "2fded616d38c11fe819788b6ea3a97f63901a0012c85ee6d10d3ddc4deb24456"
+  },
+  "fail/calls/copied_argument_ensures_cannot_restore_callee_mutated_source": {
+    "expected.txt": "6ef648e33a6044ce0cab9c10aae6f7bc6b176f2db405b50ad9528b23232f4afe",
+    "main.omg": "ad21f8d978e8452defa96c41e7eb023b6a0c61d0169dbbdf9788c96b4d3a95c4"
+  }
+}

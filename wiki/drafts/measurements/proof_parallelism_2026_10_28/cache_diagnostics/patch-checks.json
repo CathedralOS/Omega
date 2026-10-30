@@ -1,0 +1,12 @@
+[
+  {
+    "patch": "instrumentation.patch",
+    "base": "6f7ebcd23c1",
+    "applies": true
+  },
+  {
+    "patch": "cost-instrumentation.patch",
+    "base": "6f7ebcd23c1",
+    "applies": true
+  }
+]

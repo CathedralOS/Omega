@@ -5,8 +5,8 @@ use omega::language::core::content;
 use omega::language::core::drop;
 data Units {}
 data Payload {}
-data Region [linear] { amount: u64; }
-machine Region::drop(region: &mut Region) {}
+data Region [linear] dropped by cleanup_region { amount: u64; }
+machine cleanup_region(region: &mut Region) {}
 domain Region::Owned;
 machine Owned::content(region: &Region) -> CountedQuantity<Units>
 satisfies Content<Region, CountedQuantity<Units>>::project {
@@ -16,22 +16,34 @@ trait Transfer<T> {
     machine transfer(region: Region in Owned) -> Region in Owned
     ensures Owned::content(old(&region)) == Owned::content(&result);
 }
-machine retain(region: Region in Owned) -> Region in Owned
-satisfies Transfer<Payload>::transfer
-ensures Owned::content(old(&region)) == Owned::content(&result)
-{ region }
+ConservingTransfer satisfies Transfer<Payload> {
+    machine transfer(region: Region in Owned) -> Region in Owned
+    ensures Owned::content(old(&region)) == Owned::content(&result)
+    { region }
+}
 machine observe(region: Region in Owned) -> u64 {
     let observed: u64 = region.amount;
     drop(region);
     observed
 }
-machine choose(region: Region in Owned, select: bool) -> Region in Owned {
+// The tag makes a wrong selected arm observable without changing the counted payload.
+data BranchValue { region: Region in Owned; selected: bool; }
+machine choose(region: Region in Owned, select: bool) -> BranchValue {
     transition select { true -> left(region) _ -> right(region) }
-    machine left(region: Region in Owned) -> Region in Owned { retain(region) }
-    machine right(region: Region in Owned) -> Region in Owned { retain(region) }
+    machine left(region: Region in Owned) -> BranchValue {
+        BranchValue { region: ConservingTransfer::transfer(region), selected: true }
+    }
+    machine right(region: Region in Owned) -> BranchValue {
+        BranchValue { region: ConservingTransfer::transfer(region), selected: false }
+    }
 }
 machine exercise(select: bool) -> u64 {
-    observe(choose(Region { amount: 29 }, select))
+    let chosen: BranchValue = choose(Region { amount: 29 }, select);
+    let selected: bool = chosen.selected;
+    let amount: u64 = observe(chosen.region);
+    transition selected == select { true -> checked(amount) _ -> wrong_arm() }
+    machine checked(amount: u64) -> u64 { amount }
+    machine wrong_arm() -> u64 { 0 }
 }
 machine main() crashes Trap {
     let first: u64 = exercise(true);

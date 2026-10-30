@@ -1,0 +1,207 @@
+{
+  "base": "bdf900b6c810ed0a091290bd35a46668c33bf35a",
+  "producer": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\spill-cost\\diagnostic\\producer\\omega.exe",
+    "sha256": "81520833f25327bba3acb38a4242ca5b626a6bca2264070f645e8d899317c4f8",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    },
+    "source_revision": "4ec622160d33dd7271c4b85b24023c703b62904b"
+  },
+  "diagnostic_only": true,
+  "qualification": {
+    "id": "1ee463dc11c642d2ac5ce88fc5f8f8e9",
+    "check": "spill-cost-attribution",
+    "revision": "4ec622160d33dd7271c4b85b24023c703b62904b",
+    "exit": 0,
+    "invalidations": [],
+    "receipt": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.records\\1ee463dc11c642d2ac5ce88fc5f8f8e9.json",
+      "sha256": "c201ef44b4194fc43dc6efa70640ad8c827c7ee5ace9198d049d33a761dafafa"
+    }
+  },
+  "bound_outputs": 125,
+  "warm": [
+    {
+      "subject": "length",
+      "wall_ms": 611.0633999924175,
+      "cli_elapsed_ms": 326.784,
+      "root_cpu": {
+        "kernel_ms": 234.375,
+        "user_ms": 218.75
+      },
+      "spans": {
+        "06.1.d.05.j.1_build_domains": [
+          0.019,
+          4
+        ],
+        "06.1.d.05.j.2_prepared_conflicts": [
+          0.015,
+          4
+        ],
+        "06.1.d.05.j.3_compute_bitmask": [
+          0.016,
+          4
+        ]
+      }
+    },
+    {
+      "subject": "dispatch",
+      "wall_ms": 633.2021000125678,
+      "cli_elapsed_ms": 309.096,
+      "root_cpu": {
+        "kernel_ms": 296.875,
+        "user_ms": 140.625
+      },
+      "spans": {
+        "06.1.d.05.j.1_build_domains": [
+          0.014,
+          5
+        ],
+        "06.1.d.05.j.2_prepared_conflicts": [
+          0.021,
+          5
+        ],
+        "06.1.d.05.j.3_compute_bitmask": [
+          0.014,
+          5
+        ]
+      }
+    },
+    {
+      "subject": "stack32",
+      "wall_ms": 946.8338999868138,
+      "cli_elapsed_ms": 804.995,
+      "root_cpu": {
+        "kernel_ms": 265.625,
+        "user_ms": 656.25
+      },
+      "spans": {
+        "06.1.d.05.b_fixed_occurrences": [
+          0.899,
+          1
+        ],
+        "06.1.d.05.c2_initial_assign": [
+          1.267,
+          1
+        ],
+        "06.1.d.05.c_initial_analyze": [
+          3.664,
+          1
+        ],
+        "06.1.d.05.d_split_probe": [
+          8.558,
+          2187
+        ],
+        "06.1.d.05.e_remat_probe": [
+          7.223,
+          2187
+        ],
+        "06.1.d.05.f_crossing_spill": [
+          1.122,
+          7
+        ],
+        "06.1.d.05.h_bounded_spill": [
+          219.761,
+          2159
+        ],
+        "06.1.d.05.i.1_liveness": [
+          10.119,
+          13
+        ],
+        "06.1.d.05.i.2_live_ranges": [
+          17.265,
+          13
+        ],
+        "06.1.d.05.i.3_legality": [
+          7.125,
+          13
+        ],
+        "06.1.d.05.i_batch_reanalyze": [
+          31.234,
+          11
+        ],
+        "06.1.d.05.j.1_build_domains": [
+          5.845,
+          20
+        ],
+        "06.1.d.05.j.2_prepared_conflicts": [
+          10.382,
+          20
+        ],
+        "06.1.d.05.j.3_compute_bitmask": [
+          13.245,
+          20
+        ],
+        "06.1.d.05.j_probe_all": [
+          27.273,
+          11
+        ],
+        "06.1.d.05.k_seal_and_manifest": [
+          7.37,
+          1
+        ],
+        "06.1.d.05.pressure.unplaced_victim": [
+          1.253,
+          2004
+        ],
+        "06.1.d.05.spill.derive": [
+          113.078,
+          2166
+        ],
+        "06.1.d.05.spill.mutate": [
+          70.02,
+          2166
+        ],
+        "06.1.d.05.spill.seal": [
+          36.074,
+          2166
+        ],
+        "diagnostic.spill.1_origin": [
+          7.884,
+          2166
+        ],
+        "diagnostic.spill.2_uses": [
+          2.803,
+          2166
+        ],
+        "diagnostic.spill.3_rows_budget": [
+          2.414,
+          2166
+        ],
+        "diagnostic.spill.4_dominance_ids": [
+          1.559,
+          2166
+        ],
+        "diagnostic.spill.5_spans": [
+          8.728,
+          2166
+        ],
+        "diagnostic.spill.6_unit_effects": [
+          10.994,
+          2166
+        ],
+        "diagnostic.spill.7_slots": [
+          75.894,
+          2166
+        ]
+      }
+    }
+  ],
+  "controls": {
+    "qualification": {
+      "validation": 18,
+      "controls": 6
+    },
+    "lookup-controls": {
+      "validation": 0,
+      "controls": 5
+    },
+    "junction-controls": {
+      "validation": 0,
+      "controls": 4
+    }
+  },
+  "decision": "Attribution only: slot assignment dominates admission, but eliminating it alone cannot support the whole-process target on this run. Preserve custody/frame limits; no private-slot retry. Remove timers and test the independent edge-capture construction hypothesis."
+}

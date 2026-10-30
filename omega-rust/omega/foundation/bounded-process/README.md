@@ -20,6 +20,16 @@ accounts for aggregate retained output. `lib.rs` only wires and exports these
 owners. Callers can also use the prepared-child lifecycle directly without
 requesting duplex capture.
 
+`BoundedProcessPrepared::observe_resources()` opts into native CPU, peak resident
+memory, fault and cycle observations retained in `BoundedProcessCompletion` and
+`BoundedProcessOutput`. Defaults keep the existing lifecycle. On Unix the opted-in
+owner reaps the exact child with `wait4` and retains its status; process-group
+cleanup still runs. Windows queries the owned primary handle before closing it.
+Each `ProcessResourceUsage` names its provider and accounting scope; unavailable
+metrics are `None`, including cycles on Unix. Windows peak working set is resident
+memory, and its total faults do not distinguish minor/major faults. See the
+[benchmark guide](../../../../../tools/benchmark/comparison.md) for units and uses.
+
 Windows uses a kill-on-close Job Object with process, memory, and CPU ceilings.
 Unix applies inherited resource-limit intersections, launches a process group,
 and kills that group during cleanup. A Unix descendant can deliberately detach

@@ -322,3 +322,200 @@ fn parameter_storage(
         })
         .collect()
 }
+
+#[cfg(target_os = "macos")]
+#[test]
+fn darwin_guest_errno_survives_worker_housekeeping() {
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let directory =
+        std::env::temp_dir().join(format!("omega-worker-errno-{}-{nonce}", std::process::id()));
+    std::fs::create_dir(&directory).unwrap();
+    let fixture =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/physical_tests/errno.c");
+    let mut libraries = Vec::new();
+    for image_ordinal in 0..2 {
+        let library = directory.join(format!("liberrno-{image_ordinal}.dylib"));
+        compile(
+            Command::new(std::env::var_os("CC").unwrap_or_else(|| "cc".into()))
+                .args([
+                    "-std=c11",
+                    "-O2",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    "-dynamiclib",
+                ])
+                .arg(format!("-Wl,-install_name,{}", library.display()))
+                .arg(&fixture)
+                .arg("-o")
+                .arg(&library),
+        );
+        libraries.push(library);
+    }
+    let profile = TargetProfile::host();
+    let target = profile.native_target();
+    let product = |library: &str, symbol: &str, parameters: Vec<ValueShape>, result, tag| {
+        let bridge = emit_native_foreign_bridge(NativeForeignBridgeRequest {
+            target,
+            scalar_parameters: vec![None; parameters.len()],
+            foreign: evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature { parameters, result },
+            )
+            .unwrap(),
+        })
+        .unwrap();
+        image_emission::emit_native_foreign_adapter(
+            bridge,
+            normalize_foreign_locator(
+                ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name: library.as_bytes().to_vec(),
+                    symbol: symbol.as_bytes().to_vec(),
+                },
+                profile,
+            )
+            .unwrap(),
+            [tag; 32],
+        )
+        .unwrap()
+    };
+    let word = ValueShape::integer(8, 8);
+    let integer = ValueShape::integer(4, 4);
+    let system = "/usr/lib/libSystem.B.dylib";
+    let products = [
+        product(system, "_close", vec![integer], Some(integer), 1),
+        product(system, "___error", vec![], Some(word), 2),
+        product(
+            system,
+            "_memcpy",
+            vec![ValueShape::borrowed_reference(4, 4), word, word],
+            Some(word),
+            3,
+        ),
+        product(system, "_getpid", vec![], Some(integer), 4),
+        product(
+            libraries[0].to_str().unwrap(),
+            "_errno_success_changes",
+            vec![],
+            Some(word),
+            5,
+        ),
+        product(
+            libraries[1].to_str().unwrap(),
+            "_errno_success_changes",
+            vec![],
+            Some(word),
+            6,
+        ),
+    ];
+    let mut command = Command::new(std::env::current_exe().unwrap());
+    command.args([
+        "--exact",
+        "physical_tests::internal_native_provider_worker",
+        "--nocapture",
+    ]);
+    let mut process = NativeProviderProcess::launch(command, TIMEOUT).unwrap();
+    let mut installed = Vec::new();
+    // The first poison image is loaded before the initial guest observation.
+    for adapter in &products[..5] {
+        installed.push(
+            process
+                .install(adapter, &parameter_storage(adapter))
+                .unwrap(),
+        );
+    }
+    let view_product = product(
+        libraries[0].to_str().unwrap(),
+        "_errno_copy_view",
+        vec![ValueShape::integer(16, 8)],
+        Some(word),
+        7,
+    );
+    let view_adapter = process
+        .install(
+            &view_product,
+            &[crate::NativeParameterStorage::OriginalByteView],
+        )
+        .unwrap();
+    let view_home = process.create_home(8, 1).unwrap();
+    process
+        .write_home(view_home, 0, &[23, 23, 0, 0, 0, 0, 37, 37])
+        .unwrap();
+    let observed = process.create_home(8, 4).unwrap();
+    process
+        .write_home(observed, 4, &0x1234_5678_u32.to_le_bytes())
+        .unwrap();
+    let errno_pointer = process.call(installed[1], &[]).unwrap();
+    assert_ne!(
+        u64::from_le_bytes(errno_pointer.clone().try_into().unwrap()),
+        0
+    );
+    let copy_errno = |process: &mut NativeProviderProcess, expected: libc::c_int| {
+        process
+            .call(
+                installed[2],
+                &[
+                    NativeArgument::Borrowed {
+                        home: observed,
+                        offset: 0,
+                    },
+                    NativeArgument::Value(&errno_pointer),
+                    NativeArgument::Value(&4_u64.to_le_bytes()),
+                ],
+            )
+            .unwrap();
+        let mut bytes = [0; 8];
+        process.read_home(observed, 0, &mut bytes).unwrap();
+        assert_eq!(i32::from_le_bytes(bytes[..4].try_into().unwrap()), expected);
+        assert_eq!(
+            u32::from_le_bytes(bytes[4..].try_into().unwrap()),
+            0x1234_5678
+        );
+        let copied = process
+            .call(
+                view_adapter,
+                &[NativeArgument::ByteView {
+                    home: view_home,
+                    offset: 2,
+                    length: 4,
+                }],
+            )
+            .unwrap();
+        assert_eq!(u64::from_le_bytes(copied.try_into().unwrap()), 4);
+        process.read_home(view_home, 0, &mut bytes).unwrap();
+        assert_eq!(&bytes[..2], &[23, 23]);
+        assert_eq!(
+            i32::from_le_bytes(bytes[2..6].try_into().unwrap()),
+            expected
+        );
+        assert_eq!(&bytes[6..], &[37, 37]);
+    };
+    copy_errno(&mut process, 0);
+    let failed = process
+        .call(
+            installed[0],
+            &[NativeArgument::Value(&(-1_i32).to_le_bytes())],
+        )
+        .unwrap();
+    assert_eq!(i32::from_le_bytes(failed.try_into().unwrap()), -1);
+    // Loading another produced image runs its constructor on the worker's TLS
+    // between the failed guest close and the authentic __error / memcpy calls.
+    process
+        .install(&products[5], &parameter_storage(&products[5]))
+        .unwrap();
+    let another_home = process.create_home(4096, 8).unwrap();
+    process.write_home(another_home, 0, &[91]).unwrap();
+    assert_eq!(process.call(installed[1], &[]).unwrap(), errno_pointer);
+    copy_errno(&mut process, libc::EBADF);
+    let pid = process.call(installed[3], &[]).unwrap();
+    assert!(i32::from_le_bytes(pid.try_into().unwrap()) > 0);
+    copy_errno(&mut process, libc::EBADF);
+    let successful = process.call(installed[4], &[]).unwrap();
+    assert_eq!(u64::from_le_bytes(successful.try_into().unwrap()), 37);
+    copy_errno(&mut process, libc::ENOENT);
+    process.close().unwrap();
+    std::fs::remove_dir_all(directory).unwrap();
+}

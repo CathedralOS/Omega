@@ -36,16 +36,18 @@ pub(crate) struct TerminalProductionView<'a> {
     provenance: &'a [provider_planning::SelectedProviderReviewProvenance],
     plan_facts: &'a effects::SelectedProviderPlanFacts,
     native_sources: &'a Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
-    callbacks: &'a [provider_planning::calling_policy_plans::SelectedCallbackPlacement],
+    callbacks: &'a psi_compiler::PreparedTerminalRoots,
     timings: &'a mut CompileTimings,
-    native_components: Option<&'a [Arc<compilation_products::IndependentComponentProduct>]>,
-    component_verdicts: &'a [Arc<component_description::VerifiedComponent>],
+    native_components:
+        Option<&'a Result<Vec<compilation_products::SelectedIndependentComponent>, String>>,
 }
 
 impl<'a> TerminalProductionView<'a> {
     pub(crate) fn selection(
         selection: &'a mut SelectedProviderCustody,
-        native_components: Option<&'a [Arc<compilation_products::IndependentComponentProduct>]>,
+        native_components: Option<
+            &'a Result<Vec<compilation_products::SelectedIndependentComponent>, String>,
+        >,
     ) -> Self {
         Self {
             program: &selection.execution.program,
@@ -59,10 +61,9 @@ impl<'a> TerminalProductionView<'a> {
             provenance: &selection.execution.selected_provider_provenance,
             plan_facts: &selection.execution.selected_provider_plan_facts,
             native_sources: &selection.execution.native_provider_sources,
-            callbacks: &selection.execution.callback_placements,
+            callbacks: &selection.execution.callback_roots,
             timings: &mut selection.timings,
             native_components,
-            component_verdicts: &selection.settlement.verified_independent_components,
         }
     }
 
@@ -82,10 +83,9 @@ impl<'a> TerminalProductionView<'a> {
             provenance: &checked.execution().selected_provider_provenance,
             plan_facts: &checked.execution().selected_provider_plan_facts,
             native_sources: &checked.execution().native_provider_sources,
-            callbacks: &checked.execution().callback_placements,
+            callbacks: &checked.execution().callback_roots,
             timings,
             native_components: None,
-            component_verdicts: &checked.providers().verified_independent_components,
         }
     }
 }
@@ -144,7 +144,7 @@ impl ProducedTerminalProduct {
             .execution
             .selected_target_profile
             .unwrap_or_else(target::TargetProfile::host);
-        super::scalar_completion::complete(
+        build_evaluation::scalar_completion::complete(
             artifact,
             target.target_name(),
             &[],
@@ -164,7 +164,7 @@ struct AdmittedTerminalProduct<'a> {
     request: TerminalProductRequest<'a>,
     selected_machine: symbols::SymbolHandle,
     signature_identity: Option<[u8; 32]>,
-    admission_roots: Vec<symbols::SymbolHandle>,
+    physical_adapter: symbols::SymbolHandle,
     policy: Option<TerminalBehaviorExclusions<'a>>,
     provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication,
 }
@@ -182,17 +182,12 @@ impl<'a> AdmittedTerminalProduct<'a> {
                 request,
                 selected_machine: Default::default(),
                 signature_identity: None,
-                admission_roots: Vec::new(),
+                physical_adapter: Default::default(),
                 policy: None,
                 provider_publication,
             });
         }
-        let entry = admit_terminal_production(
-            view.entry,
-            view.provenance,
-            view.native_components,
-            view.component_verdicts,
-        )?;
+        let entry = admit_terminal_production(view.entry, view.provenance, view.native_components)?;
         let selected_machine = entry.machine_symbol();
         let signature_identity = entry.source_signature().identity().bytes();
         let policy = TerminalBehaviorExclusions::new(
@@ -203,19 +198,14 @@ impl<'a> AdmittedTerminalProduct<'a> {
         );
         // Firmware starts in the selected adapter, not the semantic continuation.
         // Admit its behavior and callbacks while retaining the semantic receipt.
-        let admission_roots = view
-            .callbacks
-            .iter()
-            .map(|placement| placement.selected_machine)
-            .chain(entry.physical_adapter())
-            .collect();
+        let physical_adapter = entry.physical_adapter().unwrap_or_default();
         let provider_publication = prepare_target_provider_publication(view);
         Ok(Self {
             position,
             request,
             selected_machine,
             signature_identity: Some(signature_identity),
-            admission_roots,
+            physical_adapter,
             policy,
             provider_publication,
         })
@@ -230,7 +220,8 @@ impl<'a> AdmittedTerminalProduct<'a> {
 
     fn custody(&self) -> TerminalApplicationCustody<'_> {
         TerminalApplicationCustody {
-            admission_roots: &self.admission_roots,
+            callback_roots: Some(self.request.view.callbacks),
+            physical_adapter: self.physical_adapter,
             entry_identity: self.signature_identity,
             entry_machine: self.selected_machine.is_valid().then_some(
                 psi_compiler::TerminalMachineSelection::Symbol(self.selected_machine),
@@ -510,47 +501,14 @@ fn admit_terminal_production<'a>(
         &'a provider_planning::program_entry::SelectedCompilerProgramEntry,
     >,
     provenance: &[provider_planning::SelectedProviderReviewProvenance],
-    native_components: Option<&[Arc<compilation_products::IndependentComponentProduct>]>,
-    verdicts: &[Arc<component_description::VerifiedComponent>],
+    native_components: Option<
+        &Result<Vec<compilation_products::SelectedIndependentComponent>, String>,
+    >,
 ) -> Result<&'a provider_planning::program_entry::SelectedCompilerProgramEntry, Vec<Diagnostic>> {
     if let Some(products) = native_components {
-        for selected in provenance {
-            let mode = selected
-                .selected_by
-                .composition_mode()
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            if mode == provider_planning::CompositionMode::Fused {
-                continue;
-            }
-            let mut candidates = verdicts
-                .iter()
-                .filter(|component| component.realizes_selected_plan(&selected.plan).is_ok());
-            let component = candidates.next().ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "independent native production has no exact verified component",
-                )]
-            })?;
-            if candidates.next().is_some() {
-                return Err(vec![Diagnostic::error(
-                    "independent native production has competing component verdicts",
-                )]);
-            }
-            let mut matching = products.iter().filter(|product| {
-                product.description().expected_subject() == component.subject()
-                    && product.retained().artifact() == component.artifact()
-                    && product
-                        .retained()
-                        .native_realization_proposal()
-                        .is_some_and(|proposal| {
-                            proposal.target_profile().target_name() == selected.plan.target
-                        })
-            });
-            if matching.next().is_none() || matching.next().is_some() {
-                return Err(vec![Diagnostic::error(
-                    "independent native production requires exactly one complete retained producing product",
-                )]);
-            }
-        }
+        products
+            .as_ref()
+            .map_err(|reason| vec![Diagnostic::error(reason.clone())])?;
     } else {
         provider_planning::verify_selected_compositions_are_realized(provenance)?;
     }
@@ -617,16 +575,30 @@ fn prepare_target_provider_publication(
     );
     targets.sort();
     targets.dedup();
+    let inventory = provider_planning::target_machines::TargetProviderInventoryRequest {
+        context: provider_planning::ProviderPlanningContext::new(
+            &source.program.typed,
+            source::DependencyScope::Product,
+        ),
+        defaults: source.provider_defaults,
+        settlement: source.provider_settlement,
+    };
+    let targets = targets
+        .into_iter()
+        .map(|target| {
+            let prepared = inventory.prepare(&target);
+            (target, prepared)
+        })
+        .collect::<Vec<_>>();
     provider_planning::target_machines::TargetProviderPreparationRequest {
         context: provider_planning::ProviderPlanningContext::new(
             &source.program.typed,
             source::DependencyScope::Product,
         ),
         exact_toolchain_sources: source.sources.exact_toolchain_sources(),
-        defaults: source.provider_defaults,
         overrides: &source.build.config.provider_selections,
         assumed_bindings: source.plan_facts.assumed_bindings(),
-        settlement: source.provider_settlement,
+        independent_components: &source.provider_settlement.verified_independent_components,
         targets: &targets,
     }
     .prepare()

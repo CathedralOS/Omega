@@ -1,47 +1,19 @@
 use super::*;
+use isa_conformance::float_result_policy as policy;
 
-#[test]
-fn trapping_words_match_assembler_and_corrupted_policy_bytes_reject() {
-    let form = FloatResultPolicyForm {
-        format: IeeeFloatFormat::Binary64,
-        policy: FloatResultPolicyKind::Trapping,
-    };
-    // clang -target arm64-apple-macos: FMOV, UBFX, CMP, B.NE, BRK, FMOV.
-    let expected = [
-        0x9e67_0070_u32,
-        0x9e66_0204,
-        0xd374_f884,
-        0xf11f_fc9f,
-        0x5400_0041,
-        0xd420_0000,
-        0x9e66_0204,
-    ]
-    .into_iter()
-    .flat_map(u32::to_le_bytes)
-    .collect::<Vec<_>>();
-    assert_eq!(encode(form, &[3, 4]).unwrap(), expected);
-    for form in FloatResultPolicyForm::ALL {
-        let registers = if form.can_trap() {
-            vec![3, 4]
-        } else {
-            vec![1, 3, 4]
-        };
-        let bytes = encode(form, &registers).unwrap();
-        validate(form, &registers, &bytes).unwrap();
-        for position in 0..bytes.len() {
-            let mut corrupted = bytes.clone();
-            corrupted[position] ^= 1;
-            assert!(
-                validate(form, &registers, &corrupted).is_err(),
-                "{form:?} byte {position}"
-            );
-        }
-        assert!(validate(form, &registers, &bytes[..bytes.len() - 1]).is_err());
-        for other in FloatResultPolicyForm::ALL {
-            if form != other {
-                assert!(validate(other, &registers, &bytes).is_err());
-            }
-        }
+fn encoded(form: FloatResultPolicyForm, registers: &[u8]) -> Vec<u8> {
+    encode(form, registers).expect("admitted registers must encode")
+}
+
+fn validated(form: FloatResultPolicyForm, registers: &[u8], bytes: &[u8]) -> bool {
+    validate(form, registers, bytes).is_ok()
+}
+
+fn roster(form: FloatResultPolicyForm) -> Vec<u8> {
+    if form.can_trap() {
+        vec![3, 4]
+    } else {
+        vec![1, 3, 4]
     }
 }
 
@@ -116,83 +88,38 @@ fn replay(bytes: &[u8], registers: &[u8], payloads: &[u64]) -> Option<u64> {
 }
 
 #[test]
+fn trapping_words_match_assembler_and_corrupted_policy_bytes_reject() {
+    let form = FloatResultPolicyForm {
+        format: IeeeFloatFormat::Binary64,
+        policy: FloatResultPolicyKind::Trapping,
+    };
+    // clang -target arm64-apple-macos: FMOV, UBFX, CMP, B.NE, BRK, FMOV.
+    let expected = [
+        0x9e67_0070_u32,
+        0x9e66_0204,
+        0xd374_f884,
+        0xf11f_fc9f,
+        0x5400_0041,
+        0xd420_0000,
+        0x9e66_0204,
+    ]
+    .into_iter()
+    .flat_map(u32::to_le_bytes)
+    .collect::<Vec<_>>();
+    policy::exact_stream(form, &[3, 4], &expected, encoded, validated);
+    policy::rejects_corrupted_and_substituted_streams(roster, encoded, validated);
+}
+
+#[test]
 fn decoded_policy_matches_ieee_semantics_with_aliased_outputs() {
     for form in FloatResultPolicyForm::ALL {
-        let wide = form.format == IeeeFloatFormat::Binary64;
-        let bits = |number: f64| {
-            if wide {
-                number.to_bits()
-            } else {
-                u64::from((number as f32).to_bits())
-            }
-        };
-        let number = |payload| {
-            if wide {
-                f64::from_bits(payload)
-            } else {
-                f64::from(f32::from_bits(payload as u32))
-            }
-        };
-        let maximum = if wide {
-            f64::MAX.to_bits()
-        } else {
-            u64::from(f32::MAX.to_bits())
-        };
-        let minimum = 1_u64;
-        let nan_payloads = if wide {
-            [0x7ff0_0000_0000_0001, 0xfff8_1234_5678_0000]
-        } else {
-            [0x7f80_0001, 0xffc1_2345]
-        };
-        let mut cases = vec![
-            [maximum, maximum, bits(f64::INFINITY)],
-            [bits(-1.0), maximum, bits(f64::NEG_INFINITY)],
-            [bits(f64::INFINITY), bits(1.0), bits(f64::INFINITY)],
-            [bits(1.0), bits(f64::NEG_INFINITY), bits(f64::NEG_INFINITY)],
-            [bits(1.0), bits(0.0), bits(f64::INFINITY)],
-            [bits(1.0), bits(-0.0), bits(f64::NEG_INFINITY)],
-            [bits(1.0), minimum, bits(f64::INFINITY)],
-        ];
-        for raw in [
-            bits(0.0),
-            bits(-0.0),
-            minimum,
-            maximum,
-            bits(1.0),
-            nan_payloads[0],
-            nan_payloads[1],
-        ] {
-            cases.push([bits(1.0), bits(2.0), raw]);
-        }
-        for [left, right, raw] in cases {
-            let expected = if form.can_trap() {
-                number(raw).is_finite().then_some(raw)
-            } else {
-                let overflow = number(left).is_finite()
-                    && number(right).is_finite()
-                    && number(raw).is_infinite();
-                Some(if overflow {
-                    maximum | (raw & if wide { 1 << 63 } else { 1 << 31 })
-                } else {
-                    raw
-                })
-            };
-            let mut inputs = if form.can_trap() {
-                vec![raw]
-            } else {
-                vec![
-                    u64::from(number(left).is_finite() && number(right).is_finite()),
-                    raw,
-                ]
-            };
-            // Boolean custody defines only its low byte, for either raw format.
-            if !form.can_trap() {
-                inputs[0] |= 0xa5a5_5a5a_dead_be00;
-            }
+        for case in policy::cases(form.format == IeeeFloatFormat::Binary64) {
+            let expected = policy::expected(form, case);
+            let inputs = policy::inputs(form, case);
             for output in 1..=inputs.len() as u8 + 1 {
                 let mut registers = (1..=inputs.len() as u8).collect::<Vec<_>>();
                 registers.push(output);
-                let bytes = encode(form, &registers).unwrap();
+                let bytes = encoded(form, &registers);
                 validate(form, &registers, &bytes).unwrap();
                 assert_eq!(
                     replay(&bytes, &registers, &inputs),
@@ -207,8 +134,8 @@ fn decoded_policy_matches_ieee_semantics_with_aliased_outputs() {
 #[test]
 fn policy_constraints_and_effects_declare_only_actual_scratch_and_control() {
     let physical = crate::aarch64_physical_register_model();
-    let validated = register_model::validate_physical_register_model(physical.clone()).unwrap();
-    let constraints = crate::aarch64_register_constraint_catalog(&validated);
+    let model = register_model::validate_physical_register_model(physical.clone()).unwrap();
+    let constraints = crate::aarch64_register_constraint_catalog(&model);
     for form in FloatResultPolicyForm::ALL {
         let key = if form.can_trap() {
             crate::AARCH64_FLOAT_RESULT_TRAPPING
@@ -255,10 +182,8 @@ fn policy_constraints_and_effects_declare_only_actual_scratch_and_control() {
         assert_eq!(constraint.operands.len(), form.operand_count() + 1);
         assert!(footprint.writes_nzcv);
         assert_eq!(declaration.alternatives[0].encoded, footprint.encoded);
-        assert_eq!(
-            declaration.alternatives[0].size,
-            MachineSizeKnowledge::ExactBytes(encode(form, &registers).unwrap().len() as u16)
-        );
+        let size = MachineSizeKnowledge::ExactBytes(encode(form, &registers).unwrap().len() as u16);
+        assert_eq!(declaration.alternatives[0].size, size);
         assert_eq!(
             declaration.trap,
             if form.can_trap() {

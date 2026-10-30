@@ -1,0 +1,91 @@
+{
+  "identity": {
+    "source_parent": "25c6f95e73af1fc1f33fe19a9d0ff58bbc25aa2e",
+    "incoming_parent": "28c4d04ce1a3c31177812a9c64493a80cd006c75",
+    "index_tree": "e59880a8759af8489420c96ba9d0173cac5e278e",
+    "compiler_input_trees": {
+      "omega-rust": "4d42706b071ce20e9cf1c59ce47fd1b33feb5037",
+      "source": "e979c71b293e681d1285c47a50455863bb4fce4c",
+      "tools/benchmark": "1efce4e1771b74779170bbae621e32612b5f98f0"
+    },
+    "root_input_sha256": {
+      "Cargo.toml": "575ef50ad5ca4fb251de481e50af52475ac8ff14dfa0ab0650e66cec7d9e2ff9",
+      "Cargo.lock": "d2f31aa88ae1fef04253781cf3f4981af60ace2f77b88e9b402e6515901b2740",
+      "rust-toolchain.toml": "6db9c5260a7d864107954d6dc8dfd9d2095caa62eacc90b5dc530030b2079b0d"
+    },
+    "binary_sha256": "daf9306343b3a91fb2c67eb69e389d4be29ff76b1bdddac7be3cb10c69f9bc23",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    },
+    "source_status": "resolved integration; historical A/B timings do not belong to this producer"
+  },
+  "normal_ui_preparation": {
+    "reason": null,
+    "detail": "linux_x86_64: checked 3 source packages.\nSource diff: omega_ui [75960ef2e8dd]: 0 changed entries.\nSource diff: omega_ui_native [0f1fdd9711da]: 0 changed entries.\nSource diff: omega_ui_native_exports [939b83b978af]: 0 changed entries.\nCapability comparison uses accepted lock policy independently of old-source availability.\nSource-code output (separate from editable capability review): \\\\?\\C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-ui-stall\\ui-shared\\tests\\native_component\\exports\\build\\package-manager\\source-diff.txt\n\nPublished build.omg and omega.lock for 3 packages across 1 targets.\nreview: \\\\?\\C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-ui-stall\\ui-shared\\tests\\native_component\\exports\\build\\package-manager\\review-linux_x86_64.txt\n",
+    "elapsed_s": 357.0640362999984,
+    "limit_s": 600,
+    "binary_sha256": "daf9306343b3a91fb2c67eb69e389d4be29ff76b1bdddac7be3cb10c69f9bc23"
+  },
+  "native_ui": {
+    "command": [
+      "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-ui-stall\\consumer.py",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-ui-stall\\publication\\integrated\\qualification\\observations\\compile-b-z5jic9oz\\build",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\cathedral-ui-stall\\publication\\integrated\\qualification\\observations\\compile-b-z5jic9oz\\consumer"
+    ],
+    "exit_code": 0,
+    "engine": "Unchanged Cathedral Rust Windows consumer, validated ELF code/data RX mappings, System V ABI",
+    "tests": 7,
+    "receipt": {
+      "exports": {
+        "frame": {
+          "component": "libomega-component-8dd06afb3ed7c3fa234e5df0b0ad07a672765013d270f1daa2cac65e3419203b.so",
+          "sha256": "a0f35275b77b74d7a32b8feac725f68428ea35a42f83e2e209406bf18a32dc36",
+          "description_sha256": "5acb0cd1cd168bf20908b48b3c1d91d36f08da94eccbd3a12a52e7a4359e8768",
+          "entry": 0,
+          "symbol": "__omega_slot_a1793a99efd4cbd01698db184b570916ea2a9abc4f354cbc5835130ee877db16",
+          "bytes": 479472
+        },
+        "layout": {
+          "component": "libomega-component-f0e18955747643e9a0a32027dc4e207517b9eda5eb6e933f3d48d4954477ace7.so",
+          "sha256": "4ab5efc5c252297967a5343974d2c4f76b351fc2f500cfe197e3a2b2c70e6ad6",
+          "description_sha256": "6487a18b9fe88f5d3bed734455c7f1d565bf312a77d7094fa9c22f2a340f6e8b",
+          "entry": 0,
+          "symbol": "__omega_slot_8ef383db734463b3bc98aac54a0aa5fc1458edd749f5e51a7b95c8fe3abceef6",
+          "bytes": 272
+        }
+      },
+      "consumer_sources": {
+        "lib.rs": "c91c6421c964549860cbc4d7e08c693481fd7ac4d4dd8b80dae5ddde72f4bcbb",
+        "native.rs": "e47de2c430252c4326c834e16caf166a8b62adea1ae0c49f9c7992ce6c64a9d9",
+        "text.rs": "b302925c4177adca145c54ef1e296222c2ee85e2dd2394dffb613322a9c658bd",
+        "ui.rs": "a8eecc80cf6c3ca1795831b6c4ccd0d3fac079ccb43f0ea575a5e4d8bba6ce18",
+        "tests.rs": "efd6dec757a1167fa2e788198c670f68c54f015ad7de2134c0345fe0671d50c1",
+        "build.rs": "544be8b3495bc8322e2711218a31bbcd017317b9a61e64eaf3784acbd218bf40",
+        "presentation.rs": "9e62d53f87d059b9e93cd392b66cc45645126f3cdd94879f964c3158e8762992"
+      },
+      "source": "C:\\Development\\Cathedral\\source-rs\\distribution\\libraries\\omega-ui",
+      "purpose": "Unchanged Cathedral consumer tests, exact validated exports from one measured publication. Standalone manifest removes workspace-only metadata and none-target dependencies; Windows API/test code unchanged."
+    }
+  },
+  "linux_probe": {
+    "command": [
+      "wsl.exe",
+      "--distribution",
+      "Ubuntu",
+      "--exec",
+      "env",
+      "LD_LIBRARY_PATH=/mnt/c/Users/User/.codex/worktrees/performance-tooling/Omega/build/performance/cathedral-ui-stall/publication/integrated/qualification/observations/compile-b-z5jic9oz/build",
+      "/mnt/c/Users/User/.codex/worktrees/performance-tooling/Omega/build/performance/cathedral-ui-stall/publication/integrated/qualification/observations/compile-b-z5jic9oz/build/omega-program"
+    ],
+    "exit_code": 0,
+    "engine": "Linux executable under WSL Ubuntu; no GUI",
+    "oracle": "probe exits zero; the component also passes Cathedral ELF structure checks; no desktop interaction claim"
+  },
+  "publication_sha256": "c68b74eb8411dfc8ed5e57a7557c1e5daab9afab710a7aa7c6e1c145085d9847",
+  "historical_image_match": false,
+  "positive_both_engines": 8,
+  "negative_diagnostics": 7,
+  "scope": "Integrated source qualified separately; no repeat of historical A/B and no new speedup claim."
+}

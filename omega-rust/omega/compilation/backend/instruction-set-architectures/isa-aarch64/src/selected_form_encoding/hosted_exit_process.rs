@@ -3,18 +3,15 @@ use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
     ValidatedAarch64SelectedFormEncoding,
 };
-use crate::machine_effects::form_alternative;
 use crate::selected_form_encoding::selected_forms::resolve_registers;
 use register_model::RegisterConstraintKey;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior, SelectedInstructionKind,
+    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineEffectDeclaration,
+    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -55,20 +52,16 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> Result<MachineEffectDeclaration, Aarch64SelectedFormEncodingError> {
-    Ok(MachineEffectDeclaration {
-        semantic: MachineSemanticKind::HostedExitProcessI32,
+    Ok(MachineEffectDeclaration::single(
+        MachineSemanticKind::HostedExitProcessI32,
         constraint,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::HostedExitReturnedV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: form_alternative!(
-            MachineAlternativeFamily::HostedExitProcessI32,
-            MachineSizeKnowledge::ExactBytes(16),
-            effects(target)?
-        ),
-    })
+        MachineMemoryEffect::NoneV1,
+        MachineTrapBehavior::HostedExitReturnedV1,
+        MachineBarrier::ExternalEffect,
+        MachineAlternativeFamily::HostedExitProcessI32,
+        MachineSizeKnowledge::ExactBytes(16),
+        effects(target)?,
+    ))
 }
 
 fn request(

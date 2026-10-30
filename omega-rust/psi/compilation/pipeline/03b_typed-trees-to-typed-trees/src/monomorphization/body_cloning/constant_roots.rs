@@ -1,4 +1,4 @@
-//! A copied contract keeps its constant jobs in the copied lexical scope.
+//! Copied contracts and type arguments keep constant jobs in their lexical scope.
 //!
 //! Expression copying supplies occurrence correspondence; ordinary body cloning
 //! supplies symbol correspondence and subsequently substitutes the fresh type
@@ -12,6 +12,131 @@ use typed_trees::constant_recipes::{
     retain_constant_recipes,
 };
 use typed_trees::expression::{ExpressionCopy, ExpressionHandle};
+
+/// Staging handles belong to another forest. Rejoin the producer's exact
+/// occurrence maps before transferring any source-owned constant context.
+pub(super) fn compose_type_copies(
+    staged: &[typed_trees::types::TypeExpressionCopy],
+    copied: &mut [typed_trees::types::TypeExpressionCopy],
+) -> Result<(), super::TypeCopyError> {
+    for copied in copied {
+        let staged = staged
+            .iter()
+            .find(|staged| staged.destination == copied.source)
+            .ok_or(super::TypeCopyError(
+                "type copy lost its staging occurrence",
+            ))?;
+        copied.source = staged.source;
+        for (original, _) in &mut copied.expression.correspondence {
+            *original = staged
+                .expression
+                .correspondence
+                .iter()
+                .find(|(_, intermediate)| intermediate == original)
+                .map(|(source, _)| *source)
+                .ok_or(super::TypeCopyError("type copy lost its staged expression"))?;
+        }
+    }
+    Ok(())
+}
+
+/// Type copying owns expression correspondence just as contract copying does.
+/// Keep the job in the copied scope without carrying an evaluated entry or value.
+pub(super) fn copy_type_contexts(
+    source: Option<&dyn validation::CheckingInput>,
+    program: &mut TypedTrees,
+    expressions: &[typed_trees::types::TypeExpressionCopy],
+    symbols: &[(SymbolHandle, SymbolHandle)],
+) -> Result<(), super::TypeCopyError> {
+    let source_program = source.unwrap_or(program);
+    let mut pending = Vec::new();
+    let mut marked = Vec::new();
+    for copied in expressions {
+        marked.extend(
+            copied
+                .expression
+                .correspondence
+                .iter()
+                .filter(|(original, _)| {
+                    source_program
+                        .pending_const_range_endpoints
+                        .contains(original)
+                })
+                .map(|(_, destination)| *destination),
+        );
+        for (_, recipe) in source_program.constant_recipes.iter() {
+            let RetainedConstantPosition::ConstApplication { site, .. } = recipe.position else {
+                continue;
+            };
+            if site != copied.source {
+                continue;
+            }
+            let contexts = source_program
+                .constant_expression_contexts
+                .span_or_empty(recipe.contexts);
+            if contexts.len() != recipe.contexts.len() {
+                return Err(super::TypeCopyError(
+                    "copied constant root lost its lexical context span",
+                ));
+            }
+            let contexts = contexts.to_vec();
+            let mapped = |original| {
+                copied
+                    .expression
+                    .correspondence
+                    .iter()
+                    .find(|(source, _)| *source == original)
+                    .map(|(_, destination)| *destination)
+                    .ok_or(super::TypeCopyError(
+                        "copied constant root lost its invocation correspondence",
+                    ))
+            };
+            let invocations = source_program
+                .expression_table
+                .expression_handles(recipe.invocations);
+            if invocations.len() != recipe.invocations.len() {
+                return Err(super::TypeCopyError(
+                    "copied constant root lost its invocation span",
+                ));
+            }
+            let invocations = invocations
+                .iter()
+                .map(|invocation| mapped(*invocation))
+                .collect::<Result<Vec<_>, _>>()?;
+            pending.push((
+                recipe.clone(),
+                copied.destination,
+                copied.expression.root,
+                contexts,
+                invocations,
+            ));
+        }
+    }
+    for (recipe, site, root, contexts, invocations) in pending {
+        let contexts = contexts
+            .into_iter()
+            .map(|context| {
+                Ok(ConstantExpressionContext::new(
+                    super::remapped_symbol(context.owner, symbols),
+                    super::copy_type_reference(source, program, context.result_type, symbols)?,
+                ))
+            })
+            .collect::<Result<Vec<_>, super::TypeCopyError>>()?;
+        let recipe = RetainedConstantRecipe {
+            position: RetainedConstantPosition::ConstApplication { site, root },
+            contexts: program.constant_expression_contexts.insert_many(contexts),
+            invocations: program
+                .expression_table
+                .insert_expression_handles(invocations),
+            machine: super::remapped_symbol(recipe.machine, symbols),
+            name: recipe.name,
+            source_span: recipe.source_span,
+        };
+        retain_constant_recipes(program, [recipe]);
+    }
+    program.pending_const_range_endpoints.extend(marked);
+    Ok(())
+}
 
 pub(super) fn copy_expression(
     source: Option<&dyn validation::CheckingInput>,
@@ -117,17 +242,19 @@ fn copy_contexts(
     for (recipe, root, contexts, invocations, marked) in pending {
         let contexts = contexts
             .into_iter()
-            .map(|context| ConstantExpressionContext {
-                owner: context.owner,
-                result_type: super::copy_type_reference(
-                    source,
-                    program,
-                    context.result_type,
-                    symbols,
-                ),
-                ..Default::default()
+            .map(|context| {
+                Ok(ConstantExpressionContext {
+                    owner: context.owner,
+                    result_type: super::copy_type_reference(
+                        source,
+                        program,
+                        context.result_type,
+                        symbols,
+                    )?,
+                    ..Default::default()
+                })
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, super::TypeCopyError>>()?;
         let recipe = RetainedConstantRecipe {
             position: RetainedConstantPosition::ContractExpression(root),
             contexts: program.constant_expression_contexts.insert_many(contexts),
@@ -149,6 +276,88 @@ mod tests {
     use super::*;
     use typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
     use typed_trees::types::TypeReferenceNode;
+
+    #[test]
+    fn constant_type_copy_retains_context_and_pending_work_without_closed_authority() {
+        let mut program = TypedTrees::default();
+        let owner = SymbolHandle::from_parts(17, 1);
+        let instance = SymbolHandle::from_parts(23, 1);
+        let root = program.expression_table.insert(ExpressionNode::default());
+        let site = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(root));
+        let carrier = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let contexts =
+            program
+                .constant_expression_contexts
+                .insert_many([ConstantExpressionContext {
+                    owner,
+                    result_type: carrier,
+                    evaluation_entry: SymbolHandle::from_parts(31, 1),
+                    ..Default::default()
+                }]);
+        let invocations = program.expression_table.insert_expression_handles([root]);
+        retain_constant_recipes(
+            &mut program,
+            [RetainedConstantRecipe {
+                position: RetainedConstantPosition::ConstApplication { site, root },
+                contexts,
+                invocations,
+                ..Default::default()
+            }],
+        );
+        program.pending_const_range_endpoints.insert(root);
+        let copied =
+            super::super::copy_type_reference(None, &mut program, site, &[(owner, instance)])
+                .expect("copy the type and its complete constant application");
+        assert_ne!(copied, site);
+        let recipe = program.constant_recipe_for_const_application(copied);
+        assert!(recipe.is_valid());
+        assert!(program.closed_constant_recipe_value(recipe).is_none());
+        let recipe = program.constant_recipes.get(recipe);
+        let copied_root = recipe.position.expression();
+        assert_ne!(copied_root, root);
+        let [context] = program
+            .constant_expression_contexts
+            .span_or_empty(recipe.contexts)
+        else {
+            panic!("one copied context");
+        };
+        assert_eq!(context.owner, instance);
+        assert_ne!(context.result_type, carrier);
+        assert!(!context.evaluation_entry.is_valid());
+        assert_eq!(
+            program
+                .expression_table
+                .expression_handles(recipe.invocations),
+            &[copied_root]
+        );
+        assert!(program.pending_const_range_endpoints.contains(&copied_root));
+    }
+
+    #[test]
+    fn constant_type_copy_keeps_preliminary_marks_before_recipes_exist() {
+        let mut program = TypedTrees::default();
+        let root = program.expression_table.insert(ExpressionNode::default());
+        let site = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(root));
+        program.pending_const_range_endpoints.insert(root);
+        let copied = super::super::copy_type_reference(None, &mut program, site, &[])
+            .expect("copy the pending type expression");
+        let TypeReferenceNode::ConstExpression(copied_root) =
+            program.type_reference_table.type_reference(copied)
+        else {
+            panic!("copied const argument");
+        };
+        assert_ne!(*copied_root, root);
+        assert!(program.pending_const_range_endpoints.contains(copied_root));
+        assert!(
+            !program
+                .constant_recipe_for_const_application(copied)
+                .is_valid()
+        );
+    }
 
     #[test]
     fn constant_root_copy_retains_only_the_remapped_scope_and_fresh_type_payloads() {

@@ -1,9 +1,10 @@
 //! Terminal invocations evaluate arguments in authored order and capture scalar
-//! snapshots before committing the arrival transfer of existing reference carriers. A copied observation through that carrier's own route
-//! does not create a competing successor loan. This follows state_contracts.md
+//! snapshots before committing the arrival transfer of existing reference carriers.
+//! A completed read does not create a competing successor loan, including when
+//! an alias supplied that read. This follows state_contracts.md
 //! (Bindings and arrivals) and expressions.md (Evaluation schedule), independent
 //! of attached-data namespaces. The distinction is transfer versus formation:
-//! explicit new borrows, retained observations, other alias routes, nested-call
+//! explicit new borrows, retained observations, nested-call
 //! writes and ordinary returning calls keep their normal conflict judgments.
 //! Each invocation checks its live access windows against the active loans.
 //! Finished nested inputs are checked at their own entry, while descendants
@@ -188,28 +189,33 @@ pub(in crate::checks::borrows) fn access_released_in_prefix(
             }))
 }
 
-pub(super) fn copied_observation_before_terminal_transfer(
+pub(super) fn completed_observation_before_terminal_transfer(
     program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call: &BorrowCallFact,
     boundary: Option<&InvocationBoundary>,
     transferred: &BorrowArgumentAccessFact,
     copied: &BorrowArgumentAccessFact,
 ) -> bool {
-    if !boundary.is_some_and(|boundary| boundary.ends_source_path)
-        || transferred.kind != BorrowAccessKind::Mutable
+    let Some(boundary) = boundary.filter(|boundary| boundary.ends_source_path) else {
+        return false;
+    };
+    if transferred.kind != BorrowAccessKind::Mutable
         || transferred.end_before_access.is_some()
         || copied.kind != BorrowAccessKind::Read
         || copied.end_before_access.is_none()
-        || transferred.root != copied.root
-        || !facts
-            .borrow
-            .access_segments(copied)
-            .starts_with(facts.borrow.access_segments(transferred))
+        || !access_released_in_prefix(
+            copied,
+            &boundary.occurrences[..boundary.completion],
+            &boundary.occurrences[boundary.completion].route,
+        )
     {
         return false;
     }
+    // The evaluated schedule, not the spelling of a borrow's root, establishes
+    // completion. A field or case alias may observe the same backing through
+    // another route. Its nested invocation is checked at its own entry; active
+    // descendants still constrain the terminal transfer independently.
     // Reference values forward their established loan. A newly authored
     // borrow starts a child lifetime during argument evaluation instead.
     let mut expression = transferred.expression;

@@ -1,0 +1,597 @@
+{
+  "blocks": [
+    {
+      "block": 0,
+      "order": "ELLE",
+      "metrics": {
+        "cpu_seconds": {
+          "eager": 30.921875,
+          "lazy": 29.546875,
+          "lazy_additional": -1.375,
+          "lazy_additional_percent": -4.446690247599798
+        },
+        "wall_seconds": {
+          "eager": 24.25907890000235,
+          "lazy": 23.11988510000083,
+          "lazy_additional": -1.1391938000015216,
+          "lazy_additional_percent": -4.695948286814019
+        },
+        "before_lowering_cpu": {
+          "eager": 22.9609375,
+          "lazy": 22.65625,
+          "lazy_additional": -0.3046875,
+          "lazy_additional_percent": -1.3269819666553249
+        },
+        "checking_cpu": {
+          "eager": 15.2734375,
+          "lazy": 15.03125,
+          "lazy_additional": -0.2421875,
+          "lazy_additional_percent": -1.5856777493606138
+        },
+        "other_before_lowering_cpu": {
+          "eager": 7.6875,
+          "lazy": 7.625,
+          "lazy_additional": -0.0625,
+          "lazy_additional_percent": -0.8130081300813008
+        },
+        "lowering_cpu": {
+          "eager": 4.953125,
+          "lazy": 4.0078125,
+          "lazy_additional": -0.9453125,
+          "lazy_additional_percent": -19.085173501577287
+        },
+        "after_lowering_cpu": {
+          "eager": 3.0078125,
+          "lazy": 2.8828125,
+          "lazy_additional": -0.125,
+          "lazy_additional_percent": -4.1558441558441555
+        },
+        "from_lowering_cpu": {
+          "eager": 7.9609375,
+          "lazy": 6.890625,
+          "lazy_additional": -1.0703125,
+          "lazy_additional_percent": -13.444553483807654
+        }
+      }
+    },
+    {
+      "block": 1,
+      "order": "LEEL",
+      "metrics": {
+        "cpu_seconds": {
+          "eager": 31.75,
+          "lazy": 30.1875,
+          "lazy_additional": -1.5625,
+          "lazy_additional_percent": -4.921259842519685
+        },
+        "wall_seconds": {
+          "eager": 23.836300150003808,
+          "lazy": 23.40949255000305,
+          "lazy_additional": -0.4268076000007568,
+          "lazy_additional_percent": -1.7905782244510318
+        },
+        "before_lowering_cpu": {
+          "eager": 24.0390625,
+          "lazy": 22.875,
+          "lazy_additional": -1.1640625,
+          "lazy_additional_percent": -4.842378940526487
+        },
+        "checking_cpu": {
+          "eager": 16.359375,
+          "lazy": 15.375,
+          "lazy_additional": -0.984375,
+          "lazy_additional_percent": -6.017191977077364
+        },
+        "other_before_lowering_cpu": {
+          "eager": 7.6796875,
+          "lazy": 7.5,
+          "lazy_additional": -0.1796875,
+          "lazy_additional_percent": -2.3397761953204474
+        },
+        "lowering_cpu": {
+          "eager": 4.875,
+          "lazy": 4.546875,
+          "lazy_additional": -0.328125,
+          "lazy_additional_percent": -6.730769230769231
+        },
+        "after_lowering_cpu": {
+          "eager": 2.8359375,
+          "lazy": 2.765625,
+          "lazy_additional": -0.0703125,
+          "lazy_additional_percent": -2.479338842975207
+        },
+        "from_lowering_cpu": {
+          "eager": 7.7109375,
+          "lazy": 7.3125,
+          "lazy_additional": -0.3984375,
+          "lazy_additional_percent": -5.167173252279635
+        }
+      }
+    },
+    {
+      "block": 2,
+      "order": "ELLE",
+      "metrics": {
+        "cpu_seconds": {
+          "eager": 25.8515625,
+          "lazy": 23.9765625,
+          "lazy_additional": -1.875,
+          "lazy_additional_percent": -7.252946509519492
+        },
+        "wall_seconds": {
+          "eager": 19.742593049995776,
+          "lazy": 17.323658799999976,
+          "lazy_additional": -2.4189342499958,
+          "lazy_additional_percent": -12.252363424957077
+        },
+        "before_lowering_cpu": {
+          "eager": 20.28125,
+          "lazy": 18.59375,
+          "lazy_additional": -1.6875,
+          "lazy_additional_percent": -8.320493066255779
+        },
+        "checking_cpu": {
+          "eager": 13.3828125,
+          "lazy": 12.96875,
+          "lazy_additional": -0.4140625,
+          "lazy_additional_percent": -3.0939871570344426
+        },
+        "other_before_lowering_cpu": {
+          "eager": 6.8984375,
+          "lazy": 5.625,
+          "lazy_additional": -1.2734375,
+          "lazy_additional_percent": -18.459796149490373
+        },
+        "lowering_cpu": {
+          "eager": 3.421875,
+          "lazy": 3.1953125,
+          "lazy_additional": -0.2265625,
+          "lazy_additional_percent": -6.621004566210046
+        },
+        "after_lowering_cpu": {
+          "eager": 2.1484375,
+          "lazy": 2.1875,
+          "lazy_additional": 0.0390625,
+          "lazy_additional_percent": 1.8181818181818181
+        },
+        "from_lowering_cpu": {
+          "eager": 5.5703125,
+          "lazy": 5.3828125,
+          "lazy_additional": -0.1875,
+          "lazy_additional_percent": -3.3660589060308554
+        }
+      }
+    },
+    {
+      "block": 3,
+      "order": "LEEL",
+      "metrics": {
+        "cpu_seconds": {
+          "eager": 24.6328125,
+          "lazy": 24.0859375,
+          "lazy_additional": -0.546875,
+          "lazy_additional_percent": -2.2201078338090707
+        },
+        "wall_seconds": {
+          "eager": 17.892476199995144,
+          "lazy": 17.387277099995117,
+          "lazy_additional": -0.5051991000000271,
+          "lazy_additional_percent": -2.823528137486997
+        },
+        "before_lowering_cpu": {
+          "eager": 18.75,
+          "lazy": 18.8984375,
+          "lazy_additional": 0.1484375,
+          "lazy_additional_percent": 0.7916666666666666
+        },
+        "checking_cpu": {
+          "eager": 13.2578125,
+          "lazy": 13.0546875,
+          "lazy_additional": -0.203125,
+          "lazy_additional_percent": -1.5321154979375369
+        },
+        "other_before_lowering_cpu": {
+          "eager": 5.4921875,
+          "lazy": 5.84375,
+          "lazy_additional": 0.3515625,
+          "lazy_additional_percent": 6.401137980085348
+        },
+        "lowering_cpu": {
+          "eager": 3.4765625,
+          "lazy": 2.9609375,
+          "lazy_additional": -0.515625,
+          "lazy_additional_percent": -14.831460674157304
+        },
+        "after_lowering_cpu": {
+          "eager": 2.40625,
+          "lazy": 2.2265625,
+          "lazy_additional": -0.1796875,
+          "lazy_additional_percent": -7.467532467532467
+        },
+        "from_lowering_cpu": {
+          "eager": 5.8828125,
+          "lazy": 5.1875,
+          "lazy_additional": -0.6953125,
+          "lazy_additional_percent": -11.819389110225764
+        }
+      }
+    },
+    {
+      "block": 4,
+      "order": "ELLE",
+      "metrics": {
+        "cpu_seconds": {
+          "eager": 25.9140625,
+          "lazy": 24.3515625,
+          "lazy_additional": -1.5625,
+          "lazy_additional_percent": -6.029544769369912
+        },
+        "wall_seconds": {
+          "eager": 19.52585474999796,
+          "lazy": 18.33642594999401,
+          "lazy_additional": -1.1894288000039523,
+          "lazy_additional_percent": -6.091558168556368
+        },
+        "before_lowering_cpu": {
+          "eager": 19.0,
+          "lazy": 18.8671875,
+          "lazy_additional": -0.1328125,
+          "lazy_additional_percent": -0.6990131578947368
+        },
+        "checking_cpu": {
+          "eager": 13.4140625,
+          "lazy": 12.890625,
+          "lazy_additional": -0.5234375,
+          "lazy_additional_percent": -3.9021549213744904
+        },
+        "other_before_lowering_cpu": {
+          "eager": 5.5859375,
+          "lazy": 5.9765625,
+          "lazy_additional": 0.390625,
+          "lazy_additional_percent": 6.993006993006993
+        },
+        "lowering_cpu": {
+          "eager": 4.578125,
+          "lazy": 3.078125,
+          "lazy_additional": -1.5,
+          "lazy_additional_percent": -32.76450511945392
+        },
+        "after_lowering_cpu": {
+          "eager": 2.3359375,
+          "lazy": 2.40625,
+          "lazy_additional": 0.0703125,
+          "lazy_additional_percent": 3.0100334448160537
+        },
+        "from_lowering_cpu": {
+          "eager": 6.9140625,
+          "lazy": 5.484375,
+          "lazy_additional": -1.4296875,
+          "lazy_additional_percent": -20.677966101694917
+        }
+      }
+    },
+    {
+      "block": 5,
+      "order": "LEEL",
+      "metrics": {
+        "cpu_seconds": {
+          "eager": 30.2734375,
+          "lazy": 29.7421875,
+          "lazy_additional": -0.53125,
+          "lazy_additional_percent": -1.7548387096774194
+        },
+        "wall_seconds": {
+          "eager": 23.795645799997146,
+          "lazy": 22.681179799998063,
+          "lazy_additional": -1.1144659999990836,
+          "lazy_additional_percent": -4.6834870940935645
+        },
+        "before_lowering_cpu": {
+          "eager": 21.5390625,
+          "lazy": 21.75,
+          "lazy_additional": 0.2109375,
+          "lazy_additional_percent": 0.9793253536452666
+        },
+        "checking_cpu": {
+          "eager": 14.8671875,
+          "lazy": 15.5390625,
+          "lazy_additional": 0.671875,
+          "lazy_additional_percent": 4.5191802417235944
+        },
+        "other_before_lowering_cpu": {
+          "eager": 6.671875,
+          "lazy": 6.2109375,
+          "lazy_additional": -0.4609375,
+          "lazy_additional_percent": -6.908665105386417
+        },
+        "lowering_cpu": {
+          "eager": 5.53125,
+          "lazy": 4.6796875,
+          "lazy_additional": -0.8515625,
+          "lazy_additional_percent": -15.3954802259887
+        },
+        "after_lowering_cpu": {
+          "eager": 3.203125,
+          "lazy": 3.3125,
+          "lazy_additional": 0.109375,
+          "lazy_additional_percent": 3.4146341463414633
+        },
+        "from_lowering_cpu": {
+          "eager": 8.734375,
+          "lazy": 7.9921875,
+          "lazy_additional": -0.7421875,
+          "lazy_additional_percent": -8.49731663685152
+        }
+      }
+    }
+  ],
+  "summary": {
+    "cpu_seconds": {
+      "lazy_more": 0,
+      "mean_additional_seconds": -1.2421875,
+      "median_additional_seconds": -1.46875,
+      "median_additional_percent": -4.683975045059741,
+      "additional_seconds_range": [
+        -1.875,
+        -0.53125
+      ]
+    },
+    "wall_seconds": {
+      "lazy_more": 0,
+      "mean_additional_seconds": -1.1323382583335235,
+      "median_additional_seconds": -1.1268299000003026,
+      "median_additional_percent": -4.689717690453792,
+      "additional_seconds_range": [
+        -2.4189342499958,
+        -0.4268076000007568
+      ]
+    },
+    "before_lowering_cpu": {
+      "lazy_more": 2,
+      "mean_additional_seconds": -0.48828125,
+      "median_additional_seconds": -0.21875,
+      "median_additional_percent": -1.012997562275031,
+      "additional_seconds_range": [
+        -1.6875,
+        0.2109375
+      ]
+    },
+    "checking_cpu": {
+      "lazy_more": 1,
+      "mean_additional_seconds": -0.2825520833333333,
+      "median_additional_seconds": -0.328125,
+      "median_additional_percent": -2.3398324531975283,
+      "additional_seconds_range": [
+        -0.984375,
+        0.671875
+      ]
+    },
+    "other_before_lowering_cpu": {
+      "lazy_more": 2,
+      "mean_additional_seconds": -0.20572916666666666,
+      "median_additional_seconds": -0.12109375,
+      "median_additional_percent": -1.5763921627008741,
+      "additional_seconds_range": [
+        -1.2734375,
+        0.390625
+      ]
+    },
+    "lowering_cpu": {
+      "lazy_more": 0,
+      "mean_additional_seconds": -0.7278645833333334,
+      "median_additional_seconds": -0.68359375,
+      "median_additional_percent": -15.113470450073002,
+      "additional_seconds_range": [
+        -1.5,
+        -0.2265625
+      ]
+    },
+    "after_lowering_cpu": {
+      "lazy_more": 3,
+      "mean_additional_seconds": -0.026041666666666668,
+      "median_additional_seconds": -0.015625,
+      "median_additional_percent": -0.33057851239669434,
+      "additional_seconds_range": [
+        -0.1796875,
+        0.109375
+      ]
+    },
+    "from_lowering_cpu": {
+      "lazy_more": 0,
+      "mean_additional_seconds": -0.75390625,
+      "median_additional_seconds": -0.71875,
+      "median_additional_percent": -10.158352873538643,
+      "additional_seconds_range": [
+        -1.4296875,
+        -0.1875
+      ]
+    }
+  },
+  "same_mode_repeats": [
+    {
+      "block": 0,
+      "mode": "eager",
+      "metrics": {
+        "cpu_seconds": 1.3137948458817585,
+        "wall_seconds": 0.7060449438375234,
+        "before_lowering_cpu": 2.7900646478394013,
+        "checking_cpu": 0.9207161125319693,
+        "other_before_lowering_cpu": 6.504065040650406,
+        "lowering_cpu": 4.416403785488959,
+        "after_lowering_cpu": 0.5194805194805194,
+        "from_lowering_cpu": 2.944062806673209
+      }
+    },
+    {
+      "block": 0,
+      "mode": "lazy",
+      "metrics": {
+        "cpu_seconds": 4.547858276044421,
+        "wall_seconds": 1.1186128256686836,
+        "before_lowering_cpu": 5.655172413793103,
+        "checking_cpu": 6.029106029106029,
+        "other_before_lowering_cpu": 4.918032786885246,
+        "lowering_cpu": 0.3898635477582846,
+        "after_lowering_cpu": 2.710027100271003,
+        "from_lowering_cpu": 0.9070294784580499
+      }
+    },
+    {
+      "block": 1,
+      "mode": "eager",
+      "metrics": {
+        "cpu_seconds": 6.299212598425197,
+        "wall_seconds": 7.180592160763441,
+        "before_lowering_cpu": 9.814754631134221,
+        "checking_cpu": 8.404966571155683,
+        "other_before_lowering_cpu": 12.817904374364192,
+        "lowering_cpu": 5.128205128205129,
+        "after_lowering_cpu": 3.8567493112947657,
+        "from_lowering_cpu": 4.660587639311044
+      }
+    },
+    {
+      "block": 1,
+      "mode": "lazy",
+      "metrics": {
+        "cpu_seconds": 11.387163561076605,
+        "wall_seconds": 8.657683184193532,
+        "before_lowering_cpu": 11.065573770491802,
+        "checking_cpu": 14.227642276422765,
+        "other_before_lowering_cpu": 4.583333333333333,
+        "lowering_cpu": 20.61855670103093,
+        "after_lowering_cpu": 1.1299435028248588,
+        "from_lowering_cpu": 12.393162393162394
+      }
+    },
+    {
+      "block": 2,
+      "mode": "eager",
+      "metrics": {
+        "cpu_seconds": 9.489271683288003,
+        "wall_seconds": 17.160504151712715,
+        "before_lowering_cpu": 12.480739599383668,
+        "checking_cpu": 8.756567425569177,
+        "other_before_lowering_cpu": 19.70554926387316,
+        "lowering_cpu": 0.91324200913242,
+        "after_lowering_cpu": 2.1818181818181817,
+        "from_lowering_cpu": 1.402524544179523
+      }
+    },
+    {
+      "block": 2,
+      "mode": "lazy",
+      "metrics": {
+        "cpu_seconds": 3.1932225480612577,
+        "wall_seconds": 8.031901436397696,
+        "before_lowering_cpu": 1.0084033613445378,
+        "checking_cpu": 1.2048192771084338,
+        "other_before_lowering_cpu": 0.5555555555555556,
+        "lowering_cpu": 15.158924205378973,
+        "after_lowering_cpu": 4.285714285714286,
+        "from_lowering_cpu": 10.740203193033382
+      }
+    },
+    {
+      "block": 3,
+      "mode": "eager",
+      "metrics": {
+        "cpu_seconds": 3.742467491278148,
+        "wall_seconds": 0.6471278692518719,
+        "before_lowering_cpu": 5.5,
+        "checking_cpu": 7.424867413081909,
+        "other_before_lowering_cpu": 0.8534850640113798,
+        "lowering_cpu": 5.842696629213483,
+        "after_lowering_cpu": 3.896103896103896,
+        "from_lowering_cpu": 1.8592297476759627
+      }
+    },
+    {
+      "block": 3,
+      "mode": "lazy",
+      "metrics": {
+        "cpu_seconds": 3.9571845604930265,
+        "wall_seconds": 2.142251474208494,
+        "before_lowering_cpu": 5.2087639520463,
+        "checking_cpu": 8.976660682226212,
+        "other_before_lowering_cpu": 3.2085561497326203,
+        "lowering_cpu": 0.5277044854881267,
+        "after_lowering_cpu": 2.1052631578947367,
+        "from_lowering_cpu": 0.6024096385542169
+      }
+    },
+    {
+      "block": 4,
+      "mode": "eager",
+      "metrics": {
+        "cpu_seconds": 2.5927042508290623,
+        "wall_seconds": 1.1080001504410306,
+        "before_lowering_cpu": 6.743421052631579,
+        "checking_cpu": 8.503203261502621,
+        "other_before_lowering_cpu": 2.5174825174825175,
+        "lowering_cpu": 18.43003412969283,
+        "after_lowering_cpu": 10.033444816053512,
+        "from_lowering_cpu": 8.813559322033898
+      }
+    },
+    {
+      "block": 4,
+      "mode": "lazy",
+      "metrics": {
+        "cpu_seconds": 0.9624639076034649,
+        "wall_seconds": 2.983190407470375,
+        "before_lowering_cpu": 0.2484472049689441,
+        "checking_cpu": 2.909090909090909,
+        "other_before_lowering_cpu": 5.490196078431373,
+        "lowering_cpu": 1.015228426395939,
+        "after_lowering_cpu": 10.38961038961039,
+        "from_lowering_cpu": 5.128205128205129
+      }
+    },
+    {
+      "block": 5,
+      "mode": "eager",
+      "metrics": {
+        "cpu_seconds": 0.567741935483871,
+        "wall_seconds": 1.3095740398243254,
+        "before_lowering_cpu": 0.7979688066739209,
+        "checking_cpu": 2.417235943247504,
+        "other_before_lowering_cpu": 2.810304449648712,
+        "lowering_cpu": 0.5649717514124294,
+        "after_lowering_cpu": 0.975609756097561,
+        "from_lowering_cpu": 0.0
+      }
+    },
+    {
+      "block": 5,
+      "mode": "lazy",
+      "metrics": {
+        "cpu_seconds": 2.048857368006304,
+        "wall_seconds": 3.9723171719879513,
+        "before_lowering_cpu": 2.2988505747126435,
+        "checking_cpu": 4.927099044746104,
+        "other_before_lowering_cpu": 4.276729559748428,
+        "lowering_cpu": 1.001669449081803,
+        "after_lowering_cpu": 1.8867924528301887,
+        "from_lowering_cpu": 1.3685239491691104
+      }
+    }
+  ],
+  "slower_total_blocks": [],
+  "repeat_median_percent": {
+    "cpu_seconds": 3.467845019669703,
+    "wall_seconds": 2.5627209408394345,
+    "before_lowering_cpu": 5.35438197602315,
+    "checking_cpu": 6.726986721093969,
+    "other_before_lowering_cpu": 4.43003144654088,
+    "lowering_cpu": 2.715816105942449,
+    "after_lowering_cpu": 2.445922641044592,
+    "from_lowering_cpu": 2.401646277174586
+  },
+  "timed_host_capacity_percent_range": [
+    15.896052016488888,
+    49.79807269383022
+  ],
+  "observations": 28,
+  "timings": 24
+}

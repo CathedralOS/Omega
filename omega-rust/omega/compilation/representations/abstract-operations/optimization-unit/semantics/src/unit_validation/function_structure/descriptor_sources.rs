@@ -180,7 +180,7 @@ fn source_shape(
         types.values().copied(),
         signature.structural_type,
         signature.multiplicity,
-        signature.backing_access(types.values().copied()),
+        signature.backing_access(types.values().copied())?,
         &source.path,
         requested,
     ) {
@@ -207,7 +207,7 @@ fn source_shape(
     let (root, prefix) = crate::unit_validation::references::project_referent_tail(
         types,
         signature.structural_type,
-        signature.backing_access(types.values().copied()),
+        signature.backing_access(types.values().copied())?,
         &borrow,
     )?;
     let selected = structural_borrowed_storage_projection(

@@ -16,6 +16,89 @@ import compiler_retained_foreign as retained
 
 
 class CompilerPilotTests(unittest.TestCase):
+    def fixture_root(self, root, *fixtures):
+        for fixture in fixtures:
+            directory = root / "tests" / "omega" / fixture
+            directory.mkdir(parents=True, exist_ok=True)
+            (directory / "main.omg").write_text("machine main() {}", encoding="utf-8")
+
+    def test_exact_fixture_ids_split_runtime_and_rejection_rosters(self):
+        positive = "pass/float/named_conversion"
+        negative = "fail/float/unproved_conversion"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, positive, negative)
+            with patch.object(pilot, "ROOT", root):
+                self.assertEqual(pilot.select_fixtures(f" {negative}, {positive} "),
+                                 ((positive,), (negative,)))
+
+    def test_malformed_or_missing_exact_id_never_builds_or_runs_defaults(self):
+        fixture = "pass/float/named_conversion"
+        invalid = ("", " ", ",", fixture + ",", fixture + "," + fixture,
+                   "float", "run/float/named_conversion", "/" + fixture,
+                   "pass/float/../named_conversion", "pass//float/named_conversion",
+                   "pass/float/./named_conversion", "pass\\float\\named_conversion",
+                   "tests/omega/" + fixture, "pass/float/missing")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, fixture)
+            with patch.object(pilot, "ROOT", root), \
+                    patch.object(pilot, "execute") as execute, \
+                    patch.object(pilot, "prepare_producer") as build:
+                for request in invalid:
+                    with self.subTest(request=request):
+                        self.assertEqual(pilot.run_suite(
+                            "refused", pilot.POSITIVES, pilot.NEGATIVES, fixtures=request), 1)
+                        summary = json.loads((root / "build/refused/summary.json").read_text())
+                        self.assertFalse(summary["passed"])
+                        self.assertTrue(summary["error"])
+                execute.assert_not_called()
+                build.assert_not_called()
+
+    def test_exact_selector_refuses_substring_collision_before_build(self):
+        fixture = "pass/float/named_conversion"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, fixture, fixture + "_extra")
+            with patch.object(pilot, "ROOT", root), \
+                    patch.object(pilot, "prepare_producer") as build:
+                with self.assertRaisesRegex(ValueError, "unrequested fixtures"):
+                    pilot.select_fixtures(fixture)
+                self.assertEqual(pilot.select_fixtures(fixture + "," + fixture + "_extra"),
+                                 ((fixture, fixture + "_extra"), ()))
+                build.assert_not_called()
+
+    def test_existing_directory_without_main_is_not_a_fixture(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "tests/omega/pass/float/not_a_fixture").mkdir(parents=True)
+            with patch.object(pilot, "ROOT", root):
+                with self.assertRaisesRegex(ValueError, "main.omg"):
+                    pilot.select_fixtures("pass/float/not_a_fixture")
+
+    def test_cli_and_environment_requests_reach_the_same_suite(self):
+        with patch.dict(os.environ, {pilot.FIXTURE_ENVIRONMENT: "pass/float/from_environment"}), \
+                patch.object(pilot, "run_suite", return_value=0) as suite:
+            self.assertEqual(pilot.main([]), 0)
+            self.assertEqual(suite.call_args.kwargs["fixtures"], "pass/float/from_environment")
+            self.assertEqual(pilot.main(["--fixtures", "fail/float/from_cli"]), 0)
+            self.assertEqual(suite.call_args.kwargs["fixtures"], "fail/float/from_cli")
+            self.assertEqual(pilot.main(["--fixtures", ""]), 0)
+            self.assertEqual(suite.call_args.kwargs["fixtures"], "")
+        with patch.dict(os.environ, {pilot.FIXTURE_ENVIRONMENT: ""}), \
+                patch.object(pilot, "run_suite", return_value=0) as suite:
+            self.assertEqual(pilot.main([]), 0)
+            self.assertEqual(suite.call_args.args, ("compiler-pilot", pilot.POSITIVES, pilot.NEGATIVES))
+            self.assertIsNone(suite.call_args.kwargs["fixtures"])
+
+    def test_nonempty_bad_environment_request_never_falls_back(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch.object(pilot, "ROOT", Path(temporary)), \
+                    patch.dict(os.environ, {pilot.FIXTURE_ENVIRONMENT: "pass/float/missing,"}), \
+                    patch.object(pilot, "execute") as execute:
+                self.assertEqual(pilot.main([]), 1)
+                execute.assert_not_called()
+
     def test_failed_retained_cohort_does_not_hide_later_measurements_or_turn_green(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -155,7 +238,10 @@ class CompilerPilotTests(unittest.TestCase):
     def test_no_runtime_or_disagreement_refuses(self):
         for facts in ({}, {"exit": "70"},
                       {"exit": "70", "interpreter-exit": "71", "interpreter": "agrees"},
-                      {"exit": "70", "interpreter-exit": "70", "interpreter": "declined"}):
+                      {"exit": "70", "interpreter-exit": "70", "interpreter": "declined"},
+                      {"exit": "signal 5", "interpreter-exit": "signal 5", "interpreter": "agrees"},
+                      {"exit": "timeout", "interpreter-exit": "timeout", "interpreter": "agrees"},
+                      {"exit": 70, "interpreter-exit": 70, "interpreter": "agrees"}):
             report = self.report(True)
             report["observations"][0]["facts"] = facts
             with self.subTest(facts=facts), self.assertRaises(ValueError):
@@ -179,13 +265,18 @@ class CompilerPilotTests(unittest.TestCase):
             pilot.validate_report(value, (fixture,), both=True,
                                   revision="a" * 40, target="linux_x86_64")
 
-        validate(report)
-        for key in ("stdout", "interpreter-stdout"):
-            for value in (None, "mismatch"):
-                missing = deepcopy(report)
-                missing["observations"][0]["facts"][key] = value
-                with self.subTest(key=key, value=value), self.assertRaises(ValueError):
-                    validate(missing)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, fixture)
+            (root / "tests/omega" / fixture / "expected_stdout.txt").write_text("cleanup\n")
+            with patch.object(pilot, "ROOT", root):
+                validate(report)
+                for key in ("stdout", "interpreter-stdout"):
+                    for value in (None, "mismatch"):
+                        missing = deepcopy(report)
+                        missing["observations"][0]["facts"][key] = value
+                        with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                            validate(missing)
 
     def test_cleanup_cannot_lose_a_transport_or_intended_rejection(self):
         report = self.report()

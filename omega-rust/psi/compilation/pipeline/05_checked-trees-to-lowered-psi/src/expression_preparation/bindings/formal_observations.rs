@@ -105,6 +105,94 @@ impl ScalarBindings {
         Ok(formal.map(|formal| (formal.argument.clone(), formal.structural_type)))
     }
 
+    /// A pure field template uses the same captured telescope as an indexed
+    /// read. The caller's field catalog belongs to a different declaration;
+    /// equal formal positions cannot select its backing or field namespace.
+    /// Keep the actual's physical prefix and resolve only the relative suffix
+    /// against its independently checked endpoint type.
+    pub(crate) fn captured_field_observation(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        position: u32,
+        path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<
+        Option<crate::emission::operation_emission::expressions::LoweredDirectExpression>,
+        LoweringError,
+    > {
+        let Some((source, structural_type)) =
+            self.captured_storage_home(checked_trees::CheckedStorageRoot::Parameter {
+                index: position,
+            })?
+        else {
+            return Ok(None);
+        };
+        if !matches!(
+            source.access,
+            terminal_psi::StructuralAccess::Owned | terminal_psi::reading_borrow_pair_pattern!()
+        ) {
+            return unsupported("captured field observation requires readable access");
+        }
+        let declarations = self.structural_fields.declarations();
+        let projection = crate::emission::structural_observations::explicit_path(
+            identities,
+            structural_type,
+            path,
+            declarations,
+        )?;
+        if projection.scalar_type() != Some(scalar_type) {
+            return unsupported("captured field observation changes its declared scalar type");
+        }
+        let prepared = super::structural_paths::prepare_argument_path(
+            identities,
+            &projection.segments,
+            structural_type,
+            declarations,
+        )?;
+        // Keep ordinary inline field identity for proof terms. A projected
+        // actual contributes its exact physical prefix; descriptor crossings
+        // retain memory-read identity rather than pretending to be offsets.
+        if let Some(field) = projection.scalar_field
+            && let Some(mut suffix) = projection.canonical
+        {
+            let prefix = if source.path.is_empty() {
+                Some(Vec::new())
+            } else {
+                self.structural_place_type(source.place).and_then(|root| {
+                    terminal_semantics::canonical_static_projection(
+                        declarations.iter(),
+                        root,
+                        &source.path,
+                    )
+                    .map(|(path, _)| path)
+                })
+            };
+            if let Some(mut prefix) = prefix {
+                suffix.pop();
+                prefix.extend(suffix);
+                return Ok(Some(super::structural_fields::canonical_field_read(
+                    source.place.into(),
+                    prefix,
+                    field.id,
+                    scalar_type,
+                )));
+            }
+        }
+        let mut physical_path = source.path;
+        for segment in prepared {
+            let super::structural_paths::PreparedStructuralPathSegment::Static(segment) = segment
+            else {
+                return unsupported(
+                    "captured field observation requires its retained runtime selectors",
+                );
+            };
+            physical_path.push(segment);
+        }
+        Ok(Some(crate::emission::operation_emission::expressions::LoweredDirectExpression::PrimitiveRead {
+            qualifications: Default::default(), source: source.place.into(), path: physical_path, scalar_type,
+        }))
+    }
+
     pub(super) fn captured_formal_home(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,

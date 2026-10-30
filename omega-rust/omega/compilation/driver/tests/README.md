@@ -20,6 +20,13 @@ the runner checks the listed effects before discarding the test directory.
 Ordinary fixtures retain privately issued snapshot/staging execution. This
 is test-supplied authority, not a source spelling or a new product grant mode.
 
+A fail fixture may supply `expected_failed_scalar_accounting.txt` with a positive
+minimum canonical scalar receipt count. In addition to its normal package
+refusal, the runner submits the same reviewed inputs through the standalone
+native batch API and requires a failed outcome retaining complete, valid charges.
+This observes failed report accounting before package policy flattens diagnostics;
+it neither accepts the source nor replaces the fixture's expected diagnostic.
+
 `corpus_runner.rs` compiles every fixture and prints one outcome record each.
 Negative fixtures check once under their authored Build sponsors and input
 custody. Without a declared program entry, source acceptance records `checked`,
