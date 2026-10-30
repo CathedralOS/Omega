@@ -411,6 +411,7 @@ fn demanded_provider_plans(
 /// slots. Unselected exported implementations remain checked review content.
 pub fn settle_checked_providers(
     checked: &checked_trees::CheckedTrees,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     provider_uses: &std::collections::HashSet<symbols::SymbolHandle>,
     body_declarations: &DirectCallDeclarations<SymbolHandle>,
     settled_target_machines: SettledTargetMachineDeclarations,
@@ -424,6 +425,13 @@ pub fn settle_checked_providers(
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
+    if !std::ptr::eq(services.context().typed, &*checked.typed)
+        || services.context().scope != source::DependencyScope::Product
+    {
+        return Err(vec![Diagnostic::error(
+            "provider settlement service catalog belongs to another Product program",
+        )]);
+    }
     let typed = &checked.typed;
     // Every Product body has already been checked. This target chooses only
     // realization rows; it never narrows the source program.
@@ -444,7 +452,7 @@ pub fn settle_checked_providers(
     )?;
     let authored_providers =
         std::sync::Arc::new(crate::target_machines::AuthoredTargetProviders::derive(
-            context,
+            services,
             body_declarations,
             &boundary_calling_plan_realizations,
             &evaluated_via_bindings,

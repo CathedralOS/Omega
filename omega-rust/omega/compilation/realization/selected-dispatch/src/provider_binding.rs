@@ -137,10 +137,10 @@ pub fn prepare_selected_execution(
     };
     let service_declarations = Arc::new(
         provider_planning::service_declarations::ServiceDeclarations::prepare(
-            provider_planning::ProviderPlanningContext::new(
-                &program.typed,
-                source::DependencyScope::Product,
-            ),
+            settlement
+                .provider_inventory
+                .services_for(&program)
+                .map_err(|error| vec![error])?,
             settlement.boundary_calling_plan_realizations,
             settlement.exact_toolchain_sources,
         ),
