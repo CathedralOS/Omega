@@ -264,14 +264,9 @@ impl Evaluation {
             // continuation.
             (armed[0].target, Vec::new())
         };
-        let target = expansion.push(LoweredScalarBranchState {
-            structural_parameters: Vec::new(),
-            structural_effects: Vec::new(),
-            parameter_types: source_types.to_vec(),
-            erased_formal_types: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            bindings: Vec::new(),
-            terminator: LoweredScalarBranchTerminator::CaseDispatchSplit {
+        let target = expansion.push(LoweredScalarBranchState::continuing(
+            source_types.to_vec(),
+            LoweredScalarBranchTerminator::CaseDispatchSplit {
                 source,
                 cases,
                 armed,
@@ -280,7 +275,7 @@ impl Evaluation {
                 fallback_erased_arguments: Vec::new(),
                 fallback_erased_proof_arguments: self.proof_formal_forwarding(),
             },
-        });
+        ));
         Ok(LoweredScalarBranchTerminator::Jump {
             cleanup_actions: Vec::new(),
             structural_arguments: Vec::new(),
@@ -335,14 +330,9 @@ impl Evaluation {
         let completions = cleanups
             .iter()
             .map(|cleanup| {
-                let target = expansion.push(LoweredScalarBranchState {
-                    structural_parameters: Vec::new(),
-                    structural_effects: Vec::new(),
-                    parameter_types: completion_types.clone(),
-                    erased_formal_types: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    bindings: Vec::new(),
-                    terminator: LoweredScalarBranchTerminator::Jump {
+                let target = expansion.push(LoweredScalarBranchState::continuing(
+                    completion_types.clone(),
+                    LoweredScalarBranchTerminator::Jump {
                         cleanup_actions: cleanup
                             .actions
                             .iter()
@@ -356,7 +346,7 @@ impl Evaluation {
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: self.proof_formal_forwarding(),
                     },
-                });
+                ));
                 (cleanup.destination.clone(), target, cleanup.exit)
             })
             .collect::<Vec<_>>();
@@ -560,15 +550,10 @@ impl Evaluation {
                             None,
                             &completions,
                         )?;
-                        Some(expansion.push(LoweredScalarBranchState {
-                            structural_parameters: Vec::new(),
-                            structural_effects: Vec::new(),
-                            parameter_types: source_types.clone(),
-                            erased_formal_types: Vec::new(),
-                            erased_proof_formals: Vec::new(),
-                            bindings: Vec::new(),
+                        Some(expansion.push(LoweredScalarBranchState::continuing(
+                            source_types.clone(),
                             terminator,
-                        }))
+                        )))
                     };
                     let mut entries = Vec::with_capacity(arms.len());
                     for (guard, dispatch) in arms.iter().zip(dispatches) {
@@ -652,15 +637,10 @@ impl Evaluation {
                                 &mut expansion,
                             )?,
                         };
-                        next = expansion.push(LoweredScalarBranchState {
-                            structural_parameters: Vec::new(),
-                            structural_effects: Vec::new(),
-                            parameter_types: source_types.clone(),
-                            erased_formal_types: Vec::new(),
-                            erased_proof_formals: Vec::new(),
-                            bindings: Vec::new(),
+                        next = expansion.push(LoweredScalarBranchState::continuing(
+                            source_types.clone(),
                             terminator,
-                        });
+                        ));
                     }
                     LoweredScalarBranchTerminator::Jump {
                         cleanup_actions: Vec::new(),
@@ -674,15 +654,10 @@ impl Evaluation {
             }
             _ => return unsupported("ordered scalar completion requires a returning tail"),
         };
-        let entry = expansion.push(LoweredScalarBranchState {
-            structural_parameters: Vec::new(),
-            structural_effects: Vec::new(),
-            parameter_types: source_types,
-            erased_formal_types: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            bindings: Vec::new(),
+        let entry = expansion.push(LoweredScalarBranchState::continuing(
+            source_types,
             terminator,
-        });
+        ));
         let states = expansion.finish();
         self.single_completed_expansion(
             identities,

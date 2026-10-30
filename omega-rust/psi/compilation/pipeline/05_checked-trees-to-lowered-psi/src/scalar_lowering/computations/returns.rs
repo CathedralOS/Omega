@@ -74,18 +74,13 @@ impl Expansion<'_> {
         } else {
             let mut completed_types = source_types.to_vec();
             completed_types.push(source);
-            self.push(super::LoweredScalarBranchState {
-                structural_parameters: Vec::new(),
-                parameter_types: completed_types,
-                erased_formal_types: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                bindings: Vec::new(),
-                structural_effects: Vec::new(),
-                terminator: super::LoweredScalarBranchTerminator::CompleteReturn {
+            self.push(super::LoweredScalarBranchState::continuing(
+                completed_types,
+                super::LoweredScalarBranchTerminator::CompleteReturn {
                     target,
                     exit: *exit,
                 },
-            })
+            ))
         };
         self.argument(
             identities,
