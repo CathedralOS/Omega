@@ -3036,9 +3036,9 @@ fail/contracts/opaque_call_retires_reference_contents rejected 2099ms expected @
 	cannot prove requires contract for call exact_seven from after_call: view.value.number == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/projected_result_guarantee_after_overwrite rejected 577ms expected @a130a16c2522
 	cannot prove ensures contract for exit from replace at statement 3: elements[1].child.value == 9 && elements[1].child.ready
-fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 1796ms expected @a92f16431042
+fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 1634ms expected @ad7c6890a897+wt
 	index compatibility condition `index-equality:Resident:exercise_placed::entry:statement-0:Resident<SlotPlacement, Slot>==Resident<OtherPlacement, Slot>` is not established: actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/contracts/proof_fact_indexed_domain_application_unevidenced rejected 1825ms expected @a92f16431042
+fail/contracts/proof_fact_indexed_domain_application_unevidenced rejected 1533ms expected @ad7c6890a897+wt
 	declared instance `Resident<SlotPlacement, Slot>` has no establishment: the call establishes no instance of domain family `Resident` -- neither its declared return type nor its `ensures` names one -- and a domain family with no predicate body has no predicate the write could prove; the value must already carry the instance, through the callee's `ensures result in Resident<SlotPlacement, Slot>`, a declared place of that type, or the family's authorized establishment route (at exercise_placed::entry:statement-0)
 fail/contracts/recurrent_call_prefix_requires_every_arrival rejected 2157ms expected @a92f16431042
 	cannot prove requires contract for call inspect from read: addr::Bound == 18446744073709551616 && 2 <= 1 (needs fact `addr::Bound == 18446744073709551616 && retry <= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `inspect`
@@ -21616,9 +21616,7 @@ fail/ownership/reconstructed_unknown_case_keeps_linear_debt rejected 2547ms expe
 	linear value `returned.slot::Held.token` reaches scope exit without being consumed or transferred
 fail/ownership/registration_capacity_cannot_release_twice rejected 1493ms expected @a92f16431042
 	cannot use `capacity` in machine `main` state `entry` (statement 2) after `capacity` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `capacity` first
-fail/ownership/registration_claim_cannot_duplicate_cases rejected 2051ms expected @a92f16431042
-	cannot establish call-result qualification `Capacity::Held` in `duplicate`, state `entry` (statement 0, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
-	cannot establish call-result qualification `Capacity::Held` in `duplicate`, state `entry` (statement 0, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+fail/ownership/registration_claim_cannot_duplicate_cases rejected 1618ms expected @ad7c6890a897+wt
 	callable `Duplicate::duplicate` has a structural content result without an exact conservation equation covering its owned qualified output paths from consumed inputs of the same qualification; result annotations and equal content algebras do not establish partitioned authority
 fail/ownership/registration_claim_cannot_reconstruct rejected 2033ms expected @a92f16431042
 	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 0: capacity does not establish Registration::drop clause `registration.module == 0 && registration.atom == 0`
@@ -25486,8 +25484,7 @@ pass/contracts/normal_return_contextual_call_arguments_exit checked 4113ms check
 pass/contracts/opaque_call_preserves_model rejected 3641ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	cannot prove requires contract for call exact_seven from after_call: saved == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/contracts/policy_field_ensures checked 3297ms @a92f16431042
-pass/contracts/proof_fact_indexed_domain_application rejected 3448ms regressed-from:checked @a92f16431042
-	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/contracts/proof_fact_indexed_domain_application checked 2011ms @ad7c6890a897+wt
 pass/contracts/range_requires_discharge checked 3964ms @a92f16431042
 pass/contracts/recurrent_call_prefix_preserves_model checked 4123ms check-target:macos_arm64 @a92f16431042
 pass/contracts/requires_narrow_ceiling_unproven checked 10667ms check-target:macos_arm64 @a92f16431042
@@ -25948,8 +25945,7 @@ pass/domains/executable_domain_membership_union_guard_exit checked 7964ms check-
 pass/domains/explicit_domain_erasure checked 1990ms @0cea3356c5b0+wt
 pass/domains/guard_predicate_establishes_domain checked 2118ms @a92f16431042
 pass/domains/inactive_impossible_payload_exit checked 2717ms check-target:macos_arm64 @a92f16431042
-pass/domains/indexed_domain_fact rejected 2116ms regressed-from:checked @a92f16431042
-	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/domains/indexed_domain_fact checked 2396ms @ad7c6890a897+wt
 pass/domains/indexed_domain_known_disjoint_call_exit checked 1764ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @f1058703209f+wt
 pass/domains/indexed_membership_follows_completed_values checked 5167ms check-target:macos_arm64 @a92f16431042
 pass/domains/intersected_qualifiers checked 4340ms @a92f16431042

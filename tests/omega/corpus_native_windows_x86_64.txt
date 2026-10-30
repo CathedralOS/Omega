@@ -1227,8 +1227,7 @@ pass/contracts/normal_return_contextual_call_arguments_exit built 3897ms exit:0 
 pass/contracts/opaque_call_preserves_model rejected 1797ms @5f668826adf3+wt
 	cannot prove requires contract for call exact_seven from after_call: saved == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/contracts/policy_field_ensures checked 2568ms @5f668826adf3+wt
-pass/contracts/proof_fact_indexed_domain_application rejected 1329ms regressed-from:checked @5f668826adf3+wt
-	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/contracts/proof_fact_indexed_domain_application checked 1419ms @ad7c6890a897+wt
 pass/contracts/range_requires_discharge checked 3084ms @5f668826adf3+wt
 pass/contracts/recurrent_call_prefix_preserves_model built 3524ms exit:0 @5f668826adf3+wt
 pass/contracts/requires_narrow_ceiling_unproven built 8538ms exit:70 @5f668826adf3+wt
@@ -1661,8 +1660,7 @@ pass/domains/executable_domain_membership_union_guard_exit built 16935ms exit:24
 pass/domains/explicit_domain_erasure checked 1690ms @0cea3356c5b0+wt
 pass/domains/guard_predicate_establishes_domain checked 2779ms @5f668826adf3+wt
 pass/domains/inactive_impossible_payload_exit built 3502ms exit:0 @5f668826adf3+wt
-pass/domains/indexed_domain_fact rejected 2349ms regressed-from:checked @5f668826adf3+wt
-	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/domains/indexed_domain_fact checked 1921ms @ad7c6890a897+wt
 pass/domains/indexed_domain_known_disjoint_call_exit built 1930ms exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @f1058703209f+wt
 pass/domains/indexed_membership_follows_completed_values built 3700ms exit:0 @5f668826adf3+wt
 pass/domains/intersected_qualifiers checked 2758ms @5f668826adf3+wt
