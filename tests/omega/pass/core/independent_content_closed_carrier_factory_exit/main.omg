@@ -32,7 +32,8 @@ machine inspect(boxed: IssuedBox) -> bool {
     correct
 }
 machine main() reaches Factory crashes Trap {
-    transition inspect(Factory::acquire(EmptyBox<u64> { value: 7u64 })) { true -> done() false -> wrong() }
+    let input: EmptyBox<u64> = EmptyBox { value: 7u64 };
+    transition inspect(Factory::acquire(input)) { true -> done() false -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }
