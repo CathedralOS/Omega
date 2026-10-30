@@ -22994,9 +22994,9 @@ fail/ranges/slice_bound_unbound_container_binder_rejected rejected 618ms unexpec
 	machine `nested_window` state `entry` local `view` may read, but the source supplies only write-only authority
 fail/ranges/subject_guard_compound_index_mutated rejected 2432ms expected @a92f16431042
 	cannot prove index `main.b * 20 + main.a` is within length 200
-fail/ranges/sum_payload_non_case_guard_unproven rejected 2866ms expected @a92f16431042
-	machine `Main::main` state `main` statement 2: cannot prove selected case for payload access
-	cannot prove requires contract for call use_v from Main::main: main.p::One.v in i32::Fifty (invalidated by prior mutation of main.p; main.p::One.v is part of i32::Fifty) in state `main`
+fail/ranges/sum_payload_non_case_guard_unproven rejected 7189ms expected @daa14c70b1c0+wt
+	machine `Main::main` state `main` statement 3: cannot prove selected case for payload access `main.p.v`: captured source `main.p::One.v` has no live case evidence: the current source does not select its required case
+	cannot prove requires contract for call use_v from Main::main: 0 <= main.p.v && main.p.v <= 50 (needs fact `0 <= x && x <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/recast/address_model_does_not_bound_offset rejected 621ms expected @a92f16431042
 	machine `read` state `inspect`: cannot bound the recast offset `offset` -- the region holds 16 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint
 fail/recast/boolean_view_requires_byte_region_representation rejected 617ms expected @a92f16431042
@@ -25780,7 +25780,7 @@ pass/contracts/terminal_contract checked 1865ms @683f7a2f2406
 pass/control_flow/affine_call_result_state_transfer_exit checked 8511ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/affine_record_state_cycle_exit checked 7450ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/arm_literal_argument_forward_compile checked 1815ms @a92f16431042
-pass/control_flow/arm_pattern_rest_optout_exit checked 8728ms check-target:macos_arm64 @a92f16431042
+pass/control_flow/arm_pattern_rest_optout_exit checked 7618ms check-target:macos_arm64 @daa14c70b1c0+wt
 pass/control_flow/arm_payload_forward_compile checked 1830ms @a92f16431042
 pass/control_flow/arm_subject_reuse_forward_compile checked 1836ms @a92f16431042
 pass/control_flow/bool_comparison_subject_dispatch_compile checked 1810ms @a92f16431042
@@ -25797,7 +25797,7 @@ pass/control_flow/case_arm_payload_receiver_call checked 9113ms check-target:mac
 pass/control_flow/case_arm_scalar_payload_arguments_exit checked 10607ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/case_dispatch_unread_structural_payload_exit checked 10273ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/case_guard_wildcard_fallthrough_compile checked 1777ms @a92f16431042
-pass/control_flow/case_pattern_rename_waive_exit checked 8578ms check-target:macos_arm64 @a92f16431042
+pass/control_flow/case_pattern_rename_waive_exit checked 7573ms check-target:macos_arm64 @daa14c70b1c0+wt
 pass/control_flow/composite_state_parameter checked 8646ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/computed_float_array_field_store_exit checked 8737ms check-target:macos_arm64 @a92f16431042
 pass/control_flow/conditional_unit_completion_exit checked 9718ms check-target:macos_arm64 @a92f16431042
@@ -33961,8 +33961,7 @@ pass/ranges/runtime_subject_guard_compound_read_exit checked 6352ms check-target
 pass/ranges/subject_field_where_fact_index_bound checked 1714ms @a92f16431042
 pass/ranges/subject_guard_compound_index_successor checked 1766ms @a92f16431042
 pass/ranges/subject_unsigned_computed_index_lower_bound checked 1539ms @a92f16431042
-pass/ranges/sum_payload_range_arith_narrowed_exit rejected 5321ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
-	cannot prove default-domain field requirement for call main from Main::main$entry_context::entry: parameter main.c::Dim.amount requires i32::Ten
+pass/ranges/sum_payload_range_arith_narrowed_exit checked 7573ms check-target:macos_arm64 @daa14c70b1c0+wt
 pass/recast/address_model_preserves_state_bounds checked 1804ms check-target:macos_arm64 @a92f16431042
 pass/recast/atomic_qualification_view_exit checked 3077ms check-target:macos_arm64 @a92f16431042
 pass/recast/bool_byte_view_compile checked 2118ms @a92f16431042
