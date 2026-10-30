@@ -139,6 +139,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
                 .expressions
                 .insert(ExpressionNode::Member(TableMemberExpression {
                     receiver: value,
+                    access_source_span: Default::default(),
                     member: field,
                     case_variant: None,
                 }));

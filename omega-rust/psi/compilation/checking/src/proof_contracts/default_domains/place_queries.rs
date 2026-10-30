@@ -358,20 +358,6 @@ pub(super) fn fact_span_mentions_field(
         .any(|fact| fact_names_field(program, definition, fact, field))
 }
 
-/// Field-store dependencies, including active payload projections. A tag-only
-/// clause has no scalar field dependency: field stores preserve the tag, while
-/// whole-value replacement retires it and proves construction independently.
-/// Const-only clauses likewise need no field-store reproof.
-pub(super) fn fact_mentions_any_field(
-    program: &dyn crate::CheckingInput,
-    definition: &DataDefinition,
-    fact: &typed_trees::domain::ProofFact,
-) -> bool {
-    !predicate_read_set(program, definition, fact)
-        .fields
-        .is_empty()
-}
-
 pub(super) fn fact_names_field(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,

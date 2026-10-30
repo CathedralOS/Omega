@@ -746,3 +746,28 @@ on the containing sum. Its unrelated flag cannot select One, so the exact
 payload-access obligation still rejects. No interval-only nominal domains are
 needed by these four customers. The wire-decoder customer's containing-data
 predicate establishment remains a separate open repair in this migration.
+
+## Audited wire destination customer
+
+`pass/wire/runtime_wire_decode_ranged_field_exit` now keeps its original
+unsigned `value <= 100` and signed `-10 <= delta <= 10` obligations on the
+containing data declaration, with bare scalar fields. Hostile 200/-20 must
+leave 42/7 unchanged; valid 50/-5 must establish the destination and exit 70.
+Both native and Terminal execution meet that oracle on macOS ARM64.
+
+Generated codecs retain the complete authored destination predicates and check
+prospective replacements before storing. Independent conjuncts survive writes
+to other fields only in established, closed storage; fresh storage still owes
+field-free clauses. The scalar roster carries exact closed bound values with
+their selected arithmetic policies. Parser-owned member suffix spans preserve
+grouped field projections, and every private codec binding uses a name prefix
+absent from the complete selected source text.
+
+`pass/wire/runtime_wire_decode_predicate_capture_exit` exercises grouped reads,
+reordered fields, colliding constant names and an exact nonconvex predicate:
+a hostile delta of 3 must not replace 7 even though it lies inside the numeric
+envelope. It also executes with native/Terminal exit 70. The source control
+`fail/dependent/data_where_field_free_conjunct_unestablished` refuses a whole
+value read after a field write fails to establish a false field-free conjunct.
+These close this customer and the demonstrated composition defects, not the
+remaining declaration audit, other predicate mechanisms or Rust suffix removal.
