@@ -22877,6 +22877,10 @@ fail/ranges/loop_saved_guard_stale_counter rejected 790ms expected @b0640f0a9309
 	cannot prove index `main.index` is within length 3 in Main::main::body
 fail/ranges/qualified_array_literal_element_full_width_out_of_range rejected 661ms expected @a92f16431042
 	data `Bounded` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/ranges/refuted_boolean_alias_replaced_subject rejected 2240ms expected @aab8b8443f04
+	cannot prove subslice range end bound `0..4` is within slice length 1
+fail/ranges/refuted_boolean_alias_wrong_polarity rejected 2387ms expected @aab8b8443f04
+	cannot prove subslice range end bound `0..4` is within unknown slice length of `bytes` in bounded::entry
 fail/ranges/relative_midpoint_at_slice_end rejected 2720ms expected @a92f16431042
 	cannot prove index `position` is within unknown slice length of `values` in read::entry
 fail/ranges/slice_bound_unbound_container_binder_rejected rejected 618ms unexpected @a92f16431042
@@ -34966,6 +34970,8 @@ run/proofs/quotient_copy_paths checked 8550ms check-target:macos_arm64 @a92f1643
 run/providers/module_named_float_conversion_family_exit checked 14341ms check-target:macos_arm64 @a92f16431042
 run/providers/target_applicable_provider_closure checked 10979ms check-target:macos_arm64 @a92f16431042
 run/providers/target_family_provider_boundary_identity_exit checked 10510ms check-target:macos_arm64 @a92f16431042
+run/ranges/refuted_boolean_alias_dispatch checked 2899ms check-target:macos_arm64 @aab8b8443f04
+run/ranges/refuted_boolean_alias_local checked 2971ms check-target:macos_arm64 @aab8b8443f04
 run/slices/call_result_mutable_window_exit incomplete 8836ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	`main` has no executable body: this compiler does not lower a call of it yet (state graph: structural result has duplicate dispositions); in state `main::entry`, statement 1
 run/slices/computed_record_window checked 12785ms check-target:macos_arm64 @a92f16431042
