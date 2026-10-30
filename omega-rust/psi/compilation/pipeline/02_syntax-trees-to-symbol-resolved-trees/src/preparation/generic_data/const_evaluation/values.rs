@@ -795,6 +795,41 @@ enum ConstValuePurpose {
     Index,
 }
 
+/// Representation choice remains on the declaration and its canonical carrier
+/// label. Only value eligibility and payload replay inspect semantic data. The
+/// selected, sealed Core declaration supplies this relationship; user data,
+/// including same-spelled opaque data, retains ordinary nominal checking.
+fn representation_semantic_type(
+    syntax: &SyntaxTrees,
+    reference: TypeReferenceHandle,
+    selection: Option<&ConstantSelection>,
+) -> Result<Option<TypeReferenceHandle>, String> {
+    let TypeReferenceNode::Generic {
+        base_name,
+        lifetime_arguments,
+        arguments,
+    } = syntax.type_references.type_reference(reference)
+    else {
+        return Ok(None);
+    };
+    let Some(selection) = selection else {
+        return Ok(None);
+    };
+    let definition = selection.data(syntax, base_name)?;
+    if !selection.is_core_layout_storage(syntax, definition) {
+        return Ok(None);
+    }
+    let [semantic_type, _policy] = syntax.type_references.type_reference_handles(*arguments) else {
+        return Err(
+            "Core representation requires its semantic type and explicit policy".to_owned(),
+        );
+    };
+    if !lifetime_arguments.is_empty() {
+        return Err("Core representation has no lifetime parameters".to_owned());
+    }
+    Ok(Some(*semantic_type))
+}
+
 fn validate_selected_const_index_type(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
@@ -979,6 +1014,19 @@ fn validate_selected_const_type(
         return validate_selected_const_type(
             syntax,
             origin,
+            visiting,
+            selection,
+            substitution,
+            purpose,
+        );
+    }
+    if purpose == ConstValuePurpose::Declaration
+        && let Some(semantic_type) =
+            representation_semantic_type(syntax, type_reference, selection)?
+    {
+        return validate_selected_const_type(
+            syntax,
+            semantic_type,
             visiting,
             selection,
             substitution,
@@ -1211,6 +1259,16 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression_with_a
         return canonicalize_const_expression_with_admission(
             syntax,
             origin,
+            expression,
+            selection,
+            substitution,
+            admission,
+        );
+    }
+    if let Some(semantic_type) = representation_semantic_type(syntax, expected_type, selection)? {
+        return canonicalize_const_expression_with_admission(
+            syntax,
+            semantic_type,
             expression,
             selection,
             substitution,

@@ -8,11 +8,6 @@ use crate::{
 };
 use symbols::SymbolHandle;
 
-const CORE_LAYOUT_SOURCE: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../source/library/core/layout.omg"
-));
-
 #[derive(Debug, Clone, Copy)]
 pub struct LayoutStorageArguments {
     pub application: TypeReferenceHandle,
@@ -120,7 +115,7 @@ impl TypedTrees {
                     && file.package_identity.is_none()
                     && file.path.strip_prefix(&file.package_root).ok()
                         == Some(std::path::Path::new("layout.omg"))
-                    && file.source.as_bytes() == CORE_LAYOUT_SOURCE
+                    && file.source.as_bytes() == language_core::layout_storage::SOURCE
             })
     }
 

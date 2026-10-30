@@ -705,6 +705,30 @@ impl<'base> ConstantSelection<'base> {
         self.data_declaration(syntax, name, selected)
     }
 
+    /// Recognize the already selected representation constructor, never an
+    /// authored type with the same spelling. Its immutable source also owns
+    /// the semantic-type and explicitly selected policy parameter contract.
+    pub(super) fn is_core_layout_storage(
+        &self,
+        syntax: &SyntaxTrees,
+        definition: &DataDefinition,
+    ) -> bool {
+        definition.name.as_str(syntax) == language_core::layout_storage::CONSTRUCTOR_NAME
+            && definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
+            && self
+                .symbols
+                .source_file(definition.name.source_span())
+                .is_some_and(|file| {
+                    file.origin == source::SourceOrigin::Toolchain
+                        && file.package_identity.is_none()
+                        && file.path.strip_prefix(&file.package_root).ok()
+                            == Some(std::path::Path::new(
+                                language_core::layout_storage::SOURCE_FILE_NAME,
+                            ))
+                        && file.source.as_bytes() == language_core::layout_storage::SOURCE
+                })
+    }
+
     /// Read the receiving telescope selected in this invocation's namespace.
     /// Parsed headers supply carrier syntax only; they never add declarations
     /// or authorize evaluation. Retained headers are outside the cohort's work

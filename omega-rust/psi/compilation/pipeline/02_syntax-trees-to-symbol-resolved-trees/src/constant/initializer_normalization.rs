@@ -199,7 +199,12 @@ pub(crate) fn retain(
             Ok(payload.value.encoding.into())
         })
     }
-    .map_err(|_| error(reference, "materialized value is not canonical"))?;
+    .map_err(|reason| {
+        error(
+            reference,
+            &format!("materialized value is not canonical: {reason}"),
+        )
+    })?;
     if value != receipt.result_value {
         return Err(error(
             reference,
