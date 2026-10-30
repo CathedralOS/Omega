@@ -6,7 +6,9 @@ use sample_runner::{Evidence, Sample};
 const SAMPLE: Sample = Sample {
     package: "laminate-stiffness-response-validation",
     review: false,
+    caps: None,
     evidence: Evidence::Numbered,
+    frozen: None,
 };
 
 fn main() {
