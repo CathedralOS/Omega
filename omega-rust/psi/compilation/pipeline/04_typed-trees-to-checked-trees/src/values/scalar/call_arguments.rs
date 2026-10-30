@@ -243,8 +243,6 @@ pub(crate) fn nested_call_sites<'program>(
             ) != source.target_symbol
                 || !call.selects_only_nominal_route()
                 || !call.evidence_arguments.is_empty()
-                || (program.dynamic_slot_by_symbol(call.target_symbol).is_none()
-                    && !call.machine_arguments.is_empty())
             {
                 return None;
             }

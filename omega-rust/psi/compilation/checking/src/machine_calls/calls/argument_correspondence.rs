@@ -590,8 +590,8 @@ pub(crate) fn call_binding_correspondence(
     })
 }
 
-/// An open requirement has no executable instance or trailing Value operands.
-/// The exact retained invocation view still transports its authored header.
+/// A requirement has no realized body or trailing executable Value operands.
+/// Its exact open or closed public view still transports the authored header.
 /// Rejoin through the same applied-signature owner that prepared its public
 /// contract; a same-sized telescope or a provider body cannot supply this map.
 fn requirement_binding_correspondence(
@@ -623,6 +623,53 @@ fn requirement_binding_correspondence(
         if declaring_trait.symbol != selected_trait.symbol {
             return Err("the open application changed its declaring trait");
         }
+        if declared.symbol != public.symbol {
+            let closed = program
+                .closed_requirement_application(public.symbol)
+                .ok_or("the applied requirement lost its exact closed declaration")?;
+            let supplied = program
+                .expression_table
+                .static_machine_application(closed.application);
+            let arguments = program
+                .expression_table
+                .static_machine_application_arguments(closed.application);
+            let header = program.requirement_invocation_contract_parameters(declared);
+            let retained = program
+                .expression_table
+                .static_machine_application_bindings(handle);
+            let lifetimes = program
+                .expression_table
+                .static_machine_application_lifetimes(handle);
+            if closed.template != declared.symbol
+                || closed.declaring_trait != declaring_trait.symbol
+                || application.registration_operation != declared.symbol
+                || arguments.len() != header.len()
+                || retained.len() != header.len()
+                || program
+                    .expression_table
+                    .static_machine_application_lifetimes(closed.application)
+                    != lifetimes
+                || (!lifetimes.is_empty() && supplied.lexical_owner != application.lexical_owner)
+                || header.iter().zip(arguments).any(|(parameter, argument)| {
+                    let mut bindings = retained
+                        .iter()
+                        .filter(|binding| binding.parameter == parameter.symbol);
+                    let Some(binding) = bindings.next() else {
+                        return true;
+                    };
+                    bindings.next().is_some()
+                        || !program.static_binding_matches_argument(
+                            &parameter.kind,
+                            &binding.value,
+                            argument,
+                            supplied.lexical_owner,
+                            application.lexical_owner,
+                        )
+                })
+            {
+                return Err("the applied requirement changed its exact closed invocation tuple");
+            }
+        }
         (declared, public, declared.symbol)
     };
     let header = program.requirement_invocation_contract_parameters(declared);
@@ -630,8 +677,7 @@ fn requirement_binding_correspondence(
     let retained = program
         .expression_table
         .static_machine_application_bindings(handle);
-    if declared.symbol != public.symbol
-        || header.len() != logical.len()
+    if header.len() != logical.len()
         || retained.len() != header.len()
         || retained.iter().any(|binding| {
             header
