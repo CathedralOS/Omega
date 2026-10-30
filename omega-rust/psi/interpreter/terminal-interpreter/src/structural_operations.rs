@@ -1565,7 +1565,7 @@ impl TerminalExecution<'_> {
             self.byte_sequence_values.insert(
                 result.place,
                 crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
-                    bytes.detached_descriptor(),
+                    bytes.owned_snapshot(),
                 ),
             )?;
             self.structural_values.insert(result.place, copied)?;

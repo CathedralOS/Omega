@@ -16,7 +16,7 @@ use terminal_interpreter::{
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 use super::super::borrowed_storage::{CapturedStorage, StorageTransfer};
-use super::{ClockImplementation, ClockNamespace, TerminalClockSnapshot, TerminalRuntimeError};
+use super::{ClockImplementation, ClockNamespace, TerminalClockEnvironment, TerminalRuntimeError};
 
 pub(super) fn admit(
     signature: &TerminalImportSignature,
@@ -60,7 +60,7 @@ pub(super) fn read(
     buffers: &mut [TerminalBoundaryStorageBuffer],
     signature: &TerminalImportSignature,
     layout: &NativeBorrowedStorageLayout,
-    clock: &Arc<Mutex<TerminalClockSnapshot>>,
+    clock: &Arc<Mutex<TerminalClockEnvironment>>,
     namespace: ClockNamespace,
 ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
     let invalid = || {
@@ -117,7 +117,7 @@ pub(super) fn sleep(
     buffers: &[TerminalBoundaryStorageBuffer],
     signature: &TerminalImportSignature,
     layout: &NativeBorrowedStorageLayout,
-    clock: &Arc<Mutex<TerminalClockSnapshot>>,
+    clock: &Arc<Mutex<TerminalClockEnvironment>>,
     namespace: ClockNamespace,
 ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
     let invalid =

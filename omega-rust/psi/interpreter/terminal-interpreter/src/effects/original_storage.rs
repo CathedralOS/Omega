@@ -7,6 +7,14 @@ use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralTypeId};
 use std::rc::Rc;
 use terminal_psi::{StructuralAccess, TerminalPsiIdentity};
 
+/// Execution-only resident association for an immutable byte allocation.
+/// Portable byte values keep their plain backing; the owner handle pins that
+/// exact allocation while native residence remains established.
+pub(crate) struct OriginalByteCell {
+    pub(crate) owner: crate::byte_sequences::ByteSequenceView,
+    pub(crate) backing: Rc<dyn TerminalScalarBacking>,
+}
+
 /// One execution's exact original allocation. Numeric identities alone carry
 /// no access; requests originate only after the engine's call preflight.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -14,6 +22,15 @@ pub struct TerminalOriginalStorageRoot {
     pub(crate) artifact: TerminalPsiIdentity,
     pub(crate) namespace: u64,
     pub(crate) allocation: u64,
+}
+
+/// Keep the allocation declaration established during original capture.
+/// Borrowed descriptors can present another type at the same storage path;
+/// those presentations never replace the allocation's own geometry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OriginalStorageAllocation {
+    pub(crate) root: TerminalOriginalStorageRoot,
+    pub(crate) structural_type: StructuralTypeId,
 }
 impl TerminalOriginalStorageRoot {
     pub fn artifact(&self) -> TerminalPsiIdentity {
@@ -66,8 +83,15 @@ pub struct TerminalOriginalStorageRequest {
             Vec<CanonicalStructuralPathSegment>,
         )>,
     >,
+    pub(crate) byte_extent: Option<usize>,
+    pub(crate) byte_window: Option<(usize, usize)>,
 }
 impl TerminalOriginalStorageRequest {
+    /// Full actual byte allocation, independently of the exposed window. A
+    /// typed fixed-array root retains its ordinary layout recipe instead.
+    pub fn byte_extent(&self) -> Option<usize> {
+        self.byte_extent
+    }
     pub fn root(&self) -> TerminalOriginalStorageRoot {
         self.root
     }
@@ -97,6 +121,7 @@ impl TerminalOriginalStorageRequest {
             root: self.root,
             referent: self.referent.clone(),
             scalar_projection: self.scalar_projection.clone(),
+            byte_window: self.byte_window,
         }
     }
     pub fn values(&self) -> &[TerminalOriginalScalarValue] {
@@ -116,8 +141,16 @@ pub struct TerminalOriginalStorageLoan {
             Vec<CanonicalStructuralPathSegment>,
         )>,
     >,
+    pub(crate) byte_window: Option<(usize, usize)>,
 }
 impl TerminalOriginalStorageLoan {
+    /// Captured byte coordinate and live length. For raw bytes the coordinate
+    /// is root-relative. For typed arrays it is relative to the selected array;
+    /// scalar_path supplies exact enclosing-root leaves, and the target layout
+    /// owner must derive physical displacement from them, never this coordinate.
+    pub fn byte_window(&self) -> Option<(usize, usize)> {
+        self.byte_window
+    }
     pub fn root(&self) -> TerminalOriginalStorageRoot {
         self.root
     }

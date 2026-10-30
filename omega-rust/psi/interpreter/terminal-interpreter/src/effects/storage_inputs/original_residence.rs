@@ -15,9 +15,188 @@ use semantic_vocabulary::{BoundaryMachineId, CanonicalStructuralPathSegment as P
 use terminal_psi::StructuralAccess;
 
 struct CapturedOriginal {
-    owner: StructuralRuntimePlace,
+    owner: Option<StructuralRuntimePlace>,
     request: TerminalOriginalStorageRequest,
     endpoints: Vec<PrimitiveStorageEndpoint>,
+}
+
+fn capture_byte_view(
+    execution: &mut TerminalExecution<'_>,
+    binding: &super::byte_views::BoundaryByteViewBinding,
+    identity_cursor: &mut Option<u64>,
+) -> Result<CapturedOriginal, TerminalInterpretError> {
+    let (mut capture, offset, length) = if let Some(window) = binding.array_window()? {
+        let original = execution
+            .original_byte_array_owner(&window.array, identity_cursor)
+            .map_err(|error| error.in_argument_preparation("resolve original byte-array owner"))?;
+        // The selected array has u8 geometry, but its allocation can be a
+        // containing record. Each scalar below retains its exact original-root
+        // path; only the native layout owner derives physical byte offsets.
+        if crate::structural_inputs::byte_arrays::byte_array_length(
+            &execution.program.structural_types(),
+            window.array_type,
+        )
+        .is_none()
+        {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "original byte-view window requires its actual whole-u8 array geometry",
+            ));
+        }
+        let end = window
+            .offset
+            .checked_add(window.length)
+            .ok_or_else(malformed)?;
+        if end > execution.stored_byte_array_length(&window.array)? {
+            return Err(malformed());
+        }
+        if window.length != binding.entry_bytes().len() {
+            return Err(malformed());
+        }
+        if binding.access == StructuralAccess::MutableBorrow
+            && !execution.normal_qualifications_cover(
+                &original,
+                &original.qualifications,
+                &original.projected_qualifications,
+                &[],
+            )?
+        {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "mutable original byte array lacks its owner qualification preservation",
+            ));
+        }
+        let mut values = Vec::new();
+        let mut endpoints = Vec::new();
+        for index in window.offset..end {
+            let endpoint = PrimitiveStorageEndpoint::ArrayElement {
+                array: window.array.clone(),
+                index,
+            };
+            let storage = PrimitiveStorage {
+                endpoint: endpoint.clone(),
+                encoding: None,
+            };
+            if binding.access == StructuralAccess::MutableBorrow {
+                execution.validate_scalar_loan_qualifications(&storage)?;
+            }
+            let value = execution
+                .original_scalar(&original, &storage)
+                .map_err(|error| {
+                    error.in_argument_preparation("capture original byte-array cell")
+                })?;
+            if crate::structural_inputs::byte_arrays::storage::scalar_byte(&value.value)?
+                != binding.entry_bytes()[index - window.offset]
+            {
+                return Err(malformed());
+            }
+            values.push(value);
+            endpoints.push(endpoint);
+        }
+        let request = execution.original_storage_request(
+            &original,
+            binding.argument_index,
+            binding.access,
+            Vec::new(),
+            values,
+        )?;
+        (
+            CapturedOriginal {
+                owner: Some(StructuralRuntimePlace::from(&original)),
+                request,
+                endpoints,
+            },
+            window.offset,
+            window.length,
+        )
+    } else {
+        let bytes = binding.raw_bytes()?;
+        let (namespace, extent, offset) = bytes.original_byte_allocation().ok_or(
+            TerminalInterpretError::UnsupportedSemanticVariant(
+                "original byte allocation identity is exhausted",
+            ),
+        )?;
+        let length = bytes.len();
+        if binding.access != StructuralAccess::SharedBorrow
+            || offset.checked_add(length).is_none_or(|end| end > extent)
+        {
+            return Err(malformed());
+        }
+        let scalar_type =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                .map_err(|_| malformed())?;
+        let values = bytes
+            .bytes()
+            .iter()
+            .enumerate()
+            .map(|(relative, byte)| {
+                let index = offset.checked_add(relative).ok_or_else(malformed)?;
+                let backing = execution
+                    .original_byte_cells
+                    .get(&(namespace, index))
+                    .map(|cell| {
+                        if !cell.owner.shares_backing(bytes) {
+                            return Err(malformed());
+                        }
+                        Ok(cell.backing.clone())
+                    })
+                    .transpose()?;
+                Ok(TerminalOriginalScalarValue {
+                    path: vec![Path::FixedIndex(
+                        u64::try_from(index).map_err(|_| malformed())?,
+                    )],
+                    value: crate::TerminalScalarValue::Integer {
+                        scalar_type,
+                        value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*byte)),
+                    },
+                    backing,
+                })
+            })
+            .collect::<Result<Vec<_>, TerminalInterpretError>>()?;
+        (
+            CapturedOriginal {
+                owner: None,
+                request: TerminalOriginalStorageRequest {
+                    root: TerminalOriginalStorageRoot {
+                        artifact: execution.program.identity.semantic(),
+                        namespace,
+                        allocation: 1,
+                    },
+                    structural_type: binding.view_type(),
+                    argument_index: binding.argument_index,
+                    referent: Vec::new(),
+                    access: binding.access,
+                    values,
+                    argument_path: Vec::new(),
+                    view_type: binding.view_type(),
+                    references: Vec::new(),
+                    scalar_projection: None,
+                    byte_extent: Some(extent),
+                    byte_window: None,
+                },
+                endpoints: Vec::new(),
+            },
+            offset,
+            length,
+        )
+    };
+    capture.request.view_type = binding.view_type();
+    capture.request.byte_window = Some((offset, length));
+    capture.request.scalar_projection = Some(
+        capture
+            .request
+            .values
+            .iter()
+            .enumerate()
+            .map(|(relative, value)| {
+                Ok((
+                    vec![Path::FixedIndex(
+                        u64::try_from(relative).map_err(|_| malformed())?,
+                    )],
+                    value.path.clone(),
+                ))
+            })
+            .collect::<Result<Vec<_>, TerminalInterpretError>>()?,
+    );
+    Ok(capture)
 }
 
 impl BoundaryStorageInputs {
@@ -27,8 +206,9 @@ impl BoundaryStorageInputs {
         handler: &mut impl TerminalEffectHandler,
         boundary: BoundaryMachineId,
         identity_cursor: &mut Option<u64>,
+        original: bool,
     ) -> Result<(), TerminalInterpretError> {
-        if !handler.requires_original_storage(boundary) {
+        if !original {
             return Ok(());
         }
         let mut captures = Vec::new();
@@ -48,7 +228,7 @@ impl BoundaryStorageInputs {
             }
             let value = execution.original_scalar(&original, &binding.storage)?;
             captures.push(CapturedOriginal {
-                owner: StructuralRuntimePlace::from(&original),
+                owner: Some(StructuralRuntimePlace::from(&original)),
                 request: execution.original_storage_request(
                     &original,
                     binding.argument_index,
@@ -76,6 +256,12 @@ impl BoundaryStorageInputs {
                 &mut captures,
             )?;
         }
+        for binding in &self.byte_views {
+            captures.push(
+                capture_byte_view(execution, binding, identity_cursor)
+                    .map_err(|error| error.in_argument_preparation("capture original byte view"))?,
+            );
+        }
         let owners = captures
             .iter()
             .map(|capture| capture.owner.clone())
@@ -91,14 +277,67 @@ impl BoundaryStorageInputs {
             return Err(malformed());
         }
         let mut prepared = Vec::new();
+        let mut raw_prepared = Vec::new();
+        let mut raw_cells: crate::runtime_rows::RuntimeRows<(u64, usize), OriginalByteCell> =
+            crate::runtime_rows::RuntimeRows::new(execution.account.as_ref());
         for ((request, endpoints), backings) in requests.iter().zip(endpoints).zip(returned) {
-            if backings.len() != request.values.len() || endpoints.len() != backings.len() {
+            if backings.len() != request.values.len() {
+                return Err(malformed());
+            }
+            if request.byte_extent.is_some() {
+                if !endpoints.is_empty() || request.access != StructuralAccess::SharedBorrow {
+                    return Err(malformed());
+                }
+                for (value, backing) in request.values.iter().zip(&backings) {
+                    ScalarCell::resident(value.value, backing.clone())?;
+                    let [Path::FixedIndex(index)] = value.path.as_slice() else {
+                        return Err(malformed());
+                    };
+                    let key = (
+                        request.root.namespace,
+                        usize::try_from(*index).map_err(|_| malformed())?,
+                    );
+                    let owner = self
+                        .byte_views
+                        .iter()
+                        .find(|binding| binding.argument_index == request.argument_index)
+                        .ok_or_else(malformed)?
+                        .raw_bytes()?;
+                    if let Some(cell) = execution
+                        .original_byte_cells
+                        .get(&key)
+                        .or_else(|| raw_cells.get(&key))
+                    {
+                        if !cell.owner.shares_backing(owner)
+                            || !std::rc::Rc::ptr_eq(&cell.backing, backing)
+                        {
+                            return Err(malformed());
+                        }
+                    } else {
+                        raw_cells.insert(
+                            key,
+                            OriginalByteCell {
+                                owner: owner.clone(),
+                                backing: backing.clone(),
+                            },
+                        )?;
+                    }
+                }
+                raw_prepared.push((request.argument_index, backings));
+                continue;
+            }
+            if endpoints.len() != backings.len() {
                 return Err(malformed());
             }
             for ((endpoint, original), backing) in
                 endpoints.into_iter().zip(&request.values).zip(backings)
             {
-                prepared.push((endpoint, ScalarCell::resident(original.value, backing)?));
+                prepared.push((
+                    endpoint,
+                    ScalarCell::resident(original.value, backing).map_err(|error| {
+                        error.in_argument_preparation("validate original resident scalar")
+                    })?,
+                ));
             }
         }
         // Fund any packed-owner detachment and validate existing resident
@@ -137,23 +376,35 @@ impl BoundaryStorageInputs {
                 arrays
                     .backing_mut(&place)
                     .ok_or_else(malformed)?
-                    .prepare_resident_install(index, resident)?;
+                    .prepare_resident_install(index, resident)
+                    .map_err(|error| {
+                        error.in_argument_preparation("prepare original frame-array residence")
+                    })?;
             }
         }
         let mut original_roots = crate::runtime_rows::RuntimeRows::new(execution.account.as_ref());
         for (owner, request) in owners.into_iter().zip(&requests) {
+            let Some(owner) = owner else {
+                continue;
+            };
+            let allocation = OriginalStorageAllocation {
+                root: request.root,
+                structural_type: request.structural_type,
+            };
             if execution
                 .original_storage_roots
                 .get(&owner)
-                .is_some_and(|previous| *previous != request.root)
+                .is_some_and(|previous| *previous != allocation)
             {
                 return Err(malformed());
             }
-            original_roots.insert(owner, request.root)?;
+            original_roots.insert(owner, allocation)?;
         }
+        execution.original_byte_cells.validate_append(&raw_cells)?;
         execution
             .original_storage_roots
             .append(&mut original_roots)?;
+        execution.original_byte_cells.append(&mut raw_cells)?;
         // Host preparation has completed without a provider invocation. Every
         // reply now matches the exact original initialized scalar it replaces.
         for (endpoint, resident) in prepared {
@@ -201,6 +452,13 @@ impl BoundaryStorageInputs {
             .ok_or_else(malformed)?;
             *cell = resident;
         }
+        for (argument_index, residents) in raw_prepared {
+            self.byte_views
+                .iter_mut()
+                .find(|binding| binding.argument_index == argument_index)
+                .ok_or_else(malformed)?
+                .residents = residents;
+        }
         for request in requests {
             if !request.argument_path.is_empty() {
                 continue;
@@ -216,6 +474,9 @@ impl BoundaryStorageInputs {
                     TerminalBoundaryStorageBuffer::Structural(buffer) => {
                         buffer.argument_index() == request.argument_index
                     }
+                    TerminalBoundaryStorageBuffer::ByteView(buffer) => {
+                        buffer.argument_index() == request.argument_index
+                    }
                 })
                 .ok_or_else(malformed)?;
             match buffer {
@@ -223,6 +484,9 @@ impl BoundaryStorageInputs {
                     buffer.original_storage = Some(loan)
                 }
                 TerminalBoundaryStorageBuffer::Structural(buffer) => {
+                    buffer.original_storage = Some(loan)
+                }
+                TerminalBoundaryStorageBuffer::ByteView(buffer) => {
                     buffer.original_storage = Some(loan)
                 }
             }
@@ -250,6 +514,59 @@ fn endpoint_parent(
 }
 
 impl TerminalExecution<'_> {
+    fn original_byte_array_owner(
+        &mut self,
+        array: &crate::structural_inputs::byte_arrays::storage::ArrayStorage,
+        identity_cursor: &mut Option<u64>,
+    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        use crate::structural_inputs::byte_arrays::storage::ArrayStorageHome;
+        match array.home {
+            ArrayStorageHome::Frame {
+                depth,
+                place,
+                structural_type,
+            } => {
+                let identity = self
+                    .array_storage_identity_staged(depth, place, identity_cursor)
+                    .map_err(|error| TerminalInterpretError::StructuralArgumentPreparation {
+                        stage: "resolve original frame-array identity",
+                        detail: format!(
+                            "depth {depth}, place {place:?}, type {structural_type:?}, current depth {}: {error:?}",
+                            self.call_stack.len()
+                        ),
+                    })?;
+                Ok(TerminalStructuralValue::minted(
+                    identity,
+                    structural_type,
+                    self.frame_array(depth, place)
+                        .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "original frame-array payload is absent",
+                        ))?
+                        .qualifications
+                        .clone(),
+                ))
+            }
+            ArrayStorageHome::Runtime => {
+                let structural_type = self
+                    .structural_byte_storage
+                    .get(&array.referent)
+                    .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "original runtime byte-array payload is absent",
+                    ))?
+                    .structural_type;
+                let mut source = TerminalStructuralValue::minted(
+                    array.referent.opaque_identity,
+                    structural_type,
+                    Vec::new(),
+                );
+                source.path = array.referent.path.clone();
+                self.original_storage_owner(&source).map_err(|error| {
+                    error.in_argument_preparation("resolve original runtime-array enclosing owner")
+                })
+            }
+        }
+    }
+
     fn original_scalar_owner(
         &mut self,
         storage: &PrimitiveStorage,
@@ -306,22 +623,25 @@ impl TerminalExecution<'_> {
         let source_home = StructuralRuntimePlace::from(source);
         let selected = self
             .original_storage_roots
-            .keys()
-            .filter(|home| {
+            .iter()
+            .filter(|(home, _)| {
                 home.opaque_identity == source_home.opaque_identity
                     && source_home.path.starts_with(&home.path)
             })
-            .min_by_key(|home| home.path.len());
-        if let Some(home) = selected {
+            .min_by_key(|(home, _)| home.path.len());
+        if let Some((home, allocation)) = selected {
             let mut original = TerminalStructuralValue::minted(
                 home.opaque_identity,
-                self.actual_storage_type_from_owner(home)?,
+                allocation.structural_type,
                 Vec::new(),
             );
             original.path = home.path.clone();
             return Ok(original);
         }
-        let original = self.original_owned_allocation(source)?.value;
+        let original = self
+            .original_owned_allocation(source)
+            .map_err(|error| error.in_argument_preparation("resolve live original allocation"))?
+            .value;
         if !original.path.is_empty() {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                 "original storage requires retained enclosing geometry after projected transfer",
@@ -342,7 +662,7 @@ impl TerminalExecution<'_> {
             root: self
                 .original_storage_roots
                 .get(&StructuralRuntimePlace::from(original))
-                .copied()
+                .map(|allocation| allocation.root)
                 .unwrap_or(TerminalOriginalStorageRoot {
                     artifact: self.program.identity.semantic(),
                     namespace: self.local_structural_identities.exposure_namespace.ok_or(
@@ -361,6 +681,8 @@ impl TerminalExecution<'_> {
             view_type: original.structural_type,
             references: Vec::new(),
             scalar_projection: None,
+            byte_extent: None,
+            byte_window: None,
         })
     }
 
@@ -641,7 +963,7 @@ fn capture_graph(
     active.pop();
     let loan = request.loan();
     captures.push(CapturedOriginal {
-        owner: StructuralRuntimePlace::from(&original),
+        owner: Some(StructuralRuntimePlace::from(&original)),
         request,
         endpoints: scalars
             .iter()
