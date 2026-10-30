@@ -263,9 +263,9 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 .and_then(|position| source_structural.iter().enumerate()
                     .find(|(_, parameter)| parameter.position as usize == position))
                 && source_parameter.type_identity == target.type_identity
-                && (source_parameter.access == target.access
-                    || (source_parameter.access == CheckedStructuralAccess::MutableBorrow
-                        && target.access == CheckedStructuralAccess::SharedBorrow))
+                // Narrowing access forms a new reborrow, with its own parent
+                // lifetime. Only unchanged access forwards the same descriptor.
+                && source_parameter.access == target.access
                 // Operand preparation retains a new value when the receiving
                 // declared type changes. Inferred arrival facts do not change
                 // that storage operation: the existing value carries them.

@@ -1,0 +1,4 @@
+module main;
+use api::main::Value;
+public Provider satisfies Value { machine get() -> u64 { 99u64 } }
+public machine touch() -> u64 { 1u64 }

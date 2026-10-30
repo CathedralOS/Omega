@@ -1,5 +1,5 @@
 //! Callback bindings: the calling-plan realization, the retained callback
-//! binders, nominal callback placement validation and the closure of
+//! binders, source callback roots and the closure of
 //! outbound and direct callback materializations.
 
 use crate::calling_policy_plans::build_time_decoding::CALLBACK_MATERIALIZATION_CAPACITY;
@@ -15,7 +15,7 @@ use crate::calling_policy_plans::{
 use calling_conventions::{
     BoundaryEntryPlan, CallSignature, CallbackBinderRequirement, CallbackMaterializationContext,
     CallbackRequirementId, NativeCallbackDemand, NativeParameterId, NativePlace,
-    ValidatedBoundaryEntryPlan, ValueShape, callback_requirement_id,
+    ValidatedBoundaryEntryPlan, callback_requirement_id,
     validate_boundary_entry_plan_with_callback_materializations,
 };
 use checked_trees::typed_trees::TypedTrees;
@@ -23,14 +23,6 @@ use checked_trees::typed_trees::types::TypeReferenceHandle;
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
-
-/// Source selection is needed only to produce the callback's Terminal body.
-/// Its native placement carries no source handles or checked-tree receipts.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectedCallbackPlacement {
-    pub selected_machine: symbols::SymbolHandle,
-    pub native: backend_plan::NativeCallbackPlacement,
-}
 
 /// Omega-owned realization state for one canonical source boundary contract.
 ///
@@ -56,10 +48,6 @@ pub struct BoundaryCallingPlanRealization {
     /// coordinate and cannot authorize replacement of this plan.
     pub(crate) validated_boundary_entry_plan: ValidatedBoundaryEntryPlan,
     pub callback_binders: Vec<BoundaryCallbackBinder>,
-    /// Exact binder subset whose requirement service is in the registrar's
-    /// declared synchronous invocation contract. Address placement alone is
-    /// not an invocation edge or a future-root permission.
-    pub(crate) synchronous_callback_binders: Vec<calling_conventions::StaticMachineBinderId>,
     pub callback_demands: Vec<NativeCallbackDemand>,
     pub callback_context_closed: bool,
     pub native_parameters: Vec<BoundaryNativeParameter>,
@@ -273,39 +261,26 @@ pub(crate) fn validate_callback_requirement_report_collision(
     Ok(())
 }
 
-/// Bind checked nominal callback authority back to the one target-owned plan
-/// realization that produced its retained fingerprint. This runs before any
-/// backend lowering so a missing, duplicated, or changed placement recipe
-/// cannot silently fall back to a convention oracle.
-pub fn validate_nominal_callback_placement_bindings(
+/// Select source roots for pre-optimization behavior admission, including
+/// dormant declarations absent from the emitted registrar roster. This retains
+/// source selection only: executable ABI placement belongs to Terminal settlement.
+pub fn select_nominal_callback_roots(
     typed: &TypedTrees,
     selected_providers: &effects::SelectedProviderPlanFacts,
     facts: &checked_trees::CheckFacts,
     realizations: &[BoundaryCallingPlanRealization],
-) -> Result<Vec<SelectedCallbackPlacement>, Vec<Diagnostic>> {
+) -> Result<Vec<symbols::SymbolHandle>, Vec<Diagnostic>> {
     if facts.nominal_machine_uses.uses.is_empty() {
         return Ok(Vec::new());
     }
-    // Callback classification precedes Terminal production and needs exact
-    // source instances: absence must not turn a checked registration into an
-    // unselected declaration and bypass its placement obligations.
     let selected_instances =
         crate::project_checked_provider_instances(typed, facts, selected_providers)?;
-    let selected_providers = &selected_instances;
     let mut diagnostics = Vec::new();
-    let mut bound = Vec::new();
+    let mut roots = Vec::new();
     for nominal_use in &facts.nominal_machine_uses.uses {
-        let matching = realizations
-            .iter()
-            .filter(|realization| {
-                realization.boundary_trait == nominal_use.satisfaction_trait
-                    && realization.requirement_machine == nominal_use.satisfaction_requirement
-                    && realization.boundary_arguments.is_empty()
-            })
-            .collect::<Vec<_>>();
         let registration = match selected_callback_registration(
             typed,
-            selected_providers,
+            &selected_instances,
             nominal_use.registration_operation,
             nominal_use.registration_requirement_trait,
         ) {
@@ -317,179 +292,46 @@ pub fn validate_nominal_callback_placement_bindings(
         };
         let foreign_registration =
             matches!(registration, SelectedCallbackRegistration::ForeignLeaf);
-        let Some(resource_receipt) = nominal_use.callback_entry else {
+        let matching_count = realizations
+            .iter()
+            .filter(|realization| {
+                realization.boundary_trait == nominal_use.satisfaction_trait
+                    && realization.requirement_machine == nominal_use.satisfaction_requirement
+                    && realization.boundary_arguments.is_empty()
+            })
+            .count();
+        if nominal_use.callback_entry.is_none() {
             if foreign_registration
                 && typed
                     .trait_definition_by_symbol(nominal_use.satisfaction_trait)
                     .is_some_and(|definition| definition.is_boundary)
             {
-                diagnostics.push(Diagnostic::error("foreign callback registration requires an explicit selected callback calling plan"));
-                continue;
-            }
-            if !matching.is_empty() {
+                diagnostics.push(Diagnostic::error(
+                    "foreign callback registration requires an explicit selected callback calling plan",
+                ));
+            } else if matching_count != 0 {
                 diagnostics.push(Diagnostic::error(format!(
                     "nominal callback use for `{}` has a target calling plan without a checked callback entry",
-                    nominal_use.canonical_requirement_overload
+                    nominal_use.canonical_requirement_overload,
                 )));
             }
             continue;
-        };
-        let [realization] = matching.as_slice() else {
+        }
+        if matching_count != 1 {
             diagnostics.push(Diagnostic::error(format!(
                 "nominal callback use for `{}` resolves to {} target calling-plan realizations; exactly one is required",
-                nominal_use.canonical_requirement_overload,
-                matching.len()
-            )));
-            continue;
-        };
-        let (validated, realized_report_fingerprint, realized_commitment) = match realization
-            .replayed_validated_application()
-        {
-            Ok(application) => application,
-            Err(error) => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "nominal callback use for `{}` retained an invalid target calling-plan realization: {error}",
-                    nominal_use.canonical_requirement_overload
-                )));
-                continue;
-            }
-        };
-        if realization.report_fingerprint != realized_report_fingerprint
-            || realization.commitment != realized_commitment
-            || realization.exact_boundary_entry_plan() != validated.plan()
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "nominal callback use for `{}` does not bind its exact evaluated target calling plan",
-                nominal_use.canonical_requirement_overload
+                nominal_use.canonical_requirement_overload, matching_count,
             )));
             continue;
         }
-        let Some(resource_envelope) = facts
-            .contract_plans
-            .resource_envelope(nominal_use.selected_machine, nominal_use.selected_entry)
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "nominal callback use for `{}` is missing its exact checked entry resource envelope",
-                nominal_use.canonical_requirement_overload
-            )));
-            continue;
-        };
-        let Some(actual_contract) = facts
-            .contract_plans
-            .for_machine(nominal_use.selected_machine)
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "nominal callback use for `{}` is missing its canonical selected contract",
-                nominal_use.canonical_requirement_overload
-            )));
-            continue;
-        };
-        let Some(published_contract) = facts.contract_plans.crash_capsule(
-            nominal_use.satisfaction_trait,
-            nominal_use.satisfaction_requirement,
-        ) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "nominal callback use for `{}` is missing its canonical published requirement contract",
-                nominal_use.canonical_requirement_overload
-            )));
-            continue;
-        };
-        if nominal_use
-            .published_requirement_envelope
-            .contract_report_fingerprint
-            != published_contract.target_contract_report_fingerprint()
-            || nominal_use
-                .published_requirement_envelope
-                .contract_commitment
-                != published_contract.target_contract_commitment()
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "nominal callback use for `{}` does not bind its exact published requirement contract",
-                nominal_use.canonical_requirement_overload
-            )));
-            continue;
+        // Psi already owns contract refinement and the checked entry resource
+        // receipt. Do not replay those judgments while selecting source roots.
+        if foreign_registration {
+            roots.push(nominal_use.selected_machine);
         }
-        if resource_receipt.contract_report_fingerprint()
-            != nominal_use
-                .selected_actual_envelope
-                .contract_report_fingerprint
-            || resource_receipt.contract_commitment()
-                != nominal_use.selected_actual_envelope.contract_commitment
-            || nominal_use.selected_actual_envelope.contract_commitment
-                != actual_contract.commitment
-            || resource_receipt
-                .validate_against(resource_envelope)
-                .is_err()
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "nominal callback use for `{}` does not bind its exact checked entry resource receipt",
-                nominal_use.canonical_requirement_overload
-            )));
-            continue;
-        }
-        // Forwarding has no registrar occurrence or private native root.
-        // Its exact selection/refinement/resource receipts remain in Psi;
-        // only the eventual selected external leaf publishes a placement.
-        if !foreign_registration {
-            continue;
-        }
-        let private_materialization = match bound_private_callback_materialization(
-            nominal_use,
-            realizations,
-        ) {
-            Ok(materialization) => materialization,
-            Err(reason) => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "nominal callback use for `{}` could not retain its exact private materialization: {reason}",
-                    nominal_use.canonical_requirement_overload
-                )));
-                continue;
-            }
-        };
-        bound.push(SelectedCallbackPlacement {
-            selected_machine: nominal_use.selected_machine,
-            native: backend_plan::NativeCallbackPlacement {
-                application_index: nominal_use.application_index,
-                static_machine_ordinal: nominal_use.static_machine_ordinal,
-                canonical_requirement_overload: nominal_use.canonical_requirement_overload.clone(),
-                contract_commitment: resource_receipt.contract_commitment().as_bytes(),
-                boundary_entry_plan: validated.plan().clone(),
-                entry_parameters: realization
-                    .native_parameters
-                    .iter()
-                    .map(|parameter| {
-                        let placement = validated
-                            .plan()
-                            .call
-                            .parameters
-                            .get(usize::try_from(parameter.native_ordinal).map_err(|_| {
-                                vec![Diagnostic::error(
-                                    "callback ingress ordinal cannot be represented",
-                                )]
-                            })?)
-                            .ok_or_else(|| {
-                                vec![Diagnostic::error(
-                                    "callback ingress row has no validated native placement",
-                                )]
-                            })?;
-                        Ok(backend_plan::NativeCallbackEntryParameter {
-                            application: calling_conventions::NativeParameterApplication {
-                                parameter: parameter.identity,
-                                native_ordinal: parameter.native_ordinal,
-                                shape: placement.shape,
-                                placement: placement.clone(),
-                            },
-                            origin: parameter.origin,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?,
-                private_materialization,
-            },
-        });
     }
-
     if diagnostics.is_empty() {
-        Ok(bound)
+        Ok(roots)
     } else {
         Err(diagnostics)
     }
@@ -563,283 +405,6 @@ fn selected_callback_registration(
         // external leaves. None may borrow a checked-adapter exemption.
         _ => Ok(SelectedCallbackRegistration::ForeignLeaf),
     }
-}
-
-fn bound_private_callback_materialization(
-    nominal_use: &checked_trees::CheckedNominalMachineUse,
-    realizations: &[BoundaryCallingPlanRealization],
-) -> Result<Option<backend_plan::BoundCallbackPrivateMaterialization>, String> {
-    let matching_registrars = realizations
-        .iter()
-        .filter(|realization| {
-            realization.requirement_machine == nominal_use.registration_operation
-                && realization.callback_binders.iter().any(|binder| {
-                    binder.static_machine_ordinal == nominal_use.static_machine_ordinal
-                        && binder.requirement_trait == nominal_use.satisfaction_trait
-                        && binder.requirement_machine == nominal_use.satisfaction_requirement
-                })
-        })
-        .collect::<Vec<_>>();
-    let [registrar] = matching_registrars.as_slice() else {
-        return Err(format!(
-            "registration operation and exact satisfaction row resolve to {} outbound registrar realizations; exactly one is required",
-            matching_registrars.len()
-        ));
-    };
-    validate_retained_callback_binders(registrar)?;
-
-    let matching_binders = registrar
-        .callback_binders
-        .iter()
-        .filter(|binder| {
-            binder.static_machine_ordinal == nominal_use.static_machine_ordinal
-                && binder.requirement_trait == nominal_use.satisfaction_trait
-                && binder.requirement_machine == nominal_use.satisfaction_requirement
-        })
-        .collect::<Vec<_>>();
-    let [binder] = matching_binders.as_slice() else {
-        return Err(format!(
-            "static-machine ordinal {} and exact satisfaction row resolve to {} binder identities in the selected registrar realization; exactly one is required",
-            nominal_use.static_machine_ordinal,
-            matching_binders.len()
-        ));
-    };
-    if !registrar.callback_context_closed {
-        if !registrar
-            .boundary_entry_plan
-            .call
-            .callback_materializations
-            .is_empty()
-        {
-            return Err(
-                "an unclosed target context retained private callback materialization rows"
-                    .to_owned(),
-            );
-        }
-        let (validated, report_fingerprint, commitment) = registrar
-            .replayed_validated_application()
-            .map_err(|error| error.to_string())?;
-        if validated.plan() != &registrar.boundary_entry_plan
-            || validated.plan() != registrar.exact_boundary_entry_plan()
-            || report_fingerprint != registrar.report_fingerprint
-            || commitment != registrar.commitment
-        {
-            return Err(
-                "the exact outbound registrar realization drifted from its retained fingerprint"
-                    .to_owned(),
-            );
-        }
-        return Ok(None);
-    }
-
-    let context = CallbackMaterializationContext {
-        binders: registrar
-            .callback_binders
-            .iter()
-            .map(|binder| CallbackBinderRequirement {
-                binder: binder.binder,
-                requirement: binder.requirement,
-            })
-            .collect(),
-        demands: registrar.callback_demands.clone(),
-    };
-    let (validated, application_report_fingerprint, commitment) = registrar
-        .replayed_validated_application()
-        .map_err(|error| error.to_string())?;
-    if validated.plan() != &registrar.boundary_entry_plan
-        || validated.plan() != registrar.exact_boundary_entry_plan()
-        || application_report_fingerprint != registrar.report_fingerprint
-        || commitment != registrar.commitment
-    {
-        return Err(
-            "the exact outbound registrar realization drifted from its retained fingerprint"
-                .to_owned(),
-        );
-    }
-    let matching_rows = registrar
-        .boundary_entry_plan
-        .call
-        .callback_materializations
-        .iter()
-        .filter(|row| row.binder == binder.binder)
-        .collect::<Vec<_>>();
-    let [row] = matching_rows.as_slice() else {
-        return Err(format!(
-            "exact binder identity resolves to {} private materialization rows; exactly one is required",
-            matching_rows.len()
-        ));
-    };
-    let matching_demands = registrar
-        .callback_demands
-        .iter()
-        .filter(|demand| {
-            demand.destination == row.destination && demand.requirement == binder.requirement
-        })
-        .collect::<Vec<_>>();
-    let [demand] = matching_demands.as_slice() else {
-        return Err(format!(
-            "exact binder destination and callback requirement resolve to {} private demands; exactly one is required",
-            matching_demands.len()
-        ));
-    };
-    // One registrar telescope row carries the slot: the callback parameter
-    // itself for a direct destination, the root record parameter plus the
-    // named layout entry's offset for a field destination. Resolve it once
-    // here, in the same match that reads the destination kind.
-    let destination_application = match &row.destination {
-        NativePlace::Parameter(parameter) => {
-            let matching_parameters = registrar
-                .native_parameters
-                .iter()
-                .filter(|candidate| candidate.identity == *parameter)
-                .collect::<Vec<_>>();
-            let [native_parameter] = matching_parameters.as_slice() else {
-                return Err(format!(
-                    "direct callback destination resolves to {} target-closed native parameter rows; exactly one is required",
-                    matching_parameters.len(),
-                ));
-            };
-            if native_parameter.origin
-                != (BoundaryNativeParameterOrigin::PrivateCallback {
-                    binder: binder.binder,
-                    requirement: binder.requirement,
-                })
-            {
-                return Err(
-                    "direct callback native parameter is not owned by its exact binder and requirement"
-                        .to_owned(),
-                );
-            }
-            let BoundaryNativeParameterShape::TargetFunctionPointer {
-                byte_size,
-                alignment,
-            } = native_parameter.shape
-            else {
-                return Err(
-                    "direct callback native parameter does not retain a target function-pointer shape"
-                        .to_owned(),
-                );
-            };
-            let shape = ValueShape::integer(u32::from(byte_size), alignment);
-            let placement = usize::try_from(native_parameter.native_ordinal)
-                .ok()
-                .and_then(|ordinal| validated.plan().call.parameters.get(ordinal))
-                .ok_or_else(|| {
-                    "direct callback native parameter ordinal is absent from the exact registrar plan"
-                        .to_owned()
-                })?;
-            if placement.shape != shape {
-                return Err(
-                    "direct callback native parameter shape drifted from its exact registrar placement"
-                        .to_owned(),
-                );
-            }
-            backend_plan::PrivateCallbackDestinationApplication::Direct {
-                application: calling_conventions::NativeParameterApplication {
-                    parameter: *parameter,
-                    native_ordinal: native_parameter.native_ordinal,
-                    shape,
-                    placement: placement.clone(),
-                },
-            }
-        }
-        NativePlace::Field { parameter, .. } => {
-            let matching_parameters = registrar
-                .native_parameters
-                .iter()
-                .filter(|candidate| candidate.identity == *parameter)
-                .collect::<Vec<_>>();
-            let [native_parameter] = matching_parameters.as_slice() else {
-                return Err(format!(
-                    "field callback root resolves to {} target-closed native parameter rows; exactly one is required",
-                    matching_parameters.len(),
-                ));
-            };
-            let matching_layout_entries = registrar
-                .materialized_signature
-                .callback_layout_catalog()
-                .iter()
-                .filter(|entry| entry.destination() == &row.destination)
-                .collect::<Vec<_>>();
-            let [layout_entry] = matching_layout_entries.as_slice() else {
-                return Err(format!(
-                    "field callback destination resolves to {} named layout catalog entries; exactly one is required",
-                    matching_layout_entries.len(),
-                ));
-            };
-            if layout_entry.native_ordinal() != native_parameter.native_ordinal {
-                return Err(
-                    "field callback root parameter ordinal drifted from its named layout entry"
-                        .to_owned(),
-                );
-            }
-            let placement = usize::try_from(native_parameter.native_ordinal)
-                .ok()
-                .and_then(|ordinal| validated.plan().call.parameters.get(ordinal))
-                .ok_or_else(|| {
-                    "field callback root parameter ordinal is absent from the exact registrar plan"
-                        .to_owned()
-                })?;
-            backend_plan::PrivateCallbackDestinationApplication::Field {
-                root: calling_conventions::NativeParameterApplication {
-                    parameter: *parameter,
-                    native_ordinal: native_parameter.native_ordinal,
-                    shape: placement.shape,
-                    placement: placement.clone(),
-                },
-                byte_offset: layout_entry.composed_offset(),
-            }
-        }
-    };
-    let application_commitment = commitment.as_bytes();
-    Ok(Some(backend_plan::BoundCallbackPrivateMaterialization {
-        binder: binder.binder,
-        destination: row.destination.clone(),
-        requirement: demand.requirement,
-        registrar_boundary_entry_plan: validated.plan().clone(),
-        registrar_calling_plan_report_fingerprint: validated.contract_report_fingerprint(),
-        registrar_application_report_fingerprint: application_report_fingerprint,
-        registrar_application_commitment: application_commitment,
-        registrar_application: registrar.native_application()?,
-        destination_application,
-        context,
-        registrar_invokes_callback: registrar
-            .synchronous_callback_binders
-            .contains(&binder.binder),
-    }))
-}
-
-/// Resolve the synchronous contract while declaration symbols still exist.
-/// Downstream code cannot recover it from a callback address or ABI geometry.
-pub(crate) fn synchronous_callback_binders(
-    typed: &TypedTrees,
-    boundary_trait: symbols::SymbolHandle,
-    requirement_machine: symbols::SymbolHandle,
-    binders: &[BoundaryCallbackBinder],
-) -> Result<Vec<calling_conventions::StaticMachineBinderId>, String> {
-    if binders.is_empty() {
-        return Ok(Vec::new());
-    }
-    let invocations = if let Some(definition) = typed.trait_definition_by_symbol(boundary_trait) {
-        let requirement = typed
-            .trait_machine_signature_by_symbol(definition, requirement_machine)
-            .ok_or("callback registrar lost its exact requirement declaration")?;
-        checked_trees::typed_trees::invocations::declared_signature_invocations(typed, requirement)
-    } else {
-        let requirement = typed
-            .machine_by_symbol(requirement_machine)
-            .ok_or("callback registrar lost its exact top-level declaration")?;
-        checked_trees::typed_trees::invocations::declared_machine_invocations(typed, requirement)
-    };
-    Ok(binders
-        .iter()
-        .filter(|binder| {
-            invocations.contains(&flow_effects::InvocationTarget::Service(
-                binder.requirement_trait,
-            ))
-        })
-        .map(|binder| binder.binder)
-        .collect())
 }
 
 /// Close outbound registrar policies over the target's native layout catalog
@@ -1136,6 +701,20 @@ pub(super) fn source_free_application(
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,
 ) -> Result<calling_conventions::BoundaryCallingApplication, String> {
+    let mut callback_bindings = arena::Arena::with_capacity(signature.callback_binders.len());
+    let mut callback_binding_rows = arena::HandleSpan::empty();
+    for binder in &signature.callback_binders {
+        callback_bindings.append_to_span(
+            &mut callback_binding_rows,
+            calling_conventions::BoundaryCallbackBinding {
+                binder: binder.binder,
+                requirement: binder.requirement,
+                static_machine_ordinal: binder.static_machine_ordinal,
+                requirement_identity: binder.requirement_identity.clone(),
+                invokes_synchronously: binder.invokes_synchronously,
+            },
+        );
+    }
     let mut native_parameters = arena::Arena::with_capacity(signature.native_parameters.len());
     let mut native_parameter_rows = arena::HandleSpan::empty();
     for parameter in &signature.native_parameters {
@@ -1162,6 +741,7 @@ pub(super) fn source_free_application(
             shapes: signature.shapes().to_vec(), fields: signature.fields().to_vec(),
             parameters: signature.parameters().to_vec(), result: signature.result(),
             native_parameters, native_parameter_rows, callback_layouts, callback_layout_rows,
+            callback_bindings, callback_binding_rows,
         },
         opaque_applications: signature.opaque_representation_uses().iter().map(|use_| {
             calling_conventions::BoundaryOpaqueApplication {

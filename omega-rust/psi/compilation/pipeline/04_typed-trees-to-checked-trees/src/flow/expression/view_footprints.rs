@@ -4,11 +4,40 @@
 //! backing enclosure: its new field symbols cannot name the source layout.
 //! Resident views borrow content, excluding their Extent descriptor.
 use super::Execution;
-use arena::Handle;
-use checked_trees::{FlowOperandFact, FlowOperandRetention};
+use arena::{Handle, HandleSpan};
+use checked_trees::{FlowOperandFact, FlowOperandReferent, FlowOperandRetention};
+use facts::PlaceSegment;
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 
 impl Execution<'_, '_, '_> {
+    /// Owned projections preserve every possible backing without claiming an
+    /// exact address. A dynamic selector contributes an element dimension, not
+    /// an expression that a later write may evaluate again.
+    pub(super) fn project_possible_storage(
+        &mut self,
+        value: &FlowOperandFact,
+        path: &[PlaceSegment],
+    ) -> Option<HandleSpan<FlowOperandReferent>> {
+        let backing = self.completed_backing_places(value)?;
+        if backing.is_empty() {
+            return None;
+        }
+        let path = path
+            .iter()
+            .map(|segment| match segment {
+                PlaceSegment::Index { .. } => PlaceSegment::Index {
+                    expression: typed_trees::expression::ExpressionHandle::invalid(),
+                },
+                segment => *segment,
+            })
+            .collect::<Vec<_>>();
+        let projected = backing
+            .into_iter()
+            .map(|place| crate::flow::project_captured_view_place(place, &path))
+            .collect::<Option<Vec<_>>>()?;
+        Some(self.append_referent_places(&projected))
+    }
+
     pub(super) fn view_enclosure(
         &self,
         profile: Handle<FlowOperandRetention>,

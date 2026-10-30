@@ -1,10 +1,8 @@
 //! Private runtime validator, not an implementation of the spectrum algorithm.
 //! Uses the same reviewed fixture inputs and retained native/Terminal products
 //! as the repository corpus runner. No production acceptance is persisted.
-use terminal_runtime::{
-    TerminalClockSnapshot, TerminalDomainExitDelegation, TerminalRuntimeRequest,
-};
-use compiler::{CompileRequest, RequestedCompileProduct};
+use compiler::CompileReport;
+use omega_build::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
 use std::{
     env, fs,
     io::Write,
@@ -12,6 +10,9 @@ use std::{
     process::{Command, Stdio},
 };
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
+use terminal_runtime::{
+    TerminalClockSnapshot, TerminalDomainExitDelegation, TerminalRuntimeRequest,
+};
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
@@ -19,12 +20,8 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 #[path = "../../../../omega-rust/omega/compilation/driver/tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
-fn request(
-    root: &Path,
-    build: &Path,
-    product: RequestedCompileProduct,
-    native: bool,
-) -> CompileRequest {
+/// The repository fixture policy's exact checked inputs for one control.
+fn checked_request(root: &Path, build_dir: &Path) -> compiler::CheckedCompileRequest {
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         root,
         Some("linux_x86_64"),
@@ -32,22 +29,43 @@ fn request(
     .unwrap_or_else(|errors| panic!("fixture preparation: {errors:?}"));
     let snapshot = fixture_package_inputs::fixture_build_snapshot(&prepared.root_path)
         .unwrap_or_else(|errors| panic!("build snapshot: {errors:?}"));
-    let targets = if native {
-        vec![Some(
-            target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap(),
-        )]
-    } else {
-        vec![None]
+    let mut request =
+        compiler::CheckedCompileRequest::new(&prepared.root_path, Some("linux_x86_64"));
+    request.package_inputs = prepared.package_inputs;
+    request.build = package_compilation::BuildExecutionInputs {
+        directory: Some(build_dir.to_path_buf()),
+        snapshot,
+        ..Default::default()
     };
-    let mut request = CompileRequest::for_targets(prepared.root_path, build.to_path_buf(), targets)
-        .with_requested_product(product);
-    if let Some(inputs) = prepared.package_inputs {
-        request = request.with_package_inputs(inputs);
-    }
-    if let Some(snapshot) = snapshot {
-        request = request.with_build_snapshot(snapshot);
-    }
     request
+}
+
+/// Build one product of this sample through the public application Build.
+fn build(root: &Path, build_dir: &Path, product: ProjectProduct) -> CompileReport {
+    let profile = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
+    let outcomes = omega_build::build(BuildRequest {
+        root_path: root.to_path_buf(),
+        build_directory: Some(build_dir.to_path_buf()),
+        targets: BuildTargets::Single(profile),
+        product,
+        timings: false,
+        offline: true,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    })
+    .unwrap_or_else(|error| panic!("build: {error}"));
+    let [outcome] = outcomes
+        .try_into()
+        .map_err(|_| "one named target produces exactly one Build outcome")
+        .unwrap();
+    outcome
+        .result
+        .unwrap_or_else(|error| panic!("build: {error}"))
+        .into_report()
+        .unwrap_or_else(|error| panic!("build report: {error}"))
+        .report
 }
 
 fn observe(
@@ -74,22 +92,13 @@ fn observe(
 
 // Read-only inspection of a sealed Check product; grants no selection authority.
 fn verify_value_equality_selection(root: &Path, evidence: &Path) {
-    let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
-        &root.join("main.omg"),
-        Some("linux_x86_64"),
+    let mut session = compiler::CompilationSession::default();
+    let checked = omega_build::check_source(
+        &mut session,
+        checked_request(&root.join("main.omg"), &evidence.join("selection_check")),
     )
-    .unwrap_or_else(|errors| panic!("identity fixture preparation: {errors:?}"));
-    let snapshot = fixture_package_inputs::fixture_build_snapshot(&prepared.root_path)
-        .unwrap_or_else(|errors| panic!("identity build snapshot: {errors:?}"));
-    let mut request =
-        compiler::CheckedCompileRequest::new(&prepared.root_path, Some("linux_x86_64"));
-    request.package_inputs = prepared.package_inputs;
-    request.build_snapshot = snapshot;
-    request.build_dir = Some(evidence.join("selection_check"));
-    let checked = compiler::CompilationSession::default()
-        .check(request)
-        .result
-        .unwrap_or_else(|failure| panic!("identity checked product: {failure:?}"));
+    .result
+    .unwrap_or_else(|failure| panic!("identity checked product: {failure:?}"));
     let program = &checked.typed;
     let machines = program
         .machines()
@@ -229,37 +238,32 @@ fn main() {
     });
     fs::create_dir_all(&evidence).unwrap();
     let root_source = root.join("main.omg");
-    let check = compiler::compile(request(
-        &root_source,
-        &evidence.join("check"),
-        RequestedCompileProduct::Check,
-        false,
-    ))
-    .and_then(compiler::CompileOutcomes::into_single_report)
-    .unwrap_or_else(|errors| panic!("Check product: {errors:?}"));
+    let check = build(&root_source, &evidence.join("check"), ProjectProduct::Check);
     drop(check);
     fs::write(evidence.join("check.txt"), "Check product succeeded\n").unwrap();
     println!("check\tpassed");
-    let report = compiler::compile(request(
+    let report = build(
         &root_source,
         &evidence.join("native"),
         if terminal_only {
-            RequestedCompileProduct::TerminalArtifact
+            ProjectProduct::Terminal
         } else {
-            RequestedCompileProduct::NativeArtifact
+            ProjectProduct::Native {
+                destination: NativeDestination::Retained,
+                private_entry_ram: Vec::new(),
+            }
         },
-        true,
-    ))
-    .and_then(compiler::CompileOutcomes::into_single_report)
-    .unwrap_or_else(|errors| panic!("native product: {errors:?}"));
+    );
     let terminal = if terminal_only {
         report.artifact().expect("retained Terminal artifact")
     } else {
-        let artifact = report
-            .retained_native_artifact()
-            .expect("retained native image");
-        image_emission::verify_retained_target_operations(artifact.object()).unwrap();
-        artifact.psi_artifact()
+        if let Some(artifact) = report.retained_native_artifact() {
+            image_emission::verify_retained_target_operations(artifact.object()).unwrap();
+        }
+        report
+            .retained_native_program()
+            .map(|program| program.psi_artifact())
+            .expect("retained native program")
     };
     fs::write(evidence.join("program.terminal"), terminal.to_bytes()).unwrap();
     let manifest = if fixture {
@@ -318,8 +322,14 @@ fn main() {
             }
         });
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
+            entry: None,
             native_provider: None,
-            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64")
+                .expect("host flags capture"),
+            memory_ordering:
+                terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(
+                    "linux_x86_64",
+                ),
             artifact: terminal,
             provisions: report.runtime_provisions(),
             provider_proposal: None,
@@ -354,13 +364,10 @@ fn main() {
         );
         return;
     }
-    let published =
-        compilation_products::publication::publish_compilation(report, &evidence.join("native"))
+    let (_, executable) =
+        omega_build::publication::publish_native_artifact(report, &evidence.join("native"))
             .unwrap();
-    let executable = published
-        .checked_native_executable_path()
-        .expect("published executable");
-    fs::copy(executable, evidence.join("spectrometer.native")).unwrap();
+    fs::copy(&executable, evidence.join("spectrometer.native")).unwrap();
     for (name, expected_exit) in &cases {
         let input = match fs::File::open(input_path(name)) {
             Ok(file) => Stdio::from(file),
@@ -374,7 +381,7 @@ fn main() {
                 panic!("stdout oracle: {error}")
             }
         });
-        let output = Command::new(executable)
+        let output = Command::new(&executable)
             .current_dir(&evidence)
             .stdin(input)
             .output()

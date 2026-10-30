@@ -4,6 +4,8 @@
 //! complete-or-opaque summaries to its parent frame engine. It does not own
 //! call validation, alias-origin inference, or transition fixed points.
 
+mod read_backing;
+pub(crate) use read_backing::CapturedStorageReadBacking;
 mod call_origins;
 mod normal_subjects;
 mod result_transport;
@@ -553,11 +555,16 @@ impl<'program> CallFrameResolver<'program> {
         // Stored-slot transfer is current. Standalone alias bindings are an
         // entry inventory: a replaced slot's produced row supersedes them,
         // while an unaccounted binding change supplies an unknown origin.
+        let aliases = super::caller_aliases::current_reference_aliases(
+            self.program,
+            &origins,
+            &prefix.aliases,
+        );
         let bindings = super::caller_aliases::prefix_reference_origins(
             self.program,
             Some((state, index)),
             &[],
-            &prefix.aliases,
+            &aliases,
             &prefix.divergent,
         )?;
         let stored_count = origins.len();

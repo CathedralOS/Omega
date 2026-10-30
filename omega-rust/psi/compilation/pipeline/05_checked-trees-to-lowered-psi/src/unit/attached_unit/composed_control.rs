@@ -16,7 +16,7 @@ mod emission;
 mod literal_arguments;
 mod scalar_calls;
 mod state_graph;
-pub(super) use state_graph::admit as admit_callable;
+pub(super) use callable::admit as admit_callable;
 pub(super) use state_graph::case_emission::result as state_graph_result;
 pub(crate) use state_graph::live;
 

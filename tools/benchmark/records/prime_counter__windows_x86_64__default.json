@@ -1,0 +1,144 @@
+{
+  "schema": "omega-benchmark-record/2",
+  "recorded_utc": "2026-10-30T02:58:47Z",
+  "subject": {
+    "name": "prime_counter",
+    "root": "samples/cli/arithmetic/prime_counter/main.omg",
+    "source_revision": "7a0b63d1ff981db0af4c33c4240c6e604e0aa4ec"
+  },
+  "key": {
+    "target": "windows_x86_64",
+    "selection": {
+      "enabled": [],
+      "disabled": []
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable",
+    "selection_receipt": {
+      "requested": [
+        "ControlFlowCleanup"
+      ],
+      "applied": [],
+      "effective": []
+    },
+    "probe_disable": "ControlFlowCleanup"
+  },
+  "host": {
+    "os": "win32",
+    "machine": "AMD64",
+    "cpu": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+    "logical_cpus": 32,
+    "python": "3.15.1",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "build\\prime-preparation-2\\candidate\\omega.exe",
+    "omega_binary_sha256": "e02036a35a8dc5f86bbe688f05f7573c45786262412e31f174a83348da25f3ca",
+    "omega_version": "omega 0.1.0-dev (unrecorded; x86_64-pc-windows-msvc)",
+    "omega_profile": "unknown"
+  },
+  "measurement": {
+    "protocol": "omega-benchmark-process-v1/fresh-build-dir",
+    "source_clean": true,
+    "input_sha256": "bc39c6f22c06587337742b3c74f14550d59aebe1267ef3bdd14cab56c84ab3be",
+    "dependency_lock_sha256": "4f6504f70433391f7890589e478f3e362fd6996d1eed30806ea87838a0e28f2f",
+    "dependency_lock_stable": true,
+    "machine_id": "8ab77c7698c9e3d6218b31cb3050314a3417fd802ad2850fe36d406dd064c58c",
+    "compiler_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    },
+    "work_units": null,
+    "runtime_scope": "whole-process-including-startup",
+    "file_cache": "uncontrolled"
+  },
+  "metrics": {
+    "package_preparation_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        93011.90559999668
+      ],
+      "median_ms": 93011.90559999668,
+      "min_ms": 93011.90559999668
+    },
+    "compile_time_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        7626.956000000064,
+        1422.4565999975312,
+        1862.880500004394
+      ],
+      "median_ms": 1862.880500004394,
+      "min_ms": 1422.4565999975312,
+      "stage_timings_last_sample_ms": {
+        "prepare: project -> prepared sources": 56.752,
+        "compile: sources -> requested product": 660.959,
+        "publish: retained product -> published product": 19.756,
+        "Stage 05: TypedTrees -> CheckedTrees": 9.295,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 95.321,
+        "Step: settle: CheckedTrees -> SelectedExecution": 142.097,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 241.393,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 240.293,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.002,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.326,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.095,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.531,
+        "total elapsed": 1653.46
+      }
+    },
+    "peak_memory_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "compile_max_rss": 2390020096,
+      "run_max_rss": 1183744
+    },
+    "code_size_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "samples": [
+        9728,
+        9728,
+        9728
+      ],
+      "value": 9728,
+      "stable": true
+    },
+    "runtime_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        155.88179999758722,
+        112.62369999894872,
+        71.57819999702042,
+        149.98770000238437,
+        71.33410000096774,
+        176.04019999998854,
+        99.0447000003769,
+        83.97980000154348,
+        110.46100000385195
+      ],
+      "median_ms": 110.46100000385195,
+      "min_ms": 71.33410000096774,
+      "exit_codes": [
+        8,
+        8,
+        8,
+        8,
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "exit_code_expected": 8,
+      "stdin": "devnull",
+      "exit_code_match": true
+    }
+  },
+  "notes": [
+    "Preparation uses a fresh private LOCALAPPDATA cache and no project lock; includes update, review acceptance and resume. Compile samples use that prepared cache. File caches and host load are uncontrolled.",
+    "Retained producer Rust inputs exactly match 7a0b63d1ff981db0af4c33c4240c6e604e0aa4ec, release opt-level 3. Prime sources and bounds are unchanged. Runtime includes startup; project LOC excludes std."
+  ],
+  "observation_warnings": [
+    "Cold preparation: 93 s; warm-cache preparation measured separately"
+  ]
+}

@@ -50,9 +50,11 @@ class PerformanceTests(unittest.TestCase):
     def test_missing_size_keeps_raw_times_and_unknown_memory_is_not_zero(self):
         source = record()
         source['observation_warnings'] = ['Preparation timed out']
+        source['metrics']['package_preparation_ms'] = {'status': 'measured', 'samples': [50]}
         source['metrics']['peak_memory_bytes'] = {'status': 'unavailable', 'reason': 'unsupported'}
         row = performance.flatten(source, 'id', 'record.json', 'r', {'sloc': None, 'error': 'missing'})
         self.assertEqual(row['compile']['median'], 25)
+        self.assertEqual(row['preparation']['median'], 50)
         self.assertIsNone(row['compile_ms_kloc'])
         self.assertIsNone(row['compile_memory'])
         self.assertEqual(row['observation_warnings'], ['Preparation timed out'])

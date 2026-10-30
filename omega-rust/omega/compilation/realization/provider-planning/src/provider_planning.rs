@@ -12,7 +12,7 @@
 //! cycles, and `selection_provenance.rs` projects exact source correspondence
 //! into the shared source-free `provider-selection` owner for whole-map choice
 //! and independent-component admission;
-//! `qualification_grants.rs` checks exact source requirements against grants.
+//! Grant association consumes prepared issuer evidence through provider selection.
 //! Intrinsic execution identities and labels are queries on
 //! `crate::IntrinsicRequirement`.
 
@@ -22,7 +22,6 @@ mod installation_reach;
 mod operator_provider_evidence;
 mod provenance_replay;
 pub(crate) mod provider_rows;
-mod qualification_grants;
 mod selected_plan_bindings;
 pub(crate) mod selection_declarations;
 mod selection_provenance;
@@ -34,7 +33,7 @@ pub use effects::{
 };
 pub(crate) use external_binding_rows::extract_native_external_binding_rows;
 pub use operator_provider_evidence::{
-    selected_requirement_plan, selected_use_plan, specialized_provider_machines,
+    selected_checked_operator_body, selected_requirement_plan, selected_use_plan,
 };
 pub(crate) use provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
@@ -81,7 +80,14 @@ pub fn bind_selected_provider_plan_facts(
             authored_root_grants,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-    qualification_grants::validate(typed, check_facts, &facts, &provider_grants)?;
+    provider_selection::validate_qualification_grants(
+        check_facts
+            .semantic
+            .admitted_qualification_issuers()
+            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?,
+        &facts,
+        &provider_grants,
+    )?;
     operator_provider_evidence::validate_selected_operator_provider_evidence(
         typed,
         check_facts,
@@ -95,7 +101,7 @@ pub fn bind_selected_provider_plan_facts(
         &facts,
     )?;
     let (installation_reach_resolutions, installation_reach_identities) =
-        derive_selected_installation_reach_resolutions(typed, check_facts, &facts)?;
+        derive_selected_installation_reach_resolutions(typed, check_facts, &facts, provenance)?;
     let (specialized_requirement_rows, specialized_identities) =
         provenance_replay::derive_leaf_requirement_specializations(typed, &facts)?;
     let (external_applications, external_identities) =

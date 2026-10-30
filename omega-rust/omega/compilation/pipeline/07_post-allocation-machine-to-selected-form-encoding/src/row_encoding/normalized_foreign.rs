@@ -92,11 +92,7 @@ pub(super) fn encode(
     selected_function: &SelectedFunction,
 ) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
     let record = normalized_foreign_call_record(target, instruction, kind, selected_function)?;
-    let views = machine
-        .operands
-        .iter()
-        .map(|operand| operand.view)
-        .collect::<Vec<_>>();
+    let views = super::operand_views(machine);
     let accesses = machine
         .operands
         .iter()

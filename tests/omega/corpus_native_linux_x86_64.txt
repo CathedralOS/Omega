@@ -1273,8 +1273,7 @@ pass/contracts/normal_return_contextual_call_arguments_exit built 2431ms exit:0 
 pass/contracts/opaque_call_preserves_model rejected 2289ms regressed-from:built+exit:0 @a92f16431042
 	cannot prove requires contract for call exact_seven from after_call: saved == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/contracts/policy_field_ensures checked 2298ms @a92f16431042
-pass/contracts/proof_fact_indexed_domain_application rejected 1500ms regressed-from:checked @a92f16431042
-	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/contracts/proof_fact_indexed_domain_application checked 1457ms @ad7c6890a897+wt
 pass/contracts/range_requires_discharge checked 2290ms @a92f16431042
 pass/contracts/recurrent_call_prefix_preserves_model built 1871ms exit:0 @a92f16431042
 pass/contracts/requires_narrow_ceiling_unproven built 10402ms exit:70 @a92f16431042
@@ -1676,8 +1675,7 @@ pass/dependent/zero_gated_record_field_store_exit built 6386ms exit:70 @a92f1643
 pass/dependent/zero_valid_qualified_storage checked 4482ms @a92f16431042
 pass/dependent/zeroed_record_member_sum_elision built 7149ms exit:70 @a92f16431042
 pass/domains/bitwise_live_membership_exit built 3996ms exit:0 @a92f16431042
-pass/domains/bodyless_owner_establishment rejected 1711ms regressed-from:checked @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/bodyless_owner_establishment checked 1749ms @0cea3356c5b0+wt
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 1770ms @a92f16431042
 pass/domains/call_requires_domain_intersection_preserved checked 2340ms @a92f16431042
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 1727ms @a92f16431042
@@ -1693,8 +1691,7 @@ pass/domains/copied_array_domain_survives_original_mutation_exit built 2223ms ex
 pass/domains/dependent_coordinate_sum_rational_bound checked 1653ms @a92f16431042
 pass/domains/dependent_coordinate_sum_upper_bound checked 1320ms @a92f16431042
 pass/domains/domain_axis_cast checked 1689ms @a92f16431042
-pass/domains/domain_established_by rejected 2188ms regressed-from:checked @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/domain_established_by checked 2121ms @0cea3356c5b0+wt
 pass/domains/domain_family_result checked 2480ms @a92f16431042
 pass/domains/domain_intersection checked 2184ms @a92f16431042
 pass/domains/domain_operator_add checked 1931ms @a92f16431042
@@ -1708,12 +1705,10 @@ pass/domains/established_by_domain checked 3139ms @a92f16431042
 pass/domains/executable_domain_membership_expression_exit incomplete 6790ms regressed-from:built+exit:81 @a92f16431042
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `Main::main::main`, statement 2
 pass/domains/executable_domain_membership_union_guard_exit built 6508ms exit:241 @a92f16431042
-pass/domains/explicit_domain_erasure rejected 1995ms regressed-from:checked @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/explicit_domain_erasure checked 1755ms @0cea3356c5b0+wt
 pass/domains/guard_predicate_establishes_domain checked 1699ms @a92f16431042
 pass/domains/inactive_impossible_payload_exit built 1884ms exit:0 @a92f16431042
-pass/domains/indexed_domain_fact rejected 1602ms regressed-from:checked @a92f16431042
-	cannot establish call-result qualification `Extent::Vacant` in `exercise_placed`, state `entry` (statement 2, call 0): the exact invocation, authorized route or consumed qualified claims, and result correspondence are not proved
+pass/domains/indexed_domain_fact checked 1921ms @ad7c6890a897+wt
 pass/domains/indexed_domain_known_disjoint_call_exit built 1790ms exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @f1058703209f+wt
 pass/domains/indexed_membership_follows_completed_values built 2948ms exit:0 @a92f16431042
 pass/domains/intersected_qualifiers checked 3718ms @a92f16431042
@@ -1750,8 +1745,7 @@ pass/domains/record_literal_view_member_store_exit incomplete 7185ms regressed-f
 pass/domains/record_predicate_domain_member_exit built 6538ms exit:70 @a92f16431042
 pass/domains/referent_field_byte_store_keeps_fixed_array_domain checked 1407ms @a92f16431042
 pass/domains/refinement_chain_predicates checked 1571ms @a92f16431042
-pass/domains/refinement_chain_routed_provenance rejected 1662ms regressed-from:checked @a92f16431042
-	cannot prove ensures contract for exit from Token::issue at statement 0: result in Token::Issued
+pass/domains/refinement_chain_routed_provenance checked 1738ms @0cea3356c5b0+wt
 pass/domains/retained_routed_qualification_cast checked 1501ms @a92f16431042
 pass/domains/routed_record_capture_before_sibling_mutation checked 1419ms @a92f16431042
 pass/domains/routed_selected_copy_exit built 2350ms exit:0 @a92f16431042
@@ -4689,15 +4683,6 @@ pass/facts/replaced_field_loan_through_other_machine_exit built 2574ms exit:0 @a
 pass/facts/replaced_field_loan_through_other_state_exit built 2012ms exit:0 @a92f16431042
 pass/facts/replaced_field_loan_through_parameter_exit built 1981ms exit:0 @a92f16431042
 pass/facts/replaced_field_loan_through_target_body_exit built 2378ms exit:0 @a92f16431042
-pass/facts/repro_through_call_result_exit built 10271ms exit:0 @a92f16431042
-pass/facts/repro_through_const_name_exit built 10212ms exit:0 @a92f16431042
-pass/facts/repro_through_field_exit built 10435ms exit:0 @a92f16431042
-pass/facts/repro_through_local_exit built 10448ms exit:0 @a92f16431042
-pass/facts/repro_through_match_join_exit built 10185ms exit:0 @a92f16431042
-pass/facts/repro_through_other_machine_exit built 11151ms exit:0 @a92f16431042
-pass/facts/repro_through_other_state_exit built 9485ms exit:0 @a92f16431042
-pass/facts/repro_through_parameter_exit built 10780ms exit:0 @a92f16431042
-pass/facts/repro_through_target_body_exit built 6416ms exit:0 @a92f16431042
 pass/facts/result_cleanup_guarantee_through_call_result_exit built 3275ms exit:0 @a92f16431042
 pass/facts/result_cleanup_guarantee_through_const_name_exit built 3252ms exit:0 @a92f16431042
 pass/facts/result_cleanup_guarantee_through_field_exit built 3199ms exit:0 @a92f16431042

@@ -109,6 +109,16 @@ pub enum LoweringError {
     },
     InvalidFieldObservationStoragePath(validation::StorageObservationTypePathError),
     Unsupported(&'static str),
+    /// Preserve the two actual descriptor shapes at a failed state-owner join.
+    CapturedLoanDescriptorMismatch {
+        source_state: usize,
+        target_state: usize,
+        target_parameter: u32,
+        earlier: terminal_psi::StructuralTypeShape,
+        incoming: terminal_psi::StructuralTypeShape,
+        source_access: checked_trees::CheckedStructuralAccess,
+        target_access: checked_trees::CheckedStructuralAccess,
+    },
     /// Retained conditional arithmetic must preserve the failed source join.
     UnpublishedScalarCondition {
         owner: symbols::SymbolHandle,

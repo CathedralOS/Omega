@@ -1,0 +1,17 @@
+trait Reader<Value> { machine read(value: &Value) -> u64; }
+data Item { number: u64; }
+data Other { number: u64; }
+Selected satisfies Reader<Item> {
+    machine read(value: &Item) -> u64 { value.number }
+}
+machine outer<Value, Callbacks satisfies Reader<Value>>(value: &Value, other: &Other) -> u64 {
+    inner(other)
+    machine inner(value: &Other) -> u64 {
+        Callbacks::read(value)
+    }
+}
+machine main() {
+    let item: Item = Item { number: 42u64 };
+    let other: Other = Other { number: 7u64 };
+    let observed: u64 = outer<Item, Selected>(&item, &other);
+}

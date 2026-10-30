@@ -1668,5 +1668,143 @@ class StampProvenance(unittest.TestCase):
         self.assertEqual(row["recorded_at"], published[:12])
 
 
+class AuditSlice(unittest.TestCase):
+    """A bounded slice re-observes old rows; the rest is never called clean."""
+
+    def setUp(self):
+        profile = patch.object(corpus_gate, "require_optimized",
+                               return_value={"profile": {"opt_level": "1"}})
+        profile.start()
+        self.addCleanup(profile.stop)
+        receipt = patch.object(corpus_gate, "record_cargo_build")
+        receipt.start()
+        self.addCleanup(receipt.stop)
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.golden = self.root / "golden.txt"
+        self.json_path = self.root / "verdict.json"
+        self.last_filter = None
+
+    def write_golden(self, rows):
+        self.golden.write_text(corpus_records.render(rows, None),
+                               encoding="utf-8")
+
+    def run_gate(self, observed, *extra, distances=None):
+        argv = ["corpus_gate", "--runner", "unused", "--golden",
+                str(self.golden), "--json", str(self.json_path), *extra]
+
+        def fake_run_runner(*_arguments, **_options):
+            self.last_filter = os.environ.get(
+                "OMEGA_CORPUS_FIXTURE_FILTER")
+            return observed
+
+        output = io.StringIO()
+        with patch.object(corpus_gate, "ROOT", self.root), \
+             patch.object(corpus_gate, "run_runner",
+                          side_effect=fake_run_runner), \
+             patch.object(corpus_gate, "commits_between",
+                          side_effect=lambda revision:
+                              (distances or {}).get(revision)), \
+             patch.dict(corpus_gate.os.environ, {}, clear=True), \
+             patch.object(sys, "argv", argv), \
+             contextlib.redirect_stdout(output):
+            code = corpus_gate.main()
+        return code, output.getvalue()
+
+    def rows(self):
+        return [record("pass/a/old", recorded_at="aaaaaaaaaaaa"),
+                record("pass/a/mid", recorded_at="bbbbbbbbbbbb"),
+                record("pass/a/new", recorded_at="cccccccccccc")]
+
+    distances = {"aaaaaaaaaaaa": 900, "bbbbbbbbbbbb": 400,
+                 "cccccccccccc": 1}
+
+    def test_order_puts_unresolvable_stamps_first_then_oldest(self):
+        rows = [record("pass/a/new", recorded_at="cccccccccccc"),
+                record("pass/a/legacy"),
+                record("pass/a/old", recorded_at="aaaaaaaaaaaa"),
+                record("pass/a/mid", recorded_at="bbbbbbbbbbbb"),
+                record("pass/a/dirty", recorded_at="bbbbbbbbbbbb+wt")]
+        distances = {"aaaaaaaaaaaa": 900, "bbbbbbbbbbbb": 400}
+        self.assertEqual(corpus_gate.audit_order(rows, distances.get),
+                         ["pass/a/legacy", "pass/a/new", "pass/a/old",
+                          "pass/a/dirty", "pass/a/mid"])
+
+    def test_balanced_partitions_cover_the_order_exactly_once(self):
+        names = [f"pass/a/{index:02d}" for index in range(7)]
+        for count in range(1, 8):
+            parts = [corpus_gate.audit_partition(names, index, count)
+                     for index in range(count)]
+            self.assertEqual([name for part in parts for name in part], names)
+            self.assertLessEqual(max(map(len, parts)) - min(map(len, parts)), 1)
+        self.assertEqual(corpus_gate.audit_partition(names, 0, 1), names)
+        self.assertEqual(corpus_gate.audit_partition(names, 3, 7),
+                         ["pass/a/03"])
+
+    def test_slice_spelling_is_checked(self):
+        self.assertEqual(corpus_gate.parse_audit_slice("0/20"), (0, 20))
+        self.assertEqual(corpus_gate.parse_audit_slice("19/20"), (19, 20))
+        for value in ("", "2", "1/1", "2/2", "0/0", "-1/2", "a/b"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                corpus_gate.parse_audit_slice(value)
+
+    def test_only_the_slice_is_verified_and_the_rest_stays_unverified(self):
+        rows = self.rows()
+        self.write_golden(rows)
+        # The fragment also re-observes `pass/a/mid`, which another slice owns:
+        # it must be reported unverified, never clean, and never as a move.
+        observed = [record("pass/a/old", recorded_at="aaaaaaaaaaaa"),
+                    record("pass/a/mid", recorded_at="bbbbbbbbbbbb")]
+        code, text = self.run_gate(observed, "--audit-slice", "0/3",
+                                   distances=self.distances)
+        self.assertEqual(code, 1)
+        self.assertIn("audit slice 0/3: 1 verified / 2 unverified", text)
+        self.assertIn("corpus_gate: audited", text)
+        self.assertNotIn("corpus_gate: clean", text)
+        # The slice reached the runner through the ordinary --filter plumbing.
+        self.assertEqual(self.last_filter, "pass/a/old")
+        document = json.loads(self.json_path.read_text())
+        self.assertEqual(document["counts"]["by_verdict"], {"unverified": 1})
+        self.assertTrue(document["subset"])
+
+    def test_a_regression_inside_the_slice_still_blocks(self):
+        rows = self.rows()
+        self.write_golden(rows)
+        observed = [record("pass/a/old", status="rejected",
+                           recorded_at="aaaaaaaaaaaa")]
+        code, text = self.run_gate(observed, "--audit-slice", "0/3",
+                                   distances=self.distances)
+        self.assertEqual(code, 3)
+
+    def test_a_slice_of_the_whole_golden_is_a_full_sweep(self):
+        rows = self.rows()
+        self.write_golden(rows)
+        code, text = self.run_gate(rows, "--audit-slice", "0/1",
+                                   distances=self.distances)
+        self.assertEqual(code, 0)
+        self.assertIsNone(self.last_filter)
+        self.assertIn("audit slice 0/1: 3 verified / 0 unverified", text)
+
+    def test_a_filter_narrows_the_slice_without_claiming_the_rest(self):
+        rows = self.rows()
+        self.write_golden(rows)
+        code, text = self.run_gate(rows, "--audit-slice", "0/1",
+                                   "--filter", "a/mid",
+                                   distances=self.distances)
+        self.assertEqual(code, 1)
+        self.assertEqual(self.last_filter, "pass/a/mid")
+        self.assertIn("audit slice 0/1: 1 verified / 2 unverified", text)
+
+    def test_audit_slice_never_records(self):
+        rows = self.rows()
+        self.write_golden(rows)
+        original = self.golden.read_text()
+        code, _text = self.run_gate(rows, "--audit-slice", "0/2", "--record",
+                                    distances=self.distances)
+        self.assertEqual(code, 2)
+        self.assertEqual(self.golden.read_text(), original)
+
+
 if __name__ == "__main__":
     unittest.main()

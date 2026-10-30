@@ -77,6 +77,37 @@ fn spatial_origins(sources: Vec<Option<SlotSource>>) -> Vec<Option<FramePlaceOri
 struct ReferenceStep {
     source: SlotSource,
     backing_depth: Option<usize>,
+    loaded_slot: Option<FramePlaceOrigin>,
+}
+
+/// One resolution retains the slot which supplied its pointer beside the
+/// resulting backing. Slot coordinates are invalidation evidence only.
+pub(in crate::machine_calls::calls::write_frames) struct CapturedReferenceRead {
+    pub source: SlotSource,
+    pub slots: Vec<FramePlaceOrigin>,
+}
+
+pub(in crate::machine_calls::calls::write_frames) fn captured_reference_reads(
+    program: &dyn crate::CheckingInput,
+    origin: &Option<FramePlaceOrigin>,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+) -> Vec<Option<CapturedReferenceRead>> {
+    resolve_steps(program, origin, aliases, stored, None)
+        .into_iter()
+        .map(|step| {
+            let mut step = step?;
+            let slots = step.loaded_slot.into_iter().collect();
+            if step.backing_depth.is_some() && step.source.lifetime_access.is_none() {
+                step.source.carrier = step.source.origin.source.clone();
+                step.source.carrier_backing = None;
+            }
+            Some(CapturedReferenceRead {
+                source: step.source,
+                slots,
+            })
+        })
+        .collect()
 }
 
 fn spatial_source(origin: FramePlaceOrigin) -> Option<ReferenceStep> {
@@ -88,6 +119,7 @@ fn spatial_source(origin: FramePlaceOrigin) -> Option<ReferenceStep> {
             lifetime_access: None,
         },
         backing_depth: None,
+        loaded_slot: None,
     })
 }
 
@@ -306,6 +338,7 @@ fn resolve_steps(
                 sources.push(Some(ReferenceStep {
                     source: dependency.clone(),
                     backing_depth: None,
+                    loaded_slot: None,
                 }));
             }
         }
@@ -357,6 +390,11 @@ fn resolve_steps(
             recast.root != carrier.root || recast.segments.len() <= carrier.segments.len()
         });
         let backing_depth = captured.source.segments.len();
+        let loaded_slot = FramePlaceOrigin {
+            path: leaf.local_path.clone(),
+            precision: origin.precision,
+            source: carrier.clone(),
+        };
         let step = ReferenceStep {
             source: SlotSource {
                 carrier_backing: Some(captured),
@@ -365,6 +403,7 @@ fn resolve_steps(
                 lifetime_access: None,
             },
             backing_depth: Some(backing_depth),
+            loaded_slot: Some(loaded_slot),
         };
         if !sources.iter().any(|prior| {
             prior.as_ref().is_some_and(|prior| {

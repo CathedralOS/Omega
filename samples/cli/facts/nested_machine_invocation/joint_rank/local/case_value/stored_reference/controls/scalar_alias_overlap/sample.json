@@ -1,0 +1,5 @@
+{
+  "rejection_contains": [
+    "exact arithmetic in machine `forward`"
+  ]
+}

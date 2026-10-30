@@ -27,10 +27,10 @@ pub use fact_plan::contexts::{
     ProgramPoint, SymbolFactSet, TypeConstraintFact, view,
 };
 pub use fact_plan::evidence::{
-    ContractFactKind, DataDefinitionFactDependency, DataDefinitionFactRecord,
-    DomainDefinitionFactDependency, DomainDefinitionFactRecord, Fact, FactOrigin, FactPayload,
-    FloatPredicate, InstantiatedExpression, InstructionEffectOperation, IntegerRange,
-    ProofObligationKind, QualificationCorrespondence, QualificationEvidence,
+    BoundaryQualificationIssuerRecord, ContractFactKind, DataDefinitionFactDependency,
+    DataDefinitionFactRecord, DomainDefinitionFactDependency, DomainDefinitionFactRecord, Fact,
+    FactOrigin, FactPayload, FloatPredicate, InstantiatedExpression, InstructionEffectOperation,
+    IntegerRange, ProofObligationKind, QualificationCorrespondence, QualificationEvidence,
     QualificationPayloadIdentity, ScalarValue,
 };
 pub use fact_plan::places::resolution::{

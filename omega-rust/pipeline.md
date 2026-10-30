@@ -317,6 +317,40 @@ source-signature extraction preserves normalized identities without combining
 those distinct authority paths. Hosted source checks are not evidence of
 physical arrival execution.
 
+Psi also admits source-issued audit registrations, runtime assumed-binding
+relationships and wire demands as one declaration operation after Product join.
+It forms every authored request before admitting executed selections, resolves
+their exact operands and authors, and enforces consuming-root authority for
+assumed relationships. The Product coordinator installs those returned records;
+it does not resolve their source operands or mutate admission policy. Package
+review owns audit projection, Psi checking owns wire compatibility, and Omega
+owns runtime provider compatibility. Uncalled legacy checked-expression
+collectors are not alternative admission routes.
+
+The post-join source continuation now admits the complete root Product policy
+in one ordered operation: provider applications, representation choices, native
+intent, root grants, audit/assumption/wire declarations, then exclusions.
+The Product coordinator authenticates package providers first, invokes that
+operation, resolves captured dependency native intent through Psi, attaches
+evaluation receipts and publishes the returned choices. It never borrows typed
+trees to drive individual source judgments. Source formation now finishes before
+native receipt attachment and dependency-intent resolution; when both fail, the
+root source error reports first. Neither independent failure becomes admissible.
+
+Authored grant and exclusion records belong to language semantics. Shared crash
+causes and physical-class vocabulary retain their canonical encoding; naming a
+restriction establishes no behavioral absence. Omega still resolves service
+identities against Terminal catalogs, resolves grants against selected plans,
+classifies physical mechanisms and checks the selected executable closure.
+
+Final representation admission belongs to Psi checking, not the Product
+coordinator. Build's selected applications carry their activation, source-issued
+requests and executed roster into `CheckRequest`; Psi recloses them against the
+completed authored/generated graph before source-completion preparation or
+retained-check matching. Only that admission derives semantic-copy property
+receipts. A caller cannot supply copy facts or bypass final application custody
+through a cached language judgment.
+
 Both interpreter and native realization consume a common Terminal view: borrow
 same-session storage, or admit external bytes once and borrow that owned storage.
 Keep suspended activation storage alive while separately compiling helpers.
@@ -404,6 +438,15 @@ diagnostics; native source failures remain deferred, and receiving permission,
 trust admission and actual native demand stay at their existing boundaries.
 This consolidates the source preparation owner, not the intended future
 Terminal-only provider selection.
+Installation-reach preparation reads the selected provider's exact retained
+requirement and realization rows, including inherited and dormant declarations.
+It projects checked bounds and dependency identities once; source-free
+`provider-selection` owns fixed-point substitution across the complete selected
+closure. A missing source realization is not an empty service row, and a pending
+competing publisher cannot become a unique fallback. No typed declaration search
+or provider-name reconstruction occurs during substitution. Existing selected
+fact attachment validates the bound; independent package review still compares
+the resolved row with its own checked-source projection.
 Accepted-service preparation likewise retains the exact nominal owner, complete
 target-side schema and ordered requirement identities once at checked-provider
 binding. Resolved semantic bindings carry that record, not a source-arena symbol.
@@ -803,6 +846,20 @@ Checked qualification evidence names its source declaration and exact boundary
 requirement, not a selected provider's receipt number. Provider grant binding
 borrows that evidence and returns selected plans and grants separately; it never
 rewrites or clones checked Psi to stamp target-specific authority into facts.
+Psi prepares each authorized contract issuer's export identity once before
+sharing the checking baseline with flow workers. Admitted fact occurrences carry
+that stable issuer handle; the inventory alone creates no obligation. Omega's
+source-free grant policy consumes those occurrences, including uncalled bodies at
+the Check stop, and preserves declaring-owner preference and ambiguous-grant
+refusal without rescanning typed traits or signatures.
+
+Psi retains checked operator declaration eligibility separately from closed
+application body candidates. Open or dormant declarations do not root bodies or
+establish executable coverage. Omega admission and checked dispatch join selected
+plans to that inventory through one source-free choice operation, preserving
+provider/package identity, effective target context, scope and application
+coordinates. Neither consumer rediscovers specialization or source satisfaction;
+the exact application's existing body span supplies its executable alternatives.
 
 `omega/compilation/driver/` owns only compilation orchestration.
 [`omega/compilation/native-production/`](omega/compilation/native-production/README.md)
@@ -865,20 +922,23 @@ entry receipt and native proposal. Distinct roots and callbacks are retained
 in that same whole-program Terminal roster.
 These remain checked-tree realization seams with package-input custody;
 moving them out of the coordinator does not establish the intended Terminal-only
-handoff. Callback proposal production now closes source placements into body,
-ABI and argument records once; retained native re-entry borrows those records
-without retaining or rejoining checked-source callback placements.
-The native placement carries application/contract identity and its ABI recipe;
-the source-selected machine stays with the producer that compiles its body.
-Backend callback planning no longer depends on checked-tree records.
+handoff. Executable callback placement belongs to Omega stage 00: canonical
+callback applications name their registrar operation, exact body, requirement
+and checked entry admission; target calling applications retain exact static
+binder ordinals, requirement identities and synchronous invocation membership.
+Fresh and recovered native inputs derive placements through the same join.
+Neither the realization request nor its persisted record carries source-produced
+callback placements. Source preparation still selects callback roots and checks
+dormant declarations before behavior admission; emitted occurrences alone cannot
+replace that complete source roster.
 Psi identifies callback uses from their declared calling policy and retains
 the exact checked entry resource receipt. Native ABI plan hashes are not
 callback checking facts; Omega binds the checked entry to its evaluated calling
 application without rewriting the nominal-use facts. Evaluated calling applications
 belong to provider settlement, not typed trees. Schema derivation receives those
 applications explicitly; package review joins the exact schema commitment to
-the retained realization. Callback materialization borrows the checked program
-and updates only its native application, without reopening the source owner.
+the retained realization. Callback materialization consumes only canonical
+Terminal uses and completed calling applications, without reopening source.
 
 Logical `Binding<R>` shapes and occurrence receipts are Psi data, independent
 of selected composition mode. Provider settlement does not mutate typed trees

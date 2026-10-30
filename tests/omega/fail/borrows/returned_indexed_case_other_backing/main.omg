@@ -1,0 +1,19 @@
+// A selected descriptor's tag does not establish a tag on another backing.
+data Node { case Number(value: u64); case Empty; }
+data Nodes { items: [Node; 2]; }
+machine get(nodes: &Nodes, position: u64) -> &Node
+requires position < 2;
+{ &nodes.items[position] }
+machine evaluate(nodes: &Nodes, position: u64) -> u64
+requires position < 2;
+{
+    let node: &Node = get(nodes, position);
+    match node {
+        Node::Number { value } -> nodes.items[1u64].value
+        Node::Empty -> 0u64
+    }
+}
+machine entry() -> u64 {
+    let nodes: Nodes = Nodes { items: [Node::Number { value: 42u64 }, Node::Empty] };
+    evaluate(&nodes, 0u64)
+}

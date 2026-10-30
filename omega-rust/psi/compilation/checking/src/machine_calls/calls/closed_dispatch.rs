@@ -18,6 +18,7 @@ pub fn closed_requirement_dispatch_is_valid(
     let applications = program.selected_conformance_applications(
         owner,
         dispatch.selection_application,
+        dispatch.evidence_parameter,
         dispatch.requirement,
         dispatch.application_report_fingerprint,
         dispatch.application_commitment,
@@ -259,10 +260,51 @@ pub(crate) fn conformance_binding_is_exact(
             .into_iter()
             .collect::<Vec<_>>()
     } else {
-        program
+        // The prepared map invocation identifies one evidence slot even when
+        // several source binders select the same map tuple. Rejoin that slot
+        // through the specialization's retained declaration order, rather
+        // than treating equal map values as ambiguous source occurrences.
+        let source_bindings = program
             .expression_table
-            .static_machine_application_bindings(supplying_application)
+            .static_machine_application_bindings(supplying_application);
+        let evidence_positions = program
+            .machine_specializations
             .iter()
+            .filter(|specialization| specialization.binding_application == supplying_application)
+            .flat_map(|specialization| specialization.conformance_applications.iter().enumerate())
+            .filter_map(|(position, selected)| {
+                (application.callable_application.is_valid()
+                    && selected.callable_application == application.callable_application)
+                    .then_some(position)
+            });
+        let trait_positions = program
+            .trait_implementation_applications
+            .iter()
+            .filter(|(_, selected)| {
+                selected.supplying_application == supplying_application
+                    && application.callable_application.is_valid()
+                    && selected.application.callable_application == application.callable_application
+            })
+            .filter_map(|(_, selected)| {
+                source_bindings
+                    .iter()
+                    .filter(|binding| {
+                        matches!(binding.value, StaticMachineBindingValue::Conformance(_))
+                    })
+                    .position(|binding| binding.parameter == selected.parameter)
+            });
+        let mut positions = evidence_positions.chain(trait_positions);
+        let position = positions
+            .next()
+            .ok_or("capture supplying application lost its exact evidence occurrence")?;
+        if positions.next().is_some() {
+            return Err("capture supplying application repeats its evidence occurrence");
+        }
+        source_bindings
+            .iter()
+            .filter(|binding| matches!(binding.value, StaticMachineBindingValue::Conformance(_)))
+            .nth(position)
+            .into_iter()
             .filter_map(|binding| match &binding.value {
                 StaticMachineBindingValue::Conformance(argument)
                     if argument.symbol == application.declaration =>

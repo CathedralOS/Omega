@@ -53,6 +53,24 @@ fn allocate(builder: &mut Builder<'_>) -> Result<SelectedBlockId, SelectedInstru
     Ok(id)
 }
 
+/// Open the source block an operation body branches from. A body that is
+/// already terminating or nested under another operation has no source anchor
+/// of its own, so it refuses rather than inventing one.
+fn open_source_block(builder: &mut Builder<'_>) -> Result<BlockId, SelectedInstructionError> {
+    let open = builder.open_block.ok_or_else(failure)?;
+    let source = match open.origin {
+        SelectedBlockOrigin::Source(source) | SelectedBlockOrigin::Operation { source, .. } => {
+            source
+        }
+        _ => return Err(failure()),
+    };
+    if builder.block_body_end.is_some() {
+        return Err(failure());
+    }
+    settle_preceding_operations(builder)?;
+    Ok(source)
+}
+
 fn settle_preceding_operations(builder: &mut Builder<'_>) -> Result<(), SelectedInstructionError> {
     if builder.pending_provenance.operations.is_empty() {
         return Ok(());
@@ -215,17 +233,7 @@ fn conditional_body(
     on_nonzero: bool,
     body: impl FnOnce(&mut Builder<'_>) -> Result<(), SelectedInstructionError>,
 ) -> Result<(), SelectedInstructionError> {
-    let open = builder.open_block.ok_or_else(failure)?;
-    let source = match open.origin {
-        SelectedBlockOrigin::Source(source) | SelectedBlockOrigin::Operation { source, .. } => {
-            source
-        }
-        _ => return Err(failure()),
-    };
-    if builder.block_body_end.is_some() {
-        return Err(failure());
-    }
-    settle_preceding_operations(builder)?;
+    let source = open_source_block(builder)?;
     let selected = allocate(builder)?;
     let continuation = allocate(builder)?;
     branch_on_nonzero(
@@ -269,17 +277,7 @@ pub(super) fn while_nonzero(
     condition: impl FnOnce(&mut Builder<'_>) -> Result<VirtualRegisterId, SelectedInstructionError>,
     body: impl FnOnce(&mut Builder<'_>) -> Result<(), SelectedInstructionError>,
 ) -> Result<(), SelectedInstructionError> {
-    let open = builder.open_block.ok_or_else(failure)?;
-    let source = match open.origin {
-        SelectedBlockOrigin::Source(source) | SelectedBlockOrigin::Operation { source, .. } => {
-            source
-        }
-        _ => return Err(failure()),
-    };
-    if builder.block_body_end.is_some() {
-        return Err(failure());
-    }
-    settle_preceding_operations(builder)?;
+    let source = open_source_block(builder)?;
     let test = allocate(builder)?;
     let repeated = allocate(builder)?;
     let continuation = allocate(builder)?;

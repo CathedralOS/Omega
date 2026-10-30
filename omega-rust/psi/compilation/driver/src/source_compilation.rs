@@ -15,7 +15,9 @@ use activation::SourceContext;
 
 mod authored_completion;
 use authored_completion::AuthoredCompletions;
+mod product_policy;
 mod provider_requests;
+pub use product_policy::{AdmittedProductPolicy, ProductPolicyRequest};
 mod storage;
 
 /// Parsed, source-scoped input after package admission and Build-helper selection.

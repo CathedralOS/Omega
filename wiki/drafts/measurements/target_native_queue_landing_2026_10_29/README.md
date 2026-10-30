@@ -129,3 +129,4 @@ both required admission runs passed, and the published commit was verified as
 an ancestor of fetched remote main. [Publication readback](publication.json)
 keeps the original runtime producer/capture identities separate. Post-merge
 smoke was pending at this readback, not reported as green.
+

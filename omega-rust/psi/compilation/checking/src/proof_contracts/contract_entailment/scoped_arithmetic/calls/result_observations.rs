@@ -40,6 +40,17 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
     {
         return Vec::new();
     }
+    // These are checked public guarantees of the completed value, not a
+    // pending source formation goal or facts inferred from its private body.
+    // A case-dependent coordinate is available only when that exact result's
+    // selected case follows from this roster on every normal completion.
+    let guarantees = owner_contracts(program, &owner)
+        .filter(|contract| {
+            contract.kind == SignatureContractKind::Ensures && contract.binding.is_none()
+        })
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .filter_map(|fact| fact.as_expression().copied())
+        .collect::<Vec<_>>();
     let mut pending = owner_contracts(program, &owner)
         .filter(|contract| {
             contract.kind == SignatureContractKind::Ensures && contract.binding.is_none()
@@ -69,10 +80,21 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
                     step,
                     crate::ScalarCoordinateProjection::Storage(
                         checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                            | checked_trees::CheckedUnitStructuralPathSegment::Case(_)
                             | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
                     )
                 )
             })
+            && super::super::super::declaration_projection_cases_hold(
+                program,
+                result_owner,
+                owner_parameters(program, &owner),
+                &guarantees,
+                &crate::CanonicalPlace {
+                    root: facts::PlaceRoot::Expression(place.root),
+                    segments: place.segments.clone(),
+                },
+            )
         {
             let value = observations
                 .iter()

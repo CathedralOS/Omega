@@ -1975,6 +1975,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         &collection_operand,
                         &start_operand,
                         Some(&end_operand),
+                        possible_storage,
                     ));
                     // `self.expression(indexed.index)` would publish the
                     // range node's own result tags after evaluating both
@@ -2003,6 +2004,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         &collection_operand,
                         &index_operand,
                         None,
+                        possible_storage,
                     ));
                     self.record_operator_invocation(
                         expression,
@@ -2220,7 +2222,16 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             .span_or_empty(places)
             .iter()
             .any(|place| place.formation.is_valid());
-        if source_has_case || observed_has_case || formed_reference {
+        // A descriptor read needs its own observation namespace even when
+        // its home is not itself a case payload. A later tag read selects
+        // this one descriptor, not every candidate backing it may point to.
+        let descriptor_read = !places.is_empty()
+            && expression != self.reference_slot_target
+            && self
+                .context
+                .expression_result_type_at(self.program, self.machine, self.state, expression)
+                .is_some_and(|reference| self.is_view_type(reference));
+        if source_has_case || observed_has_case || formed_reference || descriptor_read {
             return self
                 .context
                 .control

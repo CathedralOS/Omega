@@ -1,0 +1,10 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "qualification_issuer_grant");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::accept_boundary<FirstRoot>(builder);
+    Build::accept_boundary<SecondRoot>(builder);
+    Build::accept_boundary<Parent>(builder);
+    Build::select_provider<FirstRoot, FirstMap>(builder, macos_arm64);
+    Build::select_provider<Parent, ParentMap>(builder, macos_arm64);
+    Build::select_provider<SecondRoot, SecondMap>(builder, macos_arm64);
+}

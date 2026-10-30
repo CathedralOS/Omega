@@ -507,14 +507,8 @@ impl Execution<'_, '_, '_> {
             .map_or(receiver.type_reference, |shell| shell.referee);
         if !is_view
             && validation::owned_projection_type_reference(self.program, carrier, &path).is_some()
-            && let Some(backing) = self.completed_backing_places(receiver)
-            && !backing.is_empty()
-            && let Some(projected) = backing
-                .into_iter()
-                .map(|place| crate::flow::project_captured_view_place(place, &path))
-                .collect::<Option<Vec<_>>>()
         {
-            *possible_storage = Some(self.append_referent_places(&projected));
+            *possible_storage = self.project_possible_storage(receiver, &path);
         }
 
         let places = self
@@ -647,10 +641,23 @@ impl Execution<'_, '_, '_> {
         // A produced unknown result is authoritative, just as an unresolved
         // saved descriptor is. No initializer supplies a replacement address.
         *referents = Some(HandleSpan::empty());
+        let Some((_, state)) = validation::find_state(self.program, call.target_symbol) else {
+            return;
+        };
+        let Some(indices) = self.captured_argument_indices(
+            self.program.state_parameters(state),
+            inputs
+                .iter()
+                .skip(usize::from(call.receiver.is_valid()))
+                .map(|(_, value)| value),
+        ) else {
+            return;
+        };
         let Some(sources) = super::super::reference_places::call_result_leaf_sources(
             self.program,
             call,
             self.context.call_frames,
+            &indices,
         ) else {
             return;
         };
@@ -811,6 +818,7 @@ impl Execution<'_, '_, '_> {
         collection: &FlowOperandFact,
         start: &FlowOperandFact,
         end: Option<&FlowOperandFact>,
+        possible_storage: &mut Option<HandleSpan<FlowOperandReferent>>,
     ) -> HandleSpan<FlowOperandReferent> {
         if !validation::indexed_operation_has_builtin_meaning(
             self.program,
@@ -855,6 +863,7 @@ impl Execution<'_, '_, '_> {
             // even when its runtime extent remains symbolic. This equality
             // uses selected builtin meaning, not a declaration's initializer.
             if start_coordinate == Some(0) && !end.expression.is_valid() && !range.end_inclusive {
+                *possible_storage = self.project_possible_storage(collection, &[]);
                 return self.append_captured_references(&places);
             }
             let end_coordinate = if end.expression.is_valid() {
@@ -906,6 +915,12 @@ impl Execution<'_, '_, '_> {
                 .context
                 .expression_result_type_at(self.program, self.machine, self.state, expression)
                 .is_some_and(|reference| self.is_view_type(reference));
+        // A descriptor slot's geometry is not the stored pointer's pointee.
+        // Owned element selection and range formation retain the collection's
+        // aligned may-write footprint independently of exact referents below.
+        if !reads_descriptor {
+            *possible_storage = self.project_possible_storage(collection, &[geometry]);
+        }
         if reads_descriptor
             && let Some(referents) = self.captured_projection_referents(collection, &[geometry])
         {

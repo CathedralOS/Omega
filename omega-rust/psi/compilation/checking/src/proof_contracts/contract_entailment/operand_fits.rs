@@ -223,9 +223,10 @@ pub(crate) fn exact_binary_fits_at_occurrence(
         if !crate::value_custody::literals::has_anonymous_numeric_results(program, operand) {
             return false;
         }
-        let Some(peer) = references[1 - position]
-            .and_then(|reference| program.primitive_type_reference(reference))
-        else {
+        let Some(peer) = references[1 - position].and_then(|reference| {
+            crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
+                .map(|(primitive, _)| primitive)
+        }) else {
             return false;
         };
         let carrier = typed_trees::operator::integer_peer_operand_carrier(
@@ -245,7 +246,10 @@ pub(crate) fn exact_binary_fits_at_occurrence(
     let [Some(left), Some(right)] = references else {
         return false;
     };
-    let primitives = [left, right].map(|reference| program.primitive_type_reference(reference));
+    let primitives = [left, right].map(|reference| {
+        crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
+            .map(|(primitive, _)| primitive)
+    });
     let [Some(left_primitive), Some(right_primitive)] = primitives else {
         return false;
     };
@@ -615,11 +619,32 @@ impl StructuralPrefixVisitor for OperandFit {
                         continue;
                     };
                     let values = [left, right];
+                    // Selecting a readable carrier is not evidence that its
+                    // contents were observed. In particular, a returned pointer
+                    // cannot acquire scalar bounds from this wrapper alone.
+                    if values.iter().zip(references).any(|(value, reference)| {
+                        !super::structural_terms::scalar_operand_is_observed(
+                            program, reference, value,
+                        )
+                    }) {
+                        self.judgment = Some(CarrierFit::Unknown);
+                        continue;
+                    }
+                    let observed = references.map(|reference| {
+                        crate::value_custody::expression_types::readable_observation_type_reference(
+                            program, reference,
+                        )
+                    });
+                    let [Some(observed_left), Some(observed_right)] = observed else {
+                        self.judgment = Some(CarrierFit::Unknown);
+                        continue;
+                    };
+                    let observed = [observed_left, observed_right];
                     let [left, right] = std::array::from_fn(|position| {
                         let value = values[position].clone();
                         let value = if established_carriers[position] {
                             StructuralTerm::ObservedValue {
-                                observed_type: references[position],
+                                observed_type: observed[position],
                                 value: Box::new(value),
                                 descriptor: None,
                             }

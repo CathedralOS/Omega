@@ -3,7 +3,7 @@
 use super::{
     Architecture, BoundaryExecutionRecord, BoundarySettlementRecord, CompilerBuiltinExecution,
     IntegerSign, InternalUnitScalarArgumentSourceRecord, MachineRegister, NativeTarget, ScalarType,
-    ValueLocation, ValueShape,
+    ValueLocation,
 };
 pub(crate) fn decode(target: NativeTarget, bytes: &[u8]) -> Option<MachineRegister> {
     match target.architecture {
@@ -17,7 +17,7 @@ pub(crate) fn decode(target: NativeTarget, bytes: &[u8]) -> Option<MachineRegist
 }
 
 pub(crate) fn shape_is_exact(target: NativeTarget, settlement: &BoundarySettlementRecord) -> bool {
-    let [argument] = settlement.runtime_scalar_arguments.as_slice() else {
+    let Some(argument) = super::single_i32_register_argument(settlement, None) else {
         return false;
     };
     let InternalUnitScalarArgumentSourceRecord::SelectedProcessExit { scalar_type, .. } =
@@ -42,25 +42,7 @@ pub(crate) fn shape_is_exact(target: NativeTarget, settlement: &BoundarySettleme
             target_operations::BoundaryRealization::HostedExitProcessI32(_)
         )
         && settlement.byte_count == byte_count
-        && settlement.native_result.is_unit()
-        && settlement.scalar_arguments.is_empty()
-        && settlement.arguments.is_empty()
-        && settlement.byte_sequence_arguments.is_empty()
-        && settlement.completion_claim_sources.is_empty()
-        && settlement.completion_receipts.is_empty()
-        && settlement.completion_provider_custody.is_empty()
-        && argument.parameter_index == 0
-        && argument.code_offset == settlement.code_offset
-        && argument.byte_count == settlement.byte_count
-        && argument.placement.shape == ValueShape::integer(4, 4)
-        && matches!(
-            argument.placement.locations.as_slice(),
-            [ValueLocation::Register {
-                value_byte_offset: 0,
-                byte_size: 4,
-                ..
-            }]
-        )
+        && super::settlement_carries_only_runtime_scalars(settlement)
 }
 
 pub(crate) fn bytes_are_exact(

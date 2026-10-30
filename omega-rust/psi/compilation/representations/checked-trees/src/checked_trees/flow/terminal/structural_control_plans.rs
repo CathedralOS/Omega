@@ -74,6 +74,10 @@ pub enum CheckedSuccessorCompletion {
 pub struct CheckedStructuralControlSuccessorPlan {
     pub statement_ordinal: u32,
     pub target_state: SymbolHandle,
+    /// A prepared executable occurrence of the authored target. Source plans
+    /// leave this absent; custody specialization can retain several occurrences
+    /// of one declaration without inventing new source symbols or facts.
+    pub target_occurrence: Option<u32>,
     pub completion: CheckedSuccessorCompletion,
     /// Whether the transition selects the state's authored continuation
     /// rather than its ordinary target. Scalar terminators and the composed
@@ -110,6 +114,7 @@ impl CheckedStructuralControlSuccessorPlan {
         CheckedStructuralControlSuccessorPlan {
             statement_ordinal,
             target_state,
+            target_occurrence: None,
             completion,
             is_continuation,
             transfers,
