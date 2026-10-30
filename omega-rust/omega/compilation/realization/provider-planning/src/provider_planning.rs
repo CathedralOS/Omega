@@ -19,6 +19,7 @@
 pub(crate) mod external_binding_rows;
 mod external_requirements;
 mod installation_reach;
+pub(crate) mod native_catalogue_backing;
 mod operator_provider_evidence;
 mod provenance_replay;
 pub(crate) mod provider_rows;
@@ -40,9 +41,9 @@ pub(crate) use provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
 };
 pub use provenance_replay::{
-    ProviderPlanDerivation, ProviderSchemaDeclaration, derive_satisfies_plans,
-    exact_checked_adapter, project_checked_provider_instances, same_semantic_name,
-    satisfies_plan_name, selected_requirement_checked_adapter,
+    ProviderPlanDerivation, ProviderRowRealization, ProviderSchemaDeclaration,
+    derive_satisfies_plans, exact_checked_adapter, project_checked_provider_instances,
+    same_semantic_name, satisfies_plan_name, selected_requirement_checked_adapter,
 };
 pub(crate) use selected_plan_bindings::SelectedProviderPlanBinding;
 pub use selection_provenance::{

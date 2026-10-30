@@ -56,15 +56,14 @@ pub use compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
 #[doc(hidden)]
 pub use package_compilation::native_output_codec;
 pub use package_compilation::{
-    CompilerProductRetention, IndependentComponentDescription, PackageBuildHandoff,
-    PackageBuildSource, PackageCompilationInputError, PackageCompilationInputs,
-    PackageCompilationSourceInputs, PackageCompilationTargetInputs, PackageDependencyAcquisition,
-    PackageDependencyBinding, PackageDependencyClosure, PackageSourceBinding,
+    CompilerProductRetention, IndependentComponentDescription, NativeBindingProduction,
+    PackageBuildHandoff, PackageBuildSource, PackageCompilationInputError,
+    PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
+    PackageDependencyAcquisition, PackageDependencyBinding, PackageDependencyClosure,
+    PackageNativeBindingOrigin, PackageSourceBinding,
 };
 #[doc(hidden)]
-pub use package_compilation::{
-    native_receipts, native_selection_codec, provider_selection_codec, retained_native_bindings,
-};
+pub use package_compilation::{native_receipts, provider_selection_codec};
 pub use review_cache_digests::{
     package_build_handoff_digest, review_cache_inputs_digest, review_cache_snapshot_digest,
 };

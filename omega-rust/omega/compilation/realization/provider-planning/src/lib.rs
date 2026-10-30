@@ -27,13 +27,7 @@ pub mod data_layout_queries;
 pub(crate) use optimization_core::digest_encoder;
 mod fnv1a;
 mod intrinsic_requirements;
-mod native_bindings;
-pub use native_bindings::{
-    AdmittedNativeBinding, AdmittedNativeLocator, NativeFieldIdentity, NativeSameStackDemand,
-    ResolvedNativeApplication, admit_native_binding, capture_package_native_bindings,
-    rejoin_package_native_bindings, resolve_native_binding_application,
-    unify_native_binding_identities,
-};
+pub mod native_bindings;
 mod native_provider_sources;
 pub use native_provider_sources::prepare_native_provider_sources;
 mod sealed_placed_accessors;
@@ -72,7 +66,7 @@ pub use provider_planning::provider_rows::{
 };
 pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
-    CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderRowOrigin,
+    CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderRowRealization,
     ProviderSchemaDeclaration, ProviderSelectionProvenance, SelectedProviderReviewProvenance,
     bind_selected_provider_plan_facts, derive_satisfies_plans, exact_checked_adapter,
     project_checked_provider_instances, same_semantic_name, satisfies_plan_name,

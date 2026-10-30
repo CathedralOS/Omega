@@ -32,7 +32,6 @@ pub use composition_modes::verify_selected_compositions_are_realized;
 use crate::ProviderSelection;
 use crate::SelectedProviderReviewProvenance;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
-use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
@@ -253,10 +252,8 @@ pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
     /// Package output and audit use this inventory, never runtime demand as an
     /// excuse to discard a declared foreign promise.
     pub native_build_plans: Vec<crate::DerivedProviderPlan>,
-    /// Complete ordinary-`via` evaluation population, including leaves not
-    /// selected for this executable. Backend lowering reads only the imports
-    /// installed in provider plans.
-    pub evaluated_via_bindings: EvaluatedViaBindingTable,
+    /// Identity table of the evaluated native row receipts.
+    pub native_binding_identities: terminal_psi::TerminalIdentityTable,
     /// Selected normalized-import bindings and their evaluated calling plans,
     /// the only normalized foreign-locator custody in native realization.
     pub external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
@@ -287,7 +284,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
             component_calling_applications,
             provider_candidates,
             native_build_plans,
-            evaluated_via_bindings,
+            native_binding_identities,
             external_binding_rows,
             independent_component_descriptions,
             verified_independent_components,
@@ -307,7 +304,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
             component_calling_applications,
             provider_candidates: prepared,
             native_build_plans,
-            evaluated_via_bindings,
+            native_binding_identities,
             external_binding_rows,
             independent_component_descriptions,
             verified_independent_components,
@@ -477,23 +474,17 @@ pub fn settle_checked_providers(
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
-    let mut evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_checked_via_bindings(
-        checked,
-        source::DependencyScope::Product,
-        planning_target,
-        package_inputs,
-    )?;
     let authored_providers =
         std::sync::Arc::new(crate::target_machines::AuthoredTargetProviders::derive(
             context,
             &boundary_calling_plan_realizations,
-            &evaluated_via_bindings,
+            &native_binding_identities,
             planning_target,
             settled_target_machines,
         )?);
     let target_provider_defaults = authored_providers.defaults();
     let mut derived_provider_plans = authored_providers.candidates().to_vec();
-    let mut identities = evaluated_via_bindings.identities().clone().into_builder();
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let native_build_plans = crate::native_bindings::derive(
         context,
         &boundary_calling_plan_realizations,
@@ -502,7 +493,7 @@ pub fn settle_checked_providers(
         &mut identities,
     )?;
     derived_provider_plans.extend(native_build_plans.iter().cloned());
-    evaluated_via_bindings.retain_extended_identities(identities.build())?;
+    let native_binding_identities = identities.build();
     let selected_provider_plans = crate::select_derived_provider_plans(
         &demanded_provider_plans(
             checked,
@@ -836,7 +827,7 @@ pub fn settle_checked_providers(
             component_calling_applications,
             provider_candidates,
             native_build_plans,
-            evaluated_via_bindings,
+            native_binding_identities,
             external_binding_rows,
             verified_independent_components: independent_components
                 .into_iter()

@@ -452,14 +452,14 @@ impl ProductDeclarationOperand {
 
 /// Stable source coordinates of one reached or declared package-owned native
 /// operation. Captured from checked Build code, never from locator arguments.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct NativeBindingProducer {
     pub package: semantic_vocabulary::PackageKeyIdentity,
     pub declaration_path: String,
     pub callable_identity: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedNativeDeclaration {
     pub producer: NativeBindingProducer,
     /// The entire designated request survives: owner/member applications and
@@ -471,7 +471,7 @@ pub struct CapturedNativeDeclaration {
     pub resolution_stratum: source::SourceResolutionStratum,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CapturedNativeIntent {
     pub declaration: u32,
     pub target: ProductTarget,

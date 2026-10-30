@@ -17,45 +17,59 @@ pub(super) fn field_offset(
     field_name: &str,
     selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<u32, String> {
-    if let Some(crate::ProviderRowOrigin::BuildNative {
-        table_field: Some(identity),
-        ..
-    }) = provenance.row_realizations.get(row)
+    if let Some(origin) = provenance
+        .row_realizations
+        .get(row)
+        .and_then(|origin| origin.native())
     {
-        let requirement = *provenance
-            .row_requirements
-            .get(row)
-            .ok_or("native table row lost its requirement")?;
-        let table_type =
-            crate::native_bindings::table_parameter_type(typed, requirement, identity.table)?;
-        let definition = typed
-            .closed_data_definition(table_type)
-            .filter(|definition| definition.symbol == identity.table)
-            .ok_or("native table row lost its exact declared table application")?;
-        let fields = typed
-            .data_members(definition)
-            .iter()
-            .filter_map(|member| match member {
-                DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let ordinal = fields
-            .iter()
-            .position(|field| field.symbol == identity.field)
-            .ok_or("native table row lost its exact runtime field")?;
-        if fields[ordinal].name.as_str() != field_name
-            || typed.primitive_type_reference(fields[ordinal].type_reference)
-                != Some(PrimitiveType::Addr)
+        if let build_time_evaluation::native_bindings::NativeBindingSupply::Table(identity) =
+            &origin.selection.supply
         {
-            return Err("native table field disagrees with its selected addr field".into());
+            let requirement = *provenance
+                .row_requirements
+                .get(row)
+                .ok_or("native table row lost its requirement")?;
+            let table_type = crate::native_bindings::table_parameter_type(
+                typed,
+                origin.selection.application.callable(),
+                identity.table,
+            )?;
+            let definition = typed
+                .closed_data_definition(table_type)
+                .filter(|definition| definition.symbol == identity.table)
+                .ok_or("native table row lost its exact declared table application")?;
+            let fields = typed
+                .data_members(definition)
+                .iter()
+                .filter_map(|member| match member {
+                    DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let ordinal = fields
+                .iter()
+                .position(|field| field.symbol == identity.field)
+                .ok_or("native table row lost its exact runtime field")?;
+            if fields[ordinal].name.as_str() != field_name
+                || typed.primitive_type_reference(fields[ordinal].type_reference)
+                    != Some(PrimitiveType::Addr)
+            {
+                return Err("native table field disagrees with its selected addr field".into());
+            }
+            return layout_field_offset(
+                typed,
+                target,
+                table_type,
+                fields.len(),
+                ordinal,
+                selections,
+            );
         }
-        return layout_field_offset(typed, target, table_type, fields.len(), ordinal, selections);
     }
     let machine_symbol = provenance
         .row_realizations
         .get(row)
-        .and_then(|origin| origin.machine())
+        .and_then(|origin| origin.authored())
         .ok_or("table row lost its selected realization")?;
     let machine = typed
         .machine_by_symbol(machine_symbol)

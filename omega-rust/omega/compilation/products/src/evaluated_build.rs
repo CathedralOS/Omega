@@ -33,14 +33,12 @@ pub struct BuildConfig {
     /// authoritative build machine. Provider settlement validates them against
     /// derived candidates before selection grants anything.
     pub provider_selections: Vec<ProviderSelection>,
-    /// Package-local native intent admitted against exact Product requirements.
-    pub admitted_native_bindings: Vec<provider_planning::AdmittedNativeBinding>,
-    /// Exact executed code, observation and accounting; not a second native choice inventory.
-    pub native_binding_evaluation:
-        Option<std::sync::Arc<package_compilation::NativeBuildEvaluation>>,
     /// Dependency-owned executed choices retain default precedence. They do
     /// not acquire the consuming application's override authority.
     pub package_provider_selections: Vec<ProviderSelection>,
+    pub native_bindings: Vec<provider_planning::native_bindings::NativeBuildSupply>,
+    pub native_binding_evaluation:
+        Option<std::sync::Arc<provider_planning::native_bindings::NativeBuildEvaluation>>,
     /// Runtime-only root relationships; registration supplies no Build evidence.
     pub assumed_bindings: Vec<build_time_evaluation::assumed_bindings::AssumedBindingContract>,
     /// Exact named conformances activated as physical carriers for
@@ -81,9 +79,9 @@ impl BuildConfig {
             settings,
             grants,
             provider_selections,
-            admitted_native_bindings,
-            native_binding_evaluation,
             package_provider_selections,
+            native_bindings,
+            native_binding_evaluation,
             assumed_bindings,
             opaque_representation_selections,
             wire_compatibility_demands,
@@ -98,16 +96,19 @@ impl BuildConfig {
             && package_provider_selections == &other.package_provider_selections
             && native_binding_evaluation
                 .as_ref()
-                .map(|value| value.terminal_code)
+                .map(|evaluation| evaluation.terminal_code)
                 == other
                     .native_binding_evaluation
                     .as_ref()
-                    .map(|value| value.terminal_code)
-            && admitted_native_bindings.len() == other.admitted_native_bindings.len()
-            && admitted_native_bindings
+                    .map(|evaluation| evaluation.terminal_code)
+            && native_bindings.len() == other.native_bindings.len()
+            && native_bindings
                 .iter()
-                .zip(&other.admitted_native_bindings)
-                .all(|(left, right)| left.same_source_choice(right))
+                .zip(&other.native_bindings)
+                .all(|(left, right)| {
+                    left.selection == right.selection
+                        && left.evaluation.terminal_code == right.evaluation.terminal_code
+                })
             && assumed_bindings == &other.assumed_bindings
             && opaque_representation_selections == &other.opaque_representation_selections
             && wire_compatibility_demands == &other.wire_compatibility_demands
@@ -179,6 +180,7 @@ pub struct ComputedBuildConfig {
     /// Only reached, activation-authenticated choices activate Product rows.
     pub product_selection_requests:
         Vec<language_semantics::declaration_selection::ExecutedProductSelection>,
+    pub native_formations: Vec<language_semantics::declaration_selection::NativeBindingFormation>,
     pub native_binding_requests:
         Vec<language_semantics::declaration_selection::ExecutedNativeBinding>,
     pub behavior_exclusion_requests:
@@ -286,36 +288,39 @@ impl ComputedBuildConfig {
     /// product with its earlier evaluated configuration would lose completed
     /// source requirements whenever several targets share one source judgment.
     pub fn with_execution_observation(&self, execution: &Self) -> Result<Self, String> {
-        if self.native_binding_requests != execution.native_binding_requests {
-            return Err("source cohort execution changed native Build intent".into());
-        }
-        if self
-            .config
-            .native_binding_evaluation
-            .as_ref()
-            .map(|value| value.terminal_code)
-            != execution
+        if self.native_formations != execution.native_formations
+            || self.native_binding_requests != execution.native_binding_requests
+            || self
                 .config
                 .native_binding_evaluation
                 .as_ref()
-                .map(|value| value.terminal_code)
+                .map(|evaluation| evaluation.terminal_code)
+                != execution
+                    .config
+                    .native_binding_evaluation
+                    .as_ref()
+                    .map(|evaluation| evaluation.terminal_code)
         {
-            return Err("source cohort execution changed its native Build code".into());
+            return Err("source cohort execution changed native Build intent or its code".into());
         }
         let mut application = self.clone();
-        application.config.admitted_native_bindings = application
-            .config
-            .admitted_native_bindings
-            .iter()
-            .map(|row| {
-                row.with_execution_observation(
-                    execution.observation_summary.as_ref(),
-                    execution.evaluation_usage,
-                )
-            })
-            .collect::<Result<_, _>>()?;
         application.config.native_binding_evaluation =
             execution.config.native_binding_evaluation.clone();
+        if let Some(previous) = &self.config.native_binding_evaluation {
+            let evidence = application
+                .config
+                .native_binding_evaluation
+                .clone()
+                .ok_or("source cohort native choices lost the current activation's evidence")?;
+            for supply in &mut application.config.native_bindings {
+                // Dependency outputs keep their own completed activations.
+                // Only the cohort member's own invocation receives its fresh
+                // accounting, never every supply in the final Product closure.
+                if std::sync::Arc::ptr_eq(&supply.evaluation, previous) {
+                    supply.evaluation = evidence.clone();
+                }
+            }
+        }
         application.evaluation_usage = execution.evaluation_usage;
         application.observation_summary = execution.observation_summary.clone();
         application.optimization_report_request = execution.optimization_report_request.clone();

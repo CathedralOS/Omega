@@ -82,8 +82,9 @@ impl PreparedPackageBuild {
             && build.config.same_source_choices(&other_build.config)
             && build.root_binding_requests == other_build.root_binding_requests
             && build.declared_product_selections == other_build.declared_product_selections
-            && build.native_binding_requests == other_build.native_binding_requests
             && build.product_selection_requests == other_build.product_selection_requests
+            && build.native_binding_requests == other_build.native_binding_requests
+            && build.native_formations == other_build.native_formations
             && build.selected_build_machine_symbol == other_build.selected_build_machine_symbol
             && build.generated_sources == other_build.generated_sources
             && build.project_declaration == other_build.project_declaration
@@ -142,33 +143,19 @@ impl PreparedPackageBuild {
                     .observation_summary
                     .as_ref(),
             )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?
-            .with_checked_native_bindings(
-                provider_planning::capture_package_native_bindings(
-                    prepared.built.source.typed(),
-                    &prepared
-                        .built
-                        .computed_build_config
-                        .config
-                        .admitted_native_bindings,
-                    prepared
-                        .built
-                        .computed_build_config
-                        .selected_build_machine_symbol,
-                    prepared
-                        .built
-                        .computed_build_config
-                        .observation_summary
-                        .as_ref(),
-                    prepared.built.computed_build_config.evaluation_usage,
-                )
-                .map_err(|reason| vec![Diagnostic::error(reason)])?,
-                prepared
-                    .built
-                    .computed_build_config
-                    .config
-                    .native_binding_evaluation
-                    .clone(),
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let build = &prepared.built.computed_build_config;
+        let (declarations, intents) =
+            build_time_evaluation::native_bindings::capture_package_intents(
+                inputs.root(),
+                &build.native_formations,
+                &build.native_binding_requests,
+            )?;
+        let build_handoff = build_handoff
+            .with_native_binding_outputs(
+                declarations,
+                intents,
+                build.config.native_binding_evaluation.clone(),
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         Ok(Self {

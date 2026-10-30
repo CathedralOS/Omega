@@ -131,7 +131,7 @@ pub(crate) fn derive_provider_plans(
                 plans[position]
                     .provenance
                     .row_realizations
-                    .push(super::ProviderRowOrigin::Machine(machine.symbol));
+                    .push(super::ProviderRowRealization::Authored(machine.symbol));
                 plans[position]
                     .provenance
                     .row_target_machine_origins
@@ -163,7 +163,7 @@ pub(crate) fn derive_provider_plans(
     plans.retain(|candidate| {
         !candidate.provenance.row_realizations.iter().any(|machine| {
             machine
-                .machine()
+                .authored()
                 .is_some_and(|machine| absent.contains(typed, machine))
         })
     });
@@ -276,7 +276,7 @@ fn derive_top_level_requirement_plans(
             plans[position]
                 .provenance
                 .row_realizations
-                .push(super::ProviderRowOrigin::Machine(machine.symbol));
+                .push(super::ProviderRowRealization::Authored(machine.symbol));
             plans[position]
                 .provenance
                 .row_target_machine_origins
@@ -401,7 +401,7 @@ fn derive_boundary_operator_plans(
             plans[position]
                 .provenance
                 .row_realizations
-                .push(super::ProviderRowOrigin::Machine(machine.symbol));
+                .push(super::ProviderRowRealization::Authored(machine.symbol));
             plans[position]
                 .provenance
                 .row_target_machine_origins
@@ -587,7 +587,7 @@ fn derive_placed_accessor_plans(
                 };
                 let schema = crate::service_schema::from_sealed_placed_accessor(context, &accessor)
                     .map_err(|error| vec![error])?;
-                let machine = typed.machine(accessor.machine()).ok_or_else(|| {
+                let machine = typed.machine(accessor.authored()).ok_or_else(|| {
                     vec![diagnostics::Diagnostic::error(
                         "placed catalog lost its generated machine",
                     )]
@@ -612,7 +612,7 @@ fn derive_placed_accessor_plans(
                         .symbol_package_identity(field.accessor_data_symbol),
                     target.to_owned(),
                     schema,
-                    ProviderSchemaDeclaration::SealedPlacedAccessor(accessor.machine()),
+                    ProviderSchemaDeclaration::SealedPlacedAccessor(accessor.authored()),
                     Some(field.accessor_data_symbol),
                     typed.symbols.symbol_package_identity(machine.symbol),
                 );
@@ -633,7 +633,7 @@ fn derive_placed_accessor_plans(
                 provenance.row_requirements.push(machine.symbol);
                 provenance
                     .row_realizations
-                    .push(super::ProviderRowOrigin::Machine(machine.symbol));
+                    .push(super::ProviderRowRealization::Authored(machine.symbol));
                 provenance.row_target_machine_origins.push(None);
                 provenance.row_placed_accessors.push(Some(accessor));
             }

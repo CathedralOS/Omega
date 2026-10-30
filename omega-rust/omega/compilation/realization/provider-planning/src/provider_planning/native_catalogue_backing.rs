@@ -5,7 +5,7 @@
 //! does not supply a locator, provider choice or execution authority. Keep the
 //! original native receipt and requirement schema when projecting its callable.
 
-use super::provenance_replay::{DerivedProviderPlan, ProviderRowOrigin};
+use super::provenance_replay::{DerivedProviderPlan, ProviderRowRealization};
 use checked_trees::typed_trees::{TypedTrees, machine::Machine};
 use effects::provider_plan::ProviderBinding;
 
@@ -31,7 +31,7 @@ pub(crate) fn resolve<'a>(
             .provenance
             .row_realizations
             .iter()
-            .any(|origin| *origin == ProviderRowOrigin::Machine(machine.symbol))
+            .any(|origin| *origin == ProviderRowRealization::Authored(machine.symbol))
     }) {
         return Ok(None);
     }
@@ -48,7 +48,7 @@ pub(crate) fn resolve<'a>(
                     && *requirement == catalogue.requirement.symbol
                     && matches!(
                         candidate.provenance.row_realizations.get(row),
-                        Some(ProviderRowOrigin::BuildNative { .. })
+                        Some(ProviderRowRealization::BuildNative(_))
                     )
                     && candidate.plan.rows.get(row).is_some_and(|row| {
                         matches!(

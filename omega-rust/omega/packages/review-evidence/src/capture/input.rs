@@ -20,8 +20,10 @@ pub struct PackageReviewInput<'a> {
     /// Original checked trees have a separate immutable query namespace. A
     /// supplied candidate's memo must never stand in for compiler custody.
     pub(crate) custody_checking_input: &'a dyn validation::CheckingInput,
-    pub(crate) service_declarations: Option<&'a provider_planning::service_declarations::ServiceDeclarations>,
-    pub(crate) numeric_realizations: Option<&'a psi_terminal_production::NumericRealizationDeclarations>,
+    pub(crate) service_declarations:
+        Option<&'a provider_planning::service_declarations::ServiceDeclarations>,
+    pub(crate) numeric_realizations:
+        Option<&'a psi_terminal_production::NumericRealizationDeclarations>,
 }
 
 impl<'a> PackageReviewInput<'a> {

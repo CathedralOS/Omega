@@ -1,4 +1,3 @@
-use build_time_evaluation::provider_declarations::ProviderSelection;
 //! Admit dependency-owned Product choices through their complete Build handoff.
 //!
 //! The private declaration was selected in the supplier's checked world. Source
@@ -8,6 +7,7 @@ use build_time_evaluation::provider_declarations::ProviderSelection;
 
 use super::{PackageBuildHandoff, PackageCompilationInputs};
 use build_declarations::DependencyPurpose;
+use build_time_evaluation::provider_declarations::ProviderSelection;
 use diagnostics::Diagnostic;
 use source::{SourceOrigin, SourceResolutionStratum};
 use symbols::RetainedDeclaration;
@@ -104,37 +104,6 @@ impl PackageCompilationInputs {
         Ok(selections)
     }
 
-    /// Admit the supplier bytes of checked native intent before the receiving
-    /// provider planner rejoins its declaration and application identities.
-    pub fn retained_package_native_bindings(
-        &self,
-    ) -> Result<Vec<super::retained_native_bindings::RetainedNativeBinding>, Vec<Diagnostic>> {
-        let mut rows = Vec::new();
-        for (scope, bundle) in self.dependency_build_handoff_instances() {
-            if scope != DependencyPurpose::Product {
-                continue;
-            }
-            self.admit_provider_activation(bundle)?;
-            for row in bundle.native_bindings() {
-                let mut row = row.clone();
-                row.requirement =
-                    self.admit_retained_product_declaration(bundle, &row.requirement)?;
-                if let Some(table) = &mut row.table {
-                    table.table = self.admit_retained_product_declaration(bundle, &table.table)?;
-                    table.field = self.admit_retained_product_declaration(bundle, &table.field)?;
-                }
-                // Authorship need not be a runtime Product declaration. Its
-                // bytes still belong to the exact admitted source supplier.
-                self.admit_retained_product_declaration(bundle, row.origin.author())?;
-                if let Some(demand) = &row.same_stack_demand {
-                    self.admit_retained_product_declaration(bundle, demand.origin.author())?;
-                }
-                rows.push(row);
-            }
-        }
-        Ok(rows)
-    }
-
     pub(crate) fn admit_provider_activation(
         &self,
         bundle: &PackageBuildHandoff,
@@ -143,12 +112,6 @@ impl PackageCompilationInputs {
             .provider_selections()
             .first()
             .map(|first| (&first.origin, bundle.selection_observation().is_some()))
-            .or_else(|| {
-                bundle
-                    .native_bindings()
-                    .first()
-                    .map(|first| (&first.origin, first.observation != [0; 32]))
-            })
         else {
             return Ok(());
         };
@@ -195,8 +158,18 @@ impl PackageCompilationInputs {
         bundle: &PackageBuildHandoff,
         anchor: &RetainedDeclaration,
     ) -> Result<RetainedDeclaration, Vec<Diagnostic>> {
+        let source = self.admit_retained_product_source(bundle, anchor.source())?;
+        RetainedDeclaration::from_retained_parts(source, anchor.span(), anchor.kind())
+            .map_err(|reason| vec![Diagnostic::error(reason)])
+    }
+
+    fn admit_retained_product_source(
+        &self,
+        bundle: &PackageBuildHandoff,
+        original: &source::SourceFile,
+    ) -> Result<source::SourceFile, Vec<Diagnostic>> {
         let refuse = |reason: String| vec![Diagnostic::error(reason)];
-        let mut source = anchor.source().clone();
+        let mut source = original.clone();
         let relative = source
             .path
             .strip_prefix(&source.package_root)
@@ -263,7 +236,6 @@ impl PackageCompilationInputs {
                 source.resolution_stratum = SourceResolutionStratum::DependencyActivationExtension;
             }
         }
-        RetainedDeclaration::from_retained_parts(source, anchor.span(), anchor.kind())
-            .map_err(|reason| refuse(reason.into()))
+        Ok(source)
     }
 }

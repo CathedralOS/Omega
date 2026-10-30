@@ -77,7 +77,7 @@ impl CheckedCompilation {
             package_terminal_authority_permission_identities,
         ) = execution.terminal_authority_permissions();
         Ok(TerminalNativeProposalRequest {
-            evaluated_binding_identities: providers.evaluated_via_bindings.identities(),
+            evaluated_binding_identities: &providers.native_binding_identities,
             direct_boundary_leaves: execution.direct_boundary_leaves.iter().collect(),
             provider_declarations: &native_sources.declarations,
             family_realizations: &native_sources.family_realizations,

@@ -234,7 +234,8 @@ impl CheckedCompilation {
     pub fn package_build_handoff(
         &self,
     ) -> Result<package_compilation::PackageBuildHandoff, String> {
-        self.sources
+        let handoff = self
+            .sources
             .package_build_handoff(
                 self.execution.settled.selected_target_profile,
                 self.execution.build.generated_sources.clone(),
@@ -244,17 +245,25 @@ impl CheckedCompilation {
                 &self.typed,
                 &self.build().config.provider_selections,
                 self.build().observation_summary.as_ref(),
-            )?
-            .with_checked_native_bindings(
-                provider_planning::capture_package_native_bindings(
-                    &self.typed,
-                    &self.build().config.admitted_native_bindings,
-                    self.build().selected_build_machine_symbol,
-                    self.build().observation_summary.as_ref(),
-                    self.build().evaluation_usage,
-                )?,
-                self.build().config.native_binding_evaluation.clone(),
+            )?;
+        let (declarations, intents) =
+            build_time_evaluation::native_bindings::capture_package_intents(
+                handoff.package(),
+                &self.build().native_formations,
+                &self.build().native_binding_requests,
             )
+            .map_err(|diagnostics| {
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })?;
+        handoff.with_native_binding_outputs(
+            declarations,
+            intents,
+            self.build().config.native_binding_evaluation.clone(),
+        )
     }
 
     pub const fn timings(&self) -> &CompileTimings {

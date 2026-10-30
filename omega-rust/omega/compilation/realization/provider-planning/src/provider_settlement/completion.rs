@@ -22,12 +22,16 @@ pub(super) fn retain_completions(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     for provider in selected {
         let mut rows = Vec::with_capacity(provider.plan.rows.len());
-        for (&requirement, &realization) in provider
+        for (&requirement, realization) in provider
             .provider
             .row_requirements
             .iter()
             .zip(&provider.provider.row_realizations)
         {
+            let Some(realization) = realization.authored() else {
+                rows.push(Vec::new());
+                continue;
+            };
             let completion =
                 checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
                     &checked.typed,
@@ -38,21 +42,13 @@ pub(super) fn retain_completions(
                     completion,
                     semantic_vocabulary::BoundaryCompletion::External(_)
                 ) {
-                    match realization {
-                        crate::ProviderRowOrigin::Machine(machine) => {
-                            checked_completion(checked, machine, requirement, target, candidates)
-                        }
-                        crate::ProviderRowOrigin::BuildNative { .. } => Ok(vec![requirement]),
-                        crate::ProviderRowOrigin::Toolchain => Ok(Vec::new()),
-                    }
-                    .map_err(|reason| {
-                        vec![diagnostics::Diagnostic::error(format!(
-                            "selected completion provider `{}`: {reason}",
-                            checked
-                                .symbols
-                                .display_path(realization.machine().unwrap_or(requirement), "::")
-                        ))]
-                    })?
+                    checked_completion(checked, realization, requirement, target, candidates)
+                        .map_err(|reason| {
+                            vec![diagnostics::Diagnostic::error(format!(
+                                "selected completion provider `{}`: {reason}",
+                                checked.symbols.display_path(realization, "::")
+                            ))]
+                        })?
                 } else {
                     Vec::new()
                 },
@@ -163,29 +159,10 @@ impl CompletionReview<'_> {
         let machine = crate::target_machines::realized_row_machine(context, symbol, self.target)
             .ok_or_else(|| "completion call has no exact target realization".to_owned())?;
         if !machine.body_is_present {
-            if let Some(backing) = crate::provider_planning::native_catalogue_backing::resolve(
-                &self.checked.typed,
-                machine,
-                self.target,
-                self.candidates,
-            )? && backing.candidate.provenance.row_requirements[backing.row] == self.requirement
-            {
-                if arguments != [Some(0)] {
-                    return Err(
-                        "external-completion provider does not preserve its exact status argument"
-                            .into(),
-                    );
-                }
-                return Ok(Outcome {
-                    returns: false,
-                    result: None,
-                    leaves: vec![machine.symbol],
-                });
-            }
             let requirement = self.requirement;
             let leaves: Vec<_> = self.candidates.iter().flat_map(|candidate| {
                 candidate.plan.rows.iter().enumerate().filter_map(move |(position, row)| {
-                    (candidate.provenance.row_realizations.get(position) == Some(&crate::ProviderRowOrigin::Machine(machine.symbol))
+                    (candidate.provenance.row_realizations.get(position).and_then(crate::ProviderRowRealization::authored) == Some(machine.symbol)
                         && candidate.provenance.row_requirements.get(position) == Some(&requirement)
                         && matches!(row.binding, effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
                             | effects::provider_plan::ProviderBinding::Import { .. }))

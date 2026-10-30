@@ -16,12 +16,11 @@ mod errors;
 mod native_bindings;
 mod native_evaluation;
 pub mod native_receipts;
+pub use native_bindings::{NativeBindingProduction, PackageNativeBindingOrigin};
 pub use native_evaluation::NativeBuildEvaluation;
 pub mod native_output_codec;
-pub mod native_selection_codec;
 pub mod provider_selection_codec;
 mod provider_selections;
-pub mod retained_native_bindings;
 
 pub use bindings::{
     IndependentComponentDescription, PackageDependencyBinding, PackageSourceBinding,

@@ -37,8 +37,7 @@ struct PackageBuildHandoffContents {
     provider_selections:
         Arc<[build_time_evaluation::provider_declarations::RetainedProviderSelection]>,
     selection_observation: Option<[u8; 32]>,
-    native_bindings: Arc<[super::retained_native_bindings::RetainedNativeBinding]>,
-    native_evaluation: Option<Arc<super::NativeBuildEvaluation>>,
+    native: super::native_bindings::NativeBuildOutputs,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -103,8 +102,7 @@ impl PackageBuildHandoff {
                 sources,
                 provider_selections: Arc::from([]),
                 selection_observation: None,
-                native_bindings: Arc::from([]),
-                native_evaluation: None,
+                native: Default::default(),
             }),
         }
     }
@@ -164,8 +162,7 @@ impl PackageBuildHandoff {
                 sources: Vec::new(),
                 provider_selections: Arc::from([]),
                 selection_observation: None,
-                native_bindings: Arc::from([]),
-                native_evaluation: None,
+                native: Default::default(),
             }),
         }
     }
@@ -250,89 +247,46 @@ impl PackageBuildHandoff {
         &self.contents.provider_selections
     }
 
-    pub fn native_bindings(&self) -> &[super::retained_native_bindings::RetainedNativeBinding] {
-        &self.contents.native_bindings
+    pub fn native_declarations(
+        &self,
+    ) -> &[language_semantics::declaration_selection::CapturedNativeDeclaration] {
+        &self.contents.native.declarations
+    }
+
+    pub fn native_intents(
+        &self,
+    ) -> &[language_semantics::declaration_selection::CapturedNativeIntent] {
+        &self.contents.native.intents
     }
 
     pub fn native_evaluation(&self) -> Option<&Arc<super::NativeBuildEvaluation>> {
-        self.contents.native_evaluation.as_ref()
+        self.contents.native.evaluation.as_ref()
     }
 
-    /// Only completed immutable package checking exports native application
-    /// judgments. Recovery retains them inertly; receiving source admission
-    /// independently checks every supplier and declaration anchor.
     #[doc(hidden)]
-    pub fn with_checked_native_bindings(
+    pub fn with_native_binding_outputs(
         self,
-        bindings: Vec<super::retained_native_bindings::RetainedNativeBinding>,
+        declarations: Vec<language_semantics::declaration_selection::CapturedNativeDeclaration>,
+        intents: Vec<language_semantics::declaration_selection::CapturedNativeIntent>,
         evaluation: Option<Arc<super::NativeBuildEvaluation>>,
     ) -> Result<Self, String> {
-        if !bindings.is_empty() && evaluation.is_none() {
-            return Err("native package intent lost its completed Terminal Build code".into());
-        }
-        if let Some(evaluation) = &evaluation {
-            evaluation
-                .usage
-                .validate()
-                .map_err(|_| "native package evaluation has inconsistent accounting")?;
-            if !matches!(
-                evaluation.usage.measurement,
-                evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi { .. }
-            ) {
-                return Err("native package intent requires its actual Terminal evaluation".into());
-            }
-            if self
-                .selection_observation()
-                .is_some_and(|provider| provider != evaluation.observation_digest)
-            {
+        if let (Some(provider_observation), Some(native)) =
+            (self.selection_observation(), evaluation.as_ref())
+        {
+            if provider_observation != native.observation_digest {
                 return Err(
                     "one package handoff mixes different original Build observations".into(),
                 );
             }
-            if bindings.iter().any(|row| {
-                row.observation != evaluation.observation_digest
-                    || row.usage != evaluation.usage
-                    || row.producer_recipe.terminal_code != evaluation.terminal_code
-            }) {
-                return Err("native package code and retained rows disagree on their original Build invocation".into());
-            }
         }
-        for (position, binding) in bindings.iter().enumerate() {
-            binding.validate()?;
-            if bindings[..position]
-                .iter()
-                .any(|prior| prior.origin == binding.origin)
-            {
-                return Err("native package intent repeats an executed Build occurrence".into());
-            }
-            if !self.owns_activation_source(binding.origin.activation().source())
-                || binding.origin.event_ordinal().is_none()
-                || binding.observation == [0; 32]
-                || binding.receipt.producer_package()
-                    != binding.origin.author().source().package_identity
-                || binding.usage.validate().is_err()
-            {
-                return Err("native package intent lost its checked activation, supplier or Build observation".into());
-            }
-            if let Some(first) = bindings.first()
-                && (first.origin.activation() != binding.origin.activation()
-                    || first.observation != binding.observation
-                    || first.usage != binding.usage)
-            {
-                return Err("native package intents mix sponsoring Build invocations".into());
-            }
-            if let Some(demand) = &binding.same_stack_demand
-                && (demand.bytes == 0
-                    || demand.origin.activation() != binding.origin.activation()
-                    || demand.origin.author().source().package_identity
-                        != binding.origin.author().source().package_identity)
-            {
-                return Err("native package footprint differs from its original binding activation or supplier".into());
-            }
-        }
+        let native = super::native_bindings::NativeBuildOutputs::checked(
+            self.package(),
+            declarations,
+            intents,
+            evaluation,
+        )?;
         let mut contents = Arc::unwrap_or_clone(self.contents);
-        contents.native_bindings = bindings.into();
-        contents.native_evaluation = evaluation;
+        contents.native = native;
         Ok(Self {
             contents: Arc::new(contents),
         })
@@ -348,8 +302,9 @@ impl PackageBuildHandoff {
         selections: Vec<build_time_evaluation::provider_declarations::RetainedProviderSelection>,
         observation: Option<[u8; 32]>,
     ) -> Result<Self, &'static str> {
-        if let (Some(provider), Some(native)) = (observation, self.native_evaluation()) {
-            if provider != native.observation_digest {
+        if let (Some(provider_observation), Some(native)) = (observation, self.native_evaluation())
+        {
+            if provider_observation != native.observation_digest {
                 return Err("one package handoff mixes different original Build observations");
             }
         }
@@ -357,7 +312,7 @@ impl PackageBuildHandoff {
             return Err("package provider choices have no original Build observation");
         }
         if selections.iter().any(|selection| {
-            !self.owns_activation_source(selection.origin.activation().source())
+            selection.origin.activation().source().package_identity != Some(self.package())
                 || selection.origin.event_ordinal().is_none()
         }) {
             return Err(
@@ -454,63 +409,6 @@ impl PackageCompilationInputs {
     /// bundles for this root's dependencies. Empty bundles are retained so an
     /// omitted dependency build cannot be confused with a build that handed
     /// off no generated source. Coverage is per checked purpose, not package:
-    /// identical target profiles or bytes never let one role satisfy another.
-    pub fn with_complete_dependency_build_handoffs(
-        mut self,
-        bundles: Vec<PackageBuildHandoff>,
-    ) -> Result<Self, Vec<PackageCompilationInputError>> {
-        let mut errors = Vec::new();
-        let required = self.required_dependency_source_instances();
-        let mut generated = BTreeMap::new();
-        for bundle in bundles {
-            let Some(package) = bundle.package() else {
-                errors
-                    .push(PackageCompilationInputError::ToolchainBuildHandoffRequiresSourceContext);
-                continue;
-            };
-            let purpose = bundle.purpose();
-            if package == self.source.root {
-                errors.push(PackageCompilationInputError::RootBuildHandoff { package });
-                continue;
-            }
-            if !self.source.packages.contains_key(&package) {
-                errors.push(PackageCompilationInputError::ForeignBuildHandoff { package });
-                continue;
-            }
-            if !required.contains(&(package, purpose)) {
-                errors.push(PackageCompilationInputError::BuildHandoffPurposeMismatch {
-                    package,
-                    purpose,
-                });
-                continue;
-            }
-            if bundle.dependency_closure() != Some(&self.dependency_closure_for(package)) {
-                errors.push(PackageCompilationInputError::BuildHandoffClosureMismatch { package });
-            }
-            if generated.insert((package, purpose), bundle).is_some() {
-                errors.push(PackageCompilationInputError::DuplicateBuildHandoff { package });
-            }
-        }
-        for (package, purpose) in required {
-            if !generated.contains_key(&(package, purpose)) {
-                errors.push(PackageCompilationInputError::MissingBuildHandoff { package });
-            }
-        }
-        if errors.is_empty() {
-            self.target.dependency_build_handoffs = generated;
-            Ok(self)
-        } else {
-            Err(errors)
-        }
-    }
-
-    #[doc(hidden)]
-    pub(crate) fn dependency_build_handoffs(&self) -> impl Iterator<Item = &PackageBuildHandoff> {
-        self.target.dependency_build_handoffs.values()
-    }
-
-    /// Each retained handoff together with the relative source scope in which
-    /// it is consumed. The same build instance can serve both relative scopes
     /// inside a build helper, but never serves a product activation.
     pub fn dependency_build_handoff_instances(
         &self,
@@ -656,11 +554,7 @@ impl compiler_storage::Record for PackageBuildHandoffContents {
                 self.selection_observation,
             )
             .write(output)?;
-            super::native_selection_codec::encode_package_native_bindings(
-                &self.native_bindings,
-                self.native_evaluation.as_deref(),
-            )
-            .write(output)
+            super::native_output_codec::encode_parts(&self.native).write(output)
         })
     }
 
@@ -680,9 +574,8 @@ impl compiler_storage::Record for PackageBuildHandoffContents {
                     &provider_bytes,
                 )
                 .ok_or_else(|| input.error("invalid retained provider selection payload"))?;
-            let (bindings, evaluation) =
-                super::native_selection_codec::decode_package_native_bindings(&native_bytes)
-                    .ok_or_else(|| input.error("invalid retained native binding payload"))?;
+            let native = super::native_output_codec::decode_parts(&native_bytes)
+                .ok_or_else(|| input.error("invalid native Build output payload"))?;
             let candidate = PackageBuildHandoff {
                 contents: Arc::new(Self {
                     subject,
@@ -691,14 +584,13 @@ impl compiler_storage::Record for PackageBuildHandoffContents {
                     sources,
                     provider_selections: Arc::from([]),
                     selection_observation: None,
-                    native_bindings: Arc::from([]),
-                    native_evaluation: None,
+                    native: Default::default(),
                 }),
             };
             let candidate = candidate
                 .with_retained_provider_selections(selections, observation)
                 .map_err(|reason| input.error(reason))?
-                .with_checked_native_bindings(bindings, evaluation)
+                .with_native_binding_outputs(native.declarations, native.intents, native.evaluation)
                 .map_err(|reason| input.error(reason))?;
             Ok(Arc::unwrap_or_clone(candidate.contents))
         })

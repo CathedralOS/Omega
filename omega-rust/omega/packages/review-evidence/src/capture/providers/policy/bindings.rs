@@ -4,75 +4,21 @@ use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyProviderBinding,
     PackagePolicyProviderEvaluatedSyscall, PackageReviewForeignLocator,
+    PackageReviewNominalIdentity,
 };
 use diagnostics::Diagnostic;
+use effects::provider_plan::EvaluatedNativeBinding;
 use effects::provider_plan::ProviderBinding;
 use symbols::SymbolHandle;
 
-pub(crate) fn project(
+pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
     identities: &effects::provider_plan::ProviderIdentityTable,
     binding: &ProviderBinding,
     requirement: SymbolHandle,
-    origin: provider_planning::ProviderRowOrigin,
+    realization: SymbolHandle,
     toolchain_settled: bool,
 ) -> Result<PackagePolicyProviderBinding, Vec<Diagnostic>> {
-    if let provider_planning::ProviderRowOrigin::BuildNative {
-        receipt: receipt_identity,
-        ..
-    } = origin
-    {
-        let row = native_row(compilation, requirement, receipt_identity)?;
-        if row.binding().as_ref() != Some(binding) {
-            return Err(rejected(
-                "Build-native selected binding differs from its admitted locator",
-            ));
-        }
-        let producer = native_producer(compilation, row)?;
-        return match &row.locator {
-            provider_planning::AdmittedNativeLocator::Unavailable { .. } => Err(rejected(
-                "unavailable native intent cannot supply a selected physical row",
-            )),
-            provider_planning::AdmittedNativeLocator::Import(value) => {
-                Ok(PackagePolicyProviderBinding::Import {
-                    target: value.locator().target().identity().as_str().to_owned(),
-                    locator: PackageReviewForeignLocator::from_candidate(value.locator().locator()),
-                    producer,
-                })
-            }
-            provider_planning::AdmittedNativeLocator::Table {
-                identity,
-                table_name,
-                field_name,
-                drops_receiver,
-                ..
-            } => {
-                let table_declaration = nominal_identity(compilation, identity.table)?;
-                if *drops_receiver {
-                    Ok(PackagePolicyProviderBinding::TableFunction {
-                        table: table_name.clone(),
-                        field: field_name.clone(),
-                        table_declaration,
-                    })
-                } else {
-                    Ok(PackagePolicyProviderBinding::VtableField {
-                        table: table_name.clone(),
-                        field: field_name.clone(),
-                        table_declaration,
-                    })
-                }
-            }
-            provider_planning::AdmittedNativeLocator::Syscall(value) => {
-                Ok(PackagePolicyProviderBinding::Syscall {
-                    number: value.number(),
-                    evaluated: Some(PackagePolicyProviderEvaluatedSyscall {
-                        target: value.target().identity().as_str().to_owned(),
-                        producer,
-                    }),
-                })
-            }
-        };
-    }
     if toolchain_settled {
         // A toolchain-settled row's binding comes from the settlement table:
         // only positional syscalls exist there, and they carry no evaluated
@@ -87,13 +33,34 @@ pub(crate) fn project(
             )),
         };
     }
-    if origin.machine().is_none() {
-        return Err(rejected("authored binding lost its realization machine"));
-    }
     Ok(match binding {
+        ProviderBinding::Import { .. } => {
+            return Err(rejected("native import has no BuildNative source origin"));
+        }
+        ProviderBinding::Syscall { number } => PackagePolicyProviderBinding::Syscall {
+            number: *number,
+            evaluated: None,
+        },
         ProviderBinding::CompilerIntrinsic { machine } => {
             PackagePolicyProviderBinding::CompilerIntrinsic {
                 machine: machine.clone(),
+            }
+        }
+        ProviderBinding::VtableSlot { index } => {
+            PackagePolicyProviderBinding::VtableSlot { index: *index }
+        }
+        ProviderBinding::VtableField { table, field } => {
+            PackagePolicyProviderBinding::VtableField {
+                table: table.clone(),
+                field: field.clone(),
+                table_declaration: table_declaration(compilation, realization)?,
+            }
+        }
+        ProviderBinding::TableFunction { table, field } => {
+            PackagePolicyProviderBinding::TableFunction {
+                table: table.clone(),
+                field: field.clone(),
+                table_declaration: table_declaration(compilation, realization)?,
             }
         }
         ProviderBinding::CheckedAdapter {
@@ -103,71 +70,135 @@ pub(crate) fn project(
             machine_identity: identities.text(*machine_identity).to_owned(),
             machine_package_identity: *machine_package_identity,
         },
-        ProviderBinding::Import { .. }
-        | ProviderBinding::Syscall { .. }
-        | ProviderBinding::VtableSlot { .. }
-        | ProviderBinding::VtableField { .. }
-        | ProviderBinding::TableFunction { .. } => {
-            return Err(rejected(
-                "physical provider supply requires an exact Build-native request origin",
-            ));
-        }
     })
 }
 
-/// Rejoin an exact admitted occurrence. A matching physical locator is not an
-/// origin: independent Build events retain their separate source receipts.
-pub(crate) fn native_row<'a>(
-    compilation: &'a PackageReviewInput<'_>,
-    requirement: SymbolHandle,
-    receipt_identity: [u8; 32],
-) -> Result<&'a provider_planning::AdmittedNativeBinding, Vec<Diagnostic>> {
-    let mut rows = compilation
-        .custody
-        .providers()
-        .admitted_native_bindings
+fn table_declaration(
+    compilation: &PackageReviewInput<'_>,
+    realization: SymbolHandle,
+) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
+    let machines = compilation
+        .machines()
         .iter()
-        .filter(|row| {
-            row.requirement == requirement && row.receipt().identity_digest() == receipt_identity
-        });
-    let row = rows
-        .next()
-        .filter(|_| rows.next().is_none())
-        .ok_or_else(|| rejected("Build-native row lost its exact admitted source occurrence"))?;
-    Ok(row)
+        .filter(|machine| machine.symbol == realization)
+        .collect::<Vec<_>>();
+    let [machine] = machines.as_slice() else {
+        return Err(rejected("table binding has no exact realization machine"));
+    };
+    let tables = compilation
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.symbol == machine.attached_data_symbol)
+        .collect::<Vec<_>>();
+    let [table] = tables.as_slice() else {
+        return Err(rejected(
+            "table binding has no exact attached data declaration",
+        ));
+    };
+    nominal_identity(compilation, table.symbol)
 }
 
-pub(crate) fn native_producer(
+pub(super) fn native_producer(
     compilation: &PackageReviewInput<'_>,
-    row: &provider_planning::AdmittedNativeBinding,
+    native: &provider_planning::native_bindings::NativeBuildRowOrigin,
 ) -> Result<PackagePolicyEvaluatedBindingProducer, Vec<Diagnostic>> {
-    let receipt = row.receipt();
-    let producer = PackagePolicyEvaluatedBindingProducer {
-        declaration: match row.selecting_machine {
-            Some(author) => nominal_identity(compilation, author)?,
-            None => {
-                let retained = row
-                    .retained
-                    .as_ref()
-                    .ok_or_else(|| rejected("imported native row lost original author custody"))?;
-                let package = retained
-                    .origin
-                    .author()
-                    .source()
-                    .package_identity
-                    .ok_or_else(|| rejected("imported native author has no immutable supplier"))?;
-                crate::record::PackageReviewNominalIdentity {
-                    owner: crate::record::PackageReviewNominalOwner::Package(package),
-                    path: retained.author_path.clone(),
-                }
-            }
-        },
-        package: receipt.producer_package(),
-        callable_identity: row
-            .identities
-            .text(receipt.producer_callable_identity())
-            .ok_or_else(|| rejected("Build-native receipt lost its callable identity"))?
-            .to_owned(),
+    let production = &native.origin.primary;
+    let receipt = production.evaluated.receipt();
+    let origin = receipt
+        .build_origin()
+        .ok_or_else(|| rejected("native Build row has no Build-origin receipt"))?;
+    let schema = provider_planning::service_schema::from_typed_requirement_application(
+        provider_planning::ProviderPlanningContext::new(
+            compilation.typed,
+            source::DependencyScope::Product,
+        ),
+        &compilation
+            .custody
+            .providers()
+            .boundary_calling_plan_realizations,
+        native.selection.application.requirement,
+        native.selection.application.trait_scope,
+        native.selection.application.closed_requirement,
+    )
+    .ok_or_else(|| rejected("native Build producer lost its exact requirement application"))?;
+    let [method] = schema.methods.as_slice() else {
+        return Err(rejected(
+            "native Build producer has no unique callable requirement",
+        ));
     };
-    Ok(producer)
+    let requirement = schema.identity_text(method.requirement_identity);
+    if origin.requirement_identity != requirement
+        || receipt.producer_package() != Some(production.producer.package)
+        || compilation
+            .custody
+            .providers()
+            .native_binding_identities
+            .text(receipt.producer_callable_identity())
+            != Some(production.producer.callable_identity.as_str())
+    {
+        return Err(rejected(
+            "native Build producer receipt differs from its checked package source",
+        ));
+    }
+    Ok(PackagePolicyEvaluatedBindingProducer {
+        declaration: crate::record::PackageReviewNominalIdentity {
+            owner: crate::record::PackageReviewNominalOwner::Package(production.producer.package),
+            path: production.producer.declaration_path.clone(),
+        },
+        package: Some(production.producer.package),
+        callable_identity: production.producer.callable_identity.clone(),
+    })
+}
+
+pub(crate) fn project_native(
+    compilation: &PackageReviewInput<'_>,
+    native: &provider_planning::native_bindings::NativeBuildRowOrigin,
+    selected: &ProviderBinding,
+) -> Result<PackagePolicyProviderBinding, Vec<Diagnostic>> {
+    if native.origin.primary.evaluated.provider_binding() != *selected {
+        return Err(rejected(
+            "native Build binding differs from its retained evaluated intent",
+        ));
+    }
+    let producer = native_producer(compilation, native)?;
+    match &native.origin.primary.evaluated {
+        EvaluatedNativeBinding::Table {
+            table,
+            field,
+            drops_receiver,
+            ..
+        } => {
+            let build_time_evaluation::native_bindings::NativeBindingSupply::Table(designation) =
+                &native.selection.supply
+            else {
+                return Err(rejected("native table receipt lost its typed declaration"));
+            };
+            let table_declaration = nominal_identity(compilation, designation.table)?;
+            if *drops_receiver {
+                Ok(PackagePolicyProviderBinding::TableFunction {
+                    table: table.clone(),
+                    field: field.clone(),
+                    table_declaration,
+                })
+            } else {
+                Ok(PackagePolicyProviderBinding::VtableField {
+                    table: table.clone(),
+                    field: field.clone(),
+                    table_declaration,
+                })
+            }
+        }
+        EvaluatedNativeBinding::Import(import) => Ok(PackagePolicyProviderBinding::Import {
+            target: import.locator().target().identity().as_str().to_owned(),
+            locator: PackageReviewForeignLocator::from_candidate(import.locator().locator()),
+            producer,
+        }),
+        EvaluatedNativeBinding::Syscall(syscall) => Ok(PackagePolicyProviderBinding::Syscall {
+            number: syscall.number(),
+            evaluated: Some(PackagePolicyProviderEvaluatedSyscall {
+                target: syscall.target().identity().as_str().to_owned(),
+                producer,
+            }),
+        }),
+    }
 }

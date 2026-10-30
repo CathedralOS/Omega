@@ -1,7 +1,5 @@
 //! Complete service meaning shared by provider and permission policy.
 
-mod application;
-use application::ApplicationSource;
 mod authority;
 mod calling;
 mod signature;
@@ -33,70 +31,11 @@ pub(crate) fn project(
         projection,
         service_schema,
         schema,
-        ApplicationSource::Provider(provider_type),
+        provider_type,
         requirement,
         method,
         identities,
         false,
-    )
-}
-
-/// Project an exact admitted native requirement application without a
-/// conformance. The receipt is joined before any source view is projected.
-pub(crate) fn project_native(
-    projection: &mut SignatureProjection<'_>,
-    service_schema: &ServiceSchema,
-    schema: ProviderSchemaDeclaration,
-    requirement: SymbolHandle,
-    method: &ServiceMethod,
-    identities: &ProviderIdentityTable,
-    native: &provider_planning::AdmittedNativeBinding,
-) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
-    let input = projection.input();
-    let admitted = crate::capture::providers::policy::bindings::native_row(
-        &input,
-        requirement,
-        native.receipt().identity_digest(),
-    )?;
-    if admitted != native
-        || schema.symbol()
-            != input
-                .trait_machine_signature(requirement)
-                .map_or(schema.symbol(), |(owner, _)| owner.symbol)
-    {
-        return Err(rejected(
-            "native application changed its exact admitted requirement or source",
-        ));
-    }
-    let application = provider_planning::resolve_native_binding_application(
-        input.checking_input.typed_program(),
-        admitted,
-    )
-    .map_err(|reason| rejected(&reason))?;
-    let original = provider_planning::resolve_native_binding_application(
-        input.custody_checking_input.typed_program(),
-        admitted,
-    )
-    .map_err(|reason| rejected(&reason))?;
-    if application.key != original.key {
-        return Err(rejected(
-            "native application differs from immutable checked source custody",
-        ));
-    }
-    let universal = matches!(schema, ProviderSchemaDeclaration::BoundaryTrait(_))
-        && matches!(
-            application.key,
-            package_compilation::retained_native_bindings::RetainedNativeApplication::Universal
-        );
-    project_inner(
-        projection,
-        service_schema,
-        schema,
-        ApplicationSource::Requirement(&application),
-        requirement,
-        method,
-        identities,
-        universal,
     )
 }
 
@@ -114,7 +53,7 @@ pub(crate) fn project_declaration(
         projection,
         service_schema,
         ProviderSchemaDeclaration::BoundaryTrait(schema),
-        ApplicationSource::Provider(None),
+        None,
         requirement,
         method,
         identities,
@@ -126,7 +65,7 @@ fn project_inner(
     projection: &mut SignatureProjection<'_>,
     service_schema: &ServiceSchema,
     schema: ProviderSchemaDeclaration,
-    application: ApplicationSource<'_>,
+    provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
     method: &ServiceMethod,
     identities: &ProviderIdentityTable,
@@ -175,7 +114,7 @@ fn project_inner(
         }
         None
     } else {
-        calling::project(compilation, schema, application, requirement, method)?
+        calling::project(compilation, schema, provider_type, requirement, method)?
     };
     let signature = if declaration_mode {
         signature::project_declaration(
@@ -189,7 +128,7 @@ fn project_inner(
         signature::project(
             projection,
             schema,
-            application,
+            provider_type,
             requirement,
             &identity,
             calling.as_ref(),

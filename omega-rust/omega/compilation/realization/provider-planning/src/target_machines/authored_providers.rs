@@ -24,15 +24,13 @@ impl AuthoredTargetProviders {
     pub(crate) fn derive(
         context: ProviderPlanningContext<'_>,
         calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
-        bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
         target: Option<target::TargetProfile>,
         declarations: crate::SettledTargetMachineDeclarations,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let candidates = crate::derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
+        let candidates = crate::derive_satisfies_plans(crate::ProviderPlanDerivation::new(
             context,
             calling_plans,
             target.map(target::TargetProfile::target_name),
-            bindings,
             &declarations.origins,
         ))?;
         Ok(Self {
@@ -79,7 +77,6 @@ impl TargetProviderInventoryRequest<'_> {
         AuthoredTargetProviders::derive(
             self.context,
             &self.settlement.boundary_calling_plan_realizations,
-            &self.settlement.evaluated_via_bindings,
             Some(profile),
             declarations,
         )

@@ -30,9 +30,9 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
 ) -> Result<(PackagePolicySelectedProviders, Vec<usize>), Vec<Diagnostic>> {
     let input = input.into();
     let projected = input
-        .numeric_realizations
+        .external_providers
         .is_none()
-        .then(|| input.project_numeric_realizations())
+        .then(|| input.project_external_providers())
         .transpose()?;
     let services = input
         .service_declarations
@@ -40,7 +40,7 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
         .then(|| input.project_service_declarations());
     let compilation = &PackageReviewInput {
         service_declarations: input.service_declarations.or(services.as_ref()),
-        numeric_realizations: input.numeric_realizations.or(projected.as_ref()),
+        external_providers: input.external_providers.or(projected.as_ref()),
         ..input
     };
     let selected_execution = compilation.custody.execution();
@@ -136,12 +136,11 @@ fn project_plan(
             retained.selected_by,
             provider_planning::ProviderSelectionProvenance::NativeBuild
         ) && !plan.rows.is_empty()
-            && retained.provider.row_realizations.iter().all(|row| {
-                matches!(
-                    row,
-                    provider_planning::ProviderRowOrigin::BuildNative { .. }
-                )
-            }) => {}
+            && retained
+                .provider
+                .row_realizations
+                .iter()
+                .all(|row| row.native().is_some()) => {}
         None if plan.provider_type_package_identity.is_none()
             && (plan.provider_type.is_empty() || toolchain_settled) => {}
         None => return Err(rejected("provider type has no exact declaration")),
@@ -167,29 +166,15 @@ fn project_plan(
                 "service method has no unique selected realization row",
             ));
         };
-        let requirement = retained.provider.row_requirements[*index];
-        methods.push(match retained.provider.row_realizations[*index] {
-            provider_planning::ProviderRowOrigin::BuildNative { receipt, .. } => {
-                services::project_native(
-                    &mut signatures,
-                    &plan.schema,
-                    retained.provider.schema,
-                    requirement,
-                    method,
-                    &plan.schema.identities,
-                    bindings::native_row(compilation, requirement, receipt)?,
-                )?
-            }
-            _ => services::project(
-                &mut signatures,
-                &plan.schema,
-                retained.provider.schema,
-                retained.provider.provider_type,
-                requirement,
-                method,
-                &plan.schema.identities,
-            )?,
-        });
+        methods.push(services::project(
+            &mut signatures,
+            &plan.schema,
+            retained.provider.schema,
+            retained.provider.provider_type,
+            retained.provider.row_requirements[*index],
+            method,
+            &plan.schema.identities,
+        )?);
     }
     let mut rows = rows::project(
         compilation,

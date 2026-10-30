@@ -71,14 +71,14 @@ pub(super) fn derive(
             let Some((owner, signature)) = typed.trait_machine_signature(template) else {
                 continue;
             };
-            let native_scope = match retained.provider.row_realizations[index] {
-                crate::ProviderRowOrigin::BuildNative {
-                    trait_scope,
-                    closed_requirement,
-                    ..
-                } => Some((trait_scope, closed_requirement)),
-                _ => None,
-            };
+            let native_scope = retained.provider.row_realizations[index]
+                .native()
+                .map(|origin| {
+                    (
+                        origin.selection.application.trait_scope,
+                        origin.selection.application.closed_requirement,
+                    )
+                });
             let source_signature = match native_scope.and_then(|(_, closed)| closed) {
                 Some(closed) => typed
                     .closed_requirement_application(closed)
@@ -96,7 +96,7 @@ pub(super) fn derive(
             }
             let native = native_scope.is_some();
             let realization = retained.provider.row_realizations[index]
-                .machine()
+                .authored()
                 .and_then(|symbol| typed.machine(symbol));
             let scope = if native {
                 match native_scope.and_then(|(scope, _)| scope) {
