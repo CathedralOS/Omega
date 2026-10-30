@@ -6,6 +6,7 @@
 
 use crate::CheckedTrees;
 use diagnostics::Diagnostic;
+use language_semantics::direct_calls::DirectCallDeclarations;
 use std::collections::HashSet;
 use std::sync::{Arc, OnceLock};
 use symbols::SymbolHandle;
@@ -14,6 +15,7 @@ pub struct PreparedProviderInventory {
     checked: Arc<CheckedTrees>,
     uses: OnceLock<HashSet<SymbolHandle>>,
     origins: OnceLock<Vec<language_semantics::provider_declarations::SelectedTargetMachineOrigin>>,
+    direct_calls: OnceLock<DirectCallDeclarations<SymbolHandle>>,
 }
 
 impl PreparedProviderInventory {
@@ -22,11 +24,29 @@ impl PreparedProviderInventory {
             checked,
             uses: OnceLock::new(),
             origins: OnceLock::new(),
+            direct_calls: OnceLock::new(),
         }
     }
 
     pub fn program(&self) -> &Arc<CheckedTrees> {
         &self.checked
+    }
+
+    pub fn direct_calls_for(
+        &self,
+        checked: &CheckedTrees,
+    ) -> Result<&DirectCallDeclarations<SymbolHandle>, Diagnostic> {
+        self.require_owner(checked)?;
+        Ok(self.direct_calls())
+    }
+
+    pub fn direct_calls(&self) -> &DirectCallDeclarations<SymbolHandle> {
+        self.direct_calls.get_or_init(|| {
+            typed_trees::direct_calls::collect(
+                &self.checked.typed,
+                source::DependencyScope::Product,
+            )
+        })
     }
 
     pub fn origins_for(

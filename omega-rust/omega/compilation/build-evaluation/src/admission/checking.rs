@@ -79,9 +79,11 @@ pub(crate) fn prepare_checked_build(
         execution_profile,
         packages,
     )?;
+    let body_declarations = typed_trees::direct_calls::collect(context.typed, context.scope);
     let candidates = provider_planning::derive_satisfies_plans(
         provider_planning::ProviderPlanDerivation::evaluated(
             context,
+            &body_declarations,
             &[],
             execution_profile.map(target::TargetProfile::target_name),
             &bindings,
