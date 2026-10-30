@@ -74,8 +74,9 @@ under `build/content-provider/open-const/`; other native hosts remain unmeasured
 A focused same-input comparison of 139 nearby contract fixtures has no semantic
 moves between the historical and repaired producers. One preexisting collateral
 golden expected-diagnostic gap remains recorded on both sides. Terminal-only
-counterfactuals keep the valid bound but change the payload or selected match arm;
-both trap, while the positive exits 0. No native trap run is claimed.
+counterfactuals keep the valid bound but change the payload or either selected
+match arm; all trap, while the positives exit 0. Both matching choices are
+freshly paired after strengthening this oracle. No native trap run is claimed.
 
 The earlier Windows `e4d9c74577f9ed221697b73113b045220364f9de` sibling-binder
 refusal remains historical; it is superseded by the actual current baseline.
