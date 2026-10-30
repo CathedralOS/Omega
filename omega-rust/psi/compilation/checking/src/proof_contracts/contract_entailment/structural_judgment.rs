@@ -2639,6 +2639,16 @@ impl<'program> StructuralJudge<'program> {
                 },
             );
         }
+        // Closed anonymous arithmetic has the same exact value in a runtime
+        // predicate as in its declaration. Read it before recursive operation
+        // construction: the enclosing machine's return type is not the
+        // comparison peer's landing, and must not erase a retained predicate.
+        // The shared reader rejects runtime names, typed arithmetic policies
+        // and unselected user operators; formation and storage fences above
+        // remain independent obligations.
+        if let Some(value) = super::proof_integer::anonymous_integer_value(program, expression) {
+            return Some(StructuralTerm::Integer(value));
+        }
         match program.expression_table.expression(expression) {
             ExpressionNode::Match(dispatch) => self.specification_match_term(
                 expression,

@@ -182,34 +182,6 @@ impl StructuralPrefixVisitor for StoredPredicate<'_> {
             &[],
             Some((machine, state)),
         );
-        if super::struct_trace() {
-            eprintln!(
-                "STRUCT stored-predicate data={} predicate={} bindings={bindings:?} judgment={judgment:?} node={:?} runtime={} parameters={:?} type={:?} term={:?} premises={:?}",
-                self.definition.name.as_str(),
-                program.expression_table.display_name(self.predicate),
-                program.expression_table.expression(self.predicate),
-                judge.has_runtime_body_values(),
-                parameters,
-                crate::parameter_expression_result_type_reference(
-                    program,
-                    self.definition.symbol,
-                    &parameters,
-                    self.predicate
-                ),
-                super::structural_terms::structural_term(
-                    program,
-                    None,
-                    Some((self.definition.symbol, &parameters)),
-                    self.predicate,
-                    None
-                ),
-                judge
-                    .premise_facts()
-                    .iter()
-                    .map(|fact| program.expression_table.display_name(*fact))
-                    .collect::<Vec<_>>(),
-            );
-        }
         self.proven &= matches!(judgment, StructuralJudgment::Proven);
     }
 }

@@ -10,9 +10,9 @@
 use crate::proof_contracts::default_domains::data_reads::range_gates_hold;
 use crate::proof_contracts::default_domains::place_queries::{
     data_definition_for_expression, data_has_case_where_facts, declared_root_established,
-    expression_root_symbol, fact_mentions_any_field, fact_span_mentions_field,
-    field_is_where_mentioned, is_data_rooted, is_subplace, membership_field, place_spelling_covers,
-    place_spellings_may_overlap, write_place_spelling,
+    expression_root_symbol, fact_span_mentions_field, field_is_where_mentioned, is_data_rooted,
+    is_subplace, membership_field, place_spelling_covers, place_spellings_may_overlap,
+    write_place_spelling,
 };
 use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
 use crate::proof_contracts::default_domains::symbolic_values::{
@@ -406,26 +406,25 @@ pub(crate) fn handle_assignment<'program>(
             declared_facts.push(fact);
         }
     }
-    let type_facts = declared_facts
-        .iter()
-        .filter(|fact| fact_mentions_any_field(program, definition, fact))
-        .filter(|fact| {
-            !region_was_established
-                || super::place_queries::fact_names_field(program, definition, fact, &field_name)
+    let type_facts = declared_facts.iter().filter(|fact| {
+        if !region_was_established {
+            return true;
+        }
+        if !super::place_queries::fact_names_field(program, definition, fact, &field_name) {
+            return false;
+        }
+        let Some(expression) = fact.as_expression() else {
+            return true;
+        };
+        written_field.is_none_or(|written| {
+            crate::proof_contracts::collection_predicates::data_fact_applies_to_field(
+                program,
+                definition,
+                *expression,
+                written,
+            ) != Some(false)
         })
-        .filter(|fact| {
-            let Some(expression) = fact.as_expression() else {
-                return true;
-            };
-            written_field.is_none_or(|written| {
-                crate::proof_contracts::collection_predicates::data_fact_applies_to_field(
-                    program,
-                    definition,
-                    *expression,
-                    written,
-                ) != Some(false)
-            })
-        });
+    });
     let case_facts = case_fact_spans
         .iter()
         .copied()

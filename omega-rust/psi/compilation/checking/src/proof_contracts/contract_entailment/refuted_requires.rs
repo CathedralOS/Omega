@@ -362,14 +362,7 @@ pub(super) fn instantiated_selected_fact_judgment(
         // contradiction here: the fact stays for the channels that decide it
         // with the certificate in hand.
         let projection_uncertified = uncertified_call_projection(program, &term);
-        let observed = judge.judge_observed_predicate(term.clone(), 0);
-        if super::struct_trace() {
-            eprintln!(
-                "STRUCT instantiated-predicate owner={callee_owner:?} predicate={} term={term:?} judgment={observed:?}",
-                program.expression_table.display_name(fact),
-            );
-        }
-        match observed {
+        match judge.judge_observed_predicate(term, 0) {
             StructuralJudgment::Proven => return StructuralJudgment::Proven,
             StructuralJudgment::Refuted if projection_uncertified => {
                 return StructuralJudgment::Unknown;
