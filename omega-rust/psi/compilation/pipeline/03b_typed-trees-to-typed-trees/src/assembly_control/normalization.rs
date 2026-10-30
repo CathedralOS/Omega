@@ -9,6 +9,7 @@
 //! A helper call cannot cross an open invariant or invent establishment: its
 //! ordinary argument checking remains authoritative. Finite lexical assembly
 //! without scratch state retains its existing storage-frame route.
+use super::normal_exit_contracts::derived_contract;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_core::inline_assembly::ASM_ZERO_FLAG_SLOT;
@@ -17,7 +18,7 @@ use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableBorrowExpression, TableNamePath, TableUnaryExpression,
     UnaryOperator,
 };
-use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
+use typed_trees::signature::{SignatureContractKind, StateParameter};
 use typed_trees::statement::{
     AssemblyControlFlow, AssemblyControlPoint, AssemblyExit, AssemblyFactKind, StatementNode,
     TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
@@ -951,13 +952,7 @@ fn normalize_graph(
             let facts = program.proof_facts.insert_many([fact]);
             program.push_machine_contract(
                 &mut helper,
-                SignatureContract {
-                    kind: SignatureContractKind::Requires,
-                    keyword_source_span: None,
-                    binding: None,
-                    facts,
-                    token_count: 0,
-                },
+                derived_contract(SignatureContractKind::Requires, facts),
             );
         }
     }
@@ -1029,13 +1024,7 @@ fn normalize_graph(
                 let facts = program.proof_facts.insert_many([fact]);
                 program.push_state_contract(
                     &mut label,
-                    SignatureContract {
-                        kind: SignatureContractKind::Requires,
-                        keyword_source_span: None,
-                        binding: None,
-                        facts,
-                        token_count: 0,
-                    },
+                    derived_contract(SignatureContractKind::Requires, facts),
                 );
                 continue;
             }
