@@ -1,0 +1,2 @@
+package candidate checking failed: checked compilation failed for package `cathedral_chooser_policy` with 1 diagnostic(s)
+  error: \\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-target-migration\\source\\distribution\\applications\\chooser\\policy\\main.omg:9:74: boundary-trait machine requirement `Chooser::decide` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach

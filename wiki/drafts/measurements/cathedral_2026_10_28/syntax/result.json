@@ -1,0 +1,355 @@
+{
+  "composition": {
+    "name": "Cathedral Omega kernel and desktop exports",
+    "scope": "The Omega UEFI profile plus Omega exports consumed by the default Rust desktop; excludes unrelated labs, unselected ports and Rust compilation.",
+    "entries": [
+      {
+        "name": "kernel",
+        "source": "source/kernel/boot/uefi/main.omg",
+        "target": "uefi_x86_64",
+        "kind": "uefi"
+      },
+      {
+        "name": "matrix",
+        "source": "source/distribution/matrix/native/main.omg",
+        "target": "linux_x86_64",
+        "kind": "component"
+      },
+      {
+        "name": "chooser",
+        "source": "source/distribution/applications/chooser/native/main.omg",
+        "target": "linux_x86_64",
+        "kind": "component"
+      },
+      {
+        "name": "chooser-session",
+        "source": "source/distribution/applications/chooser/session-native/main.omg",
+        "target": "linux_x86_64",
+        "kind": "component"
+      },
+      {
+        "name": "notes",
+        "source": "source/distribution/applications/notes/native/main.omg",
+        "target": "linux_x86_64",
+        "kind": "component"
+      },
+      {
+        "name": "colors",
+        "source": "source/distribution/applications/colors/native/main.omg",
+        "target": "linux_x86_64",
+        "kind": "component"
+      },
+      {
+        "name": "ui-layout",
+        "source": "source/distribution/libraries/omega-ui/tests/native_component/layout/main.omg",
+        "target": "linux_x86_64",
+        "kind": "component"
+      },
+      {
+        "name": "ui-frame",
+        "source": "source/distribution/libraries/omega-ui/tests/native_component/frame/main.omg",
+        "target": "linux_x86_64",
+        "kind": "component"
+      }
+    ]
+  },
+  "composition_sha256": "d0f38bad310141971d66786f62b05203a8c8f33cdd0f0674a80b4970b71a0e98",
+  "source_manifest_sha256": "ad265638cfe314ba3dcf156f08058fd2a4916d67541e80e717777b6b404aa222",
+  "compiler": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+    "sha256": "0b00c58b83247f820c1c774824aa45336812c9d417ef14d768d6fd4ec00282f8",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    }
+  },
+  "cache_state": "fresh per-entry output; persistent dependency/source caches not cleared",
+  "preparation_included_in_compile_metric": false,
+  "runtime_validated": false,
+  "complete_compile_ms": null,
+  "entries": [
+    {
+      "name": "kernel",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\kernel\\boot\\uefi",
+          "--target",
+          "uefi_x86_64",
+          "--offline"
+        ],
+        "exit_code": 1,
+        "wall_ms": 2788.735499998438
+      },
+      "compile_not_attempted": "ordinary package preparation failed; inspect prepare.log"
+    },
+    {
+      "name": "matrix",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\matrix\\native",
+          "--target",
+          "linux_x86_64",
+          "--offline"
+        ],
+        "exit_code": 0,
+        "wall_ms": 7623.980300006224
+      },
+      "compile": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "--offline",
+          "--timings",
+          "--target",
+          "linux_x86_64",
+          "--build-dir",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\syntax-migration-01\\matrix\\product",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\matrix\\native\\main.omg"
+        ],
+        "exit_code": 0,
+        "wall_ms": 7536.074599993299,
+        "peak_bytes": 4885012480,
+        "artifact_valid": true,
+        "artifacts": {
+          "omega-program": {
+            "sha256": "e4000138e62095cbfcc8bc2cd022eb9925188b69fad7ec11e6bb01a2c5dfa42f",
+            "bytes": 132368
+          },
+          "libomega-component-2c6ffba525dd5ff4fe2b9f22ca4d113e81b7a82c1545e9c9e9234ea3e9754ea2.so": {
+            "sha256": "b3a80c8752d98638e112301a8a20d775d3953ecb3062ca5ea0081a8904098a4a",
+            "bytes": 132200
+          },
+          "libomega-component-2c6ffba525dd5ff4fe2b9f22ca4d113e81b7a82c1545e9c9e9234ea3e9754ea2.so.component": {
+            "sha256": "079b9902db65eb2256857c8f08320a037581e72b63977dfc6168f16bdf191e35",
+            "bytes": 315329
+          }
+        }
+      }
+    },
+    {
+      "name": "chooser",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\applications\\chooser\\native",
+          "--target",
+          "linux_x86_64",
+          "--offline"
+        ],
+        "exit_code": 0,
+        "wall_ms": 2558.6246000020765
+      },
+      "compile": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "--offline",
+          "--timings",
+          "--target",
+          "linux_x86_64",
+          "--build-dir",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\syntax-migration-01\\chooser\\product",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\applications\\chooser\\native\\main.omg"
+        ],
+        "exit_code": 0,
+        "wall_ms": 4723.779799998738,
+        "peak_bytes": 4174471168,
+        "artifact_valid": true,
+        "artifacts": {
+          "omega-program": {
+            "sha256": "9db7fa86fb0846b03c9e9914b5847968f576ba77e10e6c9c7f74e461f7c84586",
+            "bytes": 132368
+          },
+          "libomega-component-fe0bc91f99a63e19b8723444ec50cf9e943846c1101f75f31541cb01bdf15aa6.so": {
+            "sha256": "d7b12d65140a081d27585f1efbf42cbf09fe697b65a2849a9df825f794b0b0bb",
+            "bytes": 132200
+          },
+          "libomega-component-fe0bc91f99a63e19b8723444ec50cf9e943846c1101f75f31541cb01bdf15aa6.so.component": {
+            "sha256": "9ae4e8de255ef94f4552d3036ac19a820052d737734c839b09eeb468212457aa",
+            "bytes": 266561
+          }
+        }
+      }
+    },
+    {
+      "name": "chooser-session",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\applications\\chooser\\session-native",
+          "--target",
+          "linux_x86_64",
+          "--offline"
+        ],
+        "exit_code": 1,
+        "wall_ms": 4118.432200004463
+      },
+      "compile_not_attempted": "ordinary package preparation failed; inspect prepare.log"
+    },
+    {
+      "name": "notes",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\applications\\notes\\native",
+          "--target",
+          "linux_x86_64",
+          "--offline"
+        ],
+        "exit_code": 0,
+        "wall_ms": 8794.24509999808
+      },
+      "compile": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "--offline",
+          "--timings",
+          "--target",
+          "linux_x86_64",
+          "--build-dir",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\syntax-migration-01\\notes\\product",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\applications\\notes\\native\\main.omg"
+        ],
+        "exit_code": 0,
+        "wall_ms": 8505.861400000867,
+        "peak_bytes": 4885532672,
+        "artifact_valid": true,
+        "artifacts": {
+          "omega-program": {
+            "sha256": "0ec7ebdf1fb87a7511dadf78d02f032ffd3ff5f6dd24b0a768ac93d3cbe85432",
+            "bytes": 132368
+          },
+          "libomega-component-21145defa79adbedc2e17bf97846de988f700eb8ea6ce6d946aa8517f96c5245.so": {
+            "sha256": "e936cd2f7c512c48f96fcf70ab1d07784b000b07700ba58d58d4cbaec6dc09d9",
+            "bytes": 197736
+          },
+          "libomega-component-21145defa79adbedc2e17bf97846de988f700eb8ea6ce6d946aa8517f96c5245.so.component": {
+            "sha256": "b20b0f9bbd378e71622eccea2ccbc22d4f791ba35a9a1a4c6ae8017139dbeef3",
+            "bytes": 761506
+          }
+        }
+      }
+    },
+    {
+      "name": "colors",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\applications\\colors\\native",
+          "--target",
+          "linux_x86_64",
+          "--offline"
+        ],
+        "exit_code": 1,
+        "wall_ms": 3301.25780000526
+      },
+      "compile_not_attempted": "ordinary package preparation failed; inspect prepare.log"
+    },
+    {
+      "name": "ui-layout",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\layout",
+          "--target",
+          "linux_x86_64",
+          "--offline"
+        ],
+        "exit_code": 0,
+        "wall_ms": 10770.42960000108
+      },
+      "compile": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "--offline",
+          "--timings",
+          "--target",
+          "linux_x86_64",
+          "--build-dir",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\syntax-migration-01\\ui-layout\\product",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\layout\\main.omg"
+        ],
+        "exit_code": 0,
+        "wall_ms": 14015.994000001228,
+        "peak_bytes": 5609959424,
+        "artifact_valid": true,
+        "artifacts": {
+          "omega-program": {
+            "sha256": "d50a3f07051879f383c8f38dbbc1bd233d930011ddc259027e61e9f0d912e18d",
+            "bytes": 132368
+          },
+          "libomega-component-27cb0784d90351a11735ef068743d49a585846e5cca61d81922bd50a5d956ef9.so": {
+            "sha256": "2bac388e00c91a60d53373824948fcc8e109c9853a78ee37177f4c3e52d7da73",
+            "bytes": 132200
+          },
+          "libomega-component-27cb0784d90351a11735ef068743d49a585846e5cca61d81922bd50a5d956ef9.so.component": {
+            "sha256": "c70299591e8ca99eadd883c073c496828d946967d463b03f535750678fdae036",
+            "bytes": 2244592
+          }
+        }
+      }
+    },
+    {
+      "name": "ui-frame",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\frame",
+          "--target",
+          "linux_x86_64",
+          "--offline"
+        ],
+        "exit_code": 0,
+        "wall_ms": 8433.525000000373
+      },
+      "compile": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "--offline",
+          "--timings",
+          "--target",
+          "linux_x86_64",
+          "--build-dir",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\syntax-migration-01\\ui-frame\\product",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\frame\\main.omg"
+        ],
+        "exit_code": 0,
+        "wall_ms": 12889.24400000542,
+        "peak_bytes": 5763440640,
+        "artifact_valid": true,
+        "artifacts": {
+          "omega-program": {
+            "sha256": "5abef0949908287c3fd3bab42eff73da2b04ca207d2f2cbc3ef83d6aa79c9377",
+            "bytes": 132368
+          },
+          "libomega-component-b4f44fc5a075758740988e885237bfcecc2d3461e8bd949bcad5643438c68dd9.so": {
+            "sha256": "64c5e7c47b38a9a9107e70807e5d1b1713049b1224b2bfb65a950d66b8377081",
+            "bytes": 590952
+          },
+          "libomega-component-b4f44fc5a075758740988e885237bfcecc2d3461e8bd949bcad5643438c68dd9.so.component": {
+            "sha256": "67784fa0972264f0a1f6851f8e5f25168bb04f38d2602dc1f4cb158e481ca4e7",
+            "bytes": 2244595
+          }
+        }
+      }
+    }
+  ],
+  "compiler_wall_sum_ms": null,
+  "inputs_unchanged": true
+}

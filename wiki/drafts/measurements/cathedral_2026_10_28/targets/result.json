@@ -1,0 +1,210 @@
+{
+  "composition": {
+    "name": "Cathedral Omega kernel and desktop exports",
+    "scope": "The Omega UEFI profile plus Omega exports consumed by the default Rust desktop; excludes unrelated labs, unselected ports and Rust compilation.",
+    "entries": [
+      {
+        "name": "kernel",
+        "source": "source/kernel/boot/uefi/main.omg",
+        "target": "uefi_x86_64",
+        "kind": "uefi"
+      },
+      {
+        "name": "matrix",
+        "source": "source/distribution/matrix/native/main.omg",
+        "target": "linux_x86_64",
+        "kind": "component"
+      },
+      {
+        "name": "chooser",
+        "source": "source/distribution/applications/chooser/native/main.omg",
+        "target": "linux_x86_64",
+        "kind": "component"
+      },
+      {
+        "name": "chooser-session",
+        "source": "source/distribution/applications/chooser/session-native/main.omg",
+        "target": "linux_x86_64",
+        "kind": "component"
+      },
+      {
+        "name": "notes",
+        "source": "source/distribution/applications/notes/native/main.omg",
+        "target": "linux_x86_64",
+        "kind": "component"
+      },
+      {
+        "name": "colors",
+        "source": "source/distribution/applications/colors/native/main.omg",
+        "target": "linux_x86_64",
+        "kind": "component"
+      },
+      {
+        "name": "ui-layout",
+        "source": "source/distribution/libraries/omega-ui/tests/native_component/layout/main.omg",
+        "target": "linux_x86_64",
+        "kind": "component"
+      },
+      {
+        "name": "ui-frame",
+        "source": "source/distribution/libraries/omega-ui/tests/native_component/frame/main.omg",
+        "target": "linux_x86_64",
+        "kind": "component"
+      }
+    ]
+  },
+  "composition_sha256": "d0f38bad310141971d66786f62b05203a8c8f33cdd0f0674a80b4970b71a0e98",
+  "source_manifest_sha256": "a7b042742ff88c74b1bccb810dade3d342c1f30fdd786794710dff8ad1b598d2",
+  "compiler": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+    "sha256": "0b00c58b83247f820c1c774824aa45336812c9d417ef14d768d6fd4ec00282f8",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    }
+  },
+  "cache_state": "fresh per-entry output; persistent dependency/source caches not cleared",
+  "preparation_included_in_compile_metric": false,
+  "runtime_validated": false,
+  "complete_compile_ms": null,
+  "entries": [
+    {
+      "name": "kernel",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-target-migration\\source\\kernel\\boot\\uefi",
+          "--target",
+          "uefi_x86_64",
+          "--offline"
+        ],
+        "exit_code": 1,
+        "wall_ms": 1246.3567000086186
+      },
+      "compile_not_attempted": "ordinary package preparation failed; inspect prepare.log"
+    },
+    {
+      "name": "matrix",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-target-migration\\source\\distribution\\matrix\\native",
+          "--target",
+          "linux_x86_64",
+          "--offline"
+        ],
+        "exit_code": 1,
+        "wall_ms": 1553.4379000018816
+      },
+      "compile_not_attempted": "ordinary package preparation failed; inspect prepare.log"
+    },
+    {
+      "name": "chooser",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-target-migration\\source\\distribution\\applications\\chooser\\native",
+          "--target",
+          "linux_x86_64",
+          "--offline"
+        ],
+        "exit_code": 1,
+        "wall_ms": 2729.172199993627
+      },
+      "compile_not_attempted": "ordinary package preparation failed; inspect prepare.log"
+    },
+    {
+      "name": "chooser-session",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-target-migration\\source\\distribution\\applications\\chooser\\session-native",
+          "--target",
+          "linux_x86_64",
+          "--offline"
+        ],
+        "exit_code": 1,
+        "wall_ms": 2848.8644000026397
+      },
+      "compile_not_attempted": "ordinary package preparation failed; inspect prepare.log"
+    },
+    {
+      "name": "notes",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-target-migration\\source\\distribution\\applications\\notes\\native",
+          "--target",
+          "linux_x86_64",
+          "--offline"
+        ],
+        "exit_code": 1,
+        "wall_ms": 1263.0481999949552
+      },
+      "compile_not_attempted": "ordinary package preparation failed; inspect prepare.log"
+    },
+    {
+      "name": "colors",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-target-migration\\source\\distribution\\applications\\colors\\native",
+          "--target",
+          "linux_x86_64",
+          "--offline"
+        ],
+        "exit_code": 1,
+        "wall_ms": 1176.094300011755
+      },
+      "compile_not_attempted": "ordinary package preparation failed; inspect prepare.log"
+    },
+    {
+      "name": "ui-layout",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-target-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\layout",
+          "--target",
+          "linux_x86_64",
+          "--offline"
+        ],
+        "exit_code": 1,
+        "wall_ms": 5299.192899998161
+      },
+      "compile_not_attempted": "ordinary package preparation failed; inspect prepare.log"
+    },
+    {
+      "name": "ui-frame",
+      "preparation": {
+        "command": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-608307c1ee2.exe",
+          "update",
+          "--project",
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-target-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\frame",
+          "--target",
+          "linux_x86_64",
+          "--offline"
+        ],
+        "exit_code": 1,
+        "wall_ms": 1480.5155999929411
+      },
+      "compile_not_attempted": "ordinary package preparation failed; inspect prepare.log"
+    }
+  ],
+  "compiler_wall_sum_ms": null,
+  "inputs_unchanged": true
+}

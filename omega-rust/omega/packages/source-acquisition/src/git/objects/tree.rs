@@ -302,7 +302,9 @@ pub(crate) fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveE
 pub(crate) fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveError> {
     let text = std::str::from_utf8(path)
         .map_err(|_| git_tree_invalid(path, "path cannot be represented on this host"))?;
-    Ok(PathBuf::from(text))
+    Ok(PathBuf::from(
+        text.replace('/', std::path::MAIN_SEPARATOR_STR),
+    ))
 }
 
 pub(crate) fn validate_git_symlink_target(

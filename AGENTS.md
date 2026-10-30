@@ -766,6 +766,8 @@ detached HEAD mode directly from the fetched `origin/main` commit:
 That directory is gitignored local state. An existing checkout stays where it is.
 To publish a PR, push HEAD directly to origin:
 `git push origin HEAD:refs/heads/work/<short-name>`.
+Immediately open or update the corresponding PR and return its URL in the same
+turn. A request to "push" includes this PR step; no separate confirmation is needed.
 
 **Retain and reuse warm worktrees as workbenches.** Teardown is never mandatory.
 Reusing an existing worktree preserves its pre-compiled `target/` directory and
@@ -929,6 +931,12 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   replays or rebuilds output the same compile just produced. Verifiers stay
   exercised by the corpus runner and tests, off the default compile path. See
   [verification placement](omega-rust/pipeline.md#verification-placement).
+- **Every delivery push must have a PR.** A user request to "push" means push the
+  committed work and open or update its PR in the same turn. Reuse an existing
+  PR for the branch, verify its head matches the pushed commit, and return the
+  PR URL. A pushed branch or retained worktree alone is not delivery. If PR
+  creation fails, report the concrete blocker and leave publication unfinished;
+  never report a branch-only push as completion.
 - **Never push to `main` directly and never chase `main` with gates.** Push candidate commits
   directly from HEAD to a remote work branch ref (`git push origin HEAD:refs/heads/work/<name>`)
   and open a PR using GitHub's native merge queue ([tools/landing.md](tools/landing.md)). The queue
