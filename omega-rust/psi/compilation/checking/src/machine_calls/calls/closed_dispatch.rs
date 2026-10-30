@@ -277,23 +277,42 @@ pub(crate) fn conformance_binding_is_exact(
                     && selected.callable_application == application.callable_application)
                     .then_some(position)
             });
-        let trait_positions = program
+        let declaration_positions = program
             .trait_implementation_applications
             .iter()
-            .filter(|(_, selected)| {
-                selected.supplying_application == supplying_application
-                    && application.callable_application.is_valid()
-                    && selected.application.callable_application == application.callable_application
+            .map(|(_, selected)| {
+                (
+                    selected.supplying_application,
+                    selected.parameter,
+                    &selected.application,
+                )
             })
-            .filter_map(|(_, selected)| {
+            .chain(
+                program
+                    .data_implementation_applications
+                    .iter()
+                    .map(|(_, selected)| {
+                        (
+                            selected.supplying_application,
+                            selected.parameter,
+                            &selected.application,
+                        )
+                    }),
+            )
+            .filter(|(supplying, _, selected)| {
+                *supplying == supplying_application
+                    && application.callable_application.is_valid()
+                    && selected.callable_application == application.callable_application
+            })
+            .filter_map(|(_, parameter, _)| {
                 source_bindings
                     .iter()
                     .filter(|binding| {
                         matches!(binding.value, StaticMachineBindingValue::Conformance(_))
                     })
-                    .position(|binding| binding.parameter == selected.parameter)
+                    .position(|binding| binding.parameter == parameter)
             });
-        let mut positions = evidence_positions.chain(trait_positions);
+        let mut positions = evidence_positions.chain(declaration_positions);
         let position = positions
             .next()
             .ok_or("capture supplying application lost its exact evidence occurrence")?;
