@@ -1057,6 +1057,31 @@ fn selected_numeric_admission_consumes_retained_declarations() {
 }
 
 #[test]
+fn selected_boundary_admission_reads_checked_classification() {
+    let source = include_str!(
+        "../../realization/provider-planning/src/provider_planning/operator_provider_evidence.rs"
+    );
+    // Source-only selection adapters below this entrance still serve early
+    // interpretation. Product admission must not call back into typed source.
+    let admission = source.split("pub fn selected_use_plan").next().unwrap();
+    for forbidden in [
+        "typed:",
+        "typed.",
+        "IntrinsicRequirement::",
+        "schema_binds_exact_",
+        "use_site_is_generic_template(",
+    ] {
+        assert!(
+            !admission.contains(forbidden),
+            "Product admission reconstructs {forbidden}"
+        );
+    }
+    assert!(admission.contains("provider_requirements"));
+    assert!(admission.contains("operator_use.is_generic_template"));
+    assert!(admission.contains("selected_checked_operator_body(check_facts, application, plan)"));
+}
+
+#[test]
 fn terminal_consumers_call_psi_without_a_product_wrapper() {
     let manifest = include_str!("../Cargo.toml");
     assert!(!manifest.contains("terminal-production ="));

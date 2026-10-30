@@ -90,14 +90,12 @@ pub fn bind_selected_provider_plan_facts(
         &provider_grants,
     )?;
     operator_provider_evidence::validate_selected_operator_provider_evidence(
-        typed,
         check_facts,
         numeric_providers,
         candidates,
         &facts,
     )?;
     operator_provider_evidence::validate_selected_requirement_provider_evidence(
-        typed,
         check_facts,
         numeric_providers,
         candidates,
