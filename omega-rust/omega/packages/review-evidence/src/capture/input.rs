@@ -103,6 +103,22 @@ impl<'a> PackageReviewInput<'a> {
     }
 }
 
+impl<'a> PackageReviewInput<'a> {
+    /// Every retained authored selection row that settled one authored
+    /// occurrence of `expression`, in occurrence order. An occurrence the
+    /// checking ledger never settled contributes no row; callers keep their own
+    /// exactness and exposure gates over the result.
+    pub(crate) fn authored_selections(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> impl Iterator<
+        Item = &language_semantics::declaration_selection::AuthoredDeclarationSelection,
+    > + '_ {
+        self.authored_selection_occurrences(expression)
+            .filter_map(|occurrence| self.authored_declaration_selections().get(occurrence))
+    }
+}
+
 impl<'a> From<&'a CheckedCompilation> for PackageReviewInput<'a> {
     fn from(compilation: &'a CheckedCompilation) -> Self {
         Self::supplied(compilation, compilation)

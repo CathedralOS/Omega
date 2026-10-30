@@ -190,12 +190,7 @@ pub(crate) fn exact_checked_contract_call_target(
     };
 
     let selections = compilation
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            compilation
-                .authored_declaration_selections()
-                .get(occurrence)
-        })
+        .authored_selections(expression)
         .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call)
         .collect::<Vec<_>>();
     let [selection] = selections.as_slice() else {

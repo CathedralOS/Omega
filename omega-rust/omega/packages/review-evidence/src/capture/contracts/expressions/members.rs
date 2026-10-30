@@ -53,12 +53,7 @@ pub(crate) fn contract_member_collection_measure(
     };
 
     compilation
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            compilation
-                .authored_declaration_selections()
-                .get(occurrence)
-        })
+        .authored_selections(expression)
         .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess)
         .find_map(|selection| {
             [CollectionMeasure::Length, CollectionMeasure::Capacity]
@@ -97,12 +92,7 @@ pub(crate) fn exact_checked_contract_nominal_member(
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
 
     let selections = compilation
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            compilation
-                .authored_declaration_selections()
-                .get(occurrence)
-        })
+        .authored_selections(expression)
         .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess)
         .collect::<Vec<_>>();
     let [selection] = selections.as_slice() else {
@@ -143,12 +133,7 @@ pub(crate) fn require_exact_checked_contract_collection_measure(
     };
 
     let selections = compilation
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            compilation
-                .authored_declaration_selections()
-                .get(occurrence)
-        })
+        .authored_selections(expression)
         .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess)
         .collect::<Vec<_>>();
     let [selection] = selections.as_slice() else {
