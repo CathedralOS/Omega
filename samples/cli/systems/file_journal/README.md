@@ -11,10 +11,14 @@ and its directory. macOS ARM64 and both Linux targets select the POSIX portable
 provider; matching-host execution remains separate evidence.
 
 Windows selects the portable provider over its retained raw-family closure.
-On windows_x86_64, `omega run` exits 7. macOS and Linux execution remain
-separate evidence under **FILESYSTEM-PLATFORM-SERVICES**.
-Terminal execution still declines the selected foreign bindings until trusted
-host adapters supply them.
+Matching-host Windows and Linux evidence remains separate under
+**FILESYSTEM-PLATFORM-SERVICES**.
+
+On macOS ARM64, the CLI explicitly delegates the host filesystem namespace to
+Terminal execution. The adapters preserve bounded original storage, guest file
+descriptors and guest errno across native calls. `omega run --both` must observe
+exit 7 from both engines. Other embeddings leave filesystem supply unprovided
+unless explicitly requested; provider selection alone grants no host authority.
 
 The authored `/tmp/omega_journal_dir` is rooted, not relative to the working
 directory. A Windows runner must explicitly provision a writable `\tmp` on
