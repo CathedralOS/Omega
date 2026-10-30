@@ -35,6 +35,17 @@ pub fn resolve_spelling<'program>(
     receiver_type: Option<TypeReferenceHandle>,
     use_site: source::SourceSpan,
 ) -> Vec<SpelledOperator<'program>> {
+    spelled_candidates(program, spelling, receiver_type, use_site).collect()
+}
+
+/// Keep discovery lazy so existence queries stop before later candidates,
+/// while roster queries collect the same declaration and filtering order.
+fn spelled_candidates<'program>(
+    program: &'program TypedTrees,
+    spelling: OperatorSpelling,
+    receiver_type: Option<TypeReferenceHandle>,
+    use_site: source::SourceSpan,
+) -> impl Iterator<Item = SpelledOperator<'program>> + 'program {
     // A token-bearing machine attached to a domain is that domain's family
     // meaning: it participates only where an operand binding selects the
     // domain, exactly like a domain-homed `operator` declaration.
@@ -42,8 +53,8 @@ pub fn resolve_spelling<'program>(
         .operators()
         .iter()
         .chain(program.machine_token_bindings())
-        .filter(|operator| operator.spelling == Some(spelling))
-        .map(|operator| SpelledOperator {
+        .filter(move |operator| operator.spelling == Some(spelling))
+        .map(move |operator| SpelledOperator {
             operator,
             domain: operator
                 .home_domain
@@ -51,7 +62,7 @@ pub fn resolve_spelling<'program>(
                 .then(|| crate::domain::domain_by_symbol(program, operator.home_domain))
                 .flatten(),
         });
-    let domain_candidates = program.domain_definitions().iter().flat_map(|domain| {
+    let domain_candidates = program.domain_definitions().iter().flat_map(move |domain| {
         program
             .domain_operators(domain)
             .iter()
@@ -67,7 +78,7 @@ pub fn resolve_spelling<'program>(
         // A spelling is a candidate only where its declaration may be
         // selected from the use site: a loaded source exposes nothing
         // merely by being loaded (modules spec, "Import scope and exposure").
-        .filter(|candidate| {
+        .filter(move |candidate| {
             program
                 .symbols
                 .source_reference_may_select_symbol(use_site, candidate.operator.symbol)
@@ -79,13 +90,12 @@ pub fn resolve_spelling<'program>(
                         candidate.operator,
                     ))
         })
-        .filter(|candidate| match receiver_type {
+        .filter(move |candidate| match receiver_type {
             Some(receiver_type) => {
                 operator_matches_receiver(program, candidate.operator, receiver_type)
             }
             None => true,
         })
-        .collect()
 }
 
 /// The authored [`OperatorSpelling`] of a binary operator that carries one —
@@ -188,8 +198,7 @@ pub fn resolve_spelling_for_operand_types<'program>(
     operand_types: &[OperandType],
     use_site: source::SourceSpan,
 ) -> Vec<SpelledOperator<'program>> {
-    resolve_spelling(program, spelling, None, use_site)
-        .into_iter()
+    spelled_candidates(program, spelling, None, use_site)
         .filter(|candidate| operator_matches_operands(program, candidate.operator, operand_types))
         .collect()
 }
@@ -279,8 +288,7 @@ fn spelling_for_operands_exists(
     operand_types: &[OperandType],
     use_site: source::SourceSpan,
 ) -> bool {
-    resolve_spelling(program, spelling, None, use_site)
-        .into_iter()
+    spelled_candidates(program, spelling, None, use_site)
         .any(|candidate| operator_matches_operands(program, candidate.operator, operand_types))
 }
 
