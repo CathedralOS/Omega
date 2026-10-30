@@ -563,12 +563,15 @@ impl<'artifact> TerminalExecution<'artifact> {
         )? {
             return Ok(OperationFlow::Advance);
         }
+        let requirements = handler.storage_requirements(boundary, &scalar_arguments);
+        let original_storage = requirements.original;
         let mut boundary_arguments = self
             .resolve_boundary_arguments(
                 &boundary_declaration.structural_parameters,
                 structural_arguments,
-                handler.storage_arguments(boundary),
+                requirements.arguments,
                 &boundary_declaration.normal_qualifications,
+                original_storage,
             )
             .map_err(|error| error.in_argument_preparation("resolve host argument tuple"))?;
         bind_active_structural_arguments(
@@ -595,7 +598,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         )?;
         boundary_arguments.capture_reference_inputs(boundary_declaration, structural_arguments)?;
         boundary_arguments
-            .prepare_original_storage(self, handler, boundary)
+            .prepare_original_storage(self, handler, boundary, original_storage)
             .map_err(|error| error.in_argument_preparation("realize original host storage"))?;
         // Complete ordinary storage/custody checking above before presenting
         // exact admitted abstract payloads to the host. Borrowed arguments keep

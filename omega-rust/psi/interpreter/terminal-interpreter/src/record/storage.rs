@@ -945,7 +945,7 @@ impl ConstructorStorage {
                     self.bytes.insert(
                         field.clone(),
                         crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
-                            bytes.detached_descriptor(),
+                            bytes.owned_snapshot(),
                         ),
                     )?;
                 }
@@ -955,12 +955,12 @@ impl ConstructorStorage {
                 }) => {
                     execution.byte_owner_bytes(home)?;
                     self.owner_writes
-                        .push((home.clone(), bytes.detached_descriptor()));
+                        .push((home.clone(), bytes.owned_snapshot()));
                 }
                 Some(_) => return Err(malformed()),
                 None => {
                     self.byte_arrays
-                        .insert(destination.clone(), crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(child.structural_type, bytes.detached_descriptor(), execution.account.as_ref()))?;
+                        .insert(destination.clone(), crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(child.structural_type, bytes.owned_snapshot(), execution.account.as_ref()))?;
                 }
             }
         }

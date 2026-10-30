@@ -116,6 +116,8 @@ pub struct TerminalExecution<'artifact> {
         StructuralRuntimePlace,
         crate::effects::original_storage::TerminalOriginalStorageRoot,
     >,
+    pub(crate) original_byte_cells:
+        RuntimeRows<(u64, usize), crate::effects::original_storage::OriginalByteCell>,
     pub(crate) reference_referents:
         RuntimeRows<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     /// Homes whose bindings have retired may still supply a live descriptor's
@@ -619,6 +621,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             structural_values,
             aggregate_argument_backings: RuntimeRows::new(account.as_ref()),
             original_storage_roots: RuntimeRows::new(account.as_ref()),
+            original_byte_cells: RuntimeRows::new(account.as_ref()),
             reference_referents: RuntimeRows::new(account.as_ref()),
             structural_element_view_fields: RuntimeRows::new(account.as_ref()),
             structural_byte_descriptors: RuntimeRows::new(account.as_ref()),
