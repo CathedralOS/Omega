@@ -34,11 +34,10 @@ pub(super) struct SourceGraphCache {
 }
 impl SourceGraphCache {
     pub fn new(storage: RetainedStorageLane) -> Result<Self, String> {
-        let storage =
-            phase_profile::scope("setup.graph_lane", || storage.retain_child("source-graphs"))
-                .map_err(|reason| reason.to_string())?;
-        let compiler =
-            phase_profile::scope("setup.graph_identity", crate::compiler_input_identity)?;
+        let storage = storage
+            .retain_child("source-graphs")
+            .map_err(|reason| reason.to_string())?;
+        let compiler = crate::compiler_input_identity()?;
         let name = format!("{}.rec", hex(&compiler));
         Ok(Self {
             storage,
@@ -61,15 +60,10 @@ impl SourceGraphCache {
         }
     }
     fn require_current(&self) -> Result<(), String> {
-        phase_profile::scope("setup.graph_custody", || {
-            self.storage.verify_path_identity()
-        })
-        .map_err(|reason| reason.to_string())?;
-        if phase_profile::scope(
-            "setup.graph_current_identity",
-            crate::compiler_input_identity,
-        )? != self.compiler
-        {
+        self.storage
+            .verify_path_identity()
+            .map_err(|reason| reason.to_string())?;
+        if crate::compiler_input_identity()? != self.compiler {
             return Err("compiler or selected library changed during source retention".to_owned());
         }
         Ok(())

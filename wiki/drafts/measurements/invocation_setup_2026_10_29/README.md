@@ -35,3 +35,29 @@ direction if its removable complete-invocation cost cannot support the target.
 [Startup evidence](startup.json.gz) includes exact producer/source inputs,
 all observations and logs. No Rust change or speed improvement is established
 by this startup diagnostic.
+
+## Finer attribution
+
+Frozen timer-only source `57c4d3c1489` passed six unchanged image/native checks
+(three first visits, three warm profiles). Across the warm profiles, three
+compiler worker bodies took 200–590 ms; their enclosing spawn/join scopes
+added only 0.9–1.9 ms. Do not implement a worker-lifetime optimization from this
+evidence. Session resource-grant creation was also only 0.8–1.3 ms.
+
+Compiler storage preparation took 74.0–77.4 ms, graph-lane construction
+15.8–18.5 ms, and acquisition's optional cache-coordinate setup 93.7–129.3 ms.
+Library identity and graph custody are separate children, not extra time to
+add to their parents. [Scope values](diagnostic-summary.json) and
+[exact diagnostic patch, optimized producer receipt and raw observations](diagnostic.json.gz)
+retain the attribution. The four temporary Rust timer edits were removed.
+
+Source tracing identifies repeated resolver verification of four sibling roots:
+the resolver root and Git, workspace and external-local lanes. Each currently
+reopens the same ancestry independently. The next falsifiable experiment is a
+Windows sibling-custody walk: retain and freshly verify the parent, classify and
+open each direct child without following links, reconcile every classified/opened/
+retained identity, and freshly reconcile the parent again. This shares only the
+common prefix within one operation, never a validity cache between operations.
+Preserve all four roots' refusal behavior, rather than dropping checks for unused
+lanes. It changes a different repeated-work domain from the parked per-path
+linear-ancestry experiment and must stand on its own A/B evidence.

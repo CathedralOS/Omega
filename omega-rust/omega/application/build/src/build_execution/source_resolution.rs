@@ -175,12 +175,8 @@ pub fn resolve_project_sources(
         })?;
     execution.profile = Some(execution_profile);
 
-    let mut acquisitions = phase_profile::scope("setup.source_acquisitions", || {
-        preparation.source_acquisitions()
-    })
-    .map_err(Preparation)?;
-    let acquired = phase_profile::scope("setup.acquire_root", || preparation.acquire_root())
-        .map_err(Preparation)?;
+    let mut acquisitions = preparation.source_acquisitions().map_err(Preparation)?;
+    let acquired = preparation.acquire_root().map_err(Preparation)?;
     let (resolved, builds) = resolve_acquired_sources(
         session,
         acquired,
@@ -191,10 +187,9 @@ pub fn resolve_project_sources(
         collect_timings,
     )?;
     drop(acquisitions);
-    let prepared = phase_profile::scope("setup.complete_resolution", || {
-        preparation.complete_source_resolution(resolved)
-    })
-    .map_err(Preparation)?;
+    let prepared = preparation
+        .complete_source_resolution(resolved)
+        .map_err(Preparation)?;
     Ok(ResolvedProjectBuilds {
         prepared,
         builds,
@@ -214,21 +209,18 @@ pub(crate) fn resolve_acquired_sources(
     execution: package_compilation::BuildExecutionInputs,
     collect_timings: bool,
 ) -> Result<(ResolvedBuildSources, Vec<ResolvedPackageBuild>), ProjectSourceResolutionError> {
-    phase_profile::scope("setup.retain_acquired_root", || {
-        acquisitions.retain_root(&acquired)
-    })
-    .map_err(ProjectSourceResolutionError::Source)?;
+    acquisitions
+        .retain_root(&acquired)
+        .map_err(ProjectSourceResolutionError::Source)?;
     let mut scheduler = readiness::ReadinessScheduler::new(
         session,
         acquisitions,
         execution_profile,
         collect_timings,
     );
-    let root = phase_profile::scope("setup.execute_source", || {
-        scheduler.execute_source(acquired, entry, execution)
-    })?;
-    let resolved = phase_profile::scope("setup.resolve_graph", || scheduler.resolve_graph(root))?;
-    let builds = phase_profile::scope("setup.join_sources", || scheduler.join_sources(&resolved))?;
+    let root = scheduler.execute_source(acquired, entry, execution)?;
+    let resolved = scheduler.resolve_graph(root)?;
+    let builds = scheduler.join_sources(&resolved)?;
     Ok((resolved, builds))
 }
 
