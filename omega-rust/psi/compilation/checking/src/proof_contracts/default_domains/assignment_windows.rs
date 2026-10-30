@@ -375,13 +375,15 @@ pub(crate) fn handle_assignment<'program>(
     // A collection-predicate fact over other fields is untouched by this
     // store; its element windows are tracked separately.
     let written_field = selected_field.map(|field| field.symbol);
-    // The producing declaration already publishes the complete conjunctive
-    // roster. Closed storage preserves untouched obligations; a fresh root or
-    // open window still owes every row.
+    // Read the same ordered obligation roster as establishment and handback.
+    // Closed storage preserves untouched rows; a fresh root or open window
+    // still owes every conjunct, including field-free false obligations.
     let declared_facts = if store_checked {
-        &[][..]
+        Vec::new()
     } else {
-        program.proof_facts.span_or_empty(definition.where_facts)
+        program
+            .conjunctive_proof_facts(definition.where_facts)
+            .collect()
     };
     let type_facts = declared_facts.iter().filter(|fact| {
         if !region_was_established {

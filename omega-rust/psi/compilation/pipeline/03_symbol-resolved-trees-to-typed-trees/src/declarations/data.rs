@@ -123,7 +123,7 @@ fn lower_data_definition_contents(
             .transpose()?,
         // R2 rung 2 slice 2: copied (re-lowered) from the resolved record;
         // inert until rung 3's atomic consumer.
-        where_facts: crate::contracts::proof_facts::lower_data_predicates(lowerer, data_definition.where_facts)?,
+        where_facts: crate::contracts::proof_facts::lower_proof_facts(lowerer, data_definition.where_facts)?,
         zero_gated: data_definition.zero_gated,
         retired_identities: data_definition.retired_identities.clone(),
         members: arena::HandleSpan::empty(),
@@ -208,7 +208,7 @@ fn lower_data_member(
                 symbol: variant.symbol,
                 name: crate::lowerer::name::lower_name(&variant.name),
                 payload: arena::HandleSpan::empty(),
-                where_facts: crate::contracts::proof_facts::lower_data_predicates(
+                where_facts: crate::contracts::proof_facts::lower_proof_facts(
                     lowerer,
                     variant.where_facts,
                 )?,

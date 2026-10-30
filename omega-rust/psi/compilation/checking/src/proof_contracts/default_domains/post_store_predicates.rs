@@ -82,6 +82,18 @@ pub(super) fn post_store_predicate_holds(
         }
     }
 
+    // The store's value is already formed at its own occurrence. Transport
+    // those observed bounds with its identity; an aggregate sibling's unknown
+    // contents do not erase this scalar observation. No destination predicate
+    // participates in establishing the operand or its bounds.
+    let written_bounds =
+        crate::proof_contracts::arithmetic_domains::occurrence_integer_expression_bounds(
+            program,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            written_value,
+        );
     let mut fields = Vec::new();
     for member in program.data_members(place.definition) {
         let Some(field) = member.as_field() else {
@@ -94,11 +106,19 @@ pub(super) fn post_store_predicate_holds(
             continue;
         }
         let value = if field.symbol == written_field {
-            Some(ScopedArithmeticValue::Term(ScopedArithmeticExpression {
+            let value = ScopedArithmeticValue::Term(ScopedArithmeticExpression {
                 owner: machine.symbol,
                 expression: written_value,
                 bindings: arrivals.clone(),
-            }))
+            });
+            Some(match written_bounds {
+                Some((minimum, maximum)) => ScopedArithmeticValue::BoundedInteger {
+                    value: Box::new(value),
+                    minimum: Some(BigInt::from_i128(i128::from(minimum))),
+                    maximum: Some(BigInt::from_i128(i128::from(maximum))),
+                },
+                None => value,
+            })
         } else if let Some((_, Some(value))) = place
             .fields
             .iter()
@@ -168,6 +188,25 @@ pub(super) fn post_store_predicate_holds(
             }
         }
     }
+    // A logical-subject projection and its resolved declaration field denote
+    // the same substituted scalar. Bind exact occurrences, not a partial
+    // constructor that could stand for an unobserved complete record.
+    let mut projections = Vec::new();
+    crate::expression_traversal::visit_pre_order(program, vec![predicate], |expression, _| {
+        if let Some(field) =
+            super::place_queries::membership_field(program, place.definition, expression)
+            && let Some(binding) = fields
+                .iter()
+                .find(|binding| binding.binder == ScopedArithmeticBinder::Symbol(field.symbol))
+        {
+            projections.push(ScopedArithmeticBinding {
+                binder: ScopedArithmeticBinder::Occurrence(expression),
+                value: binding.value.clone(),
+            });
+        }
+        false
+    });
+    fields.extend(projections);
     let contracts = if program
         .machine_states(machine)
         .first()

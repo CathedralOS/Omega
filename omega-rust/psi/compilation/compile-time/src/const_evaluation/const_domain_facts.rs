@@ -185,19 +185,15 @@ pub(crate) fn evaluate_selected_domain_facts(
         .iter()
         .filter(|data| affected_data.contains(&data.symbol))
         .map(|data| {
-            // Declaration production already separated conjunctions. Remove
-            // only independently proved static rows; every remaining runtime
-            // obligation retains its exact expression and order.
+            // Discharge static leaves from the shared obligation roster.
+            // Runtime leaves retain their exact expression and order.
             let residual = typed
-                .proof_facts
-                .span_or_empty(data.where_facts)
-                .iter()
+                .conjunctive_proof_facts(data.where_facts)
                 .filter(|fact| {
                     fact.as_expression().is_none_or(|expression| {
                         !fact_expression::data_fact_is_static_true(typed, data, *expression)
                     })
                 })
-                .cloned()
                 .collect::<Vec<_>>();
             (data.symbol, residual)
         })

@@ -686,7 +686,7 @@ pub(crate) fn standing_field_elements(
         return None;
     };
     let mut constrained = false;
-    for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+    for fact in program.conjunctive_proof_facts(definition.where_facts) {
         let Some(fact) = fact.as_expression() else {
             continue;
         };
