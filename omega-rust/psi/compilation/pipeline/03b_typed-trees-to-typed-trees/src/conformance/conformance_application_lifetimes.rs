@@ -30,6 +30,68 @@ struct ElisionCall {
     machine_arguments: Box<[StaticMachineArgument]>,
 }
 
+/// A call's public receiving telescope, independently of an executable body.
+/// Requirements and machine parameters have the same parameter-position region
+/// operands as ordinary machines; selecting a private body cannot supply them.
+struct CalleeTelescope<'program> {
+    owner: SymbolHandle,
+    name: &'program Identifier,
+    lifetimes: &'program [Identifier],
+    parameters: &'program [typed_trees::signature::StateParameter],
+    type_parameters: &'program [typed_trees::data::TypeParameter],
+    evidence_bounds: &'program [typed_trees::machine::GenericConformanceBound],
+}
+
+impl ElisionCall {
+    fn callee<'program>(&self, program: &'program TypedTrees) -> Option<CalleeTelescope<'program>> {
+        let signature = match self.site {
+            ElisionCallSite::Expression(handle) => program
+                .expression_table
+                .call_node(handle)
+                .and_then(|call| program.requirement_call_signature(self.caller_machine, call)),
+            ElisionCallSite::Statement(handle) => program
+                .statement_table
+                .statement(handle)
+                .as_call()
+                .and_then(|call| {
+                    program.requirement_statement_call_signature(self.caller_machine, call)
+                }),
+        };
+        if let Some(signature) = signature {
+            return Some(CalleeTelescope::signature(program, signature));
+        }
+        if let Some((machine, state)) = validation::find_state(program, self.target) {
+            return Some(CalleeTelescope {
+                owner: machine.symbol,
+                name: &state.name,
+                lifetimes: &machine.lifetime_parameters,
+                parameters: program.state_parameters(state),
+                type_parameters: program.machine_type_parameters(machine),
+                evidence_bounds: &machine.conformance_bounds,
+            });
+        }
+        program
+            .machine_parameter_signature(self.target)
+            .map(|(_, signature)| CalleeTelescope::signature(program, signature))
+    }
+}
+
+impl<'program> CalleeTelescope<'program> {
+    fn signature(
+        program: &'program TypedTrees,
+        signature: &'program typed_trees::signature::StateSignature,
+    ) -> Self {
+        Self {
+            owner: signature.symbol,
+            name: &signature.name,
+            lifetimes: &signature.lifetime_parameters,
+            parameters: program.state_signature_parameters(signature),
+            type_parameters: program.state_signature_type_parameters(signature),
+            evidence_bounds: &[],
+        }
+    }
+}
+
 /// Resolve erased conformance regions from the same parameter-position borrow
 /// facts used by ordinary calls. This runs before strict application closure:
 /// it only fills a complete, uniquely constrained lifetime lane and otherwise
@@ -40,8 +102,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
     let calls = collect_elision_calls(program);
     let mut diagnostics = Vec::new();
     for mut call in calls {
-        let Some((callee_machine, callee_state)) = validation::find_state(program, call.target)
-        else {
+        let Some(callee) = call.callee(program) else {
             continue;
         };
         let Some(caller_machine) = program.machine_by_symbol(call.caller_machine) else {
@@ -54,7 +115,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
 
         let mut call_lifetimes = Vec::<(String, String)>::new();
         let mut conflicting_call_lifetime = false;
-        let parameters = program.state_parameters(callee_state);
+        let parameters = callee.parameters;
         let skip = parameters.len().saturating_sub(call.arguments.len());
         for (argument, parameter) in call.arguments.iter().zip(parameters.iter().skip(skip)) {
             let Some((actual, applications)) = caller_state
@@ -86,7 +147,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                     program,
                     required,
                     actual,
-                    &callee_machine.lifetime_parameters,
+                    callee.lifetimes,
                     argument_scopes::Scope {
                         owner: caller_machine.symbol,
                         frames,
@@ -114,7 +175,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         if conflicting_call_lifetime {
             diagnostics.push(Diagnostic::error(format!(
                 "call to `{}` has conflicting ordinary borrow constraints for an erased lifetime",
-                callee_state.name
+                callee.name
             )));
             continue;
         }
@@ -131,7 +192,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                 .map(|call| call.authored_machine_application),
         };
 
-        let evidence_bounds = callee_machine.conformance_bounds.iter().collect::<Vec<_>>();
+        let evidence_bounds = callee.evidence_bounds;
         let mut evidence_index = 0usize;
         for argument_ordinal in 0..call.machine_arguments.len() {
             let mut selected = call.machine_arguments[argument_ordinal].clone();
@@ -203,10 +264,8 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                 continue;
             };
 
-            let machine_substitutions = static_substitutions(
-                program.machine_type_parameters(callee_machine),
-                &call.machine_arguments,
-            );
+            let machine_substitutions =
+                static_substitutions(callee.type_parameters, &call.machine_arguments);
             let conformance_substitutions = static_substitutions(
                 program.conformance_type_parameters(conformance),
                 selected
@@ -242,10 +301,10 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                         .zip(typed_trees::type_identity::applied_type_identity_in_scope(
                             program,
                             *expected,
-                            callee_machine.symbol,
+                            callee.owner,
                             call.caller_machine,
                             &[AppliedTypeIdentityScope {
-                                declaration: callee_machine.symbol,
+                                declaration: callee.owner,
                                 arguments: &machine_substitutions,
                                 lifetimes: &call_lifetimes,
                             }],
@@ -281,7 +340,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         }
 
         if let Some(application) = application.filter(|application| application.is_valid()) {
-            let binding_declaration = program.lifetime_declaration_owner(callee_machine.symbol);
+            let binding_declaration = program.lifetime_declaration_owner(callee.owner);
             let lifetimes = call_lifetimes
                 .iter()
                 .map(|(parameter, argument)| {
