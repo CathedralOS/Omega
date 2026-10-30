@@ -71,9 +71,7 @@ fn declarations(
             && conformances
                 .iter()
                 .all(|edge| in_product(edge.symbol) && in_product(edge.requirement_symbol));
-        for conformance in conformances
-            .iter()
-            .filter(|edge| edge.external_binding.is_none())
+        for conformance in conformances.iter()
         {
             let Some(operator) =
                 typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
