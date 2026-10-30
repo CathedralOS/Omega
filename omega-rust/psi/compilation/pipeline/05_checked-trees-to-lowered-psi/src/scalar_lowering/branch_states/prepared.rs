@@ -314,6 +314,14 @@ pub(crate) fn scalar_state_emission_order(
     Ok(order)
 }
 
+/// Snapshot custody is either reserved before operand emission or supplied by
+/// an exact completed producer. Both end through the same physical-home query.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum CompletedSnapshot {
+    Reserved(PlaceId),
+    Produced(checked_trees::CheckedStructuralValueHandle),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredScalarEffect {
     /// Observe a completed value using its real place, projection and access.
@@ -339,8 +347,8 @@ pub(crate) enum LoweredScalarEffect {
         statement: u32,
         expression: typed_trees::expression::ExpressionHandle,
     },
-    CompleteArgumentSnapshots {
-        places: Vec<PlaceId>,
+    CompleteSnapshots {
+        snapshots: Vec<CompletedSnapshot>,
     },
     /// Retain an authorized address or observed descriptor before later effects.
     CaptureStructuralPlace {

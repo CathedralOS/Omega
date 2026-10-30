@@ -8,6 +8,24 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
+fail/facts/nested_machine_joint_rank_copied_payload_call_result_rejected rejected 850ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_const_name_rejected rejected 770ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_field_rejected rejected 784ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_local_rejected rejected 781ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_match_join_rejected rejected 788ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_other_machine_rejected rejected 792ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_other_state_rejected rejected 790ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_parameter_rejected rejected 790ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
+fail/facts/nested_machine_joint_rank_copied_payload_target_body_rejected rejected 779ms expected @e6f74b4c381f
+	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/anonymous_integer_arith checked 3485ms @ccdb99ca2214
@@ -353,12 +371,8 @@ pass/borrows/constant_shared_boundary_exit checked 4205ms check-target:macos_arm
 pass/borrows/constructor_reference_access checked 2403ms @ccdb99ca2214
 pass/borrows/copied_borrowed_slot_restores_parent_exit checked 3618ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/copied_dispatch_payload_before_mutating_argument_exit checked 3744ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/copied_empty_case_before_active_replacement_exit rejected 2367ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `consume` state `entry` statement 0: cannot prove selected case for payload access `<saved subject #1:1>.cell`: captured source `value::Active.cell` has no live case evidence
-	machine `consume` state `entry` statement 0: cannot prove selected case for payload access `<saved subject #1:1>.cell.value`: captured source `value::Active.cell.value` has no live case evidence
-pass/borrows/copied_empty_case_does_not_retain_inactive_backing_exit rejected 3377ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `consume` state `entry` statement 0: cannot prove selected case for payload access `<saved subject #1:1>.cell`: captured source `value::Active.cell` has no live case evidence
-	machine `consume` state `entry` statement 0: cannot prove selected case for payload access `<saved subject #1:1>.cell.value`: captured source `value::Active.cell.value` has no live case evidence
+pass/borrows/copied_empty_case_before_active_replacement_exit checked 1116ms check-target:macos_arm64 @e6f74b4c381f
+pass/borrows/copied_empty_case_does_not_retain_inactive_backing_exit checked 1116ms check-target:macos_arm64 @e6f74b4c381f
 pass/borrows/copied_image_descriptor_unrelated_write checked 4402ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/copied_input_descriptor_independent_mutation_exit checked 3410ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/copied_input_descriptor_local_copy_exit checked 1402ms check-target:macos_arm64 @27c558b731f4
@@ -6156,6 +6170,15 @@ pass/facts/nested_machine_joint_rank_case_value_other_state_exit checked 1020ms 
 pass/facts/nested_machine_joint_rank_case_value_parameter_exit checked 1042ms check-target:macos_arm64 @836691c69aa1
 pass/facts/nested_machine_joint_rank_case_value_target_body_exit checked 998ms check-target:macos_arm64 @836691c69aa1
 pass/facts/nested_machine_joint_rank_const_name_exit checked 2950ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_joint_rank_copied_payload_call_result_exit checked 1132ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_const_name_exit checked 1061ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_field_exit checked 1177ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_local_exit checked 1107ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_match_join_exit checked 1141ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_other_machine_exit checked 1069ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_other_state_exit checked 1122ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_parameter_exit checked 1050ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_copied_payload_target_body_exit checked 1122ms check-target:macos_arm64 @e6f74b4c381f
 pass/facts/nested_machine_joint_rank_descriptor_field_call_result_exit checked 4229ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_descriptor_field_const_name_exit checked 3897ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_descriptor_field_element_write_exit checked 4257ms check-target:macos_arm64 @ccdb99ca2214

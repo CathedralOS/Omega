@@ -254,7 +254,23 @@ pub(crate) fn emit(
                     }
                 }
             }
-            LoweredScalarEffect::CompleteArgumentSnapshots { places } => {
+            LoweredScalarEffect::CompleteSnapshots { snapshots } => {
+                let mut places = Vec::new();
+                for snapshot in snapshots {
+                    let place = match snapshot {
+                        crate::scalar_lowering::branch_states::prepared::CompletedSnapshot::Reserved(place) => *place,
+                        crate::scalar_lowering::branch_states::prepared::CompletedSnapshot::Produced(value) => {
+                            if operations.computed_values.iter().rev()
+                                .find(|(root, _)| root == value)
+                                .is_some_and(|(_, binding)| !binding.fresh_storage)
+                            { continue; }
+                            evaluation.saved_value_binding(*value, operations)?.argument.place
+                        }
+                    };
+                    if !places.contains(&place) {
+                        places.push(place);
+                    }
+                }
                 let mut regions = Vec::new();
                 for place in places.iter().rev() {
                     regions.extend(evaluation.normal_discard_regions(
@@ -280,7 +296,7 @@ pub(crate) fn emit(
                     identities, &regions, values, next_value, next_block, next_edge, operations,
                 )?;
                 for place in places {
-                    evaluation.retire_structural_home(*place);
+                    evaluation.retire_structural_home(place);
                 }
             }
             LoweredScalarEffect::CaptureStructuralPlace {
