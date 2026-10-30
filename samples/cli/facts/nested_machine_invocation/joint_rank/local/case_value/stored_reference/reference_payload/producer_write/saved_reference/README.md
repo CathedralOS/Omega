@@ -6,20 +6,20 @@ Owner: `NESTED-MACHINE-UNIFICATION` in `TASKS.md`. This continues the same
 A private helper preserves the invocation rank on a tail edge, and every
 complete cycle strictly descends while advancing the explicit counter once.
 
-The producer writes7or0 to the original Leaf, moves its mutable reference
+The producer writes 7 or 0 to the original Leaf, moves its mutable reference
 through `current` into `saved`, reseats `current` to a distinct Leaf, and writes
-19/stamp929 through that reseated descriptor. It returns `saved` inside Pending.
-The public result bound remains7; the cycle consumes it directly without a
-caller guard rebuilding the bound. The original Leaf begins55/stamp413; seven
-iterations take counter3to10, and the empty path preserves10. Callers check the
-original leaf, guard827, canary641 and the replacement's19/stamp929. Payload
+count 19 and stamp 929 through that reseated descriptor. It returns `saved` inside Pending.
+The public result bound remains 7; the cycle consumes it directly without a
+caller guard rebuilding the bound. The original Leaf begins with count 55 and stamp 413; seven
+iterations take the counter from 3 to 10, and the empty path preserves 10. Callers check the
+original leaf, guard 827, canary 641 and the replacement'scount 19 and stamp 929. Payload
 observations finish before the replacement is inspected, respecting the public
 lifetime's possible-origin loan frontier.
 
-Each of the nine sibling places has a twin changing only the producer7to8.
+Each of the nine sibling places has a twin changing only the producer write from 7 to 8.
 Both source checking and the own-Ensures diagnostic are frozen against main
 `71d80181a45253213d2f167b812ebf4e0ff902a9`: all nine valid positives currently
-refuse `input` statement6, as do the deliberately invalid twins. The exact
+refuse `input` statement 6, as do the deliberately invalid twins. The exact
 source/Build hashes and optimized baseline identity are retained in
 `build/saved-reference-postcondition/`.
 

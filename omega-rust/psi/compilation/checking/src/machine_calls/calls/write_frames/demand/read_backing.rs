@@ -63,16 +63,79 @@ impl CallFrameResolver<'_> {
             index,
             true,
         )?;
-        stored_calls::completed_result_read_backing(
+        stored_calls::completed_value_reads(
             self.program,
             machine,
             state,
             statement,
             expression,
-            path,
+            crate::machine_calls::calls::call_result_type(self.program, expression)?,
             &prefix,
             &self.tables.symbols,
-        )
+        )?
+        .read_backing(self.program, path)
+    }
+
+    /// Invalidation paths of fields reached through one completed reference
+    /// value. The copied descriptor's old home is frozen; later pointer slots
+    /// and pointee contents remain live dependencies. Every path keeps its own
+    /// unavailable result, and all alternatives must supply complete backing.
+    /// These paths grant no value equality, read, loan or result guarantee.
+    pub fn captured_reference_read_paths(
+        &self,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        paths: &[Vec<facts::PlaceSegment>],
+    ) -> Vec<Option<Vec<String>>> {
+        let completed = (|| {
+            let reference =
+                crate::expression_result_type_reference(self.program, machine, state, expression)?;
+            let shell = crate::reference_shell(self.program, reference)?;
+            if !shell.access.is_readable() {
+                return None;
+            }
+            let (owner, statement, index) = caller_aliases::caller_statement_owner(
+                self.program,
+                machine,
+                caller_aliases::CallerWriteSite::Expression(expression),
+            )?;
+            if owner.symbol != state.symbol {
+                return None;
+            }
+            let prefix = state_write_walk::collected_prefix_at(
+                &self.caches.state_write_shared_collections,
+                self.program,
+                machine,
+                state,
+                &self.tables.symbols,
+                index,
+                true,
+            )?;
+            stored_calls::completed_value_reads(
+                self.program,
+                machine,
+                state,
+                statement,
+                expression,
+                reference,
+                &prefix,
+                &self.tables.symbols,
+            )
+        })();
+        paths
+            .iter()
+            .map(|path| {
+                let backing = completed.as_ref()?.read_backing(self.program, path)?;
+                let mut paths = backing.values;
+                for binding in backing.bindings {
+                    if !paths.contains(&binding) {
+                        paths.push(binding);
+                    }
+                }
+                Some(paths)
+            })
+            .collect()
     }
 
     /// An invocation-entry contract observes this original statement prefix.
