@@ -10,6 +10,17 @@ use target_operations::CallSiteOwner;
 use crate::digest_encoder::DomainDigestEncoder;
 use crate::{ResolvedConditionalBranchEvidence, ResolvedJumpEvidence};
 
+/// One contained record's own identity, hashed whole and unframed, as every
+/// earlier schema version wrote it.
+pub(super) fn encode_nested_identity(
+    hasher: &mut DomainDigestEncoder,
+    value: impl FnOnce(&mut Vec<u8>),
+) {
+    let mut identity = Vec::new();
+    value(&mut identity);
+    hasher.raw(&identity);
+}
+
 /// One ordered roster of register views: its count, then each view's exact
 /// register unit, in the order every identity carrying rosters writes them.
 pub(super) fn encode_views(hasher: &mut DomainDigestEncoder, views: &[RegisterViewId]) {

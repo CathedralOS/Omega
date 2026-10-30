@@ -6,7 +6,7 @@ use physical_instructions::PostAllocationMachineIdentity;
 
 use physical_instructions::PostAllocationMachineOptimizationCustody;
 
-use crate::machine_code::identity_encoding::encode_views;
+use crate::machine_code::identity_encoding::{encode_nested_identity, encode_views};
 
 use super::{
     DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodedRowStore,
@@ -83,27 +83,19 @@ fn encode_encoding_row(
                 }
                 Address::HostedReadByte { slot } => {
                     hasher.byte(9);
-                    let mut identity = Vec::new();
-                    slot.encode_identity(&mut identity);
-                    hasher.raw(&identity);
+                    encode_nested_identity(hasher, |out| slot.encode_identity(out));
                 }
                 Address::SaveFloatingControl { slot } => {
                     hasher.byte(14);
-                    let mut identity = Vec::new();
-                    slot.encode_identity(&mut identity);
-                    hasher.raw(&identity);
+                    encode_nested_identity(hasher, |out| slot.encode_identity(out));
                 }
                 Address::RestoreFloatingControl { slot } => {
                     hasher.byte(15);
-                    let mut identity = Vec::new();
-                    slot.encode_identity(&mut identity);
-                    hasher.raw(&identity);
+                    encode_nested_identity(hasher, |out| slot.encode_identity(out));
                 }
                 Address::HostedWriteByteI32 { slot } => {
                     hasher.byte(5);
-                    let mut identity = Vec::new();
-                    slot.encode_identity(&mut identity);
-                    hasher.raw(&identity);
+                    encode_nested_identity(hasher, |out| slot.encode_identity(out));
                 }
                 Address::Store {
                     base_operand,
@@ -222,9 +214,7 @@ fn encode_encoding_row(
                         }
                         selected_instructions::FrameStorageSlotId::Local(slot) => {
                             hasher.byte(1);
-                            let mut identity = Vec::new();
-                            slot.encode_identity(&mut identity);
-                            hasher.raw(&identity);
+                            encode_nested_identity(hasher, |out| slot.encode_identity(out));
                         }
                     }
                     hasher.raw(&byte_offset.to_le_bytes());
