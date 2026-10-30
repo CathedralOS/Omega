@@ -26,6 +26,44 @@ pub(crate) trait TypeRegionScope: Copy {
         self
     }
 
+    /// A nominal type can carry regions from several supplying telescopes.
+    /// Authenticate each retained declaration/ordinal before selecting its
+    /// scope; a whole-node owner cannot stand for every slot of that type.
+    fn at_lifetime(
+        self,
+        program: &dyn crate::CheckingInput,
+        reference: TypeReferenceHandle,
+        slot: usize,
+        spelling: Option<&Identifier>,
+    ) -> Option<Self> {
+        let regions = program.type_reference_table.operand_lifetimes(reference);
+        if regions.is_empty() {
+            return Some(self);
+        }
+        let expected = match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference {
+                lifetime: Some(_), ..
+            } => 1,
+            TypeReferenceNode::Generic {
+                lifetime_arguments, ..
+            } => lifetime_arguments.len(),
+            _ => 0,
+        };
+        if regions.len() != expected {
+            return None;
+        }
+        let region = *regions.get(slot)?;
+        if !region.declaration.is_valid() {
+            return Some(self);
+        }
+        if typed_trees::type_identity::lifetime_parameter_name(program.typed_program(), region)
+            != spelling
+        {
+            return None;
+        }
+        Some(self.enter_operand(program, region.declaration))
+    }
+
     /// One named alias of this scope's rosters: `None` when the name is not an
     /// alias here, so the walk falls through to the declaration instance.
     fn named_alias(
@@ -224,11 +262,21 @@ pub(crate) fn type_reference_region_applications<
                 ..
             },
         ) => {
+            let Some(actual_region_scope) =
+                actual_scope.at_lifetime(program, actual, 0, actual_lifetime.as_ref())
+            else {
+                return false;
+            };
+            let Some(required_region_scope) =
+                required_scope.at_lifetime(program, required, 0, required_lifetime.as_ref())
+            else {
+                return false;
+            };
             applications.retain_mut(|state| {
                 lifetime_matches(
                     state,
-                    actual_scope,
-                    required_scope,
+                    actual_region_scope,
+                    required_region_scope,
                     actual,
                     actual_lifetime.as_ref(),
                     required_lifetime.as_ref(),
@@ -285,21 +333,36 @@ pub(crate) fn type_reference_region_applications<
             },
         ) => {
             actual_lifetimes.len() == required_lifetimes.len()
-                && actual_lifetimes.iter().zip(required_lifetimes).all(
-                    |(actual_lifetime, required_lifetime)| {
+                && actual_lifetimes
+                    .iter()
+                    .zip(required_lifetimes)
+                    .enumerate()
+                    .all(|(slot, (actual_lifetime, required_lifetime))| {
+                        let Some(actual_region_scope) =
+                            actual_scope.at_lifetime(program, actual, slot, Some(actual_lifetime))
+                        else {
+                            return false;
+                        };
+                        let Some(required_region_scope) = required_scope.at_lifetime(
+                            program,
+                            required,
+                            slot,
+                            Some(required_lifetime),
+                        ) else {
+                            return false;
+                        };
                         applications.retain_mut(|state| {
                             lifetime_matches(
                                 state,
-                                actual_scope,
-                                required_scope,
+                                actual_region_scope,
+                                required_region_scope,
                                 actual,
                                 Some(actual_lifetime),
                                 Some(required_lifetime),
                             )
                         });
                         !applications.is_empty()
-                    },
-                )
+                    })
                 && actual_arguments.count() == required_arguments.count()
                 && program
                     .type_reference_table
