@@ -13,6 +13,10 @@ path preserves 10. Each caller observes its original leaf, stamp 413, payload
 guard 827 and neighboring canary 641. No caller equality guard supplies the
 callee's missing bound.
 
+Run a positive with `omega run --both <main.omg>`; check a reject twin with
+`omega --check <invalid/main.omg>`. The authored exit and storage checks are
+the oracle.
+
 ## Nine places
 
 | Place | Positive | Nondecreasing twin |
