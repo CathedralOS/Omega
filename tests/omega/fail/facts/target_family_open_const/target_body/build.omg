@@ -12,4 +12,7 @@ machine build(builder: &mut Build) {
     Build::select_provider<BoundedSubtract, PortableBoundedSubtract>(builder, linux_arm64);
     Build::select_provider<BoundedValue, PortableBoundedValue>(builder, macos_arm64);
     Build::select_provider<BoundedSubtract, PortableBoundedSubtract>(builder, macos_arm64);
+    Build::bind(builder, macos_x86_64::ProgramEntry, main);
+    Build::select_provider<BoundedValue, PortableBoundedValue>(builder, macos_x86_64);
+    Build::select_provider<BoundedSubtract, PortableBoundedSubtract>(builder, macos_x86_64);
 }
