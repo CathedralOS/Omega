@@ -6,12 +6,36 @@ use super::{
     Argument, CheckedScalarComputationKind, Computation, Expansion, LoweringError,
     QualifiedScalarType, ScalarType, Site, parameter, parameters, unsupported,
 };
+use crate::emission::claim_bindings::selections::SelectedDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
 use checked_trees::{CheckedScalarDispatchArm, CheckedScalarDispatchPattern};
+
+fn dispatch_route(
+    expression: typed_trees::expression::ExpressionHandle,
+    position: usize,
+    arm_count: usize,
+) -> Vec<SelectedDecision> {
+    let mut route = (0..position)
+        .map(|decision| SelectedDecision {
+            expression,
+            decision,
+            selected: false,
+        })
+        .collect::<Vec<_>>();
+    if position + 1 < arm_count {
+        route.push(SelectedDecision {
+            expression,
+            decision: position,
+            selected: true,
+        });
+    }
+    route
+}
+
 impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
     fn structural_dispatch(
@@ -66,24 +90,7 @@ impl Expansion<'_> {
                         "structural dispatch result carrier disagrees with its continuation",
                     );
                 }
-                let mut route = (0..position)
-                    .map(
-                        |decision| crate::emission::claim_bindings::selections::SelectedDecision {
-                            expression,
-                            decision,
-                            selected: false,
-                        },
-                    )
-                    .collect::<Vec<_>>();
-                if position + 1 < arms.len() {
-                    route.push(
-                        crate::emission::claim_bindings::selections::SelectedDecision {
-                            expression,
-                            decision: position,
-                            selected: true,
-                        },
-                    );
-                }
+                let route = dispatch_route(expression, position, arms.len());
                 let mut completed_types = input_types.to_vec();
                 completed_types.push(result_type);
                 let completion =
@@ -263,24 +270,7 @@ impl Expansion<'_> {
         tested_types.push(subject_type);
         let mut continuation = None;
         for (position, arm) in arms.iter().enumerate().rev() {
-            let mut route = (0..position)
-                .map(
-                    |decision| crate::emission::claim_bindings::selections::SelectedDecision {
-                        expression,
-                        decision,
-                        selected: false,
-                    },
-                )
-                .collect::<Vec<_>>();
-            if position + 1 < arms.len() {
-                route.push(
-                    crate::emission::claim_bindings::selections::SelectedDecision {
-                        expression,
-                        decision: position,
-                        selected: true,
-                    },
-                );
-            }
+            let route = dispatch_route(expression, position, arms.len());
             let mut completed_types = input_types.to_vec();
             completed_types.push(result_type);
             let completion =

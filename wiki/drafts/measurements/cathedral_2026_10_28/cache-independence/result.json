@@ -1,0 +1,62 @@
+{
+  "status": "passed",
+  "target": "windows_x86_64",
+  "compilers": [
+    {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-full-67358c0345be.exe",
+      "sha256": "67358c0345be22e6831c005dd92eb2ee03b21b77809a1a1eedcd15b639409c27",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "3"
+      }
+    },
+    {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\omega-ui-shared-fce1b143fc4c.exe",
+      "sha256": "fce1b143fc4c21f5090d93c7eae117fd691d5fc1663e619b4df00d5695d685d7",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "3"
+      }
+    }
+  ],
+  "full_run": {
+    "comparisons": 34,
+    "native_executions": 56,
+    "gate_sha256": "ef133464ae306037ae7a0a28335e3d511b542f48a766b841e2621c9c93560543",
+    "commands": 109
+  },
+  "final_review": {
+    "comparisons": 1,
+    "gate_sha256": "80061ff397c570e8a398ba46da1d2794f5f8116e3862cc807086b309467c6461",
+    "checks": [
+      {
+        "command": [
+          "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+          "tools/tests/test_cache_gate.py",
+          "-v"
+        ],
+        "exit_code": 0,
+        "log": "harness-tests.log"
+      },
+      {
+        "command": [
+          "mbx",
+          "nextest",
+          "run",
+          "--release",
+          "-p",
+          "omega-build",
+          "--test",
+          "shared_compilation"
+        ],
+        "exit_code": 0,
+        "log": "shared-compilation.log"
+      }
+    ]
+  },
+  "interruption": {
+    "temporary": ".1091396-0.tmp",
+    "observed_bytes": 40
+  },
+  "archive_sha256": "09dad8bc4ef3987171515dd93fab1e9d2178d3c9dd1d6bb5e01535a9e892630e"
+}

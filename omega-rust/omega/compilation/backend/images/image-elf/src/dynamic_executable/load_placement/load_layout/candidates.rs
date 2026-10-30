@@ -21,6 +21,14 @@ use crate::dynamic_executable::section_headers::section_header_bytes::ElfSection
 use diagnostics::Diagnostic;
 use target::TargetProfile;
 
+use crate::dynamic_executable::checked::checked_sum_u64;
+
+macro_rules! s {
+    ($a:expr => $b:expr => $c:expr) => {
+        checked_sum_u64($a, $b, $c, "Elf64_Off")
+    };
+}
+
 pub(crate) struct Candidate {
     pub(super) relative: ValidatedElfRelativeSectionPayloadLayout,
     pub(super) target: TargetProfile,
@@ -112,12 +120,7 @@ pub(super) fn derive_contents(
     let read_execute_section_base = align_for_region(
         relative,
         ElfRelativeSectionPayloadRegion::ReadExecute,
-        crate::dynamic_executable::checked::checked_sum_u64(
-            read_execute_base,
-            text_size,
-            "source text end",
-            "Elf64_Off",
-        )?,
+        s!(read_execute_base => text_size => "source text end")?,
     )?;
     let read_execute_end = crate::dynamic_executable::checked::checked_sum_u64(
         read_execute_section_base,
@@ -141,19 +144,9 @@ pub(super) fn derive_contents(
         image.target.pointer_alignment as u64,
         "source data placement",
     )?;
-    let data_end = crate::dynamic_executable::checked::checked_sum_u64(
-        data_file_offset,
-        data_size,
-        "source data end",
-        "Elf64_Off",
-    )?;
+    let data_end = s!(data_file_offset => data_size => "source data end")?;
     let bss_file_cursor = checked_align(data_end, bss_alignment, "source BSS placement")?;
-    let read_write_memory_end = crate::dynamic_executable::checked::checked_sum_u64(
-        bss_file_cursor,
-        bss_size,
-        "source BSS end",
-        "Elf64_Off",
-    )?;
+    let read_write_memory_end = s!(bss_file_cursor => bss_size => "source BSS end")?;
     let file_only_base = align_for_region(
         relative,
         ElfRelativeSectionPayloadRegion::FileOnly,
@@ -200,27 +193,12 @@ pub(super) fn derive_contents(
 
     let image_memory = ElfLoadImageMemoryPlacement {
         text_file_offset: read_execute_base,
-        text_virtual_address: crate::dynamic_executable::checked::checked_sum_u64(
-            IMAGE_BASE,
-            read_execute_base,
-            "source text address",
-            "Elf64_Off",
-        )?,
+        text_virtual_address: s!(IMAGE_BASE => read_execute_base => "source text address")?,
         text_size,
         data_file_offset,
-        data_virtual_address: crate::dynamic_executable::checked::checked_sum_u64(
-            IMAGE_BASE,
-            data_file_offset,
-            "source data address",
-            "Elf64_Off",
-        )?,
+        data_virtual_address: s!(IMAGE_BASE => data_file_offset => "source data address")?,
         data_size,
-        bss_virtual_address: crate::dynamic_executable::checked::checked_sum_u64(
-            IMAGE_BASE,
-            bss_file_cursor,
-            "source BSS address",
-            "Elf64_Off",
-        )?,
+        bss_virtual_address: s!(IMAGE_BASE => bss_file_cursor => "source BSS address")?,
         bss_size,
         bss_alignment,
     };
@@ -259,18 +237,8 @@ pub(super) fn derive_contents(
             kind: ElfLoadProgramHeaderKind::LoadReadExecute,
             flags: PF_R | PF_X,
             file_offset: read_execute_base,
-            virtual_address: crate::dynamic_executable::checked::checked_sum_u64(
-                IMAGE_BASE,
-                read_execute_base,
-                "RX load address",
-                "Elf64_Off",
-            )?,
-            physical_address: crate::dynamic_executable::checked::checked_sum_u64(
-                IMAGE_BASE,
-                read_execute_base,
-                "RX load address",
-                "Elf64_Off",
-            )?,
+            virtual_address: s!(IMAGE_BASE => read_execute_base => "RX load address")?,
+            physical_address: s!(IMAGE_BASE => read_execute_base => "RX load address")?,
             file_size: read_execute_end - read_execute_base,
             memory_size: read_execute_end - read_execute_base,
             alignment: DYNAMIC_MAX_PAGE_SIZE,
@@ -279,18 +247,8 @@ pub(super) fn derive_contents(
             kind: ElfLoadProgramHeaderKind::LoadReadWrite,
             flags: PF_R | PF_W,
             file_offset: read_write_base,
-            virtual_address: crate::dynamic_executable::checked::checked_sum_u64(
-                IMAGE_BASE,
-                read_write_base,
-                "RW load address",
-                "Elf64_Off",
-            )?,
-            physical_address: crate::dynamic_executable::checked::checked_sum_u64(
-                IMAGE_BASE,
-                read_write_base,
-                "RW load address",
-                "Elf64_Off",
-            )?,
+            virtual_address: s!(IMAGE_BASE => read_write_base => "RW load address")?,
+            physical_address: s!(IMAGE_BASE => read_write_base => "RW load address")?,
             file_size: data_end - read_write_base,
             memory_size: read_write_memory_end - read_write_base,
             alignment: DYNAMIC_MAX_PAGE_SIZE,

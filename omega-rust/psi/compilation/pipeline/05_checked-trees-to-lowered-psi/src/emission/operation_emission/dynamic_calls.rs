@@ -46,6 +46,7 @@ pub(crate) struct LoweredDynamicCallBinding {
 pub(super) fn emit_dynamic_call_binding(
     call: &LoweredDynamicCallBinding,
     parameters: &[ValueDeclaration],
+    frontier: &lowered_psi::LoweredSourceFrontierBindings,
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
@@ -106,7 +107,7 @@ pub(super) fn emit_dynamic_call_binding(
         )),
         operation,
         call.slot,
-        &lowered_psi::LoweredSourceFrontierBindings::default(),
+        frontier,
     )?;
     emit_dynamic_call_leaf(
         selector,

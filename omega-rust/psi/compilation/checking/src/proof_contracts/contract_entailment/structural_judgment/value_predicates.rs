@@ -7,6 +7,7 @@
 //! same completed-meaning reader. Reading only applications loses false scalar
 //! guards, such as the zero exclusion on an absolute-value fallback path.
 
+use super::super::structural_terms::scalar_operand_is_observed;
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use numerics::float_projection::FloatProjectionOperation;
 use numerics::float_semantics_catalog::{
@@ -54,16 +55,8 @@ impl StructuralJudge<'_> {
             .iter()
             .all(|(primitive, _)| *primitive == PrimitiveType::Bool)
             || !matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
-            || !super::super::structural_terms::scalar_operand_is_observed(
-                self.program,
-                references[0],
-                left,
-            )
-            || !super::super::structural_terms::scalar_operand_is_observed(
-                self.program,
-                references[1],
-                right,
-            )
+            || !scalar_operand_is_observed(self.program, references[0], left)
+            || !scalar_operand_is_observed(self.program, references[1], right)
         {
             return None;
         }
@@ -104,16 +97,8 @@ impl StructuralJudge<'_> {
             (BinaryOperator::Equal, true) | (BinaryOperator::NotEqual, false)
         ) || meaning[0] != meaning[1]
             || !(meaning[0].0.is_fixed_integer() || meaning[0].0 == PrimitiveType::Bool)
-            || !super::super::structural_terms::scalar_operand_is_observed(
-                self.program,
-                references[0],
-                left,
-            )
-            || !super::super::structural_terms::scalar_operand_is_observed(
-                self.program,
-                references[1],
-                right,
-            )
+            || !scalar_operand_is_observed(self.program, references[0], left)
+            || !scalar_operand_is_observed(self.program, references[1], right)
         {
             return None;
         }
@@ -439,11 +424,7 @@ impl StructuralJudge<'_> {
         let [parameter] = self.program.operator_parameters(operator) else {
             return None;
         };
-        if !super::super::structural_terms::scalar_operand_is_observed(
-            self.program,
-            parameter.type_reference,
-            value,
-        ) {
+        if !scalar_operand_is_observed(self.program, parameter.type_reference, value) {
             return None;
         }
         let format = match primitive {
@@ -578,11 +559,7 @@ impl StructuralJudge<'_> {
         use crate::proof_contracts::arithmetic_domains::FloatSourceBounds;
         let primitive = self.program.primitive_type_reference(reference)?;
         if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
-            || !super::super::structural_terms::scalar_operand_is_observed(
-                self.program,
-                reference,
-                value,
-            )
+            || !scalar_operand_is_observed(self.program, reference, value)
         {
             return None;
         }
@@ -758,13 +735,7 @@ pub(super) fn boolean_term(value: bool) -> StructuralTerm {
 }
 
 pub(super) fn boolean_value(value: &StructuralTerm) -> Option<bool> {
-    let StructuralTerm::Constructor { data, case, fields } = value.semantic_value() else {
-        return None;
-    };
-    if data != "bool" || !fields.is_empty() {
-        return None;
-    }
-    language_semantics::const_value::boolean_literal_spelling(case)
+    value.boolean_value()
 }
 
 fn projected_meaning(

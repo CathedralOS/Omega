@@ -1,0 +1,18 @@
+    23.565 ms  prepare: project -> prepared sources
+  1496.695 ms  compile: sources -> requested product
+     3.819 ms  publish: retained product -> published product
+    12.605 ms  Source ingress: SourceFiles -> SyntaxTrees
+     3.242 ms  Step: assemble: PreparedSources -> AssembledSyntax
+    19.821 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees
+    43.459 ms  Stage 04: SymbolResolvedTrees -> TypedTrees
+   278.425 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)
+  1188.165 ms  Stage 05: TypedTrees -> CheckedTrees
+    60.340 ms  Step: settle: CheckedTrees -> SelectedExecution
+     6.756 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact
+     6.266 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi
+     0.000 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine
+     0.226 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi
+     0.021 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt
+     0.069 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact
+  1943.823 ms  total elapsed
+published native output to \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\source-resolution\comparison\dispatch-01-B-warmup\build\omega-program.exe

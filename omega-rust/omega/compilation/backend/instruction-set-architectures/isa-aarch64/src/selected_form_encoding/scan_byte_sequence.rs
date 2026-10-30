@@ -57,6 +57,12 @@ fn compare_immediate_branch(
     ]
 }
 
+macro_rules! branch {
+    ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr) => {
+        compare_immediate_branch($a, $b, $c, $d, $e)
+    };
+}
+
 fn layout(
     predicate: ByteSequencePredicate,
     registers: [u8; 5],
@@ -155,70 +161,16 @@ fn layout(
             },
         ),
     ]);
-    out.extend(compare_immediate_branch(
-        None,
-        byte,
-        0x80,
-        COND_LO,
-        Label::Advance1,
-    ));
-    out.extend(compare_immediate_branch(
-        None,
-        byte,
-        0xC2,
-        COND_LO,
-        Label::Fail,
-    ));
-    out.extend(compare_immediate_branch(
-        None,
-        byte,
-        0xE0,
-        COND_LO,
-        Label::Cont1,
-    ));
-    out.extend(compare_immediate_branch(
-        None,
-        byte,
-        0xF0,
-        COND_HS,
-        Label::Lead3,
-    ));
-    out.extend(compare_immediate_branch(
-        None,
-        byte,
-        0xE0,
-        COND_EQ,
-        Label::E0Path,
-    ));
-    out.extend(compare_immediate_branch(
-        None,
-        byte,
-        0xED,
-        COND_EQ,
-        Label::EdPath,
-    ));
+    out.extend(branch!(None => byte => 0x80 => COND_LO => Label::Advance1));
+    out.extend(branch!(None => byte => 0xC2 => COND_LO => Label::Fail));
+    out.extend(branch!(None => byte => 0xE0 => COND_LO => Label::Cont1));
+    out.extend(branch!(None => byte => 0xF0 => COND_HS => Label::Lead3));
+    out.extend(branch!(None => byte => 0xE0 => COND_EQ => Label::E0Path));
+    out.extend(branch!(None => byte => 0xED => COND_EQ => Label::EdPath));
     out.push((None, Instruction::Branch(Label::Cont2Any)));
-    out.extend(compare_immediate_branch(
-        Some(Label::Lead3),
-        byte,
-        0xF5,
-        COND_HS,
-        Label::Fail,
-    ));
-    out.extend(compare_immediate_branch(
-        None,
-        byte,
-        0xF0,
-        COND_EQ,
-        Label::F0Path,
-    ));
-    out.extend(compare_immediate_branch(
-        None,
-        byte,
-        0xF4,
-        COND_EQ,
-        Label::F4Path,
-    ));
+    out.extend(branch!(Some(Label::Lead3) => byte => 0xF5 => COND_HS => Label::Fail));
+    out.extend(branch!(None => byte => 0xF0 => COND_EQ => Label::F0Path));
+    out.extend(branch!(None => byte => 0xF4 => COND_EQ => Label::F4Path));
     out.push((None, Instruction::Branch(Label::Cont3Any)));
     for (label, width, low, high) in [
         (Label::Cont1, 1u16, 0x80u16, 0xBFu16),
@@ -309,20 +261,8 @@ fn emit_continuation_tail(
         } else {
             (0x80, 0xBF)
         };
-        out.extend(compare_immediate_branch(
-            None,
-            byte,
-            floor,
-            COND_LO,
-            Label::Fail,
-        ));
-        out.extend(compare_immediate_branch(
-            None,
-            byte,
-            ceiling,
-            COND_HI,
-            Label::Fail,
-        ));
+        out.extend(branch!(None => byte => floor => COND_LO => Label::Fail));
+        out.extend(branch!(None => byte => ceiling => COND_HI => Label::Fail));
     }
     out.extend([
         (

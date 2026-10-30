@@ -162,9 +162,8 @@ fn rejects_legacy_named_compiler_intrinsic_payload() {
         satisfies Console::write_byte
         via ForeignBinding::CompilerIntrinsic("Console::write_byte");
     "#;
-    let error = super::parse_source_error(
+    let error = super::parse_tokenized_error(
         source,
-        "tokenize should succeed",
         "compiler intrinsic identity is derived, never authored",
     );
     super::expect_error(&error, "found punctuation `(`");
@@ -220,11 +219,7 @@ fn retired_string_backed_dllimport_names_the_evaluated_producer_migration() {
 #[test]
 fn rejects_stable_identities_above_u64_max() {
     let source = "data TooLarge { #18446744073709551616 value: u8; }";
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "identity above u64::MAX must fail",
-    );
+    let error = super::parse_tokenized_error(source, "identity above u64::MAX must fail");
     assert!(error.message.contains("nonnegative u64"));
 }
 
@@ -289,11 +284,7 @@ fn rejects_unknown_or_duplicate_field_relevance_properties() {
             "duplicate binding property `erased`",
         ),
     ] {
-        let error = super::parse_source_error(
-            source,
-            "tokenize should succeed",
-            "invalid field property must reject",
-        );
+        let error = super::parse_tokenized_error(source, "invalid field property must reject");
         assert!(error.message.contains(expected), "{}", error.message);
     }
 }
@@ -363,11 +354,7 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
             "unknown local binding property `bogus`",
         ),
     ] {
-        let error = super::parse_source_error(
-            source,
-            "tokenize should succeed",
-            "invalid binding property must reject",
-        );
+        let error = super::parse_tokenized_error(source, "invalid binding property must reject");
         assert!(error.message.contains(expected), "{}", error.message);
     }
 }
@@ -702,11 +689,7 @@ fn data_subject_satisfaction_is_rejected() {
         "trait Ranked<Item> { } data Card { } PowerOrder: Card satisfies Ranked<Card>;",
         "trait Ranked<Item> { } PowerOrder<Item>: Item satisfies Ranked<Item> { }",
     ] {
-        let error = super::parse_source_error(
-            source,
-            "tokenize should succeed",
-            "data cannot satisfy a trait",
-        );
+        let error = super::parse_tokenized_error(source, "data cannot satisfy a trait");
         super::expect_error(&error, "data does not satisfy traits");
     }
 }
@@ -820,11 +803,7 @@ fn rejects_retired_where_conformance_test() {
         { }
     "#;
 
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "a where-satisfies test is retired",
-    );
+    let error = super::parse_tokenized_error(source, "a where-satisfies test is retired");
     super::expect_error(&error, "`where T satisfies Trait` is retired");
 }
 
@@ -1012,11 +991,7 @@ fn retired_provides_declarations_name_the_external_leaf_migration() {
         let source = format!(
             "boundary trait Flags {{ machine open_read() -> i32 reaches; }}\n{declaration}"
         );
-        let error = super::parse_source_error(
-            &source,
-            "tokenize should succeed",
-            "provides syntax must be retired",
-        );
+        let error = super::parse_tokenized_error(&source, "provides syntax must be retired");
         assert!(
             error
                 .message

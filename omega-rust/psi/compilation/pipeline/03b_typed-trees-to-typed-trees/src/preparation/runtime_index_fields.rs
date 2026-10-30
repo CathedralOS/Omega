@@ -374,6 +374,19 @@ fn fill(
     let reference = program
         .type_reference_table
         .unconstrained_type_reference(reference);
+    macro_rules! fill_child {
+        ($expression:expr, $reference:expr, $earlier_effects:expr $(,)?) => {
+            fill(
+                program,
+                $expression,
+                $reference,
+                substitutions,
+                effects,
+                $earlier_effects,
+                diagnostics,
+            )
+        };
+    }
     match program.expression_table.expression(expression).clone() {
         ExpressionNode::String(_) => {
             if let Err(error) =
@@ -387,26 +400,10 @@ fn fill(
                 program.type_reference_table.type_reference(reference)
             {
                 let referee = *referee;
-                fill(
-                    program,
-                    borrow.target,
-                    referee,
-                    substitutions,
-                    effects,
-                    earlier_effects,
-                    diagnostics,
-                );
+                fill_child!(borrow.target, referee, earlier_effects);
             }
         }
-        ExpressionNode::Atomic(atomic) => fill(
-            program,
-            atomic.value,
-            reference,
-            substitutions,
-            effects,
-            true,
-            diagnostics,
-        ),
+        ExpressionNode::Atomic(atomic) => fill_child!(atomic.value, reference, true),
         ExpressionNode::Match(dispatch) => {
             let arms = program.expression_table.match_arms(dispatch.arms).to_vec();
             let mut prior = earlier_effects || !effects.inert(program, dispatch.subject);
@@ -414,26 +411,12 @@ fn fill(
                 for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     prior |= !effects.inert(program, pattern);
                 }
-                fill(
-                    program,
-                    arm.value,
-                    reference,
-                    substitutions,
-                    effects,
-                    prior,
-                    diagnostics,
-                );
+                fill_child!(arm.value, reference, prior);
             }
         }
-        ExpressionNode::Cast(cast) => fill(
-            program,
-            cast.value,
-            cast.target_type,
-            substitutions,
-            effects,
-            earlier_effects,
-            diagnostics,
-        ),
+        ExpressionNode::Cast(cast) => {
+            fill_child!(cast.value, cast.target_type, earlier_effects)
+        }
         ExpressionNode::ArrayLiteral(elements) => {
             if let TypeReferenceNode::FixedArray { element_type, .. } =
                 program.type_reference_table.type_reference(reference)
@@ -445,15 +428,7 @@ fn fill(
                     .to_vec();
                 let mut prior = earlier_effects;
                 for element in elements {
-                    fill(
-                        program,
-                        element,
-                        element_type,
-                        substitutions,
-                        effects,
-                        prior,
-                        diagnostics,
-                    );
+                    fill_child!(element, element_type, prior);
                     prior |= !effects.inert(program, element);
                 }
             }
@@ -554,15 +529,7 @@ fn fill(
             *program.expression_table.expression_mut(expression) =
                 ExpressionNode::StructLiteral(literal);
             for (value, reference, prior) in children {
-                fill(
-                    program,
-                    value,
-                    reference,
-                    substitutions,
-                    effects,
-                    prior,
-                    diagnostics,
-                );
+                fill_child!(value, reference, prior);
             }
         }
         _ => {}

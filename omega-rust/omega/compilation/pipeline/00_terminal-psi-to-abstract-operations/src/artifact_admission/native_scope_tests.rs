@@ -115,7 +115,10 @@ fn prepare_at(
     VerifiedNativeArtifactInput::prepare(
         &reloaded,
         profile,
-        reloaded.semantic_module().entry,
+        reloaded
+            .semantic_module()
+            .entry
+            .expect("fixture declares an entry"),
         &[],
         &NativeExecutionSelection {
             scalar_applications: None,

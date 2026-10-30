@@ -1,0 +1,23 @@
+{
+  "compiler": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\target\\release\\omega.exe",
+    "sha256": "b32045ad86b82f65089db6caa398a903813c658a795bc960ff253263bdf04894",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    }
+  },
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\target\\release\\omega.exe",
+    "--offline",
+    "--timings",
+    "--target",
+    "linux_x86_64",
+    "--build-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\cohort-final-01\\product",
+    "C:\\Development\\Cathedral\\.agents\\worktree\\ui-shared-compilation\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\exports\\main.omg"
+  ],
+  "exit_code": 0,
+  "wall_ms": 12572.65250000637,
+  "peak_bytes": 4776812544
+}

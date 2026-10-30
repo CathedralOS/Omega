@@ -152,12 +152,13 @@ fn encode(layout: &ProfileLayout, profile: &ResourceProfile) -> Vec<u8> {
     // Inactive slots contain poison. Validation must never read them as active
     // payloads, or require their padding/inactive cases to be zero.
     let mut bytes = vec![0xd7; layout.bytes as usize + VALIDATION_SCRATCH_BYTES as usize + 16];
-    store(
-        &mut bytes,
-        0,
-        layout.regions.count,
-        profile.regions.len() as u64,
-    );
+    macro_rules! s {
+        ($base:expr => $scalar:expr => $value:expr) => {
+            store(&mut bytes, $base, $scalar, $value)
+        };
+    }
+
+    s!(0 => layout.regions.count => profile.regions.len() as u64);
     for (position, region) in profile.regions.iter().enumerate() {
         let base = entry(0, layout.regions, position);
         store(&mut bytes, base, layout.start, region.offset);
@@ -201,26 +202,11 @@ fn encode(layout: &ProfileLayout, profile: &ResourceProfile) -> Vec<u8> {
                     },
                 );
                 store(&mut bytes, base, layout.external_write, u64::from(*write));
-                store(
-                    &mut bytes,
-                    base,
-                    layout.external_rules.count,
-                    transfers.len() as u64,
-                );
+                s!(base => layout.external_rules.count => transfers.len() as u64);
                 for (position, rule) in transfers.iter().enumerate() {
                     let base = entry(base, layout.external_rules, position);
-                    store(
-                        &mut bytes,
-                        base,
-                        layout.external_transfer.width,
-                        u64::from(rule.width_bits),
-                    );
-                    store(
-                        &mut bytes,
-                        base,
-                        layout.external_transfer.alignment,
-                        rule.alignment_bytes,
-                    );
+                    s!(base => layout.external_transfer.width => u64::from(rule.width_bits));
+                    s!(base => layout.external_transfer.alignment => rule.alignment_bytes);
                 }
             }
         }
@@ -228,26 +214,11 @@ fn encode(layout: &ProfileLayout, profile: &ResourceProfile) -> Vec<u8> {
             AtomicCapability::None => store(&mut bytes, base, layout.atomic, 0),
             AtomicCapability::Access { transfers } => {
                 store(&mut bytes, base, layout.atomic, 1);
-                store(
-                    &mut bytes,
-                    base,
-                    layout.atomic_rules.count,
-                    transfers.len() as u64,
-                );
+                s!(base => layout.atomic_rules.count => transfers.len() as u64);
                 for (position, rule) in transfers.iter().enumerate() {
                     let base = entry(base, layout.atomic_rules, position);
-                    store(
-                        &mut bytes,
-                        base,
-                        layout.atomic_transfer.width,
-                        u64::from(rule.transfer.width_bits),
-                    );
-                    store(
-                        &mut bytes,
-                        base,
-                        layout.atomic_transfer.alignment,
-                        rule.transfer.alignment_bytes,
-                    );
+                    s!(base => layout.atomic_transfer.width => u64::from(rule.transfer.width_bits));
+                    s!(base => layout.atomic_transfer.alignment => rule.transfer.alignment_bytes);
                     let operations = rule.operations;
                     for (field, value) in layout
                         .atomic_transfer
@@ -261,12 +232,7 @@ fn encode(layout: &ProfileLayout, profile: &ResourceProfile) -> Vec<u8> {
                 }
             }
         }
-        store(
-            &mut bytes,
-            base,
-            layout.reach.count,
-            region.reach.services().len() as u64,
-        );
+        s!(base => layout.reach.count => region.reach.services().len() as u64);
         for (position, service) in region.reach.services().enumerate() {
             store(
                 &mut bytes,

@@ -257,6 +257,17 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             let type_parameters = data_type_parameters
                 .span_or_empty(data_definition.type_parameters)
                 .to_vec();
+            macro_rules! assign {
+                ($reference:expr) => {
+                    assign_type_reference_symbol_with_locals_and_constraints(
+                        symbols,
+                        child_type_references,
+                        type_constraints,
+                        &type_parameters,
+                        $reference,
+                    )
+                };
+            }
             let declaration_symbol = data_definition.symbol;
             if let Some(selection) = &mut data_definition.cleanup_selection {
                 assign_cleanup_operand_types(
@@ -287,30 +298,12 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                 &type_parameters,
                 data_type_parameters.span_mut_or_empty(data_definition.type_parameters),
             );
-            assign_type_reference_symbol_with_locals_and_constraints(
-                symbols,
-                child_type_references,
-                type_constraints,
-                &type_parameters,
-                &mut data_definition.predicate_subject_type,
-            );
+            assign!(&mut data_definition.predicate_subject_type);
             if let Some(generic_instance) = &mut data_definition.generic_instance {
-                assign_type_reference_symbol_with_locals_and_constraints(
-                    symbols,
-                    child_type_references,
-                    type_constraints,
-                    &type_parameters,
-                    generic_instance,
-                );
+                assign!(generic_instance);
             }
             if let Some(quotient) = &mut data_definition.quotient {
-                assign_type_reference_symbol_with_locals_and_constraints(
-                    symbols,
-                    child_type_references,
-                    type_constraints,
-                    &type_parameters,
-                    &mut quotient.carrier,
-                );
+                assign!(&mut quotient.carrier);
                 let relation_name = quotient.relation.joined_path();
                 quotient.relation_symbol = symbols
                     .find_top_level_by_name_and_kinds_from_source(
@@ -374,13 +367,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             for member in data_members.span_mut_or_empty(data_definition.members) {
                 match member {
                     symbol_resolved_trees::data::DataMember::Field(field) => {
-                        assign_type_reference_symbol_with_locals_and_constraints(
-                            symbols,
-                            child_type_references,
-                            type_constraints,
-                            &type_parameters,
-                            &mut field.type_reference,
-                        );
+                        assign!(&mut field.type_reference);
                     }
                     // A payload-bearing variant's fields are stored out of band (the
                     // `data_payload_fields` arena); their type references need symbols
@@ -390,13 +377,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                     // anyway (no named symbol needed); only NAMED payload types broke.
                     symbol_resolved_trees::data::DataMember::Variant(variant) => {
                         for field in data_payload_fields.span_mut_or_empty(variant.payload) {
-                            assign_type_reference_symbol_with_locals_and_constraints(
-                                symbols,
-                                child_type_references,
-                                type_constraints,
-                                &type_parameters,
-                                &mut field.type_reference,
-                            );
+                            assign!(&mut field.type_reference);
                         }
                     }
                 }
@@ -493,6 +474,17 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                 bounds: binder.bounds,
             })
             .collect::<Vec<_>>();
+        macro_rules! bind {
+            ($reference:expr) => {
+                assign_type_reference_symbol_with_locals_and_constraints(
+                    symbols,
+                    child_type_references,
+                    type_constraints,
+                    &local_binders,
+                    $reference,
+                )
+            };
+        }
 
         for binder in proposition_binders.span_mut_or_empty(proposition.binders) {
             let symbol_resolved_trees::proposition::PropositionBinderKind::Const {
@@ -501,33 +493,15 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             else {
                 continue;
             };
-            assign_type_reference_symbol_with_locals_and_constraints(
-                symbols,
-                child_type_references,
-                type_constraints,
-                &local_binders,
-                type_reference,
-            );
+            bind!(type_reference);
         }
         for parameter in state_parameters.span_mut_or_empty(proposition.parameters) {
-            assign_type_reference_symbol_with_locals_and_constraints(
-                symbols,
-                child_type_references,
-                type_constraints,
-                &local_binders,
-                &mut parameter.type_reference,
-            );
+            bind!(&mut parameter.type_reference);
         }
         if let symbol_resolved_trees::proposition::PropositionBody::Witness { evidence } =
             &mut proposition.body
         {
-            assign_type_reference_symbol_with_locals_and_constraints(
-                symbols,
-                child_type_references,
-                type_constraints,
-                &local_binders,
-                evidence,
-            );
+            bind!(evidence);
         }
     });
 

@@ -20,102 +20,32 @@ use semantic_vocabulary::IntegerSign;
 /// `x1` into `x3` with scratch `x4`), written as assembly by hand from the
 /// realization design and assembled independently with Apple clang 17; not
 /// derived from this encoder.
+macro_rules! r {
+    ($op:ident => $carrier:ident => $words:expr) => {
+        (TrappingOperation::$op, SaturatingCarrier::$carrier, $words)
+    };
+}
+
 const CLANG_TRAPPING_WORDS: [(TrappingOperation, SaturatingCarrier, &[u32]); 72] = [
-    (
-        TrappingOperation::Add,
-        SaturatingCarrier::I8,
-        &[0x8b02_0023, 0xeb23_807f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Add,
-        SaturatingCarrier::I16,
-        &[0x8b02_0023, 0xeb23_a07f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Add,
-        SaturatingCarrier::I32,
-        &[0x8b02_0023, 0xeb23_c07f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Add,
-        SaturatingCarrier::I64,
-        &[0xab02_0023, 0x5400_0047, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Add,
-        SaturatingCarrier::U8,
-        &[0x8b02_0023, 0xeb23_007f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Add,
-        SaturatingCarrier::U16,
-        &[0x8b02_0023, 0xeb23_207f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Add,
-        SaturatingCarrier::U32,
-        &[0x8b02_0023, 0xeb23_407f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Add,
-        SaturatingCarrier::U64,
-        &[0xab02_0023, 0x5400_0043, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Subtract,
-        SaturatingCarrier::I8,
-        &[0xcb02_0023, 0xeb23_807f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Subtract,
-        SaturatingCarrier::I16,
-        &[0xcb02_0023, 0xeb23_a07f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Subtract,
-        SaturatingCarrier::I32,
-        &[0xcb02_0023, 0xeb23_c07f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Subtract,
-        SaturatingCarrier::I64,
-        &[0xeb02_0023, 0x5400_0047, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Subtract,
-        SaturatingCarrier::U8,
-        &[0xcb02_0023, 0xeb23_007f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Subtract,
-        SaturatingCarrier::U16,
-        &[0xcb02_0023, 0xeb23_207f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Subtract,
-        SaturatingCarrier::U32,
-        &[0xcb02_0023, 0xeb23_407f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Subtract,
-        SaturatingCarrier::U64,
-        &[0xeb02_0023, 0x5400_0042, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Multiply,
-        SaturatingCarrier::I8,
-        &[0x9b02_7c23, 0xeb23_807f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Multiply,
-        SaturatingCarrier::I16,
-        &[0x9b02_7c23, 0xeb23_a07f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Multiply,
-        SaturatingCarrier::I32,
-        &[0x9b02_7c23, 0xeb23_c07f, 0x5400_0040, 0xd420_0000],
-    ),
+    r!(Add => I8 => &[0x8b02_0023, 0xeb23_807f, 0x5400_0040, 0xd420_0000]),
+    r!(Add => I16 => &[0x8b02_0023, 0xeb23_a07f, 0x5400_0040, 0xd420_0000]),
+    r!(Add => I32 => &[0x8b02_0023, 0xeb23_c07f, 0x5400_0040, 0xd420_0000]),
+    r!(Add => I64 => &[0xab02_0023, 0x5400_0047, 0xd420_0000]),
+    r!(Add => U8 => &[0x8b02_0023, 0xeb23_007f, 0x5400_0040, 0xd420_0000]),
+    r!(Add => U16 => &[0x8b02_0023, 0xeb23_207f, 0x5400_0040, 0xd420_0000]),
+    r!(Add => U32 => &[0x8b02_0023, 0xeb23_407f, 0x5400_0040, 0xd420_0000]),
+    r!(Add => U64 => &[0xab02_0023, 0x5400_0043, 0xd420_0000]),
+    r!(Subtract => I8 => &[0xcb02_0023, 0xeb23_807f, 0x5400_0040, 0xd420_0000]),
+    r!(Subtract => I16 => &[0xcb02_0023, 0xeb23_a07f, 0x5400_0040, 0xd420_0000]),
+    r!(Subtract => I32 => &[0xcb02_0023, 0xeb23_c07f, 0x5400_0040, 0xd420_0000]),
+    r!(Subtract => I64 => &[0xeb02_0023, 0x5400_0047, 0xd420_0000]),
+    r!(Subtract => U8 => &[0xcb02_0023, 0xeb23_007f, 0x5400_0040, 0xd420_0000]),
+    r!(Subtract => U16 => &[0xcb02_0023, 0xeb23_207f, 0x5400_0040, 0xd420_0000]),
+    r!(Subtract => U32 => &[0xcb02_0023, 0xeb23_407f, 0x5400_0040, 0xd420_0000]),
+    r!(Subtract => U64 => &[0xeb02_0023, 0x5400_0042, 0xd420_0000]),
+    r!(Multiply => I8 => &[0x9b02_7c23, 0xeb23_807f, 0x5400_0040, 0xd420_0000]),
+    r!(Multiply => I16 => &[0x9b02_7c23, 0xeb23_a07f, 0x5400_0040, 0xd420_0000]),
+    r!(Multiply => I32 => &[0x9b02_7c23, 0xeb23_c07f, 0x5400_0040, 0xd420_0000]),
     (
         TrappingOperation::Multiply,
         SaturatingCarrier::I64,
@@ -127,21 +57,9 @@ const CLANG_TRAPPING_WORDS: [(TrappingOperation, SaturatingCarrier, &[u32]); 72]
             0xd420_0000,
         ],
     ),
-    (
-        TrappingOperation::Multiply,
-        SaturatingCarrier::U8,
-        &[0x9b02_7c23, 0xeb23_007f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Multiply,
-        SaturatingCarrier::U16,
-        &[0x9b02_7c23, 0xeb23_207f, 0x5400_0040, 0xd420_0000],
-    ),
-    (
-        TrappingOperation::Multiply,
-        SaturatingCarrier::U32,
-        &[0x9b02_7c23, 0xeb23_407f, 0x5400_0040, 0xd420_0000],
-    ),
+    r!(Multiply => U8 => &[0x9b02_7c23, 0xeb23_007f, 0x5400_0040, 0xd420_0000]),
+    r!(Multiply => U16 => &[0x9b02_7c23, 0xeb23_207f, 0x5400_0040, 0xd420_0000]),
+    r!(Multiply => U32 => &[0x9b02_7c23, 0xeb23_407f, 0x5400_0040, 0xd420_0000]),
     (
         TrappingOperation::Multiply,
         SaturatingCarrier::U64,
@@ -202,26 +120,10 @@ const CLANG_TRAPPING_WORDS: [(TrappingOperation, SaturatingCarrier, &[u32]); 72]
             0x9ac2_0c23,
         ],
     ),
-    (
-        TrappingOperation::Divide,
-        SaturatingCarrier::U8,
-        &[0xb500_0042, 0xd420_0000, 0x9ac2_0823],
-    ),
-    (
-        TrappingOperation::Divide,
-        SaturatingCarrier::U16,
-        &[0xb500_0042, 0xd420_0000, 0x9ac2_0823],
-    ),
-    (
-        TrappingOperation::Divide,
-        SaturatingCarrier::U32,
-        &[0xb500_0042, 0xd420_0000, 0x9ac2_0823],
-    ),
-    (
-        TrappingOperation::Divide,
-        SaturatingCarrier::U64,
-        &[0xb500_0042, 0xd420_0000, 0x9ac2_0823],
-    ),
+    r!(Divide => U8 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0823]),
+    r!(Divide => U16 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0823]),
+    r!(Divide => U32 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0823]),
+    r!(Divide => U64 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0823]),
     (
         TrappingOperation::Remainder,
         SaturatingCarrier::I8,
@@ -275,26 +177,10 @@ const CLANG_TRAPPING_WORDS: [(TrappingOperation, SaturatingCarrier, &[u32]); 72]
             0x9b02_8483,
         ],
     ),
-    (
-        TrappingOperation::Remainder,
-        SaturatingCarrier::U8,
-        &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483],
-    ),
-    (
-        TrappingOperation::Remainder,
-        SaturatingCarrier::U16,
-        &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483],
-    ),
-    (
-        TrappingOperation::Remainder,
-        SaturatingCarrier::U32,
-        &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483],
-    ),
-    (
-        TrappingOperation::Remainder,
-        SaturatingCarrier::U64,
-        &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483],
-    ),
+    r!(Remainder => U8 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483]),
+    r!(Remainder => U16 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483]),
+    r!(Remainder => U32 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483]),
+    r!(Remainder => U64 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483]),
     (
         TrappingOperation::ShiftLeft,
         SaturatingCarrier::I8,
@@ -401,46 +287,14 @@ const CLANG_TRAPPING_WORDS: [(TrappingOperation, SaturatingCarrier, &[u32]); 72]
             0xd420_0000,
         ],
     ),
-    (
-        TrappingOperation::ShiftRight,
-        SaturatingCarrier::I8,
-        &[0xf100_205f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823],
-    ),
-    (
-        TrappingOperation::ShiftRight,
-        SaturatingCarrier::I16,
-        &[0xf100_405f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823],
-    ),
-    (
-        TrappingOperation::ShiftRight,
-        SaturatingCarrier::I32,
-        &[0xf100_805f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823],
-    ),
-    (
-        TrappingOperation::ShiftRight,
-        SaturatingCarrier::I64,
-        &[0xf101_005f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823],
-    ),
-    (
-        TrappingOperation::ShiftRight,
-        SaturatingCarrier::U8,
-        &[0xf100_205f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423],
-    ),
-    (
-        TrappingOperation::ShiftRight,
-        SaturatingCarrier::U16,
-        &[0xf100_405f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423],
-    ),
-    (
-        TrappingOperation::ShiftRight,
-        SaturatingCarrier::U32,
-        &[0xf100_805f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423],
-    ),
-    (
-        TrappingOperation::ShiftRight,
-        SaturatingCarrier::U64,
-        &[0xf101_005f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423],
-    ),
+    r!(ShiftRight => I8 => &[0xf100_205f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823]),
+    r!(ShiftRight => I16 => &[0xf100_405f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823]),
+    r!(ShiftRight => I32 => &[0xf100_805f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823]),
+    r!(ShiftRight => I64 => &[0xf101_005f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823]),
+    r!(ShiftRight => U8 => &[0xf100_205f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423]),
+    r!(ShiftRight => U16 => &[0xf100_405f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423]),
+    r!(ShiftRight => U32 => &[0xf100_805f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423]),
+    r!(ShiftRight => U64 => &[0xf101_005f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423]),
     (
         TrappingOperation::Convert {
             source: IntegerSign::Signed,

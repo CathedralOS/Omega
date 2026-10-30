@@ -24,28 +24,7 @@ pub fn parse_sources(
     let mut parsed = Vec::with_capacity(source_count);
 
     for lexed_source in lexed_sources {
-        let root_items = parse(syntax_trees, lexed_source.source_id, &lexed_source.tokens)
-            .map_err(|error| {
-                let position =
-                    SourcePosition::of(lexed_source.source.as_ref(), error.source_span.span.start);
-                vec![Diagnostic::error(format!(
-                    "{}:{}:{}: {}",
-                    lexed_source.path.display(),
-                    position.line,
-                    position.column,
-                    error.message
-                ))]
-            })?;
-
-        parsed.push(ParsedSource {
-            source_id: lexed_source.source_id,
-            path: std::mem::take(&mut lexed_source.path),
-            source: lexed_source.source.clone(),
-            origin: lexed_source.origin,
-            root_items: root_items.items,
-            import_root_range: root_items.import_range,
-            scope: lexed_source.scope,
-        });
+        parsed.push(parse_recorded_source(syntax_trees, lexed_source)?);
     }
 
     let batch = parsed_sources.insert_many(parsed);
@@ -225,32 +204,39 @@ fn parse_source_page(
     let mut parsed = Vec::with_capacity(sources.len());
 
     for lexed_source in sources {
-        let root_items =
-            parse(&mut syntax, lexed_source.source_id, &lexed_source.tokens).map_err(|error| {
-                let position =
-                    SourcePosition::of(lexed_source.source.as_ref(), error.source_span.span.start);
-                vec![Diagnostic::error(format!(
-                    "{}:{}:{}: {}",
-                    lexed_source.path.display(),
-                    position.line,
-                    position.column,
-                    error.message
-                ))]
-            })?;
-        parsed.push(ParsedSource {
-            source_id: lexed_source.source_id,
-            path: std::mem::take(&mut lexed_source.path),
-            source: lexed_source.source.clone(),
-            origin: lexed_source.origin,
-            root_items: root_items.items,
-            import_root_range: root_items.import_range,
-            scope: lexed_source.scope,
-        });
+        parsed.push(parse_recorded_source(&mut syntax, lexed_source)?);
     }
 
     let syntax = page.push(syntax);
     page.publish();
     Ok((syntax, parsed))
+}
+
+fn parse_recorded_source(
+    syntax_trees: &mut SyntaxTrees,
+    lexed_source: &mut tokens::LexedSource,
+) -> Result<ParsedSource, Vec<Diagnostic>> {
+    let root_items =
+        parse(syntax_trees, lexed_source.source_id, &lexed_source.tokens).map_err(|error| {
+            let position =
+                SourcePosition::of(lexed_source.source.as_ref(), error.source_span.span.start);
+            vec![Diagnostic::error(format!(
+                "{}:{}:{}: {}",
+                lexed_source.path.display(),
+                position.line,
+                position.column,
+                error.message
+            ))]
+        })?;
+    Ok(ParsedSource {
+        source_id: lexed_source.source_id,
+        path: std::mem::take(&mut lexed_source.path),
+        source: lexed_source.source.clone(),
+        origin: lexed_source.origin,
+        root_items: root_items.items,
+        import_root_range: root_items.import_range,
+        scope: lexed_source.scope,
+    })
 }
 
 /// Parses one source into the caller's arena and returns that source's root

@@ -33,6 +33,18 @@ pub(in crate::checks::contracts) fn proves_with(
     required_value: bool,
     equal: &impl Fn(ExpressionHandle, ExpressionHandle) -> bool,
 ) -> bool {
+    macro_rules! prove_guard {
+        ($guard:expr, $guard_value:expr, $required:expr, $required_value:expr $(,)?) => {
+            proves_with(
+                program,
+                $guard,
+                $guard_value,
+                $required,
+                $required_value,
+                equal,
+            )
+        };
+    }
     if let ExpressionNode::Boolean(value) = program.expression_table.expression(guard)
         && *value != guard_value
     {
@@ -45,33 +57,19 @@ pub(in crate::checks::contracts) fn proves_with(
         && unary.operator == UnaryOperator::LogicalNot
         && crate::authored_selections::typed_operator_has_no_authored_selection(program, guard)
     {
-        return proves_with(
-            program,
-            unary.operand,
-            !guard_value,
-            required,
-            required_value,
-            equal,
-        );
+        return prove_guard!(unary.operand, !guard_value, required, required_value);
     }
     if let ExpressionNode::Unary(unary) = program.expression_table.expression(required)
         && unary.operator == UnaryOperator::LogicalNot
         && crate::authored_selections::typed_operator_has_no_authored_selection(program, required)
     {
-        return proves_with(
-            program,
-            guard,
-            guard_value,
-            unary.operand,
-            !required_value,
-            equal,
-        );
+        return prove_guard!(guard, guard_value, unary.operand, !required_value);
     }
     if let Some((operand, value)) = boolean_comparison(program, guard, guard_value) {
-        return proves_with(program, operand, value, required, required_value, equal);
+        return prove_guard!(operand, value, required, required_value);
     }
     if let Some((operand, value)) = boolean_comparison(program, required, required_value) {
-        return proves_with(program, guard, guard_value, operand, value, equal);
+        return prove_guard!(guard, guard_value, operand, value);
     }
     if equal(guard, required) {
         return guard_value == required_value;
@@ -80,43 +78,12 @@ pub(in crate::checks::contracts) fn proves_with(
         && ((binary.operator == BinaryOperator::And && guard_value)
             || (binary.operator == BinaryOperator::Or && !guard_value))
     {
-        return proves_with(
-            program,
-            binary.left,
-            guard_value,
-            required,
-            required_value,
-            equal,
-        ) || proves_with(
-            program,
-            binary.right,
-            guard_value,
-            required,
-            required_value,
-            equal,
-        );
+        return prove_guard!(binary.left, guard_value, required, required_value)
+            || prove_guard!(binary.right, guard_value, required, required_value);
     }
     if let Some(binary) = program.expression_table.binary_node(required) {
-        let left = || {
-            proves_with(
-                program,
-                guard,
-                guard_value,
-                binary.left,
-                required_value,
-                equal,
-            )
-        };
-        let right = || {
-            proves_with(
-                program,
-                guard,
-                guard_value,
-                binary.right,
-                required_value,
-                equal,
-            )
-        };
+        let left = || prove_guard!(guard, guard_value, binary.left, required_value);
+        let right = || prove_guard!(guard, guard_value, binary.right, required_value);
         match (binary.operator, required_value) {
             (BinaryOperator::And, true) | (BinaryOperator::Or, false) => return left() && right(),
             (BinaryOperator::Or, true) | (BinaryOperator::And, false) => return left() || right(),

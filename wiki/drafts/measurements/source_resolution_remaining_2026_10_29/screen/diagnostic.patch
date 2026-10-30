@@ -1,0 +1,137 @@
+diff --git a/omega-rust/omega/application/build/src/build_execution/source_resolution.rs b/omega-rust/omega/application/build/src/build_execution/source_resolution.rs
+index c56956aeb66..a46cb8138ac 100644
+--- a/omega-rust/omega/application/build/src/build_execution/source_resolution.rs
++++ b/omega-rust/omega/application/build/src/build_execution/source_resolution.rs
+@@ -159,6 +159,7 @@ pub fn resolve_project_sources(
+     session: &mut BuildSession,
+     request: ProjectSourceRequest,
+ ) -> Result<ResolvedProjectBuilds, ProjectSourceResolutionError> {
++    let _resolution_detail = phase_profile::guard("source.remaining.resolve_project_sources");
+     use ProjectSourceResolutionError::Preparation;
+     let ProjectSourceRequest {
+         preparation,
+@@ -175,8 +176,8 @@ pub fn resolve_project_sources(
+         })?;
+     execution.profile = Some(execution_profile);
+ 
+-    let mut acquisitions = preparation.source_acquisitions().map_err(Preparation)?;
+-    let acquired = preparation.acquire_root().map_err(Preparation)?;
++    let mut acquisitions = phase_profile::scope("source.remaining.source_acquisitions", || preparation.source_acquisitions()).map_err(Preparation)?;
++    let acquired = phase_profile::scope("source.remaining.acquire_root", || preparation.acquire_root()).map_err(Preparation)?;
+     let (resolved, builds) = resolve_acquired_sources(
+         session,
+         acquired,
+@@ -187,8 +188,7 @@ pub fn resolve_project_sources(
+         collect_timings,
+     )?;
+     drop(acquisitions);
+-    let prepared = preparation
+-        .complete_source_resolution(resolved)
++    let prepared = phase_profile::scope("source.remaining.complete_resolution", || preparation.complete_source_resolution(resolved))
+         .map_err(Preparation)?;
+     Ok(ResolvedProjectBuilds {
+         prepared,
+@@ -209,6 +209,7 @@ pub(crate) fn resolve_acquired_sources(
+     execution: package_compilation::BuildExecutionInputs,
+     collect_timings: bool,
+ ) -> Result<(ResolvedBuildSources, Vec<ResolvedPackageBuild>), ProjectSourceResolutionError> {
++    let _resolution_detail = phase_profile::guard("source.remaining.resolve_acquired_sources");
+     acquisitions
+         .retain_root(&acquired)
+         .map_err(ProjectSourceResolutionError::Source)?;
+diff --git a/omega-rust/omega/application/build/src/build_execution/source_resolution/readiness.rs b/omega-rust/omega/application/build/src/build_execution/source_resolution/readiness.rs
+index 74c4904dc14..e45162e2a92 100644
+--- a/omega-rust/omega/application/build/src/build_execution/source_resolution/readiness.rs
++++ b/omega-rust/omega/application/build/src/build_execution/source_resolution/readiness.rs
+@@ -90,6 +90,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
+         self,
+         resolved: &ResolvedBuildSources,
+     ) -> Result<Vec<ResolvedPackageBuild>, ProjectSourceResolutionError> {
++    let _resolution_detail = phase_profile::guard("source.remaining.join_sources");
+         let mut builds = Vec::with_capacity(self.sources.len());
+         for mut source in self.sources {
+             let identity = source.declared.identity();
+@@ -129,6 +130,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
+         entry: &Path,
+         execution: package_compilation::BuildExecutionInputs,
+     ) -> Result<usize, ProjectSourceResolutionError> {
++    let _resolution_detail = phase_profile::guard("source.remaining.execute_source");
+         self.run_work(Work::Source {
+             acquired,
+             entry: entry.to_path_buf(),
+@@ -141,6 +143,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
+         &mut self,
+         root: usize,
+     ) -> Result<ResolvedBuildSources, ProjectSourceResolutionError> {
++    let _resolution_detail = phase_profile::guard("source.remaining.resolve_graph");
+         let resolution = self.sources[root]
+             .declared
+             .clone()
+@@ -616,6 +619,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
+         entry: &Path,
+         execution: package_compilation::BuildExecutionInputs,
+     ) -> Result<CheckedCompileRequest, ProjectSourceResolutionError> {
++    let _resolution_detail = phase_profile::guard("source.remaining.build_request");
+         let mut request = self
+             .session
+             .packages
+diff --git a/omega-rust/omega/compilation/driver/src/checked/checking.rs b/omega-rust/omega/compilation/driver/src/checked/checking.rs
+index 95be523670d..8448d4a3472 100644
+--- a/omega-rust/omega/compilation/driver/src/checked/checking.rs
++++ b/omega-rust/omega/compilation/driver/src/checked/checking.rs
+@@ -34,6 +34,7 @@ pub(crate) fn prepare_checked_source(
+     collect_timings: bool,
+     preparation: compilation_products::SourcePreparation,
+ ) -> Result<PreparedCheckedSource, Vec<Diagnostic>> {
++    let _resolution_detail = phase_profile::guard("source.remaining.prepare_checked_source");
+     let mut timings = if collect_timings {
+         CompileTimings::enabled()
+     } else {
+@@ -60,6 +61,7 @@ fn prepare_typed_frontier(
+     package_inputs: Option<&PackageCompilationInputs>,
+     build_execution_profile: Option<target::TargetProfile>,
+ ) -> Result<(TypedCompilationFrontier, CompileTimings), Vec<Diagnostic>> {
++    let _resolution_detail = phase_profile::guard("source.remaining.prepare_typed_frontier");
+     let preparation = source.preparation();
+     let (sources, mut timings, retention) =
+         match source.into_frontier(package_inputs, build_execution_profile)? {
+@@ -369,6 +371,7 @@ fn prepare_build_source_invocation(
+     child: CheckedExecutionRequest<'_>,
+     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
+ ) -> Result<build_continuation::BuildSourceInvocation, CompileFailure> {
++    let _resolution_detail = phase_profile::guard("source.remaining.prepare_build_source_invocation");
+     source.admit_root(root_path)?;
+     child.admit_package_inputs()?;
+ 
+diff --git a/omega-rust/omega/compilation/driver/src/checked/checking/build_continuation.rs b/omega-rust/omega/compilation/driver/src/checked/checking/build_continuation.rs
+index 0babe98ee59..a1599dfa45c 100644
+--- a/omega-rust/omega/compilation/driver/src/checked/checking/build_continuation.rs
++++ b/omega-rust/omega/compilation/driver/src/checked/checking/build_continuation.rs
+@@ -37,6 +37,7 @@ pub(super) fn prepare_build_invocation(
+     mut timings: CompileTimings,
+     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
+ ) -> Result<BuildSourceInvocation, CompileFailure> {
++    let _resolution_detail = phase_profile::guard("source.remaining.prepare_build_invocation");
+     let started = std::time::Instant::now();
+     let CheckedExecutionRequest {
+         selected_target_profile,
+diff --git a/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs b/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs
+index 821783c690d..00c7c71ed00 100644
+--- a/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs
++++ b/omega-rust/omega/compilation/driver/src/checked/compilation_session.rs
+@@ -217,6 +217,7 @@ impl CompilationSession {
+         &mut self,
+         request: CheckedCompileRequest,
+     ) -> Result<super::checking::PreparedPackageInvocation, CompileFailure> {
++    let _resolution_detail = phase_profile::guard("source.remaining.begin_build");
+         let source = self.prepare_source(&request)?;
+         begin_package_build_worker(request, source, self.reuse(), &self.pure_builds)
+     }
+@@ -273,6 +274,7 @@ impl CompilationSession {
+         capture: Option<&package_compilation::CapturedLocalSource>,
+         collect_timings: bool,
+     ) -> Result<PreparedCheckedSource, CompileFailure> {
++    let _resolution_detail = phase_profile::guard("source.remaining.prepare_source_with_inputs");
+         // Acquisition precedes lookup and consumes no compiler coordinates.
+         // Passing this same capture into assembly avoids a second snapshot.
+         let acquired = if self.source_graph.is_some() && inputs.is_none() && capture.is_none() {

@@ -19,6 +19,12 @@ impl fixture::CallTemplate for ValidatedAarch64SelectedScalarCallTemplate {
     }
 }
 
+macro_rules! a {
+    ($cond:expr => $msg:expr) => {
+        assert!($cond, $msg);
+    };
+}
+
 #[test]
 fn mixed_aggregate_call_templates_retain_integer_results_and_ieee_inputs() {
     let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
@@ -86,32 +92,20 @@ fn mixed_aggregate_call_templates_retain_integer_results_and_ieee_inputs() {
             );
             let mut changed = operands.clone();
             changed[arity] = physical.model().view_named("d0").unwrap().id;
-            assert!(
-                encode(&changed, &effects).is_err(),
-                "result bank substitution"
-            );
+            a!(encode(&changed, &effects).is_err() => "result bank substitution");
             let mut changed = operands.clone();
             changed[general_count] = physical.model().view_named("x2").unwrap().id;
-            assert!(
-                encode(&changed, &effects).is_err(),
-                "IEEE input bank substitution"
-            );
+            a!(encode(&changed, &effects).is_err() => "IEEE input bank substitution");
             assert!(
                 encode(&operands[..operands.len() - 1], &effects).is_err(),
                 "missing result definition"
             );
             let mut changed = effects.clone();
             changed.external_operand_writes.clear();
-            assert!(
-                encode(&operands, &changed).is_err(),
-                "missing result effect"
-            );
+            a!(encode(&operands, &changed).is_err() => "missing result effect");
             let mut changed = effects.clone();
             changed.implicit_unit_clobbers = unit.clobbers.clone();
-            assert!(
-                encode(&operands, &changed).is_err(),
-                "result cannot remain an unknown clobber"
-            );
+            a!(encode(&operands, &changed).is_err() => "result cannot remain an unknown clobber");
             let mut changed = effects.clone();
             changed.implicit_unit_clobbers.retain(|unit| {
                 !physical
@@ -121,10 +115,7 @@ fn mixed_aggregate_call_templates_retain_integer_results_and_ieee_inputs() {
                     .write_units
                     .contains(unit)
             });
-            assert!(
-                encode(&operands, &changed).is_err(),
-                "other caller clobbers remain required"
-            );
+            a!(encode(&operands, &changed).is_err() => "other caller clobbers remain required");
         }
     }
 }

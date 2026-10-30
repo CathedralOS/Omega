@@ -1,0 +1,187 @@
+warning: use of deprecated method `std::sync::atomic::Atomic::<u64>::fetch_update`: renamed to `try_update` for consistency
+  --> omega-rust\omega\foundation\bounded-process\src\private_observation\windows.rs:60:10
+   |
+60 |         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |          ^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+   |
+60 -         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+60 +         .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |
+
+warning: `bounded-process` (lib) generated 1 warning (run `cargo fix --lib -p bounded-process` to apply 1 suggestion)
+warning: method `is_consistent` is never used
+  --> omega-rust\omega\foundation\optimization-core\src\optimization_core\rollback\receipt.rs:55:19
+   |
+20 | impl OptimizationRollbackReceipt {
+   | -------------------------------- method in this implementation
+...
+55 |     pub(crate) fn is_consistent(&self) -> bool {
+   |                   ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `optimization-core` (lib) generated 1 warning
+warning: unused import: `verify_macos_cache_ancestor_acl_custody`
+ --> omega-rust\omega\packages\source-acquisition\src\custody\tree.rs:8:50
+  |
+8 |     verify_capability_cache_node_owner_and_mode, verify_macos_cache_ancestor_acl_custody,
+  |                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `verify_macos_cache_ancestor_acl_custody` is never used
+   --> omega-rust\omega\packages\source-acquisition\src\custody\platform.rs:372:15
+    |
+372 | pub(crate) fn verify_macos_cache_ancestor_acl_custody(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `resolve_git_source` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\git\resolution\mod.rs:65:15
+   |
+65 | pub(crate) fn resolve_git_source(
+   |               ^^^^^^^^^^^^^^^^^^
+
+warning: function `resolve_git_workspace_member` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\git\resolution\workspace_member.rs:29:15
+   |
+29 | pub(crate) fn resolve_git_workspace_member<Planner>(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `resolve_local_source_snapshot` is never used
+   --> omega-rust\omega\packages\source-acquisition\src\local\operations.rs:175:15
+    |
+175 | pub(crate) fn resolve_local_source_snapshot(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `custody_identity` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\local\resolution_observations.rs:58:19
+   |
+49 | impl LocalSourceResolutionObservation {
+   | ------------------------------------- method in this implementation
+...
+58 |     pub(crate) fn custody_identity(&self) -> &str {
+   |                   ^^^^^^^^^^^^^^^^
+
+warning: associated function `for_hardened_base` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\source_resolver.rs:54:19
+   |
+39 | impl SourceResolver {
+   | ------------------- associated function in this implementation
+...
+54 |     pub(crate) fn for_hardened_base(
+   |                   ^^^^^^^^^^^^^^^^^
+
+   Compiling package-source v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\omega-rust\omega\packages\source-acquisition)
+warning: `package-source` (lib) generated 7 warnings (run `cargo fix --lib -p package-source` to apply 1 suggestion)
+warning: unused import: `read_bounded_cache_record`
+ --> omega-rust\omega\packages\source-acquisition\src\custody\tests\limits.rs:2:43
+  |
+2 |     CacheCustodyKind, SourceResolveError, read_bounded_cache_record, temp_root,
+  |                                           ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::path::Path`
+ --> omega-rust\omega\packages\source-acquisition\src\custody\tests\limits.rs:5:5
+  |
+5 | use std::path::Path;
+  |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `capture::*`
+ --> omega-rust\omega\packages\source-acquisition\src\git\git_command\tests\mod.rs:3:13
+  |
+3 | use super::{capture::*, policy::*, reconciliation::*};
+  |             ^^^^^^^^^^
+
+warning: unused import: `crate::limits::*`
+ --> omega-rust\omega\packages\source-acquisition\src\git\git_command\tests\mod.rs:7:5
+  |
+7 | use crate::limits::*;
+  |     ^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::test_support::*`
+ --> omega-rust\omega\packages\source-acquisition\src\git\git_command\tests\mod.rs:8:5
+  |
+8 | use crate::test_support::*;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::time::Duration`
+ --> omega-rust\omega\packages\source-acquisition\src\git\git_command\tests\bounded.rs:4:5
+  |
+4 | use std::time::Duration;
+  |     ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `GIT_SNAPSHOT_METADATA`
+ --> omega-rust\omega\packages\source-acquisition\src\git\tests\snapshot.rs:2:53
+  |
+2 |     Arc, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, GIT_SNAPSHOT_METADATA, GitBlobBytes,
+  |                                                     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `LocalSourceLimits`, `resolve_local_source`, and `temp_root`
+ --> omega-rust\omega\packages\source-acquisition\src\local\tests\path_policy.rs:1:13
+  |
+1 | use super::{LocalSourceLimits, resolve_local_source, temp_root};
+  |             ^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^
+
+warning: unused import: `read_capability_file_bounded`
+ --> omega-rust\omega\packages\source-acquisition\src\tree\filesystem\read_tests.rs:1:13
+  |
+1 | use super::{read_capability_file_bounded, read_opened_file_bounded};
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::ffi::OsStr`
+ --> omega-rust\omega\packages\source-acquisition\src\tree\filesystem\read_tests.rs:7:5
+  |
+7 | use std::ffi::OsStr;
+  |     ^^^^^^^^^^^^^^^
+
+warning: associated function `acquire` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\custody\lock.rs:76:19
+   |
+37 | impl CacheEntryLock {
+   | ------------------- associated function in this implementation
+...
+76 |     pub(crate) fn acquire(path: &Path) -> Result<Self, SourceResolveError> {
+   |                   ^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `verify_macos_cache_ancestor_acl_custody` is never used
+   --> omega-rust\omega\packages\source-acquisition\src\custody\platform.rs:372:15
+    |
+372 | pub(crate) fn verify_macos_cache_ancestor_acl_custody(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `run_command_bounded` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\git\git_command\capture.rs:14:15
+   |
+14 | pub(crate) fn run_command_bounded(
+   |               ^^^^^^^^^^^^^^^^^^^
+
+warning: function `run_command_bounded_with_budget` is never used
+  --> omega-rust\omega\packages\source-acquisition\src\git\git_command\capture.rs:32:15
+   |
+32 | pub(crate) fn run_command_bounded_with_budget(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `package-source` (lib test) generated 15 warnings (1 duplicate) (run `cargo fix --lib -p package-source --tests` to apply 10 suggestions)
+    Finished `test` profile [optimized] target(s) in 4.62s
+────────────
+ Nextest run ID 2fd102a3-ad48-4d0a-adc8-93db7ba4dad3 with nextest profile: default
+    Starting 10 tests across 1 binary (105 tests skipped)
+        PASS [   0.110s] ( 1/10) package-source custody::tests::windows_ancestry::windows_ancestry_rejects_child_from_a_different_parent
+        PASS [   0.223s] ( 2/10) package-source custody::tests::windows_ancestry::windows_ancestry_rejects_replacement_after_classification
+        PASS [   0.259s] ( 3/10) package-source custody::tests::windows_ancestry::windows_ancestry_rejects_junction_parent
+        PASS [   0.273s] ( 4/10) package-source custody::tests::limits::cache_custody_rejects_logical_resident_byte_overflow
+        PASS [   0.291s] ( 5/10) package-source custody::tests::locks::git_cache_rejects_a_replaced_locked_path
+        PASS [   0.311s] ( 6/10) package-source custody::tests::publication::cache_publication_rejects_a_preexisting_destination
+        PASS [   0.359s] ( 7/10) package-source custody::tests::repository_integrity::provisional_git_cache_directory_is_cleaned_if_retention_fails
+        PASS [   1.522s] ( 8/10) package-source custody::tests::locks::contended_cold_cache_lock_creation_admits_every_acquirer
+        PASS [   6.229s] ( 9/10) package-source custody::tests::repository_integrity::git_cache_rejects_repository_config_substitution_without_asking_git
+        PASS [   6.500s] (10/10) package-source custody::tests::repository_integrity::git_cache_forbidden_record_probe_rejects_non_not_found_errors
+────────────
+     Summary [   6.501s] 10 tests run: 10 passed, 105 skipped
+mbx[cache]: 0 hits, 1 misses; 0 B downloaded, 0 B uploaded, 3.0 MiB stored locally

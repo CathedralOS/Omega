@@ -1,0 +1,50 @@
+{
+  "revision": "1d20b06610e99e22663a1f6775f25c544faa60f1",
+  "producers": {
+    "A": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\flow-evaluation\\candidate\\omega.exe",
+      "sha256": "6631356a6ff2dd1216057aed4c3c52a47b0f60e2f315adcc12188d82d26d15f0",
+      "profile": {
+        "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\flow-evaluation\\candidate\\omega.exe",
+        "sha256": "6631356a6ff2dd1216057aed4c3c52a47b0f60e2f315adcc12188d82d26d15f0",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      }
+    },
+    "B": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+      "profile": {
+        "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+        "sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      }
+    }
+  },
+  "cpu": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+  "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+  "target": "windows_x86_64",
+  "sources": {
+    "stack32": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\other_machine\\main.omg",
+      "sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+      "build_sha256": "467ba43680810802f19ba2c399ff5d359059c6404cb9b3bf71d061b819729005"
+    },
+    "length": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\length\\local\\main.omg",
+      "sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+      "build_sha256": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f"
+    },
+    "dispatch": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\match_join\\main.omg",
+      "sha256": "0f527c05fd961e964271f53d9c6ceb174bb7523010c2c744d02635b8a1a60a38",
+      "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543"
+    }
+  },
+  "source_cache": "fresh process-local LOCALAPPDATA per observation"
+}

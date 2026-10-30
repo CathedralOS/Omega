@@ -9,6 +9,12 @@ use typed_trees::{
     expression::{ExpressionHandle, ExpressionNode},
 };
 
+macro_rules! miss {
+    ($message:literal) => {
+        return Err($message.into())
+    };
+}
+
 /// One selected boundary-requirement use whose meaning is the selected provider's
 /// ordinary checked machine body. Omega supplies the exact provider from its
 /// settled ProviderPlan; Psi prepares the execution row and independently
@@ -70,9 +76,7 @@ impl SelectedBuildTimeProviderBody {
                 .expression_handles(call.arguments)
                 .to_vec(),
             _ => {
-                return Err(
-                    "selected build-time provider expression has no callable operands".into(),
-                );
+                return miss!("selected build-time provider expression has no callable operands");
             }
         };
         let Some(entry) = program.machine_states(provider).first() else {
@@ -320,9 +324,7 @@ pub fn validate_selected_provider_bodies(
             })
             .count();
         if spelled_occurrences + named_occurrences + requirement_occurrences != 1 {
-            return Err(
-                "selected build-time expression is shared by distinct current origins".into(),
-            );
+            return miss!("selected build-time expression is shared by distinct current origins");
         }
         let resolved_spelled: Vec<_> = facts
             .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
@@ -353,15 +355,11 @@ pub fn validate_selected_provider_bodies(
                 ([fact], []) => (fact.selected_operator_symbol, Some(fact.spelling)),
                 ([], [requirement]) => (*requirement, None),
                 _ => {
-                    return Err(
-                        "selected build-time provider body has no unique current use".into(),
-                    );
+                    return miss!("selected build-time provider body has no unique current use");
                 }
             };
         if selected_symbol != row.requirement {
-            return Err(
-                "selected build-time provider body differs from current requirement".into(),
-            );
+            return miss!("selected build-time provider body differs from current requirement");
         }
         let operands = match program.expression_table.expression(row.expression) {
             ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
@@ -455,9 +453,7 @@ pub fn validate_selected_provider_bodies(
             if !program.trait_type_parameters(owner).is_empty()
                 || !requirement.type_parameters.is_empty()
             {
-                return Err(
-                    "selected build-time requirement needs its closed trait application".into(),
-                );
+                return miss!("selected build-time requirement needs its closed trait application");
             }
             if program
                 .signature_contracts
@@ -520,9 +516,7 @@ pub fn validate_selected_provider_bodies(
                 }).count()
             };
             if bound != 1 {
-                return Err(
-                    "selected build-time provider has no unique exact trait realization".into(),
-                );
+                return miss!("selected build-time provider has no unique exact trait realization");
             }
             continue;
         }
@@ -536,8 +530,8 @@ pub fn validate_selected_provider_bodies(
                 return Err("selected build-time requirement is not unique".into());
             }
             if spelled_spelling.is_some_and(|spelling| requirement.spelling != Some(spelling)) {
-                return Err(
-                    "selected build-time provider requirement lost its boundary spelling".into(),
+                return miss!(
+                    "selected build-time provider requirement lost its boundary spelling"
                 );
             }
             if !program.machine_type_parameters(requirement).is_empty() {
@@ -625,9 +619,7 @@ pub fn validate_selected_provider_bodies(
         if !operator.is_boundary
             || spelled_spelling.is_some_and(|spelling| operator.spelling != Some(spelling))
         {
-            return Err(
-                "selected build-time provider requirement lost its boundary spelling".into(),
-            );
+            return miss!("selected build-time provider requirement lost its boundary spelling");
         }
         if !program.operator_type_parameters(operator).is_empty() {
             return Err(
@@ -672,9 +664,7 @@ pub fn validate_selected_provider_bodies(
             continue;
         }
         let [namespace, requirement] = program.operator_path_members(operator.name) else {
-            return Err(
-                "selected build-time provider requirement has no exact namespace path".into(),
-            );
+            return miss!("selected build-time provider requirement has no exact namespace path");
         };
         let conformances =
             program
@@ -714,9 +704,7 @@ pub fn validate_selected_operators(
         .iter()
         .any(|operator| operator.has_crash_contract(program))
     {
-        return Err(
-            "selected operator crash invocations have no build-time execution support".into(),
-        );
+        return miss!("selected operator crash invocations have no build-time execution support");
     }
     let Some(facts) = require_unique_operator_custody(
         program,
@@ -754,9 +742,7 @@ pub fn validate_selected_operators(
             })
             .count();
         if occurrences != 1 {
-            return Err(
-                "selected build-time expression is shared by distinct current origins".into(),
-            );
+            return miss!("selected build-time expression is shared by distinct current origins");
         }
         let mut first_selection = None;
         let mut multiple_selections = false;
@@ -792,9 +778,7 @@ pub fn validate_selected_operators(
             _ => return Err("selected build-time binary expression disappeared".into()),
         };
         if operands != row.operands {
-            return Err(
-                "selected build-time operation differs from current authored selection".into(),
-            );
+            return miss!("selected build-time operation differs from current authored selection");
         }
         let matching: Vec<_> = program
             .operators()
@@ -817,17 +801,13 @@ pub fn validate_selected_operators(
                 || requirement.type_parameters != operator.type_parameters
                 || requirement.contracts != operator.contracts
             {
-                return Err(
-                    "selected build-time token view differs from its actual requirement".into(),
-                );
+                return miss!("selected build-time token view differs from its actual requirement");
             }
         }
         if typed_trees::operator::primitive_float_binary_semantics(program, operator)
             != Some((row.operation, row.format))
         {
-            return Err(
-                "selected build-time operation has no matching sealed Float meaning".into(),
-            );
+            return miss!("selected build-time operation has no matching sealed Float meaning");
         }
         let [left, right] = program.operator_parameters(operator) else {
             return Err("selected build-time binary requirement has wrong arity".into());

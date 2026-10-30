@@ -1,0 +1,292 @@
+{
+  "compiler": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\target\\release\\omega.exe",
+    "sha256": "255c6b2267a3af90f2f3c275048efc75d7cd84f699b53e498629e18fb025e09a",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    }
+  },
+  "runner": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\target\\release\\examples\\compile_projects.exe",
+    "sha256": "d1e3db361e5400475868e6bb7ff2e4ce292bb60f267e4dbfe598052d39fedaf9",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "3"
+    }
+  },
+  "source_manifest_sha256": "ad265638cfe314ba3dcf156f08058fd2a4916d67541e80e717777b6b404aa222",
+  "runs": [
+    {
+      "mode": "separate",
+      "warmup": true,
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\target\\release\\examples\\compile_projects.exe",
+        "separate",
+        "linux_x86_64",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\shared-comparison-01\\0-separate",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\layout\\main.omg",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\frame\\main.omg"
+      ],
+      "exit_code": 0,
+      "wall_ms": 28374.76489999972,
+      "peak_bytes": 1626873856,
+      "artifacts": [
+        {
+          "omega-program": {
+            "sha256": "d50a3f07051879f383c8f38dbbc1bd233d930011ddc259027e61e9f0d912e18d",
+            "bytes": 132368
+          },
+          "libomega-component-27cb0784d90351a11735ef068743d49a585846e5cca61d81922bd50a5d956ef9.so": {
+            "sha256": "2bac388e00c91a60d53373824948fcc8e109c9853a78ee37177f4c3e52d7da73",
+            "bytes": 132200
+          },
+          "libomega-component-27cb0784d90351a11735ef068743d49a585846e5cca61d81922bd50a5d956ef9.so.component": {
+            "sha256": "c70299591e8ca99eadd883c073c496828d946967d463b03f535750678fdae036",
+            "bytes": 2244592
+          }
+        },
+        {
+          "omega-program": {
+            "sha256": "5abef0949908287c3fd3bab42eff73da2b04ca207d2f2cbc3ef83d6aa79c9377",
+            "bytes": 132368
+          },
+          "libomega-component-b4f44fc5a075758740988e885237bfcecc2d3461e8bd949bcad5643438c68dd9.so": {
+            "sha256": "64c5e7c47b38a9a9107e70807e5d1b1713049b1224b2bfb65a950d66b8377081",
+            "bytes": 590952
+          },
+          "libomega-component-b4f44fc5a075758740988e885237bfcecc2d3461e8bd949bcad5643438c68dd9.so.component": {
+            "sha256": "67784fa0972264f0a1f6851f8e5f25168bb04f38d2602dc1f4cb158e481ca4e7",
+            "bytes": 2244595
+          }
+        }
+      ]
+    },
+    {
+      "mode": "separate",
+      "warmup": false,
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\target\\release\\examples\\compile_projects.exe",
+        "separate",
+        "linux_x86_64",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\shared-comparison-01\\1-separate",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\layout\\main.omg",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\frame\\main.omg"
+      ],
+      "exit_code": 0,
+      "wall_ms": 24185.389500009478,
+      "peak_bytes": 1615347712,
+      "artifacts": [
+        {
+          "omega-program": {
+            "sha256": "d50a3f07051879f383c8f38dbbc1bd233d930011ddc259027e61e9f0d912e18d",
+            "bytes": 132368
+          },
+          "libomega-component-27cb0784d90351a11735ef068743d49a585846e5cca61d81922bd50a5d956ef9.so": {
+            "sha256": "2bac388e00c91a60d53373824948fcc8e109c9853a78ee37177f4c3e52d7da73",
+            "bytes": 132200
+          },
+          "libomega-component-27cb0784d90351a11735ef068743d49a585846e5cca61d81922bd50a5d956ef9.so.component": {
+            "sha256": "c70299591e8ca99eadd883c073c496828d946967d463b03f535750678fdae036",
+            "bytes": 2244592
+          }
+        },
+        {
+          "omega-program": {
+            "sha256": "5abef0949908287c3fd3bab42eff73da2b04ca207d2f2cbc3ef83d6aa79c9377",
+            "bytes": 132368
+          },
+          "libomega-component-b4f44fc5a075758740988e885237bfcecc2d3461e8bd949bcad5643438c68dd9.so": {
+            "sha256": "64c5e7c47b38a9a9107e70807e5d1b1713049b1224b2bfb65a950d66b8377081",
+            "bytes": 590952
+          },
+          "libomega-component-b4f44fc5a075758740988e885237bfcecc2d3461e8bd949bcad5643438c68dd9.so.component": {
+            "sha256": "67784fa0972264f0a1f6851f8e5f25168bb04f38d2602dc1f4cb158e481ca4e7",
+            "bytes": 2244595
+          }
+        }
+      ]
+    },
+    {
+      "mode": "shared",
+      "warmup": false,
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\target\\release\\examples\\compile_projects.exe",
+        "shared",
+        "linux_x86_64",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\shared-comparison-01\\2-shared",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\layout\\main.omg",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\frame\\main.omg"
+      ],
+      "exit_code": 0,
+      "wall_ms": 22899.801099993056,
+      "peak_bytes": 2078920704,
+      "artifacts": [
+        {
+          "omega-program": {
+            "sha256": "d50a3f07051879f383c8f38dbbc1bd233d930011ddc259027e61e9f0d912e18d",
+            "bytes": 132368
+          },
+          "libomega-component-27cb0784d90351a11735ef068743d49a585846e5cca61d81922bd50a5d956ef9.so": {
+            "sha256": "2bac388e00c91a60d53373824948fcc8e109c9853a78ee37177f4c3e52d7da73",
+            "bytes": 132200
+          },
+          "libomega-component-27cb0784d90351a11735ef068743d49a585846e5cca61d81922bd50a5d956ef9.so.component": {
+            "sha256": "c70299591e8ca99eadd883c073c496828d946967d463b03f535750678fdae036",
+            "bytes": 2244592
+          }
+        },
+        {
+          "omega-program": {
+            "sha256": "5abef0949908287c3fd3bab42eff73da2b04ca207d2f2cbc3ef83d6aa79c9377",
+            "bytes": 132368
+          },
+          "libomega-component-b4f44fc5a075758740988e885237bfcecc2d3461e8bd949bcad5643438c68dd9.so": {
+            "sha256": "64c5e7c47b38a9a9107e70807e5d1b1713049b1224b2bfb65a950d66b8377081",
+            "bytes": 590952
+          },
+          "libomega-component-b4f44fc5a075758740988e885237bfcecc2d3461e8bd949bcad5643438c68dd9.so.component": {
+            "sha256": "67784fa0972264f0a1f6851f8e5f25168bb04f38d2602dc1f4cb158e481ca4e7",
+            "bytes": 2244595
+          }
+        }
+      ]
+    },
+    {
+      "mode": "shared",
+      "warmup": false,
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\target\\release\\examples\\compile_projects.exe",
+        "shared",
+        "linux_x86_64",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\shared-comparison-01\\3-shared",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\layout\\main.omg",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\frame\\main.omg"
+      ],
+      "exit_code": 0,
+      "wall_ms": 22900.45809998992,
+      "peak_bytes": 2076164096,
+      "artifacts": [
+        {
+          "omega-program": {
+            "sha256": "d50a3f07051879f383c8f38dbbc1bd233d930011ddc259027e61e9f0d912e18d",
+            "bytes": 132368
+          },
+          "libomega-component-27cb0784d90351a11735ef068743d49a585846e5cca61d81922bd50a5d956ef9.so": {
+            "sha256": "2bac388e00c91a60d53373824948fcc8e109c9853a78ee37177f4c3e52d7da73",
+            "bytes": 132200
+          },
+          "libomega-component-27cb0784d90351a11735ef068743d49a585846e5cca61d81922bd50a5d956ef9.so.component": {
+            "sha256": "c70299591e8ca99eadd883c073c496828d946967d463b03f535750678fdae036",
+            "bytes": 2244592
+          }
+        },
+        {
+          "omega-program": {
+            "sha256": "5abef0949908287c3fd3bab42eff73da2b04ca207d2f2cbc3ef83d6aa79c9377",
+            "bytes": 132368
+          },
+          "libomega-component-b4f44fc5a075758740988e885237bfcecc2d3461e8bd949bcad5643438c68dd9.so": {
+            "sha256": "64c5e7c47b38a9a9107e70807e5d1b1713049b1224b2bfb65a950d66b8377081",
+            "bytes": 590952
+          },
+          "libomega-component-b4f44fc5a075758740988e885237bfcecc2d3461e8bd949bcad5643438c68dd9.so.component": {
+            "sha256": "67784fa0972264f0a1f6851f8e5f25168bb04f38d2602dc1f4cb158e481ca4e7",
+            "bytes": 2244595
+          }
+        }
+      ]
+    },
+    {
+      "mode": "separate",
+      "warmup": false,
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\target\\release\\examples\\compile_projects.exe",
+        "separate",
+        "linux_x86_64",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\shared-comparison-01\\4-separate",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\layout\\main.omg",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\frame\\main.omg"
+      ],
+      "exit_code": 0,
+      "wall_ms": 23969.276400006493,
+      "peak_bytes": 1619017728,
+      "artifacts": [
+        {
+          "omega-program": {
+            "sha256": "d50a3f07051879f383c8f38dbbc1bd233d930011ddc259027e61e9f0d912e18d",
+            "bytes": 132368
+          },
+          "libomega-component-27cb0784d90351a11735ef068743d49a585846e5cca61d81922bd50a5d956ef9.so": {
+            "sha256": "2bac388e00c91a60d53373824948fcc8e109c9853a78ee37177f4c3e52d7da73",
+            "bytes": 132200
+          },
+          "libomega-component-27cb0784d90351a11735ef068743d49a585846e5cca61d81922bd50a5d956ef9.so.component": {
+            "sha256": "c70299591e8ca99eadd883c073c496828d946967d463b03f535750678fdae036",
+            "bytes": 2244592
+          }
+        },
+        {
+          "omega-program": {
+            "sha256": "5abef0949908287c3fd3bab42eff73da2b04ca207d2f2cbc3ef83d6aa79c9377",
+            "bytes": 132368
+          },
+          "libomega-component-b4f44fc5a075758740988e885237bfcecc2d3461e8bd949bcad5643438c68dd9.so": {
+            "sha256": "64c5e7c47b38a9a9107e70807e5d1b1713049b1224b2bfb65a950d66b8377081",
+            "bytes": 590952
+          },
+          "libomega-component-b4f44fc5a075758740988e885237bfcecc2d3461e8bd949bcad5643438c68dd9.so.component": {
+            "sha256": "67784fa0972264f0a1f6851f8e5f25168bb04f38d2602dc1f4cb158e481ca4e7",
+            "bytes": 2244595
+          }
+        }
+      ]
+    },
+    {
+      "mode": "retained",
+      "warmup": false,
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\target\\release\\examples\\compile_projects.exe",
+        "retained",
+        "linux_x86_64",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\cathedral-benchmark\\build\\cathedral-benchmark\\shared-comparison-01\\5-retained",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\layout\\main.omg",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\perf-spill-round\\build\\cathedral-baseline\\Cathedral-syntax-migration\\source\\distribution\\libraries\\omega-ui\\tests\\native_component\\frame\\main.omg"
+      ],
+      "exit_code": 0,
+      "wall_ms": 26707.50920000137,
+      "peak_bytes": 3909582848,
+      "artifacts": [
+        {
+          "omega-program": {
+            "sha256": "d50a3f07051879f383c8f38dbbc1bd233d930011ddc259027e61e9f0d912e18d",
+            "bytes": 132368
+          },
+          "libomega-component-27cb0784d90351a11735ef068743d49a585846e5cca61d81922bd50a5d956ef9.so": {
+            "sha256": "2bac388e00c91a60d53373824948fcc8e109c9853a78ee37177f4c3e52d7da73",
+            "bytes": 132200
+          },
+          "libomega-component-27cb0784d90351a11735ef068743d49a585846e5cca61d81922bd50a5d956ef9.so.component": {
+            "sha256": "c70299591e8ca99eadd883c073c496828d946967d463b03f535750678fdae036",
+            "bytes": 2244592
+          }
+        },
+        {
+          "omega-program": {
+            "sha256": "5abef0949908287c3fd3bab42eff73da2b04ca207d2f2cbc3ef83d6aa79c9377",
+            "bytes": 132368
+          },
+          "libomega-component-b4f44fc5a075758740988e885237bfcecc2d3461e8bd949bcad5643438c68dd9.so": {
+            "sha256": "64c5e7c47b38a9a9107e70807e5d1b1713049b1224b2bfb65a950d66b8377081",
+            "bytes": 590952
+          },
+          "libomega-component-b4f44fc5a075758740988e885237bfcecc2d3461e8bd949bcad5643438c68dd9.so.component": {
+            "sha256": "67784fa0972264f0a1f6851f8e5f25168bb04f38d2602dc1f4cb158e481ca4e7",
+            "bytes": 2244595
+          }
+        }
+      ]
+    }
+  ],
+  "inputs_unchanged": true
+}

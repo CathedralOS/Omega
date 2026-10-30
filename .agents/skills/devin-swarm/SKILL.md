@@ -148,8 +148,9 @@ Reports name outcome, revision, host, commands/results, ticket, commits, remaini
 acceptance and background processes. A source checkpoint is not a passing gate.
 Count completed outcomes, not commits or occupied slots.
 
-Use the native PR/merge queue in tools/landing.md. Validate the submitted change;
-GitHub owns current-main integration. Resolve actual conflicts or failures, not
+Use the native PR/merge queue in tools/landing.md. Open the pull request as a
+draft on the first push; mark it ready only when it can be enqueued. Validate
+the submitted change; GitHub owns current-main integration. Resolve actual conflicts or failures, not
 every new integration SHA. No direct main push or batch-merge bypass.
 Two advisories order that verification: `tools/jev_attribute.py` ranks a
 commit window for a failing signature before a bisect, and

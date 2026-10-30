@@ -85,6 +85,12 @@ pub(crate) fn declared_type_predicates(
     }
 }
 
+macro_rules! keep {
+    ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr => $f:expr) => {
+        collect_true($a, $b, $c, $d, $e, $f)
+    };
+}
+
 pub(crate) fn collect_true(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
@@ -94,14 +100,7 @@ pub(crate) fn collect_true(
     observations: &mut Vec<(ExpressionHandle, FloatPredicate)>,
 ) {
     if let Some(borrow) = program.expression_table.borrow_expression(expression) {
-        collect_true(
-            program,
-            machine,
-            state,
-            statement_index,
-            borrow.target,
-            observations,
-        );
+        keep!(program => machine => state => statement_index => borrow.target => observations);
         return;
     }
     let Some(binary) = comparison(program, expression) else {
@@ -116,22 +115,8 @@ pub(crate) fn collect_true(
         )
     {
         if binary.operator == BinaryOperator::And {
-            collect_true(
-                program,
-                machine,
-                state,
-                statement_index,
-                binary.left,
-                observations,
-            );
-            collect_true(
-                program,
-                machine,
-                state,
-                statement_index,
-                binary.right,
-                observations,
-            );
+            keep!(program => machine => state => statement_index => binary.left => observations);
+            keep!(program => machine => state => statement_index => binary.right => observations);
             return;
         }
         for (operand, wrapper) in [(binary.left, binary.right), (binary.right, binary.left)] {
@@ -139,14 +124,7 @@ pub(crate) fn collect_true(
                 program.expression_table.expression(wrapper),
                 ExpressionNode::Boolean(true)
             ) {
-                collect_true(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    operand,
-                    observations,
-                );
+                keep!(program => machine => state => statement_index => operand => observations);
                 return;
             }
         }

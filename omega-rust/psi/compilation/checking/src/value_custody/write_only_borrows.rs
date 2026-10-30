@@ -1378,6 +1378,12 @@ fn declared_state_parameters(
         .collect()
 }
 
+macro_rules! walk {
+    ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr => $f:expr) => {
+        validate_expression($a, $b, $c, $d, $e, $f)
+    };
+}
+
 fn validate_received_value(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -1466,14 +1472,7 @@ fn validate_received_value(
             .is_some_and(|shell| shell.access == ReferenceAccess::WriteOnly)
     }) && let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression)
     {
-        validate_expression(
-            program,
-            machine,
-            state,
-            dispatch.subject,
-            roots,
-            diagnostics,
-        );
+        walk!(program => machine => state => dispatch.subject => roots => diagnostics);
         for arm in program.expression_table.match_arms(dispatch.arms) {
             for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                 validate_expression(program, machine, state, pattern, roots, diagnostics);
@@ -1537,14 +1536,7 @@ fn validate_received_value(
                 return;
             }
             ExpressionNode::Indexed(indexed) => {
-                validate_expression(
-                    program,
-                    machine,
-                    state,
-                    indexed.collection,
-                    roots,
-                    diagnostics,
-                );
+                walk!(program => machine => state => indexed.collection => roots => diagnostics);
                 validate_expression(program, machine, state, indexed.index, roots, diagnostics);
                 return;
             }
@@ -1710,14 +1702,7 @@ fn validate_expression(
         && validate_observation_access(program, machine, state, expression, roots, diagnostics);
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            validate_expression(
-                program,
-                machine,
-                state,
-                dispatch.subject,
-                roots,
-                diagnostics,
-            );
+            walk!(program => machine => state => dispatch.subject => roots => diagnostics);
             for arm in program.expression_table.match_arms(dispatch.arms) {
                 for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     validate_expression(program, machine, state, pattern, roots, diagnostics);
@@ -1775,14 +1760,7 @@ fn validate_expression(
         }
         ExpressionNode::Indexed(indexed) => {
             if !observes_write_only {
-                validate_expression(
-                    program,
-                    machine,
-                    state,
-                    indexed.collection,
-                    roots,
-                    diagnostics,
-                );
+                walk!(program => machine => state => indexed.collection => roots => diagnostics);
             }
             validate_expression(program, machine, state, indexed.index, roots, diagnostics);
         }

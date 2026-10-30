@@ -1,0 +1,20 @@
+[
+  {
+    "label": "00-A",
+    "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\screen\\00-A\\build\\omega-program.exe",
+    "sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+    "exit": 0,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "wall_ms": 50.684699999692384
+  },
+  {
+    "label": "01-B",
+    "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\screen\\01-B\\build\\omega-program.exe",
+    "sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+    "exit": 0,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "wall_ms": 48.55110000062268
+  }
+]

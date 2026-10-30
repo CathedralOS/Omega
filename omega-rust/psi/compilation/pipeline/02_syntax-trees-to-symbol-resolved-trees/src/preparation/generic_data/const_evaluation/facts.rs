@@ -63,20 +63,25 @@ fn evaluate_const_fact_expression_at(
     subject: Option<ConstFactSubject<'_>>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstFactValue>, String> {
-    // Data predicates bind bare fields, including non-scalar fields that must
-    // shadow outer constants. Project through their actual completed tree;
-    // an unavailable projection supplies no proof and never falls back to a name.
-    if let Some(ConstFactSubject::Fields(fields)) = subject
-        && let Some(value) = const_field_projection(syntax, expression, fields, &mut |index| {
+    macro_rules! evaluate_child {
+        ($expression:expr $(,)?) => {
             evaluate_const_fact_expression_at(
                 syntax,
-                index,
+                $expression,
                 const_values,
                 parameter_values,
                 selection,
                 subject,
                 warnings,
             )
+        };
+    }
+    // Data predicates bind bare fields, including non-scalar fields that must
+    // shadow outer constants. Project through their actual completed tree;
+    // an unavailable projection supplies no proof and never falls back to a name.
+    if let Some(ConstFactSubject::Fields(fields)) = subject
+        && let Some(value) = const_field_projection(syntax, expression, fields, &mut |index| {
+            evaluate_child!(index)
         })?
     {
         return Ok(value
@@ -218,16 +223,7 @@ fn evaluate_const_fact_expression_at(
             if !subject.is_some_and(|subject| subject.matches(syntax, indexed.collection)) {
                 return Ok(None);
             }
-            let Some(index_value) = evaluate_const_fact_expression_at(
-                syntax,
-                indexed.index,
-                const_values,
-                parameter_values,
-                selection,
-                subject,
-                warnings,
-            )?
-            else {
+            let Some(index_value) = evaluate_child!(indexed.index)? else {
                 return Ok(None);
             };
             let Some(index) = index_value.into_integer(syntax, warnings)? else {
@@ -242,22 +238,17 @@ fn evaluate_const_fact_expression_at(
                 .flatten()
                 .map(|value| value.into_fact_value()))
         }
-        ExpressionNode::Unary(unary) => match unary.operator {
-            UnaryOperator::LogicalNot => Ok(evaluate_const_fact_expression_at(
-                syntax,
-                unary.operand,
-                const_values,
-                parameter_values,
-                selection,
-                subject,
-                warnings,
-            )?
-            .and_then(|value| match value {
-                ConstFactValue::Boolean(value) => Some(ConstFactValue::Boolean(!value)),
-                _ => None,
-            })),
-            UnaryOperator::BitwiseNot => Ok(None),
-        },
+        ExpressionNode::Unary(unary) => {
+            match unary.operator {
+                UnaryOperator::LogicalNot => Ok(evaluate_child!(unary.operand)?.and_then(
+                    |value| match value {
+                        ConstFactValue::Boolean(value) => Some(ConstFactValue::Boolean(!value)),
+                        _ => None,
+                    },
+                )),
+                UnaryOperator::BitwiseNot => Ok(None),
+            }
+        }
         ExpressionNode::Binary(binary) => {
             // `has_builtin_const_operator` answers before operand carriers
             // are known: an authored spelling on an incompatible carrier
@@ -276,28 +267,10 @@ fn evaluate_const_fact_expression_at(
                 return Ok(None);
             }
             validate_anonymous_remainder(syntax, binary)?;
-            let Some(left) = evaluate_const_fact_expression_at(
-                syntax,
-                binary.left,
-                const_values,
-                parameter_values,
-                selection,
-                subject,
-                warnings,
-            )?
-            else {
+            let Some(left) = evaluate_child!(binary.left)? else {
                 return Ok(None);
             };
-            let Some(right) = evaluate_const_fact_expression_at(
-                syntax,
-                binary.right,
-                const_values,
-                parameter_values,
-                selection,
-                subject,
-                warnings,
-            )?
-            else {
+            let Some(right) = evaluate_child!(binary.right)? else {
                 return Ok(None);
             };
             if !builtin && authored_operator_can_bind(syntax, binary.operator, &left, &right) {

@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\wiki\drafts\measurements\spill_loop_2026_10_28\profile.py", line 38, in <module>
+    execution = subprocess.run([str(artifact)], capture_output=True, timeout=30)
+  File "C:\Users\User\AppData\Roaming\uv\python\cpython-3.15-windows-x86_64-none\Lib\subprocess.py", line 671, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AppData\Roaming\uv\python\cpython-3.15-windows-x86_64-none\Lib\subprocess.py", line 1395, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AppData\Roaming\uv\python\cpython-3.15-windows-x86_64-none\Lib\subprocess.py", line 1830, in _communicate
+    raise TimeoutExpired(self.args, orig_timeout)
+subprocess.TimeoutExpired: Command '['\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\screen\\01-B\\build\\omega-program.exe']' timed out after 30 seconds
