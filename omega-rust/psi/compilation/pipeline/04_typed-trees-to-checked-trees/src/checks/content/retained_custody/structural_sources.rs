@@ -74,18 +74,20 @@ pub(super) fn parameter_sources(
                     complete = false;
                     continue;
                 };
+                let selected = validation::owned_projection_type_reference(
+                    program,
+                    parameter.type_reference,
+                    &place.segments,
+                );
                 let source = ContentSource {
                     domain: DomainApplication {
                         symbol: membership.domain_symbol,
                         semantic_domain: membership.semantic_domain,
                     },
                     borrowed: super::direct_reference(program, parameter.type_reference).is_some()
-                        || validation::owned_projection_type_reference(
-                            program,
-                            parameter.type_reference,
-                            &place.segments,
-                        )
-                        .is_none(),
+                        // The final owned slot may itself hold a borrowed
+                        // descriptor. Its referent never joins owned custody.
+                        || selected.is_none_or(|selected| reference_shell(program, selected, &[])),
                     nested: !path.is_empty(),
                     path,
                 };
