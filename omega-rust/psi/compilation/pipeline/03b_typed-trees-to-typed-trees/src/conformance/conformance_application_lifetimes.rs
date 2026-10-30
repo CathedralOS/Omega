@@ -44,21 +44,32 @@ struct CalleeTelescope<'program> {
 
 impl ElisionCall {
     fn callee<'program>(&self, program: &'program TypedTrees) -> Option<CalleeTelescope<'program>> {
-        let signature = match self.site {
-            ElisionCallSite::Expression(handle) => program
-                .expression_table
-                .call_node(handle)
-                .and_then(|call| program.requirement_call_signature(self.caller_machine, call)),
-            ElisionCallSite::Statement(handle) => program
-                .statement_table
-                .statement(handle)
-                .as_call()
-                .and_then(|call| {
-                    program.requirement_statement_call_signature(self.caller_machine, call)
-                }),
+        let call = match self.site {
+            ElisionCallSite::Expression(handle) => {
+                typed_trees::references::StaticArgumentCall::Expression(
+                    handle,
+                    program.expression_table.call_node(handle)?,
+                )
+            }
+            ElisionCallSite::Statement(handle) => {
+                typed_trees::references::StaticArgumentCall::Statement(
+                    program.statement_table.statement(handle).as_call()?,
+                )
+            }
         };
-        if let Some(signature) = signature {
+        if let Some(signature) = program.requirement_invocation_telescope(self.caller_machine, call)
+        {
             return Some(CalleeTelescope::signature(program, signature));
+        }
+        if match call {
+            typed_trees::references::StaticArgumentCall::Expression(_, call) => {
+                call.static_requirement_dispatch.is_some()
+            }
+            typed_trees::references::StaticArgumentCall::Statement(call) => {
+                call.static_requirement_dispatch.is_some()
+            }
+        } {
+            return None;
         }
         if let Some((machine, state)) = validation::find_state(program, self.target) {
             return Some(CalleeTelescope {
@@ -153,7 +164,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                         frames,
                     },
                     caller_machine.symbol,
-                    RequiredLifetimeScope::Operand,
+                    RequiredLifetimeScope::Declaration(callee.owner),
                     &mut |required, actual| {
                         if let Some(actual) = actual {
                             bind_lifetime(
@@ -550,7 +561,7 @@ fn resolved_lifetime<'a>(bindings: &'a [(String, String)], name: &str) -> Option
 #[derive(Clone, Copy)]
 enum RequiredLifetimeScope {
     Operand,
-    DeclaredField(SymbolHandle),
+    Declaration(SymbolHandle),
 }
 
 /// Infer only from the exact declaration field selected by the constructor.
@@ -577,7 +588,7 @@ pub(crate) fn collect_declared_field_lifetime_bindings(
         return Some(());
     }
     let required_scope = if declaration.generic_instance.is_none() {
-        RequiredLifetimeScope::DeclaredField(declaration.symbol)
+        RequiredLifetimeScope::Declaration(declaration.symbol)
     } else {
         // An applied field is already an operand, not fresh schema vocabulary.
         RequiredLifetimeScope::Operand
@@ -644,11 +655,13 @@ fn visit_lifetime_bindings_in_scope(
         .type_reference_table
         .operand_lifetime_owner(required);
     if owner.is_valid()
-        && !matches!(required_scope, RequiredLifetimeScope::DeclaredField(declaration) if owner == declaration)
+        && !matches!(required_scope, RequiredLifetimeScope::Declaration(declaration)
+            if program.lifetime_declaration_owner(owner)
+                == program.lifetime_declaration_owner(declaration))
     {
         return;
     }
-    if matches!(required_scope, RequiredLifetimeScope::DeclaredField(_))
+    if matches!(required_scope, RequiredLifetimeScope::Declaration(_))
         && !matches!(
             program.type_reference_table.operand_origin(required),
             typed_trees::types::TypeOperandOrigin::Lexical

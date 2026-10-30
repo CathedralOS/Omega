@@ -11,6 +11,45 @@ use crate::{TypedTrees, signature, trait_definition::AppliedTraitScope};
 use symbols::SymbolHandle;
 
 impl TypedTrees {
+    /// The method's receiving telescope before this invocation consumes it.
+    /// Outer trait operands remain applied, but the method's own Type and
+    /// region formals must survive parameter-position inference on every round.
+    /// A previously completed invocation is an output, never its own input.
+    pub fn requirement_invocation_telescope(
+        &self,
+        lexical_owner: SymbolHandle,
+        call: crate::references::StaticArgumentCall<'_>,
+    ) -> Option<&signature::StateSignature> {
+        let (target, dispatch, application) = match call {
+            crate::references::StaticArgumentCall::Expression(_, call) => (
+                call.target_symbol,
+                call.static_requirement_dispatch.as_ref(),
+                call.requirement_application,
+            ),
+            crate::references::StaticArgumentCall::Statement(call) => (
+                call.target_symbol,
+                call.static_requirement_dispatch.as_ref(),
+                Default::default(),
+            ),
+        };
+        if let Some(closed) = self.closed_requirement_application(target) {
+            let scope = closed.trait_scope.scope(self)?;
+            let (_, declared) = self.trait_machine_signature(closed.template)?;
+            return self
+                .applied_callable_signature(&scope, closed.template)
+                .or_else(|| {
+                    (scope.substitutions.is_empty()
+                        && scope.declaration.lifetime_parameters.is_empty())
+                    .then_some(declared)
+                });
+        }
+        let declaration = dispatch.map_or_else(
+            || call.registration_operation(self),
+            |dispatch| dispatch.requirement,
+        );
+        self.requirement_outer_signature(lexical_owner, declaration, dispatch, application)
+    }
+
     /// The logical signature selected by this exact requirement invocation.
     /// Open trait operands still substitute the caller's binders; they do not
     /// need an executable instance to describe a result. Neither a provider's
