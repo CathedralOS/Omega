@@ -517,6 +517,27 @@ impl Resolver<'_> {
         ancestors: &mut Vec<Handle<FlowOperandFact>>,
         forwarded_inputs: &mut Vec<Handle<FlowOperandFact>>,
     ) -> Result<BackingFrontier, &'static str> {
+        let mut place = CapturedPlace {
+            incoming_reference: Handle::invalid(),
+            incoming_owner_path: Vec::new(),
+            root: source.root,
+            segments: source.segments.clone(),
+        };
+        place.segments.extend_from_slice(path);
+        // Current checked descriptor occurrences own custody even when a weak
+        // call store cannot reconstruct one value producer. Authenticate that
+        // complete roster first. Abstract incoming families still cannot pass
+        // this raw lookup and must join the completed storage cut below.
+        if let Some(places) = super::access_sources::resolve_descriptor_all(
+            self.program,
+            self.facts,
+            self.state,
+            operand.statement_index,
+            operand.constraints,
+            place,
+        ) {
+            return Ok(BackingFrontier::borrowed(places));
+        }
         let control = &self.facts.flow.control;
         // An indexed incoming family describes permissions for unchanged
         // entry leaves. The completed receiver owns which leaf value survives
@@ -551,23 +572,7 @@ impl Resolver<'_> {
                 return self.stored_frontier(frontier, operand, ancestors, forwarded_inputs);
             }
         }
-        let mut place = CapturedPlace {
-            incoming_reference: Default::default(),
-            incoming_owner_path: Default::default(),
-            root: source.root,
-            segments: source.segments.clone(),
-        };
-        place.segments.extend_from_slice(path);
-        super::access_sources::resolve_descriptor_all(
-            self.program,
-            self.facts,
-            self.state,
-            operand.statement_index,
-            operand.constraints,
-            place,
-        )
-        .map(BackingFrontier::borrowed)
-        .ok_or("the stored descriptor has no retained loan occurrence")
+        Err("the stored descriptor has no retained loan occurrence")
     }
 
     fn stored_frontier(

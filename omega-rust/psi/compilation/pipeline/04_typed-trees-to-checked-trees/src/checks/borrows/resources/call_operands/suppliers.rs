@@ -254,6 +254,7 @@ pub(super) fn collect(
                             call,
                             owner_operand,
                             operand,
+                            source,
                             capture,
                             projection,
                             path,
@@ -476,6 +477,7 @@ fn collect_formed_projection(
     call: Handle<FlowCallFact>,
     owner_operand: Handle<FlowOperandFact>,
     operand: Handle<FlowOperandFact>,
+    source: Handle<FlowOperandFact>,
     capture: &FlowOperandFact,
     projection: &[facts::PlaceSegment],
     path: &[BorrowLoanOwnerSegment],
@@ -512,6 +514,15 @@ fn collect_formed_projection(
     else {
         return false;
     };
+    let Some(sources) = validation::completed_storage::descriptor_formation_sources(
+        program,
+        &facts.flow.control,
+        source,
+        projection,
+        state.statements,
+    ) else {
+        return false;
+    };
     let before = output.len();
     for (loan, row) in facts.borrow.state_loans(borrow_state) {
         let Some(formed) = row.formation_owner_path else {
@@ -522,12 +533,15 @@ fn collect_formed_projection(
         if matches!(
             row.lineage,
             checked_trees::BorrowLoanLineage::LifetimeDependency
-        ) || row.formation_expression != capture.expression
-            || row.statement_index != capture.statement_index
-            || row.kind.direct_reborrow_effect(output_access).is_none()
-            || crate::borrow::owner_place_segments(
-                facts.borrow.owner_segments.span_or_empty(formed),
-            ) != projection
+        ) || row.kind.direct_reborrow_effect(output_access).is_none()
+            || !sources.iter().any(|source| {
+                let capture = facts.flow.control.operands.get(source.capture);
+                row.formation_expression == capture.expression
+                    && row.statement_index == capture.statement_index
+                    && crate::borrow::owner_place_segments(
+                        facts.borrow.owner_segments.span_or_empty(formed),
+                    ) == source.projection
+            })
         {
             continue;
         }
