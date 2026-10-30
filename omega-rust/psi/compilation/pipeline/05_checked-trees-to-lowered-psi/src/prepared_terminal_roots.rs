@@ -1,17 +1,17 @@
-//! Close selected source roots before handing application custody to Omega.
+//! Retain the canonical roots selected from Psi's declaration inventory.
 //!
-//! One declaration table retains exact checked identities in occurrence order.
+//! One shared declaration table retains exact identities in occurrence order.
 //! Missing declarations stay deferred: checking-only products need not lower
 //! a body. Composition admission consumes each result lazily, before optimization.
 
 use arena::Arena;
-use checked_trees::CheckedTrees;
 use semantic_vocabulary::MachineId;
 use source::SourceSpan;
+use std::sync::Arc;
 use terminal_psi::{CheckedMachineDeclaration, TerminalIdentityTable, TerminalModule};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-enum RootDeclaration {
+pub(crate) enum RootDeclaration {
     #[default]
     Missing,
     Available(CheckedMachineDeclaration),
@@ -19,10 +19,10 @@ enum RootDeclaration {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-struct PreparedRoot {
-    declaration: RootDeclaration,
-    name: Option<String>,
-    span: Option<SourceSpan>,
+pub(crate) struct PreparedRoot {
+    pub declaration: RootDeclaration,
+    pub name: Option<String>,
+    pub span: Option<SourceSpan>,
 }
 
 /// An invocation companion, not an execution grant or a portable-use roster.
@@ -30,8 +30,8 @@ struct PreparedRoot {
 /// owner, signature, contract and specialization as the ordinary body producer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedTerminalRoots {
-    identities: TerminalIdentityTable,
-    roots: Arena<PreparedRoot>,
+    pub(crate) identities: Arc<TerminalIdentityTable>,
+    pub(crate) roots: Arena<PreparedRoot>,
 }
 
 pub struct RetainedTerminalRoot<'a> {
@@ -41,42 +41,6 @@ pub struct RetainedTerminalRoot<'a> {
 }
 
 impl PreparedTerminalRoots {
-    /// Source policy has selected these roots already. Declaration projection
-    /// neither selects providers nor repeats calling-plan admission.
-    pub fn prepare(
-        checked: &CheckedTrees,
-        sources: &[(source::SourceId, [u8; 32])],
-        machines: impl IntoIterator<Item = symbols::SymbolHandle>,
-    ) -> Self {
-        // Preserve the existing portable-owner requirement. A fresh private
-        // identity table cannot confer the lowering's invocation-local custody.
-        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-        let mut roots = Arena::new();
-        for machine in machines {
-            let declaration = match crate::machine_lowering::declarations::identity(
-                &mut identities,
-                checked,
-                sources,
-                machine,
-            ) {
-                Ok(declaration) => RootDeclaration::Available(declaration),
-                Err(reason) => RootDeclaration::Unavailable(reason),
-            };
-            roots.insert(PreparedRoot {
-                declaration,
-                name: checked
-                    .typed
-                    .machine(machine)
-                    .map(|body| body.name.as_str().to_owned()),
-                span: checked.typed.symbols.symbol_source_span(machine),
-            });
-        }
-        Self {
-            identities: identities.build(),
-            roots,
-        }
-    }
-
     /// Resolve each exact declaration against the unoptimized composition.
     /// Neither a nominal name alone nor a matching ABI may select another body.
     pub fn retained_roots<'a>(

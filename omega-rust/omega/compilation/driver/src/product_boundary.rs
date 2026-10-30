@@ -1391,10 +1391,14 @@ fn executable_callback_placement_is_owned_by_terminal_settlement() {
 fn callback_root_policy_consumes_prepared_source_correspondence() {
     let preparation = include_str!("../../realization/provider-planning/src/callback_roots.rs");
     assert!(preparation.contains("project_checked_provider_instances("));
-    assert!(preparation.contains("program.callback_declaration(usage)"));
+    assert!(!preparation.contains("program.callback_declaration(usage)"));
+    assert!(!preparation.contains("program.facts.nominal_machine_uses"));
+    assert!(preparation.contains("declarations.declaration(usage)"));
     assert!(preparation.contains("selected_instances.selected_requirement_row(identity)"));
     assert!(preparation.contains("crate::exact_checked_adapter(context, plan, row)"));
-    assert!(preparation.contains("realization.boundary_arguments.is_empty()"));
+    let binding = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(binding.contains("realization.boundary_arguments.is_empty()"));
+    assert!(binding.contains("external_providers.callbacks.calling_requirements("));
     let policy = include_str!("../../realization/provider-selection/src/callback_roots.rs");
     for forbidden in [
         "TypedTrees",
@@ -1437,9 +1441,17 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
     let preparation = include_str!(
         "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/prepared_terminal_roots.rs"
     );
-    assert!(preparation.contains("crate::machine_lowering::declarations::identity("));
+    assert!(!preparation.contains("symbols::SymbolHandle"));
     assert!(preparation.contains("declaration.same_identity_as("));
-    assert!(preparation.contains("RootDeclaration::Unavailable(reason)"));
+    let declarations = include_str!(
+        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/external_provider_declarations/callbacks.rs"
+    );
+    assert!(declarations.contains("checked.callback_declaration(usage)"));
+    assert!(declarations.contains("declarations::identity("));
+    assert!(declarations.contains("RootDeclaration::Unavailable(reason.clone())"));
+    assert!(declarations.contains("usage.published_requirement_envelope"));
+    assert!(declarations.contains("usage.selected_actual_envelope"));
+    assert!(declarations.contains("usage.callback_entry.map("));
     let admission = include_str!(
         "../../../../psi/compilation/driver/terminal-production/src/composition_admission.rs"
     );
