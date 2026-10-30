@@ -236,11 +236,6 @@ fn subject_cases_are_selected(
     ) {
         Ok(())
     } else {
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-            eprintln!(
-                "CHECKSITE captured-case-refusal access={access:?} subject={subject:?} prefix_length={prefix_length}"
-            );
-        }
         Err("the current source does not select its required case")
     }
 }
