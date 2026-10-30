@@ -326,7 +326,7 @@ impl<'program> SelectedCases<'program> {
                 place.case_excluded = true;
             }
             if let Some(remaining) = remaining.as_deref_mut() {
-                remaining.exclude_absent_case_owned(excluded);
+                remaining.exclude_absent_case(excluded);
             }
         });
     }

@@ -9,7 +9,6 @@
 //! observation exactly once in order.
 
 use facts::{PlaceRoot, PlaceSegment};
-use std::borrow::Cow;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use symbols::{SymbolHasher, SymbolKeyMap};
@@ -55,16 +54,8 @@ impl CaseExclusions {
     }
 
     pub(super) fn insert(&mut self, place: &CanonicalPlace) {
-        self.insert_place(Cow::Borrowed(place));
-    }
-
-    pub(super) fn insert_owned(&mut self, place: CanonicalPlace) {
-        self.insert_place(Cow::Owned(place));
-    }
-
-    fn insert_place(&mut self, place: Cow<'_, CanonicalPlace>) {
-        let fingerprint = Self::observation_fingerprint(&place);
-        if self.identity_position(fingerprint, &place).is_some() {
+        let fingerprint = Self::observation_fingerprint(place);
+        if self.identity_position(fingerprint, place).is_some() {
             return;
         }
         let table = Arc::make_mut(&mut self.table);
@@ -73,7 +64,7 @@ impl CaseExclusions {
             .entry(fingerprint)
             .or_insert(table.observations.len());
         table.observations.push(CaseObservation {
-            place: Arc::new(place.into_owned()),
+            place: Arc::new(place.clone()),
             fingerprint,
         });
     }
@@ -290,15 +281,20 @@ mod tests {
                 let mut exclusions = CaseExclusions::default();
                 let mut expected = Vec::new();
                 let mut mixed = CaseExclusions::default();
-                for position in 0..length {
+                let mut scratch = CanonicalPlace {
+                    root: PlaceRoot::Unknown,
+                    segments: Vec::new(),
+                };
+                for _ in 0..length {
                     let place = &places[digits % places.len()];
                     digits /= places.len();
                     exclusions.insert(place);
-                    if position % 2 == 0 {
-                        mixed.insert_owned(place.clone());
-                    } else {
-                        mixed.insert(place);
-                    }
+                    scratch.root = place.root;
+                    scratch.segments.clone_from(&place.segments);
+                    mixed.insert(&scratch);
+                    // The callback's borrow ended: later buffer mutation must
+                    // not change any first-published table observation.
+                    scratch.segments.clear();
                     if !expected.contains(place) {
                         expected.push(place.clone());
                     }
@@ -311,17 +307,20 @@ mod tests {
                     assert_eq!(mixed.contains(place), expected.contains(place));
                 }
                 for place in &expected {
-                    branch.insert_owned(place.clone());
+                    branch.insert(place);
                     assert!(Arc::ptr_eq(&mixed.table, &branch.table));
                 }
                 let added = place(9, 9, 99);
-                let allocation = added.segments.as_ptr();
-                branch.insert_owned(added.clone());
+                branch.insert(&added);
                 assert!(!Arc::ptr_eq(&mixed.table, &branch.table));
                 assert_eq!(mixed.iter().cloned().collect::<Vec<_>>(), expected);
-                let mut moved = CaseExclusions::default();
-                moved.insert_owned(added);
-                assert_eq!(moved.iter().next().unwrap().segments.as_ptr(), allocation);
+                scratch.root = added.root;
+                scratch.segments.clone_from(&added.segments);
+                let mut retained = CaseExclusions::default();
+                retained.insert(&scratch);
+                scratch.root = PlaceRoot::Unknown;
+                scratch.segments.clear();
+                assert_eq!(retained.iter().next(), Some(&added));
             }
         }
     }
