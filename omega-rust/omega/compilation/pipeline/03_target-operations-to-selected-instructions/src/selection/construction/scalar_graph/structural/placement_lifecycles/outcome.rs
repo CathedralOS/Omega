@@ -48,69 +48,38 @@ pub(super) fn decide(
     residue: VirtualRegisterId,
     supply_compatible: VirtualRegisterId,
 ) -> Result<PlacementDecision, SelectedInstructionError> {
+    macro_rules! binary {
+        ($kind:expr => $left:expr => $right:expr) => {
+            fragmented_scalar::binary(builder, row, owner, $kind, $left, $right)
+        };
+    }
+    macro_rules! cmp {
+        ($left:expr => $right:expr => $kind:ident) => {
+            compare(
+                builder,
+                row,
+                owner,
+                $left,
+                $right,
+                SelectedInstructionKind::$kind,
+            )
+        };
+    }
+
     let required = fragmented_scalar::constant(builder, row, owner, image_length)?;
-    let range = compare(
-        builder,
-        row,
-        owner,
-        required,
-        available,
-        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual,
-    )?;
+    let range = cmp!(required => available => MaterializeBooleanU64LessOrEqual)?;
     let one = fragmented_scalar::constant(builder, row, owner, 1)?;
     let zero = fragmented_scalar::constant(builder, row, owner, 0)?;
-    let modulus_mask = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::WrappingSubtractI64,
-        modulus,
-        one,
-    )?;
+    let modulus_mask = binary!(SelectedInstructionKind::WrappingSubtractI64 => modulus => one)?;
     // Congruence comes from the complete runtime compatibility calculation,
     // not a compile-time guess at provider alignment. Even malformed physical
     // inputs must not accidentally enable a write; the lifecycle caller owns
     // invalid-assertion termination separately from ordinary rejection.
-    let present = compare(
-        builder,
-        row,
-        owner,
-        one,
-        modulus,
-        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual,
-    )?;
-    let low_bits = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseAndI64,
-        modulus,
-        modulus_mask,
-    )?;
-    let power_of_two = compare(
-        builder,
-        row,
-        owner,
-        low_bits,
-        zero,
-        SelectedInstructionKind::MaterializeBooleanEqual,
-    )?;
-    let bounded_residue = compare(
-        builder,
-        row,
-        owner,
-        residue,
-        modulus_mask,
-        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual,
-    )?;
-    let valid_modulus = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseAndI64,
-        present,
-        power_of_two,
-    )?;
+    let present = cmp!(one => modulus => MaterializeBooleanU64LessOrEqual)?;
+    let low_bits = binary!(SelectedInstructionKind::BitwiseAndI64 => modulus => modulus_mask)?;
+    let power_of_two = cmp!(low_bits => zero => MaterializeBooleanEqual)?;
+    let bounded_residue = cmp!(residue => modulus_mask => MaterializeBooleanU64LessOrEqual)?;
+    let valid_modulus = binary!(SelectedInstructionKind::BitwiseAndI64 => present => power_of_two)?;
     let valid_congruence = fragmented_scalar::binary(
         builder,
         row,
@@ -119,75 +88,19 @@ pub(super) fn decide(
         valid_modulus,
         bounded_residue,
     )?;
-    let actual_residue = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseAndI64,
-        base,
-        modulus_mask,
-    )?;
-    let aligned = compare(
-        builder,
-        row,
-        owner,
-        actual_residue,
-        residue,
-        SelectedInstructionKind::MaterializeBooleanEqual,
-    )?;
+    let actual_residue = binary!(SelectedInstructionKind::BitwiseAndI64 => base => modulus_mask)?;
+    let aligned = cmp!(actual_residue => residue => MaterializeBooleanEqual)?;
     // Normalize the predicate at this boundary too: only exact Boolean true
     // enables a write. No arbitrary nonzero register may scale the byte count.
-    let supplied = compare(
-        builder,
-        row,
-        owner,
-        supply_compatible,
-        one,
-        SelectedInstructionKind::MaterializeBooleanEqual,
-    )?;
-    let supplied = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseAndI64,
-        supplied,
-        valid_congruence,
-    )?;
-    let range_and_supply = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseAndI64,
-        range,
-        supplied,
-    )?;
-    let ready = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseAndI64,
-        range_and_supply,
-        aligned,
-    )?;
-    let outcome_tag = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::BitwiseXorI64,
-        one,
-        ready,
-    )?;
+    let supplied = cmp!(supply_compatible => one => MaterializeBooleanEqual)?;
+    let supplied = binary!(SelectedInstructionKind::BitwiseAndI64 => supplied => valid_congruence)?;
+    let range_and_supply = binary!(SelectedInstructionKind::BitwiseAndI64 => range => supplied)?;
+    let ready = binary!(SelectedInstructionKind::BitwiseAndI64 => range_and_supply => aligned)?;
+    let outcome_tag = binary!(SelectedInstructionKind::BitwiseXorI64 => one => ready)?;
     // RangeTooSmall=0, Misaligned=1, IncompatibleSupply=2. The failure
     // payload is unobservable on Ready, but its bits remain deterministic.
     let two = fragmented_scalar::constant(builder, row, owner, 2)?;
-    let supply_failure = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::WrappingSubtractI64,
-        two,
-        supplied,
-    )?;
+    let supply_failure = binary!(SelectedInstructionKind::WrappingSubtractI64 => two => supplied)?;
     let failure_tag = fragmented_scalar::binary(
         builder,
         row,
@@ -196,14 +109,7 @@ pub(super) fn decide(
         range,
         supply_failure,
     )?;
-    let copy_length = fragmented_scalar::binary(
-        builder,
-        row,
-        owner,
-        SelectedInstructionKind::WrappingMultiplyI64,
-        required,
-        ready,
-    )?;
+    let copy_length = binary!(SelectedInstructionKind::WrappingMultiplyI64 => required => ready)?;
     Ok(PlacementDecision {
         ready,
         outcome_tag,

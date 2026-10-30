@@ -3,77 +3,27 @@ use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::{PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner};
 use diagnostics::Diagnostic;
 
+macro_rules! r {
+    ($a:expr => $b:expr => $c:ident) => {
+        ($a, $b, PackageReviewDangerousAuthorityClass::$c)
+    };
+}
+
 const CORE_CRITICAL_SERVICES: &[(&str, &str, PackageReviewDangerousAuthorityClass)] = &[
-    (
-        "filesystem_authority.omg",
-        "FilesystemContentRead",
-        PackageReviewDangerousAuthorityClass::Filesystem,
-    ),
-    (
-        "filesystem_authority.omg",
-        "FilesystemContentWrite",
-        PackageReviewDangerousAuthorityClass::Filesystem,
-    ),
-    (
-        "filesystem_authority.omg",
-        "FilesystemMetadataQuery",
-        PackageReviewDangerousAuthorityClass::Filesystem,
-    ),
-    (
-        "filesystem_authority.omg",
-        "FilesystemMetadataMutation",
-        PackageReviewDangerousAuthorityClass::Filesystem,
-    ),
-    (
-        "filesystem_authority.omg",
-        "DirectoryEnumeration",
-        PackageReviewDangerousAuthorityClass::Filesystem,
-    ),
-    (
-        "filesystem_authority.omg",
-        "FilesystemNamespaceMutation",
-        PackageReviewDangerousAuthorityClass::Filesystem,
-    ),
-    (
-        "process_authority.omg",
-        "ProcessInput",
-        PackageReviewDangerousAuthorityClass::Process,
-    ),
-    (
-        "process_authority.omg",
-        "ProcessOutput",
-        PackageReviewDangerousAuthorityClass::Process,
-    ),
-    (
-        "process_exit.omg",
-        "ProcessExit",
-        PackageReviewDangerousAuthorityClass::Process,
-    ),
-    (
-        "assembly.omg",
-        "MachineControl",
-        PackageReviewDangerousAuthorityClass::MachineControl,
-    ),
-    (
-        "assembly.omg",
-        "PortIo",
-        PackageReviewDangerousAuthorityClass::PortIo,
-    ),
-    (
-        "assembly.omg",
-        "InterruptControl",
-        PackageReviewDangerousAuthorityClass::InterruptControl,
-    ),
-    (
-        "interrupt.omg",
-        "InterruptEntry",
-        PackageReviewDangerousAuthorityClass::InterruptEntry,
-    ),
-    (
-        "assembly.omg",
-        "RootMemoryAccess",
-        PackageReviewDangerousAuthorityClass::RootMemory,
-    ),
+    r!("filesystem_authority.omg" => "FilesystemContentRead" => Filesystem),
+    r!("filesystem_authority.omg" => "FilesystemContentWrite" => Filesystem),
+    r!("filesystem_authority.omg" => "FilesystemMetadataQuery" => Filesystem),
+    r!("filesystem_authority.omg" => "FilesystemMetadataMutation" => Filesystem),
+    r!("filesystem_authority.omg" => "DirectoryEnumeration" => Filesystem),
+    r!("filesystem_authority.omg" => "FilesystemNamespaceMutation" => Filesystem),
+    r!("process_authority.omg" => "ProcessInput" => Process),
+    r!("process_authority.omg" => "ProcessOutput" => Process),
+    r!("process_exit.omg" => "ProcessExit" => Process),
+    r!("assembly.omg" => "MachineControl" => MachineControl),
+    r!("assembly.omg" => "PortIo" => PortIo),
+    r!("assembly.omg" => "InterruptControl" => InterruptControl),
+    r!("interrupt.omg" => "InterruptEntry" => InterruptEntry),
+    r!("assembly.omg" => "RootMemoryAccess" => RootMemory),
 ];
 
 /// Critical semantic services and exact compiler-bound aggregate services.

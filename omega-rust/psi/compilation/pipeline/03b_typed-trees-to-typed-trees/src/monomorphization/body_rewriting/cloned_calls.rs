@@ -97,6 +97,24 @@ pub(crate) fn rewrite_cloned_calls(
     }));
     let static_argument_rewrites =
         forwarded_static_argument_rewrites(source.unwrap_or(program), candidate);
+    macro_rules! substitute_application {
+        ($application:expr) => {
+            substitute_forwarded_machine_arguments(
+                program
+                    .expression_table
+                    .static_machine_application_arguments_mut($application),
+                &static_argument_rewrites,
+                &argument_rewrites,
+            );
+            substitute_forwarded_machine_arguments(
+                program
+                    .expression_table
+                    .static_machine_application_selected_machines_mut($application),
+                &static_argument_rewrites,
+                &argument_rewrites,
+            );
+        };
+    }
     for (state_index, state) in program
         .machine_states
         .span_or_empty(states)
@@ -209,20 +227,7 @@ pub(crate) fn rewrite_cloned_calls(
             let applications =
                 typed_trees::references::StaticArgumentCall::Statement(call).applications();
             for application in applications {
-                substitute_forwarded_machine_arguments(
-                    program
-                        .expression_table
-                        .static_machine_application_arguments_mut(application),
-                    &static_argument_rewrites,
-                    &argument_rewrites,
-                );
-                substitute_forwarded_machine_arguments(
-                    program
-                        .expression_table
-                        .static_machine_application_selected_machines_mut(application),
-                    &static_argument_rewrites,
-                    &argument_rewrites,
-                );
+                substitute_application!(application);
             }
             if !application.is_valid()
                 && let Some((registration_operation, arguments)) = erased_application
@@ -341,20 +346,7 @@ pub(crate) fn rewrite_cloned_calls(
         let applications =
             typed_trees::references::StaticArgumentCall::Expression(handle, call).applications();
         for application in applications {
-            substitute_forwarded_machine_arguments(
-                program
-                    .expression_table
-                    .static_machine_application_arguments_mut(application),
-                &static_argument_rewrites,
-                &argument_rewrites,
-            );
-            substitute_forwarded_machine_arguments(
-                program
-                    .expression_table
-                    .static_machine_application_selected_machines_mut(application),
-                &static_argument_rewrites,
-                &argument_rewrites,
-            );
+            substitute_application!(application);
         }
         if !application.is_valid()
             && let Some((registration_operation, arguments)) = erased_application

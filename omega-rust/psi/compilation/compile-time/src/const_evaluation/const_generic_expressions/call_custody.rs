@@ -216,6 +216,12 @@ fn expression_children(
     Ok(children)
 }
 
+macro_rules! inner {
+    ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr => $f:expr => $g:expr => $h:expr) => {
+        collect_internal($a, $b, $c, $d, $e, $f, $g, $h)
+    };
+}
+
 pub(super) fn collect(
     program: &TypedTrees,
     machine: &Machine,
@@ -224,16 +230,7 @@ pub(super) fn collect(
     public: bool,
     syntax: &SyntaxTrees,
 ) -> Result<Custody, String> {
-    collect_internal(
-        program,
-        machine,
-        state,
-        &[root],
-        public,
-        Some(syntax),
-        true,
-        true,
-    )
+    inner!(program => machine => state => &[root] => public => Some(syntax) => true => true)
 }
 
 /// Declaration-source custody before private realization. This traversal cannot
@@ -245,16 +242,7 @@ pub(super) fn collect_authored_roots(
     roots: &[ExpressionHandle],
     syntax: &SyntaxTrees,
 ) -> Result<Custody, String> {
-    collect_internal(
-        program,
-        machine,
-        state,
-        roots,
-        false,
-        Some(syntax),
-        false,
-        true,
-    )
+    inner!(program => machine => state => roots => false => Some(syntax) => false => true)
 }
 
 /// The same closure walk over several expression roots: a structured leaf
@@ -269,16 +257,7 @@ pub(super) fn collect_roots(
     public: bool,
     syntax: &SyntaxTrees,
 ) -> Result<Custody, String> {
-    collect_internal(
-        program,
-        machine,
-        state,
-        roots,
-        public,
-        Some(syntax),
-        true,
-        true,
-    )
+    inner!(program => machine => state => roots => public => Some(syntax) => true => true)
 }
 
 /// Retention checks the original expression's declaration selections before
@@ -293,16 +272,7 @@ pub(super) fn collect_pending_roots(
     public: bool,
     syntax: &SyntaxTrees,
 ) -> Result<Custody, String> {
-    collect_internal(
-        program,
-        machine,
-        state,
-        roots,
-        public,
-        Some(syntax),
-        true,
-        false,
-    )
+    inner!(program => machine => state => roots => public => Some(syntax) => true => false)
 }
 
 /// A target-dependent initializer still contains its authored calls: no scalar

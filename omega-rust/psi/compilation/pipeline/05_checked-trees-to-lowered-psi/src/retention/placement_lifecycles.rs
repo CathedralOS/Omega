@@ -13,7 +13,7 @@ use terminal_psi::{
 };
 use typed_trees::typed_trees::{PlacementLifecycleOperation, PlacementLifecyclePlan};
 
-use crate::lowering_error::LoweringError;
+use crate::lowering_error::{LoweringError, unsupported};
 
 pub(crate) fn retain(
     identities: &mut TerminalIdentityTableBuilder,
@@ -59,9 +59,7 @@ pub(crate) fn retain(
                 .operations()
                 .find(|candidate| candidate.id == operation)
             else {
-                return Err(LoweringError::Unsupported(
-                    "placement lifecycle lost its emitted call occurrence",
-                ));
+                return unsupported("placement lifecycle lost its emitted call occurrence");
             };
             if let OperationKind::BoundaryCall { boundary, .. } = operation.kind {
                 boundaries.push(boundary);
@@ -144,9 +142,7 @@ pub(crate) fn retain(
         .windows(2)
         .any(|pair| pair[0].boundary == pair[1].boundary)
     {
-        return Err(LoweringError::Unsupported(
-            "placement boundary has competing lifecycle plans",
-        ));
+        return unsupported("placement boundary has competing lifecycle plans");
     }
     lowered.semantic_module.placement_lifecycle_plans = plans;
     Ok(())
@@ -167,9 +163,7 @@ fn image_fields<'placement>(
         .structural_type(schema)
         .map(|declaration| &declaration.shape)
     else {
-        return Err(LoweringError::Unsupported(
-            "placement image lost its exact record schema",
-        ));
+        return unsupported("placement image lost its exact record schema");
     };
     field_names
         .map(|field_name| {
@@ -220,9 +214,9 @@ fn execution_contract(
             .closed_requirement_application(callable)
             .is_none()
         {
-            return Err(LoweringError::Unsupported(
+            return unsupported(
                 "placement lifecycle has neither a requirement nor a compiler execution contract",
-            ));
+            );
         }
         return Ok(TerminalPlacementLifecycleExecution::SelectedProvider);
     };
@@ -239,9 +233,7 @@ fn execution_contract(
                     [_, profile],
                 ) => profile,
                 _ => {
-                    return Err(LoweringError::Unsupported(
-                        "placement primitive profile input is absent",
-                    ));
+                    return unsupported("placement primitive profile input is absent");
                 }
             };
             let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = checked
@@ -249,9 +241,7 @@ fn execution_contract(
                 .type_reference_table
                 .type_reference(profile.type_reference)
             else {
-                return Err(LoweringError::Unsupported(
-                    "placement primitive must borrow its original profile result",
-                ));
+                return unsupported("placement primitive must borrow its original profile result");
             };
             let data = checked.typed.closed_data_definition(*referee).ok_or(
                 LoweringError::Unsupported("placement primitive profile type is absent"),
@@ -340,9 +330,7 @@ fn profile_requirement(
             continue;
         };
         let [supply_role] = application.trait_arguments else {
-            return Err(LoweringError::Unsupported(
-                "profile supply lost its closed role argument",
-            ));
+            return unsupported("profile supply lost its closed role argument");
         };
         if typed.type_identity(typed_trees::type_identity::TypeIdentityRequest::ordinary(
             *supply_role,
@@ -358,9 +346,7 @@ fn profile_requirement(
             .operations()
             .find(|candidate| candidate.id == operation)
         else {
-            return Err(LoweringError::Unsupported(
-                "profile supply lost its emitted call",
-            ));
+            return unsupported("profile supply lost its emitted call");
         };
         let OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
             continue;
@@ -376,9 +362,7 @@ fn profile_requirement(
         .map_err(LoweringError::Unsupported)?;
         let callable = typed.trait_requirement_callable_identity(declaration, signature);
         if !callable.is_valid() {
-            return Err(LoweringError::Unsupported(
-                "profile supply lost its exact overload identity",
-            ));
+            return unsupported("profile supply lost its exact overload identity");
         }
         let requirement = terminal_psi::TerminalPlacementProfileRequirement {
             boundary,
@@ -389,9 +373,7 @@ fn profile_requirement(
             .as_ref()
             .is_some_and(|previous| previous != &requirement)
         {
-            return Err(LoweringError::Unsupported(
-                "profile supply has competing requirement coordinates",
-            ));
+            return unsupported("profile supply has competing requirement coordinates");
         }
         selected = Some(requirement);
     }
@@ -428,14 +410,10 @@ fn storage_contract(
             .map_err(|_| LoweringError::Unsupported("placement execution contract is invalid"))?
             .is_none()
             {
-                return Err(LoweringError::Unsupported(
-                    "placement storage has no authenticated execution contract",
-                ));
+                return unsupported("placement storage has no authenticated execution contract");
             }
             let [state] = typed.machine_states(machine) else {
-                return Err(LoweringError::Unsupported(
-                    "placement execution lost its sole entry",
-                ));
+                return unsupported("placement execution lost its sole entry");
             };
             (typed.state_parameters(state), state.return_type)
         };
@@ -448,15 +426,11 @@ fn storage_contract(
     let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
         typed.type_reference_table.type_reference(reference)
     else {
-        return Err(LoweringError::Unsupported(
-            "placement storage is not the core extent",
-        ));
+        return unsupported("placement storage is not the core extent");
     };
     if !validation::is_extent_declaration(typed, *symbol) || typed.symbols.name(*symbol) != "Extent"
     {
-        return Err(LoweringError::Unsupported(
-            "placement storage is not the core extent",
-        ));
+        return unsupported("placement storage is not the core extent");
     }
     let data = typed
         .data_definition_by_symbol(*symbol)
@@ -544,9 +518,7 @@ pub(crate) fn storage_fields(
 > {
     let typed = &checked.typed;
     if !validation::is_extent_declaration(typed, extent) || typed.symbols.name(extent) != "Extent" {
-        return Err(LoweringError::Unsupported(
-            "placement storage is not the core extent",
-        ));
+        return unsupported("placement storage is not the core extent");
     }
     let data = typed
         .data_definition_by_symbol(extent)
@@ -554,9 +526,7 @@ pub(crate) fn storage_fields(
             "placement extent definition is absent",
         ))?;
     let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
-        return Err(LoweringError::Unsupported(
-            "placement extent is not a record",
-        ));
+        return unsupported("placement extent is not a record");
     };
     let mut field = |name: &str| {
         let member = typed

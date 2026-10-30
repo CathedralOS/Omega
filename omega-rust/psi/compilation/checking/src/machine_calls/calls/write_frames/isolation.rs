@@ -300,6 +300,20 @@ fn type_is_caller_isolated_local_inner(
     identities: &mut TypeIdentityMemo,
 ) -> bool {
     let handle = substituted_head(program, handle, bindings);
+    macro_rules! definition_isolated {
+        ($definition:expr, $proof_values:expr $(,)?) => {
+            data_definition_is_caller_isolated(
+                program,
+                $definition,
+                Some(handle),
+                visiting,
+                $proof_values,
+                isolated_parameters,
+                bindings,
+                identities,
+            )
+        };
+    }
     if program.primitive_type_reference(handle).is_some() {
         return true;
     }
@@ -307,16 +321,7 @@ fn type_is_caller_isolated_local_inner(
         .data_application_definition(handle)
         .or_else(|| program.closed_data_definition(handle))
     {
-        return data_definition_is_caller_isolated(
-            program,
-            definition,
-            Some(handle),
-            visiting,
-            proof_values,
-            isolated_parameters,
-            bindings,
-            identities,
-        );
+        return definition_isolated!(definition, proof_values);
     }
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Constrained { base_type, .. } => type_is_caller_isolated_local_inner(
@@ -365,17 +370,7 @@ fn type_is_caller_isolated_local_inner(
             if definitions.next().is_some() {
                 return false;
             }
-            definition.type_parameters.is_empty()
-                && data_definition_is_caller_isolated(
-                    program,
-                    definition,
-                    Some(handle),
-                    visiting,
-                    proof_values,
-                    isolated_parameters,
-                    bindings,
-                    identities,
-                )
+            definition.type_parameters.is_empty() && definition_isolated!(definition, proof_values)
         }
         TypeReferenceNode::Generic {
             base_symbol,
@@ -424,16 +419,7 @@ fn type_is_caller_isolated_local_inner(
             // isolation without allocating a second tree of substituted types.
             let parameter_count = isolated_parameters.len();
             isolated_parameters.extend(parameters.iter().map(|parameter| parameter.symbol));
-            let isolated = data_definition_is_caller_isolated(
-                program,
-                definition,
-                Some(handle),
-                visiting,
-                true,
-                isolated_parameters,
-                bindings,
-                identities,
-            );
+            let isolated = definition_isolated!(definition, true);
             isolated_parameters.truncate(parameter_count);
             isolated
         }
@@ -457,16 +443,7 @@ fn type_is_caller_isolated_local_inner(
             else {
                 return false;
             };
-            let isolated = data_definition_is_caller_isolated(
-                program,
-                definition,
-                Some(handle),
-                visiting,
-                proof_values,
-                isolated_parameters,
-                bindings,
-                identities,
-            );
+            let isolated = definition_isolated!(definition, proof_values);
             bindings.truncate(mark);
             isolated
         }

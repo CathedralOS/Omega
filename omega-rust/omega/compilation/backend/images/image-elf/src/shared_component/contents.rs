@@ -151,15 +151,13 @@ pub(super) fn emit(
         .flat_map(|value| value.to_le_bytes())
         .collect::<Vec<_>>();
     let version_offset = append(&mut output, 2, &versions)?;
-    set_section(
-        &mut sections,
-        7,
-        0x6fff_ffff,
-        2,
-        version_offset,
-        versions.len(),
-        2,
-    );
+    macro_rules! sec {
+        ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr => $f:expr => $g:expr) => {
+            set_section($a, $b, $c, $d, $e, $f, $g)
+        };
+    }
+
+    sec!(&mut sections => 7 => 0x6fff_ffff => 2 => version_offset => versions.len() => 2);
     sections[7].link = 5;
     sections[7].entry_size = 2;
     let mut needs = Vec::new();
@@ -178,15 +176,7 @@ pub(super) fn emit(
         }
     }
     let need_offset = append(&mut output, 8, &needs)?;
-    set_section(
-        &mut sections,
-        8,
-        0x6fff_fffe,
-        2,
-        need_offset,
-        needs.len(),
-        8,
-    );
+    sec!(&mut sections => 8 => 0x6fff_fffe => 2 => need_offset => needs.len() => 8);
     sections[8].link = 4;
     sections[8].information = tables.verneed.len() as u32;
     let relocation_size = imports
@@ -194,15 +184,7 @@ pub(super) fn emit(
         .checked_mul(24)
         .ok_or_else(|| invalid("component relocation table overflow"))?;
     let relocation_offset = append(&mut output, 8, &vec![0; relocation_size])?;
-    set_section(
-        &mut sections,
-        9,
-        4,
-        2,
-        relocation_offset,
-        relocation_size,
-        8,
-    );
+    sec!(&mut sections => 9 => 4 => 2 => relocation_offset => relocation_size => 8);
     sections[9].link = 5;
     sections[9].information = 10;
     sections[9].entry_size = 24;
@@ -362,15 +344,7 @@ pub(super) fn emit(
         put64(&mut output, dynamic_offset + index * 16 + 8, *value);
     }
     set_section(&mut sections, 1, 1, 6, text_offset, text_size, 16);
-    set_section(
-        &mut sections,
-        2,
-        1,
-        3,
-        data_offset,
-        image.memory.data.len(),
-        16,
-    );
+    sec!(&mut sections => 2 => 1 => 3 => data_offset => image.memory.data.len() => 16);
     set_section(
         &mut sections,
         3,
@@ -409,15 +383,7 @@ pub(super) fn emit(
         section_names.push(0);
     }
     let names_offset = append(&mut output, 1, &section_names)?;
-    set_section(
-        &mut sections,
-        12,
-        3,
-        0,
-        names_offset,
-        section_names.len(),
-        1,
-    );
+    sec!(&mut sections => 12 => 3 => 0 => names_offset => section_names.len() => 1);
     sections[12].address = 0;
     let section_offset = align(output.len(), 8)?;
     output.resize(section_offset + SECTION_COUNT * 64, 0);

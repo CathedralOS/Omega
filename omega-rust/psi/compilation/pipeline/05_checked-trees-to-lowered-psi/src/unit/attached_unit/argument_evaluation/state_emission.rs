@@ -51,6 +51,11 @@ pub(super) fn emit_state(
     claim_edge: Option<&crate::scalar_lowering::computations::PreparedClaimEdge>,
 ) -> Result<(), LoweringError> {
     let erased_formals = declarations(&state.erased_formal_types, next_value)?;
+    macro_rules! proof_terms {
+        ($arguments:expr, $namespace:expr $(,)?) => {
+            lowered_proof_terms(checked, $arguments, $namespace, &erased_formals)
+        };
+    }
     let mut block_erased_formals = erased_formals.clone();
     let mut block_erased_proof_formals =
         erased_proof_formal_declarations(identities, checked, source_erased_proof_formals);
@@ -380,12 +385,7 @@ pub(super) fn emit_state(
             };
             *scalar_actuals =
                 lowered_erased_scalar_terms(qualify_erased_arguments, &values, &erased_formals)?;
-            *proof_actuals = lowered_proof_terms(
-                checked,
-                qualify_erased_proof_arguments,
-                &values,
-                &erased_formals,
-            )?;
+            *proof_actuals = proof_terms!(qualify_erased_proof_arguments, &values)?;
             terminator
         }
         LoweredScalarBranchTerminator::Capture {
@@ -575,18 +575,10 @@ pub(super) fn emit_state(
                 lowered_erased_scalar_terms(when_true_erased_arguments, &values, &erased_formals)?;
             let when_false_erased_arguments =
                 lowered_erased_scalar_terms(when_false_erased_arguments, &values, &erased_formals)?;
-            let when_true_erased_proof_arguments = lowered_proof_terms(
-                checked,
-                when_true_erased_proof_arguments,
-                &values,
-                &erased_formals,
-            )?;
-            let when_false_erased_proof_arguments = lowered_proof_terms(
-                checked,
-                when_false_erased_proof_arguments,
-                &values,
-                &erased_formals,
-            )?;
+            let when_true_erased_proof_arguments =
+                proof_terms!(when_true_erased_proof_arguments, &values)?;
+            let when_false_erased_proof_arguments =
+                proof_terms!(when_false_erased_proof_arguments, &values)?;
             let condition = emit_boolean_expression(condition, &values, next_value, operations);
             Terminator::Conditional {
                 condition,
@@ -671,12 +663,8 @@ pub(super) fn emit_state(
                 &dispatch_namespace,
                 &erased_formals,
             )?;
-            let when_true_erased_proof_arguments = lowered_proof_terms(
-                checked,
-                when_true_erased_proof_arguments,
-                &dispatch_namespace,
-                &erased_formals,
-            )?;
+            let when_true_erased_proof_arguments =
+                proof_terms!(when_true_erased_proof_arguments, &dispatch_namespace)?;
             let (when_false_erased_arguments, when_false_erased_proof_arguments) = if has_fallback {
                 (
                     lowered_erased_scalar_terms(
@@ -684,12 +672,7 @@ pub(super) fn emit_state(
                         &values,
                         &erased_formals,
                     )?,
-                    lowered_proof_terms(
-                        checked,
-                        when_false_erased_proof_arguments,
-                        &values,
-                        &erased_formals,
-                    )?,
+                    proof_terms!(when_false_erased_proof_arguments, &values)?,
                 )
             } else {
                 (Vec::new(), Vec::new())
@@ -790,12 +773,8 @@ pub(super) fn emit_state(
                         &dispatch_namespace,
                         &erased_formals,
                     )?;
-                    let erased_proof_arguments = lowered_proof_terms(
-                        checked,
-                        &arm.erased_proof_arguments,
-                        &dispatch_namespace,
-                        &erased_formals,
-                    )?;
+                    let erased_proof_arguments =
+                        proof_terms!(&arm.erased_proof_arguments, &dispatch_namespace)?;
                     blocks.push(Block::plain(
                         selected_block,
                         payload_parameters,
@@ -833,12 +812,8 @@ pub(super) fn emit_state(
                             &values,
                             &erased_formals,
                         )?;
-                        let erased_proof_arguments = lowered_proof_terms(
-                            checked,
-                            fallback_erased_proof_arguments,
-                            &values,
-                            &erased_formals,
-                        )?;
+                        let erased_proof_arguments =
+                            proof_terms!(fallback_erased_proof_arguments, &values)?;
                         blocks.push(Block::plain(
                             block,
                             Vec::new(),

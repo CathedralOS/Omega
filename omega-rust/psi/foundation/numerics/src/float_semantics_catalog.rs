@@ -552,381 +552,182 @@ const TERNARY: &[FloatSemanticValueKind] = &[Format, Meaning, Meaning, Meaning];
 const PAIR: &[FloatSemanticValueKind] = &[Meaning, Meaning];
 const SINGLE: &[FloatSemanticValueKind] = &[Meaning];
 
+macro_rules! binary {
+    ($name:ident) => {
+        row(
+            stringify!($name),
+            BINARY,
+            Meaning,
+            BinaryMeaning(FloatSemantics::$name),
+        )
+    };
+}
+macro_rules! unary {
+    ($name:ident) => {
+        row(
+            stringify!($name),
+            UNARY,
+            Meaning,
+            UnaryMeaning(FloatSemantics::$name),
+        )
+    };
+}
+macro_rules! ternary {
+    ($name:ident) => {
+        row(
+            stringify!($name),
+            TERNARY,
+            Meaning,
+            TernaryMeaning(FloatSemantics::$name),
+        )
+    };
+}
+macro_rules! pair {
+    ($name:ident) => {
+        row(
+            stringify!($name),
+            PAIR,
+            Meaning,
+            PairMeaning(FloatSemantics::$name),
+        )
+    };
+}
+macro_rules! unary_bool {
+    ($name:ident) => {
+        row(
+            stringify!($name),
+            UNARY,
+            Bool,
+            UnaryBool(FloatSemantics::$name),
+        )
+    };
+}
+macro_rules! from_integer {
+    ($carrier:ident) => {
+        row(
+            "from_integer",
+            &[Format, integer(IntegerCarrier::$carrier)],
+            Meaning,
+            FromInteger(FloatSemantics::from_integer),
+        )
+    };
+}
+macro_rules! exact {
+    ($name:literal, $carrier:ident) => {
+        row(
+            $name,
+            SINGLE,
+            integer(IntegerCarrier::$carrier),
+            ToIntegerExact,
+        )
+    };
+}
+macro_rules! saturating {
+    ($name:literal, $carrier:ident) => {
+        row(
+            $name,
+            SINGLE,
+            integer(IntegerCarrier::$carrier),
+            ToIntegerSaturating,
+        )
+    };
+}
+macro_rules! compare {
+    ($name:literal, $relation:ident) => {
+        row(
+            $name,
+            PAIR,
+            Bool,
+            PairBool(FloatSemanticComparison::$relation),
+        )
+    };
+}
+macro_rules! predicate {
+    ($name:literal, $kind:ident) => {
+        row(
+            $name,
+            SINGLE,
+            Bool,
+            SinglePredicate(FloatSemanticPredicate::$kind),
+        )
+    };
+}
+
 /// Every row, in the order the sealed source declares them. The position is
 /// the row's stable ordinal in [`FloatSemanticContractIdentity`]. The third
 /// argument of each `row` literal is the kernel-discharge binding: the exact
 /// `FloatSemantics` definition an application of that row evaluates through.
 pub const FLOAT_SEMANTIC_OPERATIONS: &[FloatSemanticOperation] = &[
-    row("add", BINARY, Meaning, BinaryMeaning(FloatSemantics::add)),
-    row(
-        "subtract",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::subtract),
-    ),
-    row(
-        "multiply",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::multiply),
-    ),
-    row(
-        "divide",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::divide),
-    ),
-    row(
-        "negate",
-        UNARY,
-        Meaning,
-        UnaryMeaning(FloatSemantics::negate),
-    ),
-    row(
-        "square_root",
-        UNARY,
-        Meaning,
-        UnaryMeaning(FloatSemantics::square_root),
-    ),
-    row(
-        "convert",
-        UNARY,
-        Meaning,
-        UnaryMeaning(FloatSemantics::convert),
-    ),
-    row(
-        "from_integer",
-        &[Format, integer(IntegerCarrier::I8)],
-        Meaning,
-        FromInteger(FloatSemantics::from_integer),
-    ),
-    row(
-        "from_integer",
-        &[Format, integer(IntegerCarrier::I16)],
-        Meaning,
-        FromInteger(FloatSemantics::from_integer),
-    ),
-    row(
-        "from_integer",
-        &[Format, integer(IntegerCarrier::I32)],
-        Meaning,
-        FromInteger(FloatSemantics::from_integer),
-    ),
-    row(
-        "from_integer",
-        &[Format, integer(IntegerCarrier::I64)],
-        Meaning,
-        FromInteger(FloatSemantics::from_integer),
-    ),
-    row(
-        "from_integer",
-        &[Format, integer(IntegerCarrier::U8)],
-        Meaning,
-        FromInteger(FloatSemantics::from_integer),
-    ),
-    row(
-        "from_integer",
-        &[Format, integer(IntegerCarrier::U16)],
-        Meaning,
-        FromInteger(FloatSemantics::from_integer),
-    ),
-    row(
-        "from_integer",
-        &[Format, integer(IntegerCarrier::U32)],
-        Meaning,
-        FromInteger(FloatSemantics::from_integer),
-    ),
-    row(
-        "from_integer",
-        &[Format, integer(IntegerCarrier::U64)],
-        Meaning,
-        FromInteger(FloatSemantics::from_integer),
-    ),
-    row("to_i8", SINGLE, integer(IntegerCarrier::I8), ToIntegerExact),
-    row(
-        "to_i16",
-        SINGLE,
-        integer(IntegerCarrier::I16),
-        ToIntegerExact,
-    ),
-    row(
-        "to_i32",
-        SINGLE,
-        integer(IntegerCarrier::I32),
-        ToIntegerExact,
-    ),
-    row(
-        "to_i64",
-        SINGLE,
-        integer(IntegerCarrier::I64),
-        ToIntegerExact,
-    ),
-    row("to_u8", SINGLE, integer(IntegerCarrier::U8), ToIntegerExact),
-    row(
-        "to_u16",
-        SINGLE,
-        integer(IntegerCarrier::U16),
-        ToIntegerExact,
-    ),
-    row(
-        "to_u32",
-        SINGLE,
-        integer(IntegerCarrier::U32),
-        ToIntegerExact,
-    ),
-    row(
-        "to_u64",
-        SINGLE,
-        integer(IntegerCarrier::U64),
-        ToIntegerExact,
-    ),
-    row(
-        "to_i8_saturating",
-        SINGLE,
-        integer(IntegerCarrier::I8),
-        ToIntegerSaturating,
-    ),
-    row(
-        "to_i16_saturating",
-        SINGLE,
-        integer(IntegerCarrier::I16),
-        ToIntegerSaturating,
-    ),
-    row(
-        "to_i32_saturating",
-        SINGLE,
-        integer(IntegerCarrier::I32),
-        ToIntegerSaturating,
-    ),
-    row(
-        "to_i64_saturating",
-        SINGLE,
-        integer(IntegerCarrier::I64),
-        ToIntegerSaturating,
-    ),
-    row(
-        "to_u8_saturating",
-        SINGLE,
-        integer(IntegerCarrier::U8),
-        ToIntegerSaturating,
-    ),
-    row(
-        "to_u16_saturating",
-        SINGLE,
-        integer(IntegerCarrier::U16),
-        ToIntegerSaturating,
-    ),
-    row(
-        "to_u32_saturating",
-        SINGLE,
-        integer(IntegerCarrier::U32),
-        ToIntegerSaturating,
-    ),
-    row(
-        "to_u64_saturating",
-        SINGLE,
-        integer(IntegerCarrier::U64),
-        ToIntegerSaturating,
-    ),
-    row(
-        "multiply_then_add",
-        TERNARY,
-        Meaning,
-        TernaryMeaning(FloatSemantics::multiply_then_add),
-    ),
-    row(
-        "fused_multiply_add",
-        TERNARY,
-        Meaning,
-        TernaryMeaning(FloatSemantics::fused_multiply_add),
-    ),
-    row(
-        "minimum",
-        PAIR,
-        Meaning,
-        PairMeaning(FloatSemantics::minimum),
-    ),
-    row(
-        "maximum",
-        PAIR,
-        Meaning,
-        PairMeaning(FloatSemantics::maximum),
-    ),
-    row(
-        "equal",
-        PAIR,
-        Bool,
-        PairBool(FloatSemanticComparison::Equal),
-    ),
-    row(
-        "not_equal",
-        PAIR,
-        Bool,
-        PairBool(FloatSemanticComparison::NotEqual),
-    ),
-    row("less", PAIR, Bool, PairBool(FloatSemanticComparison::Less)),
-    row(
-        "less_or_equal",
-        PAIR,
-        Bool,
-        PairBool(FloatSemanticComparison::LessOrEqual),
-    ),
-    row(
-        "greater",
-        PAIR,
-        Bool,
-        PairBool(FloatSemanticComparison::Greater),
-    ),
-    row(
-        "greater_or_equal",
-        PAIR,
-        Bool,
-        PairBool(FloatSemanticComparison::GreaterOrEqual),
-    ),
+    binary!(add),
+    binary!(subtract),
+    binary!(multiply),
+    binary!(divide),
+    unary!(negate),
+    unary!(square_root),
+    unary!(convert),
+    from_integer!(I8),
+    from_integer!(I16),
+    from_integer!(I32),
+    from_integer!(I64),
+    from_integer!(U8),
+    from_integer!(U16),
+    from_integer!(U32),
+    from_integer!(U64),
+    exact!("to_i8", I8),
+    exact!("to_i16", I16),
+    exact!("to_i32", I32),
+    exact!("to_i64", I64),
+    exact!("to_u8", U8),
+    exact!("to_u16", U16),
+    exact!("to_u32", U32),
+    exact!("to_u64", U64),
+    saturating!("to_i8_saturating", I8),
+    saturating!("to_i16_saturating", I16),
+    saturating!("to_i32_saturating", I32),
+    saturating!("to_i64_saturating", I64),
+    saturating!("to_u8_saturating", U8),
+    saturating!("to_u16_saturating", U16),
+    saturating!("to_u32_saturating", U32),
+    saturating!("to_u64_saturating", U64),
+    ternary!(multiply_then_add),
+    ternary!(fused_multiply_add),
+    pair!(minimum),
+    pair!(maximum),
+    compare!("equal", Equal),
+    compare!("not_equal", NotEqual),
+    compare!("less", Less),
+    compare!("less_or_equal", LessOrEqual),
+    compare!("greater", Greater),
+    compare!("greater_or_equal", GreaterOrEqual),
     row(
         "classify",
         UNARY,
         Class,
         UnaryClass(FloatSemantics::classify),
     ),
-    row(
-        "is_finite",
-        SINGLE,
-        Bool,
-        SinglePredicate(FloatSemanticPredicate::Finite),
-    ),
-    row(
-        "is_nan",
-        SINGLE,
-        Bool,
-        SinglePredicate(FloatSemanticPredicate::NaN),
-    ),
-    row(
-        "is_infinite",
-        SINGLE,
-        Bool,
-        SinglePredicate(FloatSemanticPredicate::Infinite),
-    ),
-    row(
-        "is_normal",
-        UNARY,
-        Bool,
-        UnaryBool(FloatSemantics::is_normal),
-    ),
-    row(
-        "is_subnormal",
-        UNARY,
-        Bool,
-        UnaryBool(FloatSemantics::is_subnormal),
-    ),
-    row(
-        "add_toward_zero",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::add_toward_zero),
-    ),
-    row(
-        "add_toward_positive",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::add_toward_positive),
-    ),
-    row(
-        "add_toward_negative",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::add_toward_negative),
-    ),
-    row(
-        "subtract_toward_zero",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::subtract_toward_zero),
-    ),
-    row(
-        "subtract_toward_positive",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::subtract_toward_positive),
-    ),
-    row(
-        "subtract_toward_negative",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::subtract_toward_negative),
-    ),
-    row(
-        "multiply_toward_zero",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::multiply_toward_zero),
-    ),
-    row(
-        "multiply_toward_positive",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::multiply_toward_positive),
-    ),
-    row(
-        "multiply_toward_negative",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::multiply_toward_negative),
-    ),
-    row(
-        "divide_toward_zero",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::divide_toward_zero),
-    ),
-    row(
-        "divide_toward_positive",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::divide_toward_positive),
-    ),
-    row(
-        "divide_toward_negative",
-        BINARY,
-        Meaning,
-        BinaryMeaning(FloatSemantics::divide_toward_negative),
-    ),
-    row(
-        "square_root_toward_zero",
-        UNARY,
-        Meaning,
-        UnaryMeaning(FloatSemantics::square_root_toward_zero),
-    ),
-    row(
-        "square_root_toward_positive",
-        UNARY,
-        Meaning,
-        UnaryMeaning(FloatSemantics::square_root_toward_positive),
-    ),
-    row(
-        "square_root_toward_negative",
-        UNARY,
-        Meaning,
-        UnaryMeaning(FloatSemantics::square_root_toward_negative),
-    ),
-    row(
-        "fused_multiply_add_toward_zero",
-        TERNARY,
-        Meaning,
-        TernaryMeaning(FloatSemantics::fused_multiply_add_toward_zero),
-    ),
-    row(
-        "fused_multiply_add_toward_positive",
-        TERNARY,
-        Meaning,
-        TernaryMeaning(FloatSemantics::fused_multiply_add_toward_positive),
-    ),
-    row(
-        "fused_multiply_add_toward_negative",
-        TERNARY,
-        Meaning,
-        TernaryMeaning(FloatSemantics::fused_multiply_add_toward_negative),
-    ),
+    predicate!("is_finite", Finite),
+    predicate!("is_nan", NaN),
+    predicate!("is_infinite", Infinite),
+    unary_bool!(is_normal),
+    unary_bool!(is_subnormal),
+    binary!(add_toward_zero),
+    binary!(add_toward_positive),
+    binary!(add_toward_negative),
+    binary!(subtract_toward_zero),
+    binary!(subtract_toward_positive),
+    binary!(subtract_toward_negative),
+    binary!(multiply_toward_zero),
+    binary!(multiply_toward_positive),
+    binary!(multiply_toward_negative),
+    binary!(divide_toward_zero),
+    binary!(divide_toward_positive),
+    binary!(divide_toward_negative),
+    unary!(square_root_toward_zero),
+    unary!(square_root_toward_positive),
+    unary!(square_root_toward_negative),
+    ternary!(fused_multiply_add_toward_zero),
+    ternary!(fused_multiply_add_toward_positive),
+    ternary!(fused_multiply_add_toward_negative),
 ];
 
 /// The leaf names the builtin call dispatch spells by name alone — the

@@ -313,6 +313,31 @@ pub(super) fn emit_call_operations(
     operations: &mut OperationBuffer,
     sequence: &mut OperationSequence,
 ) -> Result<(), LoweringError> {
+    // One evaluation's live namespace. The count is the arm's retained prefix.
+    macro_rules! frame_values {
+        ($source_value_count:expr) => {
+            FrameValues {
+                source_value_count: $source_value_count,
+                evaluation,
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+            }
+        };
+    }
+    macro_rules! evaluate_frame {
+        ($source_value_count:expr, $body:expr $(,)?) => {
+            StateFrame::new(checked, machine, state, erased_parameters).evaluate(
+                catalogs,
+                parameters,
+                sequence,
+                frame_values!($source_value_count),
+                $body,
+            )
+        };
+    }
     // Borrowed-storage windows open and close within one straight-line
     // operation sequence. Every normal exit follows the last operation and
     // requires closed debt. An all-crash terminator abandons that frontier
@@ -369,39 +394,25 @@ pub(super) fn emit_call_operations(
                 if staged_scalar_slots[operation].len() != ordinal {
                     return unsupported("composed scalar operand ordinals are not dense");
                 }
-                let value = StateFrame::new(checked, machine, state, erased_parameters).evaluate(
-                    catalogs,
-                    parameters,
-                    sequence,
-                    FrameValues {
+                let value = evaluate_frame!(source_value_count, |frame| {
+                    let (mut environment, emission) = frame.split();
+                    emission.evaluation.argument_at(
+                        identities,
+                        checked,
+                        machine,
+                        state.state,
+                        &planned_operations[operation],
+                        ordinal,
                         source_value_count,
-                        evaluation,
-                        values,
-                        next_value,
-                        next_block,
-                        next_edge,
-                        operations,
-                    },
-                    |frame| {
-                        let (mut environment, emission) = frame.split();
-                        emission.evaluation.argument_at(
-                            identities,
-                            checked,
-                            machine,
-                            state.state,
-                            &planned_operations[operation],
-                            ordinal,
-                            source_value_count,
-                            emission.values,
-                            emission.next_value,
-                            emission.next_block,
-                            emission.next_edge,
-                            emission.operations,
-                            emission.calls,
-                            &mut environment,
-                        )
-                    },
-                )?;
+                        emission.values,
+                        emission.next_value,
+                        emission.next_block,
+                        emission.next_edge,
+                        emission.operations,
+                        emission.calls,
+                        &mut environment,
+                    )
+                })?;
                 staged_scalar_slots[operation].push(values.len());
                 values.push(value);
                 continue;
@@ -414,40 +425,26 @@ pub(super) fn emit_call_operations(
                 let source_value_count = retained_source_count.ok_or(
                     LoweringError::Unsupported("composed selector has no source prefix"),
                 )?;
-                let value = StateFrame::new(checked, machine, state, erased_parameters).evaluate(
-                    catalogs,
-                    parameters,
-                    sequence,
-                    FrameValues {
+                let value = evaluate_frame!(source_value_count, |frame| {
+                    let (mut environment, emission) = frame.split();
+                    emission.evaluation.call_selector(
+                        identities,
+                        checked,
+                        machine,
+                        state.state,
+                        &planned_operations[operation],
+                        argument,
+                        segment,
                         source_value_count,
-                        evaluation,
-                        values,
-                        next_value,
-                        next_block,
-                        next_edge,
-                        operations,
-                    },
-                    |frame| {
-                        let (mut environment, emission) = frame.split();
-                        emission.evaluation.call_selector(
-                            identities,
-                            checked,
-                            machine,
-                            state.state,
-                            &planned_operations[operation],
-                            argument,
-                            segment,
-                            source_value_count,
-                            emission.values,
-                            emission.next_value,
-                            emission.next_block,
-                            emission.next_edge,
-                            emission.operations,
-                            emission.calls,
-                            &mut environment,
-                        )
-                    },
-                )?;
+                        emission.values,
+                        emission.next_value,
+                        emission.next_block,
+                        emission.next_edge,
+                        emission.operations,
+                        emission.calls,
+                        &mut environment,
+                    )
+                })?;
                 staged_selector_slots[operation].push(values.len());
                 values.push(value);
                 continue;
@@ -476,31 +473,16 @@ pub(super) fn emit_call_operations(
                         vec![None; call.structural_arguments.len()];
                 }
                 let previous = staged_structural_arguments[operation][argument].take();
-                let captured = StateFrame::new(checked, machine, state, erased_parameters)
-                    .evaluate(
-                        catalogs,
-                        parameters,
-                        sequence,
-                        FrameValues {
-                            source_value_count,
-                            evaluation,
-                            values,
-                            next_value,
-                            next_block,
-                            next_edge,
-                            operations,
-                        },
-                        |frame| {
-                            frame.capture_argument(
-                                identities,
-                                &planned_operations[operation],
-                                argument,
-                                &selectors,
-                                previous,
-                                complete,
-                            )
-                        },
-                    )?;
+                let captured = evaluate_frame!(source_value_count, |frame| {
+                    frame.capture_argument(
+                        identities,
+                        &planned_operations[operation],
+                        argument,
+                        &selectors,
+                        previous,
+                        complete,
+                    )
+                })?;
                 staged_structural_arguments[operation][argument] = Some(captured);
                 continue;
             }
@@ -511,39 +493,25 @@ pub(super) fn emit_call_operations(
                 let source_value_count = retained_source_count.ok_or(
                     LoweringError::Unsupported("composed endpoint operand has no source prefix"),
                 )?;
-                StateFrame::new(checked, machine, state, erased_parameters).evaluate(
-                    catalogs,
-                    parameters,
-                    sequence,
-                    FrameValues {
+                evaluate_frame!(source_value_count, |frame| {
+                    let (mut environment, emission) = frame.split();
+                    emission.evaluation.window_endpoints(
+                        identities,
+                        checked,
+                        machine,
+                        state.state,
+                        &planned_operations[operation],
+                        argument,
                         source_value_count,
-                        evaluation,
-                        values,
-                        next_value,
-                        next_block,
-                        next_edge,
-                        operations,
-                    },
-                    |frame| {
-                        let (mut environment, emission) = frame.split();
-                        emission.evaluation.window_endpoints(
-                            identities,
-                            checked,
-                            machine,
-                            state.state,
-                            &planned_operations[operation],
-                            argument,
-                            source_value_count,
-                            emission.values,
-                            emission.next_value,
-                            emission.next_block,
-                            emission.next_edge,
-                            emission.operations,
-                            emission.calls,
-                            &mut environment,
-                        )
-                    },
-                )?;
+                        emission.values,
+                        emission.next_value,
+                        emission.next_block,
+                        emission.next_edge,
+                        emission.operations,
+                        emission.calls,
+                        &mut environment,
+                    )
+                })?;
                 continue;
             }
             Step::Subslice { operation, ordinal } => {
@@ -652,43 +620,29 @@ pub(super) fn emit_call_operations(
             values.truncate(source_value_count);
         }
         let mut established_local = None;
-        StateFrame::new(checked, machine, state, erased_parameters).evaluate(
-            catalogs,
-            parameters,
-            sequence,
-            FrameValues {
-                source_value_count,
-                evaluation,
-                values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-            },
-            |frame| {
-                match &call_operands {
-                    None if establishes_local => {
-                        let local = frame.establish_primitive_local(identities, operation)?;
-                        established_local = Some(local);
-                    }
-                    None => frame.emit(identities, operation)?,
-                    Some((arguments, byte_places)) => frame.emit_call(
-                        identities,
-                        operation,
-                        CallInputs {
-                            evaluated_scalar_arguments: arguments.as_deref(),
-                            byte_places,
-                            evaluated_selectors: staged.then_some(staged_selectors.as_slice()),
-                            completed_structural_arguments: (!staged_structural_arguments
-                                [operation_index]
-                                .is_empty())
-                            .then_some(staged_structural_arguments[operation_index].as_slice()),
-                        },
-                    )?,
+        evaluate_frame!(source_value_count, |frame| {
+            match &call_operands {
+                None if establishes_local => {
+                    let local = frame.establish_primitive_local(identities, operation)?;
+                    established_local = Some(local);
                 }
-                Ok(())
-            },
-        )?;
+                None => frame.emit(identities, operation)?,
+                Some((arguments, byte_places)) => frame.emit_call(
+                    identities,
+                    operation,
+                    CallInputs {
+                        evaluated_scalar_arguments: arguments.as_deref(),
+                        byte_places,
+                        evaluated_selectors: staged.then_some(staged_selectors.as_slice()),
+                        completed_structural_arguments: (!staged_structural_arguments
+                            [operation_index]
+                            .is_empty())
+                        .then_some(staged_structural_arguments[operation_index].as_slice()),
+                    },
+                )?,
+            }
+            Ok(())
+        })?;
         if let Some(local) = established_local {
             catalogs.temporary_places.push(local.declaration);
             sequence.primitive_locals.push(local);

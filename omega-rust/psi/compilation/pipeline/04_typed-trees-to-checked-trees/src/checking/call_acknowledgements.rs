@@ -213,90 +213,46 @@ fn validate_expression(
     if !expression.is_valid() {
         return;
     }
-
-    match program.expression_table.expression(expression) {
-        ExpressionNode::SavedSubject(_) => {}
-        ExpressionNode::Match(dispatch) => {
+    macro_rules! visit_child {
+        ($child:expr) => {
             validate_child(
                 program,
-                dispatch.subject,
+                $child,
                 statement_index,
                 operational_calls,
                 call_ordinal,
                 diagnostics,
-            );
+            )
+        };
+    }
+
+    match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(_) => {}
+        ExpressionNode::Match(dispatch) => {
+            visit_child!(dispatch.subject);
             for arm in program.expression_table.match_arms(dispatch.arms) {
                 for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
-                    validate_child(
-                        program,
-                        pattern,
-                        statement_index,
-                        operational_calls,
-                        call_ordinal,
-                        diagnostics,
-                    );
+                    visit_child!(pattern);
                 }
-                validate_child(
-                    program,
-                    arm.value,
-                    statement_index,
-                    operational_calls,
-                    call_ordinal,
-                    diagnostics,
-                );
+                visit_child!(arm.value);
             }
         }
         ExpressionNode::Atomic(atomic) => {
             let inputs = validation::atomic_execution_children(program, atomic);
             for input in inputs {
-                validate_child(
-                    program,
-                    input,
-                    statement_index,
-                    operational_calls,
-                    call_ordinal,
-                    diagnostics,
-                );
+                visit_child!(input);
             }
         }
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                validate_child(
-                    program,
-                    *value,
-                    statement_index,
-                    operational_calls,
-                    call_ordinal,
-                    diagnostics,
-                );
+                visit_child!(*value);
             }
         }
         ExpressionNode::Binary(binary) => {
-            validate_child(
-                program,
-                binary.left,
-                statement_index,
-                operational_calls,
-                call_ordinal,
-                diagnostics,
-            );
-            validate_child(
-                program,
-                binary.right,
-                statement_index,
-                operational_calls,
-                call_ordinal,
-                diagnostics,
-            );
+            visit_child!(binary.left);
+            visit_child!(binary.right);
         }
-        ExpressionNode::Cast(cast) => validate_child(
-            program,
-            cast.value,
-            statement_index,
-            operational_calls,
-            call_ordinal,
-            diagnostics,
-        ),
+        ExpressionNode::Cast(cast) => visit_child!(cast.value),
         ExpressionNode::Call(call) => {
             validate_call(
                 call.target.as_str(),
@@ -307,97 +263,27 @@ fn validate_expression(
                 call_ordinal,
                 diagnostics,
             );
-            validate_child(
-                program,
-                call.receiver,
-                statement_index,
-                operational_calls,
-                call_ordinal,
-                diagnostics,
-            );
+            visit_child!(call.receiver);
             for argument in program.expression_table.expression_handles(call.arguments) {
-                validate_child(
-                    program,
-                    *argument,
-                    statement_index,
-                    operational_calls,
-                    call_ordinal,
-                    diagnostics,
-                );
+                visit_child!(*argument);
             }
         }
         ExpressionNode::Indexed(indexed) => {
-            validate_child(
-                program,
-                indexed.collection,
-                statement_index,
-                operational_calls,
-                call_ordinal,
-                diagnostics,
-            );
-            validate_child(
-                program,
-                indexed.index,
-                statement_index,
-                operational_calls,
-                call_ordinal,
-                diagnostics,
-            );
+            visit_child!(indexed.collection);
+            visit_child!(indexed.index);
         }
-        ExpressionNode::Member(member) => validate_child(
-            program,
-            member.receiver,
-            statement_index,
-            operational_calls,
-            call_ordinal,
-            diagnostics,
-        ),
-        ExpressionNode::Borrow(inner) => validate_child(
-            program,
-            inner.target,
-            statement_index,
-            operational_calls,
-            call_ordinal,
-            diagnostics,
-        ),
+        ExpressionNode::Member(member) => visit_child!(member.receiver),
+        ExpressionNode::Borrow(inner) => visit_child!(inner.target),
         ExpressionNode::Range(range) => {
-            validate_child(
-                program,
-                range.start,
-                statement_index,
-                operational_calls,
-                call_ordinal,
-                diagnostics,
-            );
-            validate_child(
-                program,
-                range.end,
-                statement_index,
-                operational_calls,
-                call_ordinal,
-                diagnostics,
-            );
+            visit_child!(range.start);
+            visit_child!(range.end);
         }
         ExpressionNode::StructLiteral(literal) => {
             for field in program.expression_table.struct_fields(literal.fields) {
-                validate_child(
-                    program,
-                    field.value,
-                    statement_index,
-                    operational_calls,
-                    call_ordinal,
-                    diagnostics,
-                );
+                visit_child!(field.value);
             }
         }
-        ExpressionNode::Unary(unary) => validate_child(
-            program,
-            unary.operand,
-            statement_index,
-            operational_calls,
-            call_ordinal,
-            diagnostics,
-        ),
+        ExpressionNode::Unary(unary) => visit_child!(unary.operand),
         ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => {}
     }
 }

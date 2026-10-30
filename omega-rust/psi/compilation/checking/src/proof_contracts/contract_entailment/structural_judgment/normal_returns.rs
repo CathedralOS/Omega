@@ -906,6 +906,19 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let program = self.program;
+        macro_rules! normal_paths {
+            ($judge:expr, $expression:expr, $demand:expr) => {
+                $judge.evaluate_normal_paths(
+                    $expression,
+                    environment,
+                    scope,
+                    depth + 1,
+                    requested_operations,
+                    entries,
+                    $demand,
+                )
+            };
+        }
         let node = program.expression_table.expression(expression);
         if let Some(value) = program.static_boolean_value(expression) {
             return Some(vec![
@@ -1075,17 +1088,7 @@ impl<'program> StructuralJudge<'program> {
                 environment,
                 scope,
                 demand,
-                |judge, operand| {
-                    judge.evaluate_normal_paths(
-                        operand,
-                        environment,
-                        scope,
-                        depth + 1,
-                        requested_operations,
-                        entries,
-                        NormalValueDemand::Value,
-                    )
-                },
+                |judge, operand| normal_paths!(judge, operand, NormalValueDemand::Value),
             );
         }
 
@@ -1102,15 +1105,7 @@ impl<'program> StructuralJudge<'program> {
             let evaluate_right = binary.operator == BinaryOperator::And;
             let mut short_circuit_steps_pure = true;
             let mut outcomes = Vec::new();
-            for left in self.evaluate_normal_paths(
-                binary.left,
-                environment,
-                scope,
-                depth + 1,
-                requested_operations,
-                entries,
-                NormalValueDemand::Value,
-            )? {
+            for left in normal_paths!(self, binary.left, NormalValueDemand::Value)? {
                 for truth in [false, true] {
                     let mut selected = left.judge.clone();
                     let guard_value = boolean_term(truth);
@@ -1126,15 +1121,7 @@ impl<'program> StructuralJudge<'program> {
                     }
                     selected.assume_normal_equation(left.value.clone(), guard_value);
                     if truth == evaluate_right {
-                        for right in selected.evaluate_normal_paths(
-                            binary.right,
-                            environment,
-                            scope,
-                            depth + 1,
-                            requested_operations,
-                            entries,
-                            demand,
-                        )? {
+                        for right in normal_paths!(selected, binary.right, demand)? {
                             outcomes.push(right.at_expression(expression, demand));
                         }
                     } else {
@@ -1227,17 +1214,7 @@ impl<'program> StructuralJudge<'program> {
                 environment,
                 scope,
                 demand,
-                |judge, operand, demand| {
-                    judge.evaluate_normal_paths(
-                        operand,
-                        environment,
-                        scope,
-                        depth + 1,
-                        requested_operations,
-                        entries,
-                        demand,
-                    )
-                },
+                |judge, operand, demand| normal_paths!(judge, operand, demand),
             );
         }
         let has_own_effect = match node {

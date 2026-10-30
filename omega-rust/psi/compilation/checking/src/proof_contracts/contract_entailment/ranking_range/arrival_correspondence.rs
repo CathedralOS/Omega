@@ -377,6 +377,20 @@ fn completed_coordinates(
     let node = program
         .expression_table
         .expression_at_depth(expression, depth)?;
+    macro_rules! child_coordinates {
+        ($statement:expr, $expression:expr $(,)?) => {
+            completed_coordinates(
+                program,
+                machine,
+                state,
+                $statement,
+                $expression,
+                source,
+                depth + 1,
+            )
+        };
+    }
+
     match node {
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
             if let Some(receiver) = crate::value_custody::places::collection_length_receiver(
@@ -385,15 +399,7 @@ fn completed_coordinates(
                 Some(state),
                 expression,
             ) {
-                let mut completed = completed_coordinates(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    receiver,
-                    source,
-                    depth + 1,
-                )?;
+                let mut completed = child_coordinates!(statement_index, receiver)?;
                 // An extent is a computed observation of this descriptor,
                 // never an unresolved or synthetic declared field.
                 for value in &mut completed.coordinates {
@@ -454,15 +460,7 @@ fn completed_coordinates(
                 return None;
             }
             let binding = saved_arguments::saved(program, state, symbol)?;
-            let completed = completed_coordinates(
-                program,
-                machine,
-                state,
-                binding_index,
-                binding.initial_value,
-                source,
-                depth + 1,
-            )?;
+            let completed = child_coordinates!(binding_index, binding.initial_value)?;
             let mut selected = select_completed(completed, &place.segments, expression);
             for value in &mut selected.coordinates {
                 value.captures.push(RankLocalCapture {
@@ -494,16 +492,7 @@ fn completed_coordinates(
                     &mut prefix,
                     field.field_symbol,
                 );
-                let child = completed_coordinates(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    field.value,
-                    source,
-                    depth + 1,
-                )
-                .unwrap_or_default();
+                let child = child_coordinates!(statement_index, field.value).unwrap_or_default();
                 completed.complete &= child.complete;
                 for mut value in child.coordinates {
                     let mut path = prefix.clone();
@@ -522,16 +511,7 @@ fn completed_coordinates(
                 .iter()
                 .enumerate()
             {
-                let child = completed_coordinates(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    *value,
-                    source,
-                    depth + 1,
-                )
-                .unwrap_or_default();
+                let child = child_coordinates!(statement_index, *value).unwrap_or_default();
                 completed.complete &= child.complete;
                 for mut value in child.coordinates {
                     value
@@ -552,47 +532,24 @@ fn completed_coordinates(
             // the destination's declared reference boundary. These coordinates
             // locate that observation; the complete edge owner still proves
             // receiving formation, live qualification and prefix preservation.
-            completed_coordinates(
-                program,
-                machine,
-                state,
-                statement_index,
-                borrow.target,
-                source,
-                depth + 1,
-            )
+            child_coordinates!(statement_index, borrow.target)
         }
-        ExpressionNode::Cast(cast) => completed_coordinates(
-            program,
-            machine,
-            state,
-            statement_index,
-            cast.value,
-            source,
-            depth + 1,
-        )
-        .map(|mut completed| {
-            for value in &mut completed.coordinates {
-                value.producer = expression;
-                value.derivation = RankValueDerivation::ComputedDependency;
-            }
-            completed
-        }),
+        ExpressionNode::Cast(cast) => {
+            child_coordinates!(statement_index, cast.value).map(|mut completed| {
+                for value in &mut completed.coordinates {
+                    value.producer = expression;
+                    value.derivation = RankValueDerivation::ComputedDependency;
+                }
+                completed
+            })
+        }
         ExpressionNode::Binary(binary) => {
             // Only the selected builtin operation has this operand equation.
             // This admission supplies no totality or arithmetic safety proof.
             super::meanings::admitted_carrier(program, machine, state, expression, depth)?;
             let mut completed = CompletedCoordinateInventory::complete(Vec::new());
             for operand in [binary.left, binary.right] {
-                let child = completed_coordinates(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    operand,
-                    source,
-                    depth + 1,
-                )?;
+                let child = child_coordinates!(statement_index, operand)?;
                 completed.complete &= child.complete;
                 for mut value in child.coordinates {
                     if !value.relative_path.is_empty() {
@@ -615,16 +572,7 @@ fn completed_coordinates(
                 expression,
             ) =>
         {
-            completed_coordinates(
-                program,
-                machine,
-                state,
-                statement_index,
-                indexed.collection,
-                source,
-                depth + 1,
-            )
-            .map(|mut completed| {
+            child_coordinates!(statement_index, indexed.collection).map(|mut completed| {
                 for value in &mut completed.coordinates {
                     value.producer = expression;
                     value.derivation = RankValueDerivation::ComputedDependency;
