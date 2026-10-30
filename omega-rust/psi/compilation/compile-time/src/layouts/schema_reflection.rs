@@ -84,6 +84,7 @@ pub(crate) fn schema_fields_for_target(
         ));
     }
 
+    let field_intervals = validation::data_where_field_intervals(typed, data);
     let mut fields = Vec::new();
     for member in typed.data_members(data) {
         let Some(field) = member.as_field() else {
@@ -96,7 +97,14 @@ pub(crate) fn schema_fields_for_target(
             continue;
         }
         let (size, align, source_bits, primitive, kind, declared_range, repeated) =
-            reflected_field_layout_for_target(typed, field.type_reference, target).ok_or_else(|| {
+            reflected_field_layout(
+                typed,
+                field.type_reference,
+                target,
+                field_intervals.as_deref().and_then(|rows| rows.iter()
+                    .find(|(symbol, _, _)| *symbol == field.symbol)
+                    .map(|(_, low, high)| (*low, *high))),
+            ).ok_or_else(|| {
                 format!(
                     "schema data `{schema_data}` field `{}` is neither a supported primitive, a fixed array composed of supported primitives, nor a fixed record composed from those shapes",
                     field.name
@@ -181,22 +189,46 @@ pub fn normalized_schema_report_fingerprint(
     typed_trees::identity::normalized_schema_report_fingerprint(typed, data)
 }
 
+/// Packing consumes the same declaration-owned field interval as Terminal
+/// scalar restrictions. It refines geometry, without removing the declaration's
+/// predicates or authorizing a write that cannot satisfy its physical codec.
 fn declared_source_bits(
     typed: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
     primitive: PrimitiveType,
     byte_size: u64,
+    stated: Option<(Option<i64>, Option<i64>)>,
 ) -> u64 {
     if primitive == PrimitiveType::Bool {
         return 1;
     }
-    let Some(range) = validation::scalar_representation_range(typed, type_reference) else {
-        return byte_size * 8;
-    };
-    if range.minimum < 0 {
-        return byte_size * 8;
+    let width = byte_size * 8;
+    if !primitive.is_integer() {
+        return width;
     }
-    let maximum = range.maximum as u64;
+    let (mut minimum, mut maximum) = if primitive.is_signed_integer() {
+        (-(1i128 << (width - 1)), (1i128 << (width - 1)) - 1)
+    } else {
+        (0, (1i128 << width) - 1)
+    };
+    if let Some(range) = validation::scalar_representation_range(typed, type_reference) {
+        minimum = minimum.max(i128::from(range.minimum));
+        maximum = maximum.min(i128::from(range.maximum));
+    }
+    if let Some((low, high)) = stated {
+        if let Some(low) = low {
+            minimum = minimum.max(i128::from(low));
+        }
+        if let Some(high) = high {
+            maximum = maximum.min(i128::from(high));
+        }
+    }
+    if minimum < 0 {
+        return width;
+    }
+    let Ok(maximum) = u64::try_from(maximum) else {
+        return width;
+    };
     u64::from((u64::BITS - maximum.leading_zeros()).max(1))
 }
 
@@ -223,21 +255,15 @@ type ReflectedFieldLayout = (
 pub(super) fn reflected_field_layout(
     typed: &TypedTrees,
     reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<ReflectedFieldLayout> {
-    reflected_field_layout_for_target(typed, reference, None)
-}
-
-fn reflected_field_layout_for_target(
-    typed: &TypedTrees,
-    reference: typed_trees::types::TypeReferenceHandle,
     target: Option<&layout_plans::LayoutTargetFacts>,
+    stated: Option<(Option<i64>, Option<i64>)>,
 ) -> Option<ReflectedFieldLayout> {
     if let Some(primitive) = typed.primitive_type_reference(reference) {
         let size = primitive_byte_size(primitive)?;
         return Some((
             size,
             size,
-            declared_source_bits(typed, reference, primitive, size),
+            declared_source_bits(typed, reference, primitive, size, stated),
             Some(primitive),
             "Scalar",
             validation::scalar_representation_range(typed, reference)

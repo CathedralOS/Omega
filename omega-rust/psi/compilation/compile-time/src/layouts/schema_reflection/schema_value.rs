@@ -158,10 +158,20 @@ pub(crate) fn build_selected_schema_value(
                 (field.name.to_string(), key)
             }),
         )?;
+        let payload_intervals = validation::case_where_field_intervals(typed, variant);
         let payload_fields = (0..SCHEMA_FIELD_CAPACITY)
             .map(|payload_index| {
                 let info = payload.get(payload_index).map(|field| {
-                    let reflected = reflected_field_layout(typed, field.type_reference);
+                    let reflected = reflected_field_layout(
+                        typed,
+                        field.type_reference,
+                        None,
+                        payload_intervals.as_deref().and_then(|rows| {
+                            rows.iter()
+                                .find(|(symbol, _, _)| *symbol == field.symbol)
+                                .map(|(_, low, high)| (*low, *high))
+                        }),
+                    );
                     let (size, align, source_bits, primitive, kind, declared_range, repeated) =
                         reflected.unwrap_or((0, 1, 0, None, "Nested", None, None));
                     SchemaFieldInfo {
