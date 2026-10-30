@@ -1,5 +1,16 @@
 # Stage-by-Stage Compiler Optimization Ledger (`omega-rust`)
 
+## Remaining first-time checking: empty-equation query - 2026-10-30
+
+Rejected on fixed `0ac181bf065`: skip unproductive non-Boolean specification
+guarantee queries without expression ensures. Fresh A-B-B-A updates measured
+133.18/141.95 s for A and 130.57/122.30 s for B, an 8.09% lower mean below the
+predeclared 10% threshold. Four native images match and actual host comparisons
+pass; both producers preserve the focused specification-formation refusal.
+The candidate is removed. Broader quality tests were skipped after the failed
+screen. Body unfolding is the next diagnostic lead; its inclusive time overlaps
+nested work. [Evidence and harness correction](remaining_first_checking_2026_10_30/README.md).
+
 ## First-time checking: batch-local operand resolution - 2026-10-29
 
 Retained on fixed 2a087aa3ec3: share completed full-payload operand resolution
