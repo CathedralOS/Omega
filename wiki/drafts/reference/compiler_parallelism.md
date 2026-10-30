@@ -416,3 +416,7 @@ native/Terminal, reject, corruption, source and junction controls passed.
 Median private commit rose about 8 MiB for length and 2.7 MiB for stack32.
 The source-bound result is retained locally as the next scoped substantial win;
 it does not imply a new multi-target, foreign-host or latest-main result.
+
+[Post-PR864 spill construction attribution](../measurements/spill_cost_2026_10_29/README.md) found slot assignment dominated spill admission but occupied only 8% of its complete instrumented stack32 process. Temporary timers were removed; no speedup was inferred. Whole-plan recovery receipt composition also prevents a naive per-function fork/merge. The next measured hypothesis is avoiding a redundant scalar edge-capture layer when the owner emits no intervening work.
+
+The [existing CopyPropagation configured-path experiment](../measurements/copy_propagation_2026_10_29/README.md) met the next scoped substantial-win target without another Rust change: stack32 improved 37.4% in balanced comparison and 43.3% in fresh-cache reverse-order confirmation. A separate ordinary-empty/off/on control directly measured 796.3 to 457.2 ms (42.6%) versus the unchanged Build; rollback-off was 0.53% above default. Bounded spills fell 2159 to 131; ten native/Terminal agreements and nine authored rejects passed. Length regressed about 6%, so retain this as an existing opt-in recipe for the pressured workload, not a default or parallelism gain. Original witnesses/defaults stay unchanged; all valid losing blocks and both harness failures remain archived.
