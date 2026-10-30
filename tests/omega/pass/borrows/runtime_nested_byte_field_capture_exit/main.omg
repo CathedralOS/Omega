@@ -1,0 +1,37 @@
+// A captured record carries its byte facts across nested calls. Both palette
+// entries reach a field store; the caller observes the byte and its neighbors.
+// Expected exit: 0
+use omega_language_std::console;
+domain [u8; 4]::Utf8 requires valid_utf8(self);
+domain [u8; 2]::Utf8 requires valid_utf8(self);
+data Main { line: [u8; 4] in Utf8; ramp: [u8; 2] in Utf8; glyph: u8; }
+machine consume(line: &[u8; 4] in Utf8) {}
+machine Main::render(main: &mut Main, selected: u64)
+requires selected < 2
+{
+    main.line = "....";
+    main.ramp = " #";
+    transition { _ -> read(main, selected) }
+    machine read(main: &mut Main, selected: u64)
+    requires selected < 2
+    {
+        main.glyph = main.ramp[selected];
+        transition { _ -> write(main) }
+    }
+    machine write(main: &mut Main) {
+        main.line[1] = main.glyph;
+        consume(&main.line);
+    }
+}
+machine entry_start() reaches Console crashes Trap {
+    let mut main: Main;
+    Main::render(&mut main, 0);
+    let first: bool = main.line == ". ..";
+    Main::render(&mut main, 1);
+    transition first && main.line == ".#.." {
+        true -> done()
+        false -> bad()
+    }
+    machine done() reaches Console { Console::exit_process(0); }
+    machine bad() crashes Trap { crash Trap; }
+}

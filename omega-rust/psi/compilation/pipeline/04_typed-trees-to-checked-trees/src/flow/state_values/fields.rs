@@ -36,15 +36,6 @@ impl BoundsSource {
             tag: (1 << 40) | ((statement as u64) << 8) | (ordinal as u64 + 1),
         }
     }
-
-    /// Whether this edge is a call's return handoff. Call edges carry no field
-    /// rows of their own (the callee's declared transport covers the call's
-    /// own effect), so their absence must abstain from the ceiling rather
-    /// than refute it; a transition edge that simply lacks the field is a
-    /// real path where the carrier saw no fresh evidence and refutes.
-    fn is_invocation(self) -> bool {
-        self.tag >= (1 << 40)
-    }
 }
 
 /// One predecessor edge's latest delivery for a field. An edge whose captured
@@ -91,20 +82,13 @@ impl FieldValue {
 
 impl EdgeDelivery {
     fn empty() -> Self {
-        Self::missing(&[])
-    }
-
-    /// An edge that produced no row for this field: no literal, no predicates,
-    /// no bound -- but its deliverable claim forwards `potential`, the joined
-    /// could-sustain set the destination already knows, so the edge neither
-    /// mints evidence it lacks nor refutes a claim it carries no evidence
-    /// against.
-    fn missing(potential: &[ByteSequencePredicate]) -> Self {
+        // An unknown incoming value refutes a candidate it cannot establish.
+        // Only captured source evidence can forward a carrier predicate.
         Self {
             literal: ExpressionHandle::invalid(),
             predicates: Vec::new(),
             integer_bounds: None,
-            potential: potential.to_vec(),
+            potential: Vec::new(),
         }
     }
 
@@ -312,37 +296,18 @@ pub(super) fn meet(
     previous: &mut Vec<FieldValue>,
     incoming: &[FieldValue],
     source: BoundsSource,
+    known_sources: &[BoundsSource],
     thresholds: &[numerics::bignum::BigInt],
 ) -> bool {
     let mut changed = false;
-    // Every edge that has ever arrived at this destination. A field first
-    // delivered on a later edge still records the earlier edges as carrying no
-    // evidence for it.
-    let mut known_sources: Vec<BoundsSource> = Vec::new();
-    for field in previous.iter() {
-        for (key, _) in &field.deliveries {
-            if !known_sources.contains(key) {
-                known_sources.push(*key);
-            }
-        }
-    }
+    // The arrival owner records empty deliveries too. Reconstructing this
+    // list from existing fields would forget an earlier unconstrained input.
     previous.retain_mut(|field| {
         let delivery = incoming
             .iter()
             .find(|next| next.root == field.root && next.segments == field.segments)
             .map(EdgeDelivery::of)
-            // A call's return edge never captures field rows, so its absence
-            // forwards the running ceiling rather than refuting it -- the
-            // callee's own premise check is what limits that handoff. A
-            // transition edge that lacks the field carries no claim of its
-            // own and refutes outright.
-            .unwrap_or_else(|| {
-                if source.is_invocation() {
-                    EdgeDelivery::missing(&field.predicate_ceiling)
-                } else {
-                    EdgeDelivery::empty()
-                }
-            });
+            .unwrap_or_else(EdgeDelivery::empty);
         if let Some(slot) = field.deliveries.iter_mut().find(|(key, _)| *key == source) {
             // Replaying the same evidence must preserve any sound widening.
             // Rejoining the raw deliveries would shrink that bound without
@@ -371,16 +336,8 @@ pub(super) fn meet(
         }
         let mut deliveries: Vec<(BoundsSource, EdgeDelivery)> = known_sources
             .iter()
-            .map(|key| {
-                (
-                    *key,
-                    if key.is_invocation() {
-                        EdgeDelivery::missing(&next.edge_potential)
-                    } else {
-                        EdgeDelivery::empty()
-                    },
-                )
-            })
+            .filter(|key| **key != source)
+            .map(|key| (*key, EdgeDelivery::empty()))
             .collect();
         deliveries.push((source, EdgeDelivery::of(next)));
         let mut field = FieldValue {
@@ -615,6 +572,86 @@ pub(super) fn capture(
     if argument_roots.is_empty() {
         return Vec::new();
     }
+    let contexts = crate::flow::active_context_handles(build, contexts);
+    capture_storage_fields(
+        program,
+        semantic,
+        build,
+        state.symbol,
+        &argument_roots,
+        &contexts,
+    )
+}
+
+/// One completed argument supplies its own value epoch and every possible
+/// referent. Only facts common to all retained alternatives reach the formal.
+pub(super) fn capture_completed_argument(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    build: &FlowBuildContext,
+    operand: &checked_trees::FlowOperandFact,
+    completed: &super::CompletedArgumentFacts,
+    destination: SymbolHandle,
+) -> Vec<FieldValue> {
+    let mut common: Option<Vec<FieldValue>> = None;
+    for place in &completed.places {
+        let roots = [(
+            place.projected.root,
+            place.projected.segments.clone(),
+            destination,
+        )];
+        let found = capture_storage_fields(
+            program,
+            semantic,
+            build,
+            operand.state_symbol,
+            &roots,
+            &completed.contexts,
+        );
+        common = Some(match common {
+            None => found,
+            Some(mut previous) => {
+                previous.retain_mut(|field| {
+                    let Some(next) = found
+                        .iter()
+                        .find(|next| next.root == field.root && next.segments == field.segments)
+                    else {
+                        return false;
+                    };
+                    if field.literal != next.literal {
+                        field.literal = ExpressionHandle::invalid();
+                    }
+                    field
+                        .predicates
+                        .retain(|predicate| next.predicates.contains(predicate));
+                    field
+                        .edge_potential
+                        .retain(|predicate| next.edge_potential.contains(predicate));
+                    field.integer_bounds = field
+                        .integer_bounds
+                        .take()
+                        .zip(next.integer_bounds.as_ref())
+                        .map(|(previous, next)| facts::IntegerRange {
+                            minimum: previous.minimum.min(next.minimum.clone()),
+                            maximum: previous.maximum.max(next.maximum.clone()),
+                        });
+                    true
+                });
+                previous
+            }
+        });
+    }
+    common.unwrap_or_default()
+}
+
+fn capture_storage_fields(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    build: &FlowBuildContext,
+    state: SymbolHandle,
+    argument_roots: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>, SymbolHandle)],
+    contexts: &[facts::FactContextHandle],
+) -> Vec<FieldValue> {
     // A bound minted at a later point refines what came before it: an arm's
     // guard bound already encodes the state-entry bound it was intersected
     // with, so the newest point's interval is the tightest claim. Payloads
@@ -636,9 +673,9 @@ pub(super) fn capture(
     }
     let mut fields: Vec<FieldValue> = Vec::new();
     let mut bounds_ranks: Vec<(usize, u8)> = Vec::new();
-    for reference in build.contexts.semantic_context_refs.span_or_empty(contexts) {
+    for context in contexts {
         for fact in semantic
-            .context_view(semantic.contexts.get(reference.context))
+            .context_view(semantic.contexts.get(*context))
             .facts()
         {
             let (literal, predicates, integer_bounds) = match fact.payload {
@@ -725,6 +762,28 @@ pub(super) fn capture(
                 continue;
             };
 
+            // A conditional carrier claim belongs to the exact source
+            // storage. Record it before rebasing that storage to a formal;
+            // equal field paths under different roots are different values.
+            let mut edge_potential = predicates.clone();
+            for predicate in
+                super::field_predicate_ceiling(build, state, place.root, &place.segments)
+            {
+                crate::collections::push_unique(&mut edge_potential, *predicate);
+            }
+            if let Some((_, _, _, stored)) =
+                build
+                    .element_store_potentials
+                    .iter()
+                    .find(|(source, root, segments, _)| {
+                        *source == state && *root == place.root && *segments == place.segments
+                    })
+            {
+                for predicate in stored {
+                    crate::collections::push_unique(&mut edge_potential, *predicate);
+                }
+            }
+
             // Each destination identity this evidence serves: the shared
             // machine root for an attached `self` field, and every transition
             // argument whose storage prefix the fact's place extends. A
@@ -739,7 +798,7 @@ pub(super) fn capture(
                 })
             };
             let mut targets: Vec<(facts::PlaceRoot, &[facts::PlaceSegment])> = Vec::new();
-            for (root, prefix, parameter) in &argument_roots {
+            for (root, prefix, parameter) in argument_roots {
                 if place.root != *root
                     || !place.segments.starts_with(prefix)
                     || !field_segments(&place.segments[prefix.len()..])
@@ -780,6 +839,9 @@ pub(super) fn capture(
                     for predicate in predicates.iter().copied() {
                         crate::collections::push_unique(&mut field.predicates, predicate);
                     }
+                    for predicate in edge_potential.iter().copied() {
+                        crate::collections::push_unique(&mut field.edge_potential, predicate);
+                    }
                 } else {
                     bounds_ranks.push(if integer_bounds.is_some() {
                         bound_point_rank(fact.point)
@@ -793,50 +855,11 @@ pub(super) fn capture(
                         predicates: predicates.clone(),
                         integer_bounds: integer_bounds.clone(),
                         deliveries: Vec::new(),
-                        edge_potential: Vec::new(),
+                        edge_potential: edge_potential.clone(),
                         predicate_ceiling: Vec::new(),
                         bounds_growth: 0,
                         bounds_shrink: 0,
                     });
-                }
-            }
-        }
-    }
-    for field in &mut fields {
-        // The edge's deliverable claim: the captured predicates, the source
-        // state's own predicate ceiling (what ITS incoming edges could
-        // jointly sustain), plus the byte-class evidence of this pass's
-        // element stores into the carrier. A store mints only what its
-        // carrier premise supports; the potential records what the edge
-        // could carry if the candidate holds. Carrying the source ceiling is
-        // what lets a collapsed mid-fixpoint join recover: a store-free state
-        // still forwards "my edges could deliver p" downstream instead of
-        // refuting the candidate merely because its own join is currently
-        // low. New claims enter only through real evidence -- minted
-        // predicates or byte-side store classes -- so a carrier whose every
-        // store leaves the class still refutes itself.
-        field.edge_potential = field.predicates.clone();
-        for predicate in
-            super::field_predicate_ceiling(build, state.symbol, field.root, &field.segments)
-        {
-            if !field.edge_potential.contains(predicate) {
-                field.edge_potential.push(*predicate);
-            }
-        }
-        // Element-store potentials are recorded per carrier root: attached machine
-        // storage and a named `&mut T` parameter's field reach the same store
-        // law one root spelling apart, and a same-segments row under a
-        // different root is different storage.
-        if let Some((_, _, _, byteok)) = build.element_store_potentials.iter().find(
-            |(stored_state, stored_root, segments, _)| {
-                *stored_state == state.symbol
-                    && *stored_root == field.root
-                    && *segments == field.segments
-            },
-        ) {
-            for predicate in byteok {
-                if !field.edge_potential.contains(predicate) {
-                    field.edge_potential.push(*predicate);
                 }
             }
         }

@@ -36,6 +36,9 @@ pub(super) struct StateValues {
     /// all-ASCII glyph table keeps a `u8` byte store provably in-class.
     bounds: Vec<ParameterBounds>,
     fields: Vec<fields::FieldValue>,
+    /// Every observed input edge, including ones carrying no field evidence.
+    /// A later field cannot forget an earlier unknown predecessor.
+    field_sources: Vec<fields::BoundsSource>,
     qualifications: Vec<qualifications::QualifiedInput>,
     predicates: Vec<crate::facts::boolean_predicates::BoundPredicate>,
     entry_paths: crate::facts::boolean_predicates::EntryPaths,
@@ -135,15 +138,25 @@ fn join(
         .iter_mut()
         .find(|row| row.state == incoming.state)
     {
-        changed |= fields::meet(
-            program,
-            machine,
-            destination,
-            &mut previous.fields,
-            &incoming.fields,
-            source,
-            thresholds.as_slice(),
-        );
+        if !previous.field_sources.contains(&source) {
+            previous.field_sources.push(source);
+            build.new_state_field_input_height += 1;
+            changed = true;
+        }
+        // A fail-closed input row represents every possible predecessor, not
+        // an unreached entry which a later precise capture may narrow.
+        if !matches!(previous.argument_edges, ArgumentInputs::Unknown) {
+            changed |= fields::meet(
+                program,
+                machine,
+                destination,
+                &mut previous.fields,
+                &incoming.fields,
+                source,
+                &previous.field_sources,
+                thresholds.as_slice(),
+            );
+        }
         changed |= qualifications::meet(&mut previous.qualifications, &incoming.qualifications);
         changed |= predicates::meet(&mut previous.predicates, &incoming.predicates);
         if previous.entry_paths.union(&incoming.entry_paths) {
@@ -186,6 +199,7 @@ fn join(
                 height.saturating_add(bound.height(thresholds.len()))
             });
         let mut incoming = incoming;
+        incoming.field_sources.push(source);
         for field in &mut incoming.fields {
             field.seed_delivery(source);
         }
@@ -210,6 +224,7 @@ pub(super) fn unknown_inputs(
                 .iter()
                 .map(|state| StateValues {
                     state: state.symbol,
+                    field_sources: Vec::new(),
                     fields: Vec::new(),
                     qualifications: Vec::new(),
                     predicates: Vec::new(),
@@ -387,6 +402,7 @@ pub(super) fn record_transition(
         fields::BoundsSource::transition(state.symbol, target),
         StateValues {
             state: destination.symbol,
+            field_sources: Vec::new(),
             values,
             bounds,
             fields,
@@ -468,6 +484,7 @@ pub(super) fn record_invocation<'plans>(
         source,
         StateValues {
             state: destination.symbol,
+            field_sources: Vec::new(),
             fields: Vec::new(),
             qualifications: Vec::new(),
             predicates: Vec::new(),
@@ -713,6 +730,7 @@ fn ensure_input_row(
     }
     build.state_value_inputs.push(StateValues {
         state: destination.symbol,
+        field_sources: Vec::new(),
         values: program
             .state_parameters(destination)
             .iter()

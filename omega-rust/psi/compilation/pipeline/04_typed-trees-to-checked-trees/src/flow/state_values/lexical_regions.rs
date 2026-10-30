@@ -63,14 +63,11 @@ pub(in crate::flow) fn record<'plans>(
                     // by lexical containment: the call's own recorded arguments
                     // are the capture roster under its operand evidence epoch.
                     None => {
-                        super::lexical_scope_covers_call(
-                            program,
-                            machine.symbol,
-                            owner.symbol,
-                        ) && validation::call_site_argument_expressions(program, &site)
-                            .iter()
-                            .copied()
-                            .eq(captured.iter().map(|value| value.expression))
+                        super::lexical_scope_covers_call(program, machine.symbol, owner.symbol)
+                            && validation::call_site_argument_expressions(program, &site)
+                                .iter()
+                                .copied()
+                                .eq(captured.iter().map(|value| value.expression))
                     }
                 }
         })
@@ -79,71 +76,92 @@ pub(in crate::flow) fn record<'plans>(
         && captured.iter().all(|value| {
             value.state_symbol == state.symbol && value.statement_index == call.statement_index
         });
-    let values = parameters
-        .iter()
-        .zip(0..)
-        .map(|(parameter, ordinal)| {
-            let observed = authenticated
-                .then(|| captured.get(ordinal))
-                .flatten()
-                .and_then(|capture| {
-                    let completed =
-                        super::completed_argument_facts(program, build, capture, invocation)?;
-                    // Every retained alternative must agree at this read cut.
-                    // A missing candidate is unknown, not a narrower predecessor.
-                    let mut values = completed.places.iter().map(|place| {
-                        crate::values::scalar_value_at_place(
-                            program,
-                            semantic,
-                            completed
-                                .contexts
-                                .iter()
-                                .map(|context| semantic.contexts.get(*context)),
-                            &place.projected,
-                        )
-                        .or_else(|| super::literal(program, capture.expression))
+    // Prepare each completed operand once. Scalars, bounds, qualifications
+    // and field observations share that exact value/referent epoch; none may
+    // reconstruct an earlier argument from the final invocation environment.
+    let mut values = Vec::new();
+    let mut bounds = Vec::new();
+    let mut fields = Vec::new();
+    let mut qualifications = Vec::new();
+    for (ordinal, parameter) in parameters.iter().enumerate() {
+        let capture = captured.get(ordinal);
+        let completed = authenticated
+            .then(|| capture)
+            .flatten()
+            .and_then(|capture| {
+                super::completed_argument_facts(program, build, capture, invocation)
+            });
+        let observed = capture
+            .zip(completed.as_ref())
+            .and_then(|(capture, completed)| {
+                // Every retained alternative must agree; absence is unknown.
+                let mut values = completed.places.iter().map(|place| {
+                    crate::values::scalar_value_at_place(
+                        program,
+                        semantic,
+                        completed
+                            .contexts
+                            .iter()
+                            .map(|context| semantic.contexts.get(*context)),
+                        &place.projected,
+                    )
+                    .or_else(|| super::literal(program, capture.expression))
+                });
+                let first = values.next()??;
+                values
+                    .all(|value| value.as_ref() == Some(&first))
+                    .then_some(first)
+            })
+            .unwrap_or(ScalarValue::Unknown);
+        let interval = match &observed {
+            ScalarValue::Integer(value) => Some(facts::IntegerRange {
+                minimum: value.clone(),
+                maximum: value.clone(),
+            }),
+            _ => completed.as_ref().and_then(|completed| {
+                let mut joined: Option<facts::IntegerRange> = None;
+                for place in &completed.places {
+                    let incoming = crate::values::integer_bounds_at_place(
+                        program,
+                        semantic,
+                        completed
+                            .contexts
+                            .iter()
+                            .map(|context| semantic.contexts.get(*context)),
+                        &place.projected,
+                    )?;
+                    joined = Some(match joined {
+                        None => incoming,
+                        Some(previous) => facts::IntegerRange {
+                            minimum: previous.minimum.min(incoming.minimum),
+                            maximum: previous.maximum.max(incoming.maximum),
+                        },
                     });
-                    let first = values.next()??;
-                    values
-                        .all(|value| value.as_ref() == Some(&first))
-                        .then_some(first)
-                })
-                .unwrap_or(ScalarValue::Unknown);
-            (parameter.symbol, observed)
-        })
-        .collect();
-    // Authenticated captures replay their own operand evidence epochs, so a
-    // live predicate below an argument's denoted place re-roots at the
-    // destination parameter exactly the way its scalar read does.
-    let qualifications = authenticated
-        .then(|| {
-            parameters
-                .iter()
-                .zip(0..)
-                .flat_map(|(parameter, ordinal)| {
-                    captured
-                        .get(ordinal)
-                        .and_then(|capture| {
-                            super::completed_argument_facts(
-                                program, build, capture, invocation,
-                            )
-                            .map(|completed| (capture, completed))
-                        })
-                        .map(|(capture, completed)| {
-                            super::qualifications::capture_completed_argument(
-                                program,
-                                semantic,
-                                build,
-                                capture,
-                                &completed,
-                                parameter.symbol,
-                            )
-                        })
-                        .unwrap_or_default()
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+                }
+                joined
+            }),
+        };
+        values.push((parameter.symbol, observed));
+        bounds.push(super::ParameterBounds::new(parameter.symbol, interval));
+        if let Some((capture, completed)) = capture.zip(completed.as_ref()) {
+            fields.extend(super::fields::capture_completed_argument(
+                program,
+                semantic,
+                build,
+                capture,
+                completed,
+                parameter.symbol,
+            ));
+            qualifications.extend(super::qualifications::capture_completed_argument(
+                program,
+                semantic,
+                build,
+                capture,
+                completed,
+                parameter.symbol,
+            ));
+        }
+    }
     let source =
         fields::BoundsSource::invocation(state.symbol, call.statement_index, call.call_ordinal);
     // Bad or unavailable custody is an unknown incoming edge, never a missing
@@ -156,9 +174,10 @@ pub(in crate::flow) fn record<'plans>(
         source,
         StateValues {
             state: destination.symbol,
+            field_sources: Vec::new(),
             values,
-            bounds: Vec::new(),
-            fields: Vec::new(),
+            bounds,
+            fields,
             qualifications,
             predicates: Vec::new(),
             entry_paths: crate::facts::boolean_predicates::EntryPaths::unknown(),
