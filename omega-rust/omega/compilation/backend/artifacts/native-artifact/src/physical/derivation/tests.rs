@@ -1698,20 +1698,25 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
         callback_function: MachineFunctionIdentity::default(),
         relocation: callback_relocation(23),
     });
-    let with_callback = |callback| {
+    // Every mutation below keeps the committed locator, boundary plan, object
+    // symbol, geometry, and byte geometry; only a named coordinate moves.
+    let with_coordinates = |origin: RelocationOrigin,
+                            callback: Option<NormalizedForeignCallbackRelocations>,
+                            final_image_symbol_identity: [u8; 32]| {
         foreign(
             [9; 32],
             [11; 32],
             ObjectSymbolHandle::from_arena_index(3),
-            origin(7),
+            origin,
             13,
             4,
             -4,
             RelocationKind::X86_64Relative32,
             callback,
-            [29; 32],
+            final_image_symbol_identity,
         )
     };
+    let with_callback = |callback| with_coordinates(origin(7), callback, [29; 32]);
     let with_custody = |locator: [u8; 32], boundary: [u8; 32], symbol| {
         foreign(
             locator,
@@ -1753,45 +1758,20 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
             // Origin drift: a different operation identity, a different
             // origin namespace carrying the same coordinate, or a
             // different owning symbol.
-            4 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(8),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
-            5 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
+            4 => with_coordinates(origin(8), callback, [29; 32]),
+            5 => with_coordinates(
                 RelocationOrigin::SemanticEdge {
                     function_symbol_handle: ObjectSymbolHandle::from_arena_index(5),
                     edge_identity: 7,
                 },
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
                 callback,
                 [29; 32],
             ),
-            6 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
+            6 => with_coordinates(
                 RelocationOrigin::SemanticOperation {
                     function_symbol_handle: ObjectSymbolHandle::from_arena_index(6),
                     operation_identity: 7,
                 },
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
                 callback,
                 [29; 32],
             ),
@@ -1839,18 +1819,7 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
     // The final-image symbol identity is retained beside the relocation
     // rather than inside it.
     assert_ne!(
-        child_identity(foreign(
-            [9; 32],
-            [11; 32],
-            ObjectSymbolHandle::from_arena_index(3),
-            origin(7),
-            13,
-            4,
-            -4,
-            RelocationKind::X86_64Relative32,
-            callback,
-            [30; 32],
-        )),
+        child_identity(with_coordinates(origin(7), callback, [30; 32])),
         expected,
         "final-image symbol identity mutation"
     );
