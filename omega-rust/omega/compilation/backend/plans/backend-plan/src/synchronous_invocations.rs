@@ -32,10 +32,14 @@ impl SynchronousBoundaryTarget {
                 package,
                 application: Some(application),
                 ..
-            } => schema.receiver_applications.iter().any(|receiver| {
-                schema.identity_text(receiver.application) == application
-                    && receiver.trait_package_identity == *package
-            }),
+            } => schema
+                .declaration
+                .receiver_applications
+                .iter()
+                .any(|receiver| {
+                    schema.identity_text(receiver.application) == application
+                        && receiver.trait_package_identity == *package
+                }),
             Self::Application {
                 declaration,
                 package,
@@ -45,10 +49,14 @@ impl SynchronousBoundaryTarget {
                     schema.identity_text(name) == declaration
                         && (package.is_none() || owner == *package)
                 };
-                matches(schema.trait_name, schema.trait_package_identity)
-                    || schema.receiver_applications.iter().any(|receiver| {
-                        matches(receiver.trait_name, receiver.trait_package_identity)
-                    })
+                matches(
+                    schema.declaration.trait_name,
+                    schema.declaration.trait_package_identity,
+                ) || schema
+                    .declaration
+                    .receiver_applications
+                    .iter()
+                    .any(|receiver| matches(receiver.trait_name, receiver.trait_package_identity))
             }
         }
     }
@@ -89,6 +97,7 @@ pub fn validate_selected_synchronous_invocation_cycles<'plan>(
         for binding in &source.rows {
             let methods = source
                 .schema
+                .declaration
                 .methods
                 .iter()
                 .filter(|method| {
@@ -148,7 +157,7 @@ pub fn validate_selected_synchronous_invocation_cycles<'plan>(
                     _ => diagnostics.push(diagnostics::Diagnostic::error(format!(
                         "selected synchronous invocation `{}` from `{}::{}` is ambiguous across {} package-qualified boundary slots",
                         invoked.description(),
-                        source.schema.identity_text(source.schema.trait_name),
+                        source.schema.identity_text(source.schema.declaration.trait_name),
                         method.name,
                         matching_targets.len(),
                     ))),
@@ -171,13 +180,11 @@ pub fn validate_selected_synchronous_invocation_cycles<'plan>(
                 .map(|index| {
                     selected[*index]
                         .schema
-                        .identity_text(selected[*index].schema.trait_name)
+                        .identity_text(selected[*index].schema.declaration.trait_name)
                 })
-                .chain(std::iter::once(
-                    selected[cycle[0]]
-                        .schema
-                        .identity_text(selected[cycle[0]].schema.trait_name),
-                ))
+                .chain(std::iter::once(selected[cycle[0]].schema.identity_text(
+                    selected[cycle[0]].schema.declaration.trait_name,
+                )))
                 .collect::<Vec<_>>()
                 .join(" -> ");
             return Err(vec![diagnostics::Diagnostic::error(format!(
@@ -214,7 +221,11 @@ fn exact_selected_synchronous_plans<'plan>(
 
     let mut seen_schemas = Vec::new();
     for plan in &selected {
-        if plan.schema.identity_text(plan.schema.trait_name).is_empty() {
+        if plan
+            .schema
+            .identity_text(plan.schema.declaration.trait_name)
+            .is_empty()
+        {
             diagnostics.push(diagnostics::Diagnostic::error(format!(
                 "selected synchronous-invocation ProviderPlan `{}` has an empty exact schema identity",
                 plan.name,
@@ -225,7 +236,7 @@ fn exact_selected_synchronous_plans<'plan>(
         if seen_schemas.contains(&schema_identity) {
             diagnostics.push(diagnostics::Diagnostic::error(format!(
                 "selected synchronous-invocation schema `{}` is realized by more than one selected ProviderPlan",
-                plan.schema.identity_text(plan.schema.trait_name),
+                plan.schema.identity_text(plan.schema.declaration.trait_name),
             )));
             continue;
         }
@@ -278,6 +289,7 @@ pub fn exact_row_for_schema_method<'plan>(
     }
     let method_count = plan
         .schema
+        .declaration
         .methods
         .iter()
         .filter(|candidate| candidate.requirement_identity == method.requirement_identity)

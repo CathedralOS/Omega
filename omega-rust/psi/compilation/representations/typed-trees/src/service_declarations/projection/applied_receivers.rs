@@ -6,11 +6,12 @@
 //! provider plan. The source derivation and review replay establish these views;
 //! the digest commits to them without turning an annotation into authority.
 
-use checked_trees::typed_trees::trait_definition::AppliedTraitScope;
-use effects::provider_plan::{ProviderIdentityTable, ServiceReceiverApplication};
+use crate::trait_definition::AppliedTraitScope;
+use language_semantics::service_surface::ServiceReceiverApplication;
+use language_semantics::service_surface::identities::ProviderIdentityTable;
 
 pub(super) fn collect_scopes<'program>(
-    program: &'program checked_trees::typed_trees::TypedTrees,
+    program: &'program crate::TypedTrees,
     root: AppliedTraitScope<'program>,
 ) -> Option<Vec<AppliedTraitScope<'program>>> {
     let mut scopes: Vec<AppliedTraitScope<'_>> = Vec::new();
@@ -31,7 +32,7 @@ pub(super) fn collect_scopes<'program>(
 }
 
 pub(super) fn receiver_applications(
-    program: &checked_trees::typed_trees::TypedTrees,
+    program: &crate::TypedTrees,
     scopes: &[AppliedTraitScope<'_>],
     identities: &mut ProviderIdentityTable,
 ) -> Option<Vec<ServiceReceiverApplication>> {

@@ -38,7 +38,7 @@ fn selected_numeric_execution(
         )));
     };
     let slot = &requirement.requirement_identity;
-    let [method] = plan.schema.methods.as_slice() else {
+    let [method] = plan.schema.declaration.methods.as_slice() else {
         return Err(Diagnostic::error(format!(
             "selected ProviderPlan `{}` must retain exactly one schema method for a compiler intrinsic",
             plan.name,

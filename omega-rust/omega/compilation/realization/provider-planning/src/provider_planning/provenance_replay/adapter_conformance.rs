@@ -50,6 +50,7 @@ pub fn selected_requirement_checked_adapter<'typed>(
     let trait_identity = trait_method
         .map(|(owner, method)| typed.trait_requirement_callable_identity_text(owner, method));
     let methods = schema
+        .declaration
         .methods
         .iter()
         .filter(|method| {
@@ -70,7 +71,7 @@ pub fn selected_requirement_checked_adapter<'typed>(
             plan.name,
         )));
     }
-    if plan.schema != schema || plan.rows.len() != schema.methods.len() {
+    if plan.schema != schema || plan.rows.len() != schema.declaration.methods.len() {
         return Err(diagnostics::Diagnostic::error(format!(
             "selected build-time operator ProviderPlan `{}` does not bind exact overload `{}`",
             plan.name,
@@ -79,7 +80,7 @@ pub fn selected_requirement_checked_adapter<'typed>(
     }
     // A trait owns one plan for all its methods. Select the demanded exact
     // coordinate without requiring the whole trait to be a singleton slot.
-    for method in &schema.methods {
+    for method in &schema.declaration.methods {
         exact_row_for_schema_method(plan, method)?;
     }
     let row = exact_row_for_schema_method(plan, required_method)?;
@@ -173,7 +174,8 @@ pub fn exact_checked_adapter<'typed>(
             return Err(diagnostics::Diagnostic::error(format!(
                 "checked adapter `{}` for `{}::{}` is absent from typed machines",
                 plan.identity_text(*machine_identity),
-                plan.schema.identity_text(plan.schema.trait_name),
+                plan.schema
+                    .identity_text(plan.schema.declaration.trait_name),
                 row.method,
             )));
         }

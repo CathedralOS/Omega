@@ -268,7 +268,7 @@ fn derive_top_level_requirement_plans(
             let requirement_identity = typed
                 .machine_callable_identity_text(requirement)
                 .unwrap_or_default();
-            let [schema_method] = schema.methods.as_slice() else {
+            let [schema_method] = schema.declaration.methods.as_slice() else {
                 continue;
             };
             if requirement_identity.is_empty()
@@ -299,7 +299,7 @@ fn derive_top_level_requirement_plans(
             let target = selected_target.unwrap_or_default().to_owned();
             let plan_name = satisfies_plan_name(
                 &target,
-                schema.identity_text(schema.trait_name),
+                schema.identity_text(schema.declaration.trait_name),
                 &provider_type,
             );
             let position = derived_plan_position(
@@ -356,11 +356,12 @@ fn provider_plan_schema_target(
         context.typed.traits().iter().find(|definition| {
             definition.is_boundary && definition.symbol == satisfied_trait_symbol
         })?;
-    let schema =
-        crate::service_schema::from_typed_instance(context, calling_plans, definition, &[])?;
+    let schema = crate::service_schema::from_typed(context, calling_plans, definition)?;
     Some((
         ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
-        schema.identity_text(schema.trait_name).to_owned(),
+        schema
+            .identity_text(schema.declaration.trait_name)
+            .to_owned(),
         schema,
     ))
 }
@@ -424,7 +425,7 @@ fn derive_boundary_operator_plans(
             let provider_type = typed.attached_data_path(machine).unwrap_or_default();
             let plan_name = satisfies_plan_name(
                 &target,
-                schema.identity_text(schema.trait_name),
+                schema.identity_text(schema.declaration.trait_name),
                 &provider_type,
             );
             let position = derived_plan_position(
@@ -449,7 +450,7 @@ fn derive_boundary_operator_plans(
             let binding = binding.resolve(&mut plans[position].plan.identities);
             let requirement_identity = mint_plan_row_identity(
                 &mut plans[position].plan,
-                schema.identity_text(schema.methods[0].requirement_identity),
+                schema.identity_text(schema.declaration.methods[0].requirement_identity),
             );
             plans[position].plan.rows.push(ProviderPlanRow {
                 method: "realize".to_owned(),

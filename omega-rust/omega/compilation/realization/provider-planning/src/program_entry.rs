@@ -851,7 +851,7 @@ fn target_owned_physical_contract_source(
                 && schema_source_file.package_identity == Some(binding.package())
                 && typed.symbols.symbol_package_identity(schema) == Some(binding.package())
                 && typed.symbols.display_path(schema, "::") == binding.declaration_path()
-                && service_schema.trait_package_identity == Some(binding.package())
+                && service_schema.declaration.trait_package_identity == Some(binding.package())
                 && package_compilation::accepted_service_schema_digest(
                     binding.role(),
                     service_schema,

@@ -25,24 +25,7 @@ use crate::provider_planning::provenance_replay::plan_derivation::derive_provide
 use language_semantics::direct_calls::DirectCallDeclarations;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProviderSchemaDeclaration {
-    BoundaryTrait(symbols::SymbolHandle),
-    BoundaryRequirement(symbols::SymbolHandle),
-    BoundaryOperator(symbols::SymbolHandle),
-    SealedPlacedAccessor(symbols::SymbolHandle),
-}
-
-impl ProviderSchemaDeclaration {
-    pub const fn symbol(self) -> symbols::SymbolHandle {
-        match self {
-            Self::BoundaryTrait(symbol)
-            | Self::BoundaryRequirement(symbol)
-            | Self::BoundaryOperator(symbol)
-            | Self::SealedPlacedAccessor(symbol) => symbol,
-        }
-    }
-}
+pub use checked_trees::typed_trees::service_declarations::ProviderSchemaDeclaration;
 
 /// A row's supplying owner. Native Build rows own an evaluated intent, never
 /// an invented bodyless machine; toolchain settlement likewise has no source body.

@@ -114,7 +114,7 @@ fn project_plan(
     let schema_declaration = nominal_identity(compilation, retained.provider.schema.symbol())?;
     validate_selected_provider_declaration_owner(
         &schema_declaration,
-        plan.schema.trait_package_identity,
+        plan.schema.declaration.trait_package_identity,
         &plan.name,
         "service schema",
     )?;
@@ -143,9 +143,9 @@ fn project_plan(
             && (plan.provider_type.is_empty() || toolchain_settled) => {}
         None => return Err(rejected("provider type has no exact declaration")),
     }
-    let mut methods = Vec::with_capacity(plan.schema.methods.len());
+    let mut methods = Vec::with_capacity(plan.schema.declaration.methods.len());
     let mut signatures = services::SignatureProjection::new(*compilation);
-    for method in &plan.schema.methods {
+    for method in &plan.schema.declaration.methods {
         let matching_rows = plan
             .rows
             .iter()
@@ -171,7 +171,7 @@ fn project_plan(
             retained.provider.provider_type,
             retained.provider.row_requirements[*index],
             method,
-            &plan.schema.identities,
+            &plan.schema.declaration.identities,
         )?);
     }
     let mut rows = rows::project(
@@ -227,7 +227,8 @@ fn normalized_plan_name(
     };
     let generated = provider_planning::satisfies_plan_name(
         &plan.target,
-        plan.schema.identity_text(plan.schema.trait_name),
+        plan.schema
+            .identity_text(plan.schema.declaration.trait_name),
         &plan.provider_type,
     );
     if plan.name != generated {

@@ -314,21 +314,22 @@ mod tests {
             ..ProviderPlan::default()
         };
         plan.provider_application = plan.identities.intern("Provider<opaque>");
-        plan.schema.trait_name = plan.schema.identities.intern("Boundary");
-        let requirement = plan.schema.identities.intern("Boundary::consume(opaque)");
-        let application = plan.schema.identities.intern("Boundary<opaque>");
-        let argument = plan.schema.identities.intern("opaque");
-        plan.schema
+        let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+        declaration.trait_name = declaration.identities.intern("Boundary");
+        let requirement = declaration.identities.intern("Boundary::consume(opaque)");
+        let application = declaration.identities.intern("Boundary<opaque>");
+        let argument = declaration.identities.intern("opaque");
+        declaration
             .receiver_applications
             .push(ServiceReceiverApplication {
                 application,
-                trait_name: plan.schema.trait_name,
+                trait_name: declaration.trait_name,
                 trait_package_identity: None,
                 argument_identities: vec![argument],
                 lifetime_argument_identities: Vec::new(),
                 requirement_identities: vec![requirement],
             });
-        plan.schema.methods.push(ServiceMethod {
+        declaration.methods.push(ServiceMethod {
             name: "consume".into(),
             requirement_owner: "Boundary".into(),
             requirement_identity: requirement,
@@ -373,16 +374,17 @@ mod tests {
     fn applied_provider_and_receiver_remain_in_the_complete_commitment() {
         let mut plan = selected_plan();
         plan.provider_application = plan.identities.intern("Provider<u64>");
-        let application = plan.schema.identities.intern("Boundary<u64>");
-        plan.schema
+        let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+        let application = declaration.identities.intern("Boundary<u64>");
+        declaration
             .receiver_applications
             .push(super::super::ServiceReceiverApplication {
                 application,
-                trait_name: plan.schema.trait_name,
+                trait_name: declaration.trait_name,
                 trait_package_identity: None,
-                argument_identities: vec![plan.schema.identities.intern("u64")],
+                argument_identities: vec![declaration.identities.intern("u64")],
                 lifetime_argument_identities: vec![],
-                requirement_identities: vec![plan.schema.methods[0].requirement_identity],
+                requirement_identities: vec![declaration.methods[0].requirement_identity],
             });
         assert!(plan.validate_against_schema().is_empty());
         let bytes = plan.identity_preimage();
@@ -456,18 +458,19 @@ mod tests {
     fn retained_plan_reads_complete_applied_identity_framing() {
         let mut plan = selected_plan();
         plan.provider_application = plan.identities.intern("Provider<Payload,'caller>");
-        let application = plan.schema.identities.intern("Boundary<Payload,'caller>");
-        let argument = plan.schema.identities.intern("Payload");
-        let lifetime = plan.schema.identities.intern("'caller");
-        plan.schema
+        let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+        let application = declaration.identities.intern("Boundary<Payload,'caller>");
+        let argument = declaration.identities.intern("Payload");
+        let lifetime = declaration.identities.intern("'caller");
+        declaration
             .receiver_applications
             .push(super::super::ServiceReceiverApplication {
                 application,
-                trait_name: plan.schema.trait_name,
-                trait_package_identity: plan.schema.trait_package_identity,
+                trait_name: declaration.trait_name,
+                trait_package_identity: declaration.trait_package_identity,
                 argument_identities: vec![argument],
                 lifetime_argument_identities: vec![lifetime],
-                requirement_identities: vec![plan.schema.methods[0].requirement_identity],
+                requirement_identities: vec![declaration.methods[0].requirement_identity],
             });
         assert!(plan.validate_against_schema().is_empty());
         let bytes = plan.identity_preimage();

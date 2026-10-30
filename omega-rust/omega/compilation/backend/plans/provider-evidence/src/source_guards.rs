@@ -2,9 +2,8 @@
 //! schemas store program-owned identities once in `ProviderIdentityTable`;
 //! interned rows carry `ProviderIdentityId` handles and render text through
 //! `identities.text(..)` / `identity_text(..)` only at report and codec
-//! boundaries. `ProviderPlanRow::requirement_identity` is exempt by design: it
-//! is the row's canonical rendered text, not an interned identity. The
-//! forbidden needles are assembled at runtime so this file never contains
+//! boundaries. Neutral declaration storage in Psi follows the same contract.
+//! The forbidden needles are assembled at runtime so this file never contains
 //! them verbatim. The scan itself is shared (`source_audit`); this file owns
 //! only its needles, its roots and its boundary exemptions.
 
@@ -12,6 +11,14 @@ use source_audit::{source_lines, violations};
 
 /// The crate whose sources these guards pin.
 const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
+
+/// The neutral declaration moved to Psi; its storage guards must follow it.
+fn service_surface_owner() -> String {
+    std::path::Path::new(CRATE_ROOT)
+        .join("../../../../../psi/foundation/language-semantics")
+        .to_string_lossy()
+        .into_owned()
+}
 
 /// The `field: <shape>` declaration needles `field` must never carry.
 fn text_shapes(field: &str) -> Vec<String> {
@@ -27,12 +34,14 @@ fn text_shapes(field: &str) -> Vec<String> {
 #[test]
 fn interned_fields_hold_provider_identity_ids() {
     let mut missing = Vec::new();
+    let mut declarations = source_lines(CRATE_ROOT, "provider_evidence/providers");
+    declarations.extend(source_lines(&service_surface_owner(), "service_surface.rs"));
     for needle in [
         format!("trait_name: {}", "ProviderIdentityId"),
         format!("requirement_identity: {}", "ProviderIdentityId"),
         format!("machine_identity: {}", "ProviderIdentityId"),
     ] {
-        if !source_lines(CRATE_ROOT, "provider_evidence/providers")
+        if !declarations
             .iter()
             .any(|(_, _, line)| line.contains(needle.as_str()))
         {
@@ -51,7 +60,14 @@ fn interned_fields_hold_provider_identity_ids() {
 fn provider_types_carry_no_text_trait_or_machine_identities() {
     let mut forbidden = text_shapes("trait_name");
     forbidden.extend(text_shapes("machine_identity"));
-    let violations = violations(CRATE_ROOT, "provider_evidence/providers", &forbidden, &[]);
+    let mut findings = violations(CRATE_ROOT, "provider_evidence/providers", &forbidden, &[]);
+    findings.extend(violations(
+        &service_surface_owner(),
+        "service_surface.rs",
+        &forbidden,
+        &[],
+    ));
+    let violations = findings;
     assert!(
         violations.is_empty(),
         "provider types must carry interned identity ids, not text: {violations:?}"
@@ -59,17 +75,23 @@ fn provider_types_carry_no_text_trait_or_machine_identities() {
 }
 
 /// `requirement_identity` is interned on `ServiceMethod` and
-/// `ServiceProgressEstablishmentRoute`; `ProviderPlanRow` deliberately keeps
-/// its canonical rendered text in `provider_plan.rs`, so the text ban covers
-/// the interned declarations' file only.
+/// `ServiceProgressEstablishmentRoute`. Scan their new Psi owner as well as
+/// Omega so moving a declaration cannot make the guard pass vacuously.
 #[test]
 fn service_schemas_carry_no_text_requirement_identities() {
-    let violations = violations(
+    let mut findings = violations(
         CRATE_ROOT,
         "provider_evidence/providers/provider_plan/service_schemas.rs",
         &text_shapes("requirement_identity"),
         &[],
     );
+    findings.extend(violations(
+        &service_surface_owner(),
+        "service_surface.rs",
+        &text_shapes("requirement_identity"),
+        &[],
+    ));
+    let violations = findings;
     assert!(
         violations.is_empty(),
         "service schemas must carry interned identity ids, not text: {violations:?}"
@@ -90,19 +112,22 @@ const ALLOWED: &[(&str, &str)] = &[(
 /// boundary declarations pinned in `ALLOWED`.
 #[test]
 fn crate_carries_no_string_identity_fields() {
-    let violations = violations(
-        CRATE_ROOT,
-        "",
-        &[
-            concat!("identity", ": String"),
-            concat!("identity", ": Option<String>"),
-            concat!("identity", ": Vec<String>"),
-            concat!("identities", ": Vec<String>"),
-            concat!("identities", ": HashSet<String>"),
-            concat!("identities", ": BTreeSet<String>"),
-        ],
-        ALLOWED,
-    );
+    let forbidden = [
+        concat!("identity", ": String"),
+        concat!("identity", ": Option<String>"),
+        concat!("identity", ": Vec<String>"),
+        concat!("identities", ": Vec<String>"),
+        concat!("identities", ": HashSet<String>"),
+        concat!("identities", ": BTreeSet<String>"),
+    ];
+    let mut findings = violations(CRATE_ROOT, "", &forbidden, ALLOWED);
+    findings.extend(violations(
+        &service_surface_owner(),
+        "service_surface.rs",
+        &forbidden,
+        &[],
+    ));
+    let violations = findings;
     assert!(
         violations.is_empty(),
         "durable rows must carry interned identity indices, not text: {violations:?}"

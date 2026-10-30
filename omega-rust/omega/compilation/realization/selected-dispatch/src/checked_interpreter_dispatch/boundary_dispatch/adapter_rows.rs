@@ -117,6 +117,7 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
     }
     let methods = plan
         .schema
+        .declaration
         .methods
         .iter()
         .filter(|method| plan.schema.row_binds_method(row, method, &plan.identities))
@@ -155,7 +156,8 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
         many => {
             return Err(Diagnostic::error(format!(
                 "selected checked-adapter selected schema `{}` resolves to {} exact top-level boundary requirements",
-                plan.schema.identity_text(plan.schema.trait_name),
+                plan.schema
+                    .identity_text(plan.schema.declaration.trait_name),
                 many.len(),
             )));
         }
@@ -163,8 +165,9 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
 
     let receiver_trait = exact_boundary_trait(
         typed,
-        plan.schema.identity_text(plan.schema.trait_name),
-        plan.schema.trait_package_identity,
+        plan.schema
+            .identity_text(plan.schema.declaration.trait_name),
+        plan.schema.declaration.trait_package_identity,
         "selected schema",
     )?;
     let requirement_owner = exact_boundary_trait(
