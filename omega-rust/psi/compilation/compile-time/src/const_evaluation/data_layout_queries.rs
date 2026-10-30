@@ -64,6 +64,14 @@ pub(crate) fn has_pending_target_observations(
 /// Supplies a fresh measurement view for one query pass. Evaluation can install
 /// new authored plans between passes; contexts must not leak across that change.
 /// The provider measures storage only: Psi owns formation and source mutation.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct LayoutApplicationTargetInput {
+    /// Canonical identity export, never a Source spelling or lookup key for a
+    /// declaration. Forked program interners rehydrate it before handle joins.
+    pub application_identity: String,
+    pub target: layout_plans::LayoutTargetFacts,
+}
+
 pub trait LayoutQueryProvider {
     type Measurements: LayoutQueryMeasurements;
 
@@ -71,6 +79,11 @@ pub trait LayoutQueryProvider {
     /// Complete applicable target inputs, supplied by Omega's target catalog.
     fn layout_target_inputs(&self) -> Vec<layout_plans::LayoutTargetFacts> {
         Vec::new()
+    }
+    /// None is a host evaluation domain; Some is the complete explicit Product
+    /// application roster, including absence of a demand for a retained type.
+    fn layout_application_inputs(&self) -> Option<&[LayoutApplicationTargetInput]> {
+        None
     }
 }
 

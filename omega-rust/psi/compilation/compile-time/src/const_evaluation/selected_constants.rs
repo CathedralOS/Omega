@@ -38,7 +38,9 @@ impl<Layouts: LayoutQueryProvider> SelectedConstantEvaluationRequest<'_, Layouts
         let mut evaluated = Vec::with_capacity(self.pending.len());
         let layout_targets = self.layouts.layout_target_inputs();
         for continuation in self.pending {
-            let continuation = continuation.with_layout_targets(&layout_targets);
+            let continuation = continuation
+                .with_layout_targets(&layout_targets)
+                .with_layout_applications(self.layouts.layout_application_inputs());
             evaluated.push(continuation.evaluate_selected_operators(self.program, self.operators)?);
         }
         super::data_layout_queries::fold_data_layout_queries(

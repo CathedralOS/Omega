@@ -37,7 +37,8 @@ public data SchemaField where align >= 1, align <= 16 {
     kind: FieldKind;
 }
 
-// A schema: the fields of one data definition, in declaration order. At most
+// A schema: numbered fields follow stable identity order; unnumbered fields
+// follow declaration order. At most
 // 32 fields in the pilot slice (plan validation rejects more).
 // A schema field's SHAPE fact -- what a grammar policy needs to choose a
 // placement (a scalar varint-encodes; text/nested/repeated payloads are
@@ -764,6 +765,23 @@ satisfies Writable<PlacedField<T>, T>::write;
 // Authored code cannot construct this opaque compile-time input or gain
 // host services, private source access, storage backing or execution authority.
 public boundary data LayoutTarget;
+
+// An immutable borrowed snapshot of the compiler-issued policy context.
+// The context has no authored constructor or executable storage representation.
+public data LayoutTargetFacts<'target> [copy] {
+    profile: &'target [u8];
+    pointer_size: u64;
+    pointer_alignment: u64;
+    little_endian: bool;
+}
+
+// Semantic evaluation supplies the exact issuer's snapshot. This ordinary
+// primitive declaration exposes its checked result shape; it grants no target,
+// storage or Build authority to an authored value.
+public boundary machine layout_target_facts<'target>(target: &'target LayoutTarget)
+    -> LayoutTargetFacts<'target>
+reaches
+terminates;
 
 // The compiler retains and validates the exact semantic type, policy,
 // target and returned geometry; this adds no wrapper or independent T header.

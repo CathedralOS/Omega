@@ -52,8 +52,8 @@ impl<'program> LayoutBuilder<'program> {
                 // slices/text and `{instance, table}` for dynamic traits.
                 // Keeping only the instance pointer loses dispatch identity
                 // and disagrees with calling-policy parameter placement.
-                // References to sized carriers (including records containing
-                // a descriptor) remain thin pointers.
+                // Source references remain thin; engine-private scalar loan
+                // descriptors do not change this carrier's observable storage.
                 //
                 // A domain-constrained slice view (`&[u8] in Utf8`) is
                 // `Reference { Constrained { Slice } }`: the constraint is a

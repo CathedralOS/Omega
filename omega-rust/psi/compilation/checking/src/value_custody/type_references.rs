@@ -795,7 +795,14 @@ fn validate_type_reference_node(
                     &definition.conformance_bounds,
                     argument_handles,
                     lifetime_arguments,
-                    type_parameter_scope.lexical_owner,
+                    // The complete tuple belongs to its retained supplier,
+                    // including regions nested below this constructor. A
+                    // specialization's receiving machine cannot bind them.
+                    if type_parameter_scope.operand_lifetime_owner.is_valid() {
+                        type_parameter_scope.operand_lifetime_owner
+                    } else {
+                        type_parameter_scope.lexical_owner
+                    },
                     &format!("data `{base_name}`"),
                     diagnostics,
                 );

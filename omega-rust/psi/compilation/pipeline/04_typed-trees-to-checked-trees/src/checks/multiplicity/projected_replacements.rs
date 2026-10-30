@@ -411,7 +411,7 @@ fn append_descriptor_death(
         // Canonical selector identity is not disjointness: entries[i] may be
         // the selected entries[j]. Authenticate exclusions before either a
         // descriptor death OR a vacancy establishment can be published.
-        for excluded in remaining.removed_paths(program, place.root, &[]) {
+        for excluded in remaining.excluded_paths(place.root) {
             if place.segments.starts_with(excluded) || excluded.starts_with(&place.segments) {
                 return None;
             }

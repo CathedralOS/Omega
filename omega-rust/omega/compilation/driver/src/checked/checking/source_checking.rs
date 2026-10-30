@@ -30,7 +30,9 @@ pub(crate) fn check_product_source(
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let build = &computed_build_config.config;
     let symbol_sources = typed.symbols.source_map();
+    let layout_scopes = layout_target_scopes(build)?;
     let source_admission = psi_compiler::SourceAdmission {
+        layout_scopes: &layout_scopes,
         completion: match package_inputs.and_then(|inputs| {
             inputs.accepted_semantic_binding(
                 package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
@@ -138,4 +140,68 @@ pub(crate) fn check_product_source(
         },
         product_selection,
     })
+}
+
+/// Build entries and authored provider choices delimit deployment applicability.
+/// Layout facts come from the explicit target catalog, never the build host.
+fn layout_target_scopes(
+    build: &compilation_products::BuildConfig,
+) -> Result<Vec<build_time_evaluation::FixedLayoutTargetScope>, Vec<Diagnostic>> {
+    let mut scopes: Vec<build_time_evaluation::FixedLayoutTargetScope> = Vec::new();
+    for binding in &build.root_bindings {
+        let (owner, _) = binding.slot.rsplit_once("::").ok_or_else(|| {
+            vec![Diagnostic::error(
+                "fixed representation scope has an invalid Build root slot",
+            )]
+        })?;
+        let profile =
+            target::TargetProfile::from_root_slot_owner(owner).map_err(|error| vec![error])?;
+        let facts = profile.layout_target_facts().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "target `{}` has no layout representation facts",
+                profile.target_name(),
+            ))]
+        })?;
+        if let Some(scope) = scopes.iter_mut().find(|scope| scope.target == facts) {
+            if !scope.roots.contains(&binding.implementation_symbol) {
+                scope.roots.push(binding.implementation_symbol);
+            }
+        } else {
+            scopes.push(build_time_evaluation::FixedLayoutTargetScope {
+                target: facts,
+                roots: vec![binding.implementation_symbol],
+            });
+        }
+    }
+    if scopes.is_empty() {
+        scopes.extend(
+            target::TargetProfile::ALL
+                .into_iter()
+                .filter_map(|profile| {
+                    profile.layout_target_facts().map(|target| {
+                        build_time_evaluation::FixedLayoutTargetScope {
+                            target,
+                            roots: Vec::new(),
+                        }
+                    })
+                }),
+        );
+    }
+    for selection in build
+        .provider_selections
+        .iter()
+        .chain(&build.package_provider_selections)
+    {
+        for scope in &mut scopes {
+            if selection
+                .target
+                .is_none_or(|target| target.canonical_name() == scope.target.profile)
+                && !scope.roots.is_empty()
+                && !scope.roots.contains(&selection.provider_type.symbol)
+            {
+                scope.roots.push(selection.provider_type.symbol);
+            }
+        }
+    }
+    Ok(scopes)
 }

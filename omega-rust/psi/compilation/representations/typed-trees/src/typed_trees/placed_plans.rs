@@ -295,12 +295,19 @@ pub struct PlanLaidLayout {
     pub realizations: PlanLaidRealizations,
 }
 
-/// Versioned active rows of the compiler-owned Schema ABI. Version 1 has a
-/// record shape, no cases or retired identities, and fixed unused-row padding.
+/// Versioned record input of the compiler-owned Schema ABI. Version 3
+/// canonically orders numbered fields and retired identities independently of
+/// the semantic declaration/geometry roster; unused rows are padded.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidSchemaArgument {
     pub abi_version: u16,
     pub fields: arena::HandleSpan<PlanLaidSchemaField>,
+    pub retired_field_identities: arena::HandleSpan<PlanLaidRetiredFieldIdentity>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct PlanLaidRetiredFieldIdentity {
+    pub identity: u64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -318,6 +325,7 @@ pub enum PlanLaidSchemaFieldKind {
     #[default]
     Scalar,
     Nested,
+    Repeated,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -329,6 +337,7 @@ pub enum PlanLaidRealizations {
 /// Exact member identity accompanies its geometry even for literal-only policies.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct PlanLaidTargetLayout {
+    pub schema_argument: Option<PlanLaidSchemaArgument>,
     pub target_facts: layout_plans::LayoutTargetFacts,
     pub target: crate::name::Identifier,
     pub machine: symbols::SymbolHandle,

@@ -283,7 +283,7 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
     if let Some(storage) = program.layout_storage_arguments(reference) {
         elaborate_value_fields(program, storage.semantic_type, &mut Vec::new());
         if let Some(mut semantic) = program
-            .closed_data_definition(storage.semantic_type)
+            .closed_data_field_definition(storage.semantic_type)
             .cloned()
         {
             // This is a field view of the original semantic application, not a

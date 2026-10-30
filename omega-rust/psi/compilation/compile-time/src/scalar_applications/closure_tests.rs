@@ -53,8 +53,18 @@ fn scalar_closure_does_not_admit_unchecked_entries_as_roots_or_callees() {
     let artifact = canonical(module);
     let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
     let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
-    let mut observations =
-        ScalarApplicationObservations::new(artifact.view(), &targets, &providers).unwrap();
+    let mut observations = ScalarApplicationObservations::new(
+        artifact.view(),
+        &targets,
+        &providers,
+        &terminal_installation::LayoutTargetFacts {
+            profile: targets.target().to_owned(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            little_endian: true,
+        },
+    )
+    .unwrap();
     let conditions = evaluate_scalar_applications(
         &mut observations,
         "macos_arm64",
@@ -94,8 +104,18 @@ fn scalar_closure_does_not_admit_unchecked_entries_as_roots_or_callees() {
             .expect("unchecked entry must refuse before execution");
         assert!(format!("{error:?}").contains("unchecked scalar entry 6"));
     }
-    let mut observations =
-        ScalarApplicationObservations::new(artifact.view(), &targets, &providers).unwrap();
+    let mut observations = ScalarApplicationObservations::new(
+        artifact.view(),
+        &targets,
+        &providers,
+        &terminal_installation::LayoutTargetFacts {
+            profile: targets.target().to_owned(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            little_endian: true,
+        },
+    )
+    .unwrap();
     let conditions = evaluate_scalar_applications(
         &mut observations,
         "macos_arm64",
@@ -172,8 +192,18 @@ fn scalar_closure_derives_supplemental_scope_from_shared_condition_owner() {
     let artifact = canonical(module);
     let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
     let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
-    let observations =
-        ScalarApplicationObservations::new(artifact.view(), &targets, &providers).unwrap();
+    let observations = ScalarApplicationObservations::new(
+        artifact.view(),
+        &targets,
+        &providers,
+        &terminal_installation::LayoutTargetFacts {
+            profile: targets.target().to_owned(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            little_endian: true,
+        },
+    )
+    .unwrap();
     let conditions = observations.conditions("macos_arm64", &[]).unwrap();
     assert_eq!(conditions.ranges(), &[0]);
     let mut closure = ScalarApplicationClosure::new(artifact.view(), "macos_arm64");
@@ -226,8 +256,18 @@ fn scalar_closure_supplies_resolved_extent_to_ordinary_entry_storage() {
     let artifact = canonical(module);
     let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
     let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
-    let mut observations =
-        ScalarApplicationObservations::new(artifact.view(), &targets, &providers).unwrap();
+    let mut observations = ScalarApplicationObservations::new(
+        artifact.view(),
+        &targets,
+        &providers,
+        &terminal_installation::LayoutTargetFacts {
+            profile: targets.target().to_owned(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            little_endian: true,
+        },
+    )
+    .unwrap();
     let conditions = evaluate_scalar_applications(
         &mut observations,
         "macos_arm64",
@@ -318,8 +358,18 @@ fn scalar_closure_admits_ordinary_execution_after_complete_checking() {
     let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
     for target in ["macos_arm64", "windows_x86_64"] {
         let targets = admit_target_machine_selections(artifact.view(), target);
-        let mut observations =
-            ScalarApplicationObservations::new(artifact.view(), &targets, &providers).unwrap();
+        let mut observations = ScalarApplicationObservations::new(
+            artifact.view(),
+            &targets,
+            &providers,
+            &terminal_installation::LayoutTargetFacts {
+                profile: targets.target().to_owned(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                little_endian: true,
+            },
+        )
+        .unwrap();
         let conditions = evaluate_scalar_applications(
             &mut observations,
             target,
@@ -338,9 +388,17 @@ fn scalar_closure_admits_ordinary_execution_after_complete_checking() {
             "macos_arm64"
         };
         let other_selections = admit_target_machine_selections(artifact.view(), other_target);
-        let other_layouts =
-            terminal_installation::admit_target_layouts(artifact.view(), &other_selections)
-                .unwrap();
+        let other_layouts = terminal_installation::admit_target_layouts(
+            artifact.view(),
+            &other_selections,
+            &layout_plans::LayoutTargetFacts {
+                profile: other_selections.target().to_owned(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                little_endian: true,
+            },
+        )
+        .unwrap();
         let program = TerminalProgram::borrow(artifact.view());
         let other_installation = program
             .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
@@ -450,8 +508,18 @@ fn scalar_closure_requires_supplemental_scopes_without_replacing_primary_values(
             closure.scopes().collect::<Vec<_>>(),
             vec!["macos_arm64", "windows_x86_64"]
         );
-        let mut observations =
-            ScalarApplicationObservations::new(artifact.view(), &macos, &providers).unwrap();
+        let mut observations = ScalarApplicationObservations::new(
+            artifact.view(),
+            &macos,
+            &providers,
+            &terminal_installation::LayoutTargetFacts {
+                profile: macos.target().to_owned(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                little_endian: true,
+            },
+        )
+        .unwrap();
         let conditions = evaluate_scalar_applications(
             &mut observations,
             "macos_arm64",
@@ -472,8 +540,18 @@ fn scalar_closure_requires_supplemental_scopes_without_replacing_primary_values(
             );
             continue;
         }
-        let mut observations =
-            ScalarApplicationObservations::new(artifact.view(), &windows, &providers).unwrap();
+        let mut observations = ScalarApplicationObservations::new(
+            artifact.view(),
+            &windows,
+            &providers,
+            &terminal_installation::LayoutTargetFacts {
+                profile: windows.target().to_owned(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                little_endian: true,
+            },
+        )
+        .unwrap();
         let conditions = evaluate_scalar_applications(
             &mut observations,
             "macos_arm64",
@@ -498,8 +576,18 @@ fn scalar_closure_refuses_false_debt_and_does_not_drop_evaluated_entry_condition
     let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
     let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
     for omit_entry_debt in [false, true] {
-        let mut observations =
-            ScalarApplicationObservations::new(artifact.view(), &targets, &providers).unwrap();
+        let mut observations = ScalarApplicationObservations::new(
+            artifact.view(),
+            &targets,
+            &providers,
+            &terminal_installation::LayoutTargetFacts {
+                profile: targets.target().to_owned(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                little_endian: true,
+            },
+        )
+        .unwrap();
         let conditions = evaluate_scalar_applications(
             &mut observations,
             "macos_arm64",
@@ -546,8 +634,18 @@ fn scalar_closure_requires_exact_address_model_inputs() {
     let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
     let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
     for model_target in [None, Some("windows_x86_64"), Some("macos_arm64")] {
-        let mut observations =
-            ScalarApplicationObservations::new(artifact.view(), &targets, &providers).unwrap();
+        let mut observations = ScalarApplicationObservations::new(
+            artifact.view(),
+            &targets,
+            &providers,
+            &terminal_installation::LayoutTargetFacts {
+                profile: targets.target().to_owned(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                little_endian: true,
+            },
+        )
+        .unwrap();
         let conditions = evaluate_scalar_applications(
             &mut observations,
             "macos_arm64",

@@ -23,6 +23,8 @@ fn optional_identity(identity: Option<u64>) -> BuildTimeValue {
 }
 
 fn padded_identities(identities: &[u64]) -> Vec<BuildTimeValue> {
+    let mut identities = identities.to_vec();
+    identities.sort_unstable();
     (0..SCHEMA_FIELD_CAPACITY)
         .map(|index| BuildTimeValue::Int(identities.get(index).copied().unwrap_or_default() as i64))
         .collect()
@@ -79,9 +81,10 @@ pub(crate) fn build_selected_schema_value(
     schema_fields: &[SchemaFieldInfo],
 ) -> Result<BuildTimeValue, String> {
     let schema_data = data.name.as_str();
+    let schema_fields = super::canonical_schema_fields(schema_fields);
     let mut fields = Vec::with_capacity(SCHEMA_FIELD_CAPACITY);
     for index in 0..SCHEMA_FIELD_CAPACITY {
-        fields.push(build_schema_field_value(schema_fields.get(index)));
+        fields.push(build_schema_field_value(schema_fields.get(index).copied()));
     }
     let variants = typed
         .data_members(data)

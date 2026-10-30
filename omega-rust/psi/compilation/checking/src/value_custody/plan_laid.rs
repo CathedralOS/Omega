@@ -51,7 +51,7 @@ pub(crate) fn validate_plans(
             continue;
         }
 
-        let Some(schema) = program.closed_data_definition(plan.semantic_type) else {
+        let Some(schema) = program.closed_data_field_definition(plan.semantic_type) else {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` no longer names its exact source schema identity",
                 plan.data_name
@@ -82,12 +82,10 @@ pub(crate) fn validate_plans(
             .iter()
             .zip(&schema_fields)
             .any(|(data_field, schema_field)| {
-                data_field.identity != schema_field.identity
-                    || (schema_field.identity.is_none()
-                        && data_field.name.as_str() != schema_field.name.as_str())
-                    || program.display_type_reference_with_constraints(data_field.type_reference)
-                        != program
-                            .display_type_reference_with_constraints(schema_field.type_reference)
+                data_field.symbol != schema_field.symbol
+                    || data_field.identity != schema_field.identity
+                    || program.normalized_type_identity(data_field.type_reference)
+                        != program.normalized_type_identity(schema_field.type_reference)
             })
         {
             diagnostics.push(Diagnostic::error(format!(
@@ -170,13 +168,52 @@ fn schema_argument_matches(
     plan: &typed_trees::PlanLaidLayout,
     schema_fields: &[&typed_trees::data::DataField],
 ) -> bool {
-    let Some(argument) = plan.schema_argument else {
-        return matches!(
-            plan.realizations,
-            typed_trees::PlanLaidRealizations::Invariant(_)
-        );
+    let Some(schema) = program.closed_data_field_definition(plan.semantic_type) else {
+        return false;
     };
-    if argument.abi_version != 1 {
+    let mut retired_identities = schema.retired_identities.clone();
+    retired_identities.sort_unstable();
+    let matches = |argument: typed_trees::PlanLaidSchemaArgument| {
+        program
+            .plan_laid_retired_field_identities
+            .span(argument.retired_field_identities)
+            .is_some_and(|rows| {
+                rows.iter()
+                    .map(|row| row.identity)
+                    .eq(retired_identities.iter().copied())
+            })
+            && schema_argument_rows_match(program, argument, schema_fields)
+    };
+    let arguments = match plan.realizations {
+        typed_trees::PlanLaidRealizations::Invariant(_) => {
+            return plan
+                .schema_argument
+                .is_none_or(|argument| matches(argument));
+        }
+        typed_trees::PlanLaidRealizations::TargetInputs(span) => {
+            let Some(targets) = program.plan_laid_target_layouts.span(span) else {
+                return false;
+            };
+            if plan.schema_argument.is_some() {
+                return false;
+            }
+            targets
+                .iter()
+                .map(|target| target.schema_argument)
+                .collect::<Vec<_>>()
+        }
+    };
+    arguments
+        .iter()
+        .all(|argument| argument.is_some_and(matches))
+}
+
+fn schema_argument_rows_match(
+    program: &dyn crate::CheckingInput,
+    argument: typed_trees::PlanLaidSchemaArgument,
+    schema_fields: &[&typed_trees::data::DataField],
+) -> bool {
+    if argument.abi_version != 3 {
         return false;
     }
     let Some(rows) = program.plan_laid_schema_fields.span(argument.fields) else {
@@ -185,8 +222,33 @@ fn schema_argument_matches(
     if rows.len() != schema_fields.len() || rows.len() > 32 {
         return false;
     }
+    let Some(retired) = program
+        .plan_laid_retired_field_identities
+        .span(argument.retired_field_identities)
+    else {
+        return false;
+    };
+    if retired.len() > 32
+        || retired.iter().enumerate().any(|(index, row)| {
+            retired[..index]
+                .iter()
+                .any(|previous| previous.identity == row.identity)
+                || schema_fields
+                    .iter()
+                    .any(|field| field.identity == Some(row.identity))
+        })
+    {
+        return false;
+    }
+    let mut canonical_fields = schema_fields.to_vec();
+    if canonical_fields
+        .iter()
+        .any(|field| field.identity.is_some())
+    {
+        canonical_fields.sort_unstable_by_key(|field| field.identity);
+    }
     rows.iter()
-        .zip(schema_fields)
+        .zip(canonical_fields)
         .enumerate()
         .all(|(index, (row, field))| {
             row.schema_field == field.symbol
@@ -203,6 +265,15 @@ fn schema_argument_matches(
                         .is_some()
                     {
                         typed_trees::PlanLaidSchemaFieldKind::Scalar
+                    } else if matches!(
+                        program.type_reference_table.type_reference(
+                            program
+                                .type_reference_table
+                                .unconstrained_type_reference(field.type_reference)
+                        ),
+                        typed_trees::types::TypeReferenceNode::FixedArray { .. }
+                    ) {
+                        typed_trees::PlanLaidSchemaFieldKind::Repeated
                     } else {
                         typed_trees::PlanLaidSchemaFieldKind::Nested
                     }

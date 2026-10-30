@@ -107,10 +107,12 @@ pub enum TargetLayoutSelectionError {
         target: String,
     },
     StaleApplication(LayoutApplicationId),
+    InvalidTargetInput(String),
 }
 impl std::fmt::Display for TargetLayoutSelectionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidTargetInput(reason) => write!(formatter, "layout target input: {reason}"),
             Self::ArtifactIdentityMismatch => write!(
                 formatter,
                 "layout selections belong to a different Terminal artifact"
@@ -136,24 +138,43 @@ impl std::error::Error for TargetLayoutSelectionError {}
 pub fn admit_target_layouts(
     artifact: TerminalArtifactView<'_>,
     selections: &AdmittedTargetMachineSelections,
+    target: &layout_plans::LayoutTargetFacts,
 ) -> Result<AdmittedTargetLayouts, TargetLayoutSelectionError> {
     if artifact.identity() != selections.terminal_psi() {
         return Err(TargetLayoutSelectionError::ArtifactIdentityMismatch);
     }
+    target
+        .validate()
+        .map_err(|reason| TargetLayoutSelectionError::InvalidTargetInput(reason.into()))?;
+    if target.profile != selections.target() {
+        return Err(TargetLayoutSelectionError::InvalidTargetInput(
+            "receiving catalog and selected target disagree".into(),
+        ));
+    }
     let mut records = Vec::new();
     let mut closures = Vec::new();
     for application in &artifact.module().target_layout_applications {
-        let missing = || TargetLayoutSelectionError::MissingMember {
-            application: application.id,
-            target: selections.target().to_owned(),
-        };
         let stale = || TargetLayoutSelectionError::StaleApplication(application.id);
-        let realization = application
+        let Some(realization) = application
             .realizations
             .binary_search_by(|row| row.target.as_str().cmp(selections.target()))
             .ok()
             .map(|position| &application.realizations[position])
-            .ok_or_else(missing)?;
+        else {
+            // Catalog custody is not a physical application. The original
+            // pending record marker remains; a physical consumer cannot
+            // obtain ordinary packing or a geometry receipt from absence.
+            continue;
+        };
+        // Internal roster consistency is checked by the codec. A receiving
+        // target must independently rejoin its real catalog facts: self-
+        // consistent forged pointer geometry is not a deployment receipt.
+        if realization.pointer_size != target.pointer_size
+            || realization.pointer_alignment != target.pointer_alignment
+            || realization.little_endian != target.little_endian
+        {
+            return Err(stale());
+        }
         let mut record = artifact
             .module()
             .structural_type(application.record)

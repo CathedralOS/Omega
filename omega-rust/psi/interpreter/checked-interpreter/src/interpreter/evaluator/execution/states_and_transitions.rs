@@ -387,12 +387,14 @@ impl<'program> Evaluator<'program> {
 
         let argument_cells = arguments
             .into_iter()
-            .map(|argument| {
-                let value = crate::build_time::materialize_build_time_value(
+            .zip(self.program.state_parameters(entry_state))
+            .map(|(argument, parameter)| {
+                let mut value = crate::build_time::materialize_build_time_value(
                     argument,
                     &|value| self.allocate_cell(value),
                     &|bytes| self.allocate_text(bytes),
                 )?;
+                self.bind_build_time_argument(&mut value, parameter.type_reference)?;
                 Ok(EvaluatedArgument::plain(self.allocate_cell(value)?))
             })
             .collect::<EvalResult<Vec<_>>>()?;

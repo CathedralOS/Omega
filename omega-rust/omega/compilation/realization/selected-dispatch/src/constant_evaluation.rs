@@ -61,6 +61,7 @@ impl SelectedConstantEvaluation {
             selection: &self.selection,
             layouts: &provider_planning::data_layout_queries::TargetLayoutQueries {
                 target: self.target_profile,
+                applications: None,
                 opaque_representations: &self.opaque_representation_selections,
             },
         }

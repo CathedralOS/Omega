@@ -49,7 +49,7 @@ pub(super) fn project(
             .plan_laid_target_layouts
             .span(span)
             .ok_or_else(|| failure("task layout lost its target alternatives"))?;
-        if alternatives.is_empty() {
+        if alternatives.is_empty() && !plan.target_inputs.is_empty() {
             return Err(failure("task layout has no complete target input roster"));
         }
         let mut realizations = Vec::new();

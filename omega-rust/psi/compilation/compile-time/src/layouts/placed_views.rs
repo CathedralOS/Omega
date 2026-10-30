@@ -246,7 +246,7 @@ pub fn desugar_placed_views(
         &schemas,
         sources.as_deref(),
     )?;
-    let mut probe = crate::syntax_probes::normalize_generic_data(
+    let probe = crate::syntax_probes::normalize_generic_data(
         probe,
         sources.clone(),
         source_scoped_top_level_bindings,
@@ -346,7 +346,7 @@ fn prepare_placement_probe(
     applications: &[Application],
     predecessor: Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
 ) -> Result<(TypedTrees, EvaluationDomain), Vec<Diagnostic>> {
-    let mut machines = applications
+    let machines = applications
         .iter()
         .map(|application| application.policy_machine_source)
         .collect::<Vec<_>>();

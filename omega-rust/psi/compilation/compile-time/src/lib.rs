@@ -61,7 +61,8 @@ pub use const_evaluation::const_lengths::{
     evaluate_const_array_lengths, evaluate_zero_argument_machine,
 };
 pub use const_evaluation::data_layout_queries::{
-    LayoutQueryMeasurements, LayoutQueryProvider, fold_data_layout_queries,
+    LayoutApplicationTargetInput, LayoutQueryMeasurements, LayoutQueryProvider,
+    fold_data_layout_queries,
 };
 pub use const_evaluation::range_endpoints::evaluate_const_range_endpoints;
 pub use const_evaluation::selected_constants::SelectedConstantEvaluationRequest;
@@ -70,6 +71,7 @@ pub use layouts::placed_views::{PlacedViewRecord, desugar_placed_views};
 pub use layouts::placement_lifecycles::{
     admit_placement_lifecycle_plans, retain_placement_lifecycle_plans,
 };
+pub use layouts::plan_laid::{FixedLayoutTargetScope, evaluate_fixed_layout_applications};
 pub use machine_execution::admission::{
     BuildTimeAdmissionPlan, BuildTimeAdmissionRejection, BuildTimeInvocationCustody,
     BuildTimeProgram, BuildTimeSelectionAuthority,

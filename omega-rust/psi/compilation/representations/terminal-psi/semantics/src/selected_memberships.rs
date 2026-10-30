@@ -11,6 +11,48 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape,
 };
 
+/// Memberships published by a concrete reference carrier. A representation
+/// view lends the same backing, but does not turn a record predicate into a
+/// predicate on its byte interpretation. Shared observations leave that
+/// evidence on the backing; exclusive reinterpretation cannot erase its debts.
+#[allow(clippy::too_many_arguments)]
+pub fn reference_carrier_memberships<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    whole: &[StructuralDomainId],
+    projected: &[StructuralPathQualification],
+    path: &[StructuralPathSegment],
+    access: StructuralAccess,
+    reference: StructuralTypeId,
+    storage: Option<&terminal_psi::ReferenceStorageView>,
+) -> Result<Vec<StructuralPathQualification>, &'static str> {
+    let captured =
+        reference_source_memberships(types.clone(), root, whole, projected, path, access)?;
+    if storage.is_none() || captured.is_empty() {
+        return Ok(captured);
+    }
+    let StructuralTypeShape::Reference { referent, .. } = types
+        .clone()
+        .find(|row| row.id == reference)
+        .ok_or("reference membership carrier is absent")?
+        .shape
+    else {
+        return Err("representation membership has no reference carrier");
+    };
+    let source = crate::qualification_path_carrier(types.clone(), root, path)
+        .ok_or("reference membership has no declared source carrier")?;
+    if crate::borrowed_referent_presentation(types, source, referent)
+        == Some(crate::BorrowedReferentPresentation::Unchanged)
+    {
+        return Ok(captured);
+    }
+    if access == StructuralAccess::SharedBorrow {
+        Ok(Vec::new())
+    } else {
+        Err("reference reinterpretation cannot erase storage qualification obligations")
+    }
+}
+
 /// Capture source memberships below an ordinary reference boundary. Geometry
 /// only bounds the candidate set; access, bounds, live custody and selector
 /// evaluation remain independent consuming judgments. `AllElements` is a

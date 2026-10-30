@@ -245,14 +245,23 @@ fn machine_termination_violation(
     }
     active.push(machine_symbol);
 
-    let locally_terminates = machine.supply_mode == MachineSupplyMode::CheckedBody
-        && matches!(
-            typed_trees_to_checked_trees::infer_machine_termination_summary(
-                program,
-                machine_symbol
-            ),
-            Some(TerminationGuarantee::Terminates { .. })
-        );
+    let target_snapshot = match program.layout_target_facts_result(machine_symbol) {
+        Ok(snapshot) => snapshot.is_some(),
+        Err(reason) => {
+            active.pop();
+            path.pop();
+            return Some(reason.to_owned());
+        }
+    };
+    let locally_terminates = target_snapshot
+        || (machine.supply_mode == MachineSupplyMode::CheckedBody
+            && matches!(
+                typed_trees_to_checked_trees::infer_machine_termination_summary(
+                    program,
+                    machine_symbol
+                ),
+                Some(TerminationGuarantee::Terminates { .. })
+            ));
     if !locally_terminates {
         // A requirement slot has no body by design: reaching it without a
         // selected provider is a missing selection, not a termination defect.

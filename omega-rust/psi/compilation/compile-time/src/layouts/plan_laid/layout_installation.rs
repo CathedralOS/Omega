@@ -11,6 +11,28 @@ struct FixedRepresentationRequest {
     policy_machine: String,
 }
 
+struct ScopedRepresentationRequest {
+    storage: typed_trees::layout_storage::LayoutStorageArguments,
+    targets: Vec<layout_plans::LayoutTargetFacts>,
+    dependencies: Vec<typed_trees::layout_storage::LayoutStorageArguments>,
+}
+
+fn applicable_targets(
+    typed: &TypedTrees,
+    domain: &crate::build_time_evaluation::EvaluationDomain,
+    storage: typed_trees::layout_storage::LayoutStorageArguments,
+) -> Vec<layout_plans::LayoutTargetFacts> {
+    let Some(inputs) = &domain.layout_applications else {
+        return domain.layout_targets.clone();
+    };
+    let identity = typed.normalized_type_identity(storage.application);
+    inputs
+        .iter()
+        .filter(|input| typed.type_identity_by_text(&input.application_identity) == identity)
+        .map(|input| input.target.clone())
+        .collect()
+}
+
 pub(crate) fn compute_plan_laid_layouts_in(
     typed: &mut TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
@@ -29,27 +51,89 @@ pub(crate) fn compute_plan_laid_layouts_in(
             storage.application,
             occurrence.lexical_owner,
         )?;
-        if requests.iter().any(
-            |known: &typed_trees::layout_storage::LayoutStorageArguments| {
-                typed.normalized_type_identity(known.application)
-                    == typed.normalized_type_identity(storage.application)
-            },
-        ) {
+        if requests.iter().any(|known: &ScopedRepresentationRequest| {
+            typed.normalized_type_identity(known.storage.application)
+                == typed.normalized_type_identity(storage.application)
+        }) {
             continue;
         }
         // Open constructor recipes remain source-checked templates; actual
         // storage demands retain their closed semantic field views.
         if typed
-            .closed_data_definition(storage.semantic_type)
+            .closed_data_field_definition(storage.semantic_type)
             .is_some()
+            && typed_trees::domain::index_argument_is_closed(typed, storage.policy)
         {
-            requests.push(storage);
+            requests.push(ScopedRepresentationRequest {
+                storage,
+                targets: applicable_targets(typed, domain, storage),
+                dependencies: representation_dependencies(typed, storage.semantic_type)?,
+            });
         }
     }
+    // Storage dependencies are exact applied types, not nominal names. A
+    // reference descriptor does not demand its referent's representation.
+    let mut pending = (0..requests.len()).collect::<Vec<_>>();
+    while let Some(index) = pending.pop() {
+        let inherited = requests[index].targets.clone();
+        for dependency in requests[index].dependencies.clone() {
+            if let Some(position) = requests.iter().position(|known| {
+                typed.normalized_type_identity(known.storage.application)
+                    == typed.normalized_type_identity(dependency.application)
+            }) {
+                let known = &mut requests[position];
+                let before = known.targets.len();
+                for target in &inherited {
+                    if !known.targets.contains(target) {
+                        known.targets.push(target.clone());
+                    }
+                }
+                if known.targets.len() != before && !pending.contains(&position) {
+                    pending.push(position);
+                }
+                continue;
+            }
+            validation::conformance_applications::validate_data_evidence_application(
+                typed,
+                dependency.application,
+                typed
+                    .type_reference_table
+                    .operand_lifetime_owner(dependency.application),
+            )?;
+            pending.push(requests.len());
+            requests.push(ScopedRepresentationRequest {
+                storage: dependency,
+                targets: inherited.clone(),
+                dependencies: representation_dependencies(typed, dependency.semantic_type)?,
+            });
+        }
+    }
+    let mut ordered = Vec::with_capacity(requests.len());
+    while !requests.is_empty() {
+        let mut ready = None;
+        for (position, request) in requests.iter().enumerate() {
+            if request.dependencies.iter().all(|dependency| {
+                !requests.iter().any(|pending| {
+                    typed.normalized_type_identity(pending.storage.application)
+                        == typed.normalized_type_identity(dependency.application)
+                })
+            }) {
+                ready = Some(position);
+                break;
+            }
+        }
+        let Some(position) = ready else {
+            return Err(fail(
+                "fixed representation applications have a cyclic storage dependency".into(),
+            ));
+        };
+        ordered.push(requests.remove(position));
+    }
+    let requests = ordered;
     if requests.is_empty() {
         return Ok(());
     }
-    if domain.layout_targets.is_empty() {
+    if domain.layout_targets.is_empty() && domain.layout_applications.is_none() {
         return Err(fail(
             "fixed representation evaluation requires explicit target representation facts".into(),
         ));
@@ -66,24 +150,49 @@ pub(crate) fn compute_plan_laid_layouts_in(
         }
     }
     typed_trees_to_typed_trees::specialize_static_machine_calls(typed)?;
-    let execution = domain.execution_program(typed);
+    // A continuation replaces only the applications it owns. Earlier source
+    // continuations and their arena-backed field/target rows remain available
+    // to later dependencies; clearing the whole catalog loses that custody.
+    let mut replaced = requests
+        .iter()
+        .map(|request| typed.normalized_type_identity(request.storage.application))
+        .collect::<Vec<_>>();
+    replaced.sort_unstable();
+    replaced.dedup();
+    let existing = std::mem::take(&mut typed.plan_laid_layouts);
+    typed.plan_laid_layouts = existing
+        .into_iter()
+        .filter(|plan| {
+            replaced
+                .binary_search(&typed.normalized_type_identity(plan.application))
+                .is_err()
+        })
+        .collect();
+    let mut execution = domain.execution_program(typed);
     let admission = crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority.clone());
-    let mut layouts = Vec::new();
-    let mut target_layouts = arena::Arena::new();
-    let mut captured_schema_fields = arena::Arena::new();
-    for storage in requests {
-        let semantic = execution
-            .closed_data_definition(storage.semantic_type)
+    for request in requests {
+        let storage = request.storage;
+        let mut targets = request.targets;
+        targets.sort_by(|left, right| left.profile.cmp(&right.profile));
+        // Schema reflection consumes the exact checked declaration, independently
+        // of the narrower roster of bodies permitted to execute. Describing T
+        // never promotes T or any Product machine into the execution domain.
+        let semantic = typed
+            .closed_data_field_definition(storage.semantic_type)
             .ok_or_else(|| {
-                fail("fixed representation lost its exact closed semantic application".into())
-            })?;
+                fail(format!(
+                    "fixed representation lost its exact declared semantic application `{}`",
+                    typed.display_type_reference(storage.semantic_type)
+                ))
+            })?
+            .clone();
         if semantic.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
             return Err(fail(
                 "fixed representation cannot reflect opaque semantic storage".into(),
             ));
         }
-        if execution
-            .data_members(semantic)
+        if typed
+            .data_members(&semantic)
             .iter()
             .any(|member| member.as_field().is_none())
         {
@@ -143,38 +252,61 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 )
                 .map_err(|reason| fail(reason.to_string()))?;
         }
-        let (fields, fingerprint) =
-            super::super::schema_reflection::schema_fields_for(&execution, semantic)
-                .map_err(fail)?;
-        let schema_value = super::super::schema_reflection::build_selected_schema_value(
-            &execution, semantic, &fields,
-        )
-        .map_err(fail)?;
-        let retained = fields.iter().map(|field| Ok(PlanLaidSchemaField {
+        let schema_fields = typed
+            .live_data_fields(typed.data_members(&semantic))
+            .map(|field| (field.name.as_str().to_owned(), field.type_reference))
+            .collect::<Vec<_>>();
+        let mut field_symbols = None;
+        let record = FixedRepresentationRequest {
+            application_name: typed.display_type_reference(storage.application),
+            policy_machine: machine.name.as_str().to_owned(),
+        };
+        let mut alternatives = Vec::new();
+        for target in &targets {
+            let (fields, fingerprint) = super::super::schema_reflection::schema_fields_for_target(
+                typed,
+                &semantic,
+                Some(target),
+            )
+            .map_err(fail)?;
+            let symbols = fields
+                .iter()
+                .map(|field| field.schema_field)
+                .collect::<Vec<_>>();
+            if field_symbols
+                .as_ref()
+                .is_some_and(|known| *known != symbols)
+            {
+                return Err(fail(
+                    "target schema changed its exact semantic field roster".into(),
+                ));
+            }
+            field_symbols = Some(symbols);
+            let schema_value = super::super::schema_reflection::build_selected_schema_value(
+                typed, &semantic, &fields,
+            )
+            .map_err(fail)?;
+            let retained = super::super::schema_reflection::canonical_schema_fields(&fields).into_iter().map(|field| Ok(PlanLaidSchemaField {
             schema_field: field.schema_field, key: field.key, identity: field.identity,
             byte_size: field.size, byte_alignment: field.align,
             kind: match field.kind { "Scalar" => PlanLaidSchemaFieldKind::Scalar,
                 "Nested" => PlanLaidSchemaFieldKind::Nested,
+                "Repeated" => PlanLaidSchemaFieldKind::Repeated,
                 _ => return Err(fail("fixed representation retained Schema ABI does not support this field kind".into())), },
         })).collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        let schema_argument = Some(PlanLaidSchemaArgument {
-            abi_version: 1,
-            fields: captured_schema_fields.insert_many(retained),
-        });
-        let schema_fields = execution
-            .live_data_fields(execution.data_members(semantic))
-            .map(|field| (field.name.as_str().to_owned(), field.type_reference))
-            .collect::<Vec<_>>();
-        let field_symbols = fields
-            .iter()
-            .map(|field| field.schema_field)
-            .collect::<Vec<_>>();
-        let record = FixedRepresentationRequest {
-            application_name: execution.display_type_reference(storage.application),
-            policy_machine: machine.name.as_str().to_owned(),
-        };
-        let mut alternatives = Vec::new();
-        for target in &domain.layout_targets {
+            let mut retired_identities = semantic.retired_identities.clone();
+            retired_identities.sort_unstable();
+            let schema_argument = Some(PlanLaidSchemaArgument {
+                abi_version: 3,
+                fields: typed.plan_laid_schema_fields.insert_many(retained),
+                retired_field_identities: typed.plan_laid_retired_field_identities.insert_many(
+                    retired_identities.iter().map(|identity| {
+                        typed_trees::PlanLaidRetiredFieldIdentity {
+                            identity: *identity,
+                        }
+                    }),
+                ),
+            });
             let mut arguments = vec![
                 schema_value.clone(),
                 build_time_values::BuildTimeValue::LayoutTarget(target.clone()),
@@ -232,7 +364,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 )
                 .map_err(fail)?;
             let geometry = install_geometry(
-                &execution,
+                typed,
                 &record,
                 &schema_fields,
                 crate::layouts::layout_plans::NativeLayoutPlanReport {
@@ -241,17 +373,27 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 },
             )?;
             alternatives.push(PlanLaidTargetLayout {
+                schema_argument,
                 target: target.profile.as_str().into(),
                 machine: machine.symbol,
                 target_facts: target.clone(),
                 geometry,
             });
         }
-        layouts.push(PlanLaidLayout {
+        // A retained description with no Build application has no invocation
+        // or geometry. Keep its exact field telescope and pending marker;
+        // physical consumers still require a realization for their target.
+        let field_symbols = field_symbols.unwrap_or_else(|| {
+            typed
+                .live_data_fields(typed.data_members(&semantic))
+                .map(|field| field.symbol)
+                .collect()
+        });
+        let layout = PlanLaidLayout {
             application: storage.application,
             semantic_type: storage.semantic_type,
             policy_application: application.clone(),
-            target_inputs: domain.layout_targets.clone(),
+            target_inputs: targets,
             data_name: record.application_name,
             data_symbol: semantic.symbol,
             field_symbols: field_symbols.clone(),
@@ -259,16 +401,92 @@ pub(crate) fn compute_plan_laid_layouts_in(
             schema_field_symbols: field_symbols,
             policy_symbol: application.declaration,
             policy_plan_machine_symbol: machine.symbol,
-            schema_argument,
+            schema_argument: None,
             realizations: PlanLaidRealizations::TargetInputs(
-                target_layouts.insert_many(alternatives),
+                typed.plan_laid_target_layouts.insert_many(alternatives),
             ),
-        });
+        };
+        typed.plan_laid_layouts.push(layout);
+        // The immutable executable declarations are shared for this work
+        // domain. Only completed layout evidence changes between dependency
+        // steps; a later policy must observe those actual completed rows.
+        execution.plan_laid_layouts = typed.plan_laid_layouts.clone();
+        execution.plan_laid_target_layouts = typed.plan_laid_target_layouts.clone();
+        execution.plan_laid_schema_fields = typed.plan_laid_schema_fields.clone();
+        execution.plan_laid_retired_field_identities =
+            typed.plan_laid_retired_field_identities.clone();
     }
-    typed.plan_laid_layouts = layouts;
-    typed.plan_laid_target_layouts = target_layouts;
-    typed.plan_laid_schema_fields = captured_schema_fields;
     Ok(())
+}
+
+/// Product demands belong to the completed continuation roster, not to each
+/// source projection separately. The selected evaluator invokes this once
+/// after every owner has installed its exact representation.
+pub(crate) fn validate_layout_application_coverage(
+    typed: &TypedTrees,
+    inputs: Option<&[crate::LayoutApplicationTargetInput]>,
+) -> Result<(), Vec<Diagnostic>> {
+    if let Some(inputs) = inputs {
+        for input in inputs {
+            let identity = typed.type_identity_by_text(&input.application_identity);
+            if !identity.is_valid()
+                || !typed.plan_laid_layouts.iter().any(|plan| {
+                    typed.normalized_type_identity(plan.application) == identity
+                        && plan.target_inputs.contains(&input.target)
+                })
+            {
+                return Err(vec![Diagnostic::error(format!(
+                    "layout application `{}` target demand for `{}` did not rejoin its exact evaluated representation",
+                    input.application_identity, input.target.profile
+                ))]);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Discover only by-value dependencies from the exact closed field views.
+fn representation_dependencies(
+    typed: &TypedTrees,
+    semantic_type: typed_trees::types::TypeReferenceHandle,
+) -> Result<Vec<typed_trees::layout_storage::LayoutStorageArguments>, Vec<Diagnostic>> {
+    use typed_trees::types::TypeReferenceNode;
+    let mut work = vec![semantic_type];
+    let mut seen = Vec::new();
+    let mut dependencies = Vec::new();
+    while let Some(reference) = work.pop() {
+        let identity = typed.normalized_type_identity(reference);
+        let Some(index) = identity.storage_index() else {
+            continue;
+        };
+        if seen.len() <= index {
+            seen.resize(index + 1, false);
+        }
+        if std::mem::replace(&mut seen[index], true) {
+            continue;
+        }
+        if let Some(storage) = typed.layout_storage_arguments(reference) {
+            dependencies.push(storage);
+            continue;
+        }
+        let reference = typed
+            .type_reference_table
+            .unconstrained_type_reference(reference);
+        match typed.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::FixedArray { element_type, .. } => work.push(*element_type),
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                if let Some(data) = typed.closed_data_definition(reference) {
+                    work.extend(
+                        typed
+                            .live_data_fields(typed.data_members(data))
+                            .map(|field| field.type_reference),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(dependencies)
 }
 
 fn install_geometry(

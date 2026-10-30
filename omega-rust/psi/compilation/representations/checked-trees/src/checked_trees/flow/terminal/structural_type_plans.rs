@@ -91,6 +91,7 @@ pub enum CheckedUnitRecordStorage {
     Authored(semantic_vocabulary::AuthoredRecordStorage),
     TargetLayout {
         application: typed_trees::types::TypeReferenceHandle,
+        application_identity: TypeIdentityId,
         schema_type_identity: TypeIdentityId,
     },
 }

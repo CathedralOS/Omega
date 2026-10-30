@@ -23,6 +23,7 @@ pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedChec
 pub struct SourceAdmission<'request> {
     pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
     pub representations: ProductRepresentationInput<'request>,
+    pub layout_scopes: &'request [build_time_evaluation::FixedLayoutTargetScope],
     pub asm_authority: Option<validation::AsmAuthorityAdmission>,
     pub wire_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
     pub declarations: Option<&'request dyn validation::DeclarationSelectionAuthority>,
@@ -110,6 +111,10 @@ impl CheckRequest<'_> {
                 self.admission.completion,
             )
         })?;
+        build_time_evaluation::evaluate_fixed_layout_applications(
+            &mut program,
+            self.admission.layout_scopes,
+        )?;
         constant_entries::retain_evaluation_entries(&mut program)?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
             .with_opaque_property_receipts(&representations.copy_properties)

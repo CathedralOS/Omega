@@ -144,7 +144,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // This union differs from both upstream 204 and the scalar-only 211 format.
 // Callback uses retain missing entry admission as an explicit native obligation.
 // Fixed representation applications retain exact semantic and policy inputs.
-pub(crate) const FORMAT_MARKER: u16 = 220;
+// Schema ABI3 retains every target input and retired field identity.
+pub(crate) const FORMAT_MARKER: u16 = 221;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

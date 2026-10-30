@@ -150,8 +150,8 @@ pub use placed_plans::{
     PlacedScalarAccessorOperation, PlacedViewPlan, PlacementExecutionDeclaration,
     PlacementLifecycleOperation, PlacementLifecyclePlan, PlanLaidBitField, PlanLaidBitFragment,
     PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations,
-    PlanLaidRepeatedField, PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind,
-    PlanLaidTargetLayout,
+    PlanLaidRepeatedField, PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument,
+    PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
 };
 
 use crate::{
@@ -244,6 +244,7 @@ pub struct TypedTrees {
     pub plan_laid_target_layouts: Arena<PlanLaidTargetLayout>,
     /// Exact active Schema argument rows retained by family applications.
     pub plan_laid_schema_fields: Arena<PlanLaidSchemaField>,
+    pub plan_laid_retired_field_identities: Arena<PlanLaidRetiredFieldIdentity>,
     /// Canonical source `Placed<P, T>` derivations. Each record binds the
     /// synthetic view/accessor types to the validated placement plan that
     /// selected them, so checking and lowering never reconstruct permissions
@@ -529,12 +530,6 @@ impl TypedTrees {
         self.product_declaration_frontier.as_deref().unwrap_or(self)
     }
 
-    pub fn plan_laid_layout(&self, data_symbol: symbols::SymbolHandle) -> Option<&PlanLaidLayout> {
-        self.plan_laid_layouts
-            .iter()
-            .find(|layout| !layout.application.is_valid() && layout.data_symbol == data_symbol)
-    }
-
     pub fn machine_specialization(
         &self,
         instance: symbols::SymbolHandle,
@@ -608,6 +603,7 @@ impl TypedTrees {
             plan_laid_layouts: Vec::new(),
             plan_laid_target_layouts: Arena::new(),
             plan_laid_schema_fields: Arena::new(),
+            plan_laid_retired_field_identities: Arena::new(),
             placed_view_plans: Vec::new(),
             placement_lifecycle_plans: Arena::new(),
             placement_policy_invocations: Arena::new(),

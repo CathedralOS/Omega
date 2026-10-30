@@ -678,7 +678,11 @@ pub fn declared_domain_constraints(
             );
             domains
         }
-        _ => Vec::new(),
+        _ => program
+            .layout_storage_arguments(type_reference)
+            .map_or_else(Vec::new, |storage| {
+                declared_domain_constraints(program, storage.semantic_type)
+            }),
     }
 }
 

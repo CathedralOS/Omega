@@ -46,6 +46,53 @@ impl MutableRecordRepresentation {
     }
 }
 
+/// Observation protocols belong to semantic fields even when this retained
+/// application has no physical target. Policy evidence and layout offsets do
+/// not create or remove an atomic leaf.
+pub(super) fn type_has_atomic_storage(
+    program: &dyn crate::CheckingInput,
+    root: TypeReferenceHandle,
+) -> bool {
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(reference) = pending.pop() {
+        let Some(index) = program.normalized_type_identity(reference).storage_index() else {
+            return false;
+        };
+        if visited.len() <= index {
+            visited.resize(index + 1, false);
+        }
+        if std::mem::replace(&mut visited[index], true) {
+            continue;
+        }
+        if let Some(storage) = program.layout_storage_arguments(reference) {
+            pending.push(storage.semantic_type);
+            continue;
+        }
+        if super::representation_types::scalar_is_atomic(program, reference) == Some(true) {
+            return true;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. }
+            | TypeReferenceNode::FixedArray {
+                element_type: base_type,
+                ..
+            } => pending.push(*base_type),
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                if let Some(data) = program.closed_data_definition(reference) {
+                    pending.extend(
+                        program
+                            .live_data_fields(program.data_members(data))
+                            .map(|field| field.type_reference),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 #[derive(Debug, Clone)]
 struct MutableRecordLeaf {
     offset: usize,
@@ -243,10 +290,7 @@ fn unique_record_field<'program>(
     carrier: TypeReferenceHandle,
     select: impl Fn(&typed_trees::data::DataField) -> bool,
 ) -> Option<&'program typed_trees::data::DataField> {
-    let owner = crate::declarations::data_queries::data_definition_by_symbol(
-        program,
-        program.type_reference_symbol(carrier),
-    )?;
+    let owner = program.closed_data_field_definition(carrier)?;
     let mut fields = program
         .data_members(owner)
         .iter()
@@ -657,11 +701,19 @@ fn mutable_record_representation_inner_body(
         return None;
     }
     let layout = program.plan_laid_layout_for_data(data);
+    if layout.is_none()
+        && data
+            .generic_instance
+            .is_some_and(|reference| program.layout_storage_arguments(reference).is_some())
+    {
+        visiting.remove(&symbol_identity);
+        return None;
+    }
     // The synthesized layout owns geometry, while its retained schema owns
     // authored validity. Copying fields into a physical declaration must not
     // erase the schema's where facts at an alias or foreign-write boundary.
     let semantic_data = match layout {
-        Some(plan) => program.closed_data_definition(plan.semantic_type)?,
+        Some(plan) => program.closed_data_field_definition(plan.semantic_type)?,
         None => data,
     };
     let Some(where_bounds) =

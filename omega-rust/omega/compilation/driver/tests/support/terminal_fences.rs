@@ -133,8 +133,12 @@ fn observe_target(
 ) -> Result<(), String> {
     let program = TerminalProgram::borrow(artifact.view());
     let selected = terminal_interpreter::admit_target_machine_selections(artifact.view(), target);
-    let layouts = terminal_interpreter::admit_target_layouts(artifact.view(), &selected)
-        .map_err(|error| error.to_string())?;
+    let target_facts = target::TargetProfile::from_target_name(target)
+        .and_then(target::TargetProfile::layout_target_facts)
+        .ok_or_else(|| format!("fence target `{target}` has no representation facts"))?;
+    let layouts =
+        terminal_interpreter::admit_target_layouts(artifact.view(), &selected, &target_facts)
+            .map_err(|error| error.to_string())?;
     let supplies = |model| {
         program.admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,
