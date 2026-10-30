@@ -141,7 +141,7 @@ impl<'execution> ConstructorValue<'execution> {
     ) -> Result<Option<semantic_vocabulary::ScalarType>, TerminalInterpretError> {
         let types = execution.program.structural_types();
         let root = self.structural_type();
-        let (scalar_type, count) = match types.get(&root).ok_or_else(malformed)?.shape {
+        let (scalar_type, count) = match types.declaration(&root)?.shape {
             StructuralTypeShape::PrimitiveScalar(scalar_type) => (scalar_type, 1),
             StructuralTypeShape::FixedArray { .. } => {
                 let Some(shape) = terminal_semantics::scalar_array_leaf_shape(types.values(), root)
@@ -165,7 +165,7 @@ impl<'execution> ConstructorValue<'execution> {
         while let StructuralTypeShape::FixedArray {
             element,
             length: terminal_psi::ArrayExtent::Literal(length),
-        } = types.get(&current).ok_or_else(malformed)?.shape
+        } = types.declaration(&current)?.shape
         {
             dimensions.push(length);
             current = element;

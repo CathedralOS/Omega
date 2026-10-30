@@ -189,9 +189,7 @@ impl TerminalExecution<'_> {
                 continue;
             }
             let types = self.program.structural_types();
-            let declaration = types
-                .get(&parameter.structural_type)
-                .ok_or_else(malformed)?;
+            let declaration = types.declaration(&parameter.structural_type)?;
             let composite = declaration.shape.is_composite_shape();
             let primitive = match declaration.shape {
                 StructuralTypeShape::PrimitiveScalar(scalar_type) => Some(scalar_type),

@@ -1434,7 +1434,7 @@ impl TerminalExecution<'_> {
                         &remaining[..position],
                     )?;
                     if matches!(
-                        types.get(&prefix_type).ok_or_else(malformed)?.shape,
+                        types.declaration(&prefix_type)?.shape,
                         StructuralTypeShape::ElementView { .. }
                     ) {
                         boundary = Some(position);
@@ -1587,10 +1587,8 @@ impl TerminalExecution<'_> {
                     // a re-view must not become an untyped backing path.
                     aggregate_view = match tip {
                         Some(AggregateViewTip::Aggregate { view, .. }) => {
-                            let StructuralTypeShape::ElementView { element, .. } = types
-                                .get(&view.structural_type)
-                                .ok_or_else(malformed)?
-                                .shape
+                            let StructuralTypeShape::ElementView { element, .. } =
+                                types.declaration(&view.structural_type)?.shape
                             else {
                                 return Err(malformed());
                             };
@@ -1712,10 +1710,7 @@ impl TerminalExecution<'_> {
                 if primitive_storage.is_none()
                     && endpoint_field.is_none()
                     && matches!(
-                        types
-                            .get(&value.structural_type)
-                            .ok_or_else(malformed)?
-                            .shape,
+                        types.declaration(&value.structural_type)?.shape,
                         StructuralTypeShape::PrimitiveScalar(_)
                     )
                     && let Some((view, selected_prefix)) = collection_home

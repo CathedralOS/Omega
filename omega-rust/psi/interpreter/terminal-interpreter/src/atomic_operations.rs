@@ -146,7 +146,7 @@ impl TerminalExecution<'_> {
                 }
                 let types = self.program.structural_types();
                 let cases = terminal_psi::types::atomic_once_outcome_cases(
-                    types.get(&result.structural_type).ok_or_else(malformed)?,
+                    types.declaration(&result.structural_type)?,
                     scalar_type,
                 )
                 .ok_or_else(malformed)?;

@@ -1771,7 +1771,7 @@ impl TerminalExecution<'_> {
             // checked by Psi; storage identity does not require manufacturing
             // an owned restricted scalar declaration for a bare formal.
             let types = self.program.structural_types();
-            let expected = types.get(&view.structural_type).ok_or_else(malformed)?;
+            let expected = types.declaration(&view.structural_type)?;
             let selected = field
                 .field_type
                 .borrowed_presentation_type(StructuralAccess::MutableBorrow, Some(expected))

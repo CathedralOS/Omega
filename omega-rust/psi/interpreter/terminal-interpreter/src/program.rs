@@ -222,9 +222,7 @@ impl AdmittedTerminalProgram<'_> {
         &self,
         structural_type: StructuralTypeId,
     ) -> Result<&StructuralTypeDeclaration, TerminalInterpretError> {
-        self.structural_types()
-            .get(&structural_type)
-            .ok_or_else(malformed)
+        self.structural_types().declaration(&structural_type)
     }
 
     pub(crate) fn boundary_machines(&self) -> ProgramDeclarations<'_, BoundaryMachineDeclaration> {

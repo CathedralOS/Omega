@@ -370,7 +370,7 @@ pub(super) fn stage(
                     return Err(malformed());
                 };
                 let primitive = matches!(
-                    types.get(&referent).ok_or_else(malformed)?.shape,
+                    types.declaration(&referent)?.shape,
                     StructuralTypeShape::PrimitiveScalar(_)
                 );
                 let old_scalar = stored_scalar(previous);

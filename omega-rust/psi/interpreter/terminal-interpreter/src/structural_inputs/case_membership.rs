@@ -562,7 +562,7 @@ pub(crate) fn case_projection_with_membership_is_active(
         let prefix = &path[..position];
         let selected_type = resolve_structural_path_type(types, structural_type, prefix)?;
         let stored = membership(prefix).ok_or_else(malformed)?;
-        let declaration = types.get(&selected_type).ok_or_else(malformed)?;
+        let declaration = types.declaration(&selected_type)?;
         let (StructuralTypeShape::Sum {
             cases: declared_cases,
         }

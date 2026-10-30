@@ -53,7 +53,7 @@ fn validate_type(
         return Err(malformed());
     }
     active.push(current);
-    let declaration = types.get(&current).ok_or(malformed())?;
+    let declaration = types.declaration(&current)?;
     match &declaration.shape {
         StructuralTypeShape::Record { fields, .. } => {
             for field in fields {

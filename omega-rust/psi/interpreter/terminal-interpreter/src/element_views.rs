@@ -285,10 +285,7 @@ impl ElementView {
         let StructuralTypeShape::FixedArray {
             length: terminal_psi::ArrayExtent::Literal(length),
             ..
-        } = types
-            .get(&selected.structural_type)
-            .ok_or_else(malformed)?
-            .shape
+        } = types.declaration(&selected.structural_type)?.shape
         else {
             return Err(malformed());
         };

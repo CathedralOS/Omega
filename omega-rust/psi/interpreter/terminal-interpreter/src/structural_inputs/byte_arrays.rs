@@ -532,19 +532,13 @@ impl TerminalExecution<'_> {
                 if source.structural_type != value.structural_type
                     || source.access != StructuralAccess::SharedBorrow
                     || !matches!(
-                        types
-                            .get(&source.structural_type)
-                            .ok_or_else(malformed)?
-                            .shape,
+                        types.declaration(&source.structural_type)?.shape,
                         StructuralTypeShape::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BoundedView { .. }
                         )
                     )
                     || !matches!(
-                        types
-                            .get(&parameter.structural_type)
-                            .ok_or_else(malformed)?
-                            .shape,
+                        types.declaration(&parameter.structural_type)?.shape,
                         StructuralTypeShape::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                         )

@@ -1134,9 +1134,7 @@ pub(crate) fn split_affine_frontier_at_projection(
     let Some(next_segment) = projected_path.get(current.path.len()) else {
         return Err(TerminalInterpretError::AffineFrontierMismatch);
     };
-    let declaration = structural_types
-        .get(&current.structural_type)
-        .ok_or(malformed())?;
+    let declaration = structural_types.declaration(&current.structural_type)?;
     let selected = match &declaration.shape {
         StructuralTypeShape::Record { fields, .. } => {
             let mut selected = None;
@@ -1252,7 +1250,7 @@ pub(crate) fn literal_fixed_array(
     let StructuralTypeShape::FixedArray {
         element,
         length: terminal_psi::ArrayExtent::Literal(length),
-    } = types.get(&structural_type).ok_or_else(malformed)?.shape
+    } = types.declaration(&structural_type)?.shape
     else {
         return Err(malformed());
     };
