@@ -148,12 +148,7 @@ impl TerminalExecution<'_> {
         let StructuralTypeShape::FixedArray {
             length: terminal_psi::ArrayExtent::Literal(length),
             ..
-        } = self
-            .program
-            .structural_types()
-            .get(&collection_type)
-            .ok_or_else(malformed)?
-            .shape
+        } = self.program.structural_declaration(collection_type)?.shape
         else {
             return Err(malformed());
         };

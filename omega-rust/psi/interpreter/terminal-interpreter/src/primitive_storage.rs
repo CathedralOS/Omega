@@ -494,9 +494,7 @@ impl TerminalExecution<'_> {
     ) -> Result<PrimitiveLoan, TerminalInterpretError> {
         let terminal_psi::StructuralTypeShape::PrimitiveScalar(expected) = self
             .program
-            .structural_types()
-            .get(&parameter.structural_type)
-            .ok_or_else(malformed)?
+            .structural_declaration(parameter.structural_type)?
             .shape
         else {
             return Err(malformed());
@@ -899,11 +897,7 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
     ) -> Result<ScalarType, TerminalInterpretError> {
         if matches!(
-            self.program
-                .structural_types()
-                .get(&structural_type)
-                .ok_or_else(malformed)?
-                .shape,
+            self.program.structural_declaration(structural_type)?.shape,
             terminal_psi::StructuralTypeShape::ByteSequence(_)
         ) {
             return Ok(ScalarType::Integer(
@@ -1419,25 +1413,14 @@ impl TerminalExecution<'_> {
                 let terminal_psi::StructuralTypeShape::FixedArray {
                     element,
                     length: terminal_psi::ArrayExtent::Literal(length),
-                } = self
-                    .program
-                    .structural_types()
-                    .get(&carrier)
-                    .ok_or_else(malformed)?
-                    .shape
+                } = self.program.structural_declaration(carrier)?.shape
                 else {
                     return Err(malformed());
                 };
                 if *index >= length {
                     return Err(malformed());
                 }
-                let leaf_count = match self
-                    .program
-                    .structural_types()
-                    .get(&element)
-                    .ok_or_else(malformed)?
-                    .shape
-                {
+                let leaf_count = match self.program.structural_declaration(element)?.shape {
                     terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => 1,
                     _ => {
                         terminal_semantics::scalar_array_leaf_shape(
@@ -1546,11 +1529,7 @@ impl TerminalExecution<'_> {
         let mut carrier = view.structural_type;
         let mut selected_case = None;
         for (position, segment) in path.iter().enumerate() {
-            let declaration = self
-                .program
-                .structural_types()
-                .get(&carrier)
-                .ok_or_else(malformed)?;
+            let declaration = self.program.structural_declaration(carrier)?;
             match (segment, &declaration.shape) {
                 (
                     semantic_vocabulary::CanonicalStructuralPathSegment::Case(case),
@@ -1749,11 +1728,7 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)?;
         let parent =
             resolve_structural_path_type(&self.program.structural_types(), root, parent_path)?;
-        let declaration = self
-            .program
-            .structural_types()
-            .get(&parent)
-            .ok_or_else(malformed)?;
+        let declaration = self.program.structural_declaration(parent)?;
         let parent_place = StructuralRuntimePlace {
             opaque_identity: view.opaque_identity,
             path: parent_path.to_vec(),
@@ -2088,7 +2063,7 @@ impl TerminalExecution<'_> {
                     .ok_or_else(malformed)?;
                 if current != completed
                     || current.structural_type != parameter.structural_type
-                    || !matches!(self.program.structural_types().get(&parameter.structural_type).ok_or_else(malformed)?.shape,
+                    || !matches!(self.program.structural_declaration(parameter.structural_type)?.shape,
                         terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) if scalar == expected)
                 {
                     return Err(malformed());

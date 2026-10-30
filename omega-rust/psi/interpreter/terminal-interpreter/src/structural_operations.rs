@@ -87,9 +87,7 @@ impl TerminalExecution<'_> {
         }
         aggregate.validate_against(
             self.program
-                .structural_types()
-                .get(&result.structural_type)
-                .ok_or_else(malformed)?,
+                .structural_declaration(result.structural_type)?,
             |identity| self.program.structural_types().get(&identity),
         )?;
         let value = TerminalStructuralValue::minted(

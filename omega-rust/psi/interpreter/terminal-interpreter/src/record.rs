@@ -50,9 +50,7 @@ impl TerminalExecution<'_> {
         // them must not weaken the actual-child qualification/custody joins.
         let declaration = self
             .program
-            .structural_types()
-            .get(&result.structural_type)
-            .ok_or_else(malformed)?;
+            .structural_declaration(result.structural_type)?;
         let StructuralTypeShape::Record {
             fields: declarations,
             ..

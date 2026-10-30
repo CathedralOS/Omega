@@ -46,9 +46,7 @@ impl TerminalExecution<'_> {
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
                 ) = self
                     .program
-                    .structural_types()
-                    .get(&value.structural_type)
-                    .ok_or_else(malformed)?
+                    .structural_declaration(value.structural_type)?
                     .shape
                 else {
                     return Err(malformed());

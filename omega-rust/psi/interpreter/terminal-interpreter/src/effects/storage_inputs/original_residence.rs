@@ -881,12 +881,7 @@ fn capture_graph(
         let StorageLeafKind::Opaque { declaration, .. } = leaf.kind else {
             continue;
         };
-        let shape = &execution
-            .program
-            .structural_types()
-            .get(&declaration)
-            .ok_or_else(malformed)?
-            .shape;
+        let shape = &execution.program.structural_declaration(declaration)?.shape;
         let StructuralTypeShape::Reference {
             referent: child_type,
             access: child_access,

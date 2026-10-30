@@ -387,9 +387,7 @@ impl TerminalExecution<'_> {
             if parameter.access != StructuralAccess::Owned
                 && matches!(
                     self.program
-                        .structural_types()
-                        .get(&parameter.structural_type)
-                        .ok_or_else(malformed)?
+                        .structural_declaration(parameter.structural_type)?
                         .shape,
                     StructuralTypeShape::PrimitiveScalar(_)
                 )
@@ -437,9 +435,7 @@ impl TerminalExecution<'_> {
             if parameter.access != StructuralAccess::Owned
                 && matches!(
                     self.program
-                        .structural_types()
-                        .get(&parameter.structural_type)
-                        .ok_or_else(malformed)?
+                        .structural_declaration(parameter.structural_type)?
                         .shape,
                     StructuralTypeShape::ByteSequence(_)
                 )

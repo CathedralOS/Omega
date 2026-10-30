@@ -96,11 +96,7 @@ impl TerminalExecution<'_> {
                 root.structural_type,
                 parent_path,
             )?;
-            let declaration = self
-                .program
-                .structural_types()
-                .get(&parent_type)
-                .ok_or_else(malformed)?;
+            let declaration = self.program.structural_declaration(parent_type)?;
             let children = match &declaration.shape {
                 StructuralTypeShape::Record { fields, .. } => fields
                     .iter()

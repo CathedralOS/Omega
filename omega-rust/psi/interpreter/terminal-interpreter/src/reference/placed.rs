@@ -390,9 +390,7 @@ impl TerminalExecution<'_> {
         // presentation. An incomplete source cannot mint initialized custody.
         let StructuralTypeShape::Record { fields, .. } = &self
             .program
-            .structural_types()
-            .get(&source.structural_type)
-            .ok_or_else(malformed)?
+            .structural_declaration(source.structural_type)?
             .shape
         else {
             return Err(malformed());
@@ -822,9 +820,7 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 }
                 let StructuralTypeShape::Record { fields, .. } = &program
-                    .structural_types()
-                    .get(&ram.source.structural_type)
-                    .ok_or_else(malformed)?
+                    .structural_declaration(ram.source.structural_type)?
                     .shape
                 else {
                     return Err(malformed());

@@ -223,12 +223,7 @@ impl TerminalExecution<'_> {
         }
         let terminal_psi::StructuralTypeShape::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
-        ) = self
-            .program
-            .structural_types()
-            .get(&structural_type)
-            .ok_or_else(malformed)?
-            .shape
+        ) = self.program.structural_declaration(structural_type)?.shape
         else {
             return Err(malformed());
         };

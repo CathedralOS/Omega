@@ -50,9 +50,7 @@ impl ConstructorStorage {
         let plan = ScalarAggregatePlan::new(
             execution
                 .program
-                .structural_types()
-                .get(&aggregate.structural_type)
-                .ok_or_else(malformed)?,
+                .structural_declaration(aggregate.structural_type)?,
             |identity| execution.program.structural_types().get(&identity),
         )?;
         let mut fields = aggregate.fields.iter();

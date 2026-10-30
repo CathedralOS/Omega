@@ -463,11 +463,7 @@ impl TerminalExecution<'_> {
             None
         };
         let primitive_loan = if matches!(
-            self.program
-                .structural_types()
-                .get(&referent_type)
-                .ok_or_else(malformed)?
-                .shape,
+            self.program.structural_declaration(referent_type)?.shape,
             StructuralTypeShape::PrimitiveScalar(_)
         ) {
             // Retain the actual projected carrier, including shared total views
@@ -521,12 +517,8 @@ impl TerminalExecution<'_> {
                 else {
                     return Err(malformed());
                 };
-                let StructuralTypeShape::PrimitiveScalar(logical_scalar) = self
-                    .program
-                    .structural_types()
-                    .get(&referent_type)
-                    .ok_or_else(malformed)?
-                    .shape
+                let StructuralTypeShape::PrimitiveScalar(logical_scalar) =
+                    self.program.structural_declaration(referent_type)?.shape
                 else {
                     return Err(malformed());
                 };
@@ -623,11 +615,7 @@ impl TerminalExecution<'_> {
                 )
                 .map_err(|_| malformed())?;
                 let byte_endpoint = matches!(
-                    self.program
-                        .structural_types()
-                        .get(&original_type)
-                        .ok_or_else(malformed)?
-                        .shape,
+                    self.program.structural_declaration(original_type)?.shape,
                     StructuralTypeShape::PrimitiveScalar(_)
                 );
                 // Primitive capture owns the actual byte endpoint across
@@ -1276,11 +1264,7 @@ impl TerminalExecution<'_> {
         ),
         TerminalInterpretError,
     > {
-        let expected = self
-            .program
-            .structural_types()
-            .get(&expected)
-            .ok_or_else(malformed)?;
+        let expected = self.program.structural_declaration(expected)?;
         self.resolve_live_projection_with_leaf_type(
             place,
             path,

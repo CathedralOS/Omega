@@ -733,11 +733,7 @@ impl ConstructorStorage {
         elements: &[TerminalScalarValue],
         destination: &StructuralRuntimePlace,
     ) -> Result<(), TerminalInterpretError> {
-        let declaration = execution
-            .program
-            .structural_types()
-            .get(&structural_type)
-            .ok_or_else(malformed)?;
+        let declaration = execution.program.structural_declaration(structural_type)?;
         match declaration.shape {
             StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                 let [value] = elements else {

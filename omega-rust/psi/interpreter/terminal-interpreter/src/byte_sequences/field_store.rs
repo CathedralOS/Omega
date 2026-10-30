@@ -23,8 +23,7 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
     ) -> Result<(StructuralByteSequenceRuntimeField, Option<u64>), TerminalInterpretError> {
-        let (cell, carrier) =
-            self.resolve_byte_field_carrier(root, path, field, false, true)?;
+        let (cell, carrier) = self.resolve_byte_field_carrier(root, path, field, false, true)?;
         let capacity = match carrier {
             ByteSequenceCarrier::BorrowedView { .. } => None,
             ByteSequenceCarrier::BoundedView { capacity, .. }
@@ -293,12 +292,8 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             let descriptor_type = self.live_structural_type(root)?;
-            let StructuralTypeShape::ElementView { element, .. } = self
-                .program
-                .structural_types()
-                .get(&descriptor_type)
-                .ok_or_else(malformed)?
-                .shape
+            let StructuralTypeShape::ElementView { element, .. } =
+                self.program.structural_declaration(descriptor_type)?.shape
             else {
                 return Err(malformed());
             };
