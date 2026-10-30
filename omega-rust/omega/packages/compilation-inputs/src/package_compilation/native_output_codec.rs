@@ -21,7 +21,7 @@ fn owned<T: compiler_storage::Record>(value: &T) -> Vec<u8> {
 }
 
 pub(super) fn encode_parts(outputs: &NativeBuildOutputs) -> Vec<u8> {
-    let mut output = b"OMGNTI08".to_vec();
+    let mut output = b"OMGNBO01".to_vec();
     push_framed(
         &mut output,
         &owned(&(outputs.declarations.clone(), outputs.intents.clone())),
@@ -49,7 +49,7 @@ pub(super) fn encode_parts(outputs: &NativeBuildOutputs) -> Vec<u8> {
 
 pub(super) fn decode_parts(bytes: &[u8]) -> Option<NativeBuildOutputs> {
     let mut cursor = ObservationCursor::new(bytes);
-    if cursor.bytes(8)? != b"OMGNTI08" {
+    if cursor.bytes(8)? != b"OMGNBO01" {
         return None;
     }
     let (declarations, intents): (Vec<CapturedNativeDeclaration>, Vec<CapturedNativeIntent>) =

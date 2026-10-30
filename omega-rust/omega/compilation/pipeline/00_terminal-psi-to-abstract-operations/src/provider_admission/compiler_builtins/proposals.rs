@@ -7,7 +7,7 @@
 //! its selected plan and Terminal boundary. The consuming lowerer admits it
 //! through its local target catalog.
 
-use super::external_satisfaction::{reconcile_numeric_meaning, selected_execution};
+use super::numeric_satisfaction::{reconcile_numeric_meaning, selected_execution};
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::{ProviderPlan, ServiceSchema};

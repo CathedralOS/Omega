@@ -65,7 +65,10 @@ pub(super) fn replay_installed_provider_calls(
                     invocation_site,
                     boundary: *boundary,
                 };
-                let declaration = boundary_by_id.get(boundary).copied().ok_or_else(malformed)?;
+                let declaration = boundary_by_id
+                    .get(boundary)
+                    .copied()
+                    .ok_or_else(malformed)?;
                 let candidate = machine_by_id
                     .get(&provider.candidate)
                     .copied()
@@ -137,18 +140,14 @@ pub(super) fn replay_installed_provider_calls(
                 continue;
             };
             let assumption = assumed_by_required.get(boundary).copied();
-            let Some(provider) = installed_by_boundary
-                .get(boundary)
-                .copied()
-                .or_else(|| {
-                    assumption.and_then(|link| {
-                        installed.iter().find(|row| {
-                            row.candidate == link.implementation
-                                && row.boundary == link.selected_requirement
-                        })
+            let Some(provider) = installed_by_boundary.get(boundary).copied().or_else(|| {
+                assumption.and_then(|link| {
+                    installed.iter().find(|row| {
+                        row.candidate == link.implementation
+                            && row.boundary == link.selected_requirement
                     })
                 })
-            else {
+            }) else {
                 continue;
             };
             let malformed = || ProviderInstallationError::InstalledCallReplayMismatch {
@@ -156,7 +155,10 @@ pub(super) fn replay_installed_provider_calls(
                 invocation_site: (*psi_operation).into(),
                 boundary: *boundary,
             };
-            let boundary_declaration = boundary_by_id.get(boundary).copied().ok_or_else(malformed)?;
+            let boundary_declaration = boundary_by_id
+                .get(boundary)
+                .copied()
+                .ok_or_else(malformed)?;
             let candidate = function_by_id
                 .get(&provider.candidate)
                 .copied()

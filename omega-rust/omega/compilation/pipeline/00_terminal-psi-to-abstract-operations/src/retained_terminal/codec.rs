@@ -20,7 +20,7 @@ use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
 // Combined native catalogue custody differs from both predecessor records.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI07";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI08";
 
 #[cfg(test)]
 mod tests {
@@ -104,17 +104,17 @@ fn capture(
     output.sequence(boundaries.selected_provider_provenance.len())?;
     for crate::provider_admission::CompilerIntrinsicPlanProvenance {
         plan,
-        semantic_plan,
+        semantic_schema,
         row_executions,
         row_numeric_realizations,
     } in &boundaries.selected_provider_provenance
     {
         plan.write(&mut output)?;
-        if semantic_plan == plan {
+        if semantic_schema == &plan.schema {
             0u8.write(&mut output)?;
         } else {
             1u8.write(&mut output)?;
-            semantic_plan.write(&mut output)?;
+            semantic_schema.write(&mut output)?;
         }
         output.sequence(row_executions.len())?;
         for execution in *row_executions {
@@ -150,7 +150,7 @@ fn capture(
 
 struct IntrinsicPlanRecord {
     plan: effects::provider_plan::ProviderPlan,
-    semantic_plan: Option<effects::provider_plan::ProviderPlan>,
+    semantic_schema: Option<effects::provider_plan::ServiceSchema>,
     row_executions: Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>,
     row_numeric_realizations: Vec<Option<String>>,
 }
@@ -292,7 +292,7 @@ pub fn recover_native_derivation_inputs(
                 .map(
                     |row| crate::provider_admission::CompilerIntrinsicPlanProvenance {
                         plan: &row.plan,
-                        semantic_plan: row.semantic_plan.as_ref().unwrap_or(&row.plan),
+                        semantic_schema: row.semantic_schema.as_ref().unwrap_or(&row.plan.schema),
                         row_executions: &row.row_executions,
                         row_numeric_realizations: &row.row_numeric_realizations,
                     },

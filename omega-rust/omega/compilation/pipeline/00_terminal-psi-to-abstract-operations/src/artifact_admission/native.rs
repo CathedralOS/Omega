@@ -63,8 +63,17 @@ impl NativeScopePreparation {
         let entry = selections
             .entry(artifact.view().identity(), module, root)
             .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
-        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
-            .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
+        let layout_target = profile.layout_target_facts().ok_or_else(|| {
+            ArtifactLoweringError::TargetFamily(
+                "selected profile has no admitted target layout facts".into(),
+            )
+        })?;
+        let layouts = terminal_installation::admit_target_layouts(
+            artifact.view(),
+            &selections,
+            &layout_target,
+        )
+        .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
         let assumptions = selection
             .plans
             .assumed_binding_coordinates(module)
@@ -472,8 +481,17 @@ mod private_entry_target_tests {
             .clone();
         let selections =
             terminal_installation::admit_target_machine_selections(artifact.view(), "linux_x86_64");
-        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
-            .expect("actual Linux selected geometry");
+        let layout_target = profile.layout_target_facts().ok_or_else(|| {
+            ArtifactLoweringError::TargetFamily(
+                "selected profile has no admitted target layout facts".into(),
+            )
+        })?;
+        let layouts = terminal_installation::admit_target_layouts(
+            artifact.view(),
+            &selections,
+            &layout_target,
+        )
+        .expect("actual Linux selected geometry");
         // Public receiving data controls use the actual canonical entry row.
         // A fresh private allocation cannot answer a stale or changed demand.
         let mut wrong_schema = row.clone();
