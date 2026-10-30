@@ -167,6 +167,15 @@ impl TerminalExecution<'_> {
         endpoint: PrimitiveStorageEndpoint,
     ) -> Result<(Option<u64>, u64, Vec<Coordinate>), TerminalInterpretError> {
         let selected = match endpoint {
+            PrimitiveStorageEndpoint::Projection { fragments, .. } => {
+                let first = fragments.first().ok_or_else(malformed)?;
+                if first.source_offset != 0 {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "storage-address exposure within a scalar backing cell is not modeled",
+                    ));
+                }
+                return self.endpoint_identity(first.storage.endpoint.clone());
+            }
             PrimitiveStorageEndpoint::Scalar(place) => place,
             PrimitiveStorageEndpoint::ScalarField(field) => {
                 // Inline scalar fields share the same terminated path grammar

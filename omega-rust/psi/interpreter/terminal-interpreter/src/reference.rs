@@ -69,6 +69,11 @@ pub(crate) enum AggregateViewTip {
         view: terminal_semantics::ReferenceStorageProjection,
         backing: terminal_semantics::ReferenceStorageProjection,
     },
+    /// A scalar observes a byte window cutting across original scalar cells.
+    ScalarRegion {
+        view: terminal_semantics::ReferenceStorageProjection,
+        byte_length: u64,
+    },
 }
 
 /// One resolved endpoint in its actual backing declaration. A byte snapshot
@@ -105,8 +110,8 @@ mod aggregate_views;
 mod origin_backings;
 pub(crate) mod placed;
 pub(crate) use aggregate_views::{
-    AggregateBacking, AggregateViewRegion, backing_scalar_path, translate_aggregate_view_field,
-    translate_aggregate_view_path,
+    AggregateBacking, AggregateViewRegion, backing_scalar_path, scalar_storage_fragments,
+    translate_aggregate_view_field, translate_aggregate_view_path,
 };
 pub(crate) use placed::PlacedReference;
 
@@ -1515,7 +1520,10 @@ impl TerminalExecution<'_> {
             // An aggregate re-view is a window in this backing root, not an
             // eagerly paired child. Keep its coordinate for subsequent reads,
             // reborrows and ingress; scalar endpoints have a real backing path.
-            value = if let Some(AggregateViewTip::Scalar { .. }) = tip {
+            value = if let Some(
+                AggregateViewTip::Scalar { .. } | AggregateViewTip::ScalarRegion { .. },
+            ) = tip
+            {
                 let view = active_view.ok_or_else(malformed)?;
                 let (storage, _, _) = self.aggregate_view_primitive_access(
                     &value,
@@ -1620,7 +1628,9 @@ impl TerminalExecution<'_> {
                             )
                         }
                         None => None,
-                        Some(AggregateViewTip::Scalar { .. }) => return Err(malformed()),
+                        Some(
+                            AggregateViewTip::Scalar { .. } | AggregateViewTip::ScalarRegion { .. },
+                        ) => return Err(malformed()),
                     };
                     value = if access == Some(StructuralAccess::SharedBorrow) {
                         crate::custody::project_shared_structural_observation(

@@ -30,6 +30,7 @@ use crate::values::{
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use terminal_psi::TerminalMachine;
 
+mod aggregate_projection;
 pub(crate) mod encoding;
 
 pub(crate) use encoding::{scalar_fits_storage, shifted_byte_endpoint};
@@ -108,6 +109,11 @@ impl PrimitiveStorageHome {
 
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) enum PrimitiveStorageEndpoint {
+    Projection {
+        fragments: Vec<PrimitiveStorageFragment>,
+        logical: ScalarType,
+        stored: ScalarType,
+    },
     Scalar(StructuralRuntimePlace),
     /// One scalar leaf inside a shared referent's containing record. The key
     /// addresses `structural_scalar_fields` directly: primitive root storage
@@ -128,6 +134,17 @@ pub(crate) enum PrimitiveStorageEndpoint {
         bytes: crate::byte_sequences::ByteSequenceView,
         index: usize,
     },
+}
+
+/// A physical byte slice of one retained original scalar endpoint.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct PrimitiveStorageFragment {
+    pub(super) storage: PrimitiveStorage,
+    logical: ScalarType,
+    stored: ScalarType,
+    pub(super) source_offset: u8,
+    destination_offset: u8,
+    byte_length: u8,
 }
 
 /// Encoding is retained with the endpoint, not reconstructed from a later
@@ -172,7 +189,12 @@ impl PrimitiveStorage {
     /// Host snapshots expose the observed physical carrier; the pinned
     /// endpoint still retains the original codec for eventual writeback.
     pub(crate) fn storage_scalar(&self) -> Option<ScalarType> {
-        self.encoding.map(|encoding| encoding.view)
+        self.encoding
+            .map(|encoding| encoding.view)
+            .or_else(|| match &self.endpoint {
+                PrimitiveStorageEndpoint::Projection { stored, .. } => Some(*stored),
+                _ => None,
+            })
     }
 }
 
@@ -202,6 +224,17 @@ impl PrimitiveStorageWrites {
     ) -> Result<(), TerminalInterpretError> {
         if value.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(value) {
             return Err(malformed());
+        }
+        if let PrimitiveStorageEndpoint::Projection {
+            fragments,
+            logical,
+            stored,
+        } = &storage.endpoint
+        {
+            if *logical != scalar_type {
+                return Err(malformed());
+            }
+            return self.stage_projection(execution, destination, fragments, *stored, value);
         }
         if let Some(encoding) = storage.encoding {
             let value = if encoding.view != encoding.source {
@@ -270,7 +303,8 @@ impl PrimitiveStorageWrites {
                     return Err(malformed());
                 }
             }
-            PrimitiveStorageEndpoint::ViewByte { .. } => return Err(malformed()),
+            PrimitiveStorageEndpoint::ViewByte { .. }
+            | PrimitiveStorageEndpoint::Projection { .. } => return Err(malformed()),
         }
         let write = PreparedPrimitiveWrite {
             destination,
@@ -807,6 +841,13 @@ impl TerminalExecution<'_> {
         .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
             "aggregate re-view has no unique contiguous scalar endpoint",
         ))?;
+        if let crate::reference::AggregateViewTip::ScalarRegion {
+            view: observed,
+            byte_length,
+        } = tip
+        {
+            return self.aggregate_projection_storage(referent, observed, byte_length);
+        }
         let crate::reference::AggregateViewTip::Scalar {
             view: observed,
             backing: stored,
@@ -1814,6 +1855,7 @@ impl TerminalExecution<'_> {
                 translated = namespace.to_vec();
                 (translated.as_slice(), stored.logical_scalar)
             }
+            Some(crate::reference::AggregateViewTip::ScalarRegion { .. }) => return Ok(None),
             Some(_) => return Err(malformed()),
         };
         let Some(field) = terminal_semantics::runtime_structural_field(
@@ -2032,6 +2074,17 @@ impl TerminalExecution<'_> {
         if expected != scalar_type {
             return Err(malformed());
         }
+        if let PrimitiveStorageEndpoint::Projection {
+            fragments,
+            logical,
+            stored,
+        } = &storage.endpoint
+        {
+            if *logical != scalar_type {
+                return Err(malformed());
+            }
+            return self.read_storage_projection(source, fragments, *stored, expected);
+        }
         if let Some(encoding) = storage.encoding {
             if encoding.view != encoding.source {
                 let stored = self.read_encoded_primitive(
@@ -2088,6 +2141,7 @@ impl TerminalExecution<'_> {
                     source,
                     field: field.field,
                 }),
+            PrimitiveStorageEndpoint::Projection { .. } => return Err(malformed()),
             PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
                 let Some(integer) = scalar_type.as_integer() else {
                     return Err(malformed());
@@ -2354,7 +2408,8 @@ impl TerminalExecution<'_> {
                 let byte = u8::try_from(value).map_err(|_| malformed())?;
                 self.stored_byte_array_write(&array, index, byte)?;
             }
-            PrimitiveStorageEndpoint::ViewByte { .. } => return Err(malformed()),
+            PrimitiveStorageEndpoint::ViewByte { .. }
+            | PrimitiveStorageEndpoint::Projection { .. } => return Err(malformed()),
         }
         Ok(())
     }

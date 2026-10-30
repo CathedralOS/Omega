@@ -2075,7 +2075,10 @@ impl TerminalExecution<'_> {
             Some(crate::reference::AggregateViewTip::Aggregate { view, .. }) => {
                 view.structural_type
             }
-            Some(crate::reference::AggregateViewTip::Scalar { .. }) => return Err(malformed()),
+            Some(
+                crate::reference::AggregateViewTip::Scalar { .. }
+                | crate::reference::AggregateViewTip::ScalarRegion { .. },
+            ) => return Err(malformed()),
             None => structural_value.structural_type,
         };
         let declaration = terminal_semantics::observed_field_declaration(

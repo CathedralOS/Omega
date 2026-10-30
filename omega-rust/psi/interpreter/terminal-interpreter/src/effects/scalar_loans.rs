@@ -532,6 +532,13 @@ fn scalar_qualification_owner(storage: &PrimitiveStorage) -> Option<&StructuralR
         PrimitiveStorageEndpoint::Scalar(place) => Some(place),
         PrimitiveStorageEndpoint::ScalarField(field) => Some(&field.parent),
         PrimitiveStorageEndpoint::ArrayElement { array, .. } => Some(&array.referent),
+        PrimitiveStorageEndpoint::Projection { fragments, .. } => {
+            let owner = scalar_qualification_owner(&fragments.first()?.storage)?;
+            fragments
+                .iter()
+                .all(|fragment| scalar_qualification_owner(&fragment.storage) == Some(owner))
+                .then_some(owner)
+        }
         PrimitiveStorageEndpoint::OwnedArrayElement { .. }
         | PrimitiveStorageEndpoint::ViewByte { .. } => None,
     }

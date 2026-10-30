@@ -241,6 +241,42 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         match &mut loan.storage.endpoint {
+            PrimitiveStorageEndpoint::Projection {
+                fragments,
+                logical,
+                stored,
+            } => {
+                let available = usize::from(
+                    terminal_semantics::reference_storage_byte_width(*stored)
+                        .ok_or_else(malformed)?,
+                );
+                let end = byte_offset.checked_add(width).ok_or_else(malformed)?;
+                if end > available {
+                    return Err(malformed());
+                }
+                let mut selected = Vec::new();
+                for fragment in fragments.iter() {
+                    let start = usize::from(fragment.destination_offset);
+                    let fragment_end = start + usize::from(fragment.byte_length);
+                    let first = start.max(byte_offset);
+                    let last = fragment_end.min(end);
+                    if first >= last {
+                        continue;
+                    }
+                    let mut fragment = fragment.clone();
+                    fragment.source_offset = fragment
+                        .source_offset
+                        .checked_add(u8::try_from(first - start).map_err(|_| malformed())?)
+                        .ok_or_else(malformed)?;
+                    fragment.destination_offset =
+                        u8::try_from(first - byte_offset).map_err(|_| malformed())?;
+                    fragment.byte_length = u8::try_from(last - first).map_err(|_| malformed())?;
+                    selected.push(fragment);
+                }
+                *fragments = selected;
+                // The caller installs its exact observed codec after positioning.
+                let _ = logical;
+            }
             PrimitiveStorageEndpoint::ArrayElement { array, index } => {
                 if loan.scalar_type != byte_type()? {
                     return Err(malformed());
@@ -433,6 +469,40 @@ pub(crate) fn shifted_byte_endpoint(
     byte_offset: usize,
 ) -> Result<PrimitiveStorageEndpoint, TerminalInterpretError> {
     match endpoint {
+        PrimitiveStorageEndpoint::Projection {
+            fragments, stored, ..
+        } => {
+            let width = usize::from(
+                terminal_semantics::reference_storage_byte_width(*stored).ok_or_else(malformed)?,
+            );
+            if byte_offset >= width {
+                return Err(malformed());
+            }
+            let mut selected = Vec::new();
+            for fragment in fragments {
+                let first = usize::from(fragment.destination_offset);
+                let last = first + usize::from(fragment.byte_length);
+                if !(first..last).contains(&byte_offset) {
+                    continue;
+                }
+                let mut fragment = fragment.clone();
+                fragment.source_offset = fragment
+                    .source_offset
+                    .checked_add(u8::try_from(byte_offset - first).map_err(|_| malformed())?)
+                    .ok_or_else(malformed)?;
+                fragment.destination_offset = 0;
+                fragment.byte_length = 1;
+                selected.push(fragment);
+            }
+            if selected.len() != 1 {
+                return Err(malformed());
+            }
+            Ok(PrimitiveStorageEndpoint::Projection {
+                fragments: selected,
+                logical: byte_type()?,
+                stored: byte_type()?,
+            })
+        }
         PrimitiveStorageEndpoint::ArrayElement { array, index } => {
             Ok(PrimitiveStorageEndpoint::ArrayElement {
                 array: array.clone(),
