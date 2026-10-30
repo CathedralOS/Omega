@@ -512,6 +512,21 @@ pub(crate) fn declared_integer_range(
     integer_range_from_constraints(&expression_constraints(program, machine, state, expression))
 }
 
+/// Retire every witness whose place a write on `written` may overwrite. `None`
+/// is the opaque frame: nothing about the statement is known, so no witness
+/// survives it.
+fn retire_written_witnesses(witnesses: &mut Vec<(String, i64)>, written: Option<&[String]>) {
+    let Some(written) = written else {
+        witnesses.clear();
+        return;
+    };
+    witnesses.retain(|(place, _)| {
+        written
+            .iter()
+            .all(|written| !validation::frame_paths_overlap(place, written))
+    });
+}
+
 /// Walk `statements[..upto]` maintaining the live boundary-ensures witness
 /// set. Resolved calls invalidate only witnesses overlapping their shared R5
 /// may-write frame; opaque calls invalidate everything. A boundary call then
@@ -534,31 +549,14 @@ pub(crate) fn ensures_witness_bounds_at<'program>(
         // mutating call can retire a witness even when the enclosing target
         // writes unrelated storage or only initializes a local.
         if !witnesses.is_empty() {
-            if let Some(written) = call_frames
-                .and_then(|frames| frames.statement_value_may_write_paths(machine, statement))
-            {
-                witnesses.retain(|(place, _)| {
-                    written
-                        .iter()
-                        .all(|written| !validation::frame_paths_overlap(place, written))
-                });
-            } else {
-                witnesses.clear();
-            }
+            let written = call_frames
+                .and_then(|frames| frames.statement_value_may_write_paths(machine, statement));
+            retire_written_witnesses(&mut witnesses, written.as_deref());
         }
         match statement {
             StatementNode::Call(call) => {
-                if let Some(written) =
-                    call_frames.and_then(|frames| frames.may_write_paths(machine, call))
-                {
-                    witnesses.retain(|(place, _)| {
-                        written
-                            .iter()
-                            .all(|written| !validation::frame_paths_overlap(place, written))
-                    });
-                } else {
-                    witnesses.clear();
-                }
+                let written = call_frames.and_then(|frames| frames.may_write_paths(machine, call));
+                retire_written_witnesses(&mut witnesses, written.as_deref());
                 let Some(signature) =
                     typed_trees::boundary::called_boundary_signature(program, call)
                 else {
@@ -589,15 +587,7 @@ pub(crate) fn ensures_witness_bounds_at<'program>(
                         .assignment_write_frame(machine, statement)
                         .into_complete_paths()
                 });
-                if let Some(written) = written {
-                    witnesses.retain(|(place, _)| {
-                        written
-                            .iter()
-                            .all(|written| !validation::frame_paths_overlap(place, written))
-                    });
-                } else {
-                    witnesses.clear();
-                }
+                retire_written_witnesses(&mut witnesses, written.as_deref());
             }
             _ => {}
         }
