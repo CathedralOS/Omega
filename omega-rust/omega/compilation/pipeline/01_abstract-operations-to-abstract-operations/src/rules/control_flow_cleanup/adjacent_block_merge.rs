@@ -46,10 +46,7 @@ psi_rule_impl!(AdjacentBlockMergeRule, |unit, analyses| {
         if !descriptor_telescope_free(function) {
             continue;
         }
-        let machine_dominators = dominators
-            .function(function.machine)
-            .map(|(_, rows)| rows.as_slice())
-            .unwrap_or_default();
+        let machine_dominators = dominators.rows(function.machine);
         for candidate in merge_candidates(function, |candidate| {
             candidate.target_position == candidate.predecessor_position + 1
                 && candidate.target.nodes.first().is_some_and(|node| {
