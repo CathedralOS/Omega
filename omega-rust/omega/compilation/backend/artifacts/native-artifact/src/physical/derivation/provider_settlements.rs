@@ -10,8 +10,8 @@ use crate::OptimizedBoundaryOccurrence;
 use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
 use crate::physical::derivation::evidence::boundary_physical_child_parts;
-use crate::physical::derivation::evidence::ranges_overlap;
 use crate::physical::derivation::evidence::span;
+use crate::physical::derivation::evidence::text_relocation_overlaps;
 use crate::physical::derivation::provider_custody::direct_port_read_custody;
 use crate::physical::derivation::provider_custody::linux_write_line_custody_is_exact;
 use crate::physical::derivation::provider_custody::metadata_port_effect_custody;
@@ -21,7 +21,6 @@ use crate::physical::derivation::settlement_identity::admitted_provider_settleme
 use crate::physical::native_byte_span;
 use crate::physical::sole_terminal_operation;
 use machine_code::BoundaryExecutionRecord;
-use object_file::SectionKind;
 use optimization_core::NativeOptimizationProjectionIdentity;
 use std::collections::BTreeSet;
 use target::NativeTarget;
@@ -184,15 +183,7 @@ pub(crate) fn derive_admitted_provider_settlement_child(
         .text_offset
         .checked_add(settlement.byte_count)
         .ok_or("installed D41 settlement relocation span overflow")?;
-    if object.relocations().records().any(|(_, relocation)| {
-        relocation.section == SectionKind::Text
-            && ranges_overlap(
-                installed.text_offset,
-                object_end,
-                relocation.offset,
-                relocation.offset.saturating_add(relocation.byte_width),
-            )
-    }) {
+    if text_relocation_overlaps(object, (installed.text_offset, object_end)) {
         return Err("installed D41 settlement unexpectedly contains a relocation");
     }
 

@@ -176,7 +176,7 @@ fn reference_origin_refines<'types>(
             if actual.extent == WithinRegion
                 && actual.path.len() > allowed.path.len()
                 && reference_origin_type(types.clone(), root, &actual.path)
-                    .and_then(|endpoint| types.clone().find(|row| row.id == endpoint))
+                    .and_then(|endpoint| crate::structural_declaration(types.clone(), endpoint))
                     .is_some_and(|row| descriptor_region(&row.shape))
             {
                 return false;
@@ -208,7 +208,7 @@ pub fn reference_origin_is_covered<'types>(
             continue;
         }
         let Some(collection) = reference_origin_type(types.clone(), root, &actual.path[..position])
-            .and_then(|identity| types.clone().find(|declaration| declaration.id == identity))
+            .and_then(|identity| crate::structural_declaration(types.clone(), identity))
         else {
             return false;
         };
@@ -385,7 +385,7 @@ pub fn reference_origin_type<'types>(
             ReferenceOriginProjection::Exact(StructuralPathSegment::FixedIndex(index)) => {
                 root = exact_origin_type(types.clone(), root, &exact)?;
                 exact.clear();
-                let collection = types.clone().find(|declaration| declaration.id == root)?;
+                let collection = crate::structural_declaration(types.clone(), root)?;
                 if matches!(collection.shape, StructuralTypeShape::FixedArray { length: terminal_psi::ArrayExtent::Literal(length), .. } if *index >= length)
                 {
                     return None;
@@ -431,9 +431,7 @@ pub fn collection_element_type<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     collection: StructuralTypeId,
 ) -> Option<StructuralTypeId> {
-    let declaration = types
-        .clone()
-        .find(|declaration| declaration.id == collection)?;
+    let declaration = crate::structural_declaration(types.clone(), collection)?;
     match declaration.shape {
         StructuralTypeShape::FixedArray { element, .. }
         | StructuralTypeShape::ElementView { element, .. } => Some(element),

@@ -56,11 +56,7 @@ fn float_result_policy_exit_admission_binds_control_trap_and_operand_footprint()
             }
             assert_non_return_refused(
                 &format!("{form:?}, mutation {mutation}"),
-                instruction,
-                kind,
-                &encoding,
-                &layout,
-                &changed,
+                (instruction, kind, &encoding, &layout, &changed),
             );
         }
     }

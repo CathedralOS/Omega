@@ -1153,17 +1153,22 @@ fn contains_rebound_premises(
         });
     }
     let mut remaining = retained.iter().map(Arc::as_ref).peekable();
-    rebound.iter().all(|premise| {
-        while remaining
-            .peek()
-            .is_some_and(|candidate| *candidate < premise)
-        {
-            remaining.next();
-        }
-        remaining
-            .peek()
-            .is_some_and(|candidate| *candidate == premise)
-    })
+    rebound
+        .iter()
+        .all(|premise| next_premise_is(&mut remaining, premise))
+}
+
+/// Advance one sorted premise cursor to `premise`, reporting whether it lands on
+/// it. Rows ordered before `premise` occur in neither roster; the cursor moves
+/// forward only, so a shared-prefix join needs one pass per caller.
+fn next_premise_is<'a, Premise: PartialOrd + 'a>(
+    remaining: &mut std::iter::Peekable<impl Iterator<Item = &'a Premise>>,
+    premise: &Premise,
+) -> bool {
+    while matches!(remaining.peek(), Some(candidate) if *candidate < premise) {
+        remaining.next();
+    }
+    matches!(remaining.peek(), Some(candidate) if *candidate == premise)
 }
 
 /// Union two sorted, unique premise rosters without cloning and then discarding
@@ -1179,17 +1184,7 @@ pub(super) fn extend_canonical_premises<Additional: Borrow<semantic_vocabulary::
     let introduces_premise = additional
         .iter()
         .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
-        .any(|premise| {
-            while existing
-                .peek()
-                .is_some_and(|candidate| *candidate < premise)
-            {
-                existing.next();
-            }
-            !existing
-                .peek()
-                .is_some_and(|candidate| *candidate == premise)
-        });
+        .any(|premise| !next_premise_is(&mut existing, premise));
     if !introduces_premise {
         return;
     }
@@ -1221,17 +1216,9 @@ fn retain_common_snapshot(
     incoming: &[Arc<semantic_vocabulary::Proposition>],
 ) -> bool {
     let mut remaining = incoming.iter().peekable();
-    let unchanged = retained.iter().all(|premise| {
-        while remaining
-            .peek()
-            .is_some_and(|candidate| *candidate < premise)
-        {
-            remaining.next();
-        }
-        remaining
-            .peek()
-            .is_some_and(|candidate| *candidate == premise)
-    });
+    let unchanged = retained
+        .iter()
+        .all(|premise| next_premise_is(&mut remaining, premise));
     if unchanged {
         return false;
     }
@@ -1262,15 +1249,7 @@ fn retain_common_premises<
         .peekable();
     retained.retain(|premise| {
         let premise: &semantic_vocabulary::Proposition = premise.borrow();
-        while remaining
-            .peek()
-            .is_some_and(|candidate| *candidate < premise)
-        {
-            remaining.next();
-        }
-        remaining
-            .peek()
-            .is_some_and(|candidate| *candidate == premise)
+        next_premise_is(&mut remaining, premise)
     });
     retained.len() != previous
 }

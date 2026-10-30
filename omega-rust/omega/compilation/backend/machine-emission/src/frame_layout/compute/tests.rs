@@ -21,7 +21,7 @@ macro_rules! t {
 /// Every case here lays out a canonical ordinary-call frame for machine 1 with
 /// no stable-address loans; the fixture supplies those three arguments so each
 /// case names only the shape it is about.
-fn frame(
+fn frame_with_saves(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     abi: FrameAbiPreservationConvention,
     contains_call: bool,
@@ -43,6 +43,41 @@ fn frame(
         Vec::new(),
         callee_save_area_bytes,
         callee_save_slots,
+    )
+}
+
+/// The one frame-forcing fact a save-free case states on its own.
+#[derive(Clone, Copy)]
+enum CaseShape {
+    /// No call and no link-register write.
+    Bare,
+    /// A call, without a link-register write.
+    Call,
+    /// A link-register write, without a call.
+    Link,
+}
+
+/// The same fixture for a case whose frame saves nothing: no callee-save area
+/// and no callee-save slots.
+fn frame(
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    abi: FrameAbiPreservationConvention,
+    shape: CaseShape,
+    storage: (
+        &[selected_instructions::SelectedOutgoingArgumentSlot],
+        &[selected_instructions::SelectedLocalStorageSlot],
+    ),
+) -> Result<machine_code::FunctionTargetFrameLayout, TargetFrameLayoutError> {
+    let (outgoing_arguments, local_storage) = storage;
+    frame_with_saves(
+        environment,
+        abi,
+        matches!(shape, CaseShape::Call),
+        matches!(shape, CaseShape::Link),
+        outgoing_arguments,
+        local_storage,
+        0,
+        Vec::new(),
     )
 }
 
@@ -87,12 +122,11 @@ fn owned_overaligned_homes_keep_fixed_x64_stack_geometry() {
         let layout = frame(
             &environment,
             abi,
-            true,
-            false,
-            std::slice::from_ref(&outgoing),
-            std::slice::from_ref(&local),
-            0,
-            Vec::new(),
+            CaseShape::Call,
+            (
+                std::slice::from_ref(&outgoing),
+                std::slice::from_ref(&local),
+            ),
         )
         .unwrap();
         assert_eq!(layout.abi_stack_alignment_bytes, 16);
@@ -130,16 +164,7 @@ fn owned_overaligned_homes_keep_fixed_x64_stack_geometry() {
         let mut invalid = outgoing;
         invalid.id.role = OutgoingArgumentSlotRole::Argument;
         assert_eq!(
-            frame(
-                &environment,
-                abi,
-                true,
-                false,
-                &[invalid],
-                &[],
-                0,
-                Vec::new()
-            ),
+            frame(&environment, abi, CaseShape::Call, (&[invalid], &[])),
             Err(TargetFrameLayoutError::NonCanonicalLayout),
         );
     }
@@ -177,7 +202,7 @@ fn narrow_outgoing_payload_aligns_preservation_without_activation_locals() {
             size_bytes: 8,
             alignment_bytes: 8,
         };
-        let layout = frame(
+        let layout = frame_with_saves(
             &environment,
             abi,
             true,
@@ -201,17 +226,7 @@ fn narrow_outgoing_payload_aligns_preservation_without_activation_locals() {
         assert!(saved.frame_offset_bytes + saved.size_bytes <= layout.frame_size_bytes);
 
         // Without preservation storage the payload does not acquire invented padding.
-        let without_save = frame(
-            &environment,
-            abi,
-            true,
-            false,
-            &[outgoing],
-            &[],
-            0,
-            Vec::new(),
-        )
-        .unwrap();
+        let without_save = frame(&environment, abi, CaseShape::Call, (&[outgoing], &[])).unwrap();
         assert_eq!(without_save.outgoing_abi_area.byte_size, outgoing_end);
         assert!(without_save.callee_save_slots.is_empty());
     }
@@ -242,12 +257,8 @@ fn activation_locals_are_not_outgoing_abi_storage_on_any_host() {
         let layout = frame(
             &environment,
             abi,
-            true,
-            false,
-            &[],
-            std::slice::from_ref(&local),
-            0,
-            Vec::new(),
+            CaseShape::Call,
+            (&[], std::slice::from_ref(&local)),
         )
         .unwrap();
         let outgoing = if abi == FrameAbiPreservationConvention::MicrosoftX64 {
@@ -264,12 +275,8 @@ fn activation_locals_are_not_outgoing_abi_storage_on_any_host() {
             frame(
                 &environment,
                 abi,
-                true,
-                false,
-                &[],
-                &[local.clone(), local.clone()],
-                0,
-                Vec::new()
+                CaseShape::Call,
+                (&[], &[local.clone(), local.clone()])
             )
             .is_err()
         );
@@ -299,17 +306,13 @@ fn outgoing_pointer_slots_reserve_storage_on_every_host_abi() {
         let layout = frame(
             &environment,
             abi,
-            true,
-            false,
-            std::slice::from_ref(&slot),
-            &[],
-            0,
-            Vec::new(),
+            CaseShape::Call,
+            (std::slice::from_ref(&slot), &[]),
         )
         .unwrap();
         assert_eq!(layout.outgoing_abi_area.byte_size, u64::from(offset) + 8);
         assert!(layout.frame_size_bytes >= u64::from(offset) + 8);
-        assert!(frame(&environment, abi, false, false, &[slot], &[], 0, Vec::new()).is_err());
+        assert!(frame(&environment, abi, CaseShape::Bare, (&[slot], &[])).is_err());
     }
 }
 
@@ -335,12 +338,8 @@ fn large_frames_commit_through_an_exact_probe_roster() {
         let layout = frame(
             &environment,
             abi,
-            false,
-            false,
-            &[],
-            std::slice::from_ref(&local),
-            0,
-            Vec::new(),
+            CaseShape::Bare,
+            (&[], std::slice::from_ref(&local)),
         )
         .unwrap();
         assert_eq!(layout.stack_probe.interval_bytes, interval, "{target:?}");
@@ -353,12 +352,8 @@ fn large_frames_commit_through_an_exact_probe_roster() {
         let small_layout = frame(
             &environment,
             abi,
-            false,
-            false,
-            &[],
-            std::slice::from_ref(&small),
-            0,
-            Vec::new(),
+            CaseShape::Bare,
+            (&[], std::slice::from_ref(&small)),
         )
         .unwrap();
         assert_eq!(
@@ -383,19 +378,18 @@ fn frames_past_the_shared_displacement_reach_are_refused_by_name() {
             frame(
                 &environment,
                 abi,
-                false,
-                false,
-                &[],
-                &[selected_instructions::SelectedLocalStorageSlot {
-                    id: selected_instructions::LocalStorageSlotId::Structural {
-                        operation: semantic_vocabulary::OperationId::new(7).unwrap(),
-                        place: semantic_vocabulary::PlaceId::new(11).unwrap(),
-                    },
-                    byte_size,
-                    alignment: 8,
-                }],
-                0,
-                Vec::new(),
+                CaseShape::Bare,
+                (
+                    &[],
+                    &[selected_instructions::SelectedLocalStorageSlot {
+                        id: selected_instructions::LocalStorageSlotId::Structural {
+                            operation: semantic_vocabulary::OperationId::new(7).unwrap(),
+                            place: semantic_vocabulary::PlaceId::new(11).unwrap(),
+                        },
+                        byte_size,
+                        alignment: 8,
+                    }],
+                ),
             )
         };
         // 32 MiB and the last page under 2 GiB lay out; 2 GiB does not.
@@ -434,12 +428,8 @@ fn system_v_leaf_spill_storage_inside_the_red_zone_commits_nothing() {
         let layout = frame(
             &environment,
             FrameAbiPreservationConvention::SystemVAMD64,
-            false,
-            false,
-            &[],
-            &slots,
-            0,
-            Vec::new(),
+            CaseShape::Bare,
+            (&[], &slots),
         )
         .unwrap();
         assert_eq!(layout.frame_size_bytes, extent);
@@ -458,12 +448,8 @@ fn system_v_leaf_spill_storage_inside_the_red_zone_commits_nothing() {
     let layout = frame(
         &environment,
         FrameAbiPreservationConvention::SystemVAMD64,
-        false,
-        false,
-        &[],
-        &over,
-        0,
-        Vec::new(),
+        CaseShape::Bare,
+        (&[], &over),
     )
     .unwrap();
     assert_eq!(layout.red_zone_resident_bytes, 0);
@@ -517,7 +503,7 @@ fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
             }],
         ),
     ] {
-        let layout = frame(
+        let layout = frame_with_saves(
             &sysv,
             FrameAbiPreservationConvention::SystemVAMD64,
             contains_call,
@@ -547,17 +533,7 @@ fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
     ] {
         let environment =
             register_environment::baseline_target_register_environment(target).unwrap();
-        let layout = frame(
-            &environment,
-            abi,
-            false,
-            false,
-            &[],
-            &[spill(0)],
-            0,
-            Vec::new(),
-        )
-        .unwrap();
+        let layout = frame(&environment, abi, CaseShape::Bare, (&[], &[spill(0)])).unwrap();
         assert_eq!(layout.red_zone_resident_bytes, 0, "{target:?}");
         assert!(layout.frame_size_bytes != 0, "{target:?}");
     }
@@ -565,12 +541,8 @@ fn red_zone_residency_requires_leaf_spill_only_sysv_storage() {
     let empty = frame(
         &sysv,
         FrameAbiPreservationConvention::SystemVAMD64,
-        false,
-        false,
-        &[],
-        &[],
-        0,
-        Vec::new(),
+        CaseShape::Bare,
+        (&[], &[]),
     )
     .unwrap();
     assert_eq!(empty.frame_size_bytes, 0);
@@ -593,7 +565,7 @@ fn unwind_matrix_fails_closed_on_conventions_the_pair_does_not_declare() {
         let environment =
             register_environment::baseline_target_register_environment(target).unwrap();
         assert_eq!(
-            frame(&environment, abi, false, false, &[], &[], 0, Vec::new()),
+            frame(&environment, abi, CaseShape::Bare, (&[], &[])),
             Err(TargetFrameLayoutError::UnsupportedTarget),
             "{target:?} must refuse the foreign convention {abi:?}"
         );
@@ -607,7 +579,7 @@ fn windows_frames_separate_shadow_space_from_preservation_storage() {
     )
     .unwrap();
     for (area, extent) in [(0, 0), (8, 8), (16, 24)] {
-        let layout = frame(
+        let layout = frame_with_saves(
             &environment,
             FrameAbiPreservationConvention::MicrosoftX64,
             false,
@@ -641,7 +613,7 @@ fn windows_frames_separate_shadow_space_from_preservation_storage() {
                 alignment_bytes: 8,
             }]
         };
-        let layout = frame(
+        let layout = frame_with_saves(
             &environment,
             FrameAbiPreservationConvention::MicrosoftX64,
             true,
@@ -663,7 +635,7 @@ fn windows_frames_separate_shadow_space_from_preservation_storage() {
         );
     }
     assert_eq!(
-        frame(
+        frame_with_saves(
             &environment,
             FrameAbiPreservationConvention::MicrosoftX64,
             true,
@@ -689,7 +661,7 @@ fn allocated_link_register_write_gets_a_leaf_frame_slot() {
         let abi = register_environment::selected_abi_preservation(&environment)
             .unwrap()
             .kind;
-        let layout = frame(&environment, abi, false, true, &[], &[], 0, Vec::new()).unwrap();
+        let layout = frame(&environment, abi, CaseShape::Link, (&[], &[])).unwrap();
         assert!(!layout.contains_call);
         assert_eq!(layout.frame_size_bytes, 16);
         assert_eq!(
