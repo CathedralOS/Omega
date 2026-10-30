@@ -18,7 +18,7 @@ macro_rules! fact_plan_root_roster {
             $($argument,)* places, place_segments, facts, scalar_values, boolean_predicates,
             boolean_predicate_bindings, integer_ranges, qualification_correspondences,
             domain_definition_facts, data_definition_facts, instantiated_expressions, refs,
-            symbol_sets,
+            symbol_sets, qualification_issuers,
         );
     };
 }
@@ -47,6 +47,7 @@ pub type QualificationCorrespondenceHandle = Handle<QualificationCorrespondence>
 
 #[derive(Debug, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FactPlan {
+    pub qualification_issuers: Arena<crate::BoundaryQualificationIssuerRecord>,
     pub places: Arena<Place>,
     pub place_segments: Arena<PlaceSegment>,
     pub facts: Arena<Fact>,
@@ -138,6 +139,18 @@ macro_rules! fact_plan_root_impls {
 fact_plan_root_roster!(fact_plan_root_impls);
 
 impl FactPlan {
+    /// Actual admitted occurrences, including facts outside emitted roots.
+    /// The declaration inventory alone does not create a grant obligation.
+    pub fn admitted_qualification_issuers(
+        &self,
+    ) -> impl Iterator<Item = &language_semantics::BoundaryQualificationIssuer> {
+        self.facts.iter().filter_map(|(_, fact)| {
+            (fact.evidence.origin
+                == language_semantics::QualificationEvidenceOrigin::AdmittedReceipt)
+                .then(|| &self.qualification_issuers.get(fact.evidence.issuer).issuer)
+        })
+    }
+
     pub fn append_fact(&mut self, fact: Fact) -> FactHandle {
         self.facts.append(fact)
     }
