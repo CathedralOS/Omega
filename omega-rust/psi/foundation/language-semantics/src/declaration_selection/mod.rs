@@ -21,7 +21,6 @@ pub use product_policy::{
 mod product;
 pub mod product_operands;
 pub use build_selection_origin::BuildSelectionOrigin;
-pub mod product_operands;
 mod product_target;
 pub use product::{
     BuildSelectionRequest, CompositionMode, DescribedProductEntry, DescribedProductProvider,
@@ -1076,36 +1075,6 @@ impl AuthoredDeclarationSelections {
         Ok(AuthoredDeclarationSelectionOccurrenceId(ordinal))
     }
 
-    pub fn source_coordinate_occurrence(
-        &self,
-        source_span: SourceSpan,
-        exposure: AuthoredDeclarationSelectionExposure,
-        kind: AuthoredDeclarationSelectionKind,
-    ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionCoordinateError>
-    {
-        use AuthoredDeclarationSelectionCoordinateError as Error;
-        let positions = self.by_span.0.get(&source_span).ok_or(Error::Missing)?;
-        let mut selected = None;
-        let mut ambiguous = false;
-        let mut partitioned = false;
-        for position in positions {
-            let row = &self.rows[*position as usize];
-            if row.exposure != exposure || row.kind != kind {
-                continue;
-            }
-            partitioned |= row.compiler_partition.is_some();
-            if selected.replace(row.occurrence_id).is_some() {
-                ambiguous = true;
-            }
-        }
-        if partitioned {
-            Err(Error::CompilerCopyRequiresOwner)
-        } else if ambiguous {
-            Err(Error::Ambiguous)
-        } else {
-            selected.ok_or(Error::Missing)
-        }
-    }
 }
 
 impl<'ledger> IntoIterator for &'ledger AuthoredDeclarationSelections {

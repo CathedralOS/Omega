@@ -7,7 +7,7 @@
 //! the product join resolves them under that source's authority.
 //! These are in-process source selections, not serialized Terminal identities.
 
-use super::BuildOperation;
+use super::{BuildOperation, ProductTarget};
 
 /// Compiler-issued context for one ordinary Build selection call. Entry slots
 /// and declaration choices share activation custody, while retaining their
