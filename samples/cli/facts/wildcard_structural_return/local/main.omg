@@ -2,7 +2,9 @@
 // Expected exit: 0
 
 data Choice [copy] { case Stop; case First; case Second; }
-data Packet [copy] { case Value(payload: u64) where payload <= 7u64; }
+data Packet [copy]
+    requires ((self in Packet::Value) && self.payload <= 7u64)
+{ case Value(payload: u64); }
 
 machine produce(counter: &mut u64) -> Packet {
     counter = ((counter as u64 in Wrapping) + 1) as u64;

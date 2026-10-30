@@ -5,8 +5,13 @@ data Input { count: u64; }
 machine guarded(value: u64) -> bool requires value != 0 { true }
 domain Input::Invalid requires HolderEquality::equals(
     &(Holder { flag: guarded(0) }), &(Holder { flag: true }));
-data InvalidCase { case Cell(count: u64) where guarded(0); }
-data SiblingCases {
-    case Established(count: u64) where count != 0, guarded(count);
-    case Unestablished(count: u64) where guarded(count);
+data InvalidCase
+    requires ((self in InvalidCase::Cell) && guarded(0))
+{ case Cell(count: u64); }
+data SiblingCases
+    requires ((self in SiblingCases::Established) && self.count != 0 && guarded(self.count))
+       || ((self in SiblingCases::Unestablished) && guarded(self.count))
+{
+    case Established(count: u64);
+    case Unestablished(count: u64);
 }

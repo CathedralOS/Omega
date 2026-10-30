@@ -1,7 +1,10 @@
 // Common fields and the selected case payload retain exact owners.
-data Interval [copy] {
+data Interval [copy]
+    requires ((self in Interval::Point) && self.lo == self.hi)
+       || (self in Interval::Other)
+{
     marker: u64;
-    case Point(lo: u64, hi: u64) where lo == hi;
+    case Point(lo: u64, hi: u64);
     case Other(lo: u64, hi: u64);
 }
 data Main { width: u64; }

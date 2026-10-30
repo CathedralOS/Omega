@@ -2,12 +2,18 @@
 // Place: another state (invalid twin). The Epsilon variant bound is widened to 81u64 so res reaches 81u64 > 80u64, failing contract for verify_payload.
 // Expected diagnostic: cannot prove requires contract for call
 
-data Packet [copy] {
-    case Alpha(v: u64) where v >= 40 && v <= 80;
-    case Beta(v: u64) where v >= 40 && v <= 80;
-    case Gamma(v: u64) where v >= 40 && v <= 80;
-    case Delta(v: u64) where v >= 40 && v <= 80;
-    case Epsilon(v: u64) where v >= 40 && v <= 81;
+data Packet [copy]
+    requires ((self in Packet::Alpha) && self.v >= 40 && self.v <= 80)
+       || ((self in Packet::Beta) && self.v >= 40 && self.v <= 80)
+       || ((self in Packet::Gamma) && self.v >= 40 && self.v <= 80)
+       || ((self in Packet::Delta) && self.v >= 40 && self.v <= 80)
+       || ((self in Packet::Epsilon) && self.v >= 40 && self.v <= 81)
+{
+    case Alpha(v: u64);
+    case Beta(v: u64);
+    case Gamma(v: u64);
+    case Delta(v: u64);
+    case Epsilon(v: u64);
 }
 
 machine extract_payload(p: Packet) -> u64

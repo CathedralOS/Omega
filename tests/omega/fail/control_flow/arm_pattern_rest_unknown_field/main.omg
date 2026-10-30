@@ -10,8 +10,11 @@
 // (spelled, no binding). Case arm keeps its tag guard; the `if` guard and
 // target arguments see the renamed binding. Run-verified: 30 + 40 = 70.
 use omega_language_std::console;
-data Msg {
-    case Move(dx: i32, dy: i32) where dx >= 0 && dx <= 50 && dy >= 0 && dy <= 50;
+data Msg
+    requires ((self in Msg::Move) && self.dx >= 0 && self.dx <= 50 && self.dy >= 0 && self.dy <= 50)
+       || (self in Msg::Stop)
+{
+    case Move(dx: i32, dy: i32);
     case Stop(code: i32);
 }
 data Main { }

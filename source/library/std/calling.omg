@@ -78,14 +78,17 @@ public data AbiValueShape {
 // native entries but cannot create, reorder, or retarget them.
 // A native destination names a compiler-issued plan coordinate; copying the
 // coordinate grants no authority over the storage it describes.
-public data NativePlace [copy] {
+public data NativePlace [copy]
+    requires (self in NativePlace::Parameter)
+       || ((self in NativePlace::Field) && self.field_path_count >= 1 && self.field_path_count <= 16)
+{
     case Parameter(parameter: u64);
     case Field(
         parameter: u64,
         layout: u64,
         field_path: [u64; 16],
         field_path_count: u64
-    ) where field_path_count >= 1, field_path_count <= 16;
+    );
 }
 
 public data NativeCallbackDemandIdentity [copy] {

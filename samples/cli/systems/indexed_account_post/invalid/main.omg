@@ -5,10 +5,14 @@ data Account [copy] {
     frozen: i32 in Wrapping;
 }
 
-data Post {
-    case Deposit(index: i32, amount: i32 in Wrapping) where 0 <= index && index < 4;
-    case Withdraw(index: i32, amount: i32 in Wrapping) where 0 <= index && index < 4;
-    case Freeze(index: i32) where 0 <= index && index < 4;
+data Post
+    requires ((self in Post::Deposit) && 0 <= self.index && self.index < 4)
+       || ((self in Post::Withdraw) && 0 <= self.index && self.index < 4)
+       || ((self in Post::Freeze) && 0 <= self.index && self.index < 4)
+{
+    case Deposit(index: i32, amount: i32 in Wrapping);
+    case Withdraw(index: i32, amount: i32 in Wrapping);
+    case Freeze(index: i32);
 }
 
 data Main {

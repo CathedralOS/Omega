@@ -18,9 +18,12 @@ data Holder where value <= 5 {
     value: u64;
 }
 
-data Slot {
+data Slot
+    requires (self in Slot::Empty)
+       || ((self in Slot::Found) && self.value <= 5)
+{
     case Empty;
-    case Found(value: u64) where value <= 5;
+    case Found(value: u64);
 }
 
 data Main {

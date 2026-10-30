@@ -2,9 +2,12 @@
 // payload bindings AND the data's common fields -- `lo <= hi` pairs common
 // `lo` with payload `hi`. Omitted declared fields (common or payload) read
 // the ZII zero, so `Within { hi: 4 }` folds `0 <= 4` and still proves.
-data Window {
+data Window
+    requires ((self in Window::Within) && self.lo <= self.hi)
+       || (self in Window::Empty)
+{
     lo: u64;
-    case Within(hi: u64) where lo <= hi;
+    case Within(hi: u64);
     case Empty;
 }
 data Main { window: Window; }

@@ -1,7 +1,10 @@
 // A selected case's bounds must hold at every construction before a match
 // may publish them. The literal 9999 violates Found's zero-through-15 facts.
 use omega_language_std::console;
-data Slot { case Found(index: i32) where index >= 0 && index <= 15; case Full; }
+data Slot
+    requires ((self in Slot::Found) && self.index >= 0 && self.index <= 15)
+       || (self in Slot::Full)
+{ case Found(index: i32); case Full; }
 data Main { }
 machine Main::run(main: &mut Main, s: Slot) {
     transition s { Slot::Found { index } -> done(main, index) Slot::Full -> stop(main) }

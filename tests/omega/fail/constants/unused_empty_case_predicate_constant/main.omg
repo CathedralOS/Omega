@@ -1,3 +1,6 @@
-data Choice [copy] { case Empty; case Impossible(value: u64) where value < 0; }
+data Choice [copy]
+    requires (self in Choice::Empty)
+       || ((self in Choice::Impossible) && self.value < 0)
+{ case Empty; case Impossible(value: u64); }
 const INVALID: Choice = Choice::Impossible { value: 0 };
 machine main() -> u64 { 0 }

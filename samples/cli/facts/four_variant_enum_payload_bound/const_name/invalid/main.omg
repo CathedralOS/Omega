@@ -3,11 +3,16 @@
 const MAX_RES: u64 = 80u64;
 const MIN_RES: u64 = 40u64;
 
-data Packet [copy] {
-    case Alpha(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case Beta(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case Gamma(v: u64) where v >= 39u64 && v <= MAX_RES;
-    case Delta(v: u64) where v >= MIN_RES && v <= MAX_RES;
+data Packet [copy]
+    requires ((self in Packet::Alpha) && self.v >= MIN_RES && self.v <= MAX_RES)
+       || ((self in Packet::Beta) && self.v >= MIN_RES && self.v <= MAX_RES)
+       || ((self in Packet::Gamma) && self.v >= 39u64 && self.v <= MAX_RES)
+       || ((self in Packet::Delta) && self.v >= MIN_RES && self.v <= MAX_RES)
+{
+    case Alpha(v: u64);
+    case Beta(v: u64);
+    case Gamma(v: u64);
+    case Delta(v: u64);
 }
 
 machine verify_payload(value: u64) -> u64

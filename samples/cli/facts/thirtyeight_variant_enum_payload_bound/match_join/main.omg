@@ -1,45 +1,84 @@
 // Fact: matching a 38-variant tagged enum payload ThirtyEightChoice { V1(u64), V2(u64), V3(u64), V4(u64), V5(u64), V6(u64), V7(u64), V8(u64), V9(u64), V10(u64), V11(u64), V12(u64), V13(u64), V14(u64), V15(u64), V16(u64), V17(u64), V18(u64), V19(u64), V20(u64), V21(u64), V22(u64), V23(u64), V24(u64), V25(u64), V26(u64), V27(u64), V28(u64), V29(u64), V30(u64), V31(u64), V32(u64), V33(u64), V34(u64), V35(u64), V36(u64), V37(u64), V38(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
 // Expected exit: 0
 
-data ThirtyEightChoice [copy] {
-    case V1(v: u64) where v >= 40u64 && v <= 80u64;
-    case V2(v: u64) where v >= 40u64 && v <= 80u64;
-    case V3(v: u64) where v >= 40u64 && v <= 80u64;
-    case V4(v: u64) where v >= 40u64 && v <= 80u64;
-    case V5(v: u64) where v >= 40u64 && v <= 80u64;
-    case V6(v: u64) where v >= 40u64 && v <= 80u64;
-    case V7(v: u64) where v >= 40u64 && v <= 80u64;
-    case V8(v: u64) where v >= 40u64 && v <= 80u64;
-    case V9(v: u64) where v >= 40u64 && v <= 80u64;
-    case V10(v: u64) where v >= 40u64 && v <= 80u64;
-    case V11(v: u64) where v >= 40u64 && v <= 80u64;
-    case V12(v: u64) where v >= 40u64 && v <= 80u64;
-    case V13(v: u64) where v >= 40u64 && v <= 80u64;
-    case V14(v: u64) where v >= 40u64 && v <= 80u64;
-    case V15(v: u64) where v >= 40u64 && v <= 80u64;
-    case V16(v: u64) where v >= 40u64 && v <= 80u64;
-    case V17(v: u64) where v >= 40u64 && v <= 80u64;
-    case V18(v: u64) where v >= 40u64 && v <= 80u64;
-    case V19(v: u64) where v >= 40u64 && v <= 80u64;
-    case V20(v: u64) where v >= 40u64 && v <= 80u64;
-    case V21(v: u64) where v >= 40u64 && v <= 80u64;
-    case V22(v: u64) where v >= 40u64 && v <= 80u64;
-    case V23(v: u64) where v >= 40u64 && v <= 80u64;
-    case V24(v: u64) where v >= 40u64 && v <= 80u64;
-    case V25(v: u64) where v >= 40u64 && v <= 80u64;
-    case V26(v: u64) where v >= 40u64 && v <= 80u64;
-    case V27(v: u64) where v >= 40u64 && v <= 80u64;
-    case V28(v: u64) where v >= 40u64 && v <= 80u64;
-    case V29(v: u64) where v >= 40u64 && v <= 80u64;
-    case V30(v: u64) where v >= 40u64 && v <= 80u64;
-    case V31(v: u64) where v >= 40u64 && v <= 80u64;
-    case V32(v: u64) where v >= 40u64 && v <= 80u64;
-    case V33(v: u64) where v >= 40u64 && v <= 80u64;
-    case V34(v: u64) where v >= 40u64 && v <= 80u64;
-    case V35(v: u64) where v >= 40u64 && v <= 80u64;
-    case V36(v: u64) where v >= 40u64 && v <= 80u64;
-    case V37(v: u64) where v >= 40u64 && v <= 80u64;
-    case V38(v: u64) where v >= 40u64 && v <= 80u64;
+data ThirtyEightChoice [copy]
+    requires ((self in ThirtyEightChoice::V1) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V2) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V3) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V4) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V5) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V6) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V7) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V8) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V9) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V10) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V11) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V12) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V13) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V14) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V15) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V16) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V17) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V18) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V19) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V20) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V21) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V22) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V23) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V24) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V25) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V26) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V27) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V28) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V29) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V30) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V31) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V32) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V33) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V34) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V35) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V36) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V37) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in ThirtyEightChoice::V38) && self.v >= 40u64 && self.v <= 80u64)
+{
+    case V1(v: u64);
+    case V2(v: u64);
+    case V3(v: u64);
+    case V4(v: u64);
+    case V5(v: u64);
+    case V6(v: u64);
+    case V7(v: u64);
+    case V8(v: u64);
+    case V9(v: u64);
+    case V10(v: u64);
+    case V11(v: u64);
+    case V12(v: u64);
+    case V13(v: u64);
+    case V14(v: u64);
+    case V15(v: u64);
+    case V16(v: u64);
+    case V17(v: u64);
+    case V18(v: u64);
+    case V19(v: u64);
+    case V20(v: u64);
+    case V21(v: u64);
+    case V22(v: u64);
+    case V23(v: u64);
+    case V24(v: u64);
+    case V25(v: u64);
+    case V26(v: u64);
+    case V27(v: u64);
+    case V28(v: u64);
+    case V29(v: u64);
+    case V30(v: u64);
+    case V31(v: u64);
+    case V32(v: u64);
+    case V33(v: u64);
+    case V34(v: u64);
+    case V35(v: u64);
+    case V36(v: u64);
+    case V37(v: u64);
+    case V38(v: u64);
 }
 
 machine verify_payload(value: u64) -> u64

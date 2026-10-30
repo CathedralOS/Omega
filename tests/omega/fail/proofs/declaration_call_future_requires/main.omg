@@ -2,4 +2,6 @@ machine guarded(value: u64) -> bool requires value != 0 { true }
 data Input { count: u64; }
 domain Input::Invalid requires guarded(self.count), self.count != 0;
 data InvalidData where guarded(count), count != 0 { count: u64; }
-data InvalidCase { case Cell(count: u64) where guarded(count), count != 0; }
+data InvalidCase
+    requires ((self in InvalidCase::Cell) && guarded(self.count) && self.count != 0)
+{ case Cell(count: u64); }

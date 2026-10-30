@@ -1,24 +1,43 @@
 // Fact: matching an 18-variant tagged enum payload Packet { V1(u64), V2(u64), V3(u64), V4(u64), V5(u64), V6(u64), V7(u64), V8(u64), V9(u64), V10(u64), V11(u64), V12(u64), V13(u64), V14(u64), V15(u64), V16(u64), V17(u64), V18(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
 
-data Packet [copy] {
-    case V1(v: u64) where v >= 40u64 && v <= 80u64;
-    case V2(v: u64) where v >= 40u64 && v <= 80u64;
-    case V3(v: u64) where v >= 40u64 && v <= 80u64;
-    case V4(v: u64) where v >= 40u64 && v <= 80u64;
-    case V5(v: u64) where v >= 40u64 && v <= 80u64;
-    case V6(v: u64) where v >= 40u64 && v <= 80u64;
-    case V7(v: u64) where v >= 40u64 && v <= 80u64;
-    case V8(v: u64) where v >= 40u64 && v <= 80u64;
-    case V9(v: u64) where v >= 40u64 && v <= 80u64;
-    case V10(v: u64) where v >= 40u64 && v <= 80u64;
-    case V11(v: u64) where v >= 40u64 && v <= 80u64;
-    case V12(v: u64) where v >= 40u64 && v <= 80u64;
-    case V13(v: u64) where v >= 40u64 && v <= 80u64;
-    case V14(v: u64) where v >= 40u64 && v <= 80u64;
-    case V15(v: u64) where v >= 40u64 && v <= 80u64;
-    case V16(v: u64) where v >= 40u64 && v <= 80u64;
-    case V17(v: u64) where v >= 40u64 && v <= 80u64;
-    case V18(v: u64) where v >= 39u64 && v <= 80u64;
+data Packet [copy]
+    requires ((self in Packet::V1) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V2) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V3) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V4) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V5) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V6) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V7) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V8) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V9) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V10) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V11) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V12) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V13) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V14) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V15) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V16) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V17) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::V18) && self.v >= 39u64 && self.v <= 80u64)
+{
+    case V1(v: u64);
+    case V2(v: u64);
+    case V3(v: u64);
+    case V4(v: u64);
+    case V5(v: u64);
+    case V6(v: u64);
+    case V7(v: u64);
+    case V8(v: u64);
+    case V9(v: u64);
+    case V10(v: u64);
+    case V11(v: u64);
+    case V12(v: u64);
+    case V13(v: u64);
+    case V14(v: u64);
+    case V15(v: u64);
+    case V16(v: u64);
+    case V17(v: u64);
+    case V18(v: u64);
 }
 
 data ResHolder {

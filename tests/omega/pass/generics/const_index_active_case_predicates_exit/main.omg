@@ -1,4 +1,7 @@
-data Choice [copy] { case Empty; case Point(value: i32) where value <= 60; }
+data Choice [copy]
+    requires (self in Choice::Empty)
+       || ((self in Choice::Point) && self.value <= 60)
+{ case Empty; case Point(value: i32); }
 const EMPTY: Choice = Choice::Empty;
 const POINT: Choice = Choice::Point { value: 60 };
 machine select<const VALUE: Choice>() -> i32 { 0 }

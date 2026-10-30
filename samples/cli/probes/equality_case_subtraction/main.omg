@@ -1,9 +1,12 @@
 // A case `where lo == hi` equality relates the two payload fields: under the
 // `Point` arm `hi - lo` cannot underflow — the equality is contributed on the
 // destructured bindings and survives the edge into `take`.
-data Interval {
+data Interval
+    requires (self in Interval::Empty)
+       || ((self in Interval::Point) && self.lo == self.hi)
+{
     case Empty;
-    case Point(lo: u64, hi: u64) where lo == hi;
+    case Point(lo: u64, hi: u64);
 }
 data Main { interval: Interval; width: u64; }
 machine Main::main(main: &mut Main) {

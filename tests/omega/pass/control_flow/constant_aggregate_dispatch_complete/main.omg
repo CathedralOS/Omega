@@ -1,7 +1,10 @@
 // Array constants remain one dispatch subject after substitution.
-data Interval [copy] {
+data Interval [copy]
+    requires (self in Interval::Empty)
+       || ((self in Interval::Point) && self.lo == self.hi)
+{
     case Empty;
-    case Point(lo: u64, hi: u64) where lo == hi;
+    case Point(lo: u64, hi: u64);
 }
 const BUNDLE: [Interval; 1] = [Interval::Point { lo: 4, hi: 4 }];
 data Main { width: u64; }

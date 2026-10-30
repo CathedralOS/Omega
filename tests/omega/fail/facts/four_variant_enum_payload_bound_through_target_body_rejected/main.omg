@@ -1,10 +1,15 @@
 // Fact: matching a 4-variant tagged enum payload Packet { Alpha(u64), Beta(u64), Gamma(u64), Delta(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
 
-data Packet [copy] {
-    case Alpha(v: u64) where v >= 40u64 && v <= 80u64;
-    case Beta(v: u64) where v >= 40u64 && v <= 80u64;
-    case Gamma(v: u64) where v >= 39u64 && v <= 80u64;
-    case Delta(v: u64) where v >= 40u64 && v <= 80u64;
+data Packet [copy]
+    requires ((self in Packet::Alpha) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::Beta) && self.v >= 40u64 && self.v <= 80u64)
+       || ((self in Packet::Gamma) && self.v >= 39u64 && self.v <= 80u64)
+       || ((self in Packet::Delta) && self.v >= 40u64 && self.v <= 80u64)
+{
+    case Alpha(v: u64);
+    case Beta(v: u64);
+    case Gamma(v: u64);
+    case Delta(v: u64);
 }
 
 machine verify_payload(value: u64) -> u64

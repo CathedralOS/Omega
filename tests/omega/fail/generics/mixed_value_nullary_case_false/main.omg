@@ -1,2 +1,4 @@
-data Tagged<T,Limit:u64>{case Empty where Limit<10;}
+data Tagged<T,Limit:u64>
+    requires ((self in Tagged::Empty) && Limit<10)
+{case Empty;}
 machine main(){let item:Tagged<u64,10> = Tagged::Empty;}

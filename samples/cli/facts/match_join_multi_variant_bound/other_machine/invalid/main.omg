@@ -1,10 +1,14 @@
 // Exhaustively matching a three-variant case value where every arm establishes joined >= 20u64 && joined <= 60u64 preserves the joined interval bound across all nine places, discharging exact subtraction 60u64 - joined and joined - 20u64.
 // Invalid: High variant allows val <= 61, widening the joined bound to [20, 61] and failing 60u64 - joined in runner.
 
-data Mode [copy] {
-    case Low(val: u64) where val >= 20 && val <= 60;
-    case Mid(val: u64) where val >= 20 && val <= 60;
-    case High(val: u64) where val >= 20 && val <= 61;
+data Mode [copy]
+    requires ((self in Mode::Low) && self.val >= 20 && self.val <= 60)
+       || ((self in Mode::Mid) && self.val >= 20 && self.val <= 60)
+       || ((self in Mode::High) && self.val >= 20 && self.val <= 61)
+{
+    case Low(val: u64);
+    case Mid(val: u64);
+    case High(val: u64);
 }
 
 machine compute_joined(mode: Mode) -> u64 {
