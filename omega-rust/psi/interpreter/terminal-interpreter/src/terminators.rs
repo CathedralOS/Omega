@@ -462,9 +462,8 @@ impl TerminalExecution<'_> {
         let actual = self.scalar_value(arguments[0])?;
         crate::custody::bind_boundary_arguments(&declaration.scalar_parameters, &[actual])?;
         crate::custody::validate_boundary_requirements(declaration, |_| None)?;
-        if let Some(callee) = crate::calls::target_families::completion_callee(
+        if let Some(callee) = crate::calls::completion::checked_provider_callee(
             &self.program,
-            self.target_machines.as_ref(),
             self.boundary_supplies.get(boundary).copied(),
             *boundary,
         )? {

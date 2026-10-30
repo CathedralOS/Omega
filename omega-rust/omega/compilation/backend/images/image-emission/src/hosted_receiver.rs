@@ -487,14 +487,14 @@ fn validate_entry_arguments(
                 .entry(
                     identity,
                     terminal,
-                    terminal_psi::TargetMachineCallable::Machine(selected),
+                    terminal_psi::TerminalCallable::Machine(selected),
                 )
                 .map_err(|_| invalid())?
                 != selected
         {
             return Err(invalid());
         }
-    } else if terminal.entry != Some(terminal_psi::TargetMachineCallable::Machine(selected)) {
+    } else if terminal.entry != Some(terminal_psi::TerminalCallable::Machine(selected)) {
         return Err(invalid());
     }
     for (ordinal, parameter) in function.structural_parameters.iter().enumerate() {

@@ -24,7 +24,7 @@ pub(super) fn prepare<'host, 'artifact>(
             "component runtime companions name another producing occurrence",
         ));
     }
-    let target_machines = terminal_interpreter::admit_target_machine_selections(
+    let target_machines = terminal_interpreter::target_context(
         artifact,
         runtime.target().target_name(),
     );
@@ -62,7 +62,7 @@ pub(super) fn prepare<'host, 'artifact>(
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags,
             memory_ordering,
-            entry: Some(terminal_psi::TargetMachineCallable::Machine(
+            entry: Some(terminal_psi::TerminalCallable::Machine(
                 runtime.entry(),
             )),
             installation: runtime
@@ -70,7 +70,7 @@ pub(super) fn prepare<'host, 'artifact>(
                 .map(|completed| completed.primary().providers())
                 .or_else(|| runtime.host_provisions().installation()),
             host_imports: &imports,
-            target_machines: Some(&target_machines),
+            target_context: Some(&target_machines),
             target_layouts: Some(&target_layouts),
         })
         .map_err(TerminalRuntimeError::Requirements)?;

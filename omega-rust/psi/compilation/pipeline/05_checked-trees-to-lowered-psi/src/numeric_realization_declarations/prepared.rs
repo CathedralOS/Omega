@@ -4,7 +4,7 @@ use super::{NumericRealizationDeclarations, project_numeric_realization_declarat
 use checked_trees::CheckedTrees;
 use std::sync::Arc;
 use terminal_psi::{
-    NumericRealization, NominalDeclarationIdentity, TerminalIdentityIndex,
+    NominalDeclarationIdentity, NumericRealization, TerminalIdentityIndex,
     TerminalIdentityTableBuilder, TerminalModule,
 };
 

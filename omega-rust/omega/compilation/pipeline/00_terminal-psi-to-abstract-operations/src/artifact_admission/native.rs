@@ -39,7 +39,7 @@ pub struct NativeExecutionSelection<'request> {
 pub(crate) struct NativeScopePreparation {
     profile: target::TargetProfile,
     entry: semantic_vocabulary::MachineId,
-    pub(crate) targets: terminal_installation::AdmittedTargetMachineSelections,
+    pub(crate) targets: terminal_installation::TerminalTargetContext,
     pub(crate) layouts: terminal_installation::AdmittedTargetLayouts,
     pub(crate) scope: crate::native_execution_scope::NativeExecutionScope,
     pub(crate) scalar_demand: Vec<semantic_vocabulary::ScalarApplicationId>,
@@ -49,14 +49,14 @@ impl NativeScopePreparation {
     pub(crate) fn prepare(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         profile: target::TargetProfile,
-        root: terminal_psi::TargetMachineCallable,
+        root: terminal_psi::TerminalCallable,
         selection: &NativeExecutionSelection<'_>,
     ) -> Result<Self, ArtifactLoweringError> {
         profile
             .admit_address_representation()
             .map_err(ArtifactLoweringError::TargetFamily)?;
         let module = artifact.semantic_module();
-        let selections = terminal_installation::admit_target_machine_selections(
+        let selections = terminal_installation::target_context(
             artifact.view(),
             profile.target_name(),
         );
@@ -167,7 +167,7 @@ impl NativeScopePreparation {
 impl VerifiedNativeArtifactInput {
     pub fn target_machine_selections(
         &self,
-    ) -> Option<&terminal_installation::AdmittedTargetMachineSelections> {
+    ) -> Option<&terminal_installation::TerminalTargetContext> {
         self.optimization_input.target_machine_selections.as_ref()
     }
 
@@ -185,7 +185,7 @@ impl VerifiedNativeArtifactInput {
     pub fn prepare(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         profile: target::TargetProfile,
-        root: terminal_psi::TargetMachineCallable,
+        root: terminal_psi::TerminalCallable,
         establishments: &[TerminalPlacedViewEstablishment],
         selection: &NativeExecutionSelection<'_>,
     ) -> Result<Self, ArtifactLoweringError> {
@@ -205,7 +205,7 @@ impl VerifiedNativeArtifactInput {
     pub fn prepare_with_private_entry_ram(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         profile: target::TargetProfile,
-        root: terminal_psi::TargetMachineCallable,
+        root: terminal_psi::TerminalCallable,
         recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
         selection: &NativeExecutionSelection<'_>,
     ) -> Result<Self, ArtifactLoweringError> {
@@ -289,13 +289,13 @@ impl VerifiedNativeArtifactInput {
             .ok_or_else(|| "selected family providers require target selection".to_owned())?;
         for row in selected.family_realization_rows() {
             let member = selections
-                .member(terminal_psi::TargetMachineCallable::Boundary(row.head))
+                .member(terminal_psi::TerminalCallable::Boundary(row.head))
                 .map_err(|error| error.to_string())?;
             let module = artifact.semantic_module();
             if row.terminal != artifact.manifest().semantic()
                 || row.terminal != selections.terminal_psi()
                 || row.target != selections.target()
-                || member.callable() != terminal_psi::TargetMachineCallable::Boundary(row.member)
+                || member.callable() != terminal_psi::TerminalCallable::Boundary(row.member)
                 || terminal_psi::find_boundary_machine(&module.boundary_machines, row.head)
                     .is_none_or(|head| {
                         module.identities.text(head.identity)
@@ -423,7 +423,7 @@ impl AdmittedNativeArtifact {
 pub(super) fn lower_decoded_native_module(
     module: &terminal_psi::TerminalModule,
     entry: semantic_vocabulary::MachineId,
-    selections: Option<terminal_installation::AdmittedTargetMachineSelections>,
+    selections: Option<terminal_installation::TerminalTargetContext>,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
     let plan = lower_decoded_module(module, entry).map_err(ArtifactLoweringError::Lowering)?;
     Ok(retain_native_plan(module, plan, selections))
@@ -432,7 +432,7 @@ pub(super) fn lower_decoded_native_module(
 fn retain_native_plan(
     module: &terminal_psi::TerminalModule,
     plan: AbstractOperationPlan,
-    selections: Option<terminal_installation::AdmittedTargetMachineSelections>,
+    selections: Option<terminal_installation::TerminalTargetContext>,
 ) -> AdmittedNativeArtifact {
     let context = retain_optimization_context(module);
     AdmittedNativeArtifact {
@@ -468,7 +468,7 @@ mod private_entry_target_tests {
         let bytes = std::fs::read(path).expect("read actual retained canonical bytes");
         let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
             .expect("independent canonical admission");
-        let terminal_psi::TargetMachineCallable::Machine(entry) = artifact.semantic_module().entry
+        let terminal_psi::TerminalCallable::Machine(entry) = artifact.semantic_module().entry
         else {
             panic!("fixture must select an ordinary machine")
         };
@@ -480,7 +480,7 @@ mod private_entry_target_tests {
             .expect("actual direct placed row")
             .clone();
         let selections =
-            terminal_installation::admit_target_machine_selections(artifact.view(), "linux_x86_64");
+            terminal_installation::target_context(artifact.view(), "linux_x86_64");
         let layout_target = target::TargetProfile::LinuxX64
             .layout_target_facts()
             .expect("Linux layout facts");
@@ -541,7 +541,7 @@ mod private_entry_target_tests {
         assert_eq!(recipe.layouts(), &layouts);
         assert_eq!(recipe.target(), "linux_x86_64");
         for profile in [target::TargetProfile::MacosArm64] {
-            let other_selections = terminal_installation::admit_target_machine_selections(
+            let other_selections = terminal_installation::target_context(
                 artifact.view(),
                 profile.target_name(),
             );

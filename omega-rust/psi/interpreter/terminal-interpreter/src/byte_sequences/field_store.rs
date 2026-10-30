@@ -23,8 +23,7 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
     ) -> Result<(StructuralByteSequenceRuntimeField, Option<u64>), TerminalInterpretError> {
-        let (cell, carrier) =
-            self.resolve_byte_field_carrier(root, path, field, false, true)?;
+        let (cell, carrier) = self.resolve_byte_field_carrier(root, path, field, false, true)?;
         let capacity = match carrier {
             ByteSequenceCarrier::BorrowedView { .. } => None,
             ByteSequenceCarrier::BoundedView { capacity, .. }

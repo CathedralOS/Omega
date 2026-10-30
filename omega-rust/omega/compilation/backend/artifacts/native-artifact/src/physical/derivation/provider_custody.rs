@@ -71,12 +71,12 @@ pub(crate) fn validate_family_provider_custody(
     let family = module
         .target_machine_families
         .iter()
-        .find(|family| family.canonical == terminal_psi::TargetMachineCallable::Boundary(row.head))
+        .find(|family| family.canonical == terminal_psi::TerminalCallable::Boundary(row.head))
         .ok_or("physical family provider has no canonical family")?;
     if family.head_contract == [0; 32]
         || !family.members.iter().any(|member| {
             member.target == row.target
-                && member.callable == terminal_psi::TargetMachineCallable::Boundary(row.member)
+                && member.callable == terminal_psi::TerminalCallable::Boundary(row.member)
                 && member.supply != terminal_psi::TargetMachineSupply::CheckedBody
         })
     {

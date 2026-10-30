@@ -82,7 +82,7 @@ fn integer_rows_preserve_builtin_omission_and_exact_selected_negation() {
     );
     let occurrence = IntegerOccurrence {
         terminal_machine: match module.entry {
-            Some(terminal_psi::TargetMachineCallable::Machine(machine)) => machine,
+            Some(terminal_psi::TerminalCallable::Machine(machine)) => machine,
             _ => unreachable!("comparison fixture enters a machine"),
         },
         terminal_operation: OperationId::new(1).unwrap(),

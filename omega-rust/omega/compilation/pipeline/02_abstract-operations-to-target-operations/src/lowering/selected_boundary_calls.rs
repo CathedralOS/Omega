@@ -7,7 +7,7 @@ use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::{BoundaryMachineId, InvocationSite, MachineId};
 use std::collections::BTreeMap;
 use target_operations::NativeCallOrigin;
-use terminal_psi::{TargetMachineCallable, TargetMachineSupply};
+use terminal_psi::{TerminalCallable, TargetMachineSupply};
 
 pub(crate) struct SelectedBoundaryCall {
     pub caller: MachineId,
@@ -73,7 +73,7 @@ pub(crate) fn index(
                     .target_machine_families
                     .iter()
                     .find(|family| {
-                        family.canonical == TargetMachineCallable::Boundary(*boundary)
+                        family.canonical == TerminalCallable::Boundary(*boundary)
                             && !family
                                 .members
                                 .iter()
@@ -117,7 +117,7 @@ pub(crate) fn index(
                         let input = input.ok_or_else(invalid)?;
                         let selections = input.target_machine_selections().ok_or_else(invalid)?;
                         let member = selections.member(family.canonical).map_err(|_| invalid())?;
-                        let TargetMachineCallable::Machine(callee) = member.callable() else {
+                        let TerminalCallable::Machine(callee) = member.callable() else {
                             // Opaque selected members use ordinary provider settlement
                             // under the unchanged head occurrence and contract.
                             continue;

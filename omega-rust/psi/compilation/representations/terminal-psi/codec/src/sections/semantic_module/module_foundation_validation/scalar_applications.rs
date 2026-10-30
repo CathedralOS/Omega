@@ -5,7 +5,7 @@ use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 use terminal_psi::{
     LayoutMeasurement, ScalarApplication, ScalarConditionSubject, ScalarRangeCondition,
-    ScalarRangeObservation, TargetMachineCallable, TerminalModule,
+    ScalarRangeObservation, TerminalCallable, TerminalModule,
 };
 
 pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
@@ -20,14 +20,14 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             return malformed("proof scope callable association is absent");
         };
         let emitted = match callable {
-            TargetMachineCallable::Machine(body) => module
+            TerminalCallable::Machine(body) => module
                 .machine(*body)
                 .ok_or(CodecError::MalformedStructuralFoundation(
                     "proof scope names an absent emitted body",
                 ))?
                 .declaration
                 .as_ref(),
-            TargetMachineCallable::Boundary(boundary) => {
+            TerminalCallable::Boundary(boundary) => {
                 let boundary = module.boundary_machine(*boundary).ok_or(
                     CodecError::MalformedStructuralFoundation(
                         "proof scope names an absent emitted boundary",
@@ -96,7 +96,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             }
             ScalarApplication::Evaluate { entry, scalar_type } => {
                 let signature_matches = match entry {
-                    TargetMachineCallable::Machine(machine) => {
+                    TerminalCallable::Machine(machine) => {
                         module.machine(machine).is_some_and(|machine| {
                             machine.parameters.is_empty()
                                 && machine.structural_parameters.is_empty()
@@ -106,7 +106,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                                     .is_some_and(|result| result.scalar_type == scalar_type)
                         })
                     }
-                    TargetMachineCallable::Boundary(boundary) => {
+                    TerminalCallable::Boundary(boundary) => {
                         module.boundary_machine(boundary).is_some_and(|boundary| {
                             boundary.scalar_parameters.is_empty()
                                 && boundary.structural_parameters.is_empty()
@@ -172,7 +172,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                 scalar_type,
             } => {
                 let Some(ScalarApplication::Evaluate {
-                    entry: TargetMachineCallable::Machine(entry),
+                    entry: TerminalCallable::Machine(entry),
                     ..
                 }) = module.scalar_applications.declaration(*application)
                 else {
@@ -258,7 +258,9 @@ fn validate_subject(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sections::semantic_module::target_family_tests::{identity_table, unit_machine};
+    use crate::sections::semantic_module::declaration_catalog_tests::{
+        identity_table, unit_machine,
+    };
     use semantic_vocabulary::MachineId;
     use terminal_psi::{
         ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration, TerminalIdentityIndex,
@@ -291,7 +293,7 @@ mod tests {
             module.scalar_applications.proof_scope.callables.insert(
                 ProofCallableAssociation::Callable {
                     declaration: ProofDeclarationId(position),
-                    callable: TargetMachineCallable::Machine(machine),
+                    callable: TerminalCallable::Machine(machine),
                 },
             );
             module.machines.push(body);
@@ -370,7 +372,7 @@ mod tests {
         }
         let association = scope.callables.insert(ProofCallableAssociation::Callable {
             declaration: ProofDeclarationId(1),
-            callable: TargetMachineCallable::Boundary(module.boundary_machines[0].id),
+            callable: TerminalCallable::Boundary(module.boundary_machines[0].id),
         });
         validate(&module).unwrap();
         for owner in 2..=4 {

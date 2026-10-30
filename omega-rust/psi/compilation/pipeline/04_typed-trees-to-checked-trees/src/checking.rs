@@ -23,7 +23,6 @@
 
 pub(crate) mod call_acknowledgements;
 pub(crate) mod program_validation;
-mod target_families;
 
 use crate::checking::program_validation::prepare_typed_program;
 use crate::checks;
@@ -538,7 +537,6 @@ fn check_program(
         "05.d.11_13.h.boundary_and_portable_checks",
         || -> Result<(), Vec<diagnostics::Diagnostic>> {
             validation::validate_boundary_calls(&checked)?;
-            target_families::validate_portable_references(&checked)?;
             crate::operators::retain_boundary_body_candidates(&mut checked)
                 .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
             Ok(())

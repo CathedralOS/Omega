@@ -60,8 +60,7 @@ pub use facts::{
     CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
 };
 pub use facts::{
-    ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember, ProofApplications,
-    ProofDeclarationDependencies,
+    ProofApplicationMachine, ProofApplicationPlan, ProofApplications, ProofDeclarationDependencies,
 };
 
 pub use facts::{

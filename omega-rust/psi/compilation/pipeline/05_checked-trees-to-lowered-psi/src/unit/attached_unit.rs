@@ -63,6 +63,7 @@ mod call_catalog;
 mod call_closure;
 pub(crate) mod call_parameters;
 pub(crate) mod call_results;
+pub(crate) mod callables;
 pub(crate) mod catalog;
 mod claims;
 pub(crate) mod completion_cleanup;
@@ -71,7 +72,6 @@ mod folded_constants;
 mod providers;
 pub(crate) mod scalar_applications;
 pub(crate) mod signatures;
-pub(crate) mod target_families;
 mod target_layouts;
 
 // Body emission: each ordinary body and each composed state graph, through
@@ -613,8 +613,6 @@ pub(crate) fn lower_unit_closure(
     )?;
 
     // Publication: one module in canonical roster order.
-    let target_machine_families =
-        target_families::lower(checked, &machine_ids, &lowered_boundary_parameters)?;
     let target_layout_applications =
         target_layouts::lower(checked, plans, &structural_types, &type_ids, identities)?;
     let mut scalar_qualifications = qualifications.catalog().clone();
@@ -645,8 +643,8 @@ pub(crate) fn lower_unit_closure(
     for root in program_roots.machines {
         // A bodyless family head is retained in the interface catalog. Every
         // body root must resolve exactly; missing roots cannot disappear in DCE.
-        if let terminal_psi::TargetMachineCallable::Machine(machine) =
-            target_families::callable(*root, &machine_ids, &lowered_boundary_parameters)?
+        if let terminal_psi::TerminalCallable::Machine(machine) =
+            callables::callable(*root, &machine_ids, &lowered_boundary_parameters)?
         {
             retained_roots.push(machine);
         }
@@ -706,9 +704,7 @@ pub(crate) fn lower_unit_closure(
             // stays in the catalog; no target member stands in for its head.
             entry: entry
                 .is_valid()
-                .then(|| {
-                    target_families::callable(entry, &machine_ids, &lowered_boundary_parameters)
-                })
+                .then(|| callables::callable(entry, &machine_ids, &lowered_boundary_parameters))
                 .transpose()?,
             structural_types,
             structural_referents,
@@ -737,7 +733,6 @@ pub(crate) fn lower_unit_closure(
             suspension_call_sites: Vec::new(),
             suspension_call_plans: Vec::new(),
             machines,
-            target_machine_families,
             target_layout_applications,
             task_activation_demands: Default::default(),
         },

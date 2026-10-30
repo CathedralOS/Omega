@@ -1,0 +1,4 @@
+// Target keys belong to evaluated Build rows, including opaque declarations.
+macos_arm64 machine old_body() {}
+linux_x86_64 machine old_declaration();
+windows_x86_64 boundary machine old_boundary();

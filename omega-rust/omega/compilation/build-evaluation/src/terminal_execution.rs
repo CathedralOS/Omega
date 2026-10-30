@@ -199,7 +199,7 @@ impl TerminalBuildHost {
                 entry: None,
                 x86_flags: None,
                 memory_ordering: None,
-                target_machines: None,
+                target_context: None,
                 target_layouts: None,
             })
             .map_err(describe)?;

@@ -104,7 +104,7 @@ impl AdmittedTerminalProgram<'_> {
                     "missing or incompatible realization closure",
                 ))?;
             if supplies
-                .target_machines
+                .target_context
                 .as_ref()
                 .map(|selected| selected.target())
                 != Some(target)
@@ -118,25 +118,15 @@ impl AdmittedTerminalProgram<'_> {
             .and_then(|supplies| supplies.entry)
             .or(self.catalogs.entry)
             .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
-        let selected = installation.and_then(|installation| installation.target_machines.as_ref());
+        let selected = installation.and_then(|installation| installation.target_context.as_ref());
         let machine = match selected {
             Some(selected) => selected
                 .entry(self.identity.semantic(), &self.catalogs, root)
-                .map_err(TerminalInterpretError::TargetMachineSelection)?,
+                .map_err(TerminalInterpretError::EntrySelection)?,
             None => match root {
-                terminal_psi::TargetMachineCallable::Machine(machine) => {
-                    if self
-                        .catalogs
-                        .target_machine_families
-                        .iter()
-                        .any(|family| family.members.iter().any(|member| member.callable == root))
-                    {
-                        return Err(TerminalInterpretError::TargetMachineSelectionMissing(root));
-                    }
-                    machine
-                }
-                terminal_psi::TargetMachineCallable::Boundary(_) => {
-                    return Err(TerminalInterpretError::TargetMachineSelectionMissing(root));
+                terminal_psi::TerminalCallable::Machine(machine) => machine,
+                terminal_psi::TerminalCallable::Boundary(_) => {
+                    return Err(TerminalInterpretError::VerifiedEntryMachineMissing);
                 }
             },
         };
@@ -152,7 +142,7 @@ impl AdmittedTerminalProgram<'_> {
     ) -> Result<(), TerminalInterpretError> {
         let layouts = installation.and_then(|supplies| supplies.target_layouts.as_ref());
         if let Some(layouts) = layouts {
-            let machines = installation.and_then(|supplies| supplies.target_machines.as_ref());
+            let machines = installation.and_then(|supplies| supplies.target_context.as_ref());
             if layouts.terminal_psi() != self.identity.semantic()
                 || machines.is_none_or(|machines| {
                     machines.terminal_psi() != self.identity.semantic()
@@ -217,29 +207,13 @@ impl AdmittedTerminalProgram<'_> {
             .is_ok()
     }
 
-    /// Independent heads are contract-only declarations. Legacy rows whose
-    /// canonical callable is an actual member retain ordinary call identity.
-    pub(crate) fn is_target_family_head(&self, boundary: BoundaryMachineId) -> bool {
-        let head = terminal_psi::TargetMachineCallable::Boundary(boundary);
-        self.catalogs
-            .target_machine_families
-            .binary_search_by_key(&head, |family| family.canonical)
-            .ok()
-            .is_some_and(|position| {
-                !self.catalogs.target_machine_families[position]
-                    .members
-                    .iter()
-                    .any(|member| member.callable == head)
-            })
-    }
-
     /// The declared boundary a demanded import slot names, when `slot` is a
     /// host-bindable import of this program.
     pub(crate) fn import_declaration(
         &self,
         slot: BoundaryMachineId,
     ) -> Option<&BoundaryMachineDeclaration> {
-        if self.has_provider(&slot) || self.is_target_family_head(slot) {
+        if self.has_provider(&slot) {
             return None;
         }
         self.boundary_machines().get(&slot).filter(|declaration| {
@@ -453,10 +427,10 @@ impl<'artifact> TerminalProgram<'artifact> {
             return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
         }
         if request
-            .target_machines
+            .target_context
             .is_some_and(|selected| selected.terminal_psi() != self.program.identity.semantic())
         {
-            return Err(TerminalInterpretError::TargetMachineSelectionIdentityMismatch);
+            return Err(TerminalInterpretError::TargetContextIdentityMismatch);
         }
         let mut installation = request
             .installation
@@ -470,11 +444,11 @@ impl<'artifact> TerminalProgram<'artifact> {
                 supplies: BTreeMap::new(),
                 assumed_bindings: Vec::new(),
                 folded_constant_target: None,
-                target_machines: None,
+                target_context: None,
                 target_layouts: None,
             });
         if request.x86_flags.is_some()
-            && request.target_machines.is_none_or(|selected| {
+            && request.target_context.is_none_or(|selected| {
                 !terminal_psi::RegisterTargetApplicability::X86_64
                     .accepts_target_name(selected.target())
             })
@@ -485,7 +459,7 @@ impl<'artifact> TerminalProgram<'artifact> {
         }
         if request.memory_ordering.is_some_and(|model| {
             request
-                .target_machines
+                .target_context
                 .is_none_or(|selected| !model.accepts_target(selected.target()))
         }) {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
@@ -494,7 +468,7 @@ impl<'artifact> TerminalProgram<'artifact> {
         }
         installation.memory_ordering = request.memory_ordering;
         installation.x86_flags = request.x86_flags;
-        installation.target_machines = request.target_machines.cloned();
+        installation.target_context = request.target_context.cloned();
         installation.entry = request.entry;
         installation.target_layouts = request.target_layouts.cloned().map(std::sync::Arc::new);
         self.program
@@ -553,18 +527,6 @@ impl<'artifact> TerminalProgram<'artifact> {
                 "compiler primitive cannot be replaced by an external supply",
             ));
         }
-        if self.program.is_target_family_head(boundary) {
-            let member = crate::calls::target_families::selected_member(
-                &self.program,
-                installation.target_machines.as_ref(),
-                boundary,
-            )?;
-            if !matches!(member, terminal_psi::TargetMachineCallable::Boundary(_)) {
-                return Err(rejected(
-                    "a checked target-family member cannot be replaced by an external supply",
-                ));
-            }
-        }
         if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn {
             return Err(rejected(
                 "external completion requires separate domain admission",
@@ -598,7 +560,6 @@ impl<'artifact> TerminalProgram<'artifact> {
                 declaration.role == terminal_psi::BoundaryDeclarationRole::Callable
                     && !compiler_owns_boundary_execution(declaration)
                     && !self.program.has_provider(&declaration.id)
-                    && !self.program.is_target_family_head(declaration.id)
             })
     }
 
@@ -911,7 +872,7 @@ impl TerminalProgram<'_> {
         let expected = TerminalRuntimeSupplies::from(primary.providers());
         if self.program.identity
             != terminal_codec::TerminalExecutionIdentity::portable(admission.terminal())
-            || installation.target_machines.as_ref() != Some(primary.targets())
+            || installation.target_context.as_ref() != Some(primary.targets())
             || installation.provider_selections.as_ref() != Some(primary.providers())
             || installation.target_layouts.as_deref() != Some(primary.layouts())
             || installation.assumed_bindings != expected.assumed_bindings
@@ -944,7 +905,7 @@ impl TerminalProgram<'_> {
             != terminal_codec::TerminalExecutionIdentity::portable(
                 observations.artifact().identity(),
             )
-            || installation.target_machines.as_ref() != Some(observations.targets())
+            || installation.target_context.as_ref() != Some(observations.targets())
             || installation.provider_selections.as_ref() != Some(observations.providers())
             || installation.supplies != expected_providers.supplies
             || installation.assumed_bindings != expected_providers.assumed_bindings
@@ -986,7 +947,7 @@ mod private_entry_target_tests {
         let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
             .expect("independent canonical admission");
         let program = TerminalProgram::borrow(artifact.view());
-        let terminal_psi::TargetMachineCallable::Machine(entry) = artifact.semantic_module().entry
+        let terminal_psi::TerminalCallable::Machine(entry) = artifact.semantic_module().entry
         else {
             panic!("ordinary direct entry required")
         };
@@ -997,8 +958,7 @@ mod private_entry_target_tests {
             .find(|row| row.machine == entry)
             .expect("actual direct placed row")
             .clone();
-        let machines =
-            terminal_installation::admit_target_machine_selections(artifact.view(), "linux_x86_64");
+        let machines = terminal_installation::target_context(artifact.view(), "linux_x86_64");
         let layouts = terminal_installation::admit_target_layouts(
             artifact.view(),
             &machines,
@@ -1027,8 +987,7 @@ mod private_entry_target_tests {
                 .is_err()
         );
         for name in ["macos_arm64"] {
-            let other_machines =
-                terminal_installation::admit_target_machine_selections(artifact.view(), name);
+            let other_machines = terminal_installation::target_context(artifact.view(), name);
             let other_layouts = terminal_installation::admit_target_layouts(
                 artifact.view(),
                 &other_machines,
@@ -1047,7 +1006,7 @@ mod private_entry_target_tests {
                     entry: artifact.semantic_module().entry,
                     installation: None,
                     host_imports: &[],
-                    target_machines: Some(&other_machines),
+                    target_context: Some(&other_machines),
                     target_layouts: Some(&other_layouts),
                 })
                 .expect("genuine admitted other-target installation");

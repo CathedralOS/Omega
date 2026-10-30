@@ -43,9 +43,9 @@ fn close_family_realizations(
     selected: &effects::SelectedProviderPlanFacts,
     sources: &[SelectedFamilyRealizationSource],
 ) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {
-    use terminal_psi::TargetMachineCallable;
+    use terminal_psi::TerminalCallable;
     let error = |message: String| vec![Diagnostic::error(message)];
-    let selections = terminal_installation::admit_target_machine_selections(
+    let selections = terminal_installation::target_context(
         artifact.view(),
         profile.target_name(),
     );
@@ -80,9 +80,9 @@ fn close_family_realizations(
             ));
         }
         let selected_member = selections
-            .member(TargetMachineCallable::Boundary(head.id))
+            .member(TerminalCallable::Boundary(head.id))
             .map_err(|message| error(format!("selected provider family member: {message}")))?;
-        let TargetMachineCallable::Boundary(member_id) = selected_member.callable() else {
+        let TerminalCallable::Boundary(member_id) = selected_member.callable() else {
             // Checked bodies execute through the ordinary family frame path.
             continue;
         };

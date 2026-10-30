@@ -20,7 +20,7 @@ use terminal_codec::CanonicalTerminalArtifact;
 #[derive(Clone, Copy)]
 pub struct NativeAdmissionRequest<'request, 'execution> {
     /// Exact retained callable selected by the application's checked custody.
-    pub entry: terminal_psi::TargetMachineCallable,
+    pub entry: terminal_psi::TerminalCallable,
     pub private_entry_ram: &'request [terminal_installation::CheckedPrivateEntryRamRecipe],
     /// Exact provider custody plus the receiving authority policies.
     /// An absent permission policy makes no receiver-admission claim; it is

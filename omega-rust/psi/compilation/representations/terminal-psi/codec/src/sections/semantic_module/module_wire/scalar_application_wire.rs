@@ -3,7 +3,7 @@
 use super::super::CodecError;
 use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::super::wire::{Reader, Writer};
-use super::target_family_wire::{decode_callable, encode_callable};
+use super::callable_wire::{decode_callable, encode_callable};
 use terminal_psi::{LayoutMeasurement, ScalarApplication, ScalarApplications};
 
 pub(super) fn encode(

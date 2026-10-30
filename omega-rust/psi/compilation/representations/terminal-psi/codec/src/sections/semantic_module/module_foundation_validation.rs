@@ -148,7 +148,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     terminal_semantics::validate_placed_view_plans(module).map_err(CodecError::PlacedPlan)?;
     terminal_semantics::validate_placement_lifecycle_plans(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
-    validate_target_families(module)?;
+    validate_entry(module)?;
     validate_boundary_application_operations(module)?;
     validate_callback_registrars(module)?;
     require_unique_nonempty_identities(
@@ -326,94 +326,18 @@ fn validate_callback_registrars(module: &TerminalModule) -> Result<(), CodecErro
     Ok(())
 }
 
-fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
-    use terminal_psi::{TargetMachineCallable, TargetMachineSupply};
-
+fn validate_entry(module: &TerminalModule) -> Result<(), CodecError> {
     match module.entry {
-        None if module.root_service_reach == terminal_psi::TerminalRootServiceReach::default() => {}
-        Some(TargetMachineCallable::Machine(machine)) if module.machine(machine).is_some() => {}
-        Some(head @ TargetMachineCallable::Boundary(boundary))
-            if module.target_machine_families.iter().any(|family| {
-                family.canonical == head
-                    && !family.members.iter().any(|member| member.callable == head)
-            }) && module
-                .boundary_machine(boundary)
-                .is_some_and(|declaration| {
-                    declaration.kind == semantic_vocabulary::BoundaryRequirementKind::Machine
-                        && declaration.role == terminal_psi::BoundaryDeclarationRole::Callable
-                }) => {}
-        _ => return malformed("portable entry has no retained machine or target-family head"),
-    }
-    // A family-root declaration is meaningful only with its complete checked
-    // catalog commitment below. An arbitrary bodyless boundary cannot become
-    // an executable entrance by receiving a target or an entry receipt.
-    let mut owners = BTreeSet::new();
-    for family in &module.target_machine_families {
-        if family.head_contract == [0; 32] {
-            return malformed("target-family head has no checked contract commitment");
+        None if module.root_service_reach == terminal_psi::TerminalRootServiceReach::default() => {
+            Ok(())
         }
-        if family.members.is_empty() {
-            return malformed("target family has no members");
-        }
-        if !family
-            .members
-            .iter()
-            .any(|member| member.callable == family.canonical)
+        Some(terminal_psi::TerminalCallable::Machine(machine))
+            if module.machine(machine).is_some() =>
         {
-            // An independent head describes the portable machine contract.
-            // A retained declaration grants neither supply nor selection.
-            let TargetMachineCallable::Boundary(head) = family.canonical else {
-                return malformed("independent target-family head is not a machine contract");
-            };
-            if module.boundary_machine(head).is_none_or(|declaration| {
-                declaration.kind != semantic_vocabulary::BoundaryRequirementKind::Machine
-                    || declaration.role != terminal_psi::BoundaryDeclarationRole::Callable
-            }) {
-                return malformed("independent target-family head has no machine declaration");
-            }
+            Ok(())
         }
-        for member in &family.members {
-            if member.target.is_empty() || !owners.insert(member.callable) {
-                return malformed("target-family member has an empty tag or repeated callable");
-            }
-            // Canonical order already owns unique heads and ordered target
-            // tags. A head may be its own legacy member, never another
-            // family's member, even when it names a valid declaration.
-            if member.callable != family.canonical
-                && module
-                    .target_machine_families
-                    .binary_search_by_key(&member.callable, |family| family.canonical)
-                    .is_ok()
-            {
-                return malformed("target-family head is a member of another family");
-            }
-            match member.callable {
-                TargetMachineCallable::Machine(machine) => {
-                    if !matches!(
-                        member.supply,
-                        TargetMachineSupply::CheckedBody | TargetMachineSupply::Boundary
-                    ) || !module.machine(machine).is_some()
-                    {
-                        return malformed(
-                            "target-family checked member has no matching body supply",
-                        );
-                    }
-                }
-                TargetMachineCallable::Boundary(boundary) => {
-                    if member.supply == TargetMachineSupply::CheckedBody
-                        || module.boundary_machine(boundary).is_none_or(|declaration| {
-                            declaration.role != terminal_psi::BoundaryDeclarationRole::Callable
-                        })
-                    {
-                        return malformed(
-                            "target-family opaque member has no matching declaration supply",
-                        );
-                    }
-                }
-            }
-        }
+        _ => malformed("portable entry has no retained checked machine"),
     }
-    Ok(())
 }
 
 fn validate_provider_attachment_foundation(

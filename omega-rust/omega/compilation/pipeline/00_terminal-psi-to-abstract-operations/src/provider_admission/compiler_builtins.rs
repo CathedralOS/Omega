@@ -474,7 +474,7 @@ fn require_placed_backing_origins(
         if selected_calls.iter().any(|(previous, _)| previous == head) {
             continue;
         }
-        if let Some(terminal_psi::TargetMachineCallable::Machine(member)) =
+        if let Some(terminal_psi::TerminalCallable::Machine(member)) =
             input.optimization_input().target_family_member(*head)?
         {
             selected_calls.push((*head, member));

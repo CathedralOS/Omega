@@ -40,11 +40,11 @@ pub(crate) mod wire;
 #[cfg(test)]
 mod counted_collection_bound_tests;
 #[cfg(test)]
+mod declaration_catalog_tests;
+#[cfg(test)]
 mod numeric_intrinsic_tests;
 #[cfg(test)]
 mod routed_scalar_tests;
-#[cfg(test)]
-mod target_family_tests;
 
 pub(crate) use crate::codec_error::CodecError;
 use canonical_order::{
@@ -136,7 +136,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Union of numeric schema/ISA, application-owned FixedLayout geometry,
 // portable scalar roots, proof applications and optional default entries.
 // Neither independent marker217 nor212 has this combined interpretation.
-pub(crate) const FORMAT_MARKER: u16 = 218;
+pub(crate) const FORMAT_MARKER: u16 = 219;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

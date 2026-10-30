@@ -51,7 +51,7 @@ pub(super) fn prepare<'host, 'code>(
     // Keep freshly produced code alive after helper preparation is released;
     // decoding is an external-byte ingress, not a same-session ownership transfer.
     let program = TerminalProgram::retain(artifact.retain_code());
-    let targets = terminal_installation::admit_target_machine_selections(
+    let targets = terminal_installation::target_context(
         artifact.view(),
         profile.target_name(),
     );
@@ -122,7 +122,7 @@ pub(super) fn prepare<'host, 'code>(
                     layout_target: scope_profile
                         .layout_target_facts()
                         .ok_or("scalar evaluation target has no immutable layout catalogue")?,
-                    targets: terminal_installation::admit_target_machine_selections(
+                    targets: terminal_installation::target_context(
                         artifact.view(),
                         scope,
                     ),
@@ -160,19 +160,19 @@ pub(super) fn prepare<'host, 'code>(
 fn runtime_supplies(
     program: &TerminalProgram<'_>,
     admitted: &terminal_installation::AdmittedComponentProvider,
-    targets: &terminal_installation::AdmittedTargetMachineSelections,
+    targets: &terminal_installation::TerminalTargetContext,
     layouts: &terminal_installation::AdmittedTargetLayouts,
 ) -> Result<terminal_interpreter::TerminalRuntimeSupplies, String> {
     program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             installation: Some(admitted.selection()),
-            entry: Some(terminal_psi::TargetMachineCallable::Machine(
+            entry: Some(terminal_psi::TerminalCallable::Machine(
                 admitted.candidate(),
             )),
             host_imports: &[],
             x86_flags: None,
             memory_ordering: None,
-            target_machines: Some(targets),
+            target_context: Some(targets),
             target_layouts: Some(layouts),
         })
         .map_err(|error| format!("Build helper closure admission: {error:?}"))

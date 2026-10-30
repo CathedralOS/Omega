@@ -48,7 +48,7 @@ pub fn prepare<'input>(
         let (artifact, proposal) = request.prepare_terminal(retained)?;
         let components =
             crate::components::prepare_components(request.components, artifact.view())?;
-        let selections = terminal_installation::admit_target_machine_selections(
+        let selections = terminal_installation::target_context(
             artifact.view(),
             proposal.target_profile().target_name(),
         );

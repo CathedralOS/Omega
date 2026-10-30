@@ -10,13 +10,13 @@ use semantic_vocabulary::{
     ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_codec::{CanonicalTerminalArtifact, build_identity_optimization_execution_record};
-use terminal_installation::{admit_provider_installation, admit_target_machine_selections};
+use terminal_installation::{admit_provider_installation, target_context};
 use terminal_interpreter::{TerminalRuntimeSupplyRequest, TerminalScalarValue};
 use terminal_psi::{
     ArrayExtent, Block, LayoutMeasurement, MachineContract, Operation, OperationKind,
     OperationResult, ScalarApplication, ScalarConditionSubject, ScalarPredicateNode,
     ScalarRangeObservation, ScalarRangeRequirement, StructuralTypeDeclaration, StructuralTypeShape,
-    TargetMachineCallable, TerminalIdentityTableBuilder, TerminalMachine, TerminalMachineResult,
+    TerminalCallable, TerminalIdentityTableBuilder, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, ValueDeclaration,
 };
 
@@ -200,7 +200,7 @@ fn graph(expected: u64, cyclic: bool, signed_extent: bool) -> CanonicalTerminalA
             scalar_type: scalar(),
         },
         ScalarApplication::Evaluate {
-            entry: TargetMachineCallable::Machine(machine_id(1)),
+            entry: TerminalCallable::Machine(machine_id(1)),
             scalar_type: extent_type,
         },
         ScalarApplication::LayoutObservation {
@@ -216,7 +216,7 @@ fn graph(expected: u64, cyclic: bool, signed_extent: bool) -> CanonicalTerminalA
             scalar_type: scalar(),
         },
         ScalarApplication::Evaluate {
-            entry: TargetMachineCallable::Machine(machine_id(2)),
+            entry: TerminalCallable::Machine(machine_id(2)),
             scalar_type: scalar(),
         },
     ] {
@@ -335,7 +335,7 @@ fn canonical_scalar_jobs_do_not_capture_an_unselected_declarations_result() {
         .unwrap();
     let artifact = canonical(module);
     let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-    let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
+    let targets = target_context(artifact.view(), "macos_arm64");
     let mut observations = ScalarApplicationObservations::new(
         artifact.view(),
         &targets,
@@ -359,7 +359,7 @@ fn canonical_scalar_jobs_do_not_capture_an_unselected_declarations_result() {
         observations.value(application(5)).unwrap(),
         Some(integer(24))
     );
-    let windows = admit_target_machine_selections(artifact.view(), "windows_x86_64");
+    let windows = target_context(artifact.view(), "windows_x86_64");
     let mut selected = ScalarApplicationObservations::new(
         artifact.view(),
         &windows,
@@ -410,7 +410,7 @@ fn sibling_extent_graph() -> CanonicalTerminalArtifact {
         module
             .scalar_applications
             .insert(ScalarApplication::Evaluate {
-                entry: TargetMachineCallable::Machine(machine_id(identity)),
+                entry: TerminalCallable::Machine(machine_id(identity)),
                 scalar_type: scalar(),
             })
             .unwrap();
@@ -478,7 +478,7 @@ fn sibling_extent_graph() -> CanonicalTerminalArtifact {
 fn canonical_scalar_jobs_discover_sibling_conditions_before_execution() {
     let artifact = sibling_extent_graph();
     let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-    let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
+    let targets = target_context(artifact.view(), "macos_arm64");
     let mut observations = ScalarApplicationObservations::new(
         artifact.view(),
         &targets,
@@ -526,7 +526,7 @@ fn canonical_scalar_jobs_discover_sibling_conditions_before_execution() {
 fn canonical_scalar_jobs_refuse_replay_to_fill_a_late_capture() {
     let artifact = sibling_extent_graph();
     let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-    let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
+    let targets = target_context(artifact.view(), "macos_arm64");
     let mut observations = ScalarApplicationObservations::new(
         artifact.view(),
         &targets,
@@ -572,7 +572,7 @@ fn canonical_scalar_jobs_compose_geometry_entries_and_exact_observations() {
     let original = artifact.to_bytes();
     let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
     for target in ["windows_x86_64", "macos_arm64"] {
-        let selections = admit_target_machine_selections(artifact.view(), target);
+        let selections = target_context(artifact.view(), target);
         let mut observations = ScalarApplicationObservations::new(
             artifact.view(),
             &selections,
@@ -614,7 +614,7 @@ fn canonical_scalar_jobs_refuse_cycles_and_false_conditions() {
     for cyclic in [false, true] {
         let artifact = graph(23, cyclic, false);
         let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-        let selections = admit_target_machine_selections(artifact.view(), "macos_arm64");
+        let selections = target_context(artifact.view(), "macos_arm64");
         let mut observations = ScalarApplicationObservations::new(
             artifact.view(),
             &selections,
@@ -664,7 +664,7 @@ fn canonical_scalar_jobs_refuse_cycles_and_false_conditions() {
 fn canonical_scalar_jobs_preserve_nonnegative_signed_extent_carriers() {
     let artifact = graph(24, false, true);
     let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-    let selections = admit_target_machine_selections(artifact.view(), "macos_arm64");
+    let selections = target_context(artifact.view(), "macos_arm64");
     let mut observations = ScalarApplicationObservations::new(
         artifact.view(),
         &selections,
@@ -694,8 +694,8 @@ fn canonical_scalar_jobs_bind_provisional_inputs_to_the_target_and_entry() {
     use terminal_interpreter::{TerminalArtifactInterpretError, TerminalInterpretError};
     let artifact = graph(24, false, false);
     let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-    let windows = admit_target_machine_selections(artifact.view(), "windows_x86_64");
-    let macos = admit_target_machine_selections(artifact.view(), "macos_arm64");
+    let windows = target_context(artifact.view(), "windows_x86_64");
+    let macos = target_context(artifact.view(), "macos_arm64");
     let mut observations = ScalarApplicationObservations::new(
         artifact.view(),
         &windows,
@@ -728,9 +728,9 @@ fn canonical_scalar_jobs_bind_provisional_inputs_to_the_target_and_entry() {
         .unwrap();
         let installation = program
             .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
-                entry: Some(TargetMachineCallable::Machine(entry)),
+                entry: Some(TerminalCallable::Machine(entry)),
                 installation: Some(&providers),
-                target_machines: Some(selected),
+                target_context: Some(selected),
                 target_layouts: Some(&layouts),
                 host_imports: &[],
                 x86_flags: None,

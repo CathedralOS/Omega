@@ -21,9 +21,8 @@ pub(super) fn validate(
 ) -> Result<(), String> {
     let module = artifact.module();
     let candidates = selected_checked_candidates(declarations, module)?;
-    let target_members = terminal_installation::admit_target_machine_selections(artifact, target);
     let calls =
-        terminal_installation::SynchronousCallGraph::new(module, Some(&target_members), None)?;
+        terminal_installation::SynchronousCallGraph::new(module, None)?;
     validate_selected_synchronous_invocation_cycles(selected.plans(), |plan, row| {
         let failure = |reason: String| {
             diagnostics::Diagnostic::error(format!(

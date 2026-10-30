@@ -506,12 +506,12 @@ pub(crate) fn requirement_contract_identity(requirement_identity: &str) -> [u8; 
 }
 
 /// Distinguishes a concrete root from a portable family head in exported labels.
-fn canonical_entry_label(entry: terminal_psi::TargetMachineCallable) -> String {
+fn canonical_entry_label(entry: terminal_psi::TerminalCallable) -> String {
     match entry {
-        terminal_psi::TargetMachineCallable::Machine(machine) => {
+        terminal_psi::TerminalCallable::Machine(machine) => {
             format!("machine:{}", machine.get())
         }
-        terminal_psi::TargetMachineCallable::Boundary(boundary) => {
+        terminal_psi::TerminalCallable::Boundary(boundary) => {
             format!("boundary:{}", boundary.get())
         }
     }
@@ -534,16 +534,16 @@ pub(crate) fn identity_text(module: &TerminalModule, identity: TerminalIdentityI
 /// domain and cannot collide with any [`requirement_contract_identity`]
 /// output.
 pub(crate) fn canonical_entry_contract_identity(
-    entry: terminal_psi::TargetMachineCallable,
+    entry: terminal_psi::TerminalCallable,
 ) -> [u8; 32] {
     let mut digest =
         crate::digest_encoder::DomainDigestEncoder::new(CANONICAL_ENTRY_CONTRACT_DOMAIN);
     match entry {
-        terminal_psi::TargetMachineCallable::Machine(machine) => {
+        terminal_psi::TerminalCallable::Machine(machine) => {
             digest.raw(&[1]);
             digest.raw(&machine.get().to_le_bytes());
         }
-        terminal_psi::TargetMachineCallable::Boundary(boundary) => {
+        terminal_psi::TerminalCallable::Boundary(boundary) => {
             digest.raw(&[2]);
             digest.raw(&boundary.get().to_le_bytes());
         }

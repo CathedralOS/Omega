@@ -74,7 +74,6 @@ mod range_arguments;
 mod result_locals;
 pub(crate) use result_locals::refresh as refresh_inferred_result_locals;
 mod saved_calls;
-mod target_families;
 mod type_reference_walk;
 
 /// Authored metadata shared by all candidate applications in a round.

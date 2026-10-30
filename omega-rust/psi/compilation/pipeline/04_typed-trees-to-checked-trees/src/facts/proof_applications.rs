@@ -5,8 +5,7 @@
 //! inferred here, and preserving metadata does not retain executable roots.
 
 use checked_trees::{
-    CheckedTrees, ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember,
-    ProofDeclarationDependencies,
+    CheckedTrees, ProofApplicationMachine, ProofApplicationPlan, ProofDeclarationDependencies,
 };
 use symbols::SymbolHandle;
 
@@ -120,21 +119,6 @@ pub(crate) fn retain(checked: &CheckedTrees) -> ProofApplicationPlan {
                 .machine_kind_type_parameters(machine)
                 .map(|binder| binder.symbol),
         );
-        let family_members =
-            typed
-                .target_machine_families
-                .iter()
-                .find(|family| family.canonical == machine.symbol)
-                .map(|family| {
-                    plan.target_members
-                        .insert_many(family.members.iter().map(|member| {
-                            ProofApplicationTargetMember {
-                                target: member.target.as_str().to_owned(),
-                                machine: member.machine,
-                            }
-                        }))
-                })
-                .unwrap_or_default();
         let dynamic_realizations = plan.symbols.insert_many(
             facts
                 .dynamic_conformances
@@ -147,10 +131,6 @@ pub(crate) fn retain(checked: &CheckedTrees) -> ProofApplicationPlan {
             machine: machine.symbol,
             states,
             binders,
-            authored_target: typed.machine_authored_target(machine).map(str::to_owned),
-            source_target: typed.source_target_context(machine).map(str::to_owned),
-            family_interface: machine.target_family_interface,
-            family_members,
             dynamic_realizations,
             product_selected: true,
         });

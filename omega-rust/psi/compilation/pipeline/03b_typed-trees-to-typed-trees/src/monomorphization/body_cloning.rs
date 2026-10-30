@@ -61,13 +61,14 @@ pub(super) fn clone_specialized_machine(
     if let Some(states) = super::placed_primitives::select(source, program, candidate)? {
         return Ok(states);
     }
-    super::target_families::clone_specialization(
+    clone_single_specialized_machine(
         source,
         program,
         candidate,
         ordinal,
         normalized_template_identity,
         accepted_template_commitment,
+        None,
     )
 }
 

@@ -48,12 +48,12 @@ fn fixture() -> (ProofApplicationScope, ScalarConditions) {
         });
     scope.callables.insert(ProofCallableAssociation::Callable {
         declaration: ProofDeclarationId(6),
-        callable: TargetMachineCallable::Boundary(BoundaryMachineId::new(1).unwrap()),
+        callable: TerminalCallable::Boundary(BoundaryMachineId::new(1).unwrap()),
     });
     for ordinal in 2..=3 {
         scope.callables.insert(ProofCallableAssociation::Callable {
             declaration: ProofDeclarationId(ordinal),
-            callable: TargetMachineCallable::Machine(MachineId::new(u64::from(ordinal)).unwrap()),
+            callable: TerminalCallable::Machine(MachineId::new(u64::from(ordinal)).unwrap()),
         });
         scope
             .plan

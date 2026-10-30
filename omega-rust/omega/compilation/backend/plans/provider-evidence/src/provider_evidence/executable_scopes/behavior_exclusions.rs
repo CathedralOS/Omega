@@ -52,7 +52,7 @@ use semantic_vocabulary::{
 };
 use std::collections::VecDeque;
 use terminal_psi::{
-    CrashCause, OperationKind, ProviderCandidateConformance, TargetMachineCallable,
+    CrashCause, OperationKind, ProviderCandidateConformance, TerminalCallable,
     TargetMachineSupply, TerminalMachine, TerminalModule, Terminator,
 };
 
@@ -368,7 +368,7 @@ fn boundary_realization_coverage(
             let member = module.boundary_machine(family_row.member);
             let selected_member = terminal_installation::resolve_target_machine_member(
                 module,
-                TargetMachineCallable::Boundary(family_row.head),
+                TerminalCallable::Boundary(family_row.head),
                 deployment_target,
             )
             .map_err(|error| error.to_string())?;
@@ -386,7 +386,7 @@ fn boundary_realization_coverage(
                             .text(family_row.member_identity)
                 })
                 || selected_member.is_none_or(|selected| {
-                    selected.callable != TargetMachineCallable::Boundary(family_row.member)
+                    selected.callable != TerminalCallable::Boundary(family_row.member)
                         || selected.supply == TargetMachineSupply::CheckedBody
                         || family_row.member != boundary
                 })
@@ -630,7 +630,7 @@ fn inspect_boundary<'module>(
     // accounting ordinary opaque service/provider contracts.
     let selected_member = terminal_installation::resolve_target_machine_member(
         module,
-        TargetMachineCallable::Boundary(called_boundary),
+        TerminalCallable::Boundary(called_boundary),
         deployment_target,
     );
     let family_gap = |reason| EvidenceGap {
@@ -647,7 +647,7 @@ fn inspect_boundary<'module>(
     let boundary = match selected_member {
         Ok(Some(member)) => match (member.callable, member.supply) {
             (
-                TargetMachineCallable::Machine(callee),
+                TerminalCallable::Machine(callee),
                 TargetMachineSupply::CheckedBody | TargetMachineSupply::Boundary,
             ) => {
                 match module.machine(callee) {
@@ -662,7 +662,7 @@ fn inspect_boundary<'module>(
                 }
                 return;
             }
-            (TargetMachineCallable::Boundary(member), supply)
+            (TerminalCallable::Boundary(member), supply)
                 if supply != TargetMachineSupply::CheckedBody =>
             {
                 member

@@ -6,8 +6,8 @@
 //! `frames.rs` preserves that partition while binding and pushing the frame;
 
 pub(crate) mod arguments;
+pub(crate) mod completion;
 pub(crate) mod frames;
-pub(crate) mod target_families;
 
 mod component_arguments;
 mod component_calls;
@@ -382,27 +382,6 @@ impl<'artifact> TerminalExecution<'artifact> {
             .map(|argument| self.scalar_value(*argument))
             .collect::<Result<Vec<_>, _>>()?;
         bind_boundary_arguments(&boundary_declaration.scalar_parameters, &scalar_arguments)?;
-        if program.is_target_family_head(boundary) {
-            match target_families::selected_member(
-                &program,
-                self.target_machines.as_ref(),
-                boundary,
-            )? {
-                terminal_psi::TargetMachineCallable::Machine(member) => {
-                    return self.execute_target_family_call(
-                        operation,
-                        boundary_declaration,
-                        member,
-                        &scalar_arguments,
-                    );
-                }
-                terminal_psi::TargetMachineCallable::Boundary(_) => {
-                    // Selection identifies the opaque implementation; its
-                    // execution still needs the ordinary admitted supply.
-                    // Keep the portable head's contract and occurrence ID.
-                }
-            }
-        }
         let supply = self.boundary_supplies.get(&boundary).copied();
         if supply == Some(crate::effects::AdmittedBoundarySupply::DeferredComponent) {
             return Err(TerminalInterpretError::EffectRejected {

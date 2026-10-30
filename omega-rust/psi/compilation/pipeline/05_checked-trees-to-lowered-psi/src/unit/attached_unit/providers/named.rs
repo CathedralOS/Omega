@@ -95,9 +95,6 @@ enum EdgeReach {
     /// The edge names this body: a machine's own clause, or a conformance row
     /// whose realization is the candidate.
     Named,
-    /// A conformance row names a portable family head; one of its members
-    /// realizes the row on the selected target.
-    FamilyHead(symbols::SymbolHandle),
     /// A conformance row names a template a checked specialization
     /// instantiates.
     Specialization(symbols::SymbolHandle),
@@ -108,13 +105,6 @@ impl EdgeReach {
     fn reaches(&self, typed: &TypedTrees, machine: &Machine) -> Result<bool, LoweringError> {
         match self {
             Self::Named => Ok(true),
-            Self::FamilyHead(head) => Ok(typed.target_machine_families.iter().any(|family| {
-                family.canonical == *head
-                    && family
-                        .members
-                        .iter()
-                        .any(|member| member.machine == machine.symbol)
-            })),
             Self::Specialization(template) => {
                 let source = typed
                     .machine(*template)
@@ -210,14 +200,7 @@ fn exact_requirement_edges(
                     provider_identity: typed.symbols.display_path(implementation.symbol, "::"),
                     selecting_declaration: implementation.symbol,
                     realization: realization.symbol,
-                    reach: if realization.target_family_interface {
-                        // The row names a target family's head, the declaration
-                        // every member body implements; each member is a
-                        // candidate, and Omega installs the selected target's
-                        // member. The head itself has no body and never enters
-                        // the catalog.
-                        EdgeReach::FamilyHead(realization.symbol)
-                    } else if realization.symbol == machine.symbol {
+                    reach: if realization.symbol == machine.symbol {
                         EdgeReach::Named
                     } else {
                         EdgeReach::Specialization(realization.symbol)

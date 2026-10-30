@@ -328,7 +328,7 @@ pub(super) fn target_family_internal_call_identity(
     completion_receipts: &[terminal_psi::CompletionReceipt],
     call: &BoundaryInternalCallCustody,
 ) -> Result<[u8; 32], &'static str> {
-    let terminal_psi::TargetMachineCallable::Machine(machine) = member.callable else {
+    let terminal_psi::TerminalCallable::Machine(machine) = member.callable else {
         return Err("target-family internal-call identity requires a checked machine");
     };
     let supply_tag = match member.supply {

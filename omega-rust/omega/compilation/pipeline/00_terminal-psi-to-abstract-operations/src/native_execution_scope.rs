@@ -78,7 +78,7 @@ impl NativeExecutionScope {
     pub(crate) fn derive(
         module: &TerminalModule,
         entry: MachineId,
-        targets: &terminal_installation::AdmittedTargetMachineSelections,
+        targets: &terminal_installation::TerminalTargetContext,
         entry_call: Option<&crate::SelectedProgramEntryCall>,
         selected: &[SelectedProviderAdapter],
         assumptions: &[(BoundaryMachineId, BoundaryMachineId)],
@@ -90,7 +90,7 @@ impl NativeExecutionScope {
             .enumerate()
             .filter(|(_, machine)| {
                 module.target_machine_families.iter().all(|family| {
-                    let callable = terminal_psi::TargetMachineCallable::Machine(machine.id);
+                    let callable = terminal_psi::TerminalCallable::Machine(machine.id);
                     !family
                         .members
                         .iter()
@@ -230,7 +230,7 @@ impl NativeExecutionScope {
     fn retain_boundary(
         &mut self,
         module: &TerminalModule,
-        targets: &terminal_installation::AdmittedTargetMachineSelections,
+        targets: &terminal_installation::TerminalTargetContext,
         entry_call: Option<&crate::SelectedProgramEntryCall>,
         index: &ScopeBoundaryIndex<'_>,
         assumptions: &[(BoundaryMachineId, BoundaryMachineId)],
@@ -267,7 +267,7 @@ impl NativeExecutionScope {
                 pending,
             );
         }
-        if let Some(terminal_psi::TargetMachineCallable::Machine(member)) =
+        if let Some(terminal_psi::TerminalCallable::Machine(member)) =
             crate::optimization::target_family_member(module, Some(targets), boundary)
                 .map_err(NativeExecutionScopeError::TargetFamily)?
         {
@@ -334,7 +334,7 @@ impl NativeExecutionScope {
     pub(crate) fn scalar_value_demand(
         &self,
         module: &TerminalModule,
-        targets: &terminal_installation::AdmittedTargetMachineSelections,
+        targets: &terminal_installation::TerminalTargetContext,
     ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
         let mut demanded = std::collections::BTreeSet::new();
         for machine in module
@@ -354,12 +354,12 @@ impl NativeExecutionScope {
                 continue;
             };
             let machine = match entry {
-                terminal_psi::TargetMachineCallable::Machine(machine) => *machine,
-                terminal_psi::TargetMachineCallable::Boundary(_) => {
+                terminal_psi::TerminalCallable::Machine(machine) => *machine,
+                terminal_psi::TerminalCallable::Boundary(_) => {
                     let Ok(member) = targets.member(*entry) else {
                         continue;
                     };
-                    let terminal_psi::TargetMachineCallable::Machine(machine) = member.callable()
+                    let terminal_psi::TerminalCallable::Machine(machine) = member.callable()
                     else {
                         continue;
                     };
@@ -386,7 +386,7 @@ impl NativeExecutionScope {
     pub(crate) fn scalar_application_demand(
         &self,
         module: &TerminalModule,
-        targets: &terminal_installation::AdmittedTargetMachineSelections,
+        targets: &terminal_installation::TerminalTargetContext,
         layouts: &terminal_installation::AdmittedTargetLayouts,
     ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
         let mut applications = self.storage_extent_demand(module, layouts)?;

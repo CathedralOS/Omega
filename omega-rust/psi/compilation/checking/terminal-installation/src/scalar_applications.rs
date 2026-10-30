@@ -19,8 +19,7 @@ use terminal_psi::{
 use terminal_semantics::{ReferenceStorageGeometry, StorageGeometryError};
 
 use crate::{
-    AdmittedProviderSelections, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
-    TerminalScalarValue,
+    AdmittedProviderSelections, AdmittedTargetLayouts, TerminalScalarValue, TerminalTargetContext,
 };
 
 mod conditions;
@@ -50,7 +49,7 @@ enum EntryResult {
 /// another artifact, target or provider selection never share this namespace.
 pub struct ScalarApplicationObservations<'artifact> {
     artifact: TerminalArtifactView<'artifact>,
-    targets: &'artifact AdmittedTargetMachineSelections,
+    targets: &'artifact TerminalTargetContext,
     providers: &'artifact AdmittedProviderSelections,
     layouts: AdmittedTargetLayouts,
     carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
@@ -89,7 +88,7 @@ impl ScalarApplicationValues {
 impl<'artifact> ScalarApplicationObservations<'artifact> {
     pub fn new(
         artifact: TerminalArtifactView<'artifact>,
-        targets: &'artifact AdmittedTargetMachineSelections,
+        targets: &'artifact TerminalTargetContext,
         providers: &'artifact AdmittedProviderSelections,
         target_layout: &crate::LayoutTargetFacts,
     ) -> Result<Self, String> {
@@ -105,8 +104,8 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
                 "scalar observations differ from the artifact's folded target closure".into(),
             );
         }
-        let layouts =
-            crate::admit_target_layouts(artifact, targets, target_layout).map_err(|error| error.to_string())?;
+        let layouts = crate::admit_target_layouts(artifact, targets, target_layout)
+            .map_err(|error| error.to_string())?;
         let mut applications = Arena::new();
         applications.insert_many(
             artifact
@@ -141,7 +140,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
     pub fn carrier_layout(&self) -> Option<semantic_vocabulary::TargetCarrierLayout> {
         self.carrier_layout
     }
-    pub fn targets(&self) -> &AdmittedTargetMachineSelections {
+    pub fn targets(&self) -> &TerminalTargetContext {
         self.targets
     }
     pub fn providers(&self) -> &AdmittedProviderSelections {

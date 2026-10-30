@@ -72,7 +72,7 @@ fn entry_results_observe_source_calls_separately_from_the_final_result() {
     let artifact = produced.artifact().expect("portable source fixture");
     let reloaded = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     let module = reloaded.semantic_module();
-    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
+    let Some(terminal_psi::TerminalCallable::Machine(entry)) = module.entry else {
         panic!("direct entry")
     };
     let machine = module

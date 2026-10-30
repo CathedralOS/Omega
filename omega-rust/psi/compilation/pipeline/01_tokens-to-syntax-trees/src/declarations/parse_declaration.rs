@@ -41,7 +41,7 @@ pub(crate) fn starts_following_item(syntax_trees: &mut SyntaxTrees, input: Input
         || input.at_keyword(KeywordKind::Use)
         || input.at_keyword(KeywordKind::Let)
         || input.at_keyword(KeywordKind::Capability)
-        || target_machine_prefix(input).is_some()
+        || starts_retired_target_machine(input)
         || named_implementation_prefix(input).is_some()
     {
         return true;
@@ -141,23 +141,18 @@ pub(crate) fn named_implementation_prefix<'tokens, 'source>(
     None
 }
 
-/// Shared by declaration dispatch and contract lookahead. Consume only the
-/// target/modifier prefix; the machine parser still owns the complete head.
-fn target_machine_prefix<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-) -> Option<(Identifier, bool, Input<'tokens, 'source>)> {
-    if !input.at_identifier_then_contextual("machine")
-        && !input.at_identifier_then_contextual("boundary")
-    {
-        return None;
+/// Recognize a retired declaration head only to terminate a preceding contract
+/// and report the migration at its original source token. No machine or target
+/// identity is constructed from this spelling.
+fn starts_retired_target_machine(input: Input<'_, '_>) -> bool {
+    if input.at_identifier_then_contextual("machine") {
+        return true;
     }
-    let (target, mut rest) = input.take_identifier().ok()?;
-    let boundary = rest.at_contextual("boundary");
-    if boundary {
-        rest = rest.take_contextual("boundary").ok()?;
+    if !input.at_identifier_then_contextual("boundary") {
+        return false;
     }
-    rest.at_keyword(KeywordKind::Machine)
-        .then_some((target, boundary, rest))
+    let after = input.restarted(input.tokens.get(2..).unwrap_or_default());
+    after.at_keyword(KeywordKind::Machine)
 }
 
 /// The same machine introducers are legal at module and lexical scope. This
@@ -169,7 +164,7 @@ pub(crate) fn starts_machine_declaration(input: Input<'_, '_>) -> bool {
             input.restarted(input.tokens.get(1..).unwrap_or_default()),
         );
     }
-    input.at_keyword(KeywordKind::Machine) || target_machine_prefix(input).is_some()
+    input.at_keyword(KeywordKind::Machine) || starts_retired_target_machine(input)
 }
 
 pub(crate) fn parse_item<'tokens, 'source>(
@@ -445,22 +440,10 @@ fn parse_declared_item<'tokens, 'source>(
         return Ok((Item::Trait(item), rest));
     }
 
-    // Target-scoped ordinary and boundary machines share the same head grammar.
-    // Dispatch uses the same prefix probe as a preceding contract's terminator.
-    if let Some((target, boundary, input)) = target_machine_prefix(input) {
-        let input = input.take_keyword(KeywordKind::Machine, "machine")?;
-        let (mut machine, rest) = parse_machine(syntax_trees, input)?;
-        machine.boundary = boundary;
-        machine.authored_target = Some(target.clone());
-        machine.target = Some(target);
-        if machine.service_reach_is_installation_bound
-            && (!boundary || !machine.bodyless || !machine.satisfies.is_empty())
-        {
-            return Err(rest.error_here(
-                "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement, not on a checked body or realization",
-            ));
-        }
-        return Ok((Item::Machine(machine), rest));
+    if starts_retired_target_machine(input) {
+        return Err(input.error_here(
+            "target-prefixed machine declarations are retired; declare ordinary named implementations and select them with target-keyed Build::select_provider rows",
+        ));
     }
 
     // A named implementation owns its complete requirement map and telescope.

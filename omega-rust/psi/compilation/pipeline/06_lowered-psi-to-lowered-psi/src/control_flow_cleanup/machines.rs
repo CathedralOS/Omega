@@ -78,7 +78,7 @@ pub(super) fn prune(
         .callables
         .insert_many(callables.iter().map(|(_, row)| row.clone()).filter(|row| {
             !matches!(row, terminal_psi::ProofCallableAssociation::Callable {
-                callable: terminal_psi::TargetMachineCallable::Machine(body), ..
+                callable: terminal_psi::TerminalCallable::Machine(body), ..
             } if !kept.contains(body))
         }));
 }

@@ -174,19 +174,6 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     }
     require_increasing(
         module
-            .target_machine_families
-            .iter()
-            .map(|family| family.canonical),
-        "target-machine families by canonical callable",
-    )?;
-    for family in &module.target_machine_families {
-        require_increasing(
-            family.members.iter().map(|member| member.target.as_str()),
-            "target-family members by deployment tag",
-        )?;
-    }
-    require_increasing(
-        module
             .scalar_block_invariants
             .iter()
             .map(|invariant| (invariant.machine, invariant.header)),

@@ -34,11 +34,10 @@ pub use control_flow::{
     FloatResultPolicy, MemoryOrdering, ModuleInvocation, ModuleInvocationInputs, Operation,
     OperationKind, OperationResult, RecordFieldInitializer, RecordFieldValue, ReferenceStorageView,
     RegisterAccessEvent, ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
-    StructuralResultClaimBinding, StructuralStoreDisposition, SuccessorEdge, TargetMachineCallable,
-    TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply, TerminalBlockNaturalRank,
-    TerminalMachine, TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
-    TerminalRankedScc, Terminator, TrappingIntegerOperation, TrappingIntegerPrimitive,
-    structural_parameter_position,
+    StructuralResultClaimBinding, StructuralStoreDisposition, SuccessorEdge,
+    TerminalBlockNaturalRank, TerminalCallable, TerminalMachine, TerminalNaturalCycle,
+    TerminalNaturalRankComparison, TerminalNaturalRankEdge, TerminalRankedScc, Terminator,
+    TrappingIntegerOperation, TrappingIntegerPrimitive, structural_parameter_position,
 };
 pub mod identity;
 pub use identity::*;
@@ -113,7 +112,7 @@ pub struct TerminalModule {
     /// without changing this root or the canonical artifact.
     /// Optional default invocation root. Declaration-only products carry no
     /// entry; executing a retained callable requires an explicit selection.
-    pub entry: Option<TargetMachineCallable>,
+    pub entry: Option<TerminalCallable>,
     /// Canonical scalar membership vocabulary and explicit successor-edge coercions.
     pub scalar_qualifications: ScalarQualificationCatalog,
     /// Concrete target-neutral instantiated type shapes, ordered by `id`.
@@ -207,7 +206,6 @@ pub struct TerminalModule {
     pub machines: Vec<TerminalMachine>,
     /// All target-scoped callable members, including unreachable bodies and
     /// opaque declarations. Selection belongs to subsequent realization.
-    pub target_machine_families: Vec<TargetMachineFamily>,
     /// Complete unclosed policy applications; exact deployment selects a result.
     pub target_layout_applications: Vec<crate::TargetLayoutApplication>,
     /// Exact source-free operator requirements and closed applications for
@@ -277,7 +275,7 @@ impl TerminalModule {
     /// producer's literal.
     pub fn for_entry(entry: MachineId) -> Self {
         Self {
-            entry: Some(TargetMachineCallable::Machine(entry)),
+            entry: Some(TerminalCallable::Machine(entry)),
             ..Self::declarations()
         }
     }
@@ -324,7 +322,6 @@ impl TerminalModule {
             suspension_call_sites: Vec::new(),
             suspension_call_plans: Vec::new(),
             machines: Vec::new(),
-            target_machine_families: Vec::new(),
             target_layout_applications: Vec::new(),
             boundary_application_demands: Vec::new(),
             task_activation_demands: TerminalTaskActivationDemands::default(),

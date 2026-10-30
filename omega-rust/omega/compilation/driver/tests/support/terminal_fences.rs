@@ -132,7 +132,7 @@ fn observe_target(
     allowance: u64,
 ) -> Result<(), String> {
     let program = TerminalProgram::borrow(artifact.view());
-    let selected = terminal_interpreter::admit_target_machine_selections(artifact.view(), target);
+    let selected = terminal_interpreter::target_context(artifact.view(), target);
     let layouts = terminal_interpreter::admit_target_layouts(
         artifact.view(),
         &selected,
@@ -149,7 +149,7 @@ fn observe_target(
             entry: None,
             installation: None,
             host_imports: &[],
-            target_machines: Some(&selected),
+            target_context: Some(&selected),
             target_layouts: Some(&layouts),
         })
     };

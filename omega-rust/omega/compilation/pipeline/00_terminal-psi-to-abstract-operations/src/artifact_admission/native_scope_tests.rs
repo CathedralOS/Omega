@@ -82,7 +82,7 @@ fn graph() -> TerminalModule {
     let application = module
         .scalar_applications
         .insert(terminal_psi::ScalarApplication::Evaluate {
-            entry: terminal_psi::TargetMachineCallable::Machine(machine_id(1)),
+            entry: terminal_psi::TerminalCallable::Machine(machine_id(1)),
             scalar_type: scalar_type(),
         })
         .unwrap();
@@ -130,7 +130,7 @@ fn prepare_at(
 #[test]
 fn native_scope_preserves_target_member_exclusion() {
     let mut module = graph();
-    let callable = |identity| terminal_psi::TargetMachineCallable::Machine(machine_id(identity));
+    let callable = |identity| terminal_psi::TerminalCallable::Machine(machine_id(identity));
     module
         .target_machine_families
         .push(terminal_psi::TargetMachineFamily {

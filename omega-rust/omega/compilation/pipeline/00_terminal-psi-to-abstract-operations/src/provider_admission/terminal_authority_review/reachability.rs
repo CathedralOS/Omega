@@ -61,7 +61,6 @@ impl<'a> AuthorityGraph<'a> {
             .map(|entry| (entry.boundary(), entry.entry()));
         let calls = terminal_installation::SynchronousCallGraph::new(
             input.context().module(),
-            input.target_machine_selections(),
             bridge,
         )?;
         Ok(Self {

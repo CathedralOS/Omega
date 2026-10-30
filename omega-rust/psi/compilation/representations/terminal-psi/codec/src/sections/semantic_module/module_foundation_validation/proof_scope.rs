@@ -129,38 +129,6 @@ pub(super) fn validate(
         if binders.iter().collect::<BTreeSet<_>>().len() != binders.len() {
             return malformed("proof scope repeats a static binder");
         }
-        for target in [row.authored_target.as_deref(), row.source_target.as_deref()]
-            .into_iter()
-            .flatten()
-        {
-            if target.is_empty() {
-                return malformed("proof scope has an empty target");
-            }
-        }
-        let mut targets = BTreeSet::new();
-        for member in plan.target_members.span_or_empty(row.family_members) {
-            declaration(member.machine)?;
-            let Some(body) = plan
-                .machines
-                .iter()
-                .map(|(_, candidate)| candidate)
-                .find(|candidate| candidate.machine == member.machine)
-            else {
-                return malformed("proof scope family member has no machine");
-            };
-            if body.authored_target.as_deref() != Some(member.target.as_str())
-                || body.family_interface
-                || plan.symbols.span_or_empty(body.binders).len()
-                    != plan.symbols.span_or_empty(row.binders).len()
-            {
-                return malformed(
-                    "proof scope family member has a different target or binder roster",
-                );
-            }
-            if member.target.is_empty() || !targets.insert(&member.target) {
-                return malformed("proof scope repeats or omits a family target");
-            }
-        }
     }
     for (_, row) in plan.declaration_dependencies.iter() {
         declaration(row.declaration)?;
@@ -333,7 +301,7 @@ mod tests {
     fn proof_scope_rejects_ambiguous_callable_associations() {
         let (scope, identities) = scope();
         let body = |number| {
-            terminal_psi::TargetMachineCallable::Machine(
+            terminal_psi::TerminalCallable::Machine(
                 semantic_vocabulary::MachineId::new(number).unwrap(),
             )
         };

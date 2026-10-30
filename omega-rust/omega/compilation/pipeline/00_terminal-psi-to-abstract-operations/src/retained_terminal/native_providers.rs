@@ -43,7 +43,7 @@ impl PreparedNativeExecution {
         &self,
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         proposal: &TerminalNativeRealizationProposal,
-        entry: terminal_psi::TargetMachineCallable,
+        entry: terminal_psi::TerminalCallable,
         scalar_applications: Option<crate::NativeScalarApplications<'_>>,
     ) -> Result<crate::VerifiedNativeArtifactInput, Vec<Diagnostic>> {
         let selection = crate::NativeExecutionSelection {
@@ -159,7 +159,7 @@ impl PreparedRetainedNativeProviders<'_> {
         let proposal = self.proposal;
         crate::NativeAdmissionRequest {
             private_entry_ram: &[],
-            entry: terminal_psi::TargetMachineCallable::Machine(
+            entry: terminal_psi::TerminalCallable::Machine(
                 proposal.program_entry().checked_entry().terminal_entry(),
             ),
             boundary_application_coverage: Some(&proposal.boundary_applications().coverage),
@@ -228,10 +228,10 @@ impl TerminalNativeRealizationProposal {
             .collect::<Vec<_>>();
         let entry = self.program_entry().as_settlement();
         let root = entry.physical_adapter().map_or(
-            terminal_psi::TargetMachineCallable::Machine(
+            terminal_psi::TerminalCallable::Machine(
                 self.program_entry().checked_entry().terminal_entry(),
             ),
-            |adapter| terminal_psi::TargetMachineCallable::Machine(adapter.machine()),
+            |adapter| terminal_psi::TerminalCallable::Machine(adapter.machine()),
         );
         let semantic_call = crate::SelectedProgramEntryCall::bind(
             artifact,
@@ -274,7 +274,7 @@ impl TerminalNativeRealizationProposal {
     pub fn prepare_native_callable_execution<'input>(
         &'input self,
         artifact: &'input terminal_codec::CanonicalTerminalArtifact,
-        entry: terminal_psi::TargetMachineCallable,
+        entry: terminal_psi::TerminalCallable,
     ) -> Result<PreparedNativeWork<'input>, Vec<Diagnostic>> {
         let scope = crate::artifact_admission::NativeScopePreparation::prepare(
             artifact,
@@ -354,7 +354,7 @@ impl TerminalNativeRealizationProposal {
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])?
             {
-                Some(terminal_psi::TargetMachineCallable::Boundary(member)) => {
+                Some(terminal_psi::TerminalCallable::Boundary(member)) => {
                     let member = module.boundary_machine(member).ok_or_else(|| {
                         vec![Diagnostic::error(
                             "foreign family lost its exact target member",

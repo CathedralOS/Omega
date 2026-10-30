@@ -173,7 +173,7 @@ pub struct VerifiedPsiOptimizationInput {
         Vec<installation_evidence::InstalledAssumedBindingEvidence>,
     pub(crate) admitted_native_callbacks: Vec<crate::AdmittedNativeCallbackArgument>,
     pub(crate) target_machine_selections:
-        Option<terminal_installation::AdmittedTargetMachineSelections>,
+        Option<terminal_installation::TerminalTargetContext>,
     pub(crate) target_layout_selections: Option<terminal_installation::AdmittedTargetLayouts>,
     pub(crate) target_family_realizations: Vec<effects::SelectedTargetFamilyRealization>,
     pub(crate) external_requirement_applications:
@@ -225,7 +225,7 @@ impl VerifiedPsiOptimizationInput {
     /// Optimizer-only preparation retains no execution selection.
     pub fn target_machine_selections(
         &self,
-    ) -> Option<&terminal_installation::AdmittedTargetMachineSelections> {
+    ) -> Option<&terminal_installation::TerminalTargetContext> {
         self.target_machine_selections.as_ref()
     }
 
@@ -255,7 +255,7 @@ impl VerifiedPsiOptimizationInput {
     pub fn target_family_member(
         &self,
         boundary: semantic_vocabulary::BoundaryMachineId,
-    ) -> Result<Option<terminal_psi::TargetMachineCallable>, String> {
+    ) -> Result<Option<terminal_psi::TerminalCallable>, String> {
         target_family_member(
             self.context.module(),
             self.target_machine_selections(),

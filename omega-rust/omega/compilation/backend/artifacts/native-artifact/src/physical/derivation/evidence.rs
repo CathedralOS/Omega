@@ -232,7 +232,7 @@ pub(crate) fn derive_physical_evidence(
         // A family is selected by its exact deployment row, not by a provider
         // plan. Its unchanged boundary occurrence still owns this emitted call.
         let family = module.target_machine_families.iter().any(|family| {
-            family.canonical == terminal_psi::TargetMachineCallable::Boundary(occurrence.boundary())
+            family.canonical == terminal_psi::TerminalCallable::Boundary(occurrence.boundary())
                 && !family
                     .members
                     .iter()

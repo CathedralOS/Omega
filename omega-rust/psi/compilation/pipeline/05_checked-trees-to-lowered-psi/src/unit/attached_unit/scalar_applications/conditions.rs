@@ -7,7 +7,7 @@
 
 use super::SourceScalarApplications;
 use crate::lowering_error::LoweringError;
-use crate::unit::attached_unit::{BoundaryParameters, target_families};
+use crate::unit::attached_unit::{BoundaryParameters, callables};
 use checked_trees::{CheckedTrees, NominalMachineUseSite};
 use lowered_psi::{LoweredSourceCallOccurrence, LoweredSourceCallSite};
 use numerics::bignum::BigInt;
@@ -17,7 +17,7 @@ use semantic_vocabulary::{MachineId, ScalarApplicationId};
 use symbols::SymbolHandle;
 use terminal_psi::{
     ScalarConditionSubject, ScalarConditions, ScalarRangeObservation, ScalarRangeRequirement,
-    TargetMachineCallable, TerminalMachine,
+    TerminalCallable, TerminalMachine,
 };
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -438,9 +438,9 @@ fn publish_observation(
             expression,
         } => (application, entry, owner, expression),
     };
-    let callable = target_families::callable(entry, machines, boundaries)
-        .map_err(|error| error.to_string())?;
-    let TargetMachineCallable::Machine(machine) = callable else {
+    let callable =
+        callables::callable(entry, machines, boundaries).map_err(|error| error.to_string())?;
+    let TerminalCallable::Machine(machine) = callable else {
         return Err(
             "scalar observation's complete evaluation entry has no ordinary body".to_owned(),
         );

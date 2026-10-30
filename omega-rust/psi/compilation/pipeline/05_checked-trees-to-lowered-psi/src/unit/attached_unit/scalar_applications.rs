@@ -545,7 +545,7 @@ impl SourceScalarApplications {
                     scalar_type: row.scalar_type,
                 },
                 Definition::Evaluation { entry } => ScalarApplication::Evaluate {
-                    entry: super::target_families::callable(entry, machines, boundaries)?,
+                    entry: super::callables::callable(entry, machines, boundaries)?,
                     scalar_type: row.scalar_type,
                 },
             };

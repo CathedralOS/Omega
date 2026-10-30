@@ -84,8 +84,8 @@ pub(in crate::legalization) fn validate_boundary_origins(
                 .target_machine_selections()
                 .ok_or_else(LegalizationError::custody)?;
             let module = input.context().module();
-            let head = terminal_psi::TargetMachineCallable::Boundary(*boundary);
-            let callable = terminal_psi::TargetMachineCallable::Machine(*member);
+            let head = terminal_psi::TerminalCallable::Boundary(*boundary);
+            let callable = terminal_psi::TerminalCallable::Machine(*member);
             let selected = selections
                 .member(head)
                 .map_err(|_| LegalizationError::custody())?;

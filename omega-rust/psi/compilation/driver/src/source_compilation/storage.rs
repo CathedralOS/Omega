@@ -7,7 +7,7 @@ use build_time_evaluation::BuildTimeSelectionAuthority;
 use compiler_storage::{Record, RecordError, RecordReader, RecordWriter};
 use std::sync::Arc;
 
-const SOURCE_CONTEXT_RECORD: [u8; 8] = *b"PSICTX02";
+const SOURCE_CONTEXT_RECORD: [u8; 8] = *b"PSICTX03";
 
 impl Record for SourceContext {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {

@@ -45,14 +45,14 @@ fn dynamic_call_follows_the_invoked_slot_or_complete_finite_roster_only() {
         rows: (1..=3).map(MachineId::new).collect(),
     });
     module.identities = identities.build();
-    let calls = SynchronousCallGraph::new(&module, None, None).unwrap();
+    let calls = SynchronousCallGraph::new(&module, None).unwrap();
     let mut pending = Vec::new();
     calls
         .append_dynamic_calls(0, 0, false, &mut pending)
         .unwrap();
     assert_eq!(
         pending,
-        vec![TargetMachineCallable::Machine(MachineId::new(1).unwrap())]
+        vec![TerminalCallable::Machine(MachineId::new(1).unwrap())]
     );
     pending.clear();
     calls
@@ -61,8 +61,8 @@ fn dynamic_call_follows_the_invoked_slot_or_complete_finite_roster_only() {
     assert_eq!(
         pending,
         vec![
-            TargetMachineCallable::Machine(MachineId::new(1).unwrap()),
-            TargetMachineCallable::Machine(MachineId::new(2).unwrap()),
+            TerminalCallable::Machine(MachineId::new(1).unwrap()),
+            TerminalCallable::Machine(MachineId::new(2).unwrap()),
         ]
     );
     assert!(

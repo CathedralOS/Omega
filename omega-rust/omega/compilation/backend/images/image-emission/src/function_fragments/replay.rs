@@ -40,7 +40,7 @@ impl FragmentReplay {
 
     pub(crate) fn target_machine_selections(
         &self,
-    ) -> Option<&terminal_installation::AdmittedTargetMachineSelections> {
+    ) -> Option<&terminal_installation::TerminalTargetContext> {
         self.0.verified_input().target_machine_selections()
     }
 
@@ -74,7 +74,7 @@ impl FragmentReplay {
             .entry(
                 identity,
                 artifact.semantic_module(),
-                terminal_psi::TargetMachineCallable::Machine(entry),
+                terminal_psi::TerminalCallable::Machine(entry),
             )
             .map(Some)
             .map_err(|_| "native object entry has no executable member at its admitted deployment")

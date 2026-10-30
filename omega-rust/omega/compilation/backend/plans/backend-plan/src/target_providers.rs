@@ -121,9 +121,9 @@ fn admit_checked_roster(
         return Err("selected provider plan belongs to another deployment target".into());
     }
     let module = artifact.module();
-    let target_members = terminal_installation::admit_target_machine_selections(artifact, target);
+    let target_members = terminal_installation::target_context(artifact, target);
     for selection in supplied {
-        let callable = terminal_psi::TargetMachineCallable::Machine(selection.candidate);
+        let callable = terminal_psi::TerminalCallable::Machine(selection.candidate);
         for family in module.target_machine_families.iter().filter(|family| {
             family
                 .members

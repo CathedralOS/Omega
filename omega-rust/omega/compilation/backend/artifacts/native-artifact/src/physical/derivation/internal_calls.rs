@@ -73,7 +73,7 @@ fn checked_family_member<'module>(
     &'static str,
 > {
     let mut families = module.target_machine_families.iter().filter(|family| {
-        family.canonical == terminal_psi::TargetMachineCallable::Boundary(boundary)
+        family.canonical == terminal_psi::TerminalCallable::Boundary(boundary)
     });
     let family = families
         .next()
@@ -89,7 +89,7 @@ fn checked_family_member<'module>(
         .next()
         .ok_or("target-family internal call has no member for its exact tag")?;
     if members.next().is_some()
-        || member.callable != terminal_psi::TargetMachineCallable::Machine(machine)
+        || member.callable != terminal_psi::TerminalCallable::Machine(machine)
         || !matches!(
             member.supply,
             terminal_psi::TargetMachineSupply::CheckedBody

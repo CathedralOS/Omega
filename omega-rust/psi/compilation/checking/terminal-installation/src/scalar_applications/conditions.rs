@@ -7,7 +7,7 @@ use numerics::scalar_predicates::PredicateNode;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ScalarApplicationId};
 use terminal_psi::{
     ProofApplicationScope, ScalarCompletionCondition, ScalarConditionSubject, ScalarConditions,
-    ScalarRangeCondition, ScalarRangeObservation, ScalarRangeRequirement, TargetMachineCallable,
+    ScalarRangeCondition, ScalarRangeObservation, ScalarRangeRequirement, TerminalCallable,
 };
 
 /// Invocation-local rows selected from one immutable condition roster.
@@ -34,15 +34,15 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
         let mut selected = Vec::new();
         for &(boundary, body) in &providers {
             let requirement = scope
-                .callable_declaration(TargetMachineCallable::Boundary(boundary))
+                .callable_declaration(TerminalCallable::Boundary(boundary))
                 .ok_or("selected provider requirement lost its proof declaration")?;
             let realization = scope
-                .callable_declaration(TargetMachineCallable::Machine(body))
+                .callable_declaration(TerminalCallable::Machine(body))
                 .ok_or("selected provider body lost its proof declaration")?;
             selected.push((requirement, realization));
         }
         let applications = scope.applications();
-        let (machines, declarations) = applications.membership(target, primary, &selected);
+        let (machines, declarations) = applications.membership(&selected);
         let all_declarations = applications.declarations();
         let applies = |subject, address_model| match subject {
             ScalarConditionSubject::Module => true,

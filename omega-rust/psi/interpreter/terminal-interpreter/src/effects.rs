@@ -192,9 +192,8 @@ pub struct TerminalEffectRejection {
 }
 
 pub use terminal_installation::{
-    AdmittedAssumedBinding, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
-    AssumedBindingSelection, ProviderInstallationSelection, admit_target_layouts,
-    admit_target_machine_selections,
+    AdmittedAssumedBinding, AdmittedTargetLayouts, AssumedBindingSelection,
+    ProviderInstallationSelection, TerminalTargetContext, admit_target_layouts, target_context,
 };
 
 /// Admitted supply selection bound to exact execution code custody: semantic
@@ -209,12 +208,12 @@ pub struct TerminalRuntimeSupplies {
     pub(crate) provider_selections: Option<terminal_installation::AdmittedProviderSelections>,
     pub(crate) x86_flags: Option<TerminalX86FlagsEnvironment>,
     pub(crate) memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
-    pub(crate) entry: Option<terminal_psi::TargetMachineCallable>,
+    pub(crate) entry: Option<terminal_psi::TerminalCallable>,
     pub(crate) code_identity: terminal_codec::TerminalExecutionIdentity,
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) folded_constant_target: Option<String>,
-    pub(crate) target_machines: Option<AdmittedTargetMachineSelections>,
+    pub(crate) target_context: Option<TerminalTargetContext>,
     pub(crate) target_layouts: Option<std::sync::Arc<AdmittedTargetLayouts>>,
 }
 
@@ -245,11 +244,11 @@ pub struct TerminalRuntimeSupplyRequest<'installation> {
     pub memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
     /// Requested retained callable; absence selects the artifact's default.
     /// This supplies no parameter backing or host/provider authority.
-    pub entry: Option<terminal_psi::TargetMachineCallable>,
+    pub entry: Option<terminal_psi::TerminalCallable>,
     pub installation: Option<&'installation terminal_installation::AdmittedProviderSelections>,
     pub host_imports: &'installation [BoundaryMachineId],
     /// Exact catalog selections, independently of provider or host authority.
-    pub target_machines: Option<&'installation AdmittedTargetMachineSelections>,
+    pub target_context: Option<&'installation TerminalTargetContext>,
     /// Exact geometry closure over the same immutable artifact and target.
     pub target_layouts: Option<&'installation AdmittedTargetLayouts>,
 }
@@ -281,7 +280,7 @@ impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntim
                 .collect(),
             assumed_bindings: selected.assumed_bindings().to_vec(),
             folded_constant_target: selected.folded_constant_target().map(str::to_owned),
-            target_machines: None,
+            target_context: None,
             target_layouts: None,
         }
     }

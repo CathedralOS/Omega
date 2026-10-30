@@ -19,7 +19,7 @@ mod private_entry_ram;
 mod provider_installation;
 mod scalar_applications;
 mod synchronous_calls;
-mod target_families;
+mod target_context;
 pub use synchronous_calls::{SynchronousCallClosure, SynchronousCallGraph};
 
 pub use component_provider::{AdmittedComponentProvider, admit_component_provider};
@@ -42,10 +42,7 @@ pub use scalar_applications::{
     ScalarApplicationObservations, ScalarApplicationValues, ScalarConditionSelection,
     ScalarLayoutObservationError, ScalarScopeInputs,
 };
-pub use target_families::{
-    AdmittedTargetMachineSelections, TargetMachineSelection, TargetMachineSelectionError,
-    admit_target_machine_selections, admitted_boundary_member, resolve_target_machine_member,
-};
+pub use target_context::{TerminalEntryError, TerminalTargetContext, target_context};
 
 mod target_layouts;
 pub use target_layouts::{

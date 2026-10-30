@@ -97,10 +97,10 @@ pub use effects::storage_inputs::{
     TerminalBoundaryStorageValue, TerminalBoundaryStructuralBuffer, TerminalStorageContents,
 };
 pub use effects::{
-    AdmittedAssumedBinding, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
-    AssumedBindingSelection, ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler,
-    TerminalEffectRejection, TerminalRuntimeSupplies, TerminalRuntimeSupplyRequest,
-    TerminalX86FlagsEnvironment, admit_target_layouts, admit_target_machine_selections,
+    AdmittedAssumedBinding, AdmittedTargetLayouts, AssumedBindingSelection,
+    ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
+    TerminalRuntimeSupplies, TerminalRuntimeSupplyRequest, TerminalTargetContext,
+    TerminalX86FlagsEnvironment, admit_target_layouts, target_context,
 };
 pub use errors::{
     AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,

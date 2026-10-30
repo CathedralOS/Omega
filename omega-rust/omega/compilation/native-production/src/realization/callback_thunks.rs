@@ -87,7 +87,7 @@ fn lower_callback_thunk(
 ) -> Result<PrivateFunctionObject, Vec<Diagnostic>> {
     let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
         private_entry_ram: &[],
-        entry: terminal_psi::TargetMachineCallable::Machine(settlement.entry),
+        entry: terminal_psi::TerminalCallable::Machine(settlement.entry),
         ..request.admission
     };
     let input = request.execution.lower_callable(

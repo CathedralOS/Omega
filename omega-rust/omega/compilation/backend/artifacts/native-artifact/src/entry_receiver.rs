@@ -31,7 +31,7 @@ pub fn admit_executable_entry(
             "source-selected entry deployment does not own the native target",
         ));
     }
-    let selections = terminal_installation::admit_target_machine_selections(
+    let selections = terminal_installation::target_context(
         artifact.view(),
         source_profile.target_name(),
     );
@@ -39,7 +39,7 @@ pub fn admit_executable_entry(
         .entry(
             artifact.view().identity(),
             terminal,
-            terminal_psi::TargetMachineCallable::Machine(plan.entry),
+            terminal_psi::TerminalCallable::Machine(plan.entry),
         )
         .map_err(|error| crate::native_artifact_error("ProgramEntry installed arguments", error))?;
     if selected_entry != plan.entry
@@ -49,7 +49,7 @@ pub fn admit_executable_entry(
             .optimization_input()
             .target_machine_selections()
             .is_some_and(|retained| retained != &selections)
-        || terminal.entry != Some(terminal_psi::TargetMachineCallable::Machine(plan.entry))
+        || terminal.entry != Some(terminal_psi::TerminalCallable::Machine(plan.entry))
             && (input
                 .optimization_input()
                 .target_machine_selections()

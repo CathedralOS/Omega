@@ -25,7 +25,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
     // The vocabulary is the same closed `OperatorSpelling` set the `operator`
     // head uses; a non-punctuation head is a tokenless named machine. Every
     // `machine`-headed form shares this admission: plain, `boundary machine`,
-    // and `<target> machine`. Item-level contexts that may not carry a token
+    // forms. Item-level contexts that may not carry a token
     // (`boundary requirement`, conformance members) reject on the recorded
     // field after this returns; context ownership checks remain downstream.
     let (spelling, input) = if input.tokens.first().is_some_and(|token| {

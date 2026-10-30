@@ -11,7 +11,7 @@
 //! consumers must resolve those markers before using geometry; ordinary packing
 //! is never a replacement for an unavailable member. Pure logical field values
 //! need no physical geometry, so this is not a blanket interpreter type gate.
-use crate::AdmittedTargetMachineSelections;
+use crate::TerminalTargetContext;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_codec::TerminalArtifactView;
 use terminal_psi::{
@@ -137,7 +137,7 @@ impl std::error::Error for TargetLayoutSelectionError {}
 
 pub fn admit_target_layouts(
     artifact: TerminalArtifactView<'_>,
-    selections: &AdmittedTargetMachineSelections,
+    selections: &TerminalTargetContext,
     target: &layout_plans::LayoutTargetFacts,
 ) -> Result<AdmittedTargetLayouts, TargetLayoutSelectionError> {
     if artifact.identity() != selections.terminal_psi() {

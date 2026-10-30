@@ -43,7 +43,7 @@ fn hook_sites(module: &terminal_psi::TerminalModule, machine: MachineId) -> Vec<
 fn exercise(artifact: &CanonicalTerminalArtifact) {
     let program = TerminalProgram::borrow(artifact.view());
     let module = artifact.semantic_module();
-    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
+    let Some(terminal_psi::TerminalCallable::Machine(entry)) = module.entry else {
         panic!("cleanup helper has an ordinary entry");
     };
     let cleanup_edges = module
@@ -166,7 +166,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
             entry: None,
             installation: None,
             host_imports: std::slice::from_ref(slot),
-            target_machines: None,
+            target_context: None,
             target_layouts: None,
         })
         .expect("explicit corpus host byte-import policy");
