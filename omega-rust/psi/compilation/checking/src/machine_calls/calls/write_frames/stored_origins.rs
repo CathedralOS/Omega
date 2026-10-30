@@ -29,6 +29,7 @@ mod assignments;
 mod frozen_bindings;
 mod projections;
 mod reference_values;
+mod storage_projection;
 mod type_origins;
 
 /// Shared-reference alternatives need case evidence even without exclusive
@@ -51,14 +52,15 @@ pub(super) use projections::reference_carriers_before_statement_for_query;
 pub(super) use projections::reference_leaves_before_statement_for_query;
 pub(super) use projections::symbolic_reference_leaves;
 pub(super) use projections::{path_covers, selected_slot_sources, slot_origins};
-pub(super) use projections::{
-    project_aggregate_origins, project_stored_origins, projected_storage_type, projected_type,
-};
+pub(super) use projections::{project_aggregate_origins, project_stored_origins};
 pub(super) use reference_values::source_reaches_leaf;
 pub(super) use reference_values::{
     CapturedReferenceRead, canonical_reference_origins, canonical_reference_sources,
     captured_reference_projection_origins, captured_reference_reads,
-    completed_reference_projection_sources,
+    completed_reference_projection_reads, completed_reference_projection_sources,
+};
+pub(super) use storage_projection::{
+    StorageProjectionCursor, projected_storage_type, projected_type,
 };
 pub(super) use type_origins::declared_origins;
 pub(super) use type_origins::declared_origins_for_query;

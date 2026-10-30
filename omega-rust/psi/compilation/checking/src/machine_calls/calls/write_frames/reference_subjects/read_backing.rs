@@ -29,7 +29,11 @@ pub(in crate::machine_calls::calls::write_frames) fn capture(
         if !values.contains(&read.source.origin.path) {
             values.push(read.source.origin.path);
         }
-        for slot in read.slots {
+        for load in read.slots {
+            if !load.access.is_readable() {
+                return None;
+            }
+            let slot = load.place;
             if slot.precision != FramePathPrecision::Exact
                 || !slot.source.root.is_valid()
                 || slot.source.output_identity().is_some()
