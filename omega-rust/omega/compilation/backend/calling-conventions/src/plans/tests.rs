@@ -11,11 +11,15 @@ use crate::plans::{
     evaluate_call_plan,
 };
 
+fn call_signature(parameters: Vec<ValueShape>, result: Option<ValueShape>) -> CallSignature {
+    CallSignature { parameters, result }
+}
+
 fn integer_signature(parameter_count: usize) -> CallSignature {
-    CallSignature {
-        parameters: vec![ValueShape::integer(8, 8); parameter_count],
-        result: Some(ValueShape::integer(8, 8)),
-    }
+    call_signature(
+        vec![ValueShape::integer(8, 8); parameter_count],
+        Some(ValueShape::integer(8, 8)),
+    )
 }
 
 fn strict_x86_entry() -> BoundaryEntryPlan {

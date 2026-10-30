@@ -58,19 +58,7 @@ impl StagedOptimizedRegisterHomes {
     ) -> &target_operations_to_selected_instructions::ValidatedSelectedInstructions {
         self.legality.selected()
     }
-    pub const fn register_environment(
-        &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        self.legality.register_environment()
-    }
-    /// The governing optimizer selections admitted with the retained stage.
-    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
-        self.legality.selections()
-    }
-    /// The per-pass work budget admitted beside the same evidence.
-    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
-        self.legality.budget_per_pass()
-    }
+    admitted_stage_accessors!(const pub, legality);
     pub const fn liveness(&self) -> &ValidatedLiveness {
         self.legality.liveness()
     }
@@ -151,19 +139,7 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
     pub const fn selected(&self) -> &ValidatedFixedViewCopies {
         self.reanalysis.transformation_stage().copies()
     }
-    pub const fn register_environment(
-        &self,
-    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        self.reanalysis.register_environment()
-    }
-    /// The governing optimizer selections admitted with the retained stage.
-    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
-        self.reanalysis.selections()
-    }
-    /// The per-pass work budget admitted beside the same evidence.
-    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
-        self.reanalysis.budget_per_pass()
-    }
+    admitted_stage_accessors!(const pub, reanalysis);
     /// The reanalyzed facts over the transformed program.
     pub const fn liveness(&self) -> &ValidatedLiveness {
         self.reanalysis.liveness()

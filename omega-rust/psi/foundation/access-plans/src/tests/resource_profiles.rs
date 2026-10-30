@@ -611,46 +611,22 @@ fn effect_conflicts_use_whole_transfer_containers() {
         length_bytes: 4,
     };
 
-    assert!(!effect_footprints_conflict(
-        word,
-        AccessOperation::Read,
-        word,
-        AccessOperation::Read,
-    ));
-    assert!(effect_footprints_conflict(
-        word,
-        AccessOperation::Read,
-        word,
-        AccessOperation::Take,
-    ));
-    assert!(effect_footprints_conflict(
-        word,
-        AccessOperation::CompoundMutation,
-        word,
-        AccessOperation::Read,
-    ));
+    macro_rules! conflict {
+        ($a:expr => $b:expr => $c:expr => $d:expr) => {
+            effect_footprints_conflict($a, $b, $c, $d)
+        };
+    }
+
+    assert!(!conflict!(word => AccessOperation::Read => word => AccessOperation::Read));
+    assert!(conflict!(word => AccessOperation::Read => word => AccessOperation::Take));
+    assert!(conflict!(word => AccessOperation::CompoundMutation => word => AccessOperation::Read));
 
     let atomic_load = AccessOperation::Atomic(AtomicAccessOperation::Load(MemoryOrdering::Receive));
     let atomic_store =
         AccessOperation::Atomic(AtomicAccessOperation::Store(MemoryOrdering::Publish));
-    assert!(!effect_footprints_conflict(
-        word,
-        atomic_load,
-        word,
-        atomic_store,
-    ));
-    assert!(effect_footprints_conflict(
-        word,
-        atomic_load,
-        overlapping_half,
-        atomic_store,
-    ));
-    assert!(!effect_footprints_conflict(
-        word,
-        AccessOperation::Write,
-        next_word,
-        AccessOperation::Write,
-    ));
+    assert!(!conflict!(word => atomic_load => word => atomic_store));
+    assert!(conflict!(word => atomic_load => overlapping_half => atomic_store));
+    assert!(!conflict!(word => AccessOperation::Write => next_word => AccessOperation::Write));
 }
 
 /// A region a hostile writable peer can still rewrite cannot honestly

@@ -34,11 +34,11 @@ pub use build_requests::{
 };
 pub use checked_trees_to_lowered_psi::lower_task_activation_demands;
 pub use checked_trees_to_lowered_psi::{
-    NumericRealizationDeclarations, PreparedNumericRealizationDeclarations,
-    project_numeric_realization_declarations,
+    DeclarationCatalog, PreparedDeclarationCatalog, PreparedTerminalRoots,
+    project_declaration_catalog,
 };
 pub use checked_trees_to_lowered_psi::{TerminalMachineSelection, TerminalProgramRoots};
-pub use composition_admission::TerminalCompositionAdmission;
+pub use composition_admission::{TerminalAdmissionRoot, TerminalCompositionAdmission};
 pub use custody::{
     PortableTerminalProgram, ProducedTerminalProgram, TerminalApplicationCustody,
     TerminalProductionCustody,

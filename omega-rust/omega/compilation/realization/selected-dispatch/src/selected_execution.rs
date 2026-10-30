@@ -18,7 +18,7 @@ pub struct SelectedExecution {
     pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     pub program: Arc<CheckedProgram>,
     pub service_declarations: Arc<provider_planning::service_declarations::ServiceDeclarations>,
-    pub numeric_realizations: Arc<psi_terminal_production::PreparedNumericRealizationDeclarations>,
+    pub numeric_realizations: Arc<psi_terminal_production::PreparedDeclarationCatalog>,
     /// Native handoff and executable exclusion admission demand these source
     /// identities. A refusal remains data so checking-only stops acquire no
     /// native-only obligations.
@@ -34,9 +34,9 @@ pub struct SelectedExecution {
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     /// Authored Build grants resolved to the exact selected plans.
     pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
-    /// Selected source roots for behavior admission, including dormant uses.
+    /// Selected canonical declarations for behavior admission, including dormant uses.
     /// Executable callback placement is produced from Terminal, not stored here.
-    pub callback_roots: Vec<symbols::SymbolHandle>,
+    pub callback_roots: psi_terminal_production::PreparedTerminalRoots,
     pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub resolved_semantic_bindings: Vec<crate::ResolvedAcceptedSemanticBinding>,

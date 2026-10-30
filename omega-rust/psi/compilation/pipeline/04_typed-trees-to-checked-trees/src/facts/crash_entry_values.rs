@@ -516,6 +516,18 @@ fn entry_operand_at(
     expression: ExpressionHandle,
     depth: u32,
 ) -> Option<CrashPredicateExpression> {
+    macro_rules! entry_child {
+        ($expression:expr $(,)?) => {
+            entry_operand_at(
+                program,
+                machine_symbol,
+                state_symbol,
+                before_statement,
+                $expression,
+                depth + 1,
+            )
+        };
+    }
     if depth >= MAX_ENTRY_PROVENANCE_DEPTH
         || !program.expression_table.expression_is_valid(expression)
     {
@@ -545,14 +557,7 @@ fn entry_operand_at(
             // guessed from its source spelling.
             let mut agreed = None;
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                let value = entry_operand_at(
-                    program,
-                    machine_symbol,
-                    state_symbol,
-                    before_statement,
-                    arm.value,
-                    depth + 1,
-                )?;
+                let value = entry_child!(arm.value)?;
                 if agreed.as_ref().is_some_and(|known| *known != value) {
                     return None;
                 }
@@ -595,14 +600,7 @@ fn entry_operand_at(
             {
                 return None;
             }
-            let operand = entry_operand_at(
-                program,
-                machine_symbol,
-                state_symbol,
-                before_statement,
-                cast.value,
-                depth + 1,
-            )?;
+            let operand = entry_child!(cast.value)?;
             Some(CrashPredicateExpression::RepresentationView {
                 source_type: crate::values::integer_type(source_type)?,
                 target_type: crate::values::integer_type(target_type)?,
@@ -630,14 +628,7 @@ fn entry_operand_at(
                 source_type: source as u8,
                 target_type: target as u8,
                 domain: cast.domain as u8,
-                operand: Box::new(entry_operand_at(
-                    program,
-                    machine_symbol,
-                    state_symbol,
-                    before_statement,
-                    cast.value,
-                    depth + 1,
-                )?),
+                operand: Box::new(entry_child!(cast.value)?),
             })
         }
         ExpressionNode::Unary(unary)
@@ -645,14 +636,7 @@ fn entry_operand_at(
         {
             Some(CrashPredicateExpression::Unary {
                 operator: unary.operator as u8,
-                operand: Box::new(entry_operand_at(
-                    program,
-                    machine_symbol,
-                    state_symbol,
-                    before_statement,
-                    unary.operand,
-                    depth + 1,
-                )?),
+                operand: Box::new(entry_child!(unary.operand)?),
             })
         }
         ExpressionNode::Borrow(borrow)
@@ -668,14 +652,7 @@ fn entry_operand_at(
             // loans keep no entry identity: the loan itself ends the
             // referent's bound-snapshot window, and an immutable referent
             // cannot form one at all.
-            entry_operand_at(
-                program,
-                machine_symbol,
-                state_symbol,
-                before_statement,
-                borrow.target,
-                depth + 1,
-            )
+            entry_child!(borrow.target)
         }
         ExpressionNode::Member(member) => {
             // Walk the contiguous member projection down to its base so a
@@ -719,14 +696,7 @@ fn entry_operand_at(
                     &segments,
                     depth + 1,
                 )?,
-                _ => entry_operand_at(
-                    program,
-                    machine_symbol,
-                    state_symbol,
-                    before_statement,
-                    base,
-                    depth + 1,
-                )?,
+                _ => entry_child!(base)?,
             };
             Some(member_names.iter().fold(root, |receiver, member| {
                 CrashPredicateExpression::Member {
@@ -749,22 +719,8 @@ fn entry_operand_at(
             // cannot substitute builtin meaning for a caller-authored `[]`
             // selection, the same reason arithmetic crosses unconditionally.
             Some(CrashPredicateExpression::Indexed {
-                collection: Box::new(entry_operand_at(
-                    program,
-                    machine_symbol,
-                    state_symbol,
-                    before_statement,
-                    indexed.collection,
-                    depth + 1,
-                )?),
-                index: Box::new(entry_operand_at(
-                    program,
-                    machine_symbol,
-                    state_symbol,
-                    before_statement,
-                    indexed.index,
-                    depth + 1,
-                )?),
+                collection: Box::new(entry_child!(indexed.collection)?),
+                index: Box::new(entry_child!(indexed.index)?),
             })
         }
         ExpressionNode::Range(range) => {
@@ -773,22 +729,8 @@ fn entry_operand_at(
             // inclusivity flag transports verbatim since bounds alone do
             // not distinguish `..` from `..=`.
             Some(CrashPredicateExpression::Range {
-                start: Box::new(entry_operand_at(
-                    program,
-                    machine_symbol,
-                    state_symbol,
-                    before_statement,
-                    range.start,
-                    depth + 1,
-                )?),
-                end: Box::new(entry_operand_at(
-                    program,
-                    machine_symbol,
-                    state_symbol,
-                    before_statement,
-                    range.end,
-                    depth + 1,
-                )?),
+                start: Box::new(entry_child!(range.start)?),
+                end: Box::new(entry_child!(range.end)?),
                 end_inclusive: range.end_inclusive,
             })
         }
@@ -826,22 +768,8 @@ fn entry_operand_at(
             // spelling cannot equate an authored operator with a builtin.
             Some(CrashPredicateExpression::Binary {
                 operator: binary.operator as u8,
-                left: Box::new(entry_operand_at(
-                    program,
-                    machine_symbol,
-                    state_symbol,
-                    before_statement,
-                    binary.left,
-                    depth + 1,
-                )?),
-                right: Box::new(entry_operand_at(
-                    program,
-                    machine_symbol,
-                    state_symbol,
-                    before_statement,
-                    binary.right,
-                    depth + 1,
-                )?),
+                left: Box::new(entry_child!(binary.left)?),
+                right: Box::new(entry_child!(binary.right)?),
             })
         }
         ExpressionNode::Name(path) => entry_operand_name_at(

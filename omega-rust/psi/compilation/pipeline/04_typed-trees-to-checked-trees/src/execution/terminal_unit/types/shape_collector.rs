@@ -83,6 +83,21 @@ impl<'program> ShapeCollector<'program> {
         self.unselected_opaque.take()
     }
 
+    /// One shape per identity. An equal row is the same registration; a
+    /// different one contradicts the identity already established.
+    fn register_type(
+        &mut self,
+        identity: typed_trees::type_identity::TypeIdentityId,
+        plan: CheckedUnitStructuralTypePlan,
+    ) -> Option<()> {
+        let known = self.types.get(&identity);
+        if known.is_some_and(|known| known != &plan) {
+            return None;
+        }
+        self.types.insert(identity, plan);
+        Some(())
+    }
+
     pub(in crate::execution::terminal_unit) fn add_domain(
         &mut self,
         domain: SemanticDomainId,
@@ -518,14 +533,7 @@ impl<'program> ShapeCollector<'program> {
                 access,
             },
         };
-        if self
-            .types
-            .get(&identity)
-            .is_some_and(|existing| existing != &plan)
-        {
-            return None;
-        }
-        self.types.insert(identity, plan);
+        self.register_type(identity, plan)?;
         Some(identity)
     }
 
@@ -781,14 +789,7 @@ impl<'program> ShapeCollector<'program> {
                 // second registration conflict with the first.
                 shape: CheckedUnitStructuralTypeShape::ByteSequence(carrier.without_access()),
             };
-            if self
-                .types
-                .get(&identity)
-                .is_some_and(|existing| existing != &plan)
-            {
-                return None;
-            }
-            self.types.insert(identity, plan);
+            self.register_type(identity, plan)?;
             return Some(identity);
         }
         if let Some(element) =
@@ -815,14 +816,7 @@ impl<'program> ShapeCollector<'program> {
                     access: None,
                 },
             };
-            if self
-                .types
-                .get(&identity)
-                .is_some_and(|existing| existing != &plan)
-            {
-                return None;
-            }
-            self.types.insert(identity, plan);
+            self.register_type(identity, plan)?;
             return Some(identity);
         }
         // Every other carrier names the shared semantic identity beneath its
@@ -1568,14 +1562,7 @@ impl<'program> ShapeCollector<'program> {
             identity: identity,
             shape: CheckedUnitStructuralTypeShape::BindingCarrier,
         };
-        if self
-            .types
-            .get(&identity)
-            .is_some_and(|existing| existing != &plan)
-        {
-            return None;
-        }
-        self.types.insert(identity, plan);
+        self.register_type(identity, plan)?;
         Some(identity)
     }
 

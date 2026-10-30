@@ -113,6 +113,15 @@ fn decode_kind(
     allow_scalar_call: bool,
     allow_jump: bool,
 ) -> Result<SelectedInstructionKind, PreAllocationMachineEffectDecodeError> {
+    macro_rules! obligated {
+        ($name:ident) => {
+            SelectedInstructionKind::$name {
+                obligation: decode_obligation(cursor)?,
+                accepted_fact: decode_accepted_fact(cursor)?,
+            }
+        };
+    }
+
     Ok(match cursor.byte()? {
         crate::PlacedScalarForm::FAMILY_TAG => SelectedInstructionKind::PlacedScalarAccess {
             form: crate::PlacedScalarForm::from_machine_payload(cursor.byte()?)
@@ -263,36 +272,21 @@ fn decode_kind(
         51 => SelectedInstructionKind::BitwiseAndI64,
         52 => SelectedInstructionKind::BitwiseXorI64,
         58 => SelectedInstructionKind::WrappingAddI64,
-        56 => SelectedInstructionKind::ExactDivideU64 {
-            obligation: decode_obligation(cursor)?,
-            accepted_fact: decode_accepted_fact(cursor)?,
-        },
+        56 => obligated!(ExactDivideU64),
         57 => SelectedInstructionKind::WrappingRemainderI64 {
             obligation: decode_obligation(cursor)?,
             accepted_fact: decode_accepted_fact(cursor)?,
         },
-        88 => SelectedInstructionKind::ExactMultiplyI64 {
-            obligation: decode_obligation(cursor)?,
-            accepted_fact: decode_accepted_fact(cursor)?,
-        },
-        89 => SelectedInstructionKind::ExactRemainderU64 {
-            obligation: decode_obligation(cursor)?,
-            accepted_fact: decode_accepted_fact(cursor)?,
-        },
+        88 => obligated!(ExactMultiplyI64),
+        89 => obligated!(ExactRemainderU64),
         90 => SelectedInstructionKind::WrappingSubtractI64,
         91 => SelectedInstructionKind::WrappingMultiplyI64,
         92 => SelectedInstructionKind::WrappingDivideI64 {
             obligation: decode_obligation(cursor)?,
             accepted_fact: decode_accepted_fact(cursor)?,
         },
-        112 => SelectedInstructionKind::ExactDivideI64 {
-            obligation: decode_obligation(cursor)?,
-            accepted_fact: decode_accepted_fact(cursor)?,
-        },
-        113 => SelectedInstructionKind::ExactRemainderI64 {
-            obligation: decode_obligation(cursor)?,
-            accepted_fact: decode_accepted_fact(cursor)?,
-        },
+        112 => obligated!(ExactDivideI64),
+        113 => obligated!(ExactRemainderI64),
         93 => SelectedInstructionKind::BitwiseOrI64,
         94 => SelectedInstructionKind::BitwiseNotI64,
         103 => SelectedInstructionKind::SaveFloatingControl {
@@ -304,18 +298,9 @@ fn decode_kind(
         105 => SelectedInstructionKind::WrappingShiftLeftI64,
         106 => SelectedInstructionKind::WrappingShiftRightI64,
         107 => SelectedInstructionKind::WrappingShiftRightU64,
-        108 => SelectedInstructionKind::ExactShiftLeftI64 {
-            obligation: decode_obligation(cursor)?,
-            accepted_fact: decode_accepted_fact(cursor)?,
-        },
-        109 => SelectedInstructionKind::ExactShiftRightI64 {
-            obligation: decode_obligation(cursor)?,
-            accepted_fact: decode_accepted_fact(cursor)?,
-        },
-        110 => SelectedInstructionKind::ExactShiftRightU64 {
-            obligation: decode_obligation(cursor)?,
-            accepted_fact: decode_accepted_fact(cursor)?,
-        },
+        108 => obligated!(ExactShiftLeftI64),
+        109 => obligated!(ExactShiftRightI64),
+        110 => obligated!(ExactShiftRightU64),
         tag if trapping_form(tag).is_some() => SelectedInstructionKind::TrappingInteger {
             form: trapping_form(tag).unwrap(),
         },
@@ -347,19 +332,13 @@ fn decode_kind(
                 }
             }
         }
-        3 => SelectedInstructionKind::ExactAddI64 {
-            obligation: decode_obligation(cursor)?,
-            accepted_fact: decode_accepted_fact(cursor)?,
-        },
+        3 => obligated!(ExactAddI64),
         4 => SelectedInstructionKind::ExactAddI64Immediate {
             immediate: decode_integer(cursor)?,
             obligation: decode_obligation(cursor)?,
             accepted_fact: decode_accepted_fact(cursor)?,
         },
-        5 => SelectedInstructionKind::ExactSubtractI64 {
-            obligation: decode_obligation(cursor)?,
-            accepted_fact: decode_accepted_fact(cursor)?,
-        },
+        5 => obligated!(ExactSubtractI64),
         6 => SelectedInstructionKind::ConditionalBranchNonZero,
         111 => SelectedInstructionKind::Crash,
         31 => SelectedInstructionKind::HostedExitProcessI32,

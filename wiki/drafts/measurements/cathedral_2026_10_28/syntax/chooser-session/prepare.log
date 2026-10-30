@@ -1,0 +1,4 @@
+package candidate checking failed: checked compilation failed for package `cathedral_chooser_app` with 3 diagnostic(s)
+  error: cannot prove requires contract for call next from appended: i < 51 (needs fact `i < 51` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+  error: cannot prove requires contract for call advance from name: i < 6 (needs fact `i < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+  error: cannot prove requires contract for call advance from copy_name: i < 6 (needs fact `i < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

@@ -906,6 +906,19 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let program = self.program;
+        macro_rules! normal_paths {
+            ($judge:expr, $expression:expr, $demand:expr) => {
+                $judge.evaluate_normal_paths(
+                    $expression,
+                    environment,
+                    scope,
+                    depth + 1,
+                    requested_operations,
+                    entries,
+                    $demand,
+                )
+            };
+        }
         let node = program.expression_table.expression(expression);
         if let Some(value) = program.static_boolean_value(expression) {
             return Some(vec![
@@ -1082,17 +1095,7 @@ impl<'program> StructuralJudge<'program> {
                 environment,
                 scope,
                 demand,
-                |judge, operand| {
-                    judge.evaluate_normal_paths(
-                        operand,
-                        environment,
-                        scope,
-                        depth + 1,
-                        requested_operations,
-                        entries,
-                        NormalValueDemand::Value,
-                    )
-                },
+                |judge, operand| normal_paths!(judge, operand, NormalValueDemand::Value),
             );
         }
 
@@ -1109,15 +1112,7 @@ impl<'program> StructuralJudge<'program> {
             let evaluate_right = binary.operator == BinaryOperator::And;
             let mut short_circuit_steps_pure = true;
             let mut outcomes = Vec::new();
-            for left in self.evaluate_normal_paths(
-                binary.left,
-                environment,
-                scope,
-                depth + 1,
-                requested_operations,
-                entries,
-                NormalValueDemand::Value,
-            )? {
+            for left in normal_paths!(self, binary.left, NormalValueDemand::Value)? {
                 for truth in [false, true] {
                     let mut selected = left.judge.clone();
                     let guard_value = boolean_term(truth);
@@ -1133,15 +1128,7 @@ impl<'program> StructuralJudge<'program> {
                     }
                     selected.assume_normal_equation(left.value.clone(), guard_value);
                     if truth == evaluate_right {
-                        for right in selected.evaluate_normal_paths(
-                            binary.right,
-                            environment,
-                            scope,
-                            depth + 1,
-                            requested_operations,
-                            entries,
-                            demand,
-                        )? {
+                        for right in normal_paths!(selected, binary.right, demand)? {
                             outcomes.push(right.at_expression(expression, demand));
                         }
                     } else {
@@ -1234,17 +1221,7 @@ impl<'program> StructuralJudge<'program> {
                 environment,
                 scope,
                 demand,
-                |judge, operand, demand| {
-                    judge.evaluate_normal_paths(
-                        operand,
-                        environment,
-                        scope,
-                        depth + 1,
-                        requested_operations,
-                        entries,
-                        demand,
-                    )
-                },
+                |judge, operand, demand| normal_paths!(judge, operand, demand),
             );
         }
         let has_own_effect = match node {
@@ -1544,6 +1521,26 @@ impl<'program> StructuralJudge<'program> {
                 } else {
                     None
                 };
+                // A borrow uses its target's completed observation before any
+                // source-place fallback. The old home can be retired while the
+                // captured value remains valid; manufacturing a placeholder
+                // first can fail typing and discard this normal path entirely.
+                let completed_borrow = if let ExpressionNode::Borrow(borrow) = node {
+                    inputs.iter()
+                        .find(|(input, _)| *input == borrow.target)
+                        .and_then(|(_, referent)| referent.observed_value())
+                        .map(|observed| {
+                            crate::expression_result_type_reference(
+                                program, scope.0, scope.1, expression,
+                            )
+                            .and_then(|declared| {
+                                super::super::structural_terms::shared_inline_observation(
+                                    program, declared, observed.clone(),
+                                )
+                            })
+                            .unwrap_or_else(|| observed.clone())
+                        })
+                } else { None };
                 let mut value = if receiver_changed {
                     // The receiver selected its base before a later operand
                     // wrote storage. Reconstructing it from the live place now
@@ -1552,7 +1549,7 @@ impl<'program> StructuralJudge<'program> {
                         Some(value) => value,
                         None => judge.capture_unknown_value(expression, scope)?,
                     }
-                } else if let Some(value) = completed_measure.or(completed_field) {
+                } else if let Some(value) = completed_borrow.or(completed_measure).or(completed_field) {
                     value
                 } else if matches!(node, ExpressionNode::Atomic(_)) {
                     // The atomic owner distinguishes an observed load from
@@ -1722,28 +1719,6 @@ impl<'program> StructuralJudge<'program> {
                     }
                 }
                 judge.observe_completed_window(expression, &inputs, scope, &value)?;
-                if let ExpressionNode::Borrow(borrow) = node {
-                    // A checked borrow selects its referent; it does not create
-                    // a new case-bearing value. The referent's completed term
-                    // keeps the same descriptor identity the mathematical
-                    // `callee_term` walk would have produced, so later `len`
-                    // and field observations name this exact view.
-                    if let Some((_, referent)) =
-                        inputs.iter().find(|(input, _)| *input == borrow.target)
-                    {
-                        if let Some(observed) = referent.observed_value() {
-                            value = crate::expression_result_type_reference(
-                                program, scope.0, scope.1, expression,
-                            )
-                            .and_then(|declared| {
-                                super::super::structural_terms::shared_inline_observation(
-                                    program, declared, observed.clone(),
-                                )
-                            })
-                            .unwrap_or_else(|| observed.clone());
-                        }
-                    }
-                }
                 if scalar_storage_read {
                     // Completing a typed read observes its actual value even
                     // when no mathematical entry value is known. Integers,

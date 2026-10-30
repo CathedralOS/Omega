@@ -51,14 +51,10 @@ pub(super) fn capture_call<Value: CapturedValue>(
             call.receiver,
         )?;
         if !matches!(place.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid())
-            || !place.segments.iter().all(|segment| {
-                matches!(
-                    segment,
-                    facts::PlaceSegment::Field { .. }
-                        | facts::PlaceSegment::Case { .. }
-                        | facts::PlaceSegment::FixedIndex { .. }
-                )
-            })
+            || !place
+                .segments
+                .iter()
+                .all(|segment| crate::flow::fixed_selection_segment(segment))
         {
             return None;
         }
@@ -200,14 +196,11 @@ pub(super) fn capture_call<Value: CapturedValue>(
                 caller_state,
                 statement_index,
                 *argument,
-            ) && place.segments.iter().all(|segment| {
-                matches!(
-                    segment,
-                    facts::PlaceSegment::Field { .. }
-                        | facts::PlaceSegment::Case { .. }
-                        | facts::PlaceSegment::FixedIndex { .. }
-                )
-            }) && let Some(value) = Value::at_place(&place, &live)
+            ) && place
+                .segments
+                .iter()
+                .all(|segment| crate::flow::fixed_selection_segment(segment))
+                && let Some(value) = Value::at_place(&place, &live)
             {
                 return Some(value);
             }

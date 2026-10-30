@@ -648,6 +648,20 @@ fn visit_lifetime_bindings_in_scope(
     required_scope: RequiredLifetimeScope,
     visit: &mut impl FnMut(&Identifier, Option<&Identifier>),
 ) {
+    macro_rules! visit_binding {
+        ($required:expr, $actual:expr $(,)?) => {
+            visit_lifetime_bindings_in_scope(
+                program,
+                $required,
+                $actual,
+                parameters,
+                actual_scope,
+                caller,
+                required_scope,
+                visit,
+            )
+        };
+    }
     // A supplied Type operand is already in its caller's lexical region
     // scope. Its coincident spellings are not occurrences of this callee's
     // fresh lifetime parameters, even in recursive or same-owner selections.
@@ -722,16 +736,7 @@ fn visit_lifetime_bindings_in_scope(
             .iter()
             .zip(actual_arguments)
         {
-            visit_lifetime_bindings_in_scope(
-                program,
-                *required,
-                *actual,
-                parameters,
-                actual_scope,
-                caller,
-                required_scope,
-                visit,
-            );
+            visit_binding!(*required, *actual);
         }
         return;
     }
@@ -761,39 +766,14 @@ fn visit_lifetime_bindings_in_scope(
                     .and_then(|actual| actual_scope.argument(program, caller, actual));
                 visit(required, actual.as_ref());
             }
-            visit_lifetime_bindings_in_scope(
-                program,
-                *required_referee,
-                *actual_referee,
-                parameters,
-                actual_scope,
-                caller,
-                required_scope,
-                visit,
-            );
+            visit_binding!(*required_referee, *actual_referee);
         }
         typed_trees::constrained_type_reference_pair!(required, actual) => {
-            visit_lifetime_bindings_in_scope(
-                program,
-                *required,
-                *actual,
-                parameters,
-                actual_scope,
-                caller,
-                required_scope,
-                visit,
-            )
+            visit_binding!(*required, *actual)
         }
-        (TypeReferenceNode::Constrained { base_type, .. }, _) => visit_lifetime_bindings_in_scope(
-            program,
-            *base_type,
-            actual,
-            parameters,
-            actual_scope,
-            caller,
-            required_scope,
-            visit,
-        ),
+        (TypeReferenceNode::Constrained { base_type, .. }, _) => {
+            visit_binding!(*base_type, actual)
+        }
         (
             TypeReferenceNode::Slice {
                 element_type: required,
@@ -811,16 +791,7 @@ fn visit_lifetime_bindings_in_scope(
                 element_type: actual,
                 ..
             },
-        ) => visit_lifetime_bindings_in_scope(
-            program,
-            *required,
-            *actual,
-            parameters,
-            actual_scope,
-            caller,
-            required_scope,
-            visit,
-        ),
+        ) => visit_binding!(*required, *actual),
         _ => {}
     }
 }

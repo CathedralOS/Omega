@@ -1,14 +1,15 @@
+use super::call_signature;
 use crate::plans::{
-    CallSignature, CallingPolicy, IndirectPointerLocation, MachineRegister, SystemVEightbyteClass,
-    ValueLocation, ValueShape, evaluate_call_plan, validate_call_plan,
+    CallingPolicy, IndirectPointerLocation, MachineRegister, SystemVEightbyteClass, ValueLocation,
+    ValueShape, evaluate_call_plan, validate_call_plan,
 };
 
 #[test]
 fn system_v_memory_class_uses_stack_values_and_a_hidden_result_pointer() {
-    let signature = CallSignature {
-        parameters: vec![ValueShape::integer(24, 8), ValueShape::integer(8, 8)],
-        result: Some(ValueShape::integer(24, 8)),
-    };
+    let signature = call_signature(
+        vec![ValueShape::integer(24, 8), ValueShape::integer(8, 8)],
+        Some(ValueShape::integer(24, 8)),
+    );
     let plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature)
         .expect("SysV MEMORY-class plan");
 
@@ -41,13 +42,13 @@ fn system_v_memory_class_uses_stack_values_and_a_hidden_result_pointer() {
 #[test]
 fn system_v_two_f64_record_uses_sse_fragments_or_whole_stack_rollback() {
     let pair = ValueShape::homogeneous_float_aggregate(8, 2);
-    let signature = CallSignature {
-        parameters: vec![ValueShape::float(8); 8]
+    let signature = call_signature(
+        vec![ValueShape::float(8); 8]
             .into_iter()
             .chain([pair])
             .collect(),
-        result: Some(pair),
-    };
+        Some(pair),
+    );
     let plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature)
         .expect("SysV two-f64 record plan");
 
@@ -78,10 +79,7 @@ fn system_v_three_f32_record_packs_into_two_sse_eightbytes() {
     let triple = ValueShape::homogeneous_float_aggregate(4, 3);
     let plan = evaluate_call_plan(
         CallingPolicy::SystemVAMD64,
-        &CallSignature {
-            parameters: vec![triple],
-            result: Some(triple),
-        },
+        &call_signature(vec![triple], Some(triple)),
     )
     .expect("SysV three-f32 record plan");
 
@@ -109,10 +107,7 @@ fn system_v_mixed_record_uses_independent_register_banks() {
     );
     let plan = evaluate_call_plan(
         CallingPolicy::SystemVAMD64,
-        &CallSignature {
-            parameters: vec![integer_sse],
-            result: Some(sse_integer),
-        },
+        &call_signature(vec![integer_sse], Some(sse_integer)),
     )
     .expect("mixed SysV aggregate plan");
 
@@ -144,10 +139,7 @@ fn system_v_mixed_record_rolls_back_both_banks() {
     parameters.extend([mixed, ValueShape::integer(8, 8)]);
     let plan = evaluate_call_plan(
         CallingPolicy::SystemVAMD64,
-        &CallSignature {
-            parameters,
-            result: None,
-        },
+        &call_signature(parameters, None),
     )
     .expect("mixed SysV rollback plan");
 
@@ -180,10 +172,7 @@ fn system_v_mixed_record_rolls_back_both_banks() {
     parameters.extend([mixed, ValueShape::float(8)]);
     let plan = evaluate_call_plan(
         CallingPolicy::SystemVAMD64,
-        &CallSignature {
-            parameters,
-            result: None,
-        },
+        &call_signature(parameters, None),
     )
     .expect("inverse mixed SysV rollback plan");
     assert!(
@@ -211,10 +200,7 @@ fn system_v_classified_record_rejects_all_integer_eightbytes() {
     );
     let error = evaluate_call_plan(
         CallingPolicy::SystemVAMD64,
-        &CallSignature {
-            parameters: vec![malformed],
-            result: None,
-        },
+        &call_signature(vec![malformed], None),
     )
     .expect_err("equal classes must use an existing normalized aggregate class");
     assert!(error.0.contains("at least one SSE eightbyte"));
@@ -230,10 +216,7 @@ fn borrowed_references_retain_original_storage_pointers_without_copies() {
     ] {
         let plan = evaluate_call_plan(
             policy,
-            &CallSignature {
-                parameters: vec![borrowed],
-                result: Some(ValueShape::integer(4, 4)),
-            },
+            &call_signature(vec![borrowed], Some(ValueShape::integer(4, 4))),
         )
         .expect("borrowed-reference plan");
         assert_eq!(
@@ -247,10 +230,7 @@ fn borrowed_references_retain_original_storage_pointers_without_copies() {
         );
         validate_call_plan(
             &plan,
-            &CallSignature {
-                parameters: vec![borrowed],
-                result: Some(ValueShape::integer(4, 4)),
-            },
+            &call_signature(vec![borrowed], Some(ValueShape::integer(4, 4))),
         )
         .expect("borrowed-reference plan validates");
     }
@@ -263,14 +243,14 @@ fn zero_byte_referents_retain_pointer_abi_and_reject_erased_pointer_evidence() {
         CallingPolicy::SystemVAMD64,
         CallingPolicy::Aapcs64,
     ] {
-        let signature = CallSignature {
-            parameters: vec![
+        let signature = call_signature(
+            vec![
                 ValueShape::integer(0, 1),
                 ValueShape::borrowed_reference(0, 1),
                 ValueShape::integer(8, 8),
             ],
-            result: None,
-        };
+            None,
+        );
         let plan =
             evaluate_call_plan(policy, &signature).expect("empty referent still needs pointer");
         assert!(plan.parameters[0].locations.is_empty());
@@ -286,13 +266,13 @@ fn zero_byte_referents_retain_pointer_abi_and_reject_erased_pointer_evidence() {
         assert!(!plan.parameters[2].locations.is_empty());
         let nonempty = evaluate_call_plan(
             policy,
-            &CallSignature {
-                parameters: vec![
+            &call_signature(
+                vec![
                     ValueShape::borrowed_reference(4, 4),
                     ValueShape::integer(8, 8),
                 ],
-                result: None,
-            },
+                None,
+            ),
         )
         .unwrap();
         assert_eq!(
@@ -313,16 +293,7 @@ fn zero_byte_referents_retain_pointer_abi_and_reject_erased_pointer_evidence() {
         *copy_stack_byte_offset = Some(0);
         assert!(validate_call_plan(&copied, &signature).is_err());
         for invalid in [ValueShape::integer(0, 8), ValueShape::float(0)] {
-            assert!(
-                evaluate_call_plan(
-                    policy,
-                    &CallSignature {
-                        parameters: vec![invalid],
-                        result: None
-                    }
-                )
-                .is_err()
-            );
+            assert!(evaluate_call_plan(policy, &call_signature(vec![invalid], None)).is_err());
         }
     }
 }
@@ -333,10 +304,7 @@ fn borrowed_reference_stack_pointer_is_not_a_referent_copy() {
     parameters.push(ValueShape::borrowed_reference(16, 8));
     let plan = evaluate_call_plan(
         CallingPolicy::SystemVAMD64,
-        &CallSignature {
-            parameters,
-            result: None,
-        },
+        &call_signature(parameters, None),
     )
     .expect("stacked borrowed-reference plan");
     assert_eq!(
@@ -360,10 +328,7 @@ fn large_borrowed_referents_retain_exact_extent_without_a_copy() {
         CallingPolicy::MicrosoftX64,
         CallingPolicy::Aapcs64,
     ] {
-        let signature = CallSignature {
-            parameters: vec![ValueShape::borrowed_reference(u32::MAX, 8); 10],
-            result: None,
-        };
+        let signature = call_signature(vec![ValueShape::borrowed_reference(u32::MAX, 8); 10], None);
         let plan = evaluate_call_plan(policy, &signature).expect("one pointer per large referent");
         for placement in &plan.parameters {
             assert!(matches!(
@@ -401,10 +366,7 @@ fn large_borrowed_referents_retain_exact_extent_without_a_copy() {
 fn borrowed_references_are_not_results() {
     let error = evaluate_call_plan(
         CallingPolicy::SystemVAMD64,
-        &CallSignature {
-            parameters: Vec::new(),
-            result: Some(ValueShape::borrowed_reference(8, 8)),
-        },
+        &call_signature(Vec::new(), Some(ValueShape::borrowed_reference(8, 8))),
     )
     .expect_err("borrowed-reference result must be rejected");
     assert!(error.0.contains("parameter-only"));
@@ -415,10 +377,7 @@ fn parameter_transport_preserves_pointer_locations_and_value_categories() {
     let plan = |shape| {
         evaluate_call_plan(
             CallingPolicy::Aapcs64,
-            &CallSignature {
-                parameters: vec![shape; 9],
-                result: None,
-            },
+            &call_signature(vec![shape; 9], None),
         )
         .expect("parameter placement")
     };
@@ -445,10 +404,7 @@ fn overflowing_owned_stack_extents_reject_without_fragment_expansion() {
     ] {
         let error = evaluate_call_plan(
             policy,
-            &CallSignature {
-                parameters: vec![ValueShape::integer(u32::MAX, 8)],
-                result: None,
-            },
+            &call_signature(vec![ValueShape::integer(u32::MAX, 8)], None),
         )
         .expect_err("owned storage must fit the outgoing stack");
         assert!(error.0.contains("32-bit storage"), "{policy:?}: {error:?}");
@@ -457,10 +413,7 @@ fn overflowing_owned_stack_extents_reject_without_fragment_expansion() {
 
 #[test]
 fn placement_intervals_accept_reordering_but_reject_gaps_overlap_and_overflow() {
-    let signature = CallSignature {
-        parameters: vec![ValueShape::integer(24, 8)],
-        result: None,
-    };
+    let signature = call_signature(vec![ValueShape::integer(24, 8)], None);
     let mut plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature).unwrap();
     plan.parameters[0].locations.reverse();
     validate_call_plan(&plan, &signature).expect("fragment order does not change exact coverage");

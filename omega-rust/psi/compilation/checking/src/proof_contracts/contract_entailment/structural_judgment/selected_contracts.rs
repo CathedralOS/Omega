@@ -205,7 +205,7 @@ impl StructuralJudge<'_> {
             self.substitutions
         );
     }
-    pub(in crate::proof_contracts::contract_entailment) fn captured_metadata_predicate_judgment(
+    pub(in crate::proof_contracts::contract_entailment) fn captured_operand_predicate_judgment(
         &self,
         owner: SymbolHandle,
         parameters: &[typed_trees::signature::StateParameter],
@@ -233,13 +233,9 @@ impl StructuralJudge<'_> {
         ) else {
             return StructuralJudgment::Unknown;
         };
-        fn contains_measure(term: &StructuralTerm) -> bool {
-            matches!(term, StructuralTerm::CollectionMeasure { .. })
-                || term.any_child(contains_measure)
-        }
-        if !contains_measure(&term) {
-            return StructuralJudgment::Unknown;
-        }
+        // The bound-term owner authenticates every completed scalar cell and
+        // descriptor measure independently. Eligibility follows that evidence,
+        // not the presence of a metadata node somewhere in the proposition.
         self.judge_observed_predicate(term, 0)
     }
 

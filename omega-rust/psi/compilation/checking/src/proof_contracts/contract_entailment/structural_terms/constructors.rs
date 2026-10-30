@@ -398,6 +398,27 @@ fn zero_term(
     if crate::value_custody::data::data_requires_establishment(program, definition) {
         return None;
     }
+    active.push(symbol);
+    let value = zero_constructor(program, definition, active);
+    active.pop();
+    value
+}
+
+/// The fixed first case and established zero children, before the owner's
+/// predicate is admitted. This is an operand valuation, not evidence that the
+/// containing value satisfies its default domain.
+pub(in super::super) fn zero_constructor_operands(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+) -> Option<StructuralTerm> {
+    zero_constructor(program, definition, &mut vec![definition.symbol])
+}
+
+fn zero_constructor(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    active: &mut Vec<SymbolHandle>,
+) -> Option<StructuralTerm> {
     let variant = program
         .data_members(definition)
         .iter()
@@ -405,16 +426,6 @@ fn zero_term(
             DataMember::Variant(variant) => Some(variant),
             DataMember::Field(_) => None,
         });
-    // `zero_gated` is not a positive certificate for the selected case's
-    // predicates. Their general instantiation/proof belongs to establishment;
-    // until it can supply that evidence here, no implicit default may waive
-    // them or choose a later, satisfiable case instead.
-    if !definition.where_facts.is_empty()
-        || variant.is_some_and(|variant| !variant.where_facts.is_empty())
-    {
-        return None;
-    }
-    active.push(symbol);
     let fields = constructor_fields(program, definition, variant)
         .into_iter()
         .map(|field| {
@@ -427,6 +438,5 @@ fn zero_term(
             ))
         })
         .collect::<Option<Vec<_>>>();
-    active.pop();
     Some(constructed_term(definition, variant, fields?))
 }

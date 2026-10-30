@@ -1753,71 +1753,58 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
         callback_function: MachineFunctionIdentity::default(),
         relocation: callback_relocation(23),
     });
-    let expected = child_identity(foreign(
-        [9; 32],
-        [11; 32],
-        ObjectSymbolHandle::from_arena_index(3),
-        origin(7),
-        13,
-        4,
-        -4,
-        RelocationKind::X86_64Relative32,
-        callback,
-        [29; 32],
-    ));
+    let with_callback = |callback| {
+        foreign(
+            [9; 32],
+            [11; 32],
+            ObjectSymbolHandle::from_arena_index(3),
+            origin(7),
+            13,
+            4,
+            -4,
+            RelocationKind::X86_64Relative32,
+            callback,
+            [29; 32],
+        )
+    };
+    let with_custody = |locator: [u8; 32], boundary: [u8; 32], symbol| {
+        foreign(
+            locator,
+            boundary,
+            symbol,
+            origin(7),
+            13,
+            4,
+            -4,
+            RelocationKind::X86_64Relative32,
+            callback,
+            [29; 32],
+        )
+    };
+    let with_geometry = |offset, width, addend, kind| {
+        foreign(
+            [9; 32],
+            [11; 32],
+            ObjectSymbolHandle::from_arena_index(3),
+            origin(7),
+            offset,
+            width,
+            addend,
+            kind,
+            callback,
+            [29; 32],
+        )
+    };
+    let expected = child_identity(with_callback(callback));
 
     for mutation in 0..15 {
         let changed = match mutation {
             // Substituted locator or boundary-plan custody.
-            0 => foreign(
-                [10; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
-            1 => foreign(
-                [9; 32],
-                [12; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
+            0 => with_custody([10; 32], [11; 32], ObjectSymbolHandle::from_arena_index(3)),
+            1 => with_custody([9; 32], [12; 32], ObjectSymbolHandle::from_arena_index(3)),
             // Substituted or regenerated object symbol.
-            2 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(4),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
-            3 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_parts(3, 2),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
+            2 => with_custody([9; 32], [11; 32], ObjectSymbolHandle::from_arena_index(4)),
+            3 => with_custody([9; 32], [11; 32], ObjectSymbolHandle::from_parts(3, 2)),
             // Origin drift: a different operation identity, a different
             // origin namespace carrying the same coordinate, or a
             // different owning symbol.
@@ -1864,94 +1851,22 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
                 [29; 32],
             ),
             // Byte geometry, addend, and encoding kind.
-            7 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                14,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
-            8 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                8,
-                -4,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
-            9 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -8,
-                RelocationKind::X86_64Relative32,
-                callback,
-                [29; 32],
-            ),
-            10 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::Aarch64Branch26,
-                callback,
-                [29; 32],
-            ),
+            7 => with_geometry(14, 4, -4, RelocationKind::X86_64Relative32),
+            8 => with_geometry(13, 8, -4, RelocationKind::X86_64Relative32),
+            9 => with_geometry(13, 4, -8, RelocationKind::X86_64Relative32),
+            10 => with_geometry(13, 4, -4, RelocationKind::Aarch64Branch26),
             // Callback custody: dropped, swapped encoding, a different
             // callback function, or a different callback relocation.
-            11 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                None,
-                [29; 32],
-            ),
-            12 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                Some(NormalizedForeignCallbackRelocations::Aarch64PageAddress {
+            11 => with_callback(None),
+            12 => with_callback(Some(
+                NormalizedForeignCallbackRelocations::Aarch64PageAddress {
                     callback_function: MachineFunctionIdentity::default(),
                     page: callback_relocation(23),
                     page_offset: callback_relocation(23),
-                }),
-                [29; 32],
-            ),
-            13 => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                Some(NormalizedForeignCallbackRelocations::X86_64Relative32 {
+                },
+            )),
+            13 => with_callback(Some(
+                NormalizedForeignCallbackRelocations::X86_64Relative32 {
                     callback_function: MachineFunctionIdentity::callback_thunk(
                         terminal_psi::TerminalPsiIdentity {
                             vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
@@ -1963,24 +1878,14 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
                     )
                     .unwrap(),
                     relocation: callback_relocation(23),
-                }),
-                [29; 32],
-            ),
-            _ => foreign(
-                [9; 32],
-                [11; 32],
-                ObjectSymbolHandle::from_arena_index(3),
-                origin(7),
-                13,
-                4,
-                -4,
-                RelocationKind::X86_64Relative32,
-                Some(NormalizedForeignCallbackRelocations::X86_64Relative32 {
+                },
+            )),
+            _ => with_callback(Some(
+                NormalizedForeignCallbackRelocations::X86_64Relative32 {
                     callback_function: MachineFunctionIdentity::default(),
                     relocation: callback_relocation(24),
-                }),
-                [29; 32],
-            ),
+                },
+            )),
         };
         let changed = child_identity(changed);
         assert_ne!(changed, expected, "relocation custody mutation {mutation}");

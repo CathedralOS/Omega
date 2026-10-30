@@ -26,5 +26,3 @@ CheckedObserveTarget satisfies SelectedObserveTarget {
  machine bad() { crash Trap; }
 }
 }
-
-

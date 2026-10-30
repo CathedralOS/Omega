@@ -17,12 +17,15 @@ use super::{
 };
 use crate::values::operator_is_builtin;
 use checked_trees::{
-    CheckedStructuralDispatchArm, CheckedStructuralValue, CheckedStructuralValueHandle,
-    CheckedStructuralValueKind,
+    CheckedScalarComputationHandle, CheckedStructuralDispatchArm, CheckedStructuralValue,
+    CheckedStructuralValueHandle, CheckedStructuralValueKind,
 };
 use typed_trees::expression::MatchPattern;
 use typed_trees::types::TypeReferenceHandle;
 use value_predicates::argument_needs_establishment;
+
+/// One authored selector and the scalar computation that evaluates it.
+pub(super) type ProjectionSelector = (ExpressionHandle, CheckedScalarComputationHandle);
 
 mod family_values;
 mod place_types;
@@ -37,26 +40,69 @@ impl Builder<'_, '_> {
         &mut self,
         owner: ExpressionHandle,
         source: ExpressionHandle,
-    ) -> Option<
-        Vec<(
-            ExpressionHandle,
-            checked_trees::CheckedScalarComputationHandle,
-        )>,
-    > {
+    ) -> Option<Vec<ProjectionSelector>> {
         let selectors = crate::values::authored_projection_selectors(self.program, source)?;
         self.retain_projection_selector_evaluations(owner, selectors)
+    }
+
+    /// The exact declared type of `expression` at this statement.
+    pub(super) fn expression_type(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        validation::expression_type_reference_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+        )
+    }
+
+    /// The canonical place `expression` names at this statement.
+    pub(super) fn canonical_place(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<validation::CanonicalPlace> {
+        validation::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+        )
+    }
+
+    /// Project a canonical place through its authored selector evaluations.
+    /// The retained evaluation supplies each runtime index at this point, so
+    /// the projection never re-reads the selector's original storage.
+    pub(super) fn projected_place_path(
+        &self,
+        place: &validation::CanonicalPlace,
+        selectors: &[ProjectionSelector],
+    ) -> Option<(
+        TypeReferenceHandle,
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    )> {
+        crate::execution::terminal_unit::calls::projected_argument_path(
+            self.program,
+            self.state,
+            self.statement_index,
+            place,
+            Some(self.machine),
+            Some(&|expression| {
+                selectors.iter().find_map(|(selector, value)| {
+                    (*selector == expression).then_some(
+                        checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*value),
+                    )
+                })
+            }),
+        )
     }
 
     pub(super) fn retain_projection_selector_evaluations(
         &mut self,
         owner: ExpressionHandle,
         selectors: Vec<ExpressionHandle>,
-    ) -> Option<
-        Vec<(
-            ExpressionHandle,
-            checked_trees::CheckedScalarComputationHandle,
-        )>,
-    > {
+    ) -> Option<Vec<ProjectionSelector>> {
         if selectors.is_empty() {
             return Some(Vec::new());
         }
@@ -372,12 +418,7 @@ impl Builder<'_, '_> {
                     expression,
                     expected,
                 )?;
-                let place = validation::canonical_place_from_expression_in_state(
-                    self.program,
-                    self.state,
-                    self.statement_index,
-                    expression,
-                )?;
+                let place = self.canonical_place(expression)?;
                 if !matches!(place.root, facts::PlaceRoot::Expression(_)) {
                     return None;
                 }
@@ -692,12 +733,7 @@ impl Builder<'_, '_> {
             let mut selectors = Vec::new();
             let mut source_value = CheckedStructuralValueHandle::invalid();
             if let Some(formation) = reference_capture.as_ref() {
-                let place = validation::canonical_place_from_expression_in_state(
-                    self.program,
-                    self.state,
-                    self.statement_index,
-                    formation.source,
-                )?;
+                let place = self.canonical_place(formation.source)?;
                 // Retain the complete anonymous producer before its selectors.
                 // The reference lends its selected path, not a detached copy
                 // of that child; the normal value schedule owns its cleanup.

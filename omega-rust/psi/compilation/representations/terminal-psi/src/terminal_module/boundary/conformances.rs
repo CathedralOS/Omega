@@ -156,18 +156,13 @@ fn closed_conformance_application_bytes(
     }
 
     let mut bytes = Vec::new();
-    push(
-        &mut bytes,
-        identities
-            .text(application.declaration_identity)
-            .unwrap_or_default(),
-    );
-    push(
-        &mut bytes,
-        identities
-            .text(application.trait_identity)
-            .unwrap_or_default(),
-    );
+    macro_rules! identity {
+        ($identity:expr) => {
+            push(&mut bytes, identities.text($identity).unwrap_or_default())
+        };
+    }
+    identity!(application.declaration_identity);
+    identity!(application.trait_identity);
     bytes.extend((application.trait_lifetime_arguments.len() as u64).to_le_bytes());
     for argument in &application.trait_lifetime_arguments {
         push(&mut bytes, argument);
@@ -189,52 +184,22 @@ fn closed_conformance_application_bytes(
     }
     bytes.extend((application.realization_callables.len() as u64).to_le_bytes());
     for callable in &application.realization_callables {
-        push(
-            &mut bytes,
-            identities
-                .text(callable.source_callable_identity)
-                .unwrap_or_default(),
-        );
+        identity!(callable.source_callable_identity);
         bytes.extend(callable_bytes(callable.callable));
         bytes.extend(callable_result_bytes(callable.result));
     }
     bytes.extend(schema_application_bytes(identities, application));
     bytes.extend((application.rows.len() as u64).to_le_bytes());
     for row in &application.rows {
-        push(
-            &mut bytes,
-            identities
-                .text(row.requirement_declaration.identity())
-                .unwrap_or_default(),
-        );
-        push(
-            &mut bytes,
-            identities
-                .text(row.declaring_trait_identity)
-                .unwrap_or_default(),
-        );
-        push(
-            &mut bytes,
-            identities
-                .text(row.public_requirement_identity)
-                .unwrap_or_default(),
-        );
+        identity!(row.requirement_declaration.identity());
+        identity!(row.declaring_trait_identity);
+        identity!(row.public_requirement_identity);
         bytes.extend((row.family_tuple.len() as u64).to_le_bytes());
         for identity in &row.family_tuple {
             push(&mut bytes, identities.text(*identity).unwrap_or_default());
         }
-        push(
-            &mut bytes,
-            identities
-                .text(row.requirement_identity)
-                .unwrap_or_default(),
-        );
-        push(
-            &mut bytes,
-            identities
-                .text(row.realization_identity)
-                .unwrap_or_default(),
-        );
+        identity!(row.requirement_identity);
+        identity!(row.realization_identity);
         bytes.push(u8::from(row.realization_callable_identity.is_some()));
         if let Some(identity) = &row.realization_callable_identity {
             push(&mut bytes, identities.text(*identity).unwrap_or_default());

@@ -1,0 +1,5 @@
+
+  error: argument `target` for state `entry` expects `BuildTarget`, got `struct literal`
+    at \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-f3887b3e689022ca6228fcd34446fc309252ce71fe976c9b1117b8fe20179a4f\source\build.omg:4:12
+  error: argument `target` for state `build_selection_target::entry` expects the `BuildTarget` data type but got `CompositionMode` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+    at \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-f3887b3e689022ca6228fcd34446fc309252ce71fe976c9b1117b8fe20179a4f\source\build.omg:4:12

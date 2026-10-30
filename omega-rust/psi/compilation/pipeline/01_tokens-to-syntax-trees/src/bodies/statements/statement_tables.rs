@@ -24,6 +24,7 @@ pub(crate) fn copy_expression_as_place(
             let recv = copy_expression_as_place(syntax_trees, m.receiver)?;
             ExpressionNode::Member(TableMemberExpression {
                 receiver: recv,
+                access_source_span: m.access_source_span,
                 member: m.member,
                 case_variant: m.case_variant.clone(),
             })

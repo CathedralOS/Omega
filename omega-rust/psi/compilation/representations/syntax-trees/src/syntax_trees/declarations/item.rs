@@ -406,6 +406,12 @@ impl ItemTable {
         self.declaration_storage.data_members.span_or_empty(span)
     }
 
+    pub fn data_members_mut(&mut self, span: HandleSpan<DataMember>) -> &mut [DataMember] {
+        self.declaration_storage
+            .data_members
+            .span_mut_or_empty(span)
+    }
+
     pub fn data_payload_fields(&self, span: HandleSpan<DataField>) -> &[DataField] {
         self.declaration_storage
             .data_payload_fields

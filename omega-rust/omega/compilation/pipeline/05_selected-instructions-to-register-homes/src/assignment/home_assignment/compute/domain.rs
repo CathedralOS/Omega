@@ -290,6 +290,34 @@ fn tied_components<'a>(
     Ok(grouped)
 }
 
+fn reject_tied_interference(
+    function: usize,
+    ranges: &FunctionLiveRanges,
+    has_member: impl Fn(VirtualRegisterId) -> bool,
+    left: VirtualRegisterId,
+    right: VirtualRegisterId,
+) -> Result<(), RegisterHomeError> {
+    if !registers_interfere(left, right, &ranges.interference) {
+        return Ok(());
+    }
+    let (lower, higher) = ordered_pair(left, right);
+    if let Some(edge) = ranges
+        .edge_transfers
+        .iter()
+        .find(|edge| has_member(edge.parameter))
+    {
+        return Err(RegisterHomeError::UnsupportedEdgeTransfer {
+            function,
+            edge: edge.psi_edge.get(),
+        });
+    }
+    Err(RegisterHomeError::TiedRegistersInterfere {
+        function,
+        lower: lower.0,
+        higher: higher.0,
+    })
+}
+
 fn build_domain<'a>(
     function: usize,
     leader: &mut &'a VirtualRegisterAllocationLegality,

@@ -54,40 +54,36 @@ pub(crate) fn validate_plans(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for view in &program.placed_view_plans {
+        macro_rules! view {
+            ($detail:literal) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    concat!("placed view `{}` ", $detail),
+                    view.data_name
+                )))
+            };
+        }
         let Some(view_data) =
             crate::declarations::data_queries::data_definition_by_symbol(program, view.data_symbol)
         else {
-            diagnostics.push(Diagnostic::error(format!(
-                "placed view `{}` no longer names its exact synthesized data identity",
-                view.data_name
-            )));
+            view!("no longer names its exact synthesized data identity");
             continue;
         };
         let Some(schema) = crate::declarations::data_queries::data_definition_by_symbol(
             program,
             view.schema_symbol,
         ) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "placed view `{}` no longer names its exact source schema identity",
-                view.data_name
-            )));
+            view!("no longer names its exact source schema identity");
             continue;
         };
         let Some(policy) = crate::declarations::data_queries::data_definition_by_symbol(
             program,
             view.policy_symbol,
         ) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "placed view `{}` no longer names its exact placement-policy identity",
-                view.data_name
-            )));
+            view!("no longer names its exact placement-policy identity");
             continue;
         };
         let Some(policy_plan_machine) = program.machine(view.policy_plan_machine_symbol) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "placed view `{}` no longer names its exact placement-policy plan machine",
-                view.data_name
-            )));
+            view!("no longer names its exact placement-policy plan machine");
             continue;
         };
         if policy_plan_machine
@@ -96,10 +92,7 @@ pub(crate) fn validate_plans(
             .is_none_or(|attached| attached.as_str() != policy.name.as_str())
             || policy_plan_machine.name.as_str() != format!("{}::plan", policy.name.as_str())
         {
-            diagnostics.push(Diagnostic::error(format!(
-                "placed view `{}` changed its exact placement-policy binding",
-                view.data_name
-            )));
+            view!("changed its exact placement-policy binding");
             continue;
         }
         let accessible_field_count = view
@@ -117,15 +110,20 @@ pub(crate) fn validate_plans(
                 .iter()
                 .any(|member| matches!(member, typed_trees::data::DataMember::Variant(_)))
         {
-            diagnostics.push(Diagnostic::error(format!(
-                "placed view `{}` changed its exact accessible field inventory",
-                view.data_name
-            )));
+            view!("changed its exact accessible field inventory");
             continue;
         }
         let mut field_symbols = Vec::with_capacity(view.fields.len());
         let mut accessor_data_symbols = Vec::with_capacity(view.fields.len());
         for field in &view.fields {
+            macro_rules! field {
+                ($detail:literal) => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        concat!("placed view `{}` field `{}` ", $detail),
+                        view.data_name, field.field_name
+                    )))
+                };
+            }
             if field_symbols.contains(&field.field_symbol)
                 || accessor_data_symbols.contains(&field.accessor_data_symbol)
             {
@@ -153,10 +151,7 @@ pub(crate) fn validate_plans(
                 })
                 .find(|candidate| candidate.symbol == field.field_symbol)
             else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "placed view `{}` field `{}` no longer names its exact source field identity",
-                    view.data_name, field.field_name
-                )));
+                field!("no longer names its exact source field identity");
                 continue;
             };
             if schema_field.identity != field.member_identity
@@ -164,10 +159,7 @@ pub(crate) fn validate_plans(
                     && schema_field.name.as_str() != field.field_name)
                 || schema_field.type_reference != field.value_type
             {
-                diagnostics.push(Diagnostic::error(format!(
-                    "placed view `{}` field `{}` changed its exact source member binding",
-                    view.data_name, field.field_name
-                )));
+                field!("changed its exact source member binding");
                 continue;
             }
 
@@ -176,19 +168,13 @@ pub(crate) fn validate_plans(
                 retained_field_identity(&entry.field, entry.member_identity) == field_identity
             });
             if exact_layout_entry.is_none() {
-                diagnostics.push(Diagnostic::error(format!(
-                    "placed view `{}` field `{}` changed its retained layout member identity",
-                    view.data_name, field.field_name
-                )));
+                field!("changed its retained layout member identity");
                 continue;
             }
 
             let exact_access = exact_access_entry_for_field(view, field);
             if !exact_access.is_some_and(|entry| entry.access() == &field.access) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "placed view `{}` field `{}` changed its admitted access decision",
-                    view.data_name, field.field_name
-                )));
+                field!("changed its admitted access decision");
                 continue;
             }
 
@@ -200,10 +186,9 @@ pub(crate) fn validate_plans(
                 } if operations.compare_exchange || operations.compare_exchange_once => {
                     let multiplicity = program.type_multiplicity(schema_field.type_reference);
                     if multiplicity != Multiplicity::Unrestricted {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "placed view `{}` field `{}` no longer has an unrestricted resident for observing compare-exchange",
-                            view.data_name, field.field_name
-                        )));
+                        field!(
+                            "no longer has an unrestricted resident for observing compare-exchange"
+                        );
                         continue;
                     }
                     let observing_results = super::placed_atomic_observing_results(*operations);
@@ -220,10 +205,7 @@ pub(crate) fn validate_plans(
                 _ => None,
             };
             if field.atomic_resident != expected_atomic_resident {
-                diagnostics.push(Diagnostic::error(format!(
-                    "placed view `{}` field `{}` changed its checked Atomic resident/result contract",
-                    view.data_name, field.field_name
-                )));
+                field!("changed its checked Atomic resident/result contract");
                 continue;
             }
 
@@ -242,10 +224,7 @@ pub(crate) fn validate_plans(
             if !exact_view_field
                 .is_some_and(|candidate| candidate.type_reference == field.accessor_type)
             {
-                diagnostics.push(Diagnostic::error(format!(
-                    "placed view `{}` field `{}` changed its exact synthesized accessor binding",
-                    view.data_name, field.field_name
-                )));
+                field!("changed its exact synthesized accessor binding");
             }
 
             let has_accessor_data = crate::declarations::data_queries::data_definition_by_symbol(
@@ -254,10 +233,7 @@ pub(crate) fn validate_plans(
             )
             .is_some();
             if !has_accessor_data {
-                diagnostics.push(Diagnostic::error(format!(
-                    "placed view `{}` field `{}` no longer names its exact generated accessor data identity",
-                    view.data_name, field.field_name
-                )));
+                field!("no longer names its exact generated accessor data identity");
                 continue;
             }
             if exact_view_field.is_some() {
@@ -268,10 +244,7 @@ pub(crate) fn validate_plans(
                     || (!type_symbol.is_valid()
                         && !matches!(field.access, FieldAccess::Atomic { .. }))
                 {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "placed view `{}` field `{}` changed its exact generated accessor data binding",
-                        view.data_name, field.field_name
-                    )));
+                    field!("changed its exact generated accessor data binding");
                     continue;
                 }
             }
@@ -283,10 +256,7 @@ pub(crate) fn validate_plans(
                 .map(|target| target.operation.as_str())
                 .ne(expected_operations.iter().copied())
             {
-                diagnostics.push(Diagnostic::error(format!(
-                    "placed view `{}` field `{}` changed its generated accessor operation set",
-                    view.data_name, field.field_name
-                )));
+                field!("changed its generated accessor operation set");
                 continue;
             }
             for target in &field.accessor_targets {

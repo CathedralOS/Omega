@@ -251,6 +251,20 @@ pub(crate) fn type_reference_region_applications<
     else {
         return false;
     };
+    macro_rules! region_child {
+        ($actual:expr, $required:expr $(,)?) => {
+            type_reference_region_applications(
+                program,
+                $actual,
+                $required,
+                actual_scope,
+                required_scope,
+                relationship,
+                applications,
+                lifetime_matches,
+            )
+        };
+    }
     if !domain_region_applications(
         program,
         &actual_domains,
@@ -308,16 +322,7 @@ pub(crate) fn type_reference_region_applications<
                     required_lifetime.as_ref(),
                 )
             });
-            type_reference_region_applications(
-                program,
-                *actual_referee,
-                *required_referee,
-                actual_scope,
-                required_scope,
-                relationship,
-                applications,
-                lifetime_matches,
-            )
+            region_child!(*actual_referee, *required_referee)
         }
         (
             TypeReferenceNode::FixedArray {
@@ -336,16 +341,7 @@ pub(crate) fn type_reference_region_applications<
             TypeReferenceNode::Slice {
                 element_type: required_element,
             },
-        ) => type_reference_region_applications(
-            program,
-            *actual_element,
-            *required_element,
-            actual_scope,
-            required_scope,
-            relationship,
-            applications,
-            lifetime_matches,
-        ),
+        ) => region_child!(*actual_element, *required_element),
         (
             TypeReferenceNode::Generic {
                 lifetime_arguments: actual_lifetimes,
@@ -410,16 +406,7 @@ pub(crate) fn type_reference_region_applications<
                             .type_reference_handles(*required_arguments),
                     )
                     .all(|(actual_argument, required_argument)| {
-                        type_reference_region_applications(
-                            program,
-                            *actual_argument,
-                            *required_argument,
-                            actual_scope,
-                            required_scope,
-                            relationship,
-                            applications,
-                            lifetime_matches,
-                        )
+                        region_child!(*actual_argument, *required_argument)
                     })
         }
         (
@@ -451,18 +438,7 @@ pub(crate) fn type_reference_region_applications<
                             .type_reference_table
                             .type_reference_handles(*required),
                     )
-                    .all(|(actual, required)| {
-                        type_reference_region_applications(
-                            program,
-                            *actual,
-                            *required,
-                            actual_scope,
-                            required_scope,
-                            relationship,
-                            applications,
-                            lifetime_matches,
-                        )
-                    })
+                    .all(|(actual, required)| region_child!(*actual, *required))
         }
         _ => true,
     }

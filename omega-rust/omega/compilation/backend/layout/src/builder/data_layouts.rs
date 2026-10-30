@@ -112,10 +112,7 @@ impl<'program> LayoutBuilder<'program> {
                 &mut self.fields,
                 fields,
                 &geometry.offsets,
-                TypeLayout {
-                    size: geometry.size,
-                    alignment: geometry.align,
-                },
+                crate::type_layout(geometry.size, geometry.align),
             )?;
             for bit_field in &geometry.bit_fields {
                 let Some(field) = self
@@ -332,10 +329,8 @@ impl<'program> LayoutBuilder<'program> {
         members: &[DataMember],
         bindings: &[GenericLayoutBinding<'program>],
     ) -> Result<DataLayout, Diagnostic> {
-        const TAG_LAYOUT: TypeLayout = TypeLayout {
-            size: crate::ENUM_TAG_BYTES,
-            alignment: crate::ENUM_TAG_BYTES,
-        };
+        const TAG_LAYOUT: TypeLayout =
+            crate::type_layout(crate::ENUM_TAG_BYTES, crate::ENUM_TAG_BYTES);
 
         // Common fields (mixed shapes) pack right after the tag; their end
         // offset is the floor under every case's payload overlay.

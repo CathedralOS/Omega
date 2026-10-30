@@ -12,6 +12,12 @@ use syntax_trees::statement::{
 };
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+macro_rules! binders {
+    ($syntax:expr => $parameters:expr => $outer:expr) => {
+        telescope($syntax, $syntax.items.type_parameters($parameters), $outer)
+    };
+}
+
 pub(super) fn scoped_template_applications(
     syntax: &SyntaxTrees,
     selected_owners: &[(source::SourceSpan, Result<source::SourceSpan, String>)],
@@ -23,11 +29,7 @@ pub(super) fn scoped_template_applications(
                 visit_machine(syntax, machine, &[], selected_owners, &mut deferred)
             }
             Item::Proposition(definition) => {
-                let binders = telescope(
-                    syntax,
-                    syntax.items.type_parameters(definition.type_parameters),
-                    &[],
-                );
+                let binders = binders!(syntax => definition.type_parameters => &[]);
                 visit_parameters(
                     syntax,
                     syntax.items.type_parameters(definition.type_parameters),
@@ -53,11 +55,7 @@ pub(super) fn scoped_template_applications(
                 }
             }
             Item::Data(data) => {
-                let binders = telescope(
-                    syntax,
-                    syntax.items.type_parameters(data.type_parameters),
-                    &[],
-                );
+                let binders = binders!(syntax => data.type_parameters => &[]);
                 visit_parameters(
                     syntax,
                     syntax.items.type_parameters(data.type_parameters),
@@ -88,11 +86,7 @@ pub(super) fn scoped_template_applications(
                 }
             }
             Item::Trait(definition) => {
-                let binders = telescope(
-                    syntax,
-                    syntax.items.type_parameters(definition.type_parameters),
-                    &[],
-                );
+                let binders = binders!(syntax => definition.type_parameters => &[]);
                 visit_parameters(
                     syntax,
                     syntax.items.type_parameters(definition.type_parameters),
@@ -118,11 +112,7 @@ pub(super) fn scoped_template_applications(
                 }
                 for signature in syntax.items.state_signatures(definition.machines) {
                     let signature = syntax.items.state_signature(*signature);
-                    let binders = telescope(
-                        syntax,
-                        syntax.items.type_parameters(signature.type_parameters),
-                        &binders,
-                    );
+                    let binders = binders!(syntax => signature.type_parameters => &binders);
                     visit_parameters(
                         syntax,
                         syntax.items.type_parameters(signature.type_parameters),
@@ -156,11 +146,7 @@ pub(super) fn scoped_template_applications(
                 }
             }
             Item::Conformance(definition) => {
-                let binders = telescope(
-                    syntax,
-                    syntax.items.type_parameters(definition.type_parameters),
-                    &[],
-                );
+                let binders = binders!(syntax => definition.type_parameters => &[]);
                 visit_parameters(
                     syntax,
                     syntax.items.type_parameters(definition.type_parameters),
@@ -219,11 +205,7 @@ fn visit_parameters(
             TypeParameterKind::Machine {
                 contract: Some(syntax_trees::item::MachineParameterContract::Structural(signature)),
             } => {
-                let binders = telescope(
-                    syntax,
-                    syntax.items.type_parameters(signature.type_parameters),
-                    binders,
-                );
+                let binders = binders!(syntax => signature.type_parameters => binders);
                 visit_type(syntax, signature.return_type, &binders, deferred);
                 for parameter in syntax.items.state_parameters(signature.parameters) {
                     visit_type(
@@ -266,11 +248,7 @@ fn visit_machine(
             );
         }
     }
-    let binders = telescope(
-        syntax,
-        syntax.items.type_parameters(machine.type_parameters),
-        &ambient,
-    );
+    let binders = binders!(syntax => machine.type_parameters => &ambient);
     if binders.is_empty() {
         return;
     }

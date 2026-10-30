@@ -355,14 +355,10 @@ impl<'field> RangeFacts<'field> {
                         return None;
                     }
                     let suffix = &place.segments[storage.segments.len()..];
-                    if !suffix.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            facts::PlaceSegment::Field { .. }
-                                | facts::PlaceSegment::Case { .. }
-                                | facts::PlaceSegment::FixedIndex { .. }
-                        )
-                    }) {
+                    if !suffix
+                        .iter()
+                        .all(|segment| crate::flow::fixed_selection_segment(segment))
+                    {
                         return None;
                     }
                     Some((

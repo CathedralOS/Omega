@@ -1,0 +1,30 @@
+stack32-A-first native verified
+stack32-A-warm native verified
+Traceback (most recent call last):
+  File "C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\source-resolution\quality.py", line 38, in <module>
+    assert record.is_file() and record.resolve().is_relative_to(cache.resolve())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+length-A-first native verified
+length-A-warm native verified
+dispatch-A-first native verified
+dispatch-A-warm native verified
+stack32-B-first native verified
+stack32-B-warm native verified
+length-B-first native verified
+length-B-warm native verified
+dispatch-B-first native verified
+dispatch-B-warm native verified
+length-A-truncated native verified
+length-A-foreign-compiler native verified
+length-A-checksum native verified
+length-A-oversized native verified
+length-A-edited native verified
+A edited source and invalid contract verified
+length-B-truncated native verified
+length-B-foreign-compiler native verified
+length-B-checksum native verified
+length-B-oversized native verified
+length-B-edited native verified
+B edited source and invalid contract verified
+Warm reuse, eight malformed records, edited sources and invalid contracts passed.

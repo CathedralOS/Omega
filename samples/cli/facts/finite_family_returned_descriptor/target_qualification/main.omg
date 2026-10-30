@@ -32,6 +32,3 @@ CheckedTargetOnly satisfies SelectedTargetOnly {
     machine target_only(source: &[u8]) -> &[u8]
 { source }
 }
-
-
-

@@ -384,7 +384,6 @@ failed_display!(
     PressureRematerializationDecodeError,
     "invalid terminal pressure rematerialization"
 );
-impl std::error::Error for PressureRematerializationDecodeError {}
 
 fn decode_constraint_key(
     cursor: &mut Cursor<'_>,

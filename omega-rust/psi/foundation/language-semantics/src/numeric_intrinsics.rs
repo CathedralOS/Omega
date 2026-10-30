@@ -176,30 +176,24 @@ enum FloatResult {
     Class,
 }
 
+macro_rules! float_op {
+    ($name:literal => $arity:literal => $result:ident => $narrow:ident => $wide:ident) => {
+        (
+            $name,
+            $arity,
+            FloatResult::$result,
+            BuiltinFunction::$narrow,
+            BuiltinFunction::$wide,
+        )
+    };
+}
+
 /// The finite native catalog, not a source-shape dispatch matrix. Each row
 /// states one operation's arity, result and both existing IEEE realizations.
 const FLOAT_OPERATIONS: &[(&str, usize, FloatResult, BuiltinFunction, BuiltinFunction)] = &[
-    (
-        "minimum",
-        2,
-        FloatResult::Float,
-        BuiltinFunction::FloatMinimum,
-        BuiltinFunction::FloatMinimum,
-    ),
-    (
-        "maximum",
-        2,
-        FloatResult::Float,
-        BuiltinFunction::FloatMaximum,
-        BuiltinFunction::FloatMaximum,
-    ),
-    (
-        "square_root",
-        1,
-        FloatResult::Float,
-        BuiltinFunction::FloatSquareRoot,
-        BuiltinFunction::FloatSquareRoot,
-    ),
+    float_op!("minimum" => 2 => Float => FloatMinimum => FloatMinimum),
+    float_op!("maximum" => 2 => Float => FloatMaximum => FloatMaximum),
+    float_op!("square_root" => 1 => Float => FloatSquareRoot => FloatSquareRoot),
     (
         "multiply_then_add",
         3,
@@ -214,55 +208,13 @@ const FLOAT_OPERATIONS: &[(&str, usize, FloatResult, BuiltinFunction, BuiltinFun
         BuiltinFunction::FloatFusedMultiplyAddF32,
         BuiltinFunction::FloatFusedMultiplyAddF64,
     ),
-    (
-        "is_nan",
-        1,
-        FloatResult::Boolean,
-        BuiltinFunction::FloatIsNan,
-        BuiltinFunction::FloatIsNan,
-    ),
-    (
-        "is_finite",
-        1,
-        FloatResult::Boolean,
-        BuiltinFunction::FloatIsFinite,
-        BuiltinFunction::FloatIsFinite,
-    ),
-    (
-        "is_infinite",
-        1,
-        FloatResult::Boolean,
-        BuiltinFunction::FloatIsInfinite,
-        BuiltinFunction::FloatIsInfinite,
-    ),
-    (
-        "is_normal",
-        1,
-        FloatResult::Boolean,
-        BuiltinFunction::FloatIsNormal,
-        BuiltinFunction::FloatIsNormal,
-    ),
-    (
-        "is_subnormal",
-        1,
-        FloatResult::Boolean,
-        BuiltinFunction::FloatIsSubnormal,
-        BuiltinFunction::FloatIsSubnormal,
-    ),
-    (
-        "classify",
-        1,
-        FloatResult::Class,
-        BuiltinFunction::FloatClassifyF32,
-        BuiltinFunction::FloatClassifyF64,
-    ),
-    (
-        "add_toward_zero",
-        2,
-        FloatResult::Float,
-        BuiltinFunction::FloatAddTowardZeroF32,
-        BuiltinFunction::FloatAddTowardZeroF64,
-    ),
+    float_op!("is_nan" => 1 => Boolean => FloatIsNan => FloatIsNan),
+    float_op!("is_finite" => 1 => Boolean => FloatIsFinite => FloatIsFinite),
+    float_op!("is_infinite" => 1 => Boolean => FloatIsInfinite => FloatIsInfinite),
+    float_op!("is_normal" => 1 => Boolean => FloatIsNormal => FloatIsNormal),
+    float_op!("is_subnormal" => 1 => Boolean => FloatIsSubnormal => FloatIsSubnormal),
+    float_op!("classify" => 1 => Class => FloatClassifyF32 => FloatClassifyF64),
+    float_op!("add_toward_zero" => 2 => Float => FloatAddTowardZeroF32 => FloatAddTowardZeroF64),
     (
         "add_toward_positive",
         2,

@@ -4,6 +4,12 @@ use crate::file_layout::constants::{
 };
 use crate::file_layout::layout::{align_to_u64, alignment_power};
 
+macro_rules! u64 {
+    ($a:expr => $b:expr) => {
+        write_u64($a, $b)
+    };
+}
+
 pub(crate) fn write_macho_pagezero_segment(bytes: &mut Vec<u8>) {
     write_u32(bytes, 0x19);
     write_u32(bytes, MACHO_SEGMENT_COMMAND_SIZE as u32);
@@ -32,10 +38,7 @@ pub(crate) fn write_macho_executable_text_segment(
     write_u64(bytes, MACHO_EXECUTABLE_BASE);
     write_u64(bytes, align_to_u64(text_file_size as u64, page_size));
     write_u64(bytes, 0);
-    write_u64(
-        bytes,
-        u64::try_from(text_file_size).expect("Mach-O text file size overflow"),
-    );
+    u64!(bytes => u64::try_from(text_file_size).expect("Mach-O text file size overflow"));
     write_u32(bytes, 5);
     write_u32(bytes, 5);
     write_u32(bytes, 1);
@@ -44,10 +47,7 @@ pub(crate) fn write_macho_executable_text_segment(
     write_fixed_string_16(bytes, "__text");
     write_fixed_string_16(bytes, "__TEXT");
     write_u64(bytes, MACHO_EXECUTABLE_BASE + text_offset as u64);
-    write_u64(
-        bytes,
-        u64::try_from(text_size).expect("Mach-O text size overflow"),
-    );
+    u64!(bytes => u64::try_from(text_size).expect("Mach-O text size overflow"));
     write_u32(
         bytes,
         u32::try_from(text_offset).expect("Mach-O text offset overflow"),
@@ -77,14 +77,8 @@ pub(crate) fn write_macho_executable_data_segment(
     write_fixed_string_16(bytes, "__DATA");
     write_u64(bytes, MACHO_EXECUTABLE_BASE + data_offset as u64);
     write_u64(bytes, data_vm_size);
-    write_u64(
-        bytes,
-        u64::try_from(data_offset).expect("Mach-O data file offset overflow"),
-    );
-    write_u64(
-        bytes,
-        u64::try_from(data_size).expect("Mach-O data file size overflow"),
-    );
+    u64!(bytes => u64::try_from(data_offset).expect("Mach-O data file offset overflow"));
+    u64!(bytes => u64::try_from(data_size).expect("Mach-O data file size overflow"));
     write_u32(bytes, 3);
     write_u32(bytes, 3);
     write_u32(
@@ -115,18 +109,9 @@ pub(crate) fn write_macho_linkedit_segment(
     write_u32(bytes, MACHO_SEGMENT_COMMAND_SIZE as u32);
     write_fixed_string_16(bytes, "__LINKEDIT");
     write_u64(bytes, vmaddr);
-    write_u64(
-        bytes,
-        u64::try_from(vm_size).expect("Mach-O LINKEDIT vm size overflow"),
-    );
-    write_u64(
-        bytes,
-        u64::try_from(file_offset).expect("Mach-O LINKEDIT file offset overflow"),
-    );
-    write_u64(
-        bytes,
-        u64::try_from(file_size).expect("Mach-O LINKEDIT file size overflow"),
-    );
+    u64!(bytes => u64::try_from(vm_size).expect("Mach-O LINKEDIT vm size overflow"));
+    u64!(bytes => u64::try_from(file_offset).expect("Mach-O LINKEDIT file offset overflow"));
+    u64!(bytes => u64::try_from(file_size).expect("Mach-O LINKEDIT file size overflow"));
     write_u32(bytes, 1);
     write_u32(bytes, 1);
     write_reserved_u32s(bytes, 2);
@@ -136,10 +121,7 @@ fn write_macho_executable_data_section(bytes: &mut Vec<u8>, data_offset: usize, 
     write_fixed_string_16(bytes, "__data");
     write_fixed_string_16(bytes, "__DATA");
     write_u64(bytes, MACHO_EXECUTABLE_BASE + data_offset as u64);
-    write_u64(
-        bytes,
-        u64::try_from(data_size).expect("Mach-O data section size overflow"),
-    );
+    u64!(bytes => u64::try_from(data_size).expect("Mach-O data section size overflow"));
     write_u32(
         bytes,
         u32::try_from(data_offset).expect("Mach-O data section offset overflow"),
@@ -157,10 +139,7 @@ fn write_macho_executable_bss_section(
     write_fixed_string_16(bytes, "__bss");
     write_fixed_string_16(bytes, "__DATA");
     write_u64(bytes, bss_address);
-    write_u64(
-        bytes,
-        u64::try_from(bss_size).expect("Mach-O bss section size overflow"),
-    );
+    u64!(bytes => u64::try_from(bss_size).expect("Mach-O bss section size overflow"));
     write_u32(bytes, 0);
     write_u32(bytes, alignment_power(bss_alignment));
     write_reserved_u32s(bytes, 2);

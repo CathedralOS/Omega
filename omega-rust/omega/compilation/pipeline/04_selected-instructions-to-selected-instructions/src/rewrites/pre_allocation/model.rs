@@ -260,42 +260,27 @@ impl ValidatedPreAllocationTransformation {
     /// The durable transformation identity the iteration receipt and the
     /// post-allocation manifest ledger record.
     pub fn identity(&self) -> PreAllocationTransformationIdentity {
-        match self {
-            Self::CopyRemoval(removal) => {
-                PreAllocationTransformationIdentity::CopyRemoval(removal.receipt().identity())
-            }
-            Self::RedundantExtension(removal) => {
-                PreAllocationTransformationIdentity::RedundantExtension(
-                    removal.receipt().identity(),
-                )
-            }
-            Self::AddressFold(fold) => {
-                PreAllocationTransformationIdentity::AddressFold(fold.receipt().identity())
-            }
-            Self::ConstantBoolean(fold) => {
-                PreAllocationTransformationIdentity::ConstantBoolean(fold.receipt().identity())
-            }
-            Self::ConstantBranch(fold) => {
-                PreAllocationTransformationIdentity::ConstantBranch(fold.receipt().identity())
-            }
-            Self::DeadCompare(removal) => {
-                PreAllocationTransformationIdentity::DeadCompare(removal.receipt().identity())
-            }
-            Self::RedundantCompare(removal) => {
-                PreAllocationTransformationIdentity::RedundantCompare(removal.receipt().identity())
-            }
-            Self::EquivalentCompare(removal) => {
-                PreAllocationTransformationIdentity::EquivalentCompare(removal.receipt().identity())
-            }
-            Self::CopiedCallOperand(reroute) => {
-                PreAllocationTransformationIdentity::CopiedCallOperand(reroute.receipt().identity())
-            }
-            Self::StoredLoadForwarding(forwarding) => {
-                PreAllocationTransformationIdentity::StoredLoadForwarding(
-                    forwarding.receipt().identity(),
-                )
-            }
+        macro_rules! project {
+            ($($variant:ident($binding:ident)),* $(,)?) => {
+                match self {
+                    $(Self::$variant($binding) => {
+                        PreAllocationTransformationIdentity::$variant($binding.receipt().identity())
+                    })*
+                }
+            };
         }
+        project!(
+            CopyRemoval(removal),
+            RedundantExtension(removal),
+            AddressFold(fold),
+            ConstantBoolean(fold),
+            ConstantBranch(fold),
+            DeadCompare(removal),
+            RedundantCompare(removal),
+            EquivalentCompare(removal),
+            CopiedCallOperand(reroute),
+            StoredLoadForwarding(forwarding),
+        )
     }
 }
 
@@ -322,38 +307,27 @@ impl From<PreAllocationTransformationIdentity>
     for register_homes::PostAllocationSelectedTransformation
 {
     fn from(identity: PreAllocationTransformationIdentity) -> Self {
-        match identity {
-            PreAllocationTransformationIdentity::CopyRemoval(identity) => {
-                Self::CopyRemoval(identity)
-            }
-            PreAllocationTransformationIdentity::RedundantExtension(identity) => {
-                Self::RedundantExtension(identity)
-            }
-            PreAllocationTransformationIdentity::AddressFold(identity) => {
-                Self::AddressFold(identity)
-            }
-            PreAllocationTransformationIdentity::ConstantBoolean(identity) => {
-                Self::ConstantBoolean(identity)
-            }
-            PreAllocationTransformationIdentity::ConstantBranch(identity) => {
-                Self::ConstantBranch(identity)
-            }
-            PreAllocationTransformationIdentity::DeadCompare(identity) => {
-                Self::DeadCompare(identity)
-            }
-            PreAllocationTransformationIdentity::RedundantCompare(identity) => {
-                Self::RedundantCompare(identity)
-            }
-            PreAllocationTransformationIdentity::EquivalentCompare(identity) => {
-                Self::EquivalentCompare(identity)
-            }
-            PreAllocationTransformationIdentity::CopiedCallOperand(identity) => {
-                Self::CopiedCallOperand(identity)
-            }
-            PreAllocationTransformationIdentity::StoredLoadForwarding(identity) => {
-                Self::StoredLoadForwarding(identity)
-            }
+        macro_rules! forward {
+            ($($variant:ident),* $(,)?) => {
+                match identity {
+                    $(PreAllocationTransformationIdentity::$variant(identity) => {
+                        Self::$variant(identity)
+                    })*
+                }
+            };
         }
+        forward!(
+            CopyRemoval,
+            RedundantExtension,
+            AddressFold,
+            ConstantBoolean,
+            ConstantBranch,
+            DeadCompare,
+            RedundantCompare,
+            EquivalentCompare,
+            CopiedCallOperand,
+            StoredLoadForwarding,
+        )
     }
 }
 
@@ -515,34 +489,21 @@ impl StagedPreAllocationOptimizationCustodyReceipt {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedPreAllocationIterationReceipt {
-    pub(super) source_selected: SelectedInstructionPlanIdentity,
-    pub(super) transformation: PreAllocationTransformationIdentity,
-    pub(super) function_index: usize,
-    pub(super) instruction: SelectedInstructionId,
-    pub(super) transformed_selected: SelectedInstructionPlanIdentity,
-    pub(super) fresh_liveness: LivenessIdentity,
-    pub(super) fresh_ranges: LiveRangeIdentity,
-    pub(super) fresh_legality: register_homes::AllocationLegalityIdentity,
-    pub(super) declined: usize,
-    pub(super) evaluated: usize,
-}
-
-impl StagedOptimizedPreAllocationIterationReceipt {
-    receipt_accessor_rows!(StagedOptimizedPreAllocationIterationReceipt {
-        source_selected: SelectedInstructionPlanIdentity,
-        transformed_selected: SelectedInstructionPlanIdentity,
-        fresh_liveness: LivenessIdentity,
-        fresh_ranges: LiveRangeIdentity,
-        fresh_legality: register_homes::AllocationLegalityIdentity,
-        transformation: PreAllocationTransformationIdentity,
-        function_index: usize,
+copy_receipt! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct StagedOptimizedPreAllocationIterationReceipt {
+        pub(super) source_selected: SelectedInstructionPlanIdentity,
+        pub(super) transformation: PreAllocationTransformationIdentity,
+        pub(super) function_index: usize,
         /// The source-side identity of the instruction the step rewrote.
-        instruction: SelectedInstructionId,
-        declined: usize,
-        evaluated: usize,
-    });
+        pub(super) instruction: SelectedInstructionId,
+        pub(super) transformed_selected: SelectedInstructionPlanIdentity,
+        pub(super) fresh_liveness: LivenessIdentity,
+        pub(super) fresh_ranges: LiveRangeIdentity,
+        pub(super) fresh_legality: register_homes::AllocationLegalityIdentity,
+        pub(super) declined: usize,
+        pub(super) evaluated: usize,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

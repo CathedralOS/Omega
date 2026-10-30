@@ -24,9 +24,3 @@ CheckedMainMain satisfies SelectedMainMain {
     machine done(main: &mut Main) { main.hits = -1; }
 }
 }
-
-
-
-
-
-

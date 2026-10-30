@@ -30,7 +30,7 @@ pub struct ProviderBindingRequest<'a> {
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
     pub external_declarations: &'a std::sync::OnceLock<
         Result<
-            Arc<psi_terminal_production::PreparedNumericRealizationDeclarations>,
+            Arc<psi_terminal_production::PreparedDeclarationCatalog>,
             Vec<Diagnostic>,
         >,
     >,
@@ -68,7 +68,7 @@ pub fn prepare_selected_execution(
     let numeric_realizations = settlement
         .external_declarations
         .get_or_init(|| {
-            psi_terminal_production::PreparedNumericRealizationDeclarations::prepare(
+            psi_terminal_production::PreparedDeclarationCatalog::prepare(
                 Arc::clone(&program),
                 settlement.exact_toolchain_sources,
             )
@@ -106,12 +106,22 @@ pub fn prepare_selected_execution(
         settlement.authored_root_grants,
     )?;
     let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
-    let callback_roots = provider_planning::calling_policy_plans::select_nominal_callback_roots(
-        &program.typed,
+    // Close the existing exact source association once. Native ABI publication
+    // is not needed to count calling declarations and must not add early errors.
+    let calling_requirements = external_providers.callbacks.calling_requirements(
+        settlement
+            .boundary_calling_plan_realizations
+            .iter()
+            .filter(|realization| realization.boundary_arguments.is_empty())
+            .map(|realization| (realization.boundary_trait, realization.requirement_machine)),
+    );
+    let callback_roots = provider_planning::callback_roots::prepare(
+        &program,
         &selected_provider_plan_facts,
-        &program.facts,
-        settlement.boundary_calling_plan_realizations,
+        &external_providers.callbacks.declarations,
+        &calling_requirements,
     )?;
+    let callback_roots = external_providers.selected_callback_roots(callback_roots);
     let service_declarations = Arc::new(
         provider_planning::service_declarations::ServiceDeclarations::prepare(
             provider_planning::ProviderPlanningContext::new(

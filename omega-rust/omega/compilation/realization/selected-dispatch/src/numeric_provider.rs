@@ -3,13 +3,13 @@
 
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow};
-use psi_terminal_production::NumericRealizationDeclarations;
+use psi_terminal_production::DeclarationCatalog;
 use symbols::SymbolHandle;
 
 #[derive(Clone, Copy)]
 pub struct NumericProviderSelection<'a> {
-    pub candidate: &'a NumericRealizationDeclarations,
-    pub custody: &'a NumericRealizationDeclarations,
+    pub candidate: &'a DeclarationCatalog,
+    pub custody: &'a DeclarationCatalog,
     pub provider: Option<SymbolHandle>,
 }
 
@@ -36,7 +36,7 @@ impl<'a> NumericProviderSelection<'a> {
                 .custody
                 .nominal(realization)
                 .ok_or("numeric realization has no checked declaration")?;
-            let select = |declarations: &'a NumericRealizationDeclarations| {
+            let select = |declarations: &'a DeclarationCatalog| {
                 effects::numeric_realizations::selected_numeric_realization(
                     &declarations.conformances,
                     &declarations.identities,

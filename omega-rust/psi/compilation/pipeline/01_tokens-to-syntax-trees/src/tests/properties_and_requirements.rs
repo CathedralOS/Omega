@@ -130,11 +130,7 @@ fn retired_trailing_boundary_contracts_name_current_boundary_surfaces() {
 #[test]
 fn erased_join_type_is_rejected_but_join_names_are_ordinary() {
     let retired = "machine run(task: Join<i32>) {}";
-    let error = super::parse_source_error(
-        retired,
-        "tokenize should succeed",
-        "Join<T> must be retired",
-    );
+    let error = super::parse_tokenized_error(retired, "Join<T> must be retired");
     let rendered = error.message;
     assert!(rendered.contains("Join<T>") && rendered.contains("finish()"));
 
@@ -205,9 +201,8 @@ fn multiplicity_property_lists_accept_trailing_commas() {
 #[test]
 fn copy_and_linear_properties_are_mutually_exclusive() {
     for source in ["data Bad [copy, linear] {}", "data Bad [linear, copy] {}"] {
-        let error = super::parse_source_error(
+        let error = super::parse_tokenized_error(
             source,
-            "tokenize should succeed",
             "copy and linear must not coexist on one declaration",
         );
         assert!(error.message.contains("mutually exclusive"));
@@ -724,11 +719,7 @@ fn parses_fixed_operator_tokens_in_declaration_heads() {
 #[test]
 fn rejects_retired_operator_spelling_clause() {
     let source = "operator add(left: i32, right: i32) -> i32 spelling +;";
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "retired clause must reject",
-    );
+    let error = super::parse_tokenized_error(source, "retired clause must reject");
 
     super::expect_error(&error, "expected `;`");
 }
@@ -847,11 +838,7 @@ fn rejects_malformed_operator_tokens_on_machine_declarations() {
             "a conformance member supplies an implementation",
         ),
     ] {
-        let error = super::parse_source_error(
-            source,
-            "tokenize should succeed",
-            "malformed token head must reject",
-        );
+        let error = super::parse_tokenized_error(source, "malformed token head must reject");
         super::expect_error(&error, expected);
     }
 }
@@ -872,11 +859,7 @@ fn rejects_all_retired_invariant_declaration_forms_with_direction() {
             "the `invariant` machine member is retired",
         ),
     ] {
-        let error = super::parse_source_error(
-            source,
-            "tokenize should succeed",
-            "retired invariant must reject",
-        );
+        let error = super::parse_tokenized_error(source, "retired invariant must reject");
         assert!(error.message.contains(expected), "got: {}", error.message);
     }
 }
@@ -917,11 +900,7 @@ fn rejects_unknown_or_multiple_fixed_operator_tokens() {
 #[test]
 fn rejects_unknown_crash_causes() {
     let source = "machine fail() crashes Panic {}";
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "unknown crash cause must fail",
-    );
+    let error = super::parse_tokenized_error(source, "unknown crash cause must fail");
     super::expect_error(
         &error,
         "unknown crash cause `Panic`; expected `Trap` or `Abort`",
@@ -963,22 +942,14 @@ fn parses_explicit_crash_terminal_and_retires_trap_statement() {
 #[test]
 fn rejects_duplicate_operational_clauses() {
     let source = "machine run() suspends; suspends; {}";
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "duplicate clause must fail",
-    );
+    let error = super::parse_tokenized_error(source, "duplicate clause must fail");
     super::expect_error(&error, "duplicate `suspends;`");
 }
 
 #[test]
 fn rejects_legacy_effects_reach_clause() {
     let source = "machine run() effects Console {}";
-    let error = super::parse_source_error(
-        source,
-        "tokenize should succeed",
-        "legacy reach spelling must fail",
-    );
+    let error = super::parse_tokenized_error(source, "legacy reach spelling must fail");
     super::expect_error(&error, "`effects` reach clause is retired");
     assert!(error.message.contains("`reaches <Service> + ...`"));
 }
@@ -1210,9 +1181,8 @@ fn rejects_empty_or_mixed_installation_bound_reach_rows() {
         "boundary trait Completion { machine complete() reaches MachineControl reaches <= PortIo; }",
         "boundary trait Completion { machine complete() reaches <= MachineControl reaches PortIo; }",
     ] {
-        let error = super::parse_source_error(
+        let error = super::parse_tokenized_error(
             source,
-            "tokenize should succeed",
             "empty or mixed installation-bound reach must reject",
         );
         super::expect_error(&error, "installation-bound reach");
@@ -1227,11 +1197,7 @@ fn rejects_operational_members_in_service_reach_rows() {
         ("thread_block", "blocks;"),
     ] {
         let source = format!("machine run() reaches Console, {retired} {{}}");
-        let error = super::parse_source_error(
-            &source,
-            "tokenize should succeed",
-            "retired effect member must fail",
-        );
+        let error = super::parse_tokenized_error(&source, "retired effect member must fail");
         assert!(error.message.contains("boundary-service identities only"));
         super::expect_error(&error, replacement);
     }

@@ -81,8 +81,6 @@ pub enum CountedLoopAnalysisError {
 
 failed_display!(CountedLoopAnalysisError, "counted-loop analysis failure");
 
-impl std::error::Error for CountedLoopAnalysisError {}
-
 pub(super) fn shape(machine: MachineId) -> CountedLoopAnalysisError {
     CountedLoopAnalysisError::UnsupportedCountdownShape { machine }
 }

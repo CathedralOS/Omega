@@ -43,5 +43,3 @@ WindowsX8664Load satisfies SelectedLoad {
     machine bad() crashes Trap { crash Trap; }
 }
 }
-
-

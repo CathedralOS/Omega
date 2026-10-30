@@ -7,6 +7,12 @@ use crate::mathematical_core::{
     weak_head_normalize,
 };
 
+macro_rules! conv {
+    ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr => $f:expr) => {
+        convertible($a, $b, $c, $d, $e, $f)
+    };
+}
+
 #[test]
 fn identity_forms_at_the_carrier_level_and_refl_introduces() {
     let mut arena = TermArena::new();
@@ -179,15 +185,8 @@ fn identity_elimination_computes_on_refl_and_respects_the_ceiling() {
         refl(&mut arena, ty, x)
     };
     assert!(
-        convertible(
-            &mut arena,
-            &context,
-            elimination,
-            same_refl,
-            result_type,
-            &mut budget,
-        )
-        .unwrap()
+        conv!(&mut arena => &context => elimination => same_refl => result_type => &mut budget)
+            .unwrap()
     );
 }
 
@@ -259,37 +258,14 @@ fn stuck_identity_eliminations_compare_componentwise() {
     let shared_type = type_sort(&mut arena, 0);
 
     assert!(
-        convertible(
-            &mut arena,
-            &context,
-            left,
-            left_again,
-            shared_type,
-            &mut budget,
-        )
-        .unwrap()
+        conv!(&mut arena => &context => left => left_again => shared_type => &mut budget).unwrap()
     );
     assert!(
-        !convertible(
-            &mut arena,
-            &context,
-            left,
-            other_proof,
-            shared_type,
-            &mut budget,
-        )
-        .unwrap()
+        !conv!(&mut arena => &context => left => other_proof => shared_type => &mut budget)
+            .unwrap()
     );
     assert!(
-        !convertible(
-            &mut arena,
-            &context,
-            left,
-            other_base,
-            shared_type,
-            &mut budget,
-        )
-        .unwrap()
+        !conv!(&mut arena => &context => left => other_base => shared_type => &mut budget).unwrap()
     );
 }
 
@@ -846,15 +822,7 @@ fn w_types_convert_componentwise_and_sup_has_no_eta() {
     let carrier = variable(&mut arena, 7);
     let w_constant = w_type(&mut arena, carrier, constant_family);
     assert!(
-        !convertible(
-            &mut arena,
-            &context,
-            w,
-            w_constant,
-            shared_sort,
-            &mut budget
-        )
-        .unwrap()
+        !conv!(&mut arena => &context => w => w_constant => shared_sort => &mut budget).unwrap()
     );
 
     // A family at a different level — `λ(_ : A). Type 0` is

@@ -34,6 +34,49 @@ macro_rules! assignment_context_accessors {
     };
 }
 
+/// Register environment and per-pass budget from the admitted legality stage,
+/// plus the optimizer selections that stage or its run owns. Each route
+/// supplies the stage; a run whose selections are not on that stage passes
+/// them separately.
+macro_rules! admitted_stage_accessors {
+    (const $vis:vis, $stage:ident $(. $step:ident())*) => {
+        admitted_stage_accessors!(const $vis, $stage $(. $step())*, selections $stage $(. $step())*);
+    };
+    (const $vis:vis, $stage:ident $(. $step:ident())*, selections $selections:ident $(. $selection_step:ident())*) => {
+        /// The register environment admitted with the source legality stage.
+        /// The stage preserves it, so that environment is the current one.
+        $vis const fn register_environment(
+            &self,
+        ) -> &register_environment::ValidatedTargetRegisterEnvironment {
+            self.$stage$(.$step())*.register_environment()
+        }
+        /// The governing optimizer selections admitted with this assignment.
+        $vis fn selections(&self) -> &optimization_core::OptimizationSelections {
+            self.$selections$(.$selection_step())*.selections()
+        }
+        /// The per-pass work budget admitted beside the same evidence.
+        $vis fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
+            self.$stage$(.$step())*.budget_per_pass()
+        }
+    };
+    (fn $vis:vis, $method:ident) => {
+        /// The register environment admitted with the source legality stage.
+        $vis fn register_environment(
+            &self,
+        ) -> &register_environment::ValidatedTargetRegisterEnvironment {
+            self.$method().register_environment()
+        }
+        /// The governing optimizer selections admitted with this assignment.
+        $vis fn selections(&self) -> &optimization_core::OptimizationSelections {
+            self.$method().selections()
+        }
+        /// The per-pass work budget admitted beside the same evidence.
+        $vis fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
+            self.$method().budget_per_pass()
+        }
+    };
+}
+
 /// The one post-home custody receipt every staging route publishes: the source
 /// receipt that route retained, the homes and manifest it built over it, and
 /// the two counts it published. A route whose source receipt is a different

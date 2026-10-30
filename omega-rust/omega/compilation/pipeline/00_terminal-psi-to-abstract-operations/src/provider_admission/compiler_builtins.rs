@@ -208,7 +208,9 @@ pub(super) fn settle_compiler_builtins<'request>(
                     || demand.operation != operation
                     || operation == terminal_psi::TerminalPlacedAccessorKind::Take
                     || effects::compiler_placed_scalar_contract_identity(
-                        proposal.provider_plan.schema_identity_digest(),
+                        // Direct callable selection projects a lookup schema;
+                        // the sealed operation binds the satisfied contract.
+                        proposal.semantic_schema.identity_digest(),
                         placement_commitment,
                         access_slot,
                         compiler_operation,

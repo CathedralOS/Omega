@@ -84,14 +84,7 @@ fn placed_scalar_forms_decode_one_exact_width_transfer() {
                       operands: &[register_model::RegisterViewId],
                       displacement,
                       bytes: &[u8]| {
-            super::validate_aarch64_selected_memory_form(
-                &physical,
-                kind,
-                alternative,
-                operands,
-                displacement,
-                bytes,
-            )
+            super::check_memory(&physical, kind, alternative, operands, displacement, bytes)
         };
         let verify_request = |kind: SelectedInstructionKind, alternative: MachineAlternativeKey| {
             verify(kind, alternative, &[base, data], 8, encoded.bytes())

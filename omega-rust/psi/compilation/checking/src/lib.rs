@@ -331,7 +331,7 @@ pub use declarations::traits::{
 pub use machine_calls::effect_inference::{
     boundary_signature_service_reach, declared_machine_invocations, declared_signature_invocations,
     fixed_installation_boundary_service_reach, has_self_forwarded_boundary_parameter,
-    infer_operational_may, infer_operational_may_for_cleanup_dependencies, infer_service_reaches,
+    infer_operational_may, infer_operational_may_for_dependencies, infer_service_reaches,
     infer_synchronous_invocations, invocation_target_label,
 };
 pub use machine_calls::effects::{

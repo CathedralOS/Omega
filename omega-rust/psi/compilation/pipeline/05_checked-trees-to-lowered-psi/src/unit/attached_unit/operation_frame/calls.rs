@@ -21,7 +21,7 @@
 
 use super::super::{ordinary_calls, signatures, structural_values};
 use super::{OperationFrame, StructuralResults};
-use crate::direct_calls::DirectCallResult;
+use crate::direct_calls::{DirectCallResult, ModuleInvocationArguments};
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use crate::unit::{
@@ -31,7 +31,7 @@ use crate::unit::{
 };
 use checked_trees::{
     CheckedBoundaryMachineResultPlan, CheckedUnitCallPlan, CheckedUnitCallResult,
-    CheckedUnitCallRoute,
+    CheckedUnitCallRoute, CheckedUnitStructuralArgumentPlan,
 };
 
 /// The completed operands one call hands the frame. Each route evaluates
@@ -444,246 +444,16 @@ impl OperationFrame<'_, '_> {
             .record_source_call(coordinate, source_site, operation, target, &frontier)
     }
 
-    /// Join demanded source bindings through this state's authored namespace.
-    /// Checked coordinates count every parameter and local; scalar values and
-    /// structural storage have independent emitted namespaces. Preserve each
-    /// existing storage home, projected alias and claim identity rather than
-    /// renumbering source positions or recreating a value at the crossing.
-    /// Non-suspending calls need no frontier companion.
-    fn suspension_source_frontier(
-        &self,
-        coordinate: checked_trees::CheckedUnitCallCoordinate,
-    ) -> Result<lowered_psi::LoweredSourceFrontierBindings, LoweringError> {
-        let Some(crossing) =
-            self.checked
-                .facts
-                .carry
-                .suspension_crossings
-                .iter()
-                .find(|crossing| {
-                    crossing.machine == self.machine
-                        && crossing.state == self.state
-                        && crossing.statement_index == coordinate.statement_index as usize
-                        && crossing.call_ordinal == coordinate.call_ordinal as usize
-                })
-        else {
-            return Ok(Default::default());
-        };
-        let (_, state) = self
-            .checked
-            .state_flow_site(self.machine, self.state)
-            .ok_or(LoweringError::Unsupported(
-                "suspension call lost its checked source state",
-            ))?;
-        let parameters = self.checked.state_parameters(state);
-        let locals = self.checked.facts.state_locals.locals(self.state);
-        let mut bindings = lowered_psi::LoweredSourceFrontierBindings {
-            claims: self.calls.claims.bindings().to_vec(),
-            ..Default::default()
-        };
-        for capture in &self.operations.loan_captures {
-            if self
-                .checked
-                .facts
-                .carry
-                .suspension_loans
-                .span_or_empty(crossing.borrows.loans)
-                .iter()
-                .any(|entry| entry.retained_for_crossing && entry.stored_loan() == capture.loan)
-            {
-                bindings.loan_captures.push(capture.clone());
-            }
-        }
-        for live in &crossing.live_values {
-            let (symbol, source_position) = match live.origin {
-                checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, position } => {
-                    if !parameters
-                        .get(position)
-                        .is_some_and(|parameter| parameter.symbol == symbol)
-                    {
-                        return unsupported(
-                            "suspension parameter changes its checked source position",
-                        );
-                    }
-                    (symbol, position)
-                }
-                checked_trees::SuspensionCrossingValueOrigin::Local {
-                    symbol,
-                    statement_index,
-                    environment_position,
-                } => {
-                    if !locals.iter().enumerate().any(|(position, local)| {
-                        local.symbol == symbol
-                            && local.statement_index as usize == statement_index
-                            && local.statement_index < coordinate.statement_index
-                            && parameters.len() + position == environment_position
-                    }) {
-                        return unsupported("suspension local changes its checked source position");
-                    }
-                    (symbol, environment_position)
-                }
-                checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => continue,
-            };
-            // Storage identity comes before carrier classification. An ordinary
-            // scalar binding may now occupy an addressable home; retaining its
-            // initializer SSA value would lose intervening writes and its address.
-            let local = crate::expression_preparation::bindings::structural_local_by_root(
-                &self.evaluation.structural_locals,
-                facts::PlaceRoot::Symbol(symbol),
-            );
-            let home = if let Some(local) = local {
-                Some((local.argument.clone(), local.structural_type))
-            } else if let Some((_, parameter)) = self
-                .evaluation
-                .structural_parameters
-                .iter()
-                .find(|(position, _)| *position as usize == source_position)
-            {
-                // An incoming scalar loan also participates in primitive
-                // access, but its home is the admitted structural parameter.
-                // It has neither an owned-local constructor nor an SSA value
-                // until read. Preserve the parameter's existing access.
-                Some((
-                    terminal_psi::StructuralArgument {
-                        place: parameter.place,
-                        path: Vec::new(),
-                        access: parameter.access,
-                    },
-                    parameter.structural_type,
-                ))
-            } else if let Some((_, place, scalar_type)) = self
-                .evaluation
-                .primitive_storage
-                .iter()
-                .find(|(candidate, _, _)| *candidate == symbol)
-            {
-                let declaration = self
-                    .primitive_locals
-                    .iter()
-                    .chain(&self.evaluation.parameter_storage)
-                    .find(|local| local.declaration.id == *place)
-                    .ok_or(LoweringError::Unsupported(
-                        "suspension scalar home has no established declaration",
-                    ))?;
-                let (_, structural_type) =
-                    declaration.declaration.kind.as_operation_result().ok_or(
-                        LoweringError::Unsupported(
-                            "suspension scalar home has no establishing operation",
-                        ),
-                    )?;
-                let primitive = self
-                    .checked
-                    .primitive_type_reference(live.type_reference)
-                    .ok_or(LoweringError::Unsupported(
-                        "suspension scalar home has no checked carrier",
-                    ))?;
-                if terminal_scalar_type(primitive)? != *scalar_type {
-                    return unsupported("suspension scalar home changes its checked carrier");
-                }
-                Some((
-                    terminal_psi::StructuralArgument {
-                        place: *place,
-                        path: Vec::new(),
-                        access: terminal_psi::StructuralAccess::Owned,
-                    },
-                    structural_type,
-                ))
-            } else {
-                None
-            };
-            if let Some((argument, structural_type)) = home {
-                bindings
-                    .structural
-                    .push(lowered_psi::LoweredSourceStructuralBinding {
-                        source_position,
-                        argument,
-                        structural_type,
-                    });
-                continue;
-            }
-            let authored_position = match live.origin {
-                checked_trees::SuspensionCrossingValueOrigin::Parameter { position, .. } => {
-                    let parameter = &parameters[position];
-                    if parameter.is_mutable
-                        || parameter.relevance.is_erased()
-                        || self
-                            .checked
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_none()
-                    {
-                        continue;
-                    }
-                    parameters[..position]
-                        .iter()
-                        .filter(|parameter| {
-                            !parameter.relevance.is_erased()
-                                && self
-                                    .checked
-                                    .primitive_type_reference(parameter.type_reference)
-                                    .is_some()
-                        })
-                        .count()
-                }
-                checked_trees::SuspensionCrossingValueOrigin::Local {
-                    environment_position,
-                    ..
-                } => {
-                    let local = &locals[environment_position - parameters.len()];
-                    if !local.is_scalar_value {
-                        continue;
-                    }
-                    self.scalar_parameter_count
-                        + self
-                            .checked
-                            .facts
-                            .state_locals
-                            .scalar_locals_before(self.state, local.statement_index)
-                            as usize
-                }
-                checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => continue,
-            };
-            let Some((value_position, scalar_type)) = self
-                .evaluation
-                .scalar_bindings
-                .unaddressed_value(authored_position)
-            else {
-                continue;
-            };
-            let value =
-                self.values
-                    .get(value_position)
-                    .copied()
-                    .ok_or(LoweringError::Unsupported(
-                        "suspension scalar binding lost its emitted value",
-                    ))?;
-            if value.scalar_type != scalar_type {
-                return unsupported("suspension scalar binding changes its carrier");
-            }
-            bindings
-                .scalars
-                .push(lowered_psi::LoweredSourceScalarBinding {
-                    source_position,
-                    value,
-                });
-        }
-        Ok(bindings)
-    }
-
-    /// A call into a complete Unit body of the closure: operands, claims,
-    /// requirement obligations and crash substitution through
-    /// `ordinary_calls::prepare`, then either a Unit call or the structural
-    /// call that establishes the callee's owned result.
-    fn unit_call(
+    /// Operands, claims, requirement obligations, and crash substitution for
+    /// one module call. Result publication stays with the caller.
+    fn prepare_module_call(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
-        call: &CheckedUnitCallPlan,
+        machine: symbols::SymbolHandle,
+        structural_arguments: &[CheckedUnitStructuralArgumentPlan],
         inputs: &CallInputs<'_>,
-    ) -> Result<(), LoweringError> {
-        let checked = self.checked;
-        let coordinate = &call.coordinate;
-        let target_machine = &call.target.machine;
-        let structural_arguments = &call.structural_arguments;
+    ) -> Result<ModuleInvocationArguments, LoweringError> {
         let earlier =
             self.results
                 .earlier(structural_arguments, self.operations, self.evaluation)?;
@@ -697,13 +467,13 @@ impl OperationFrame<'_, '_> {
                 .chain(self.primitive_locals.iter().map(|local| local.declaration))
                 .chain(self.private_places.iter().cloned()),
         );
-        let prepared = ordinary_calls::prepare(
+        ordinary_calls::prepare(
             identities,
-            checked,
+            self.checked,
             &self.evaluation.scalar_applications,
             self.state,
             operation,
-            signatures::find(self.callees.signatures, *target_machine)?.call_target(),
+            signatures::find(self.callees.signatures, machine)?.call_target(),
             inputs.evaluated_scalar_arguments,
             inputs.evaluated_selectors,
             inputs.completed_structural_arguments,
@@ -723,8 +493,30 @@ impl OperationFrame<'_, '_> {
             self.next_value,
             self.operations,
             &mut self.evaluation.current_claims,
+        )
+    }
+
+    /// A call into a complete Unit body of the closure: operands, claims,
+    /// requirement obligations and crash substitution through
+    /// `ordinary_calls::prepare`, then either a Unit call or the structural
+    /// call that establishes the callee's owned result.
+    fn unit_call(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        operation: &CheckedUnitEffectOperationPlan,
+        call: &CheckedUnitCallPlan,
+        inputs: &CallInputs<'_>,
+    ) -> Result<(), LoweringError> {
+        let checked = self.checked;
+        let coordinate = &call.coordinate;
+        let target_machine = &call.target.machine;
+        let prepared = self.prepare_module_call(
+            identities,
+            operation,
+            *target_machine,
+            &call.structural_arguments,
+            inputs,
         )?;
-        drop(earlier);
         let callee = lookup_machine_id(self.calls.machine_ids, *target_machine)?;
         if *call.result() == CheckedUnitCallResult::NoNormal {
             if self.operations.invocation_completion.is_some() {
@@ -856,47 +648,13 @@ impl OperationFrame<'_, '_> {
         // Structural guards resolve through the same allocated signature and
         // completed operands as Unit calls. A scalar result changes publication,
         // never the namespace or root substitution of the callee's contract.
-        let earlier =
-            self.results
-                .earlier(&call.structural_arguments, self.operations, self.evaluation)?;
-        let caller_bindings = self.evaluation.completed_bindings(
-            self.operations,
-            self.caller
-                .local_places
-                .iter()
-                .cloned()
-                .chain(earlier.iter().filter_map(|(place, _)| *place))
-                .chain(self.primitive_locals.iter().map(|local| local.declaration))
-                .chain(self.private_places.iter().cloned()),
-        );
-        let prepared = ordinary_calls::prepare(
+        let prepared = self.prepare_module_call(
             identities,
-            checked,
-            &self.evaluation.scalar_applications,
-            self.state,
             operation,
-            signature.call_target(),
-            inputs.evaluated_scalar_arguments,
-            inputs.evaluated_selectors,
-            inputs.completed_structural_arguments,
-            self.values,
-            self.caller.erased_scalar_parameters,
-            self.caller.erased_proof_parameters,
-            &self.evaluation.structural_parameters,
-            &self.parameters,
-            self.caller.local_places,
-            &earlier,
-            self.primitive_locals,
-            &self.evaluation.structural_locals,
-            &caller_bindings,
-            self.structural_types.declarations(),
-            inputs.byte_places,
-            self.calls,
-            self.next_value,
-            self.operations,
-            &mut self.evaluation.current_claims,
+            *realization_machine,
+            &call.structural_arguments,
+            inputs,
         )?;
-        drop(earlier);
         let value = ValueDeclaration {
             qualifications: result_qualifications,
             id: value_id(allocate_dense(self.next_value)?),

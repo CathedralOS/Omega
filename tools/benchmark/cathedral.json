@@ -1,0 +1,49 @@
+{
+  "name": "Cathedral Omega kernel and desktop exports",
+  "scope": "The Omega UEFI profile plus Omega exports consumed by the default Rust desktop; excludes unrelated labs, unselected ports and Rust compilation.",
+  "entries": [
+    {
+      "name": "kernel",
+      "source": "source/kernel/boot/uefi/main.omg",
+      "target": "uefi_x86_64",
+      "kind": "uefi"
+    },
+    {
+      "name": "matrix",
+      "source": "source/distribution/matrix/native/main.omg",
+      "target": "linux_x86_64",
+      "kind": "component"
+    },
+    {
+      "name": "chooser",
+      "source": "source/distribution/applications/chooser/native/main.omg",
+      "target": "linux_x86_64",
+      "kind": "component"
+    },
+    {
+      "name": "chooser-session",
+      "source": "source/distribution/applications/chooser/session-native/main.omg",
+      "target": "linux_x86_64",
+      "kind": "component"
+    },
+    {
+      "name": "notes",
+      "source": "source/distribution/applications/notes/native/main.omg",
+      "target": "linux_x86_64",
+      "kind": "component"
+    },
+    {
+      "name": "colors",
+      "source": "source/distribution/applications/colors/native/main.omg",
+      "target": "linux_x86_64",
+      "kind": "component"
+    },
+    {
+      "name": "ui-exports",
+      "source": "source/distribution/libraries/omega-ui/tests/native_component/exports/main.omg",
+      "target": "linux_x86_64",
+      "kind": "component",
+      "component_count": 2
+    }
+  ]
+}

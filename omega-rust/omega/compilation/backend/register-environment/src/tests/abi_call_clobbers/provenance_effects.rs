@@ -202,6 +202,18 @@ fn every_selected_rule_rejects_catalog_provenance_forgery_on_every_target() {
         let environment = baseline_target_register_environment(case.target).unwrap();
         let catalog = produced_effects(case, environment.constraints());
         let foreign = foreign_architecture_target(case.target);
+        macro_rules! reject_roster {
+            ($corrupted:expr, $message:literal) => {
+                assert_eq!(
+                    validate_effects(case, environment.constraints(), $corrupted),
+                    Err(EffectRejection::Structural(
+                        MachineEffectCatalogValidationError::DeclarationRosterMismatch
+                    )),
+                    $message,
+                    case.convention
+                );
+            };
+        }
 
         // A catalog cannot claim a foreign architecture: admission binds
         // catalog.target to the constraint catalog's architecture.
@@ -268,14 +280,7 @@ fn every_selected_rule_rejects_catalog_provenance_forgery_on_every_target() {
         // this pair's CopyBytes authority.
         let mut corrupted = catalog.clone();
         corrupted.selected_keys.copy_bytes = Some(case.opposite_call);
-        assert_eq!(
-            validate_effects(case, environment.constraints(), corrupted),
-            Err(EffectRejection::Structural(
-                MachineEffectCatalogValidationError::DeclarationRosterMismatch
-            )),
-            "{} borrowed unselected row must reject",
-            case.convention
-        );
+        reject_roster!(corrupted, "{} borrowed unselected row must reject");
 
         // The selection cannot swap two owned rows between their semantics.
         let mut corrupted = catalog.clone();
@@ -283,51 +288,23 @@ fn every_selected_rule_rejects_catalog_provenance_forgery_on_every_target() {
             &mut corrupted.selected_keys.rows.add_i64,
             &mut corrupted.selected_keys.rows.subtract_i64,
         );
-        assert_eq!(
-            validate_effects(case, environment.constraints(), corrupted),
-            Err(EffectRejection::Structural(
-                MachineEffectCatalogValidationError::DeclarationRosterMismatch
-            )),
-            "{} swapped selected rows must reject",
-            case.convention
-        );
+        reject_roster!(corrupted, "{} swapped selected rows must reject");
 
         // The selection cannot drop an optional row it does select.
         let mut corrupted = catalog.clone();
         corrupted.selected_keys.load8 = None;
-        assert_eq!(
-            validate_effects(case, environment.constraints(), corrupted),
-            Err(EffectRejection::Structural(
-                MachineEffectCatalogValidationError::DeclarationRosterMismatch
-            )),
-            "{} dropped selected row must reject",
-            case.convention
-        );
+        reject_roster!(corrupted, "{} dropped selected row must reject");
 
         // The selection cannot grow an extra call row it does not select.
         let mut corrupted = catalog.clone();
         corrupted.selected_keys.call_scalar.push(case.opposite_call);
-        assert_eq!(
-            validate_effects(case, environment.constraints(), corrupted),
-            Err(EffectRejection::Structural(
-                MachineEffectCatalogValidationError::DeclarationRosterMismatch
-            )),
-            "{} appended unselected call row must reject",
-            case.convention
-        );
+        reject_roster!(corrupted, "{} appended unselected call row must reject");
 
         // The selection cannot be replaced wholesale by a different ABI's.
         let mut corrupted = catalog.clone();
         corrupted.selected_keys = selected_constraint_keys(sibling_target(case.target))
             .expect("the sibling target declares a selected key set");
-        assert_eq!(
-            validate_effects(case, environment.constraints(), corrupted),
-            Err(EffectRejection::Structural(
-                MachineEffectCatalogValidationError::DeclarationRosterMismatch
-            )),
-            "{} borrowed sibling selection must reject",
-            case.convention
-        );
+        reject_roster!(corrupted, "{} borrowed sibling selection must reject");
     }
 }
 
@@ -341,6 +318,18 @@ fn every_selected_rule_rejects_declaration_roster_forgery_on_every_target() {
         let environment = baseline_target_register_environment(case.target).unwrap();
         let catalog = produced_effects(case, environment.constraints());
         let keys = environment.selected_keys();
+        macro_rules! reject_roster {
+            ($corrupted:expr, $message:literal) => {
+                assert_eq!(
+                    validate_effects(case, environment.constraints(), $corrupted),
+                    Err(EffectRejection::Structural(
+                        MachineEffectCatalogValidationError::DeclarationRosterMismatch
+                    )),
+                    $message,
+                    case.convention
+                );
+            };
+        }
 
         // Reordering the roster across a semantic boundary breaks canonical
         // declaration order before any roster comparison runs.
@@ -363,41 +352,20 @@ fn every_selected_rule_rejects_declaration_roster_forgery_on_every_target() {
         // The roster cannot lose its last declaration.
         let mut corrupted = catalog.clone();
         corrupted.declarations.pop();
-        assert_eq!(
-            validate_effects(case, environment.constraints(), corrupted),
-            Err(EffectRejection::Structural(
-                MachineEffectCatalogValidationError::DeclarationRosterMismatch
-            )),
-            "{} dropped declaration must reject",
-            case.convention
-        );
+        reject_roster!(corrupted, "{} dropped declaration must reject");
 
         // A duplicated declaration inserted beside its twin keeps canonical
         // order but breaks the exact roster length.
         let mut corrupted = catalog.clone();
         let twin = corrupted.declarations[0].clone();
         corrupted.declarations.insert(1, twin);
-        assert_eq!(
-            validate_effects(case, environment.constraints(), corrupted),
-            Err(EffectRejection::Structural(
-                MachineEffectCatalogValidationError::DeclarationRosterMismatch
-            )),
-            "{} duplicated declaration must reject",
-            case.convention
-        );
+        reject_roster!(corrupted, "{} duplicated declaration must reject");
 
         // A declaration cannot point at a real row the selection does not
         // name.
         let mut corrupted = catalog.clone();
         corrupted.declarations[0].constraint = case.opposite_call;
-        assert_eq!(
-            validate_effects(case, environment.constraints(), corrupted),
-            Err(EffectRejection::Structural(
-                MachineEffectCatalogValidationError::DeclarationRosterMismatch
-            )),
-            "{} borrowed constraint row must reject",
-            case.convention
-        );
+        reject_roster!(corrupted, "{} borrowed constraint row must reject");
 
         // A consistent forgery — the selection and its declaration moved
         // together to a key no constraint catalog owns — keeps the roster

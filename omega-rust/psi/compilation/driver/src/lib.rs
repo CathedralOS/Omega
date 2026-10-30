@@ -41,16 +41,16 @@ pub use source_compilation::{
 };
 
 pub use psi_terminal_production::{
-    BuildProviderProductionRequest, PortableTerminalProgram,
-    PreparedNumericRealizationDeclarations, ProducedBuildProvider, ProducedTerminalProgram,
+    BuildProviderProductionRequest, PortableTerminalProgram, PreparedDeclarationCatalog,
+    PreparedTerminalRoots, ProducedBuildProvider, ProducedTerminalProgram,
     ProgramEntryTerminalReceiptError, PsiCompilationObserver, PsiCompilationStage,
-    TerminalApplicationCustody, TerminalArtifactProductionError, TerminalBuildBindingCall,
-    TerminalBuildBindingOperation, TerminalBuildBindings, TerminalBuildFilesystem,
-    TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation, TerminalBuildNativeLocator,
-    TerminalBuildProviderRequirement, TerminalBuildQueryCall, TerminalBuildQueryOperation,
-    TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
-    TerminalBuildSelectionRequest, TerminalBuildValueCase, TerminalBuildValueField,
-    TerminalBuildValueShape, TerminalCompositionAdmission, TerminalMachineSelection,
-    TerminalProductionCustody, TerminalProductionRequest, TerminalProgramRoots,
-    UnmeasuredProduction, lower_task_activation_demands,
+    TerminalAdmissionRoot, TerminalApplicationCustody, TerminalArtifactProductionError,
+    TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
+    TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
+    TerminalBuildNativeLocator, TerminalBuildProviderRequirement, TerminalBuildQueryCall,
+    TerminalBuildQueryOperation, TerminalBuildRequestCall, TerminalBuildRequestOperation,
+    TerminalBuildRequests, TerminalBuildSelectionRequest, TerminalBuildValueCase,
+    TerminalBuildValueField, TerminalBuildValueShape, TerminalCompositionAdmission,
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionRequest,
+    TerminalProgramRoots, UnmeasuredProduction, lower_task_activation_demands,
 };

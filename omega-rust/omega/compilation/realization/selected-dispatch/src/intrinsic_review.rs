@@ -86,7 +86,7 @@ pub(crate) fn resolve_accepted_service_binding(
 /// identity exists.
 pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
     candidates: &[provider_planning::ProviderPlanCandidate],
-    numeric_realizations: &psi_terminal_production::NumericRealizationDeclarations,
+    numeric_realizations: &psi_terminal_production::DeclarationCatalog,
     services: &ServiceDeclarations,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     provenance: &mut [SelectedProviderReviewProvenance],
@@ -349,7 +349,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
 /// Declaration facts already came from their source owner: this operation
 /// joins target/accepted custody without querying checked trees again.
 pub(crate) fn produce_direct_boundary_leaves(
-    numeric_realizations: &psi_terminal_production::NumericRealizationDeclarations,
+    numeric_realizations: &psi_terminal_production::DeclarationCatalog,
     selected: &[SelectedProviderReviewProvenance],
     candidates: &[provider_planning::ProviderPlanCandidate],
     services: &ServiceDeclarations,

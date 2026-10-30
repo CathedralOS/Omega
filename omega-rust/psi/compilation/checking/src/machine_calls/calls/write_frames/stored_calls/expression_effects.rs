@@ -293,10 +293,10 @@ pub(in super::super) fn effects_at_expression(
     }
 }
 
-/// The requested call's actuals retain their individual evaluation cuts. Its
-/// returned descriptors are interpreted against the inventory immediately
-/// after normal completion, before any later sibling operand executes.
-pub(super) fn completed_call_value(
+/// One requested value retains its ordered child observations and completion
+/// inventory. Calls keep their input cuts as well as the post-call inventory;
+/// moves and selections use this same capture before any later sibling runs.
+pub(super) fn completed_value(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
@@ -308,6 +308,7 @@ pub(super) fn completed_call_value(
 ) -> Option<(SlotArgumentCapture, CollectedStatementPrefix)> {
     let mut capture = Capture {
         expression,
+        value_requested: true,
         ..Capture::default()
     };
     let _ = evaluate_statement(
@@ -358,6 +359,7 @@ struct Capture {
     count: usize,
     transfer: Option<SlotRelationTransfer>,
     completed_value: Option<(SlotArgumentCapture, CollectedStatementPrefix)>,
+    value_requested: bool,
     collect_calls: bool,
     calls: Vec<super::StoredReferenceCallContext>,
     current_call_context: usize,
@@ -574,17 +576,19 @@ impl Evaluation<'_, '_> {
             capture,
             Some(&mut observed),
         )?;
+        let after =
+            (capture.value_requested && expression == capture.expression && effects.is_complete())
+                .then(|| context.clone());
         let (context, inference) = observed
             .call_entry
             .as_ref()
             .map(|(context, inference)| (context, inference))
             .unwrap_or((context, inference));
-        Some(SlotArgumentCapture::at(
-            expression,
-            context,
-            inference,
-            observed.operands,
-        ))
+        let result = SlotArgumentCapture::at(expression, context, inference, observed.operands);
+        if let Some(after) = after {
+            capture.completed_value = Some((result.clone(), after));
+        }
+        Some(result)
     }
 
     fn expression(
@@ -598,6 +602,12 @@ impl Evaluation<'_, '_> {
         mut observed: Option<&mut ObservedValue>,
     ) -> Option<()> {
         if !expression.is_valid() {
+            return Some(());
+        }
+        if capture.value_requested && expression == capture.expression && observed.is_none() {
+            // Demand materializes the existing evaluation's value. It neither
+            // changes operand order nor replays a source in a later inventory.
+            self.observe(expression, context, effects, inference, prefix, capture)?;
             return Some(());
         }
         let node = self.program.expression_table.expression(expression);
@@ -765,9 +775,6 @@ impl Evaluation<'_, '_> {
             // Return-origin substitution uses the already observed inputs; the
             // caller-visible stores below cannot retarget an earlier operand.
             capture_completed(expression, prefix, effects, capture);
-            let requested = (expression == capture.expression).then(|| {
-                SlotArgumentCapture::at(expression, context, inference, completed_inputs.clone())
-            });
             if let Some(output) = observed.as_mut() {
                 output.call_entry = Some((context.clone(), inference.clone()));
             }
@@ -815,11 +822,6 @@ impl Evaluation<'_, '_> {
             });
             capture.completed_call(expression, &called);
             install(self.program, context, effects, called, inference);
-            if let Some(requested) = requested
-                && effects.is_complete()
-            {
-                capture.completed_value = Some((requested, context.clone()));
-            }
             if let Some(output) = observed {
                 output.operands = completed_inputs;
             }

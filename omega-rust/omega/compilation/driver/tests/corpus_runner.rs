@@ -1054,6 +1054,12 @@ fn build_native_fixture(
     let report = cohort.primary;
     let published = compilation_products::publication::publish_compilation(report, build_dir)
         .map_err(|error| vec![diagnostics::Diagnostic::error(error)])?;
+    native_component_descriptions::inspect_publication(
+        &published,
+        root_path.parent().unwrap_or(&root_path),
+        build_dir,
+    )
+    .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
     let executable = published.checked_native_executable_path().ok_or_else(|| {
         vec![diagnostics::Diagnostic::error(
             "published native artifact names no executable",

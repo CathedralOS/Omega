@@ -6,15 +6,8 @@ use crate::{
 };
 use language_core::atomic::AtomicOrderingPlan;
 
-/// The specialization boundary every primitive access carries: a rejection
-/// carrier returning the sealed request verbatim, plus the
-/// `into_*_access` staging entrypoint that validates and joins the
-/// specialization. `with_operation` models retain the validator's operation;
-/// `no_operation` models retain nothing but the sealed request.
-macro_rules! specialization_boundary {
-    ($request:ident, $rejection:ident, $require:ident, $validator:ident,
-     $rejection_doc:literal, $require_doc:literal,
-     with_operation($operation:ident)) => {
+macro_rules! rejected_specialization {
+    ($rejection:ident, $rejection_doc:literal) => {
         #[doc = $rejection_doc]
         #[derive(Debug)]
         pub struct $rejection<'view, 'extent> {
@@ -31,6 +24,19 @@ macro_rules! specialization_boundary {
                 (self.request, self.diagnostic)
             }
         }
+    };
+}
+
+/// The specialization boundary every primitive access carries: a rejection
+/// carrier returning the sealed request verbatim, plus the
+/// `into_*_access` staging entrypoint that validates and joins the
+/// specialization. `with_operation` models retain the validator's operation;
+/// `no_operation` models retain nothing but the sealed request.
+macro_rules! specialization_boundary {
+    ($request:ident, $rejection:ident, $require:ident, $validator:ident,
+     $rejection_doc:literal, $require_doc:literal,
+     with_operation($operation:ident)) => {
+        rejected_specialization!($rejection, $rejection_doc);
 
         impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
             #[doc = $require_doc]
@@ -54,22 +60,7 @@ macro_rules! specialization_boundary {
     ($request:ident, $rejection:ident, $require:ident, $validator:ident,
      $rejection_doc:literal, $require_doc:literal,
      no_operation) => {
-        #[doc = $rejection_doc]
-        #[derive(Debug)]
-        pub struct $rejection<'view, 'extent> {
-            request: PrimitiveAccessRequest<'view, 'extent>,
-            diagnostic: AccessPlanDiagnostic,
-        }
-
-        impl<'view, 'extent> $rejection<'view, 'extent> {
-            diagnostic_accessor!();
-
-            pub fn into_parts(
-                self,
-            ) -> (PrimitiveAccessRequest<'view, 'extent>, AccessPlanDiagnostic) {
-                (self.request, self.diagnostic)
-            }
-        }
+        rejected_specialization!($rejection, $rejection_doc);
 
         impl<'view, 'extent> PrimitiveAccessRequest<'view, 'extent> {
             #[doc = $require_doc]

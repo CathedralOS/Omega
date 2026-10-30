@@ -125,6 +125,7 @@ mod carried_semantic_dependencies;
 mod cleanup_case_evidence;
 pub(crate) use cleanup_case_evidence::CleanupCaseEvidence;
 mod cleanup_effect_dependencies;
+pub(crate) mod dynamic_effect_dependencies;
 pub(crate) use cleanup_effect_dependencies::{
     CleanupLeaf, cleanup_path_order, concrete_cleanup_paths, derive_cleanup_effect_dependencies,
     residual_cleanup_is_eligible, selected_cleanup_leaves, whole_cleanup_is_eligible,
@@ -217,6 +218,23 @@ pub(crate) fn resolved_operator_statement_symbol(
     operator_calls::resolve_operator_statement_call(program, call)
         .map(|resolved| resolved.operator.symbol)
 }
+
+/// The `CallEnsures` point a call's flow facts carry: the call's machine,
+/// state, statement, and ordinal, so every phase that publishes or reads those
+/// rows names the same point.
+pub(crate) fn call_ensures_point(
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    call: &checked_trees::BorrowCallFact,
+) -> facts::ProgramPoint {
+    facts::ProgramPoint::CallEnsures {
+        machine_symbol: machine.symbol,
+        state_symbol: state.symbol,
+        statement_index: call.statement_index,
+        call_ordinal: call.call_ordinal,
+    }
+}
+
 pub(crate) use ownership::{
     DiscoveredMoveEvent, FlowOwnershipEventSource, call_permission_evaluation,
     discover_state_move_events, owned_call_operand_places, owned_operand_transfer_place,
@@ -226,10 +244,10 @@ pub(crate) use place::{
     canonical_place_from_semantic_place, canonical_place_from_symbol,
     canonical_place_joined_segments_may_overlap, canonical_place_segments_equal,
     canonical_place_segments_may_overlap, canonical_places_agree, case_tag_segments_may_overlap,
-    compose_captured_view_segments, literal_argument_access_places, literal_expression_projections,
-    literal_value_path_is_inactive, literal_value_projections, narrow_pinned_index_segments,
-    place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
-    place_cases_are_selected_after, place_segment_has_static_identity,
+    compose_captured_view_segments, fixed_selection_segment, literal_argument_access_places,
+    literal_expression_projections, literal_value_path_is_inactive, literal_value_projections,
+    narrow_pinned_index_segments, place_case_has_value, place_case_path_is_inactive,
+    place_cases_are_selected, place_cases_are_selected_after, place_segment_has_static_identity,
     place_segment_has_unresolved_identity, projected_leaf_place, reference_source_place,
     segments_cover_subject, source_independent_place, stable_case_subject,
     static_place_segment_pair_equal,

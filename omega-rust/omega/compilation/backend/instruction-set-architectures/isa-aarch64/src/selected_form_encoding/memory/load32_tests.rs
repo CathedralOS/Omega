@@ -1,7 +1,6 @@
 use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
-    SelectedInstructionKind, encode_aarch64_selected_memory_form,
-    validate_aarch64_selected_memory_form,
+    SelectedInstructionKind, check_memory, encode_aarch64_selected_memory_form,
 };
 #[test]
 fn load32_preserves_exact_four_byte_extent_and_rejects_a_widened_load() {
@@ -29,23 +28,10 @@ fn load32_preserves_exact_four_byte_extent_and_rejects_a_widened_load() {
     );
     let mut widened = encoded.bytes().to_vec();
     widened[3] |= 0x40;
+    assert!(check_memory(&physical, kind, alternative, &operands, 4, &widened).is_err());
+    assert!(check_memory(&physical, kind, alternative, &operands, 8, encoded.bytes()).is_err());
     assert!(
-        validate_aarch64_selected_memory_form(&physical, kind, alternative, &operands, 4, &widened)
-            .is_err()
-    );
-    assert!(
-        validate_aarch64_selected_memory_form(
-            &physical,
-            kind,
-            alternative,
-            &operands,
-            8,
-            encoded.bytes()
-        )
-        .is_err()
-    );
-    assert!(
-        validate_aarch64_selected_memory_form(
+        check_memory(
             &physical,
             kind,
             alternative,

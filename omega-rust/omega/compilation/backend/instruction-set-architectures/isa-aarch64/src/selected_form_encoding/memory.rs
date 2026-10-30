@@ -270,8 +270,27 @@ fn load_width(kind: SelectedInstructionKind) -> Result<u32, Aarch64SelectedFormE
 }
 
 #[cfg(test)]
+fn check_memory(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    alternative: MachineAlternativeKey,
+    operands: &[RegisterViewId],
+    displacement: i64,
+    bytes: &[u8],
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    validate_aarch64_selected_memory_form(
+        physical,
+        kind,
+        alternative,
+        operands,
+        displacement,
+        bytes,
+    )
+}
+
+#[cfg(test)]
 mod tests {
-    use super::{encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form};
+    use super::{check_memory, encode_aarch64_selected_memory_form};
     use crate::aarch64_physical_register_model;
     use selected_instructions::MachineAlternativeFamily;
     use selected_instructions::MachineAlternativeKey;
@@ -306,7 +325,7 @@ mod tests {
                 let mut corrupt = encoded.bytes().to_vec();
                 corrupt[byte] ^= 1;
                 assert!(
-                    validate_aarch64_selected_memory_form(
+                    check_memory(
                         &physical,
                         kind,
                         alternative,
@@ -318,7 +337,7 @@ mod tests {
                 );
             }
             assert!(
-                validate_aarch64_selected_memory_form(
+                check_memory(
                     &physical,
                     kind,
                     alternative,

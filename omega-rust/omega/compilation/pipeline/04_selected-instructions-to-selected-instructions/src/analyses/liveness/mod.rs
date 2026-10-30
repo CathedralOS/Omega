@@ -40,21 +40,14 @@ pub(crate) use staging::{
     stage_optimized_liveness,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LivenessValidationReceipt {
-    pub(crate) identity: LivenessIdentity,
-    pub(crate) selected: SelectedInstructionPlanIdentity,
-    pub(crate) optimization_unit: OptimizationUnitIdentity,
-    pub(crate) fuel_schedule: FuelScheduleIdentity,
-}
-
-impl LivenessValidationReceipt {
-    receipt_accessor_rows!(LivenessValidationReceipt {
-        identity: LivenessIdentity,
-        selected: SelectedInstructionPlanIdentity,
-        optimization_unit: OptimizationUnitIdentity,
-        fuel_schedule: FuelScheduleIdentity,
-    });
+copy_receipt! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct LivenessValidationReceipt {
+        pub(crate) identity: LivenessIdentity,
+        pub(crate) selected: SelectedInstructionPlanIdentity,
+        pub(crate) optimization_unit: OptimizationUnitIdentity,
+        pub(crate) fuel_schedule: FuelScheduleIdentity,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

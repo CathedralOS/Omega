@@ -50,6 +50,18 @@ pub(super) fn append_move_events_for_expression(
     expected_type: typed_trees::types::TypeReferenceHandle,
     source: FlowOwnershipEventSource,
 ) {
+    macro_rules! append_observation {
+        ($operand:expr $(,)?) => {
+            observations::append(
+                program,
+                sink,
+                state_symbol,
+                statement_index,
+                $operand,
+                source,
+            )
+        };
+    }
     // A checked tag operation observes its operand, wherever that completed
     // value lives. The ordinary observation walk still evaluates computed
     // receivers and selectors and records their real operand transfers.
@@ -65,14 +77,7 @@ pub(super) fn append_move_events_for_expression(
         && observations::selected_operator(sink, state_symbol, statement_index, expression)
             .is_none()
     {
-        observations::append(
-            program,
-            sink,
-            state_symbol,
-            statement_index,
-            binary.left,
-            source,
-        );
+        append_observation!(binary.left);
         return;
     }
 
@@ -83,14 +88,7 @@ pub(super) fn append_move_events_for_expression(
             unreachable!()
         };
         for operand in [binary.left, binary.right] {
-            observations::append(
-                program,
-                sink,
-                state_symbol,
-                statement_index,
-                operand,
-                source,
-            );
+            append_observation!(operand);
         }
         return;
     }
@@ -117,14 +115,7 @@ pub(super) fn append_move_events_for_expression(
     if let Some(receiver) =
         validation::collection_length_receiver(program, sink.machine, Some(sink.state), expression)
     {
-        observations::append(
-            program,
-            sink,
-            state_symbol,
-            statement_index,
-            receiver,
-            source,
-        );
+        append_observation!(receiver);
         return;
     }
 
@@ -137,7 +128,7 @@ pub(super) fn append_move_events_for_expression(
     );
     if type_references::expression_is_place_like(program, expression)
         && value_type
-            .map(|reference| type_requires_ownership(program, reference))
+            .map(|reference| type_references::stored_value_requires_transfer(program, reference))
             .unwrap_or(true)
     {
         if let Some(place) = ownership_place_from_expression_in_state(
@@ -153,21 +144,31 @@ pub(super) fn append_move_events_for_expression(
             // the argument's runtime contents. Every other reach keeps the
             // real move so the borrowed-window and shared-loan rejections
             // stand.
-            if observations::detached_borrowed_copy_admitted(
-                program,
-                state_symbol,
-                statement_index,
-                &place,
-                source,
-            ) {
-                observations::append(
+            // Reusable reference observations are not owned descriptor
+            // transfers. Only a receiving use requesting that same reference
+            // carrier can consume its slot; numeric and predicate operands
+            // read through it. Explicit borrowing still owns its own capture.
+            let observes_reference = value_type.is_some_and(|reference| {
+                validation::reference_shell(program, reference).is_some()
+                    && (!expected_type.is_valid()
+                        || !validation::declared_carriers_match(program, reference, expected_type)
+                        || reference_slot_is_borrowed(
+                            program,
+                            state_symbol,
+                            statement_index,
+                            &place,
+                        ))
+            });
+            if observes_reference
+                || observations::detached_borrowed_copy_admitted(
                     program,
-                    sink,
                     state_symbol,
                     statement_index,
-                    expression,
+                    &place,
                     source,
-                );
+                )
+            {
+                append_observation!(expression);
             } else {
                 append_move_event_for_place(
                     sink,
@@ -179,6 +180,20 @@ pub(super) fn append_move_events_for_expression(
             }
         }
         return;
+    }
+
+    macro_rules! append_child {
+        ($child:expr, $expected:expr $(,)?) => {
+            append_move_events_for_expression(
+                program,
+                sink,
+                state_symbol,
+                statement_index,
+                $child,
+                $expected,
+                source,
+            )
+        };
     }
 
     match program.expression_table.expression(expression) {
@@ -197,15 +212,7 @@ pub(super) fn append_move_events_for_expression(
             )
             .is_some();
             if !tag_observed {
-                append_move_events_for_expression(
-                    program,
-                    sink,
-                    state_symbol,
-                    statement_index,
-                    dispatch.subject,
-                    Default::default(),
-                    source,
-                );
+                append_child!(dispatch.subject, Default::default());
             }
             for (ordinal, arm) in program
                 .expression_table
@@ -214,46 +221,18 @@ pub(super) fn append_move_events_for_expression(
                 .enumerate()
             {
                 for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
-                    append_move_events_for_expression(
-                        program,
-                        sink,
-                        state_symbol,
-                        statement_index,
-                        pattern,
-                        Default::default(),
-                        source,
-                    );
+                    append_child!(pattern, Default::default());
                 }
                 let enclosing_arm = sink.source_arm;
                 sink.source_arm = dispatch.arms.handle_at(ordinal as u32);
-                append_move_events_for_expression(
-                    program,
-                    sink,
-                    state_symbol,
-                    statement_index,
-                    arm.value,
-                    expected_type,
-                    source,
-                );
+                append_child!(arm.value, expected_type);
                 sink.source_arm = enclosing_arm;
             }
         }
-        ExpressionNode::Atomic(atomic) => append_move_events_for_expression(
-            program,
-            sink,
-            state_symbol,
-            statement_index,
-            atomic.value,
-            expected_type,
-            source,
-        ),
+        ExpressionNode::Atomic(atomic) => append_child!(atomic.value, expected_type),
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                append_move_events_for_expression(
-                    program,
-                    sink,
-                    state_symbol,
-                    statement_index,
+                append_child!(
                     *value,
                     if expected_type.is_valid() {
                         match program.type_reference_table.type_reference(expected_type) {
@@ -266,58 +245,21 @@ pub(super) fn append_move_events_for_expression(
                     } else {
                         Default::default()
                     },
-                    source,
                 );
             }
         }
         ExpressionNode::Binary(binary) => {
-            append_move_events_for_expression(
-                program,
-                sink,
-                state_symbol,
-                statement_index,
-                binary.left,
-                Default::default(),
-                source,
-            );
-            append_move_events_for_expression(
-                program,
-                sink,
-                state_symbol,
-                statement_index,
-                binary.right,
-                Default::default(),
-                source,
-            );
+            append_child!(binary.left, Default::default());
+            append_child!(binary.right, Default::default());
         }
-        ExpressionNode::Cast(cast) => append_move_events_for_expression(
-            program,
-            sink,
-            state_symbol,
-            statement_index,
-            cast.value,
-            Default::default(),
-            source,
-        ),
-        ExpressionNode::Unary(unary) => append_move_events_for_expression(
-            program,
-            sink,
-            state_symbol,
-            statement_index,
-            unary.operand,
-            Default::default(),
-            source,
-        ),
+        ExpressionNode::Cast(cast) => append_child!(cast.value, cast.target_type),
+        ExpressionNode::Unary(unary) => append_child!(unary.operand, Default::default()),
         ExpressionNode::StructLiteral(struct_literal) => {
             for field in program
                 .expression_table
                 .struct_fields(struct_literal.fields)
             {
-                append_move_events_for_expression(
-                    program,
-                    sink,
-                    state_symbol,
-                    statement_index,
+                append_child!(
                     field.value,
                     validation::selected_construction_field_type(
                         program,
@@ -326,32 +268,15 @@ pub(super) fn append_move_events_for_expression(
                         field.field_symbol,
                     )
                     .unwrap_or_default(),
-                    source,
                 );
             }
         }
         ExpressionNode::Range(range) => {
             if range.start.is_valid() {
-                append_move_events_for_expression(
-                    program,
-                    sink,
-                    state_symbol,
-                    statement_index,
-                    range.start,
-                    Default::default(),
-                    source,
-                );
+                append_child!(range.start, Default::default());
             }
             if range.end.is_valid() {
-                append_move_events_for_expression(
-                    program,
-                    sink,
-                    state_symbol,
-                    statement_index,
-                    range.end,
-                    Default::default(),
-                    source,
-                );
+                append_child!(range.end, Default::default());
             }
         }
         // Nested calls retain their parameter-aligned owned arguments.
@@ -367,14 +292,7 @@ pub(super) fn append_move_events_for_expression(
                 source,
             );
         }
-        ExpressionNode::Borrow(borrow) => observations::append(
-            program,
-            sink,
-            state_symbol,
-            statement_index,
-            borrow.target,
-            source,
-        ),
+        ExpressionNode::Borrow(borrow) => append_observation!(borrow.target),
         ExpressionNode::Name(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Indexed(_)
@@ -791,4 +709,44 @@ pub(in crate::flow::ownership) fn initializer_produces_owned_value(
             == OperatorResultOwnership::OwnedValue
     })
     .unwrap_or(false)
+}
+
+/// Only a positively known borrowed boundary suppresses a descriptor move.
+/// Unknown geometry retains the candidate for ordinary ownership validation;
+/// the final slot is the carried descriptor, not a crossed reference.
+fn reference_slot_is_borrowed(
+    program: &dyn ::validation::CheckingInput,
+    state: SymbolHandle,
+    statement: usize,
+    place: &validation::CanonicalPlace,
+) -> bool {
+    let mut prefix = validation::CanonicalPlace {
+        root: place.root,
+        segments: Vec::new(),
+    };
+    let Some(root) = validation::canonical_place_type_reference(program, state, statement, &prefix)
+    else {
+        return false;
+    };
+    if validation::reference_shell(program, root).is_some()
+        && place.root.as_symbol().is_some_and(|symbol| {
+            program
+                .state_by_symbol(state)
+                .is_some_and(|state| program.state_parameter_by_symbol(state, symbol).is_some())
+        })
+    {
+        return true;
+    }
+    for segment in &place.segments {
+        let Some(reference) =
+            validation::canonical_place_type_reference(program, state, statement, &prefix)
+        else {
+            return false;
+        };
+        if validation::reference_shell(program, reference).is_some() {
+            return true;
+        }
+        prefix.segments.push(*segment);
+    }
+    false
 }

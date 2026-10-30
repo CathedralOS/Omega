@@ -97,6 +97,7 @@ pub(crate) struct LoweredBoundaryCallBinding {
 pub(super) fn emit_boundary_call_binding(
     call: &LoweredBoundaryCallBinding,
     parameters: &[ValueDeclaration],
+    frontier: &lowered_psi::LoweredSourceFrontierBindings,
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
@@ -176,7 +177,7 @@ pub(super) fn emit_boundary_call_binding(
         )),
         operation,
         call.target_machine,
-        &lowered_psi::LoweredSourceFrontierBindings::default(),
+        frontier,
     )?;
     operations.push(Operation::unsuspended(
         operation,

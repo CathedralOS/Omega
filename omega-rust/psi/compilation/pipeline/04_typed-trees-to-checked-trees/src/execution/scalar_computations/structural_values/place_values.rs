@@ -150,12 +150,7 @@ impl Builder<'_, '_> {
             checked_trees::CheckedScalarComputationHandle,
         )>,
     )> {
-        let place = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )?;
+        let place = self.canonical_place(expression)?;
         let symbol = place.root.as_symbol()?;
         // Value planning precedes the final structural parameter roster. Its
         // dense positions change when a borrowed receiver is retained, so an
@@ -169,20 +164,7 @@ impl Builder<'_, '_> {
         // locals, rather than replaying the selector's original storage read.
         // The retained coordinate grants no bounds or copy permission.
         let selectors = self.projection_selector_evaluations(expression, expression)?;
-        let (_, mut path) = crate::execution::terminal_unit::calls::projected_argument_path(
-            self.program,
-            self.state,
-            self.statement_index,
-            &place,
-            Some(self.machine),
-            Some(&|expression| {
-                selectors.iter().find_map(|(selector, value)| {
-                    (*selector == expression).then_some(
-                        checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*value),
-                    )
-                })
-            }),
-        )?;
+        let (_, mut path) = self.projected_place_path(&place, &selectors)?;
         // A local owns its descriptor, whereas a borrowed formal already
         // denotes its referent. Selecting below the local crosses that stored
         // address; copying the whole descriptor does not cross it. View
@@ -260,28 +242,9 @@ impl Builder<'_, '_> {
         // built, so this projection derives the same canonical place
         // independently. The multiplicity checker's recorded transfer path is
         // compared against this path downstream, not trusted here.
-        let place = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )?;
+        let place = self.canonical_place(expression)?;
         let selectors = self.projection_selector_evaluations(expression, expression)?;
-        let (projected, mut path) =
-            crate::execution::terminal_unit::calls::projected_argument_path(
-                self.program,
-                self.state,
-                self.statement_index,
-                &place,
-                Some(self.machine),
-                Some(&|expression| {
-                    selectors.iter().find_map(|(selector, value)| {
-                        (*selector == expression).then_some(
-                            checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(*value),
-                        )
-                    })
-                }),
-            )?;
+        let (projected, mut path) = self.projected_place_path(&place, &selectors)?;
         // A checked qualification changes the receiving occurrence, not the
         // selected storage carrier. Keep projections in the same carrier
         // namespace as whole owned values; their exact membership decisions

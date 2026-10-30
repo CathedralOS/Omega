@@ -76,6 +76,19 @@ pub(in crate::flow::ownership) fn type_requires_ownership(
             != language_semantics::Multiplicity::Unrestricted
 }
 
+/// Transfer discipline of a value stored into an owned receiving home.
+/// Reference call formals instead lend ingress, using source-use multiplicity.
+/// A shared carrier copies; an exclusive stored carrier moves independently
+/// of its referent and of the reusable spelling of a reference expression.
+pub(super) fn stored_value_requires_transfer(
+    program: &dyn ::validation::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    reference.is_valid()
+        && program.stored_value_multiplicity(reference)
+            != language_semantics::Multiplicity::Unrestricted
+}
+
 pub(super) fn expression_is_place_like(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,

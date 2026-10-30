@@ -26,7 +26,7 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
 /// producer does not branch on the caller's installation history.
 pub(crate) struct TerminalProductionView<'a> {
     program: &'a Arc<checked_trees::CheckedTrees>,
-    external_declarations: &'a psi_compiler::PreparedNumericRealizationDeclarations,
+    external_declarations: &'a psi_compiler::PreparedDeclarationCatalog,
     sources: &'a package_compilation::CheckedSourceCustody,
     build: &'a compilation_products::ComputedBuildConfig,
     provider_defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
@@ -36,7 +36,7 @@ pub(crate) struct TerminalProductionView<'a> {
     provenance: &'a [provider_planning::SelectedProviderReviewProvenance],
     plan_facts: &'a effects::SelectedProviderPlanFacts,
     native_sources: &'a Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
-    callbacks: &'a [symbols::SymbolHandle],
+    callbacks: &'a psi_compiler::PreparedTerminalRoots,
     timings: &'a mut CompileTimings,
     native_components:
         Option<&'a Result<Vec<compilation_products::SelectedIndependentComponent>, String>>,
@@ -164,7 +164,7 @@ struct AdmittedTerminalProduct<'a> {
     request: TerminalProductRequest<'a>,
     selected_machine: symbols::SymbolHandle,
     signature_identity: Option<[u8; 32]>,
-    admission_roots: Vec<symbols::SymbolHandle>,
+    physical_adapter: symbols::SymbolHandle,
     policy: Option<TerminalBehaviorExclusions<'a>>,
     provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication,
 }
@@ -182,7 +182,7 @@ impl<'a> AdmittedTerminalProduct<'a> {
                 request,
                 selected_machine: Default::default(),
                 signature_identity: None,
-                admission_roots: Vec::new(),
+                physical_adapter: Default::default(),
                 policy: None,
                 provider_publication,
             });
@@ -198,19 +198,14 @@ impl<'a> AdmittedTerminalProduct<'a> {
         );
         // Firmware starts in the selected adapter, not the semantic continuation.
         // Admit its behavior and callbacks while retaining the semantic receipt.
-        let admission_roots = view
-            .callbacks
-            .iter()
-            .copied()
-            .chain(entry.physical_adapter())
-            .collect();
+        let physical_adapter = entry.physical_adapter().unwrap_or_default();
         let provider_publication = prepare_target_provider_publication(view);
         Ok(Self {
             position,
             request,
             selected_machine,
             signature_identity: Some(signature_identity),
-            admission_roots,
+            physical_adapter,
             policy,
             provider_publication,
         })
@@ -225,7 +220,8 @@ impl<'a> AdmittedTerminalProduct<'a> {
 
     fn custody(&self) -> TerminalApplicationCustody<'_> {
         TerminalApplicationCustody {
-            admission_roots: &self.admission_roots,
+            callback_roots: Some(self.request.view.callbacks),
+            physical_adapter: self.physical_adapter,
             entry_identity: self.signature_identity,
             entry_machine: self.selected_machine.is_valid().then_some(
                 psi_compiler::TerminalMachineSelection::Symbol(self.selected_machine),

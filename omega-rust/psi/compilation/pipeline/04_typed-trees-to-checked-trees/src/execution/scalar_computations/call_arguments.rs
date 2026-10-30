@@ -46,12 +46,7 @@ impl Builder<'_, '_> {
         argument_ordinal: u32,
         argument: ExpressionHandle,
     ) {
-        let Some(place) = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            argument,
-        ) else {
+        let Some(place) = self.canonical_place(argument) else {
             return;
         };
         for segment in place.segments {

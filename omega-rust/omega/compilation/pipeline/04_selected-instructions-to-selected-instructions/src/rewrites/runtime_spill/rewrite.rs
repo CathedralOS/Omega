@@ -2,9 +2,9 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    LocalStorageSlotId, SelectedBoundarySettlementPayload, SelectedCasePayloadTransport,
-    SelectedInstruction, SelectedLocalStorageSlot, SelectedStructuralTransport,
-    SelectedValueTransport, VirtualRegister, VirtualRegisterId,
+    LocalStorageSlotId, SelectedCasePayloadTransport, SelectedInstruction,
+    SelectedLocalStorageSlot, SelectedStructuralTransport, SelectedValueTransport, VirtualRegister,
+    VirtualRegisterId,
 };
 
 use super::{
@@ -12,6 +12,7 @@ use super::{
     admission, derive_runtime_spill,
 };
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::settlement_gaps::{gap_tables, push_position, remap};
 
 /// Emit one private address/load pair for a use, or — when `share` admits a
 /// block-local shared reload — reuse the pair still open from the span's
@@ -154,16 +155,7 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                         .iter()
                         .any(|settlement| settlement.block == block.id);
                     let mut instructions = Vec::with_capacity(block.instructions.len() + 8);
-                    let mut boundaries = if has_settlements {
-                        Vec::with_capacity(block.instructions.len() + 1)
-                    } else {
-                        Vec::new()
-                    };
-                    let mut instruction_positions = if has_settlements {
-                        Vec::with_capacity(block.instructions.len() + 1)
-                    } else {
-                        Vec::new()
-                    };
+                    let (mut boundaries, mut positions) = gap_tables(has_settlements, block);
                     let mut has_block_start_store = false;
                     // An entry parameter's store opens its block: the register is live-in,
                     // so position zero is the earliest point the slot holds the value and
@@ -266,12 +258,8 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                              next_instruction: &mut u32,
                              next_register: &mut u32|
                              -> Result<(), RuntimeSpillError> {
-                                if has_settlements {
-                                    boundaries.push(
-                                        u32::try_from(instructions.len())
-                                            .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-                                    );
-                                }
+                                push_position(&mut boundaries, has_settlements, instructions.len())
+                                    .ok_or(RuntimeSpillError::IdentityOverflow)?;
                                 let mut rewritten = original.clone();
                                 for operand in &mut rewritten.operands {
                                     if operand.virtual_register != register
@@ -306,12 +294,8 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                                     use_reloads.entry(rewritten.id).or_insert(reloaded);
                                     operand.virtual_register = reloaded;
                                 }
-                                if has_settlements {
-                                    instruction_positions.push(
-                                        u32::try_from(instructions.len())
-                                            .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-                                    );
-                                }
+                                push_position(&mut positions, has_settlements, instructions.len())
+                                    .ok_or(RuntimeSpillError::IdentityOverflow)?;
                                 instructions.push(rewritten);
                                 if has_span_closes
                                     && open_reload.is_some()
@@ -562,29 +546,15 @@ pub fn spill_selected_runtime_value_with_crossing_status(
                             }
                         }
                     }
-                    let final_len = u32::try_from(instructions.len())
-                        .map_err(|_| RuntimeSpillError::IdentityOverflow)?;
+                    push_position(&mut boundaries, has_settlements, instructions.len())
+                        .ok_or(RuntimeSpillError::IdentityOverflow)?;
+                    push_position(&mut positions, has_settlements, instructions.len())
+                        .ok_or(RuntimeSpillError::IdentityOverflow)?;
                     if has_settlements {
-                        boundaries.push(final_len);
-                        instruction_positions.push(final_len);
-                        for settlement in &mut *boundary_settlements {
-                            if settlement.block != block.id {
-                                continue;
-                            }
-                            // Eliminated completions retain their gap; hosted settlements name
-                            // the surviving instruction, after any newly inserted reloads.
-                            let positions = if matches!(
-                                settlement.settlement,
-                                SelectedBoundarySettlementPayload::ClaimCompletion(_)
-                            ) {
-                                &boundaries
-                            } else {
-                                &instruction_positions
-                            };
-                            settlement.instruction_index = *positions
-                                .get(settlement.instruction_index as usize)
-                                .ok_or(RuntimeSpillError::SourceMismatch)?;
-                        }
+                        // Eliminated completions retain their gap; hosted settlements name
+                        // the surviving instruction, after any newly inserted reloads.
+                        remap(boundary_settlements, &boundaries, &positions, block.id)
+                            .ok_or(RuntimeSpillError::SourceMismatch)?;
                     }
                     let unchanged_suffix = if instructions.len() == pre_terminator_len {
                         active_window

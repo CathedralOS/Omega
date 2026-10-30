@@ -567,6 +567,12 @@ mod tests {
         }
     }
 
+    macro_rules! set {
+        ($program:expr => $identity:expr => $machine:expr) => {
+            set_machine($program, $identity, $machine)
+        };
+    }
+
     // Fixture declarations intern authored identities through the module
     // table the same way the producer does, so identity joins stay index-true.
     fn intern_identity(
@@ -897,18 +903,10 @@ mod tests {
                 rows: vec![Some(MachineId::new(3).unwrap()), None],
             },
         ];
-        set_machine(
-            &mut program,
-            MachineId::new(1).unwrap(),
-            machine(0, vec![dynamic_call(0, 0)]),
-        );
+        set!(&mut program => MachineId::new(1).unwrap() => machine(0, vec![dynamic_call(0, 0)]));
         // A recursive row must terminate the closure walk. Missing declarations
         // in an unused slot or another interface must not become demands.
-        set_machine(
-            &mut program,
-            MachineId::new(2).unwrap(),
-            machine(0, vec![dynamic_call(0, 0)]),
-        );
+        set!(&mut program => MachineId::new(2).unwrap() => machine(0, vec![dynamic_call(0, 0)]));
         set_machine(
             &mut program,
             MachineId::new(3).unwrap(),
@@ -937,11 +935,7 @@ mod tests {
         let catalogs = program.fixture_module_mut();
         let declaration = boundary_declaration(catalogs, provider_import);
         catalogs.boundary_machines.push(declaration);
-        set_machine(
-            &mut program,
-            provider,
-            machine(0, vec![boundary_call(provider_import)]),
-        );
+        set!(&mut program => provider => machine(0, vec![boundary_call(provider_import)]));
         let installation = TerminalRuntimeSupplies {
             provider_selections: None,
             x86_flags: None,
@@ -1110,11 +1104,7 @@ mod tests {
     #[test]
     fn capability_graph_ignores_unused_selected_result() {
         let mut program = program();
-        set_machine(
-            &mut program,
-            MachineId::new(2).unwrap(),
-            machine(2, Vec::new()),
-        );
+        set!(&mut program => MachineId::new(2).unwrap() => machine(2, Vec::new()));
         assert_eq!(check(&program, None).unwrap().imports, Vec::new());
     }
 
@@ -1122,11 +1112,7 @@ mod tests {
     fn capability_graph_reaches_called_selected_result() {
         let mut program = program();
         let selected = MachineId::new(2).unwrap();
-        set_machine(
-            &mut program,
-            MachineId::new(1).unwrap(),
-            machine(0, vec![unit_call(selected)]),
-        );
+        set!(&mut program => MachineId::new(1).unwrap() => machine(0, vec![unit_call(selected)]));
         set_machine(&mut program, selected, machine(2, Vec::new()));
         assert_eq!(check(&program, None).unwrap().imports, Vec::new());
     }
@@ -1135,11 +1121,7 @@ mod tests {
     fn capability_graph_does_not_demand_a_crashed_result() {
         let mut program = program();
         let selected = MachineId::new(2).unwrap();
-        set_machine(
-            &mut program,
-            MachineId::new(1).unwrap(),
-            machine(0, vec![unit_call(selected)]),
-        );
+        set!(&mut program => MachineId::new(1).unwrap() => machine(0, vec![unit_call(selected)]));
         let mut never_returns = machine(2, Vec::new());
         never_returns.blocks.first_mut().unwrap().terminator = Terminator::Crash {
             edge: EdgeId::new(1).unwrap(),
@@ -1164,11 +1146,7 @@ mod tests {
             completion_receipts: Vec::new(),
             requirement_obligations: Vec::new(),
         };
-        set_machine(
-            &mut program,
-            MachineId::new(1).unwrap(),
-            machine(0, vec![kind]),
-        );
+        set!(&mut program => MachineId::new(1).unwrap() => machine(0, vec![kind]));
         assert_eq!(check(&program, None).unwrap().imports, vec![boundary]);
         add_provider(&mut program, boundary);
         let requirements = check(&program, None).unwrap();

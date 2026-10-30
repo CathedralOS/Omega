@@ -12,6 +12,12 @@ use access_plans::{
     AtomicPermissions, BoundaryReach, ExternalRead, FieldAccess, ValidatedPlacementPlan,
 };
 
+macro_rules! bin {
+    ($emission:expr => $builder:expr => $kind:ident => $left:expr => $right:expr) => {
+        $emission.binary($builder, SelectedInstructionKind::$kind, $left, $right)
+    };
+}
+
 pub(in super::super) const COMPATIBILITY_SCRATCH_BYTES: u32 = 200;
 const COMPATIBLE: u32 = 48;
 const MODULUS: u32 = 56;
@@ -48,12 +54,7 @@ fn intersect(
     predicate: VirtualRegisterId,
 ) -> Result<(), SelectedInstructionError> {
     let previous = emission.read_scratch(builder, cell)?;
-    let next = emission.binary(
-        builder,
-        SelectedInstructionKind::BitwiseAndI64,
-        previous,
-        predicate,
-    )?;
+    let next = bin!(emission => builder => BitwiseAndI64 => previous => predicate)?;
     emission.write_scratch(builder, cell, next)
 }
 
@@ -64,12 +65,7 @@ fn unite(
     predicate: VirtualRegisterId,
 ) -> Result<(), SelectedInstructionError> {
     let previous = emission.read_scratch(builder, cell)?;
-    let next = emission.binary(
-        builder,
-        SelectedInstructionKind::BitwiseOrI64,
-        previous,
-        predicate,
-    )?;
+    let next = bin!(emission => builder => BitwiseOrI64 => previous => predicate)?;
     emission.write_scratch(builder, cell, next)
 }
 
@@ -156,12 +152,7 @@ fn same_rules(
                     let left_value = emission.load(builder, left_entry, field)?;
                     let right_value = emission.load(builder, right_entry, field)?;
                     let equal = emission.equal(builder, left_value, right_value)?;
-                    same = emission.binary(
-                        builder,
-                        SelectedInstructionKind::BitwiseAndI64,
-                        same,
-                        equal,
-                    )?;
+                    same = bin!(emission => builder => BitwiseAndI64 => same => equal)?;
                 }
                 unite(emission, builder, MATCH, same)
             },
@@ -254,12 +245,7 @@ fn stable_permits(
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let required = emission.constant(builder, u64::from(read) | (u64::from(write) << 1))?;
     let stable = emission.load(builder, region, layout.stable)?;
-    let supplied = emission.binary(
-        builder,
-        SelectedInstructionKind::BitwiseAndI64,
-        stable,
-        required,
-    )?;
+    let supplied = bin!(emission => builder => BitwiseAndI64 => stable => required)?;
     emission.equal(builder, supplied, required)
 }
 
@@ -305,12 +291,7 @@ fn select_rules(
                 if required {
                     let value = emission.load(builder, entry, *field)?;
                     let present = emission.equal(builder, value, one)?;
-                    supported = emission.binary(
-                        builder,
-                        SelectedInstructionKind::BitwiseAndI64,
-                        supported,
-                        present,
-                    )?;
+                    supported = bin!(emission => builder => BitwiseAndI64 => supported => present)?;
                 }
             }
         }
@@ -373,12 +354,7 @@ fn effective_alignment(
                 }
                 if *write {
                     let actual = emission.load(builder, region, layout.external_write)?;
-                    supplied = emission.binary(
-                        builder,
-                        SelectedInstructionKind::BitwiseAndI64,
-                        supplied,
-                        actual,
-                    )?;
+                    supplied = bin!(emission => builder => BitwiseAndI64 => supplied => actual)?;
                 }
                 operation_control::when_nonzero(builder, emission.row, supplied, |builder| {
                     select_rules(
@@ -403,12 +379,7 @@ fn effective_alignment(
                     *read == ExternalRead::Read,
                     *write,
                 )?;
-                let use_stable = emission.binary(
-                    builder,
-                    SelectedInstructionKind::BitwiseAndI64,
-                    missing,
-                    stable,
-                )?;
+                let use_stable = bin!(emission => builder => BitwiseAndI64 => missing => stable)?;
                 operation_control::when_nonzero(builder, emission.row, use_stable, |builder| {
                     let bytes = u64::from(*transfer_width_bits / 8);
                     let alignment = emission
@@ -449,49 +420,19 @@ fn combine_alignment(
     let previous_modulus = emission.read_scratch(builder, MODULUS)?;
     let previous_residue = emission.read_scratch(builder, RESIDUE)?;
     let one = emission.constant(builder, 1)?;
-    let mask = emission.binary(
-        builder,
-        SelectedInstructionKind::WrappingSubtractI64,
-        alignment,
-        one,
-    )?;
+    let mask = bin!(emission => builder => WrappingSubtractI64 => alignment => one)?;
     let zero = emission.constant(builder, 0)?;
-    let negated_offset = emission.binary(
-        builder,
-        SelectedInstructionKind::WrappingSubtractI64,
-        zero,
-        offset,
-    )?;
-    let residue = emission.binary(
-        builder,
-        SelectedInstructionKind::BitwiseAndI64,
-        negated_offset,
-        mask,
-    )?;
+    let negated_offset = bin!(emission => builder => WrappingSubtractI64 => zero => offset)?;
+    let residue = bin!(emission => builder => BitwiseAndI64 => negated_offset => mask)?;
     emission.write_scratch(builder, SHARED_MODULUS, previous_modulus)?;
     let smaller = emission.at_most(builder, alignment, previous_modulus)?;
     operation_control::when_nonzero(builder, emission.row, smaller, |builder| {
         emission.write_scratch(builder, SHARED_MODULUS, alignment)
     })?;
     let shared = emission.read_scratch(builder, SHARED_MODULUS)?;
-    let shared_mask = emission.binary(
-        builder,
-        SelectedInstructionKind::WrappingSubtractI64,
-        shared,
-        one,
-    )?;
-    let old = emission.binary(
-        builder,
-        SelectedInstructionKind::BitwiseAndI64,
-        previous_residue,
-        shared_mask,
-    )?;
-    let new = emission.binary(
-        builder,
-        SelectedInstructionKind::BitwiseAndI64,
-        residue,
-        shared_mask,
-    )?;
+    let shared_mask = bin!(emission => builder => WrappingSubtractI64 => shared => one)?;
+    let old = bin!(emission => builder => BitwiseAndI64 => previous_residue => shared_mask)?;
+    let new = bin!(emission => builder => BitwiseAndI64 => residue => shared_mask)?;
     let consistent = emission.equal(builder, old, new)?;
     intersect(emission, builder, COMPATIBLE, consistent)?;
     let larger = emission.invert(builder, smaller)?;
@@ -531,27 +472,12 @@ fn extend_coverage(
             let candidate = emission.element(builder, pointer, layout.regions, position)?;
             let start = emission.load(builder, candidate, layout.start)?;
             let length = emission.load(builder, candidate, layout.length)?;
-            let end = emission.binary(
-                builder,
-                SelectedInstructionKind::WrappingAddI64,
-                start,
-                length,
-            )?;
+            let end = bin!(emission => builder => WrappingAddI64 => start => length)?;
             let after_start = emission.at_most(builder, start, covered)?;
             let after_end = emission.at_most(builder, end, covered)?;
             let before_end = emission.invert(builder, after_end)?;
-            let contains = emission.binary(
-                builder,
-                SelectedInstructionKind::BitwiseAndI64,
-                after_start,
-                before_end,
-            )?;
-            let consider = emission.binary(
-                builder,
-                SelectedInstructionKind::BitwiseAndI64,
-                incomplete,
-                contains,
-            )?;
+            let contains = bin!(emission => builder => BitwiseAndI64 => after_start => before_end)?;
+            let consider = bin!(emission => builder => BitwiseAndI64 => incomplete => contains)?;
             operation_control::when_nonzero(builder, emission.row, consider, |builder| {
                 let supported = match demand {
                     CoverageDemand::SameRegion(original) => {
@@ -561,12 +487,7 @@ fn extend_coverage(
                         let stable =
                             stable_permits(emission, builder, layout, candidate, read, write)?;
                         let reachable = reaches(emission, builder, layout, candidate, reach)?;
-                        emission.binary(
-                            builder,
-                            SelectedInstructionKind::BitwiseAndI64,
-                            stable,
-                            reachable,
-                        )?
+                        bin!(emission => builder => BitwiseAndI64 => stable => reachable)?
                     }
                     CoverageDemand::Repeated(region) => {
                         // Coalesce equivalent adjacent raw rows before testing
@@ -604,12 +525,7 @@ fn extend_coverage(
                             .constant(builder, u64::from(region.transfer_width_bits() / 8))?;
                         let mask = emission
                             .constant(builder, u64::from(region.transfer_width_bits() / 8) - 1)?;
-                        let remainder = emission.binary(
-                            builder,
-                            SelectedInstructionKind::BitwiseAndI64,
-                            span,
-                            mask,
-                        )?;
+                        let remainder = bin!(emission => builder => BitwiseAndI64 => span => mask)?;
                         let zero = emission.constant(builder, 0)?;
                         let tiled = emission.equal(builder, remainder, zero)?;
                         let alignment = effective_alignment(
@@ -652,12 +568,7 @@ fn extend_coverage(
                         emission.read_scratch(builder, RUN_END)?
                     } else {
                         let length = emission.load(builder, candidate, layout.length)?;
-                        emission.binary(
-                            builder,
-                            SelectedInstructionKind::WrappingAddI64,
-                            start,
-                            length,
-                        )?
+                        bin!(emission => builder => WrappingAddI64 => start => length)?
                     };
                     emission.write_scratch(builder, COVERED, end)
                 })

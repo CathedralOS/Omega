@@ -70,174 +70,71 @@ fn expression_has_effect_at_depth(
         return false;
     };
     let next = depth + 1;
+    macro_rules! child_has_effect {
+        ($child:expr) => {
+            expression_has_effect_at_depth(
+                program,
+                $child,
+                checks_indexed,
+                include_fact_mutations,
+                next,
+            )
+        };
+    }
     match node {
         ExpressionNode::SavedSubject(_) => false,
         ExpressionNode::Call(_) => true,
         ExpressionNode::Indexed(indexed) => {
             checks_indexed
-                || expression_has_effect_at_depth(
-                    program,
-                    indexed.collection,
-                    checks_indexed,
-                    include_fact_mutations,
-                    next,
-                )
-                || expression_has_effect_at_depth(
-                    program,
-                    indexed.index,
-                    checks_indexed,
-                    include_fact_mutations,
-                    next,
-                )
+                || child_has_effect!(indexed.collection)
+                || child_has_effect!(indexed.index)
         }
-        ExpressionNode::Cast(cast) => {
-            include_fact_mutations
-                || expression_has_effect_at_depth(
-                    program,
-                    cast.value,
-                    checks_indexed,
-                    include_fact_mutations,
-                    next,
-                )
-        }
+        ExpressionNode::Cast(cast) => include_fact_mutations || child_has_effect!(cast.value),
         ExpressionNode::Atomic(atomic) => {
             include_fact_mutations
                 || if let Some(carrier) = validation::atomic_once_carrier(program, expression) {
-                    expression_has_effect_at_depth(
-                        program,
-                        carrier.place,
-                        checks_indexed,
-                        include_fact_mutations,
-                        next,
-                    ) || carrier.operands.into_iter().any(|operand| {
-                        expression_has_effect_at_depth(
-                            program,
-                            operand,
-                            checks_indexed,
-                            include_fact_mutations,
-                            next,
-                        )
-                    })
+                    child_has_effect!(carrier.place)
+                        || carrier
+                            .operands
+                            .into_iter()
+                            .any(|operand| child_has_effect!(operand))
                 } else {
-                    expression_has_effect_at_depth(
-                        program,
-                        atomic.value,
-                        checks_indexed,
-                        include_fact_mutations,
-                        next,
-                    )
+                    child_has_effect!(atomic.value)
                 }
         }
         ExpressionNode::Match(dispatch) => {
-            expression_has_effect_at_depth(
-                program,
-                dispatch.subject,
-                checks_indexed,
-                include_fact_mutations,
-                next,
-            ) || program
-                .expression_table
-                .match_arms(dispatch.arms)
-                .iter()
-                .any(|arm| {
-                    program
-                        .expression_table
-                        .match_pattern_operands(arm.pattern)
-                        .any(|operand| {
-                            expression_has_effect_at_depth(
-                                program,
-                                operand,
-                                checks_indexed,
-                                include_fact_mutations,
-                                next,
-                            )
-                        })
-                        || expression_has_effect_at_depth(
-                            program,
-                            arm.value,
-                            checks_indexed,
-                            include_fact_mutations,
-                            next,
-                        )
-                })
+            child_has_effect!(dispatch.subject)
+                || program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .any(|arm| {
+                        program
+                            .expression_table
+                            .match_pattern_operands(arm.pattern)
+                            .any(|operand| child_has_effect!(operand))
+                            || child_has_effect!(arm.value)
+                    })
         }
         ExpressionNode::Binary(binary) => {
-            expression_has_effect_at_depth(
-                program,
-                binary.left,
-                checks_indexed,
-                include_fact_mutations,
-                next,
-            ) || expression_has_effect_at_depth(
-                program,
-                binary.right,
-                checks_indexed,
-                include_fact_mutations,
-                next,
-            )
+            child_has_effect!(binary.left) || child_has_effect!(binary.right)
         }
         ExpressionNode::ArrayLiteral(values) => program
             .expression_table
             .expression_handles(*values)
             .iter()
-            .any(|value| {
-                expression_has_effect_at_depth(
-                    program,
-                    *value,
-                    checks_indexed,
-                    include_fact_mutations,
-                    next,
-                )
-            }),
-        ExpressionNode::Member(member) => expression_has_effect_at_depth(
-            program,
-            member.receiver,
-            checks_indexed,
-            include_fact_mutations,
-            next,
-        ),
-        ExpressionNode::Borrow(borrow) => expression_has_effect_at_depth(
-            program,
-            borrow.target,
-            checks_indexed,
-            include_fact_mutations,
-            next,
-        ),
-        ExpressionNode::Unary(unary) => expression_has_effect_at_depth(
-            program,
-            unary.operand,
-            checks_indexed,
-            include_fact_mutations,
-            next,
-        ),
+            .any(|value| child_has_effect!(*value)),
+        ExpressionNode::Member(member) => child_has_effect!(member.receiver),
+        ExpressionNode::Borrow(borrow) => child_has_effect!(borrow.target),
+        ExpressionNode::Unary(unary) => child_has_effect!(unary.operand),
         ExpressionNode::Range(range) => {
-            expression_has_effect_at_depth(
-                program,
-                range.start,
-                checks_indexed,
-                include_fact_mutations,
-                next,
-            ) || expression_has_effect_at_depth(
-                program,
-                range.end,
-                checks_indexed,
-                include_fact_mutations,
-                next,
-            )
+            child_has_effect!(range.start) || child_has_effect!(range.end)
         }
         ExpressionNode::StructLiteral(literal) => program
             .expression_table
             .struct_fields(literal.fields)
             .iter()
-            .any(|field| {
-                expression_has_effect_at_depth(
-                    program,
-                    field.value,
-                    checks_indexed,
-                    include_fact_mutations,
-                    next,
-                )
-            }),
+            .any(|field| child_has_effect!(field.value)),
         ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => false,
     }
 }

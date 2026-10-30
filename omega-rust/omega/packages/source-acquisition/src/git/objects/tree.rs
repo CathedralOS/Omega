@@ -9,6 +9,12 @@ use crate::limits::{GIT_TREE_GRAPH_ENTRY_LIMIT, LocalSourceLimits, SOURCE_DEPTH_
 use super::identity::is_object_id;
 use super::{GitBlobBytes, GitTreeEntry, GitTreeEntryKind};
 
+macro_rules! bad {
+    ($a:expr => $b:expr) => {
+        git_tree_invalid($a, $b)
+    };
+}
+
 pub(crate) fn parse_git_tree_entries(
     listing: &[u8],
     repository: &Path,
@@ -185,10 +191,7 @@ fn parse_git_tree_entries_with_policy(
             match paths.get(parent) {
                 Some(true) => {}
                 Some(false) => {
-                    return Err(git_tree_invalid(
-                        &entry.relative_bytes,
-                        "Git path traverses a blob",
-                    ));
+                    return Err(bad!(&entry.relative_bytes => "Git path traverses a blob"));
                 }
                 None => {
                     return Err(git_tree_invalid(
@@ -222,24 +225,15 @@ pub(super) fn validate_git_path(
     limits: LocalSourceLimits,
 ) -> Result<PathBuf, SourceResolveError> {
     if path.is_empty() || path.starts_with(b"/") || path.ends_with(b"/") {
-        return Err(git_tree_invalid(
-            path,
-            "path must be a non-empty relative path",
-        ));
+        return Err(bad!(path => "path must be a non-empty relative path"));
     }
     if path.contains(&b'\\') {
-        return Err(git_tree_invalid(
-            path,
-            "backslashes are forbidden in portable package paths",
-        ));
+        return Err(bad!(path => "backslashes are forbidden in portable package paths"));
     }
     let components = path.split(|byte| *byte == b'/').collect::<Vec<_>>();
     for component in &components {
         if component.is_empty() || *component == b"." || *component == b".." {
-            return Err(git_tree_invalid(
-                path,
-                "path contains a traversal component",
-            ));
+            return Err(bad!(path => "path contains a traversal component"));
         }
         if component.eq_ignore_ascii_case(b".git") {
             return Err(git_tree_invalid(path, "path enters excluded Git metadata"));
@@ -276,10 +270,7 @@ fn validate_portable_git_component(
         .last()
         .is_some_and(|byte| matches!(byte, b'.' | b' '))
     {
-        return Err(git_tree_invalid(
-            path,
-            "path component has a Windows-ambiguous trailing dot or space",
-        ));
+        return Err(bad!(path => "path component has a Windows-ambiguous trailing dot or space"));
     }
     let stem = component
         .split(|byte| *byte == b'.')
@@ -294,10 +285,7 @@ fn validate_portable_git_component(
         || stem.eq_ignore_ascii_case(b"CONIN$")
         || stem.eq_ignore_ascii_case(b"CONOUT$");
     if reserved_device {
-        return Err(git_tree_invalid(
-            path,
-            "path component uses a reserved Windows device name",
-        ));
+        return Err(bad!(path => "path component uses a reserved Windows device name"));
     }
     Ok(())
 }
@@ -314,7 +302,9 @@ pub(crate) fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveE
 pub(crate) fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveError> {
     let text = std::str::from_utf8(path)
         .map_err(|_| git_tree_invalid(path, "path cannot be represented on this host"))?;
-    Ok(PathBuf::from(text))
+    Ok(PathBuf::from(
+        text.replace('/', std::path::MAIN_SEPARATOR_STR),
+    ))
 }
 
 pub(crate) fn validate_git_symlink_target(
@@ -322,16 +312,10 @@ pub(crate) fn validate_git_symlink_target(
     target: &[u8],
 ) -> Result<(), SourceResolveError> {
     if target.is_empty() || target.starts_with(b"/") || target.contains(&0) {
-        return Err(git_tree_invalid(
-            link,
-            "symlink target must be a non-empty relative path",
-        ));
+        return Err(bad!(link => "symlink target must be a non-empty relative path"));
     }
     if target.contains(&b'\\') {
-        return Err(git_tree_invalid(
-            link,
-            "symlink target contains a non-portable path separator",
-        ));
+        return Err(bad!(link => "symlink target contains a non-portable path separator"));
     }
     let mut depth = link.split(|byte| *byte == b'/').count().saturating_sub(1);
     for component in target.split(|byte| *byte == b'/') {
@@ -343,10 +327,7 @@ pub(crate) fn validate_git_symlink_target(
                     .ok_or_else(|| git_tree_invalid(link, "symlink target escapes the snapshot"))?;
             }
             component if component.eq_ignore_ascii_case(b".git") => {
-                return Err(git_tree_invalid(
-                    link,
-                    "symlink target enters excluded Git metadata",
-                ));
+                return Err(bad!(link => "symlink target enters excluded Git metadata"));
             }
             component => {
                 validate_portable_git_component(link, component)?;

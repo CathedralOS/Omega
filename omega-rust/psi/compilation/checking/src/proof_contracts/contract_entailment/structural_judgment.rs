@@ -293,14 +293,17 @@ impl StructuralTerm {
         }
     }
 
-    pub(super) fn boolean_value(&self) -> Option<bool> {
-        let Self::Constructor { data, case, fields } = self.semantic_value() else {
+    pub(super) fn boolean_constructor(&self) -> Option<bool> {
+        let Self::Constructor { data, case, fields } = self else {
             return None;
         };
-        if data != "bool" || !fields.is_empty() {
-            return None;
-        }
-        language_semantics::const_value::boolean_literal_spelling(case)
+        (data == "bool" && fields.is_empty())
+            .then(|| language_semantics::const_value::boolean_literal_spelling(case))
+            .flatten()
+    }
+
+    pub(super) fn boolean_value(&self) -> Option<bool> {
+        self.semantic_value().boolean_constructor()
     }
 
     pub(super) fn into_semantic_value(self) -> Self {
@@ -2573,6 +2576,17 @@ impl<'program> StructuralJudge<'program> {
             return Some(value);
         }
         let program = self.program;
+        macro_rules! child_term {
+            ($expression:expr) => {
+                self.callee_term(
+                    $expression,
+                    environment,
+                    static_observations,
+                    scope,
+                    depth + 1,
+                )
+            };
+        }
         if program.static_type_predicate_operands(expression).is_some() {
             // Types have no runtime storage observation. Read the same
             // declaration-owned proposition as contract term construction;
@@ -2593,13 +2607,7 @@ impl<'program> StructuralJudge<'program> {
                 crate::expression_result_type_reference(program, machine, state, member.receiver)
             && let Some(measure) =
                 super::structural_terms::collection_measure_term(program, member, reference, || {
-                    self.callee_term(
-                        member.receiver,
-                        environment,
-                        static_observations,
-                        scope,
-                        depth + 1,
-                    )
+                    child_term!(member.receiver)
                 })
         {
             return Some(measure);
@@ -2632,7 +2640,7 @@ impl<'program> StructuralJudge<'program> {
                 program,
                 expression,
                 reference,
-                self.callee_term(argument, environment, static_observations, scope, depth + 1)?,
+                child_term!(argument)?,
             );
         }
         if program
@@ -2645,10 +2653,18 @@ impl<'program> StructuralJudge<'program> {
             return super::structural_terms::mathematical_application_term(
                 program,
                 expression,
-                |capture| {
-                    self.callee_term(capture, environment, static_observations, scope, depth + 1)
-                },
+                |capture| child_term!(capture),
             );
+        }
+        // Closed anonymous arithmetic has the same exact value in a runtime
+        // predicate as in its declaration. Read it before recursive operation
+        // construction: the enclosing machine's return type is not the
+        // comparison peer's landing, and must not erase a retained predicate.
+        // The shared reader rejects runtime names, typed arithmetic policies
+        // and unselected user operators; formation and storage fences above
+        // remain independent obligations.
+        if let Some(value) = super::proof_integer::anonymous_integer_value(program, expression) {
+            return Some(StructuralTerm::Integer(value));
         }
         match program.expression_table.expression(expression) {
             ExpressionNode::Match(dispatch) => self.specification_match_term(
@@ -2773,15 +2789,7 @@ impl<'program> StructuralJudge<'program> {
                         .expression_table
                         .expression_handles(call.arguments)
                         .iter()
-                        .map(|argument| {
-                            self.callee_term(
-                                *argument,
-                                environment,
-                                static_observations,
-                                scope,
-                                depth + 1,
-                            )
-                        })
+                        .map(|argument| child_term!(*argument))
                         .collect::<Option<Vec<_>>>()?;
                     let Some(state) =
                         crate::machine_calls::calls::signature_queries::unique_state_by_symbol(
@@ -2819,13 +2827,7 @@ impl<'program> StructuralJudge<'program> {
                         arguments,
                     });
                 }
-                let receiver_term = self.callee_term(
-                    member.receiver,
-                    environment,
-                    static_observations,
-                    scope,
-                    depth + 1,
-                )?;
+                let receiver_term = child_term!(member.receiver)?;
                 self.observed_field_term(receiver_term, member.member.as_str(), depth)
             }
             ExpressionNode::StructLiteral(literal) => {
@@ -2835,13 +2837,7 @@ impl<'program> StructuralJudge<'program> {
                     literal,
                     |_, field| {
                         let field = field?;
-                        self.callee_term(
-                            field.value,
-                            environment,
-                            static_observations,
-                            scope,
-                            depth + 1,
-                        )
+                        child_term!(field.value)
                     },
                 )
             }
@@ -2850,26 +2846,14 @@ impl<'program> StructuralJudge<'program> {
                 scope,
                 None,
                 expression,
-                self.callee_term(
-                    unary.operand,
-                    environment,
-                    static_observations,
-                    scope,
-                    depth + 1,
-                )?,
+                child_term!(unary.operand)?,
             ),
             ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
             ExpressionNode::Cast(cast) => {
                 let (machine, state, _) = scope?;
                 let source =
                     crate::expression_result_type_reference(program, machine, state, cast.value)?;
-                let value = self.callee_term(
-                    cast.value,
-                    environment,
-                    static_observations,
-                    scope,
-                    depth + 1,
-                )?;
+                let value = child_term!(cast.value)?;
                 if super::structural_terms::denotation_preserving_conversion(program, cast, source)
                 {
                     Some(value)
@@ -2949,13 +2933,7 @@ impl<'program> StructuralJudge<'program> {
                 }
                 let mut arguments = Vec::new();
                 for argument in program.expression_table.expression_handles(call.arguments) {
-                    arguments.push(self.callee_term(
-                        *argument,
-                        environment,
-                        static_observations,
-                        scope,
-                        depth + 1,
-                    )?);
+                    arguments.push(child_term!(*argument)?);
                 }
                 // Substitution changes the selected callable telescope as well
                 // as its symbol. Retain its own result declaration rather than
@@ -3012,13 +2990,7 @@ impl<'program> StructuralJudge<'program> {
             }
             // A checked borrow selects its referent; it does not create a new
             // case-bearing value. Preserve aliases to the same saved subject.
-            ExpressionNode::Borrow(borrow) => self.callee_term(
-                borrow.target,
-                environment,
-                static_observations,
-                scope,
-                depth + 1,
-            ),
+            ExpressionNode::Borrow(borrow) => child_term!(borrow.target),
             ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
                 data: "bool".to_owned(),
                 case: value.to_string(),
@@ -3029,40 +3001,16 @@ impl<'program> StructuralJudge<'program> {
                 scope,
                 None,
                 expression,
-                self.callee_term(
-                    indexed.collection,
-                    environment,
-                    static_observations,
-                    scope,
-                    depth + 1,
-                )?,
-                self.callee_term(
-                    indexed.index,
-                    environment,
-                    static_observations,
-                    scope,
-                    depth + 1,
-                )?,
+                child_term!(indexed.collection)?,
+                child_term!(indexed.index)?,
             ),
             ExpressionNode::Binary(binary) => super::structural_terms::binary_term_in_scope(
                 program,
                 scope,
                 None,
                 expression,
-                self.callee_term(
-                    binary.left,
-                    environment,
-                    static_observations,
-                    scope,
-                    depth + 1,
-                )?,
-                self.callee_term(
-                    binary.right,
-                    environment,
-                    static_observations,
-                    scope,
-                    depth + 1,
-                )?,
+                child_term!(binary.left)?,
+                child_term!(binary.right)?,
             ),
             _ => None,
         }

@@ -32,7 +32,3 @@ CheckedRestore satisfies SelectedRestore {
     machine bad() { crash Trap; }
 }
 }
-
-
-
-

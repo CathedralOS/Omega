@@ -1,10 +1,7 @@
 //! Sequence the selected Psi lowering, optimization and publication owners.
 
 use checked_trees::CheckedTrees;
-use checked_trees_to_lowered_psi::{
-    LoweringError, TerminalMachineSelection, lower_machine, lowered_machine_provenance,
-    select_terminal_machine,
-};
+use checked_trees_to_lowered_psi::{LoweringError, TerminalMachineSelection, lower_machine};
 use diagnostics::Diagnostic;
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 
@@ -22,7 +19,7 @@ pub struct TerminalProductionRequest<'a> {
     pub checked: &'a CheckedTrees,
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     /// Reuse the declaration product already owned by this exact checked input.
-    pub external_declarations: Option<&'a crate::PreparedNumericRealizationDeclarations>,
+    pub external_declarations: Option<&'a crate::PreparedDeclarationCatalog>,
     pub machine: TerminalMachineSelection<'a>,
     /// Complete callable/interface roots requested by the owning product.
     /// These retain bodies/declarations without granting execution authority.
@@ -86,43 +83,14 @@ impl<'a> TerminalProductionRequest<'a> {
         // refusal cannot erase behavior or reject an independently admitted one.
         let admissions: Vec<_> = applications
             .iter()
-            .map(|application| -> Result<_, Vec<Diagnostic>> {
-                if application.entry_identity.is_none() && application.admission.is_none() {
-                    return Ok(None);
-                }
-                let selection = observer
-                    .record_result(PsiCompilationStage::MachineSelection, || {
-                        select_terminal_machine(
-                            checked,
-                            application.entry_machine.unwrap_or(self.machine),
-                        )
-                    })
-                    .map_err(|error| {
-                        TerminalArtifactProductionError::Lowering(error).diagnostics()
-                    })?;
-                if let Some(admission) = application.admission {
-                    for machine in std::iter::once(selection.machine)
-                        .chain(application.admission_roots.iter().copied())
-                    {
-                        let entry = lowered_psi_to_terminal_psi::retained_source_machine(
-                            checked,
-                            machine,
-                            self.exact_toolchain_sources,
-                            &lowered.semantic_module,
-                        )
-                        .map_err(|error| {
-                            TerminalArtifactProductionError::EntryReceipt(error).diagnostics()
-                        })?;
-                        let provenance = lowered_machine_provenance(
-                            checked,
-                            &lowered,
-                            machine,
-                            self.exact_toolchain_sources,
-                        );
-                        admission.admit(&lowered.semantic_module, entry.id, &provenance)?;
-                    }
-                }
-                Ok(Some(selection))
+            .map(|application| {
+                application.admit(
+                    checked,
+                    &lowered,
+                    self.machine,
+                    self.exact_toolchain_sources,
+                    observer,
+                )
             })
             .collect();
         let optimized = observer

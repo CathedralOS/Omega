@@ -4,6 +4,7 @@
 //! reference.
 
 use super::*;
+use super::{SaturatingCarrier as Carrier, SaturatingOperation as Op};
 
 #[test]
 fn saturating_subtract_binds_registers_condition_and_flag_effects() {
@@ -182,10 +183,18 @@ fn saturating_kinds() -> Vec<(
 
 /// Every saturating form over `x1, x2 -> x3` with bound scratch `x4`,
 /// independently assembled with Apple clang 17; not derived from this encoder.
+const fn words(
+    operation: SaturatingOperation,
+    carrier: SaturatingCarrier,
+    encoded: &'static [u32],
+) -> (SaturatingOperation, SaturatingCarrier, &'static [u32]) {
+    (operation, carrier, encoded)
+}
+
 const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]); 40] = [
-    (
-        SaturatingOperation::Add,
-        SaturatingCarrier::I8,
+    words(
+        Op::Add,
+        Carrier::I8,
         &[
             0x8b02_0023,
             0xb240_1be4,
@@ -196,9 +205,9 @@ const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]);
             0x9a83_b083,
         ],
     ),
-    (
-        SaturatingOperation::Add,
-        SaturatingCarrier::I16,
+    words(
+        Op::Add,
+        Carrier::I16,
         &[
             0x8b02_0023,
             0xb240_3be4,
@@ -209,9 +218,9 @@ const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]);
             0x9a83_b083,
         ],
     ),
-    (
-        SaturatingOperation::Add,
-        SaturatingCarrier::I32,
+    words(
+        Op::Add,
+        Carrier::I32,
         &[
             0x8b02_0023,
             0xb240_7be4,
@@ -222,34 +231,30 @@ const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]);
             0x9a83_b083,
         ],
     ),
-    (
-        SaturatingOperation::Add,
-        SaturatingCarrier::I64,
+    words(
+        Op::Add,
+        Carrier::I64,
         &[0x937f_fc24, 0xd240_f884, 0xab02_0023, 0x9a83_6083],
     ),
-    (
-        SaturatingOperation::Add,
-        SaturatingCarrier::U8,
+    words(
+        Op::Add,
+        Carrier::U8,
         &[0x8b02_0023, 0xb240_1fe4, 0xeb04_007f, 0x9a83_c083],
     ),
-    (
-        SaturatingOperation::Add,
-        SaturatingCarrier::U16,
+    words(
+        Op::Add,
+        Carrier::U16,
         &[0x8b02_0023, 0xb240_3fe4, 0xeb04_007f, 0x9a83_c083],
     ),
-    (
-        SaturatingOperation::Add,
-        SaturatingCarrier::U32,
+    words(
+        Op::Add,
+        Carrier::U32,
         &[0x8b02_0023, 0xb240_7fe4, 0xeb04_007f, 0x9a83_c083],
     ),
-    (
-        SaturatingOperation::Add,
-        SaturatingCarrier::U64,
-        &[0xab02_0023, 0xda9f_3063],
-    ),
-    (
-        SaturatingOperation::Subtract,
-        SaturatingCarrier::I8,
+    words(Op::Add, Carrier::U64, &[0xab02_0023, 0xda9f_3063]),
+    words(
+        Op::Subtract,
+        Carrier::I8,
         &[
             0xcb02_0023,
             0xb240_1be4,
@@ -260,9 +265,9 @@ const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]);
             0x9a83_b083,
         ],
     ),
-    (
-        SaturatingOperation::Subtract,
-        SaturatingCarrier::I16,
+    words(
+        Op::Subtract,
+        Carrier::I16,
         &[
             0xcb02_0023,
             0xb240_3be4,
@@ -273,9 +278,9 @@ const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]);
             0x9a83_b083,
         ],
     ),
-    (
-        SaturatingOperation::Subtract,
-        SaturatingCarrier::I32,
+    words(
+        Op::Subtract,
+        Carrier::I32,
         &[
             0xcb02_0023,
             0xb240_7be4,
@@ -286,49 +291,33 @@ const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]);
             0x9a83_b083,
         ],
     ),
-    (
-        SaturatingOperation::Subtract,
-        SaturatingCarrier::I64,
+    words(
+        Op::Subtract,
+        Carrier::I64,
         &[0x937f_fc24, 0xd240_f884, 0xeb02_0023, 0x9a83_6083],
     ),
-    (
-        SaturatingOperation::Subtract,
-        SaturatingCarrier::U8,
-        &[0xeb02_0023, 0x9a9f_2063],
-    ),
-    (
-        SaturatingOperation::Subtract,
-        SaturatingCarrier::U16,
-        &[0xeb02_0023, 0x9a9f_2063],
-    ),
-    (
-        SaturatingOperation::Subtract,
-        SaturatingCarrier::U32,
-        &[0xeb02_0023, 0x9a9f_2063],
-    ),
-    (
-        SaturatingOperation::Subtract,
-        SaturatingCarrier::U64,
-        &[0xeb02_0023, 0x9a9f_2063],
-    ),
-    (
-        SaturatingOperation::Divide,
-        SaturatingCarrier::I8,
+    words(Op::Subtract, Carrier::U8, &[0xeb02_0023, 0x9a9f_2063]),
+    words(Op::Subtract, Carrier::U16, &[0xeb02_0023, 0x9a9f_2063]),
+    words(Op::Subtract, Carrier::U32, &[0xeb02_0023, 0x9a9f_2063]),
+    words(Op::Subtract, Carrier::U64, &[0xeb02_0023, 0x9a9f_2063]),
+    words(
+        Op::Divide,
+        Carrier::I8,
         &[0x9ac2_0c23, 0xb240_1be4, 0xeb04_007f, 0x9a83_c083],
     ),
-    (
-        SaturatingOperation::Divide,
-        SaturatingCarrier::I16,
+    words(
+        Op::Divide,
+        Carrier::I16,
         &[0x9ac2_0c23, 0xb240_3be4, 0xeb04_007f, 0x9a83_c083],
     ),
-    (
-        SaturatingOperation::Divide,
-        SaturatingCarrier::I32,
+    words(
+        Op::Divide,
+        Carrier::I32,
         &[0x9ac2_0c23, 0xb240_7be4, 0xeb04_007f, 0x9a83_c083],
     ),
-    (
-        SaturatingOperation::Divide,
-        SaturatingCarrier::I64,
+    words(
+        Op::Divide,
+        Carrier::I64,
         &[
             0x9ac2_0c23,
             0xb241_03e4,
@@ -338,73 +327,21 @@ const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]);
             0x9a83_0083,
         ],
     ),
-    (
-        SaturatingOperation::Divide,
-        SaturatingCarrier::U8,
-        &[0x9ac2_0823],
-    ),
-    (
-        SaturatingOperation::Divide,
-        SaturatingCarrier::U16,
-        &[0x9ac2_0823],
-    ),
-    (
-        SaturatingOperation::Divide,
-        SaturatingCarrier::U32,
-        &[0x9ac2_0823],
-    ),
-    (
-        SaturatingOperation::Divide,
-        SaturatingCarrier::U64,
-        &[0x9ac2_0823],
-    ),
-    // sdiv/udiv x3, x1, x2 then msub x3, x3, x2, x1; the remainder needs no
-    // clamp and the wrapped MIN / -1 quotient still recovers zero.
-    (
-        SaturatingOperation::Remainder,
-        SaturatingCarrier::I8,
-        &[0x9ac2_0c23, 0x9b02_8463],
-    ),
-    (
-        SaturatingOperation::Remainder,
-        SaturatingCarrier::I16,
-        &[0x9ac2_0c23, 0x9b02_8463],
-    ),
-    (
-        SaturatingOperation::Remainder,
-        SaturatingCarrier::I32,
-        &[0x9ac2_0c23, 0x9b02_8463],
-    ),
-    (
-        SaturatingOperation::Remainder,
-        SaturatingCarrier::I64,
-        &[0x9ac2_0c23, 0x9b02_8463],
-    ),
-    (
-        SaturatingOperation::Remainder,
-        SaturatingCarrier::U8,
-        &[0x9ac2_0823, 0x9b02_8463],
-    ),
-    (
-        SaturatingOperation::Remainder,
-        SaturatingCarrier::U16,
-        &[0x9ac2_0823, 0x9b02_8463],
-    ),
-    (
-        SaturatingOperation::Remainder,
-        SaturatingCarrier::U32,
-        &[0x9ac2_0823, 0x9b02_8463],
-    ),
-    (
-        SaturatingOperation::Remainder,
-        SaturatingCarrier::U64,
-        &[0x9ac2_0823, 0x9b02_8463],
-    ),
-    // mul x3, x1, x2 then the narrow clamps; the unsigned carriers select
-    // their maximum on HI because a u32 product may pass i64::MAX.
-    (
-        SaturatingOperation::Multiply,
-        SaturatingCarrier::I8,
+    words(Op::Divide, Carrier::U8, &[0x9ac2_0823]),
+    words(Op::Divide, Carrier::U16, &[0x9ac2_0823]),
+    words(Op::Divide, Carrier::U32, &[0x9ac2_0823]),
+    words(Op::Divide, Carrier::U64, &[0x9ac2_0823]),
+    words(Op::Remainder, Carrier::I8, &[0x9ac2_0c23, 0x9b02_8463]),
+    words(Op::Remainder, Carrier::I16, &[0x9ac2_0c23, 0x9b02_8463]),
+    words(Op::Remainder, Carrier::I32, &[0x9ac2_0c23, 0x9b02_8463]),
+    words(Op::Remainder, Carrier::I64, &[0x9ac2_0c23, 0x9b02_8463]),
+    words(Op::Remainder, Carrier::U8, &[0x9ac2_0823, 0x9b02_8463]),
+    words(Op::Remainder, Carrier::U16, &[0x9ac2_0823, 0x9b02_8463]),
+    words(Op::Remainder, Carrier::U32, &[0x9ac2_0823, 0x9b02_8463]),
+    words(Op::Remainder, Carrier::U64, &[0x9ac2_0823, 0x9b02_8463]),
+    words(
+        Op::Multiply,
+        Carrier::I8,
         &[
             0x9b02_7c23,
             0xb240_1be4,
@@ -415,9 +352,9 @@ const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]);
             0x9a83_b083,
         ],
     ),
-    (
-        SaturatingOperation::Multiply,
-        SaturatingCarrier::I16,
+    words(
+        Op::Multiply,
+        Carrier::I16,
         &[
             0x9b02_7c23,
             0xb240_3be4,
@@ -428,9 +365,9 @@ const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]);
             0x9a83_b083,
         ],
     ),
-    (
-        SaturatingOperation::Multiply,
-        SaturatingCarrier::I32,
+    words(
+        Op::Multiply,
+        Carrier::I32,
         &[
             0x9b02_7c23,
             0xb240_7be4,
@@ -441,11 +378,9 @@ const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]);
             0x9a83_b083,
         ],
     ),
-    // smulh x4, x1, x2; mul x3, x1, x2; cmp x4, x3, asr #63; asr x4, x4,
-    // #63; eor x4, x4, #0x7fffffffffffffff; csel x3, x4, x3, ne.
-    (
-        SaturatingOperation::Multiply,
-        SaturatingCarrier::I64,
+    words(
+        Op::Multiply,
+        Carrier::I64,
         &[
             0x9b42_7c24,
             0x9b02_7c23,
@@ -455,25 +390,24 @@ const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]);
             0x9a83_1083,
         ],
     ),
-    (
-        SaturatingOperation::Multiply,
-        SaturatingCarrier::U8,
+    words(
+        Op::Multiply,
+        Carrier::U8,
         &[0x9b02_7c23, 0xb240_1fe4, 0xeb04_007f, 0x9a83_8083],
     ),
-    (
-        SaturatingOperation::Multiply,
-        SaturatingCarrier::U16,
+    words(
+        Op::Multiply,
+        Carrier::U16,
         &[0x9b02_7c23, 0xb240_3fe4, 0xeb04_007f, 0x9a83_8083],
     ),
-    (
-        SaturatingOperation::Multiply,
-        SaturatingCarrier::U32,
+    words(
+        Op::Multiply,
+        Carrier::U32,
         &[0x9b02_7c23, 0xb240_7fe4, 0xeb04_007f, 0x9a83_8083],
     ),
-    // umulh x4, x1, x2; mul x3, x1, x2; cmp x4, #0; csinv x3, x3, xzr, eq.
-    (
-        SaturatingOperation::Multiply,
-        SaturatingCarrier::U64,
+    words(
+        Op::Multiply,
+        Carrier::U64,
         &[0x9bc2_7c24, 0x9b02_7c23, 0xf100_009f, 0xda9f_0063],
     ),
 ];

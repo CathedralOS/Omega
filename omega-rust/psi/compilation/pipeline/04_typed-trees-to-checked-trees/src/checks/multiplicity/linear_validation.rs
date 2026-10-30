@@ -314,11 +314,7 @@ pub(crate) fn validate_linear_permission_events(
         }
     }
 
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
+    crate::checks::finish(diagnostics)
 }
 
 fn append_unresolved_state_result_mapping_diagnostics(

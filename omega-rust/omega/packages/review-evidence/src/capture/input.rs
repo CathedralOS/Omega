@@ -23,7 +23,7 @@ pub struct PackageReviewInput<'a> {
     pub(crate) service_declarations:
         Option<&'a provider_planning::service_declarations::ServiceDeclarations>,
     pub(crate) numeric_realizations:
-        Option<&'a psi_terminal_production::NumericRealizationDeclarations>,
+        Option<&'a psi_terminal_production::DeclarationCatalog>,
 }
 
 impl<'a> PackageReviewInput<'a> {
@@ -44,9 +44,9 @@ impl<'a> PackageReviewInput<'a> {
     /// already owns its projection from checked-provider binding.
     pub(super) fn project_numeric_realizations(
         &self,
-    ) -> Result<psi_terminal_production::NumericRealizationDeclarations, Vec<diagnostics::Diagnostic>>
+    ) -> Result<psi_terminal_production::DeclarationCatalog, Vec<diagnostics::Diagnostic>>
     {
-        psi_terminal_production::project_numeric_realization_declarations(
+        psi_terminal_production::project_declaration_catalog(
             self.program,
             self.custody.sources().exact_toolchain_sources(),
         )

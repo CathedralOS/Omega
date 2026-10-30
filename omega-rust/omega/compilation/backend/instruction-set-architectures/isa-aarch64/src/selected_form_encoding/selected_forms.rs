@@ -463,6 +463,16 @@ fn encode_unchecked(
     registers: &[u8],
 ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
     let mut words = Vec::new();
+    macro_rules! push_three {
+        ($opcode:expr $(,)?) => {
+            words.push(three_address(
+                $opcode,
+                registers[0],
+                registers[1],
+                registers[2],
+            ))
+        };
+    }
     match kind {
         SelectedInstructionKind::PlacedScalarAccess { .. } => {
             return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
@@ -575,28 +585,13 @@ fn encode_unchecked(
         SelectedInstructionKind::ByteViewAddress
         | SelectedInstructionKind::WrappingAddI64
         | SelectedInstructionKind::ExactAddI64 { .. } => {
-            words.push(three_address(
-                0x8b00_0000,
-                registers[0],
-                registers[1],
-                registers[2],
-            ));
+            push_three!(0x8b00_0000);
         }
         SelectedInstructionKind::BitwiseAndI64 => {
-            words.push(three_address(
-                0x8a00_0000,
-                registers[0],
-                registers[1],
-                registers[2],
-            ));
+            push_three!(0x8a00_0000);
         }
         SelectedInstructionKind::BitwiseOrI64 => {
-            words.push(three_address(
-                0xaa00_0000,
-                registers[0],
-                registers[1],
-                registers[2],
-            ));
+            push_three!(0xaa00_0000);
         }
         SelectedInstructionKind::BitwiseNotI64 => {
             // `MVN Xd, Xm` is `ORN Xd, XZR, Xm`: the 0xaa20 base with the
@@ -610,34 +605,19 @@ fn encode_unchecked(
             append_saturating(&mut words, kind, registers)?;
         }
         SelectedInstructionKind::ExactDivideU64 { .. } => {
-            words.push(three_address(
-                0x9ac0_0800,
-                registers[0],
-                registers[1],
-                registers[2],
-            ));
+            push_three!(0x9ac0_0800);
         }
         SelectedInstructionKind::WrappingDivideI64 { .. } => {
             // `SDIV Xd, Xn, Xm` already wraps the one overflowing quotient:
             // i64::MIN / -1 yields i64::MIN, matching the wrapping semantics.
-            words.push(three_address(
-                0x9ac0_0c00,
-                registers[0],
-                registers[1],
-                registers[2],
-            ));
+            push_three!(0x9ac0_0c00);
         }
         SelectedInstructionKind::WrappingRemainderI64 { .. }
         | SelectedInstructionKind::ExactRemainderI64 { .. } => {
             if registers[2] == registers[0] || registers[2] == registers[1] {
                 return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
             }
-            words.push(three_address(
-                0x9ac0_0c00,
-                registers[0],
-                registers[1],
-                registers[2],
-            ));
+            push_three!(0x9ac0_0c00);
             // MSUB uses the original dividend, including when SDIV wraps MIN / -1.
             words.push(
                 0x9b00_8000
@@ -650,23 +630,13 @@ fn encode_unchecked(
         SelectedInstructionKind::ExactDivideI64 { .. } => {
             // `sdiv` on the normalized operands: the proven obligations
             // exclude the only quotient SDIV could not represent exactly.
-            words.push(three_address(
-                0x9ac0_0c00,
-                registers[0],
-                registers[1],
-                registers[2],
-            ));
+            push_three!(0x9ac0_0c00);
         }
         SelectedInstructionKind::ExactRemainderU64 { .. } => {
             if registers[2] == registers[0] || registers[2] == registers[1] {
                 return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
             }
-            words.push(three_address(
-                0x9ac0_0800,
-                registers[0],
-                registers[1],
-                registers[2],
-            ));
+            push_three!(0x9ac0_0800);
             // MSUB recovers `dividend - quotient * divisor` from the original
             // operands while the early-clobber result held the UDIV quotient.
             words.push(
@@ -678,12 +648,7 @@ fn encode_unchecked(
             );
         }
         SelectedInstructionKind::BitwiseXorI64 => {
-            words.push(three_address(
-                0xca00_0000,
-                registers[0],
-                registers[1],
-                registers[2],
-            ));
+            push_three!(0xca00_0000);
         }
         SelectedInstructionKind::ExactAddI64Immediate { immediate, .. } => {
             words.push(
@@ -695,23 +660,13 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::ExactSubtractI64 { .. }
         | SelectedInstructionKind::WrappingSubtractI64 => {
-            words.push(three_address(
-                0xcb00_0000,
-                registers[0],
-                registers[1],
-                registers[2],
-            ));
+            push_three!(0xcb00_0000);
         }
         SelectedInstructionKind::ExactMultiplyI64 { .. }
         | SelectedInstructionKind::WrappingMultiplyI64 => {
             // `MUL Xd, Xn, Xm` is `MADD Xd, Xn, Xm, XZR`: the 0x9b00 base with
             // the addend field fixed to 31.
-            words.push(three_address(
-                0x9b00_7c00,
-                registers[0],
-                registers[1],
-                registers[2],
-            ));
+            push_three!(0x9b00_7c00);
         }
         SelectedInstructionKind::WrappingShiftLeftI64
         | SelectedInstructionKind::WrappingShiftRightI64
@@ -721,18 +676,13 @@ fn encode_unchecked(
             // The register-form shifts `LSLV`/`LSRV`/`ASRV Xd, Xn, Xm` read
             // the low six count bits themselves, so the upstream modulo
             // reduction needs no separate masking word here.
-            words.push(three_address(
-                match kind {
-                    SelectedInstructionKind::WrappingShiftLeftI64
-                    | SelectedInstructionKind::ExactShiftLeftI64 { .. } => 0x9ac0_2000,
-                    SelectedInstructionKind::WrappingShiftRightU64
-                    | SelectedInstructionKind::ExactShiftRightU64 { .. } => 0x9ac0_2400,
-                    _ => 0x9ac0_2800,
-                },
-                registers[0],
-                registers[1],
-                registers[2],
-            ));
+            push_three!(match kind {
+                SelectedInstructionKind::WrappingShiftLeftI64
+                | SelectedInstructionKind::ExactShiftLeftI64 { .. } => 0x9ac0_2000,
+                SelectedInstructionKind::WrappingShiftRightU64
+                | SelectedInstructionKind::ExactShiftRightU64 { .. } => 0x9ac0_2400,
+                _ => 0x9ac0_2800,
+            },);
         }
         SelectedInstructionKind::ExactSubtractI64Immediate { immediate, .. } => {
             words.push(

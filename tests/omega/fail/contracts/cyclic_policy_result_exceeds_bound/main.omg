@@ -1,0 +1,127 @@
+// Expected exit: 0.
+data DecimalDigits { digits: [u8; 40]; count: u64; }
+
+machine write_u64_decimal(value: u64, out: &mut [u8; 256], written: u64) -> u64
+    requires written <= 256
+    ensures result <= 256
+{
+    let mut collected: DecimalDigits = DecimalDigits { count: 0 };
+    transition {
+        _ -> collect(collected, value, out, written)
+    }
+    machine collect(collected: DecimalDigits, value: u64, out: &mut [u8; 256], written: u64) -> u64
+        requires written <= 256
+        ensures result <= 256
+    {
+        transition collected.count < 40 && value != 0 {
+            true -> digit(collected, value, out, written)
+            false -> emit(collected, out, written, 0)
+        }
+    }
+    machine digit(collected: DecimalDigits, value: u64, out: &mut [u8; 256], written: u64) -> u64
+        requires collected.count < 40 && value != 0 && written <= 256
+        ensures result <= 256
+    {
+        let quotient: u64 = value / 10;
+        let digit: u64 = ((value as u64 in Wrapping) - ((quotient as u64 in Wrapping) * (10 as u64 in Wrapping))) as u64;
+        transition digit < 10 && collected.count < 40 {
+            true -> store(collected, quotient, out, written, digit)
+            false -> emit(collected, out, written, 0)
+        }
+    }
+    machine store(collected: DecimalDigits, quotient: u64, out: &mut [u8; 256], written: u64, digit: u64) -> u64
+        requires collected.count < 40 && digit < 10 && written <= 256
+        ensures result <= 256
+    {
+        transition collected.count < 40 {
+            true -> store_digit(collected, quotient, out, written, digit)
+            false -> emit(collected, out, written, 0)
+        }
+    }
+    machine store_digit(collected: DecimalDigits, quotient: u64, out: &mut [u8; 256], written: u64, digit: u64) -> u64
+        requires collected.count < 40 && digit < 10 && written <= 256
+        ensures result <= 256
+    {
+        // `count` is read before the transfer: `collected` is not [copy],
+        // so the move into `out_digits` consumes it.
+        let count: u64 = collected.count;
+        let mut out_digits: DecimalDigits = collected;
+        out_digits.digits[count] = ((48 as u64 in Wrapping) + (digit as u64 in Wrapping)) as u8;
+        out_digits.count = ((count as u64 in Wrapping) + (1 as u64 in Wrapping)) as u64;
+        transition {
+            _ -> collect(out_digits, quotient, out, written)
+        }
+    }
+    machine emit(collected: DecimalDigits, out: &mut [u8; 256], written: u64, position: u64) -> u64
+        requires written <= 256
+        ensures result <= 256
+    {
+        transition position < collected.count && collected.count <= 40 && written < 256 {
+            true -> put(collected, out, written, position)
+            false -> finish(collected, out, written, position)
+        }
+    }
+    machine put(collected: DecimalDigits, out: &mut [u8; 256], written: u64, position: u64) -> u64
+        requires position < collected.count && written < 256 && collected.count <= 40
+        ensures result <= 256
+    {
+        let back: u64 = ((collected.count as u64 in Wrapping) - (1 as u64 in Wrapping) - (position as u64 in Wrapping)) as u64;
+        transition back < 40 && written < 256 && position < collected.count && collected.count <= 40 {
+            true -> write_digit(collected, out, written, position, back)
+            false -> (written)
+        }
+    }
+    machine write_digit(collected: DecimalDigits, out: &mut [u8; 256], written: u64, position: u64, back: u64) -> u64
+        requires back < 40 && written < 256 && position < collected.count && collected.count <= 40
+        ensures result <= 256
+    {
+        out[written] = collected.digits[back];
+        transition {
+            _ -> emit(collected, out, ((written as u64 in Wrapping) + (1 as u64 in Wrapping)) as u64, ((position as u64 in Wrapping) + (1 as u64 in Wrapping)) as u64)
+        }
+    }
+    machine finish(collected: DecimalDigits, out: &mut [u8; 256], written: u64, position: u64) -> u64
+        requires written <= 256
+        ensures result <= 256
+    {
+        transition position == 0 && collected.count == 0 {
+            true -> zero(out, written)
+            false -> (written)
+        }
+    }
+    machine zero(out: &mut [u8; 256], written: u64) -> u64
+        requires written <= 256
+        ensures result <= 256
+    {
+        transition written < 256 {
+            true -> commit_zero(out, written)
+            false -> (written)
+        }
+    }
+    machine commit_zero(out: &mut [u8; 256], written: u64) -> u64
+        requires written < 256
+        ensures result <= 256
+    {
+        out[written] = 48;
+        (((written as u64 in Wrapping) + (2 as u64 in Wrapping)) as u64)
+    }
+}
+
+
+machine main() crashes Trap {
+    let mut output: [u8; 256];
+    output[2] = 71;
+    output[6] = 93;
+    let end: u64 = write_u64_decimal(123, &mut output, 3);
+    let full: u64 = write_u64_decimal(98, &mut output, 255);
+    let empty: u64 = write_u64_decimal(0, &mut output, 0);
+    transition end == 6 && full == 256 && empty == 1
+        && output[0] == 48 && output[2] == 71
+        && output[3] == 49 && output[4] == 50 && output[5] == 51
+        && output[6] == 93 && output[254] == 0 && output[255] == 57 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

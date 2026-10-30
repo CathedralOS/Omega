@@ -252,3 +252,35 @@ fn reject_unrequired_provider(
         outcome => Err(format!("unrequired native provider control: {outcome:?}")),
     }
 }
+
+pub(super) fn inspect_publication(
+    report: &compilation_products::CompileReport,
+    fixture: &Path,
+    build_dir: &Path,
+) -> Result<(), String> {
+    if !fixture
+        .join("expected_native_component_descriptions.txt")
+        .exists()
+    {
+        return Ok(());
+    }
+    let products = report
+        .runtime_provisions()
+        .ok_or("native component index requires runtime products")?
+        .component_products();
+    let mut expected_index = String::from("omega-native-components-v1\n");
+    for product in products {
+        expected_index.push_str(&format!(
+            "{}\t{}\t{}\n",
+            product.application().requirement_identity,
+            product.locator().image_filename(),
+            product.locator().export_symbol(),
+        ));
+    }
+    let index = std::fs::read_to_string(build_dir.join("omega-components.tsv"))
+        .map_err(|error| format!("read native component export index: {error}"))?;
+    if index != expected_index {
+        return Err("native component export index differs from its retained products".into());
+    }
+    Ok(())
+}

@@ -50,7 +50,7 @@ pub fn lower_machine(
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     program_roots: crate::TerminalProgramRoots<'_>,
     publication: terminal_codec::TerminalPublication,
-    external_declarations: Option<&crate::PreparedNumericRealizationDeclarations>,
+    external_declarations: Option<&crate::PreparedDeclarationCatalog>,
 ) -> Result<LoweredPsi, LoweringError> {
     if !checked.facts.deferred_layout_applications.is_empty() {
         return unsupported(
@@ -467,11 +467,17 @@ fn lower_terminal_selection(
     phase_profile::scope(
         "05.10_reconcile_and_residences",
         || -> Result<_, LoweringError> {
-            crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
-            &mut lowered.semantic_module,
-        );
-            crate::emission::descriptor_residences::complete(&mut lowered.semantic_module)?;
-            crate::retention::payload_memberships::retain(&mut lowered.semantic_module)?;
+            phase_profile::scope("05.10.a_reconcile_places", || {
+                crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
+                    &mut lowered.semantic_module,
+                );
+            });
+            phase_profile::scope("05.10.b_descriptor_residences", || {
+                crate::emission::descriptor_residences::complete(&mut lowered.semantic_module)
+            })?;
+            phase_profile::scope("05.10.c_payload_memberships", || {
+                crate::retention::payload_memberships::retain(&mut lowered.semantic_module)
+            })?;
             Ok(())
         },
     )?;

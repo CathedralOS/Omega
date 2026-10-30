@@ -105,7 +105,7 @@ pub struct CheckedProductSource {
     pub external_declarations: Arc<
         std::sync::OnceLock<
             Result<
-                Arc<psi_compiler::PreparedNumericRealizationDeclarations>,
+                Arc<psi_compiler::PreparedDeclarationCatalog>,
                 Vec<diagnostics::Diagnostic>,
             >,
         >,

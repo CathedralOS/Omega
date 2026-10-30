@@ -1,0 +1,1226 @@
+[
+  {
+    "subject": "stack32",
+    "index": 2,
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\stack32-02-A\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\stack32-02-A-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 1038.0882999961614,
+    "peak_job_memory_bytes": 267431936,
+    "stages": {
+      "prepare: project -> prepared sources": 16.372,
+      "compile: sources -> requested product": 587.396,
+      "publish: retained product -> published product": 13.083,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.825,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 21.416,
+      "Step: settle: CheckedTrees -> SelectedExecution": 61.455,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 7.397,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 6.57,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.336,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.132,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.263,
+      "total elapsed": 969.372
+    },
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "build_sha256": "467ba43680810802f19ba2c399ff5d359059c6404cb9b3bf71d061b819729005",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\01b9587fc76f853af25c7c38d565bf02abadf1e46c0713822bf77abf440a41f6.rec",
+        "bytes": 45142656,
+        "sha256": "747ac3d9ec8d0c4c167abbe1e9c13417fd1fa55d185a78b134ef2967a7e1966e"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\82a2f003dbb666761970832c4289dc76e232718ff815aa6ef69f1e5a5a589aae.rec",
+        "bytes": 45185792,
+        "sha256": "31b29a66d577fc1993bf59e119529f6596fa06b65254b9db7f984c4ad8ccec22"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "stack32",
+    "index": 3,
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\stack32-03-B\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\stack32-03-B-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 946.475199998531,
+    "peak_job_memory_bytes": 256475136,
+    "stages": {
+      "prepare: project -> prepared sources": 8.679,
+      "compile: sources -> requested product": 580.82,
+      "publish: retained product -> published product": 12.861,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.851,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 22.215,
+      "Step: settle: CheckedTrees -> SelectedExecution": 58.517,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 7.619,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 6.805,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.332,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.132,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.263,
+      "total elapsed": 871.456
+    },
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "build_sha256": "467ba43680810802f19ba2c399ff5d359059c6404cb9b3bf71d061b819729005",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\1d63f80c90e22d723ce9ce7df57eae07cbb945e9351aa24b87fe326b8239adb8.rec",
+        "bytes": 45142656,
+        "sha256": "456c24574b9149f9137762abeace7dcad4a1b153d56ea854e76a8250c2ccb3f4"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\e5863e562af3227ed6fca38c27c15f7d79523dc0b32c0b66e82672a899adab82.rec",
+        "bytes": 45185680,
+        "sha256": "7ed5317cbc8e6574ed3b5ce165686a030cd1c5ebfa789cd7ab3a320837199b21"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "stack32",
+    "index": 4,
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\stack32-04-B\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\stack32-04-B-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 931.0609999956796,
+    "peak_job_memory_bytes": 256499712,
+    "stages": {
+      "prepare: project -> prepared sources": 8.318,
+      "compile: sources -> requested product": 572.649,
+      "publish: retained product -> published product": 12.864,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.829,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 20.676,
+      "Step: settle: CheckedTrees -> SelectedExecution": 55.074,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 7.64,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 6.806,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.329,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.131,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.264,
+      "total elapsed": 857.703
+    },
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "build_sha256": "467ba43680810802f19ba2c399ff5d359059c6404cb9b3bf71d061b819729005",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\2276d6d1e8aa9b3b048696429bb04a884c02e22db1f78a757c04ee8e346f07bc.rec",
+        "bytes": 45142656,
+        "sha256": "8e9be8a3ffde23ddceb2f01fff07b62ba9691de81492f8d68cb35f342b3782a2"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\c3c96be47b344d7b4ffbb11f2c89df5349156ea5ceb300efb666a6e17e23c8d9.rec",
+        "bytes": 45185680,
+        "sha256": "e511429b38c3e86a45a4673b2cce83abdd0cd6926f16f86e11c432f73e901e66"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "stack32",
+    "index": 5,
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\stack32-05-A\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\stack32-05-A-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 1183.254899995518,
+    "peak_job_memory_bytes": 267448320,
+    "stages": {
+      "prepare: project -> prepared sources": 20.543,
+      "compile: sources -> requested product": 650.578,
+      "publish: retained product -> published product": 17.279,
+      "Stage 05: TypedTrees -> CheckedTrees": 2.366,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 22.381,
+      "Step: settle: CheckedTrees -> SelectedExecution": 68.335,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 7.779,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 6.892,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.343,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.138,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.309,
+      "total elapsed": 1067.256
+    },
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "build_sha256": "467ba43680810802f19ba2c399ff5d359059c6404cb9b3bf71d061b819729005",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\85f1de4bcf7357f55f1f0829fbcde5ba1e34d2bf4fd3005f7eac906ff23067f7.rec",
+        "bytes": 45142656,
+        "sha256": "1574adcd2113ca486cf6b87ce5bc284f061e89a1c78e61191370225afd851a5c"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\b146f6f1cf67e5311125311364d98874c5a1955854a7036989a38bd1022d3cb6.rec",
+        "bytes": 45185680,
+        "sha256": "119af41d0cde9cb9fa997eb53c947b81d4ceec31a6fdb1d5094eb8e5501bf1ee"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "stack32",
+    "index": 6,
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\stack32-06-A\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\stack32-06-A-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 1030.009300004167,
+    "peak_job_memory_bytes": 267427840,
+    "stages": {
+      "prepare: project -> prepared sources": 16.707,
+      "compile: sources -> requested product": 580.879,
+      "publish: retained product -> published product": 12.921,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.776,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 21.824,
+      "Step: settle: CheckedTrees -> SelectedExecution": 56.873,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 7.145,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 6.306,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.334,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.142,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.267,
+      "total elapsed": 959.844
+    },
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "build_sha256": "467ba43680810802f19ba2c399ff5d359059c6404cb9b3bf71d061b819729005",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\8dabbbe05bdc70dd938361c27312ff306ac9c84ec572141fede9f26ec8446c4b.rec",
+        "bytes": 45185680,
+        "sha256": "353585c3f5eda954f599b06a3f74f77ef3591b1192a6d0edc4a2b864caa75c9f"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\e6552009baca57c149837e7b7bcc1f9a8f6131b3a4a117a4bd75cccf52921b6a.rec",
+        "bytes": 45142656,
+        "sha256": "0c1faf9ea15774628714030bc76e31928a4794f14e6cf32aa4818527c79f49d5"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "stack32",
+    "index": 7,
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\stack32-07-B\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\stack32-07-B-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 942.9302999997162,
+    "peak_job_memory_bytes": 256430080,
+    "stages": {
+      "prepare: project -> prepared sources": 8.399,
+      "compile: sources -> requested product": 583.236,
+      "publish: retained product -> published product": 13.241,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.744,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 20.328,
+      "Step: settle: CheckedTrees -> SelectedExecution": 57.527,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 6.874,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 6.026,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.329,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.135,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.297,
+      "total elapsed": 870.094
+    },
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "build_sha256": "467ba43680810802f19ba2c399ff5d359059c6404cb9b3bf71d061b819729005",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\1756be23c5de7394ab45eff09d238b399bc359691f90318423557f6fa849b3a2.rec",
+        "bytes": 45185680,
+        "sha256": "fa1084b0465a5a0433f088f01c6e05fb6467474e092ddcb5bf84b7492fe0b2c4"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\cef8684385ce195dd9cd4e725f5e70c19ed61d1d9ecef2d45f6151aad80717f7.rec",
+        "bytes": 45142656,
+        "sha256": "6015114ed570af3af676814ea417f12e7c77a7b7ccaca9cd7bd1c8f3ad9c8087"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "stack32",
+    "index": 8,
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\stack32-08-B\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\stack32-08-B-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 947.973300004378,
+    "peak_job_memory_bytes": 256544768,
+    "stages": {
+      "prepare: project -> prepared sources": 8.33,
+      "compile: sources -> requested product": 590.579,
+      "publish: retained product -> published product": 12.873,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.834,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 20.956,
+      "Step: settle: CheckedTrees -> SelectedExecution": 54.203,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 6.835,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 6.045,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.315,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.128,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.257,
+      "total elapsed": 876.701
+    },
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "build_sha256": "467ba43680810802f19ba2c399ff5d359059c6404cb9b3bf71d061b819729005",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\4925bc4ee184471618497de7416d00db202fd16a72b49a4a759c89282e1b3f79.rec",
+        "bytes": 45142656,
+        "sha256": "5e2d57cc701933f354d5ab0478cdfa940ac69f10f222b5726414ac5e5078af62"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\4ff3bdcb56bb94440794aa47a01c1208ab9cb9b144aa4aa3d82545fac1f05f83.rec",
+        "bytes": 45185680,
+        "sha256": "0678d52d6841d0c9ed642585730cc5b84688f510784a36a127cca28df22dba82"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "stack32",
+    "index": 9,
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\stack32-09-A\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\stack32-09-A-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 1136.505100002978,
+    "peak_job_memory_bytes": 267411456,
+    "stages": {
+      "prepare: project -> prepared sources": 17.886,
+      "compile: sources -> requested product": 650.1,
+      "publish: retained product -> published product": 21.717,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.798,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 22.409,
+      "Step: settle: CheckedTrees -> SelectedExecution": 58.218,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 7.797,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 6.915,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.353,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.142,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.282,
+      "total elapsed": 1062.434
+    },
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+    "build_sha256": "467ba43680810802f19ba2c399ff5d359059c6404cb9b3bf71d061b819729005",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\5e61c5c85e506466cabf9584b50482850fd4fbde31ab4a6b617a2f320577c134.rec",
+        "bytes": 45142656,
+        "sha256": "f994e79bf79a9e8df6cebdedc6a1f6926b2eb5da8d0cf0d77facec2e64a2a894"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\a10d49be8e805b9fe03dc1982750522c4a3e4bbc4fee86b28f09120f4b5a1916.rec",
+        "bytes": 45185814,
+        "sha256": "4baef9adb38873bcaa6661ea5c78bb9ec1cb5d8c946c9281bd58262c4ae0c819"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "length",
+    "index": 2,
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\length-02-A\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\length-02-A-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 604.0477000060491,
+    "peak_job_memory_bytes": 210653184,
+    "stages": {
+      "prepare: project -> prepared sources": 23.661,
+      "compile: sources -> requested product": 119.566,
+      "publish: retained product -> published product": 3.324,
+      "Stage 05: TypedTrees -> CheckedTrees": 2.107,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 22.74,
+      "Step: settle: CheckedTrees -> SelectedExecution": 63.916,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.313,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.053,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.101,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.018,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.055,
+      "total elapsed": 532.74
+    },
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "build_sha256": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\2f4f9f4de56bc52d2ae0d841fa3ed605c9135fd0993c7e687bb9d165f0a8eeca.rec",
+        "bytes": 44456872,
+        "sha256": "d77f1db5104b47e811e09fc17703711a740d720ad9c2ea998940f0debb8a807c"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\f84fecfc5c4651b9b86f916424e939148d83dbf9882908b8c6e7584b735e21fe.rec",
+        "bytes": 44413378,
+        "sha256": "b9582f123222d0bbb5fbda1e9b745f51cab48a570c89f2ee42d26c44e5c93e85"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "length",
+    "index": 3,
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\length-03-B\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\length-03-B-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 486.4452999972855,
+    "peak_job_memory_bytes": 219123712,
+    "stages": {
+      "prepare: project -> prepared sources": 9.741,
+      "compile: sources -> requested product": 125.382,
+      "publish: retained product -> published product": 3.585,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.865,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 25.287,
+      "Step: settle: CheckedTrees -> SelectedExecution": 65.771,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.489,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.237,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.09,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.019,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.053,
+      "total elapsed": 420.186
+    },
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "build_sha256": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\0dda7caead19bd40a133ec8befc5839dd6b5ac85bdc9656199dba37f2eb8c825.rec",
+        "bytes": 44456872,
+        "sha256": "46d363d24195eb0774ba502436022159d25eaa139945904a50b68fd73d675ade"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\1bc53d4b5890986528b09e4c9fff42cff2bb7406bc5b0e203c21da202f2ee8fc.rec",
+        "bytes": 44413378,
+        "sha256": "e538ff4a15ce2914a1557cc82054535faa275e024ba2c20e66b0bb6b7f475fe9"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "length",
+    "index": 4,
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\length-04-B\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\length-04-B-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 458.44290000241017,
+    "peak_job_memory_bytes": 219156480,
+    "stages": {
+      "prepare: project -> prepared sources": 8.466,
+      "compile: sources -> requested product": 112.081,
+      "publish: retained product -> published product": 3.008,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.742,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 21.04,
+      "Step: settle: CheckedTrees -> SelectedExecution": 58.746,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.165,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 4.928,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.088,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.02,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.051,
+      "total elapsed": 397.402
+    },
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "build_sha256": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\88a74854d2da8baca8c00a78a51fc07728b95892870b61430e9454d5ab7722ac.rec",
+        "bytes": 44413378,
+        "sha256": "ea72ad5d275d496607f2bff0a419f05ca266206bb6e2759b6409457f16f51a5f"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\f260d5fd8816a605009861fd6d43b6b48ed14d573fe02eaa6bd9dd9a9584d81a.rec",
+        "bytes": 44456872,
+        "sha256": "0905b47502febf6501463144861e3067b3710e86596e1610ac4c6d82cd44a0a7"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "length",
+    "index": 5,
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\length-05-A\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\length-05-A-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 584.6120999995037,
+    "peak_job_memory_bytes": 210710528,
+    "stages": {
+      "prepare: project -> prepared sources": 20.73,
+      "compile: sources -> requested product": 117.151,
+      "publish: retained product -> published product": 3.497,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.862,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 23.601,
+      "Step: settle: CheckedTrees -> SelectedExecution": 57.886,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.751,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.471,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.1,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.019,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.059,
+      "total elapsed": 523.404
+    },
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "build_sha256": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\75590f1cf4c358c7797d3d5b3994d0e4cf2b79d1c6241a692e4784edb5de0042.rec",
+        "bytes": 44456872,
+        "sha256": "716d57fd9c127f6fbee0af7674778212a2f0146cab95f279b3f74effbbd49a48"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\83c2700731107a283d7c38e0748b294bfac5aa6d25328cc159704d06f3f757c4.rec",
+        "bytes": 44413378,
+        "sha256": "7279fb888836e797a6965329e3985d272c964fd70fef4c3d123e4c1a32f93c0d"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "length",
+    "index": 6,
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\length-06-A\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\length-06-A-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 629.0475999994669,
+    "peak_job_memory_bytes": 210649088,
+    "stages": {
+      "prepare: project -> prepared sources": 19.69,
+      "compile: sources -> requested product": 130.225,
+      "publish: retained product -> published product": 3.204,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.982,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 21.787,
+      "Step: settle: CheckedTrees -> SelectedExecution": 67.947,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.133,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 4.9,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.089,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.017,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.05,
+      "total elapsed": 555.204
+    },
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "build_sha256": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\c3ae9a6d88ca558da74eb93841057f4028401f02b79337a1b3bc9d9476870bc8.rec",
+        "bytes": 44413378,
+        "sha256": "bee1c92fdb56a295ae5d1c7efa1fbfab00c8a32394a53198ac06ed387ec009eb"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\eb8d018e35b83b5f930108e5b10ef9ea9f4f14539d6b153718582825b386d1b8.rec",
+        "bytes": 44456872,
+        "sha256": "31297f551a9f2bf6f6269f864bc50579c05ce501b654dda4f958c950d0f47e32"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "length",
+    "index": 7,
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\length-07-B\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\length-07-B-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 550.3550000066753,
+    "peak_job_memory_bytes": 219148288,
+    "stages": {
+      "prepare: project -> prepared sources": 13.024,
+      "compile: sources -> requested product": 121.594,
+      "publish: retained product -> published product": 3.686,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.826,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 21.639,
+      "Step: settle: CheckedTrees -> SelectedExecution": 62.564,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.054,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 4.789,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.107,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.02,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.051,
+      "total elapsed": 438.661
+    },
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "build_sha256": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\10c9d188f3ea61aa181475dfd54a07edee8dcde9891e1f17aeda522437595fca.rec",
+        "bytes": 44413378,
+        "sha256": "db2b299c0c088abc1e5ee6ece52619183d8a7509d6fcc4a6b4a8aff521fbc6e9"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\7bca25ae0ac3383abb944caaa94a38d3526f6e0f649f26c43ffc3234577e9d83.rec",
+        "bytes": 44456872,
+        "sha256": "2857c6245e0b1be5b104e920dc394470fb19209854f0f650fe8587901137bb90"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "length",
+    "index": 8,
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\length-08-B\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\length-08-B-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 503.1273999993573,
+    "peak_job_memory_bytes": 219164672,
+    "stages": {
+      "prepare: project -> prepared sources": 10.496,
+      "compile: sources -> requested product": 134.493,
+      "publish: retained product -> published product": 3.982,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.799,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 21.216,
+      "Step: settle: CheckedTrees -> SelectedExecution": 65.183,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 8.108,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 7.673,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.12,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.028,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.067,
+      "total elapsed": 436.37
+    },
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "build_sha256": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\af4fbd16c78b4010ec8dbad8878d712494dc49f0b14f36e00a86440dab23be83.rec",
+        "bytes": 44413378,
+        "sha256": "5143943ad0f81ccd87c078de181fec8052fd4be89cb5f1513f7e8d557a982788"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\fed3adc76531a57854aa229dffc5c29a9fe7f7823fa79b075cca7d3b39fed1d7.rec",
+        "bytes": 44456872,
+        "sha256": "1480467baea27d08fdb066d1ec6b72c0246a2a411b6bdf855e845a6865117cd3"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "length",
+    "index": 9,
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\length-09-A\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\length-09-A-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 740.0418999968679,
+    "peak_job_memory_bytes": 210751488,
+    "stages": {
+      "prepare: project -> prepared sources": 17.853,
+      "compile: sources -> requested product": 136.52,
+      "publish: retained product -> published product": 3.314,
+      "Stage 05: TypedTrees -> CheckedTrees": 2.1,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 28.609,
+      "Step: settle: CheckedTrees -> SelectedExecution": 70.89,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.756,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.461,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.096,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.018,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.054,
+      "total elapsed": 672.296
+    },
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+    "build_sha256": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\1074343402074cc062d7a72985b0fcf7c37023eccc99d3b1e83fb3b0ec283036.rec",
+        "bytes": 44456984,
+        "sha256": "b89adb6973d9f1debe22f9176b1a9a826976de425558ba38d56fc30dbe860b0c"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\5ec6cf1e43c26ac1a14c1e0657089020674eb35e9d7ce234ec0e6c1bbc12faa1.rec",
+        "bytes": 44413378,
+        "sha256": "8dce65d6baae153efa224863977000f97f5ae4df421832a89eadf0f5eed200a9"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "dispatch",
+    "index": 2,
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\dispatch-02-A\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\dispatch-02-A-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 583.0199999982142,
+    "peak_job_memory_bytes": 210817024,
+    "stages": {
+      "prepare: project -> prepared sources": 17.076,
+      "compile: sources -> requested product": 128.781,
+      "publish: retained product -> published product": 3.785,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.888,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 29.803,
+      "Step: settle: CheckedTrees -> SelectedExecution": 63.625,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 6.401,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.966,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.238,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.023,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.067,
+      "total elapsed": 517.26
+    },
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "0f527c05fd961e964271f53d9c6ceb174bb7523010c2c744d02635b8a1a60a38",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\1e130e221fafa39b5305240deb8971d7fb6d883c336af5f26d03ef7f54064038.rec",
+        "bytes": 44582549,
+        "sha256": "6423e4eacb704ba0380844baa1171607d8368c485607c297a11ef21e3f732273"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\b3834efe914064de20be9942ffda167121d9e940863f4f3886c47245728be732.rec",
+        "bytes": 44624629,
+        "sha256": "b044245f4989e20d76abef9ba80b7b69da815de1fd6841c287376903f6ccdef8"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "dispatch",
+    "index": 3,
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\dispatch-03-B\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\dispatch-03-B-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 499.83899999642745,
+    "peak_job_memory_bytes": 219193344,
+    "stages": {
+      "prepare: project -> prepared sources": 9.578,
+      "compile: sources -> requested product": 114.054,
+      "publish: retained product -> published product": 3.558,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.758,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 28.453,
+      "Step: settle: CheckedTrees -> SelectedExecution": 56.669,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.907,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.382,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.26,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.026,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.075,
+      "total elapsed": 407.971
+    },
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "0f527c05fd961e964271f53d9c6ceb174bb7523010c2c744d02635b8a1a60a38",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\0dbcc7a223ebed48593e8de5b60e3fc614bd18db050425e76f5aee876b35a7dd.rec",
+        "bytes": 44624629,
+        "sha256": "feb7a6a7bc29933070e312c34657b4ddee6a3d64cdab68eccf4780ba39e18155"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\899c79b7ed65c115d154140b735b04ab9235462be33ff0a068621c23612a7b4a.rec",
+        "bytes": 44582549,
+        "sha256": "717a86be42c011933268fcc682d74e89afdf324c7b39aef70c2c8b65f9481687"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "dispatch",
+    "index": 4,
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\dispatch-04-B\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\dispatch-04-B-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 465.38239999790676,
+    "peak_job_memory_bytes": 219262976,
+    "stages": {
+      "prepare: project -> prepared sources": 8.503,
+      "compile: sources -> requested product": 110.061,
+      "publish: retained product -> published product": 3.771,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.806,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 28.677,
+      "Step: settle: CheckedTrees -> SelectedExecution": 55.478,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.37,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 4.963,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.224,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.024,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.068,
+      "total elapsed": 396.889
+    },
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "0f527c05fd961e964271f53d9c6ceb174bb7523010c2c744d02635b8a1a60a38",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\0dd4fb51d9b0994b3ab741d17fd5db01070b1fb44af71d165f96697dc781962f.rec",
+        "bytes": 44624629,
+        "sha256": "6094cf47ae702ee6bfe943a8c04fbc36a4f6f10e8472845a6997aedbda2098fd"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\8dd02e9b76fa744742fcdbc9d04fadaab10491f4968cfad8272d138e40e411d4.rec",
+        "bytes": 44582661,
+        "sha256": "541478f0463602cfee27e272caa1425e071f93c450c392dfcfe4d399b27f6a49"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "dispatch",
+    "index": 5,
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\dispatch-05-A\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\dispatch-05-A-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 580.4610999985016,
+    "peak_job_memory_bytes": 210817024,
+    "stages": {
+      "prepare: project -> prepared sources": 16.648,
+      "compile: sources -> requested product": 122.226,
+      "publish: retained product -> published product": 3.6,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.819,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 30.297,
+      "Step: settle: CheckedTrees -> SelectedExecution": 63.055,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.44,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.031,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.228,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.023,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.068,
+      "total elapsed": 516.346
+    },
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "0f527c05fd961e964271f53d9c6ceb174bb7523010c2c744d02635b8a1a60a38",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\6dc0b28529478f0d9712b1edcb86a45fb46e5fbcd376234ed6136617d39a78e2.rec",
+        "bytes": 44582549,
+        "sha256": "abac1daf4b3db4680aed6c9f084a549442c147ff02ab0a6435eea695d18c8123"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\ac7d5da62bea61f80118790725da7d3b48846ccb48370f46495a8a577f2b20a1.rec",
+        "bytes": 44624629,
+        "sha256": "0f0025c61c277255a183382c4a638f47a17d3bfb6de5f19becba16a71b3f8929"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "dispatch",
+    "index": 6,
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\dispatch-06-A\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\dispatch-06-A-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 566.5779999981169,
+    "peak_job_memory_bytes": 210792448,
+    "stages": {
+      "prepare: project -> prepared sources": 17.119,
+      "compile: sources -> requested product": 118.927,
+      "publish: retained product -> published product": 3.684,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.753,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 28.825,
+      "Step: settle: CheckedTrees -> SelectedExecution": 63.813,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.343,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 4.948,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.225,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.021,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.065,
+      "total elapsed": 500.435
+    },
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "0f527c05fd961e964271f53d9c6ceb174bb7523010c2c744d02635b8a1a60a38",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\5d41d3e71ec6639b53d9771a549a13898e2a7423f6dbf6198509fbb480eb8f5a.rec",
+        "bytes": 44624629,
+        "sha256": "8c91a4d76b304977ce592cca1c30337702f0414800634e92836ce4df088a85ce"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\e735d3e125aa53c5d910bf9bab64f81fe83df839ba22ec64e853f5a21258d3c8.rec",
+        "bytes": 44582549,
+        "sha256": "e40d85c59028819e50277dc2e82898675e4e36b828bbd70217f3b9c6e2cf2948"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "dispatch",
+    "index": 7,
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\dispatch-07-B\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\dispatch-07-B-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 483.73200000060024,
+    "peak_job_memory_bytes": 219320320,
+    "stages": {
+      "prepare: project -> prepared sources": 8.471,
+      "compile: sources -> requested product": 125.341,
+      "publish: retained product -> published product": 3.626,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.882,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 29.553,
+      "Step: settle: CheckedTrees -> SelectedExecution": 65.482,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 6.399,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.944,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.226,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.023,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.069,
+      "total elapsed": 414.281
+    },
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "0f527c05fd961e964271f53d9c6ceb174bb7523010c2c744d02635b8a1a60a38",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\210230501184f6c177f4338a5cc2cef872da6a5370aea5a177d9fc51bd26a9eb.rec",
+        "bytes": 44582549,
+        "sha256": "bd993b7f368b995836bdeeac1b0ceaa35836e247e29c7dfa611fa121da69b673"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\6948c094ca55acfbbdae8b59da383635c5d7d0075a5c42bc11e06c5d27ea45bc.rec",
+        "bytes": 44624629,
+        "sha256": "03a06a386ad29f4b5d6b2b324b7c504bd452bb51bdfd199c048c5f91dbfb587e"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "dispatch",
+    "index": 8,
+    "variant": "B",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\dispatch-08-B\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\dispatch-08-B-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 514.0651000037906,
+    "peak_job_memory_bytes": 219209728,
+    "stages": {
+      "prepare: project -> prepared sources": 8.891,
+      "compile: sources -> requested product": 135.75,
+      "publish: retained product -> published product": 4.731,
+      "Stage 05: TypedTrees -> CheckedTrees": 1.836,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 34.754,
+      "Step: settle: CheckedTrees -> SelectedExecution": 66.308,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.752,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.328,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.226,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.023,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.069,
+      "total elapsed": 437.505
+    },
+    "producer_sha256": "10373901d2eee2c7d278da3e56e0b6dc17d8e2e5822a2ec85f69b84b74335b1d",
+    "source_sha256": "0f527c05fd961e964271f53d9c6ceb174bb7523010c2c744d02635b8a1a60a38",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\180cb1169d6d51be90ce5f527f888cc0097aad1c7e617fa5e0f28872ce014d26.rec",
+        "bytes": 44624629,
+        "sha256": "f701a1e3decd256ad2f3ba50d997d2c8817cecbaff9930af51fa86be742c8a55"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\fcf8220671911131bd419c6d2ebd698c30b3b479572a2f38882b360ee1892856.rec",
+        "bytes": 44582549,
+        "sha256": "7d51824a141b1acd570b8e7d56df30dd01a6bd05fb073e7f5692c76f2c2a840b"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "subject": "dispatch",
+    "index": 9,
+    "variant": "A",
+    "command": [
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution\\candidate\\omega.exe",
+      "--timings",
+      "--target",
+      "windows_x86_64",
+      "--build-dir",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\warm\\dispatch-09-A\\build",
+      "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\source-resolution-remaining\\comparison\\dispatch-09-A-measured\\input\\main.omg"
+    ],
+    "exit": 0,
+    "wall_ms": 613.5843000010937,
+    "peak_job_memory_bytes": 210837504,
+    "stages": {
+      "prepare: project -> prepared sources": 17.332,
+      "compile: sources -> requested product": 126.288,
+      "publish: retained product -> published product": 3.167,
+      "Stage 05: TypedTrees -> CheckedTrees": 2.047,
+      "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 29.732,
+      "Step: settle: CheckedTrees -> SelectedExecution": 69.82,
+      "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.518,
+      "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.095,
+      "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+      "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.228,
+      "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.023,
+      "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.068,
+      "total elapsed": 524.716
+    },
+    "producer_sha256": "7a042d736c07ca783eceeb282f41067b28cb320c05f703dfcb24c2737928467c",
+    "source_sha256": "0f527c05fd961e964271f53d9c6ceb174bb7523010c2c744d02635b8a1a60a38",
+    "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+    "records_before": [
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\1341bd279ac03f9a5bf8922869cb11d4d6d8f1026d8168751f2a7128599a6b0d.rec",
+        "bytes": 44582549,
+        "sha256": "cd51f68fba42196090e6c1d287bc13ccfc536ace9623b95d369df8bbbb7761b6"
+      },
+      {
+        "relative_path": "CathedralOS\\Omega\\source\\v1\\external-local-sources\\compiled-review-cache\\source-graphs\\e4c6365117aa7372206ab593953232d362575d5fec7bb5f34fae7eb9a4b2b155.rec",
+        "bytes": 44624629,
+        "sha256": "f9375bc03e2576dee3631cf9399a355b1240f2dc159acc2cadc06ac0536ad9dd"
+      }
+    ],
+    "native_exit": 0,
+    "artifact_sha256": "dc9300a3b440dff440062b5c9d3e238df5d916130356214c074a186898866d04",
+    "stdout_hex": "",
+    "stderr_hex": ""
+  }
+]

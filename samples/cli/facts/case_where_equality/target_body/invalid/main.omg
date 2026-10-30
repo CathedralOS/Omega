@@ -23,9 +23,3 @@ CheckedMainMain satisfies SelectedMainMain {
     machine done() { }
 }
 }
-
-
-
-
-
-

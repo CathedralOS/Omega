@@ -214,6 +214,17 @@ pub(super) fn descriptor_telescope_free(function: &PsiOptimizationFunction) -> b
         .all(|block| block.structural_parameters.is_empty())
 }
 
+/// The functions a scalar CFG rewrite traverses: a descriptor telescope requires
+/// structural substitution, so every such rewrite declines it once, here,
+/// instead of at each rule's own loop head.
+pub(super) fn scalar_cleanup_functions(
+    functions: &[PsiOptimizationFunction],
+) -> impl Iterator<Item = &PsiOptimizationFunction> {
+    functions
+        .iter()
+        .filter(|function| descriptor_telescope_free(function))
+}
+
 /// The terminal jump a block-erasing rewrite starts from: the block's last node
 /// must be a cleanup-free jump, and its own location is where the rewrite's
 /// patch begins. Every merge, fusion and thread rule begins here, so the

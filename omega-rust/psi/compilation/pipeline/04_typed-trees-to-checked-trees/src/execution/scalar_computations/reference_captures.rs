@@ -139,12 +139,7 @@ impl Builder<'_, '_> {
             return Some(formation);
         }
         let shell = validation::reference_shell(self.program, expected)?;
-        let place = validation::canonical_place_from_expression_in_state(
-            self.program,
-            self.state,
-            self.statement_index,
-            expression,
-        )?;
+        let place = self.canonical_place(expression)?;
         let mut prefix = validation::CanonicalPlace {
             root: place.root,
             segments: Vec::new(),

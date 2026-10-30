@@ -716,6 +716,7 @@ impl SyntaxCopy<'_> {
             }
             ExpressionNode::Member(member) => ExpressionNode::Member(TableMemberExpression {
                 receiver: self.copy_expression_handle(other, member.receiver),
+                access_source_span: member.access_source_span,
                 member: member.member.clone(),
                 case_variant: member.case_variant.clone(),
             }),

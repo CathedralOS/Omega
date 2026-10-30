@@ -221,6 +221,15 @@ impl Reader<'_> {
 mod tests {
     use super::Reader;
 
+    fn macos_reader(words: &[u32], address: u64) -> Reader<'_> {
+        Reader {
+            words,
+            position: 0,
+            address,
+            target: target::NativeTarget::macos_arm64(),
+        }
+    }
+
     #[test]
     fn original_byte_initialization_refuses_other_residence_or_missing_store() {
         let words = [
@@ -230,29 +239,14 @@ mod tests {
             0x3900_012a,
             0x9100_0529,
         ];
-        let mut reader = Reader {
-            words: &words,
-            position: 0,
-            address: 0x1000,
-            target: target::NativeTarget::macos_arm64(),
-        };
+        let mut reader = macos_reader(&words, 0x1000);
         assert!(reader.initialize(0x1200, &[11]).is_ok());
-        let mut other = Reader {
-            words: &words,
-            position: 0,
-            address: 0x1000,
-            target: target::NativeTarget::macos_arm64(),
-        };
+        let mut other = macos_reader(&words, 0x1000);
         assert!(other.initialize(0x1204, &[11]).is_err());
         for (position, replacement) in [(2, 0x5280_018a), (3, 0xd503_201f), (4, 0x9100_0929)] {
             let mut corrupted = words;
             corrupted[position] = replacement;
-            let mut reader = Reader {
-                words: &corrupted,
-                position: 0,
-                address: 0x1000,
-                target: target::NativeTarget::macos_arm64(),
-            };
+            let mut reader = macos_reader(&corrupted, 0x1000);
             assert!(reader.initialize(0x1200, &[11]).is_err());
         }
     }
@@ -260,34 +254,14 @@ mod tests {
     #[test]
     fn original_argument_register_and_full_width_observation_count_are_exact() {
         let addresses = [0x9000_0000, 0x9108_0000];
-        let mut reader = Reader {
-            words: &addresses,
-            position: 0,
-            address: 0x1000,
-            target: target::NativeTarget::macos_arm64(),
-        };
+        let mut reader = macos_reader(&addresses, 0x1000);
         assert!(reader.address(0, 0x1200).is_ok());
-        let mut substituted = Reader {
-            words: &addresses,
-            position: 0,
-            address: 0x1000,
-            target: target::NativeTarget::macos_arm64(),
-        };
+        let mut substituted = macos_reader(&addresses, 0x1000);
         assert!(substituted.address(1, 0x1200).is_err());
         let count = [0xd280_0002, 0xf2a0_0022];
-        let mut reader = Reader {
-            words: &count,
-            position: 0,
-            address: 0,
-            target: target::NativeTarget::macos_arm64(),
-        };
+        let mut reader = macos_reader(&count, 0);
         assert!(reader.count(2, 65536).is_ok());
-        let mut truncated = Reader {
-            words: &count,
-            position: 0,
-            address: 0,
-            target: target::NativeTarget::macos_arm64(),
-        };
+        let mut truncated = macos_reader(&count, 0);
         assert!(truncated.count(2, 0).is_err());
     }
 
@@ -295,21 +269,11 @@ mod tests {
     fn observation_error_path_cannot_skip_the_fail_closed_exit() {
         for word in [0x5400_0082, 0x5400_00a3, 0x1400_0005] {
             let words = [word];
-            let mut reader = Reader {
-                words: &words,
-                position: 0,
-                address: 0,
-                target: target::NativeTarget::macos_arm64(),
-            };
+            let mut reader = macos_reader(&words, 0);
             assert!(reader.conditional_branch(2, 5).is_err());
         }
         let words = [0x5400_00a2];
-        let mut reader = Reader {
-            words: &words,
-            position: 0,
-            address: 0,
-            target: target::NativeTarget::macos_arm64(),
-        };
+        let mut reader = macos_reader(&words, 0);
         assert!(reader.conditional_branch(2, 5).is_ok());
     }
 }
