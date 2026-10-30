@@ -43,7 +43,7 @@ pub use source_compilation::{
 pub use psi_terminal_production::{
     BuildProviderProductionRequest, PortableTerminalProgram, PreparedExternalProviderDeclarations,
     ProducedBuildProvider, ProducedTerminalProgram, ProgramEntryTerminalReceiptError,
-    PsiCompilationObserver, PsiCompilationStage, TerminalApplicationCustody,
+    PsiCompilationObserver, PsiCompilationStage, TerminalAdmissionRoot, TerminalApplicationCustody,
     TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
     TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildFilesystemCall,
     TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildProviderRequirement,

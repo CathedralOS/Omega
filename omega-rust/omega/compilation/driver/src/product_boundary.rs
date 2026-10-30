@@ -1187,6 +1187,46 @@ fn exclusion_source_resolution_stays_out_of_terminal_policy() {
 }
 
 #[test]
+fn terminal_composition_admission_owns_the_application_root_loop() {
+    let producer = include_str!(
+        "../../../../psi/compilation/driver/terminal-production/src/terminal_production.rs"
+    );
+    assert_eq!(producer.matches("application.admit(").count(), 1);
+    assert!(!producer.contains("retained_source_machine("));
+    let composition = include_str!(
+        "../../../../psi/compilation/driver/terminal-production/src/composition_admission.rs"
+    );
+    assert_eq!(composition.matches("admission.admit(").count(), 1);
+    assert!(composition.contains("admission.admit(&lowered.semantic_module, &mut roots)"));
+    assert!(!composition.contains("for machine in std::iter::once(selection.machine)"));
+    let policy = include_str!("terminal/behavior_exclusions.rs");
+    assert_eq!(
+        policy
+            .matches("close_checked_provider_specializations(")
+            .count(),
+        1
+    );
+    assert_eq!(
+        policy
+            .matches("authored_behavior_exclusion_set_in(")
+            .count(),
+        1
+    );
+    let projection = policy
+        .find("let first = first?;")
+        .expect("first body projection");
+    let preparation = policy
+        .find("close_checked_provider_specializations(")
+        .expect("provider closure");
+    let root_loop = policy
+        .find("for root in std::iter::once(Ok(first)).chain(roots)")
+        .expect("ordered root admission");
+    assert!(projection < preparation && preparation < root_loop);
+    assert!(policy.contains("&root.provenance"));
+    assert!(policy.contains("for root in roots {\n                root?;"));
+}
+
+#[test]
 fn early_constants_share_terminal_production_without_tree_fallback() {
     let early = include_str!(
         "../../../../psi/compilation/compile-time/src/machine_execution/build_machines.rs"
