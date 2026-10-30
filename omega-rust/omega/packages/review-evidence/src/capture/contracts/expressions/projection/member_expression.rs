@@ -173,7 +173,7 @@ fn project_checked_or_computed_member(
         );
     };
     let Some((root_expression, mut source_members)) =
-        contract_member_path_source(compilation, expression)
+        contract_member_path_source(compilation, context, expression)?
     else {
         return project_computed_contract_member_expression(
             compilation,
@@ -197,10 +197,7 @@ fn project_checked_or_computed_member(
         let Some(path) = compilation.expression_table.name_path_node(root_expression) else {
             unreachable!("guarded data-subject name root")
         };
-        let [field_name] = compilation.expression_table.name_path_members(path.members) else {
-            unreachable!("guarded single data-subject field")
-        };
-        source_members.insert(0, field_name.clone());
+        source_members.insert(0, path.symbol);
         PackageReviewContractExpression::DomainSubject
     } else {
         child(root_expression)?

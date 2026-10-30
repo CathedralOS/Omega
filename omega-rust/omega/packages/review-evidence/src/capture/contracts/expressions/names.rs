@@ -1,6 +1,6 @@
 use super::members::{
-    checked_contract_member_path, data_subject_binder_position, is_data_subject_field_expression,
-    project_contract_member_expression,
+    checked_contract_member_path, data_predicate_subject, data_subject_binder_position,
+    is_data_subject_field_expression, project_contract_member_expression,
 };
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
@@ -68,7 +68,7 @@ pub(crate) fn project_contract_name_expression(
             context,
             checked_fact,
             facts::PlaceRoot::Symbol(context.data_symbol.expect("guarded data subject")),
-            members,
+            &[path.symbol],
         )?
         .into_iter()
         .try_fold(
@@ -100,6 +100,9 @@ pub(crate) fn project_contract_name_expression(
             root_name.is_some_and(|name| name == &parameter.name)
         }
     });
+    let data_subject = context
+        .data_symbol
+        .and_then(|data_symbol| data_predicate_subject(compilation, data_symbol, expression));
     let is_domain_subject = context.domain_symbol.is_some()
         && root_name.is_some_and(|name| language_core::is_self_receiver(name.as_str()));
     let binder_position = binders
@@ -108,7 +111,7 @@ pub(crate) fn project_contract_name_expression(
         .or(data_binder_position);
     let root = if let Some(substitution) = substitution_root {
         Some(substitution)
-    } else if is_domain_subject {
+    } else if is_domain_subject || data_subject.is_some() {
         Some(PackageReviewContractExpression::DomainSubject)
     } else if let Some(position) = parameter_position {
         Some(PackageReviewContractExpression::Parameter(
@@ -179,12 +182,21 @@ pub(crate) fn project_contract_name_expression(
                 context.subject_kind, context.subject_name
             ))]
         })?;
+    let member_symbols = compilation
+        .expression_table
+        .name_path_member_symbols(path.member_symbols);
+    if member_symbols.len() != members.len() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract name path lacks exact member identities",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
     checked_contract_member_path(
         compilation,
         context,
         checked_fact,
         semantic_root,
-        &members[1..],
+        &member_symbols[1..],
     )?
     .into_iter()
     .try_fold(projected, |receiver, (case_variant, member_symbol)| {
