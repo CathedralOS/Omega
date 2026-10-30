@@ -12,9 +12,29 @@ use symbol_resolved_trees as resolved;
 use symbols::JoinedPath;
 use typed_trees as typed;
 
+/// A data declaration publishes one ordered roster of default-domain
+/// obligations. Conjunction has the same meaning in one clause or several;
+/// consumers must not rediscover its leaves independently when establishing,
+/// updating or transporting the value. Preserve disjunctions and their exact
+/// source expressions, and classify proposition applications at each leaf.
+pub(crate) fn lower_data_predicates(
+    lowerer: &mut Lowerer,
+    facts: HandleSpan<resolved::domain::ProofFact>,
+) -> Result<HandleSpan<typed::domain::ProofFact>, Diagnostic> {
+    lower_fact_roster(lowerer, facts, true)
+}
+
 pub(crate) fn lower_proof_facts(
     lowerer: &mut Lowerer,
     facts: HandleSpan<resolved::domain::ProofFact>,
+) -> Result<HandleSpan<typed::domain::ProofFact>, Diagnostic> {
+    lower_fact_roster(lowerer, facts, false)
+}
+
+fn lower_fact_roster(
+    lowerer: &mut Lowerer,
+    facts: HandleSpan<resolved::domain::ProofFact>,
+    conjunctive: bool,
 ) -> Result<HandleSpan<typed::domain::ProofFact>, Diagnostic> {
     let mut lowered = HandleSpan::empty();
 
@@ -24,15 +44,30 @@ pub(crate) fn lower_proof_facts(
         let source_span = lowerer.source_trees.proof_fact_source_span(source_fact);
         match fact {
             resolved::domain::ProofFact::Expression(expression) => {
-                let fact = lower_expression_fact(lowerer, *expression)?;
-                let handle = lowerer
-                    .typed_trees
-                    .proof_facts
-                    .append_to_span(&mut lowered, fact);
-                if let Some(source_span) = source_span {
-                    lowerer
+                let mut pending = vec![*expression];
+                while let Some(expression) = pending.pop() {
+                    if conjunctive
+                        && let resolved::expression::ExpressionNode::Binary(binary) = lowerer
+                            .source_trees
+                            .tables
+                            .bodies
+                            .expressions
+                            .expression(expression)
+                        && binary.operator == resolved::expression::BinaryOperator::And
+                    {
+                        pending.extend([binary.right, binary.left]);
+                        continue;
+                    }
+                    let fact = lower_expression_fact(lowerer, expression)?;
+                    let handle = lowerer
                         .typed_trees
-                        .set_proof_fact_source_span(handle, source_span);
+                        .proof_facts
+                        .append_to_span(&mut lowered, fact);
+                    if let Some(source_span) = source_span {
+                        lowerer
+                            .typed_trees
+                            .set_proof_fact_source_span(handle, source_span);
+                    }
                 }
             }
             resolved::domain::ProofFact::Membership(membership) => {
