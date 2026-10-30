@@ -161,32 +161,21 @@ pub fn stored_view_shell(
 /// Fixed arrays, owned or borrowed, use ordinary array storage and reference
 /// custody. Qualification never selects another representation (domains.md,
 /// `qualified-fixed-byte-array-carrier`); variable-fill owners must declare
-/// their storage and live length explicitly.
+/// their storage and live length explicitly. The element restriction is this
+/// carrier's alone; the borrow and slice shape are the shared view shell.
 pub fn byte_sequence_carrier(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<checked_trees::CheckedByteSequenceCarrier> {
-    let shell = peel_carrier_shells(program, type_reference, substitutions)?;
     // The reference's access is the carrier's access: a `&mut [u8]` field and a
     // `&[u8]` one are distinguishable here and nowhere downstream, so it is
     // recorded rather than discarded.
-    let TypeReferenceNode::Reference {
-        referee, access, ..
-    } = program.type_reference_table.type_reference(shell)
-    else {
-        return None;
-    };
-    let slice = peel_carrier_shells(program, *referee, substitutions)?;
-    let TypeReferenceNode::Slice { element_type } =
-        program.type_reference_table.type_reference(slice)
-    else {
-        return None;
-    };
-    if program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8) {
+    let view = slice_view_shell(program, type_reference, substitutions)?;
+    if program.primitive_type_reference(view.element) != Some(PrimitiveType::U8) {
         return None;
     }
     Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
-        access: Some((*access).into()),
+        access: Some(view.access.into()),
     })
 }
