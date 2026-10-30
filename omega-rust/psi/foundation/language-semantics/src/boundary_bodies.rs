@@ -16,3 +16,13 @@ pub struct BoundaryBodySelection {
     /// Visibility of the complete machine/provider/satisfaction relationship.
     pub is_product: bool,
 }
+
+/// A checked declaration or one closed body's eligibility. The payload belongs
+/// to the consumer; selection never derives evidence from that payload.
+#[derive(Clone, Copy)]
+pub struct CheckedBodyCandidate<'candidate, Body> {
+    pub body: Body,
+    pub declaration: &'candidate BoundaryBodySelection,
+    pub target: Option<&'candidate str>,
+    pub is_product: bool,
+}

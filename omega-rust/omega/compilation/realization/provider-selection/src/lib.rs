@@ -7,6 +7,8 @@
 //! authority. No index escapes to be reinterpreted against another inventory.
 
 mod boundary_applications;
+mod boundary_review;
+pub use boundary_review::BoundaryProviderAdmission;
 mod checked_bodies;
 mod declarations;
 mod external_execution;
