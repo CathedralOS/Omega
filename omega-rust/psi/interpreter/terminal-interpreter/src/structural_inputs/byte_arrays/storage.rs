@@ -5,6 +5,7 @@
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::storage::ByteSequenceStorage;
+use crate::custody::fixed_index_step;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::execution::frame_field_mut;
@@ -368,19 +369,7 @@ impl TerminalExecution<'_> {
         let mut selected = structural_type;
         let mut offset = 0usize;
         for segment in &storage.referent.path {
-            let terminal_psi::StructuralPathSegment::FixedIndex(index) = segment else {
-                return Err(malformed());
-            };
-            let terminal_psi::StructuralTypeShape::FixedArray {
-                element,
-                length: terminal_psi::ArrayExtent::Literal(length),
-            } = types.get(&selected).ok_or_else(malformed)?.shape
-            else {
-                return Err(malformed());
-            };
-            if *index >= length {
-                return Err(malformed());
-            }
+            let (element, index, _) = fixed_index_step(&types, selected, segment)?;
             let child_count = match types.get(&element).ok_or_else(malformed)?.shape {
                 terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => 1,
                 _ => {
