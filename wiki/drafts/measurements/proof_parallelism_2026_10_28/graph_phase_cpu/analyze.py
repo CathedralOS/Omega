@@ -51,6 +51,13 @@ def analyze(folder,raw,script_path):
     clean_result=json.loads((clean/'result.json').read_text());assert clean_result['exit_code']==0 and clean_result['terminal_stdout_agrees'] and clean_result['retained_image_sha256']==script.same.IMAGE
     for key in ['compiler_sha256','accepted_lock_sha256']:assert clean_result[key]==pure_identity[key]
     assert read(clean/'stdout.txt')==read(clean/'terminal.stdout')==expected and not script.parse(read(clean/'stderr.txt').decode('utf-8'))
+    if (folder/'qualification/summary.json').exists():
+        q=folder/'qualification';summary=json.loads((q/'summary.json').read_text());raw_receipt=gzip.decompress((q/'observation.json.gz').read_bytes())
+        assert hashlib.sha256(raw_receipt).hexdigest()==summary['receipt_sha256']
+        receipt=json.loads(raw_receipt);assert receipt['exit']==summary['exit']==0 and not receipt['invalidations'] and receipt['revision']==summary['observed_revision']
+        assert receipt['compiler_profiles'][0]['sha256']==pure_identity['compiler_sha256'] and int(receipt['compiler_profiles'][0]['profile']['opt_level'])>0
+        for stream in ['stdout','stderr']:assert hashlib.sha256((q/(stream+'.txt')).read_bytes()).hexdigest()==receipt[stream]['sha256']
+        observed=json.loads((q/'stdout.txt').read_text());assert observed['native_exit']==0 and observed['stdout_bytes']==463 and observed['native_sha256']==script.same.IMAGE
     blocks=[];repeats=[];timed=[]
     for block,order in enumerate(identity['schedule']):
         group={mode:[] for mode in ['eager','lazy']}

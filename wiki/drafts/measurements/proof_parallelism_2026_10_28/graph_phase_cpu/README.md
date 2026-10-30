@@ -133,6 +133,17 @@ records these identities and the fresh qualification outcomes. The repository's
 pinned qualification runner additionally records an immutable native replay on
 the clean source checkpoint, retaining the actual preparatory Terminal observation.
 
+That replay is accepted at clean checkpoint
+`cddd308a3897564867c96dee274ac333b9902879`: exit 0, no invalidations, optimized
+producer profile bound to its digest. [Qualification summary](qualification/summary.json)
+links the exact observation identity; compressed canonical state/receipt and
+separate stdout/stderr remain under [qualification](qualification/).
+[Source-equivalence provenance](qualification/producer-source-equivalence.json)
+preserves the original producer build base and patch rather than claiming a new
+build at this checkpoint. The replay freshly executes the pinned native image;
+its Terminal comparison is the preserved preparatory execution, not a second
+interpreter invocation inside the qualification capture.
+
 ## Replay and limits
 
 ```powershell
