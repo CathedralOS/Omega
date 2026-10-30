@@ -146,7 +146,7 @@ pub(super) fn append_move_events_for_expression(
             // stand.
             if (value_type
                 .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
-                && !reference_slot_is_owned(program, state_symbol, statement_index, &place))
+                && reference_slot_is_borrowed(program, state_symbol, statement_index, &place))
                 || observations::detached_borrowed_copy_admitted(
                     program,
                     state_symbol,
@@ -698,24 +698,21 @@ pub(in crate::flow::ownership) fn initializer_produces_owned_value(
     .unwrap_or(false)
 }
 
-/// The endpoint descriptor may transfer; no preceding reference can donate
-/// ownership of the storage it lends. Formal reference ingress lends its first
-/// referent and establishes a fresh carrier on capture, unlike an owned slot.
-fn reference_slot_is_owned(
+/// Only a positively known borrowed boundary suppresses a descriptor move.
+/// Unknown geometry retains the candidate for ordinary ownership validation;
+/// the final slot is the carried descriptor, not a crossed reference.
+fn reference_slot_is_borrowed(
     program: &dyn ::validation::CheckingInput,
     state: SymbolHandle,
     statement: usize,
     place: &validation::CanonicalPlace,
 ) -> bool {
-    let Some(root) = validation::canonical_place_type_reference(
-        program,
-        state,
-        statement,
-        &validation::CanonicalPlace {
-            root: place.root,
-            segments: Vec::new(),
-        },
-    ) else {
+    let mut prefix = validation::CanonicalPlace {
+        root: place.root,
+        segments: Vec::new(),
+    };
+    let Some(root) = validation::canonical_place_type_reference(program, state, statement, &prefix)
+    else {
         return false;
     };
     if validation::reference_shell(program, root).is_some()
@@ -725,7 +722,18 @@ fn reference_slot_is_owned(
                 .is_some_and(|state| program.state_parameter_by_symbol(state, symbol).is_some())
         })
     {
-        return false;
+        return true;
     }
-    validation::owned_projection_type_reference(program, root, &place.segments).is_some()
+    for segment in &place.segments {
+        let Some(reference) =
+            validation::canonical_place_type_reference(program, state, statement, &prefix)
+        else {
+            return false;
+        };
+        if validation::reference_shell(program, reference).is_some() {
+            return true;
+        }
+        prefix.segments.push(*segment);
+    }
+    false
 }
