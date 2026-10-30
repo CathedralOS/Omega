@@ -43,7 +43,15 @@ qualification on the submitted source. Publish through a PR and native merge
 queue; verify the exact submitted head, published commit and remote-main
 ancestry. No full corpus or foreign-host runtime is claimed.
 
-Build and fresh validation are pending. Data: `build/native-queue-landing`.
+The source-bound ordinary-O3 candidate was built from
+`19554817237e17c4a003286d916842aaa23a24b4`, SHA256
+`808ee3ff1725341e2612c5279e9072741a53c2c2201208f695772ee61c46b4e8`.
+All51 selected worker/application/compiler boundary tests passed (6 other tests
+filtered out), as did affected release Clippy with inherited warnings and touched
+Rust formatting. All functional controls in the first capture passed; the
+complete timing capture remains unfinished for the incident recorded below.
+The fresh `capture-2` replay is queued for a shared slot. No PR has been created
+and publication is unfinished. Data: `build/native-queue-landing`.
 Claim: `2aa09636534c47b7952ec96f565dbd41`.
 
 Additional baseline control: `portable_layout_constant_composition_exit` compiles
