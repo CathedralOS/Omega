@@ -180,7 +180,14 @@ impl CompletedValueReads {
                     origin: origin.clone(),
                     lifetime_access: None,
                 },
-                ReferenceSource::Symbolic(_) => return None,
+                ReferenceSource::Symbolic(origin) => {
+                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        eprintln!(
+                            "STRUCT completed-value-read-refused path={path:?} phase=symbolic origin={origin:?}"
+                        );
+                    }
+                    return None;
+                }
             };
             sources.push(source);
         }

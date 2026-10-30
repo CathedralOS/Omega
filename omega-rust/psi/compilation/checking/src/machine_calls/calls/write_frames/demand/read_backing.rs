@@ -91,7 +91,14 @@ impl CallFrameResolver<'_> {
         if owner != state.symbol {
             return None;
         }
-        completed.reference_sources(self.program)
+        let sources = completed.reference_sources(self.program);
+        if sources.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT captured-reference-address-refused machine={} expression={expression:?} phase=descriptor",
+                self.program.symbols.name(machine.symbol)
+            );
+        }
+        sources
     }
 
     fn completed_read_value(

@@ -46,13 +46,27 @@ fn source_operand(
     {
         return None;
     }
-    let root_type = crate::state_root_type(program, state, source.root)?;
+    let declared_root = crate::state_root_type(program, state, source.root)?;
+    // A formal names its incoming referent; an owned local names its slot.
+    // Never erase another stored-pointer boundary from the identity namespace.
+    let root_type = if program
+        .state_parameter_by_symbol(state, source.root)
+        .is_some()
+    {
+        crate::reference_shell(program, declared_root).map_or(declared_root, |shell| shell.referee)
+    } else {
+        declared_root
+    };
+    let selected = crate::owned_projection_type_reference(program, root_type, &source.segments)?;
+    if crate::reference_shell(program, selected).is_some() {
+        return None;
+    }
     let mut value = Operand::Place {
         root: source.root,
         path: program.symbols.name(source.root).to_owned(),
     };
     for (ordinal, segment) in source.segments.iter().enumerate() {
-        let selected = crate::project_type_reference_from_segments(
+        let selected = crate::owned_projection_type_reference(
             program,
             root_type,
             &source.segments[..=ordinal],
