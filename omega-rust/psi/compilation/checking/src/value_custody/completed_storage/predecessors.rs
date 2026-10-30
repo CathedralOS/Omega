@@ -139,51 +139,11 @@ pub fn predecessors_in_control(
         return Some(vec![(selected, projection[consumed..].to_vec())]);
     }
     let state = program.state_by_symbol(capture.state_symbol)?;
-    let statements = active_statements
-        .filter(|(state, _)| *state == capture.state_symbol)
-        .map(|(_, statements)| statements)
-        .or_else(|| {
-            control.states.iter().find_map(|(_, state)| {
-                (state.state_symbol == capture.state_symbol).then_some(state.statements)
-            })
-        })?;
-    if let Some(member) = program.expression_table.member_node(capture.expression) {
-        let statement = control
-            .statements
-            .span(statements)?
-            .iter()
-            .find(|statement| statement.statement_index == capture.statement_index)?;
-        let mut observations = control
-            .value_observations
-            .span_or_empty(statement.value_observations)
-            .iter()
-            .filter(|observation| {
-                observation.expression == capture.expression
-                    && observation.constraints == capture.constraints
-            });
-        if let Some(observation) = observations.next() {
-            if observations.next().is_some() || !control.operands.is_valid(observation.receiver) {
-                return None;
-            }
-            let receiver = control.operands.get(observation.receiver);
-            // A member of an owned completed value selects that receiver's
-            // captured subtree, even when no source variable names it. A
-            // reference instead observes live storage and must keep the
-            // write-sensitive reaching-store route below.
-            if crate::reference_shell(program, receiver.type_reference).is_none() {
-                let symbol = crate::effective_member_symbol(program, member.receiver, member);
-                if !symbol.is_valid() || program.any_field_owner(symbol).is_none() {
-                    return None;
-                }
-                let mut path = Vec::new();
-                if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
-                    path.push(PlaceSegment::Case { variant });
-                }
-                path.push(PlaceSegment::Field { symbol });
-                path.extend_from_slice(projection);
-                return Some(vec![(observation.receiver, path)]);
-            }
-        }
+    if let Some((receiver, mut path)) =
+        owned_observation_projection(program, control, capture, active_statements)?
+    {
+        path.extend_from_slice(projection);
+        return Some(vec![(receiver, path)]);
     }
     let mut source = crate::canonical_place_from_expression_in_state(
         program,
@@ -208,4 +168,62 @@ pub fn predecessors_in_control(
         predecessors.push((selected.capture, selected.projection));
     }
     Some(predecessors)
+}
+
+/// The actual owned receiver and declared path observed by one completed read.
+/// None is unavailable/ambiguous evidence. Some(None) has no owned projection;
+/// it retains the caller's ordinary storage or descriptor observation route.
+pub fn owned_observation_projection(
+    program: &dyn crate::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    capture: &FlowOperandFact,
+    active_statements: Option<(
+        symbols::SymbolHandle,
+        arena::HandleSpan<checked_trees::FlowStatementFact>,
+    )>,
+) -> Option<Option<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>> {
+    let Some(member) = program.expression_table.member_node(capture.expression) else {
+        return Some(None);
+    };
+    let statements = active_statements
+        .filter(|(state, _)| *state == capture.state_symbol)
+        .map(|(_, statements)| statements)
+        .or_else(|| {
+            control.states.iter().find_map(|(_, state)| {
+                (state.state_symbol == capture.state_symbol).then_some(state.statements)
+            })
+        })?;
+    let statement = control
+        .statements
+        .span(statements)?
+        .iter()
+        .find(|statement| statement.statement_index == capture.statement_index)?;
+    let mut observations = control
+        .value_observations
+        .span_or_empty(statement.value_observations)
+        .iter()
+        .filter(|observation| {
+            observation.expression == capture.expression
+                && observation.constraints == capture.constraints
+        });
+    let Some(observation) = observations.next() else {
+        return Some(None);
+    };
+    if observations.next().is_some() || !control.operands.is_valid(observation.receiver) {
+        return None;
+    }
+    let receiver = control.operands.get(observation.receiver);
+    if crate::reference_shell(program, receiver.type_reference).is_some() {
+        return Some(None);
+    }
+    let symbol = crate::effective_member_symbol(program, member.receiver, member);
+    if !symbol.is_valid() || program.any_field_owner(symbol).is_none() {
+        return None;
+    }
+    let mut path = Vec::new();
+    if let Some(variant) = facts::payload_variant_for_field(program, symbol) {
+        path.push(PlaceSegment::Case { variant });
+    }
+    path.push(PlaceSegment::Field { symbol });
+    Some(Some((observation.receiver, path)))
 }

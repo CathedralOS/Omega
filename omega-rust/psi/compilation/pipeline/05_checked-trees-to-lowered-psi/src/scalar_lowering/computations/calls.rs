@@ -737,8 +737,8 @@ impl Expansion<'_> {
                 erased_formal_types: Vec::new(),
                 erased_proof_formals: Vec::new(),
                 bindings: Vec::new(),
-                structural_effects: vec![LoweredScalarEffect::CompleteArgumentSnapshots {
-                    places: argument_homes,
+                structural_effects: vec![LoweredScalarEffect::CompleteSnapshots {
+                    snapshots: argument_homes.into_iter().map(crate::scalar_lowering::branch_states::prepared::CompletedSnapshot::Reserved).collect(),
                 }],
                 terminator: LoweredScalarBranchTerminator::jump(target, super::parameters(&types)),
             })

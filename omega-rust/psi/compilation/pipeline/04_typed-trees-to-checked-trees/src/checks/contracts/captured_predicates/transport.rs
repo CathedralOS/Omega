@@ -21,7 +21,9 @@ pub(super) fn predicates(
     conditions: &mut SelectionConditions,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<ConditionalPredicate> {
-    let mut transported: Vec<ConditionalPredicate> = Vec::new();
+    let mut transported = super::case_evidence::predicates(
+        program, facts, state, required, captures, selections, conditions,
+    );
     for (capture, &selection) in captures.iter().zip(selections) {
         for alias in &capture.aliases {
             let contexts = facts
@@ -57,7 +59,20 @@ pub(super) fn predicates(
                     frames,
                 ));
             }
+            let cases = crate::flow::CaseEvidence::prepare(
+                program,
+                &facts.semantic,
+                &contexts,
+                state.machine_symbol,
+                alias.epoch.state_symbol,
+                alias.epoch.statement_index,
+            );
             while let Some(mut predicate) = predicates.pop() {
+                crate::facts::boolean_predicates::fold_cases(&mut predicate, |binding, case| {
+                    cases
+                        .as_ref()?
+                        .case_truth(&binding.place, binding.type_reference, case)
+                });
                 if let checked_trees::CheckedBooleanExpression::And { left, right } =
                     &predicate.expression
                 {
@@ -80,9 +95,7 @@ pub(super) fn predicates(
                             .find(|binding| binding.operand == *operand)?;
                         let mut destination = None;
                         for position in 0..required.bindings.len() {
-                            if required.bindings[position].operand.primitive_type()
-                                != observation.operand.primitive_type()
-                            {
+                            if !required.bindings[position].compatible_with(program, observation) {
                                 continue;
                             }
                             let support = super::coverage::dependency(
@@ -114,7 +127,8 @@ pub(super) fn predicates(
                             *operand = super::super::call_values::observed_literal(
                                 value,
                                 observation.operand.primitive_type()?,
-                            )?;
+                            )?
+                            .into();
                             return Some(());
                         };
                         let binding = &required.bindings[position];

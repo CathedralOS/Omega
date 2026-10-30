@@ -911,6 +911,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             };
             let owner = self.context.control.operands.append(capture);
             capture.reference_leaves = self.capture_owned_reference_leaves(owner, &owned_places);
+            // Attaching conditional descriptor inventory does not produce new
+            // owned bytes. Retain the exact completion used by its formations,
+            // so later saved copies can identify that carrier by handle.
+            capture.value_source = owner;
         }
         self.retain_observation_result(expression, capture);
         EvaluatedOperand {

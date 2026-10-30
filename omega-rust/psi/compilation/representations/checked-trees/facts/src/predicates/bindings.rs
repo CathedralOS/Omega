@@ -1,7 +1,9 @@
 //! A true checked formula and its exact current storage observations.
 //! Expression positions remain in the originating invocation namespace;
 //! bindings, not a later state's parameter ordering, identify current places.
-use crate::{CheckedBooleanExpression, CheckedScalarExpression, Place};
+use crate::{
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedStructuralCaseSubject, Place,
+};
 use arena::{Handle, HandleSpan};
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
@@ -27,11 +29,39 @@ impl Default for BooleanPredicate {
     }
 }
 
+/// Exact observations in one retained Boolean formula. A sum subject is a
+/// typed structural value, never a fabricated scalar discriminant. The case
+/// tested remains on its StructuralCaseMembership atom in the formula.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub enum BooleanPredicateOperand {
+    Scalar(CheckedScalarExpression),
+    CaseSubject(CheckedStructuralCaseSubject),
+}
+
+impl BooleanPredicateOperand {
+    pub fn scalar(&self) -> Option<&CheckedScalarExpression> {
+        match self {
+            Self::Scalar(value) => Some(value),
+            Self::CaseSubject(_) => None,
+        }
+    }
+
+    pub fn primitive_type(&self) -> Option<typed_trees::types::PrimitiveType> {
+        self.scalar()?.primitive_type()
+    }
+}
+
+impl From<CheckedScalarExpression> for BooleanPredicateOperand {
+    fn from(value: CheckedScalarExpression) -> Self {
+        Self::Scalar(value)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct BooleanPredicateBinding {
-    /// One existing scalar observation in the formula, including its original
-    /// dense scalar or authored structural parameter position and field path.
-    pub operand: CheckedScalarExpression,
+    /// One genuine observation in the originating invocation namespace.
+    /// Its typed place and epoch remain independently authenticated.
+    pub operand: BooleanPredicateOperand,
     pub place: Handle<Place>,
     pub type_reference: TypeReferenceHandle,
 }
@@ -39,9 +69,9 @@ pub struct BooleanPredicateBinding {
 impl Default for BooleanPredicateBinding {
     fn default() -> Self {
         Self {
-            operand: CheckedScalarExpression::Boolean(Box::new(
+            operand: BooleanPredicateOperand::Scalar(CheckedScalarExpression::Boolean(Box::new(
                 CheckedBooleanExpression::Constant(false),
-            )),
+            ))),
             place: Handle::invalid(),
             type_reference: TypeReferenceHandle::invalid(),
         }

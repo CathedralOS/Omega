@@ -557,7 +557,7 @@ impl<'plans> FlowBuildContext<'plans> {
                     statement,
                     writes,
                     unknown_write,
-                    operand,
+                    operand.scalar()?,
                 )
             },
         )
@@ -576,7 +576,7 @@ impl<'plans> FlowBuildContext<'plans> {
                 self,
                 state,
                 statement,
-                &binding.operand,
+                binding.operand.scalar()?,
             )?;
             if program.primitive_type_reference(observed.reference)
                 != binding.operand.primitive_type()

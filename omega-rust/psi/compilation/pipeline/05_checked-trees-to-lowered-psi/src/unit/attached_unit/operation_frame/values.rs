@@ -210,6 +210,7 @@ impl OperationEnvironment<'_> {
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
         let checked = self.checked;
+        let first_new_place = *self.next_place;
         let node = checked.facts.values.structural_values.nodes.get(value);
         let root = checked
             .facts
@@ -325,11 +326,19 @@ impl OperationEnvironment<'_> {
         let structural_values::ValueOutcome::Normal(completed) = produced? else {
             return Ok(());
         };
+        // The allocator interval covers delegated calls and joins as well as
+        // declarations returned directly by the value emitter. Borrowed aliases
+        // and projections do not own that fresh whole home.
+        let fresh_storage = completed.argument.place.get() >= first_new_place
+            && completed.argument.place.get() < *self.next_place
+            && completed.argument.path.is_empty()
+            && completed.argument.access == terminal_psi::StructuralAccess::Owned;
         if let Some(declaration) = completed.declaration {
             self.private_places.push(declaration);
         }
         let argument = completed.argument;
         let binding = crate::emission::operation_emission::buffer::ComputedValueBinding {
+            fresh_storage,
             argument: argument.clone(),
             structural_type: completed.binding.structural_type(),
             observation,

@@ -4,10 +4,12 @@
 //! consume the ordinary live-case judgment, independently of scalar format,
 //! qualification, or whether the accessed payload is copied or borrowed.
 
+mod completed_carriers;
+
 use arena::Handle;
 use checked_trees::{CheckFacts, FlowCaseAccessFact, FlowOperandReferent};
 use diagnostics::Diagnostic;
-use facts::{PlaceRoot, PlaceSegment};
+use facts::PlaceSegment;
 use validation::CanonicalPlace;
 
 #[derive(Clone, Copy)]
@@ -214,17 +216,12 @@ fn subject_cases_are_selected(
             // Conditional inventory does not select an inner sum. This exact
             // completed carrier must supply its own current case evidence at
             // the descriptor load, independently of the source-copy prefix.
-            if !crate::flow::place_cases_are_selected(
+            if !completed_carriers::case_path_is_selected(
                 program,
-                &facts.semantic,
-                &contexts,
-                access.machine_symbol,
-                access.state_symbol,
-                access.statement_index,
-                &CanonicalPlace {
-                    root: PlaceRoot::Expression(owner.expression),
-                    segments: path.to_vec(),
-                },
+                facts,
+                access,
+                formation.owner,
+                path,
             ) {
                 return Err("the completed carrier does not select its required case");
             }
