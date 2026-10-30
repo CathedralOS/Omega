@@ -1057,6 +1057,20 @@ fn selected_numeric_admission_consumes_retained_declarations() {
 }
 
 #[test]
+fn boundary_application_policy_has_one_source_free_owner() {
+    let settlement = include_str!(
+        "../../pipeline/00_terminal-psi-to-abstract-operations/src/boundary_application_settlement.rs"
+    );
+    assert!(settlement.contains("provider_selection::select_boundary_applications("));
+    assert!(settlement.contains("TerminalBoundaryApplicationCoverage::new("));
+    assert!(!settlement.contains("ProviderBinding::"));
+    assert!(!settlement.contains("boundary_application_candidates"));
+    let source = include_str!("../../realization/provider-planning/src/intrinsic_requirements.rs");
+    assert!(source.contains("provider_selection::selected_external_execution("));
+    assert!(!source.contains("effects::external_providers::selected_numeric_provider("));
+}
+
+#[test]
 fn selected_boundary_admission_reads_checked_classification() {
     let source = include_str!(
         "../../realization/provider-planning/src/provider_planning/operator_provider_evidence.rs"

@@ -40,23 +40,16 @@ impl CheckedNumericProviders<'_> {
             if declarations.next().is_some() {
                 return Err("numeric requirement has competing nominal declarations".into());
             }
-            let nominal = self
-                .identities
-                .text(declaration.identity())
-                .ok_or("numeric requirement identity is absent from its checked catalog")?;
-            let selected = effects::external_providers::selected_numeric_provider(
+            provider_selection::selected_external_execution(
                 self.conformances,
                 self.identities,
-                nominal,
-                None,
+                declaration,
                 plan,
                 row,
+                None,
+                None,
             )?
-            .ok_or("numeric selection has no exact checked external satisfaction")?;
-            selected
-                .numeric_intrinsic
-                .map(Into::into)
-                .ok_or_else(|| "selected numeric provider has no checked meaning".into())
+            .ok_or_else(|| "numeric selection has no exact checked external satisfaction".into())
         };
         join().map_err(|reason| {
             diagnostics::Diagnostic::error(format!(
