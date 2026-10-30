@@ -11,7 +11,7 @@ data Index {
 }
 
 data Chain<machine Step>
-where machine Step(index: Index) -> Index;
+requires machine Step(index: Index) -> Index;
 {
     case End;
     case Link(next: Chain<Step>);
@@ -23,7 +23,7 @@ proposition chained<machine Left, machine Right>(
 ) = true;
 
 machine chained_reflexive<machine Only>(chain: Chain<Only>)
-where machine Only(index: Index) -> Index;
+requires machine Only(index: Index) -> Index;
 ensures chained<Only, Only>(chain, chain)
 {
 }
@@ -32,8 +32,8 @@ machine chained_symmetric<machine Second, machine First>(
     first: Chain<Second>,
     second: Chain<First>
 )
-where machine Second(index: Index) -> Index;
-where machine First(index: Index) -> Index;
+requires machine Second(index: Index) -> Index;
+requires machine First(index: Index) -> Index;
 requires chained<Second, First>(first, second)
 ensures chained<First, Second>(second, first)
 {
@@ -44,9 +44,9 @@ machine chained_transitive<machine Low, machine Mid, machine High>(
     mid: Chain<Mid>,
     high: Chain<High>
 )
-where machine Low(index: Index) -> Index;
-where machine Mid(index: Index) -> Index;
-where machine High(index: Index) -> Index;
+requires machine Low(index: Index) -> Index;
+requires machine Mid(index: Index) -> Index;
+requires machine High(index: Index) -> Index;
 requires
     chained<Low, Mid>(low, mid)
     chained<Mid, High>(mid, high)

@@ -25,7 +25,7 @@ machine StablePlacement::plan(schema: Schema) -> PlacementPlan {
 }
 
 machine ignore<A, machine Step>(field: &A) -> u64
-where machine Step(field: &A) -> u64;
+requires machine Step(field: &A) -> u64;
 { 0u64 }
 
 machine main() crashes Trap {

@@ -2,7 +2,7 @@
 data Callback [copy] { value: u64; }
 machine marker() -> u64 { 7 }
 machine selected<Length [copy], machine Callback, const Capacity: u64>(items: Length, other: Callback) -> u64
-where machine Callback() -> u64;
+requires machine Callback() -> u64;
 where Length == [u8; Capacity]
 { Capacity }
 machine main() {

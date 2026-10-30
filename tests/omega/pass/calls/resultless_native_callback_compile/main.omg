@@ -130,7 +130,7 @@ satisfies CallingPolicy::plan
 
 public boundary trait OnceRegistrar: Calling<OnceCalling> {
     machine execute<machine Handler>(word: &mut i32, native callback initialize from Handler) -> i32
-    where machine Handler satisfies Initializer::call;
+    requires machine Handler satisfies Initializer::call;
     reaches
     invokes Initializer;
 }
@@ -149,7 +149,7 @@ linux_x86_64 machine once_binding() -> ForeignBinding<9, 12, 10> {
 }
 
 linux_x86_64 machine once_leaf<machine Handler>(word: &mut i32) -> i32
-where machine Handler satisfies Initializer::call;
+requires machine Handler satisfies Initializer::call;
 satisfies OnceRegistrar::execute
 via once_binding();
 

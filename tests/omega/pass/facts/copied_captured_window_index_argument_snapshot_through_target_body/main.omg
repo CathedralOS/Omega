@@ -13,7 +13,7 @@ machine snapshot<'storage>(source: View<'storage>, start: u64, end: u64, counter
 requires start <= end && end <= source.bytes.len
 { counter.value = !counter.value; Counted { view: View { bytes: &source.bytes[start..end], sibling: source.sibling } } }
 machine through_callback<'storage, machine Callback>(source: View<'storage>, start: u64, end: u64, counter: &mut Counter) -> Counted<'storage, (end - start)>
-where machine Callback<'fresh>(source: View<'fresh>, start: u64, end: u64, counter: &mut Counter) -> Counted<'fresh, (end - start)>
+requires machine Callback<'fresh>(source: View<'fresh>, start: u64, end: u64, counter: &mut Counter) -> Counted<'fresh, (end - start)>
 requires start <= end && end <= source.bytes.len;
 requires start <= end && end <= source.bytes.len
 { Callback(source, start, end, counter) }

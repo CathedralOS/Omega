@@ -254,7 +254,7 @@ fn validate_resolved_receiver_call(
 /// binder. Each destination must therefore name one `machine` binder of the
 /// selected signature, and the call must supply that binder's selection at
 /// its machine ordinal. MP2b separately admits the selection against the
-/// binder's `where machine ... satisfies` bound; this check only refuses a
+/// binder's `requires machine ... satisfies` bound; this check only refuses a
 /// destination with no selection to bind, which later stages would otherwise
 /// have to reject without a source diagnostic.
 fn validate_native_callback_selections(

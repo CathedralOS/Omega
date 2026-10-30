@@ -2,7 +2,7 @@
 // dictionary or layout parameter. A finite record therefore cannot declare
 // one even when no field mentions it.
 data RuntimeCallback<machine F>
-where machine F(value: u64) -> u64;
+requires machine F(value: u64) -> u64;
 {
     value: u64;
 }

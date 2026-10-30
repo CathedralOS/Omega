@@ -60,7 +60,7 @@ public data TypeBinding [copy] {
     case Machine(handle: u64 in Trapping);
 }
 
-// A machine binder's callable contract, `where machine F(...) -> T`
+// A machine binder's callable contract, `requires machine F(...) -> T`
 // (wiki/spec/language/generics.md, Static machine binder categories): the
 // contract row the binder carries, when it has one.
 public data BinderContract [copy] {
@@ -209,7 +209,7 @@ public data ResolveDiagnosticCode [copy] {
     case UnsupportedDeclaration;
     // A form whose bindings resolution does not record yet rejects at that
     // form: an operator token outside an ordinary owned machine (or `==`,
-    // `!=`, `[]`, `[..]`), a `where machine` or `where proposition`
+    // `!=`, `[]`, `[..]`), a `requires machine` or `where proposition`
     // contract, a `satisfies` clause naming its trait through a module path,
     // or a proposition or evidence binder.
     case UnsupportedOperatorToken;
@@ -238,10 +238,10 @@ public data ResolveDiagnosticCode [copy] {
     // proposition names a statement, not an executable condition
     // (wiki/spec/proofs/mathematical_bindings.md#assumptions-and-executable-demand).
     case ProofOnlyApplication;
-    // A `where machine` contract whose name is none of its machine's
+    // A `requires machine` contract whose name is none of its machine's
     // `machine` binders.
     case ContractNamesNoBinder;
-    // A second `where machine` contract for one binder.
+    // A second `requires machine` contract for one binder.
     case DuplicateContract;
     // A `terminates by` view outside the compiler's ranking vocabulary.
     case UnsupportedRankingView;

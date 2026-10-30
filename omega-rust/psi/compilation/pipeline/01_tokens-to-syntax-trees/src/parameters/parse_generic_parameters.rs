@@ -298,7 +298,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             && input.at_punctuation(PunctuationKind::LeftBracket)
         {
             return Err(input.error_here(
-                "a machine parameter takes its callable contract in a mandatory `where machine M(...) -> Result` clause, not property brackets",
+                "a machine parameter takes its callable contract in a mandatory `requires machine M(...) -> Result` clause, not property brackets",
             ));
         }
         if matches!(kind, TypeParameterKind::Proposition { .. })

@@ -26,7 +26,7 @@ public boundary trait WorkerProvider {
     machine execute<T, Arguments [carry(suspension: allowed, cpu: same, thread: same, address: stable)], machine Target>(
         arguments: Arguments
     ) -> T
-    where machine Target(arguments: Arguments) -> T suspends; blocks;
+    requires machine Target(arguments: Arguments) -> T suspends; blocks;
     ensures true
     reaches
     suspends; blocks;

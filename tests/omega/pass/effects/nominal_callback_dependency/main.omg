@@ -7,7 +7,7 @@ public trait StepContract {
 machine note() reaches Console {}
 
 public machine traverse<machine Step>(value: u64) -> u64
-where machine Step satisfies StepContract::step;
+requires machine Step satisfies StepContract::step;
 { Step(value) }
 
 machine answer(value: u64) -> u64 satisfies StepContract::step { value }

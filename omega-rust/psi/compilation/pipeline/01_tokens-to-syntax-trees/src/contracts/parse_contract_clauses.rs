@@ -47,6 +47,7 @@ type RankedSubjects = (
 pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
+    type_parameters: HandleSpan<syntax_trees::item::TypeParameter>,
 ) -> ParseResult<'tokens, 'source, MachineClauses> {
     let mut terminates_guarantee = false;
     let mut ranking_subjects = HandleSpan::empty();
@@ -74,6 +75,19 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         // loop stands down and leaves the semicolon for parse_machine.
         && !input.at_punctuation(PunctuationKind::Semicolon)
     {
+        if input.at_contextual("requires")
+            && input
+                .take_contextual("requires")?
+                .at_keyword(KeywordKind::Machine)
+        {
+            let ((), rest) = crate::parameters::contracts::parse_machine_parameter_contracts(
+                syntax_trees,
+                type_parameters,
+                input,
+            )?;
+            input = rest;
+            continue;
+        }
         if input.at_contextual("terminates") {
             input = input.take_contextual("terminates")?;
             // Decision 23 (TPR1): bare `terminates;` authors the public
@@ -347,7 +361,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             let after_where = input.take_contextual("where")?;
             if after_where.at_keyword(KeywordKind::Machine) {
                 return Err(after_where.error_here(
-                    "one-off `where machine T::member(...)` requirements are unsupported; declare a trait and bind an explicit conformance",
+                    "`where machine` is retired; write `requires machine` with an explicit generic binder",
                 ));
             }
             input = after_where;

@@ -63,7 +63,7 @@ machine geometry() -> u64 satisfies GeometryQuery::query {
     excess + 6
 }
 machine invoke<machine Query>() -> u64
-where machine Query satisfies GeometryQuery::query;
+requires machine Query satisfies GeometryQuery::query;
 { Query() }
 macos_arm64 machine scoped() {}
 windows_x86_64 machine scoped() { let observed: u64 = invoke<geometry>(); }

@@ -111,7 +111,7 @@ public boundary trait LineRaster: Calling<LineCalling> {
         start_x: i32, start_y: i32, end_x: i32, end_y: i32,
         native callback point from Handler, context: &mut CallbackState
     ) -> i32
-    where machine Handler satisfies PointProcedure::visit;
+    requires machine Handler satisfies PointProcedure::visit;
     reaches
     invokes PointProcedure;
 }
@@ -133,7 +133,7 @@ windows_x86_64 machine line_leaf<machine Selected>(
     start_x: i32, start_y: i32, end_x: i32, end_y: i32,
     context: &mut CallbackState
 ) -> i32
-where machine Selected satisfies PointProcedure::visit;
+requires machine Selected satisfies PointProcedure::visit;
 satisfies LineRaster::draw
 via line_binding();
 

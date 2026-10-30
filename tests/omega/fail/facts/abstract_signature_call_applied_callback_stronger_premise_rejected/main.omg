@@ -20,7 +20,7 @@ requires kept == false
 }
 
 machine apply<machine Observe>(kept: bool) -> bool
-where machine Observe(kept: bool) -> bool
+requires machine Observe(kept: bool) -> bool
 requires premise(kept);
 requires premise(kept)
 {

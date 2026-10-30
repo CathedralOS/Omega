@@ -142,7 +142,7 @@ data NativeClass { header: ClassLayout<ClassHeader>; name: &[u8; 13]; small_icon
 }
 boundary trait ClassApi: Calling<User32PolicyCalling> {
  machine register<machine Selected>(specification: &NativeClass) -> u16
- where machine Selected satisfies WindowProcedure::call;
+ requires machine Selected satisfies WindowProcedure::call;
  reaches;
  machine unregister(atom: u64, instance: u64) -> i32 reaches;
  machine create(extended_style: u32, atom: u64, title: &[u8; 13], style: u32,
@@ -166,7 +166,7 @@ windows_x86_64 machine register_binding() -> ForeignBinding<10, 16, 0> {
  ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "RegisterClassExA" } }
 }
 windows_x86_64 machine Imports::register<machine Selected>(specification: &NativeClass) -> u16
-where machine Selected satisfies WindowProcedure::call;
+requires machine Selected satisfies WindowProcedure::call;
 satisfies ClassApi::register
 via register_binding();
 windows_x86_64 machine unregister_binding() -> ForeignBinding<10, 16, 0> {
@@ -289,7 +289,7 @@ data Outcome {
 }
 boundary trait Registrar {
  machine register<machine Selected>(name: &[u8; 13], capacity: Registration in Registration::Available, extra_window_bytes: i32) -> Outcome
- where machine Selected satisfies WindowProcedure::call;
+ requires machine Selected satisfies WindowProcedure::call;
  reaches ClassApi + ModuleApi
  invokes ClassApi;
  invokes ModuleApi;
@@ -299,7 +299,7 @@ boundary trait Registrar {
 }
 data RegistrarProvider { }
 machine RegistrarProvider::register<machine Selected>(name: &[u8; 13], capacity: Registration in Registration::Available, extra_window_bytes: i32) -> Outcome
-where machine Selected satisfies WindowProcedure::call;
+requires machine Selected satisfies WindowProcedure::call;
 satisfies Registrar::register
 reaches ClassApi + ModuleApi {
  let instance: u64 = capacity.module;

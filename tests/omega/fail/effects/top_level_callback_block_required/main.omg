@@ -5,7 +5,7 @@ public boundary trait Handler {
 public data Operations {}
 data Provider {}
 public boundary requirement Operations::execute<machine Callback>() -> u64
-where machine Callback satisfies Handler::read;
+requires machine Callback satisfies Handler::read;
 invokes Handler;
 
 machine Provider::callback() -> u64 satisfies Handler::read reaches Read { 7 }

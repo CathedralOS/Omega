@@ -334,7 +334,7 @@ pub(crate) fn lower_type_parameters(
             syntax::item::TypeParameterKind::Machine { contract } => {
                 let contract = contract.as_ref().ok_or_else(|| {
                     Diagnostic::error(format!(
-                        "machine parameter `{}` reached symbol resolution without its mandatory `where machine` contract",
+                        "machine parameter `{}` reached symbol resolution without its mandatory `requires machine` contract",
                         parameter.name.as_str(syntax_trees)
                     ))
                 })?;

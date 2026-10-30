@@ -1085,7 +1085,7 @@ def main() -> None:
         (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
         (binder_name(0), parameter(0), binder_name(1), NOT_A_NAME, binder_name(2), parameter(1), NOT_A_NAME),
     )
-    # A `where machine` contract gives its `machine` binder a callable
+    # A `requires machine` contract gives its `machine` binder a callable
     # signature in the machine's scope; its `requires` facts name its own
     # parameters. A static argument may name a machine for that binder, or
     # forward a binder.
@@ -1109,14 +1109,14 @@ def main() -> None:
     rejected(
         program,
         "contract-names-no-binder",
-        b"machine apply<machine F>(x: u8) where machine G(value: u8); {}",
+        b"machine apply<machine F>(x: u8) requires machine G(value: u8); {}",
         CONTRACT_NAMES_NO_BINDER,
         b"G",
     )
     rejected(
         program,
         "second-contract-for-a-binder",
-        b"machine apply<machine F>(x: u8) where machine F(a: u8); where machine F(b: u8); {}",
+        b"machine apply<machine F>(x: u8) requires machine F(a: u8); requires machine F(b: u8); {}",
         DUPLICATE_CONTRACT,
         b"F",
         occurrence=3,
@@ -1322,10 +1322,10 @@ def main() -> None:
          UNSUPPORTED_OPERATOR_TOKEN, b"+"),
         ("unsupported-index-token", b"machine [] at(items: u8, index: u8) -> u8 { items }",
          UNSUPPORTED_OPERATOR_TOKEN, b"[]"),
-        ("unsupported-nominal-machine-contract", b"machine apply<machine F>(x: u8) where machine F satisfies T::r; {}",
-         UNSUPPORTED_MACHINE_CONTRACT, b"where machine F satisfies T::r;"),
-        ("unsupported-contract-guarantee", b"machine apply<machine F>(x: u8) where machine F(value: u8) -> u8 ensures result > 0; {}",
-         UNSUPPORTED_MACHINE_CONTRACT, b"where machine F(value: u8) -> u8 ensures result > 0;"),
+        ("unsupported-nominal-machine-contract", b"machine apply<machine F>(x: u8) requires machine F satisfies T::r; {}",
+         UNSUPPORTED_MACHINE_CONTRACT, b"requires machine F satisfies T::r;"),
+        ("unsupported-contract-guarantee", b"machine apply<machine F>(x: u8) requires machine F(value: u8) -> u8 ensures result > 0; {}",
+         UNSUPPORTED_MACHINE_CONTRACT, b"requires machine F(value: u8) -> u8 ensures result > 0;"),
         ("unsupported-evidence-binder", b"machine m<T, O satisfies Order<T>>() {}",
          UNSUPPORTED_GENERIC_PARAMETER, b"O satisfies Order<T>"),
         ("unsupported-proposition-binder", b"machine m<proposition R>() {}",

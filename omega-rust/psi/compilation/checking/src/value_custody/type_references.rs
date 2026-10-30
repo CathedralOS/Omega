@@ -846,7 +846,7 @@ fn validate_type_reference_node(
                                 .is_some()
                             {
                                 diagnostics.push(Diagnostic::error(format!(
-                                    "type parameter `{}` of `{base_name}` was instantiated with a machine symbol; declare it as `<machine {}>` with a `where machine` contract",
+                                    "type parameter `{}` of `{base_name}` was instantiated with a machine symbol; declare it as `<machine {}>` with a `requires machine` contract",
                                     parameter.name, parameter.name
                                 )));
                                 continue;

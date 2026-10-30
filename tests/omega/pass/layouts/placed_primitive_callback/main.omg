@@ -24,11 +24,11 @@ machine StablePlacement::plan(schema: Schema) -> PlacementPlan {
 }
 
 machine read_through<A, machine Step>(field: &A) -> u64
-where machine Step(field: &A) -> u64;
+requires machine Step(field: &A) -> u64;
 { Step(field) }
 
 machine write_through<A, machine Step>(field: &mut A, value: u64)
-where machine Step(field: &mut A, value: u64);
+requires machine Step(field: &mut A, value: u64);
 { Step(field, value); }
 
 machine main() crashes Trap {

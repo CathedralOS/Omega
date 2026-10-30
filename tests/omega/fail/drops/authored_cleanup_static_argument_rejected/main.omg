@@ -5,7 +5,7 @@ data Resource { value: i32; }
 machine Resource::drop() {}
 
 machine accept<machine Selected>()
-where machine Selected(value: &mut Resource)
+requires machine Selected(value: &mut Resource)
 {
 }
 

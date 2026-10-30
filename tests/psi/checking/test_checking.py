@@ -1071,7 +1071,7 @@ def main() -> None:
         b"}",
     )
 
-    # A machine binder's call owes its `where machine` contract's `requires`
+    # A machine binder's call owes its `requires machine` contract's `requires`
     # facts and derives the crash causes the contract declares; whatever its
     # exclusive arguments reach may change. A static machine argument
     # refines the contract: its published crash causes lie within the
@@ -1127,7 +1127,7 @@ def main() -> None:
         "static-machine-argument-crash-outside-contract",
         b"machine bump(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\n"
         b"machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\n"
-        b"where machine F(value: u64 in Trapping) -> u64 in Trapping;\n{ F(x) }\n"
+        b"requires machine F(value: u64 in Trapping) -> u64 in Trapping;\n{ F(x) }\n"
         b"machine outer(x: u64 in Trapping) -> u64 in Trapping { apply<bump>(x) }",
         "CrashNotDeclared",
         b"bump!2",
@@ -1136,9 +1136,9 @@ def main() -> None:
         program,
         "forwarded-binder-crash-outside-contract",
         b"machine apply<machine F>(x: u64 in Trapping) -> u64 in Trapping\n"
-        b"where machine F(value: u64 in Trapping) -> u64 in Trapping;\n{ F(x) }\n"
+        b"requires machine F(value: u64 in Trapping) -> u64 in Trapping;\n{ F(x) }\n"
         b"machine again<machine G>(x: u64 in Trapping) -> u64 in Trapping\n"
-        b"where machine G(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ apply<G>(x) }",
+        b"requires machine G(value: u64 in Trapping) -> u64 in Trapping crashes Trap;\n{ apply<G>(x) }",
         "CrashNotDeclared",
         b"G!3",
     )

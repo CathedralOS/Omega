@@ -13,7 +13,7 @@ machine ent_less(left: &u64, right: &u64) -> bool {
 data Main { heap: Heap<u64>; }
 
 machine pop_heap<T [copy], machine Less>(h: &mut Heap<T>, root: &mut Popped<T>)
-where machine Less(left: &T, right: &T) -> bool;
+requires machine Less(left: &T, right: &T) -> bool;
     requires h.len >= 1
     requires h.len <= 16
 {

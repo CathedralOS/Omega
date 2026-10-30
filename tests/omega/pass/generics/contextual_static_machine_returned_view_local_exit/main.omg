@@ -1,14 +1,14 @@
 data Holder<'captured> { reference: &'captured u64; }
 
 machine retained<machine Outer>()
-where machine Outer<Context, machine Inner>()
-where machine Inner<'fresh>(context: Context, item: &'fresh u64) -> &'fresh u64;
+requires machine Outer<Context, machine Inner>()
+requires machine Inner<'fresh>(context: Context, item: &'fresh u64) -> &'fresh u64;
 {}
 
 machine select<'invocation, Context>(context: Context, item: &'invocation u64) -> &'invocation u64 { item }
 
 machine apply<'item, Context, machine Callback>(context: Context, item: &'item u64) -> &'item u64
-where machine Callback<'fresh>(context: Context, item: &'fresh u64) -> &'fresh u64;
+requires machine Callback<'fresh>(context: Context, item: &'fresh u64) -> &'fresh u64;
 {
     let result: &'item u64 = Callback(context, item);
     result

@@ -166,7 +166,7 @@ boundary trait HookRegistrar: Calling<RegistrarPolicyCallingPolicy> {
         native callback procedure from Handler,
         module: u64
     )
-    where machine Handler satisfies HookProcedure::call;
+    requires machine Handler satisfies HookProcedure::call;
     reaches;
 }
 

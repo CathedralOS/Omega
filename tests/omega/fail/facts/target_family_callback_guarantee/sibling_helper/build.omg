@@ -4,4 +4,8 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::select_provider<CallbackApply, HelperApply>(builder, linux_arm64);
+    Build::select_provider<CallbackApply, SharedApply>(builder, linux_x86_64);
+    Build::select_provider<CallbackApply, SharedApply>(builder, macos_arm64);
+    Build::select_provider<CallbackApply, SharedApply>(builder, windows_x86_64);
 }

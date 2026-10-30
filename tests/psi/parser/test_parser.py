@@ -1342,7 +1342,7 @@ def clause_row(
 
 
 def machine_form_cases(program: str) -> None:
-    """Satisfactions, termination promises, operator tokens, `where machine`
+    """Satisfactions, termination promises, operator tokens, `requires machine`
     and `where proposition` contracts, proposition and evidence binders,
     transparent refinements and mathematical definitions."""
     NONE = (1, 0, 0)
@@ -1460,41 +1460,41 @@ def machine_form_cases(program: str) -> None:
     )
     assert actual.machines[0][30:35] == (1, 1, *span(source, b"+")), actual.machines
 
-    # `where machine` contracts precede a machine's other clauses: one flat
+    # `requires machine` contracts precede a machine's other clauses: one flat
     # list of signatures, each named for a binder, possibly of an earlier
     # contract's own generic parameters.
-    source = b"machine apply<machine F>(x: u8) -> u8 where machine F(value: u8) -> u8; { F(x) }"
+    source = b"machine apply<machine F>(x: u8) -> u8 requires machine F(value: u8) -> u8; { F(x) }"
     actual = declaration_accepted(
         program, "structural-machine-contract", source,
         contracts=((1, *span(source, b"F", 2), 1, 0, 1, 1, 1, 3, 0, 0,
-                    *span(source, b"where machine F(value: u8) -> u8;")),),
+                    *span(source, b"requires machine F(value: u8) -> u8;")),),
         generic_parameters=((5, *span(source, b"F"), 0, 0, 0, *span(source, b"machine F")),),
     )
     assert actual.machines[0][7:9] == (0, 1) and actual.machines[0][35:37] == (0, 1), actual.machines
-    source = (b"machine c<machine S, machine M>(p: u8) -> u8 where machine S(i: u8) -> u8; "
-              b"where machine M(p: u8) -> u8; requires p > 0 {}")
+    source = (b"machine c<machine S, machine M>(p: u8) -> u8 requires machine S(i: u8) -> u8; "
+              b"requires machine M(p: u8) -> u8; requires p > 0 {}")
     actual = declaration_accepted(
         program, "contracts-before-clauses", source,
         contracts=(
-            (1, *span(source, b"S", 2), 2, 0, 1, 1, 1, 3, 0, 0, *span(source, b"where machine S(i: u8) -> u8;")),
-            (1, *span(source, b"M", 2), 2, 0, 2, 1, 1, 5, 0, 0, *span(source, b"where machine M(p: u8) -> u8;")),
+            (1, *span(source, b"S", 2), 2, 0, 1, 1, 1, 3, 0, 0, *span(source, b"requires machine S(i: u8) -> u8;")),
+            (1, *span(source, b"M", 2), 2, 0, 2, 1, 1, 5, 0, 0, *span(source, b"requires machine M(p: u8) -> u8;")),
         ),
         clauses=(clause_row(REQUIRES, (0, 0), 2, span(source, b"requires p > 0"), True),),
     )
     assert actual.machines[0][13:15] == (0, 1) and actual.machines[0][35:37] == (0, 2), actual.machines
     source = (b"machine forward<machine Schema, machine Selected>(value: u8) -> u8\n"
-              b"where machine Schema<machine Inner>(value: u8) -> u8\n"
-              b"where machine Inner(index: u8) -> u8;\n"
-              b"where machine Selected(index: u8) -> u8;\n{\n    value\n}")
+              b"requires machine Schema<machine Inner>(value: u8) -> u8\n"
+              b"requires machine Inner(index: u8) -> u8;\n"
+              b"requires machine Selected(index: u8) -> u8;\n{\n    value\n}")
     actual = declaration_accepted(
         program, "nested-binder-contracts", source,
         contracts=(
             (1, *span(source, b"Schema", 2), 2, 1, 1, 1, 1, 3, 0, 0,
-             1, source.index(b"where machine Schema"), source.index(b"\nwhere machine Inner")),
+             1, source.index(b"requires machine Schema"), source.index(b"\nwhere machine Inner")),
             (1, *span(source, b"Inner", 2), 3, 0, 2, 1, 1, 5, 0, 0,
-             *span(source, b"where machine Inner(index: u8) -> u8;")),
+             *span(source, b"requires machine Inner(index: u8) -> u8;")),
             (1, *span(source, b"Selected", 2), 3, 0, 3, 1, 1, 7, 0, 0,
-             *span(source, b"where machine Selected(index: u8) -> u8;")),
+             *span(source, b"requires machine Selected(index: u8) -> u8;")),
         ),
         generic_parameters=(
             (5, *span(source, b"Schema"), 0, 0, 0, *span(source, b"machine Schema")),
@@ -1503,21 +1503,21 @@ def machine_form_cases(program: str) -> None:
         ),
     )
     assert actual.machines[0][7:9] == (0, 2) and actual.machines[0][35:37] == (0, 3), actual.machines
-    source = b"machine run<machine H>() where machine H satisfies Hook<u8>::call; {}"
+    source = b"machine run<machine H>() requires machine H satisfies Hook<u8>::call; {}"
     actual = declaration_accepted(
         program, "nominal-machine-contract", source,
         contracts=((1, *span(source, b"H", 2), 1, 0, 0, 0, 0, 0, 0, 1,
-                    *span(source, b"where machine H satisfies Hook<u8>::call;")),),
+                    *span(source, b"requires machine H satisfies Hook<u8>::call;")),),
         clauses=(clause_row(SATISFIES, (0, 2), 0, span(source, b"satisfies Hook<u8>::call"), arguments=(0, 1)),),
         type_arguments=(0,),
     )
     assert actual.machines[0][13:15] == (1, 0), actual.machines
-    source = (b"machine e<machine Step>(v: u8) where machine Step(value: u8) requires value > 0 "
+    source = (b"machine e<machine Step>(v: u8) requires machine Step(value: u8) requires value > 0 "
               b"ensures value < 9; ensures v > 1; {}")
     actual = declaration_accepted(
         program, "contract-clauses-end-at-semicolon", source,
         contracts=((1, *span(source, b"Step", 2), 1, 0, 1, 1, 0, 0, 0, 2,
-                    *span(source, b"where machine Step(value: u8) requires value > 0 ensures value < 9;")),),
+                    *span(source, b"requires machine Step(value: u8) requires value > 0 ensures value < 9;")),),
         clauses=(
             clause_row(REQUIRES, (0, 0), 2, span(source, b"requires value > 0"), True),
             clause_row(ENSURES, (0, 0), 5, span(source, b"ensures value < 9"), True),
@@ -1525,12 +1525,12 @@ def machine_form_cases(program: str) -> None:
         ),
     )
     assert actual.machines[0][13:15] == (2, 1), actual.machines
-    source = b"machine b<machine F>() where machine F(); data D {}"
+    source = b"machine b<machine F>() requires machine F(); data D {}"
     declaration_accepted(
         program, "bodyless-machine-contract", source,
-        roots=((MACHINE_ROOT, 0, *span(source, b"machine b<machine F>() where machine F();")),
+        roots=((MACHINE_ROOT, 0, *span(source, b"machine b<machine F>() requires machine F();")),
                (DATA_ROOT, 0, *span(source, b"data D {}"))),
-        contracts=((1, *span(source, b"F", 2), 1, 0, 0, 0, 0, 0, 0, 0, *span(source, b"where machine F();")),),
+        contracts=((1, *span(source, b"F", 2), 1, 0, 0, 0, 0, 0, 0, 0, *span(source, b"requires machine F();")),),
     )
 
     # Proposition binders take their signature from `where proposition`;
@@ -1667,11 +1667,11 @@ def machine_form_cases(program: str) -> None:
         ("unknown-operator-token", b"machine [x] f() {}", 163, b"x", 1, {}),
         ("conformance-member-token", b"C satisfies T { machine + f() {} }", 164, b"+", 1, {"type_reference_count": 1}),
         ("token-before-no-name", b"machine + () {}", 40, b"(", 1, {}),
-        ("contract-name", b"machine f<machine F>() where machine (x: u8); {}", 165, b"(", 2, {"generic_parameter_count": 1}),
-        ("contract-end", b"machine f<machine F>() where machine F() x {}", 166, b"x", 1, {"generic_parameter_count": 1}),
-        ("nominal-contract-takes-no-binding", b"machine f<machine F>() where machine F satisfies H::c via b; {}",
+        ("contract-name", b"machine f<machine F>() requires machine (x: u8); {}", 165, b"(", 2, {"generic_parameter_count": 1}),
+        ("contract-end", b"machine f<machine F>() requires machine F() x {}", 166, b"x", 1, {"generic_parameter_count": 1}),
+        ("nominal-contract-takes-no-binding", b"machine f<machine F>() requires machine F satisfies H::c via b; {}",
          166, b"via", 1, {"generic_parameter_count": 1, "member_count": 2}),
-        ("contract-after-clause", b"machine f() requires a where machine F(); {}", 105, b"where", 1,
+        ("contract-after-clause", b"machine f() requires a requires machine F(); {}", 105, b"where", 1,
          {"expression_count": 1}),
         ("proposition-binder-name", b"trait T<proposition> {}", 33, b">", 1, {}),
         ("evidence-binder-trait", b"trait T<P satisfies> {}", 179, b">", 1, {}),
@@ -1705,11 +1705,11 @@ def machine_form_cases(program: str) -> None:
 
     # Capacity edges: 256 contracts, 256 definitions and 8 ranked subjects
     # fill their tables; one more rejects.
-    exact = b"machine f() " + b"where machine F; " * 256 + b"{}"
+    exact = b"machine f() " + b"requires machine F; " * 256 + b"{}"
     status, payload = run(program, exact)
     assert status == 0 and len(decode(payload).contracts) == 256, "256 contracts"
-    over = b"machine f() " + b"where machine F; " * 257 + b"{}"
-    start = len(b"machine f() ") + 256 * len(b"where machine F; ")
+    over = b"machine f() " + b"requires machine F; " * 257 + b"{}"
+    start = len(b"machine f() ") + 256 * len(b"requires machine F; ")
     rejected(program, "contract-capacity-plus-one", over, 167, (start, start + 5), root_count=0)
     exact = b"let x: u8 = 0;\n" * 256
     status, payload = run(program, exact)

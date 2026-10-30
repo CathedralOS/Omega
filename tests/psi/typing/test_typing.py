@@ -574,7 +574,7 @@ def main() -> None:
         ),
         selections=((b"id(5u8)", "machine", 0), (b"id<u16>(7)", "machine", 0), (b"Box::get(&b)", "machine", 1)),
     )
-    # A `where machine` contract types a call through its binder; a static
+    # A `requires machine` contract types a call through its binder; a static
     # machine argument selects a machine whose signature refines the
     # contract, and a type binder the contract alone names is inferred from
     # the selected machine.
