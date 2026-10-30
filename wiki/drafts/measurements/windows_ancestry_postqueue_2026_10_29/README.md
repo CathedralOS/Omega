@@ -37,3 +37,22 @@ release Clippy and touched formatting. Treat any repeated baseline native
 launch stall as an unresolved runtime incident and preserve context evidence.
 No full corpus, foreign-host runtime or publication of this next result is
 inferred. Data: `build/windows-ancestry-postqueue`.
+
+The frozen baseline profile passed all six image/native checks. Warm setup
+measured 417.4/718.1 ms for length (58.1%), 440.0/802.5 ms for dispatch (54.8%)
+and 433.2/1220.0 ms for stack32 (35.5%). These diagnostic scopes include work
+other than ancestry and do not predict that the whole fraction can be removed.
+They justify screening the established traversal change. A matching-source
+manifest and the frozen producer digest were checked before and after profiling.
+
+The candidate changes only four custody source/test files. The old helper that
+reopened every complete prefix is replaced by the verified-parent operation;
+every fresh classification, no-follow child open, opened identity comparison
+and final retained-root reconciliation remains. Both small-program screen
+medians must be at least 15% lower to trigger the full quality/confirmation
+chain. The substantial-win target remains roughly 20% repeatable complete
+compile improvement, not this preliminary screen threshold. Runtime checks
+remain on every timed image; the previous PR's failed cohort is not reused.
+
+Claim registration timed out with an uncertain push; subsequent successful
+registry readback confirmed active ticket `1b8d1fda901d42359c3709d995b45cfa`.
