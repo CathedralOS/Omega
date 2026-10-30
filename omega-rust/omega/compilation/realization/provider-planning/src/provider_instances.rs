@@ -1,13 +1,149 @@
-//! Prepare source declarations for exact selected provider instances.
+//! Retain selected source correspondence once, then lend declaration-only views.
 //!
-//! Source lookup stays here and in Psi's checked declaration producer. The
-//! source-free provider-selection owner judges counts, coverage and attachment.
-//! Callback preparation shares these same records and exact adapter judgments.
+//! The immutable checked owner and complete selected plan roster stay coupled.
+//! Callbacks, checking, review and reference execution share lazy preparation,
+//! but each consumes source-free policy at its existing admission point. Cache
+//! population is not a provider grant or part of semantic equality.
 
 use crate::exact_checked_adapter;
 use checked_trees::typed_trees::machine::Machine;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use std::sync::{Arc, OnceLock};
+
+pub struct SelectedProviderSource {
+    program: Arc<checked_trees::CheckedTrees>,
+    plans: effects::SelectedProviderPlanFacts,
+    declarations: OnceLock<PreparedProviderInstances>,
+}
+
+struct PreparedProviderInstances {
+    plans: Vec<provider_selection::ProviderPlanInstanceDeclarations>,
+    checked_bodies: Vec<Vec<Result<bool, Diagnostic>>>,
+}
+
+impl std::fmt::Debug for SelectedProviderSource {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SelectedProviderSource")
+            .field("plans", &self.plans)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for SelectedProviderSource {
+    fn eq(&self, other: &Self) -> bool {
+        // As with the external-declaration product, equal-looking source from
+        // another checked owner is not interchangeable. Derived cache state is.
+        Arc::ptr_eq(&self.program, &other.program) && self.plans == other.plans
+    }
+}
+impl Eq for SelectedProviderSource {}
+
+impl SelectedProviderSource {
+    pub fn new(
+        program: Arc<checked_trees::CheckedTrees>,
+        plans: effects::SelectedProviderPlanFacts,
+    ) -> Self {
+        Self {
+            program,
+            plans,
+            declarations: OnceLock::new(),
+        }
+    }
+
+    pub fn program(&self) -> &Arc<checked_trees::CheckedTrees> {
+        &self.program
+    }
+    pub fn plans(&self) -> &effects::SelectedProviderPlanFacts {
+        &self.plans
+    }
+
+    /// Admission remains consumer-owned. Preparing declarations neither reports
+    /// their deferred failures nor admits this projected provider closure.
+    pub fn project_instances(&self) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {
+        let prepared = self.declarations();
+        let declarations = self
+            .plans
+            .plans()
+            .iter()
+            .zip(&prepared.plans)
+            .map(
+                |(plan, instances)| provider_selection::ProviderInstanceDeclarations {
+                    plan,
+                    instances,
+                },
+            )
+            .collect::<Vec<_>>();
+        provider_selection::project_provider_instances(&self.plans, &declarations)
+    }
+
+    /// A native request with no nominal uses does no instance preparation.
+    pub fn callback_providers(
+        &self,
+        declarations: &terminal_psi::CallbackDeclarationRoster,
+    ) -> Result<provider_selection::CallbackProviderDeclarations<'_>, Vec<Diagnostic>> {
+        if declarations.uses.is_empty() {
+            return Ok(provider_selection::CallbackProviderDeclarations::unused());
+        }
+        let instances = self.project_instances()?;
+        let prepared = self.declarations();
+        let mut checked_adapters = Vec::new();
+        for (plan, bodies) in self.plans.plans().iter().zip(&prepared.checked_bodies) {
+            for (row, body) in plan.rows.iter().zip(bodies) {
+                if !matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
+                    continue;
+                }
+                checked_adapters.push(provider_selection::SelectedCallbackRow {
+                    plan,
+                    row,
+                    checked_adapter_body: body.clone().map_err(|diagnostic| format!(
+                        "callback forwarding provider is not its exact checked adapter: {diagnostic:?}"
+                    )),
+                });
+            }
+        }
+        Ok(provider_selection::CallbackProviderDeclarations::prepared(
+            instances,
+            checked_adapters,
+        ))
+    }
+
+    fn declarations(&self) -> &PreparedProviderInstances {
+        self.declarations.get_or_init(|| {
+            let adapters = CheckedAdapterDeclarations::prepare(&self.program.typed, &self.plans);
+            let plans = prepare_instance_declarations(
+                &self.program.typed,
+                &self.program.facts,
+                &self.plans,
+                &adapters,
+            );
+            let checked_bodies = self
+                .plans
+                .plans()
+                .iter()
+                .map(|plan| {
+                    plan.rows
+                        .iter()
+                        .map(|row| {
+                            if matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
+                                adapters
+                                    .machine(plan, row)
+                                    .map(Machine::supplies_checked_body)
+                            } else {
+                                Ok(false)
+                            }
+                        })
+                        .collect()
+                })
+                .collect();
+            PreparedProviderInstances {
+                plans,
+                checked_bodies,
+            }
+        })
+    }
+}
 
 struct CheckedAdapterDeclaration<'typed, 'plan> {
     plan: &'plan ProviderPlan,
@@ -58,71 +194,20 @@ impl<'typed, 'plan> CheckedAdapterDeclarations<'typed, 'plan> {
             .machine
             .clone()
     }
-
-    fn callback_declarations(&self) -> Vec<provider_selection::SelectedCallbackRow<'plan>> {
-        self.rows.iter().map(|prepared| provider_selection::SelectedCallbackRow {
-            plan: prepared.plan,
-            row: prepared.row,
-            checked_adapter_body: prepared.machine.as_ref()
-                .map(|machine| machine.supplies_checked_body())
-                .map_err(|diagnostic| format!("callback forwarding provider is not its exact checked adapter: {diagnostic:?}")),
-        }).collect()
-    }
 }
 
-/// Complete source-only instance preparation, then return only whole plans,
-/// exact row facts and closed applications. The result borrows selected-plan
-/// custody, not the checked program. Callback policy runs in provider-selection.
-pub fn prepare_callback_providers<'plan>(
-    program: &checked_trees::CheckedTrees,
-    selected: &'plan effects::SelectedProviderPlanFacts,
-    declarations: &terminal_psi::CallbackDeclarationRoster,
-) -> Result<provider_selection::CallbackProviderDeclarations<'plan>, Vec<Diagnostic>> {
-    if declarations.uses.is_empty() {
-        return Ok(provider_selection::CallbackProviderDeclarations::unused());
-    }
-    let adapters = CheckedAdapterDeclarations::prepare(&program.typed, selected);
-    let instances = project_with_adapters(&program.typed, &program.facts, selected, &adapters)?;
-    Ok(provider_selection::CallbackProviderDeclarations::prepared(
-        instances,
-        adapters.callback_declarations(),
-    ))
-}
-
-/// Source-only consumers request this projection at their boundary. Ordinary
-/// native production must not reconstruct checked instances just to discard
-/// them when it joins the canonical Terminal provider roster.
-pub fn project_checked_provider_instances(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
-    selected: &effects::SelectedProviderPlanFacts,
-) -> Result<effects::SelectedProviderPlanFacts, Vec<diagnostics::Diagnostic>> {
-    let adapters = CheckedAdapterDeclarations::prepare(typed, selected);
-    project_with_adapters(typed, check_facts, selected, &adapters)
-}
-
-fn project_with_adapters(
+fn prepare_instance_declarations(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
     selected: &effects::SelectedProviderPlanFacts,
     adapters: &CheckedAdapterDeclarations<'_, '_>,
-) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {
-    let declarations = prepare_instance_declarations(typed, check_facts, selected, adapters);
-    provider_selection::project_provider_instances(selected, &declarations)
-}
-
-fn prepare_instance_declarations<'plan>(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
-    selected: &'plan effects::SelectedProviderPlanFacts,
-    adapters: &CheckedAdapterDeclarations<'_, '_>,
-) -> Vec<provider_selection::ProviderInstanceDeclarations<'plan>> {
+) -> Vec<provider_selection::ProviderPlanInstanceDeclarations> {
     use language_semantics::provider_declarations::{
         ClosedProviderInstance, ProviderInstanceApplication,
     };
     use provider_selection::{
-        GenericProviderInstanceDeclarations, ProviderInstanceDeclarations,
-        ProviderInstanceRowDeclarations,
+        GenericProviderInstanceDeclarations, ProviderInstanceRowDeclarations,
+        ProviderPlanInstanceDeclarations,
     };
     let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     let mut templates = Vec::new();
@@ -235,8 +320,7 @@ fn prepare_instance_declarations<'plan>(
                 .collect(),
             });
         }
-        declarations.push(ProviderInstanceDeclarations {
-            plan,
+        declarations.push(ProviderPlanInstanceDeclarations {
             rows,
             generic_templates,
         });

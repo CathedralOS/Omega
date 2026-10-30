@@ -40,7 +40,7 @@ pub use provider_identity::{
     ProviderReceiverApplication, provider_receiver_application, provider_row_matches,
     provider_trait_application, provider_trait_requirement_matches,
 };
-pub use provider_instances::{prepare_callback_providers, project_checked_provider_instances};
+pub use provider_instances::SelectedProviderSource;
 pub mod intrinsic_declarations;
 mod provider_planning;
 mod provider_settlement;

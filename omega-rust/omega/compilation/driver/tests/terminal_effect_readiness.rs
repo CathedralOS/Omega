@@ -114,7 +114,7 @@ public Wide satisfies Operations<u64> {
         .unwrap_or_else(|error| panic!("supplier: {:?}", error.into_diagnostics()));
     let produce = |path| {
         psi_compiler::BuildProviderProductionRequest {
-            checked: &checked.execution().program,
+            checked: checked.execution().provider_source.program(),
             exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
             package: supplier,
             declaration_path: path,
@@ -251,7 +251,7 @@ fn synchronous_host_computation_retains_the_invocation_without_guest_suspension(
         .result
         .expect("checked ordinary boundary call");
     let produced = psi_compiler::TerminalProductionRequest::new(
-        &checked.execution().program,
+        checked.execution().provider_source.program(),
         psi_compiler::TerminalMachineSelection::Name("synchronous_entry"),
         checked.sources().exact_toolchain_sources(),
     )
@@ -354,7 +354,7 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
         .expect("checked component readiness fixture");
     for entry in ["component_entry", "component_premature_entry"] {
         let produced = psi_compiler::TerminalProductionRequest::new(
-            &checked.execution().program,
+            checked.execution().provider_source.program(),
             psi_compiler::TerminalMachineSelection::Name(entry),
             checked.sources().exact_toolchain_sources(),
         )
@@ -391,7 +391,7 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
         };
         let produce_invocation = || {
             let mut request = psi_compiler::TerminalProductionRequest::new(
-                &checked.execution().program,
+                checked.execution().provider_source.program(),
                 psi_compiler::TerminalMachineSelection::Name(entry),
                 checked.sources().exact_toolchain_sources(),
             );
@@ -742,7 +742,7 @@ fn readiness_preserves_nested_continuation_and_rejects_unchecked_suspension() {
         "synchronous_entry",
     ] {
         let produced = psi_compiler::TerminalProductionRequest::new(
-            &checked.execution().program,
+            checked.execution().provider_source.program(),
             psi_compiler::TerminalMachineSelection::Name(machine),
             checked.sources().exact_toolchain_sources(),
         )
