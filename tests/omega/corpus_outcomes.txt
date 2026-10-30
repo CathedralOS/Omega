@@ -1912,6 +1912,10 @@ fail/borrows/temporary_backing_loan_survives_reference_last_use rejected 1339ms 
 	statement 3 reads `counter[0]` while local borrow `__hoist_15` is still active (borrowed at statement 1)
 fail/borrows/terminal_call_returned_loan_live_write rejected 1306ms expected @a92f16431042
 	statement 1 mutates `container.cell.value` while local borrow `value` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/borrows/terminal_case_retained_observation rejected 1079ms expected @49e92b4199eb
+	state `finish` receives `pool` as both mutable and read-only
+	state `finish` receives `pool` as both mutable and read-only
+	state `finish` receives `pool` while local borrow `__transition_subject#11` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/terminal_static_callback_requires_public_field_guarantee rejected 1888ms expected @9d97882fb4dd
 	cannot prove ensures contract for exit from apply at statement 0: result.sibling.len == source.sibling.len
 fail/borrows/terminal_static_callback_result_does_not_restore_entry_contents rejected 1812ms expected @9d97882fb4dd
@@ -35048,6 +35052,7 @@ run/borrows/stored_case_reference_state incomplete 1995ms check-target:macos_arm
 run/borrows/stored_subview_identity checked 2011ms check-target:macos_arm64 @a92f16431042
 run/borrows/stored_subview_nested_call_result checked 1935ms check-target:macos_arm64 @a92f16431042
 run/borrows/stored_subview_repeated_updates checked 1997ms check-target:macos_arm64 @a92f16431042
+run/borrows/terminal_case_completed_observation checked 1837ms check-target:macos_arm64 @49e92b4199eb
 run/borrows/transition_shared_borrow checked 7780ms check-target:macos_arm64 @a92f16431042
 run/calls/affine_call_local_field_exit checked 6542ms check-target:macos_arm64 @a92f16431042
 run/calls/anonymous_shared_borrow_operands checked 2470ms check-target:macos_arm64 @a92f16431042
