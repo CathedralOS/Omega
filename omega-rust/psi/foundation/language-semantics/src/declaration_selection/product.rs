@@ -178,6 +178,16 @@ pub enum ProductOperandRole {
 }
 
 impl BuildOperation {
+    pub const fn is_native_intent(self) -> bool {
+        matches!(
+            self,
+            Self::NativeBinding
+                | Self::NativeTableFunction
+                | Self::NativeVtableField
+                | Self::NativeSameStackDemand
+        )
+    }
+
     pub const fn product_operand_role(self, position: usize) -> Option<ProductOperandRole> {
         use ProductOperandRole as Role;
         match (self, position) {
@@ -452,7 +462,11 @@ pub struct NativeBindingProducer {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapturedNativeDeclaration {
     pub producer: NativeBindingProducer,
-    pub requirement_path: String,
+    /// The entire designated request survives: owner/member applications and
+    /// table designations cannot be reconstructed from one rendered path.
+    pub request: std::sync::Arc<ProductDeclarationRequest>,
+    pub author: source::SourceSpan,
+    pub sources: std::sync::Arc<source::SourceMap>,
     pub source_occurrence_digest: [u8; 32],
     pub resolution_stratum: source::SourceResolutionStratum,
 }
@@ -461,7 +475,11 @@ pub struct CapturedNativeDeclaration {
 pub struct CapturedNativeIntent {
     pub declaration: u32,
     pub target: ProductTarget,
-    pub locator: semantic_vocabulary::NativeBindingLocator,
+    pub intent: super::NativeBuildIntent,
+    /// Captured actuals belong to the reached helper application, independently
+    /// of its authored descriptor recipe and the receiving Product namespace.
+    pub static_environment:
+        Option<std::sync::Arc<super::product_operands::ProductStaticEnvironment>>,
 }
 
 /// Source coordinates captured while checked Build bodies still exist. The
@@ -471,6 +489,7 @@ pub struct CapturedNativeIntent {
 pub struct NativeBindingFormation {
     pub request: std::sync::Arc<ProductDeclarationRequest>,
     pub author: source::SourceSpan,
+    pub sources: std::sync::Arc<source::SourceMap>,
     pub author_package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub root_scope: bool,
     pub declaration_path: String,
@@ -488,16 +507,22 @@ impl NativeBindingFormation {
                 "native output cannot substitute another checked Build package's scope".into(),
             );
         }
-        let [operand] = self.request.operands.as_ref() else {
-            return Err("native formation lost its requirement".into());
-        };
+        self.request.validate_shape()?;
+        let author = self
+            .sources
+            .get(self.author.source_id)
+            .ok_or("native formation lost its immutable source owner")?;
+        let mut sources = self.sources.as_ref().clone();
+        sources.bind_anonymous_owner(&author.package_root, package)?;
         Ok(CapturedNativeDeclaration {
             producer: NativeBindingProducer {
                 package,
                 declaration_path: self.declaration_path.clone(),
                 callable_identity: self.callable_identity.clone(),
             },
-            requirement_path: operand.path.clone(),
+            request: self.request.clone(),
+            author: self.author,
+            sources: std::sync::Arc::new(sources),
             source_occurrence_digest: self.source_occurrence_digest,
             resolution_stratum: self.resolution_stratum,
         })
@@ -511,18 +536,30 @@ mod native_formation_tests {
     fn native_output_never_crosses_checked_package_scope() {
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap();
         let other = semantic_vocabulary::PackageKeyIdentity::from_digest([8; 32]).unwrap();
+        let mut sources = source::SourceMap::default();
+        let source = sources
+            .add_with_metadata(
+                std::path::PathBuf::from("/native-test/build.omg"),
+                "machine build(builder: &mut Build) {}".into(),
+                std::path::PathBuf::from("/native-test"),
+                None,
+                source::SourceOrigin::User,
+            )
+            .clone();
+        let span = source.source_span(source::Span::new(0, source.source.len()));
         let mut formation = NativeBindingFormation {
             request: std::sync::Arc::new(ProductDeclarationRequest {
-                source_span: Default::default(),
+                source_span: span,
                 operation: BuildOperation::NativeBinding,
                 operands: vec![ProductDeclarationOperand {
                     application: None,
                     path: "Raw::read".into(),
-                    source_span: Default::default(),
+                    source_span: span,
                 }]
                 .into_boxed_slice(),
             }),
-            author: Default::default(),
+            author: span,
+            sources: std::sync::Arc::new(sources),
             author_package: Some(package),
             root_scope: true,
             declaration_path: "build".into(),

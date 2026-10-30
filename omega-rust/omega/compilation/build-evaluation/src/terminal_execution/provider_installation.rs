@@ -115,7 +115,9 @@ pub(super) fn prepare<'host, 'code>(
                 let scope_profile = target::TargetProfile::from_canonical_target_name(scope)
                     .map_err(|diagnostic| diagnostic.message)?;
                 Ok(build_time_evaluation::ScalarScopeEvaluation {
-                    layout_target: scope_profile.layout_target_facts().ok_or("scalar evaluation target has no immutable layout catalogue")?,
+                    layout_target: scope_profile
+                        .layout_target_facts()
+                        .ok_or("scalar evaluation target has no immutable layout catalogue")?,
                     targets: terminal_installation::admit_target_machine_selections(
                         artifact.view(),
                         scope,

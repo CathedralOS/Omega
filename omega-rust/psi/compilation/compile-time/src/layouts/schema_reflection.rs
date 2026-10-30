@@ -301,16 +301,6 @@ fn reflected_member_layout(
             let referent = typed
                 .type_reference_table
                 .unconstrained_type_reference(*referee);
-            if typed
-                .primitive_type_reference(referent)
-                .is_some_and(|primitive| primitive.scalar_byte_size().is_some())
-            {
-                let descriptor = layout_plans::scalar_reference_storage_layout(
-                    target.pointer_size,
-                    target.pointer_alignment,
-                )?;
-                return Some((descriptor.0, descriptor.1));
-            }
             let words = if matches!(
                 typed.type_reference_table.type_reference(referent),
                 TypeReferenceNode::Slice { .. }

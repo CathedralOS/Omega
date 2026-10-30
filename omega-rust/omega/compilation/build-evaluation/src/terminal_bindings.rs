@@ -438,7 +438,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             .map(|locator| locator.widths)
             .ok_or_else(|| refuse("native binding lost its exact const application"))?;
         let locator =
-            language_semantics::declaration_selection::decode_native_binding_value(&value, widths)
+            language_semantics::declaration_selection::decode_native_locator(&value, widths)
                 .map_err(TerminalEffectRejection::new)?;
         if let Some(account) = &self.host.account {
             let cells = value
@@ -462,8 +462,9 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             language_semantics::declaration_selection::ExecutedNativeBinding {
                 request: Arc::clone(request),
                 target,
-                locator,
-                widths,
+                intent: language_semantics::declaration_selection::NativeBuildIntent::Locator(
+                    locator,
+                ),
                 selecting_machine,
                 static_environment: call.static_environment.clone(),
             },
@@ -617,17 +618,14 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                     .ok()
                     .and_then(language_semantics::declaration_selection::ProductTarget::from_code)
                     .ok_or_else(|| refuse("typed table binding target is outside the catalog"))?;
-                let locator = if request.operation == BuildOperation::NativeTableFunction {
-                    language_semantics::declaration_selection::NativeBindingValue::TableFunction
-                } else {
-                    language_semantics::declaration_selection::NativeBindingValue::VtableField
+                let intent = language_semantics::declaration_selection::NativeBuildIntent::Table {
+                    drops_receiver: request.operation == BuildOperation::NativeTableFunction,
                 };
                 ExecutedBuildSelection::Native(
                     language_semantics::declaration_selection::ExecutedNativeBinding {
                         request: Arc::clone(request),
                         target,
-                        locator,
-                        widths: [0; 3],
+                        intent,
                         static_environment: call.static_environment.clone(),
                         selecting_machine: call
                             .selecting_machine
@@ -656,7 +654,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
                 let bytes =
                     u64::try_from(*bytes).map_err(|_| refuse("native demand exceeds u64"))?;
                 ExecutedBuildSelection::Native(language_semantics::declaration_selection::ExecutedNativeBinding {
-                    request:Arc::clone(request), target, locator:language_semantics::declaration_selection::NativeBindingValue::SameStackDemand{bytes}, widths:[0;3], static_environment:call.static_environment.clone(),
+                    request:Arc::clone(request), target, intent:language_semantics::declaration_selection::NativeBuildIntent::SameStackDemand{bytes}, static_environment:call.static_environment.clone(),
                     selecting_machine:call.selecting_machine.ok_or_else(||refuse("native demand lost its authored owner"))?,
                 })
             }

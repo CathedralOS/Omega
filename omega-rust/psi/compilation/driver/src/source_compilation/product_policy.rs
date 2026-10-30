@@ -2,6 +2,8 @@
 //! precedes this operation; evaluation custody and realization follow it.
 
 use super::SourceContinuation;
+
+mod native_bindings;
 use build_time_evaluation::native_bindings::NativeBindingSelection;
 use build_time_evaluation::product_declarations::AdmittedProductDeclarations;
 use build_time_evaluation::provider_declarations::ProviderSelection;
@@ -47,18 +49,17 @@ impl SourceContinuation {
             request.declared,
             request.executed,
         )?;
+        let native_bindings = self.admit_native_requests(
+            request.activation,
+            request.declared,
+            request.native_bindings,
+        )?;
         let typed = self.typed();
         let representations = representation_planning::collect_opaque_representation_selections(
             typed,
             request.activation,
             request.declared,
             request.executed,
-        )?;
-        let native_bindings = build_time_evaluation::native_bindings::collect(
-            typed,
-            request.activation,
-            request.declared,
-            request.native_bindings,
         )?;
         let grants = build_time_evaluation::product_policy::collect_product_root_grants(
             typed,
@@ -93,14 +94,10 @@ impl SourceContinuation {
     /// Packages retain source/profile/evaluation custody; Psi receives only the
     /// captured declarations and effects, not a package manager or provider plan.
     pub fn admit_captured_native_bindings(
-        &self,
+        &mut self,
         declarations: &[CapturedNativeDeclaration],
         intents: &[CapturedNativeIntent],
     ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
-        build_time_evaluation::native_bindings::collect_captured(
-            self.typed(),
-            declarations,
-            intents,
-        )
+        self.admit_captured_native_requests(declarations, intents)
     }
 }

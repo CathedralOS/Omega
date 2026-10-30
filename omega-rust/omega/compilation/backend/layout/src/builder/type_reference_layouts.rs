@@ -52,8 +52,8 @@ impl<'program> LayoutBuilder<'program> {
                 // slices/text and `{instance, table}` for dynamic traits.
                 // Keeping only the instance pointer loses dispatch identity
                 // and disagrees with calling-policy parameter placement.
-                // Scalar references retain their storage codec lane; references
-                // to aggregate carriers remain thin pointers.
+                // Scalar and aggregate references have source-visible pointer geometry.
+                // Engine-private scalar codec lanes are not source storage.
                 //
                 // A domain-constrained slice view (`&[u8] in Utf8`) is
                 // `Reference { Constrained { Slice } }`: the constraint is a
@@ -64,27 +64,6 @@ impl<'program> LayoutBuilder<'program> {
                 // call-result/return path (which unwraps Constrained) sizes it
                 // as the fat 16-byte descriptor, and the byte-count mismatch
                 // silently drops the descriptor copy.
-                if self
-                    .program
-                    .primitive_type_reference(*referee)
-                    .is_some_and(|primitive| primitive.scalar_byte_size().is_some())
-                {
-                    let descriptor = layout_plans::scalar_reference_storage_layout(
-                        self.target.pointer_size as u64,
-                        self.target.pointer_alignment as u64,
-                    )
-                    .ok_or_else(|| {
-                        Diagnostic::error("scalar-reference target geometry is invalid")
-                    })?;
-                    return Ok(TypeLayout {
-                        size: usize::try_from(descriptor.0).map_err(|_| {
-                            Diagnostic::error("scalar-reference extent exceeds target storage")
-                        })?,
-                        alignment: usize::try_from(descriptor.1).map_err(|_| {
-                            Diagnostic::error("scalar-reference alignment exceeds target storage")
-                        })?,
-                    });
-                }
                 let mut referee_node = self.program.type_reference_table.type_reference(*referee);
                 while let TypeReferenceNode::Constrained { base_type, .. } = referee_node {
                     referee_node = self.program.type_reference_table.type_reference(*base_type);

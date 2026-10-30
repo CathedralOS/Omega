@@ -118,13 +118,20 @@ impl CheckRequest<'_> {
                 &self.admission.catalogues,
             )
         })?;
-        let deferred_layout_applications = typed_trees::references::collect_program_type_occurrences(&program)
-            .into_iter()
-            .filter_map(|occurrence| program.layout_storage_arguments(occurrence.reference))
-            .filter(|storage| program.closed_data_field_definition(storage.semantic_type).is_some()
-                && program.plan_laid_layout_for_type(storage.application).is_none())
-            .map(|storage| storage.application)
-            .collect::<Vec<_>>();
+        let deferred_layout_applications =
+            typed_trees::references::collect_program_type_occurrences(&program)
+                .into_iter()
+                .filter_map(|occurrence| program.layout_storage_arguments(occurrence.reference))
+                .filter(|storage| {
+                    program
+                        .closed_data_field_definition(storage.semantic_type)
+                        .is_some()
+                        && program
+                            .plan_laid_layout_for_type(storage.application)
+                            .is_none()
+                })
+                .map(|storage| storage.application)
+                .collect::<Vec<_>>();
         constant_entries::retain_evaluation_entries(&mut program)?;
         let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
             .with_deferred_layout_applications(&deferred_layout_applications)

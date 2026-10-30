@@ -36,6 +36,7 @@ pub fn prepare_product_requirement_operand(
     operand: &ProductDeclarationOperand,
     author: SymbolHandle,
     static_environment: Option<&ProductStaticEnvironment>,
+    demand: typed_trees::product_operand::ProductApplicationDemand,
 ) -> Result<PreparedProductRequirement, Vec<Diagnostic>> {
     let refuse =
         |reason: &str| vec![Diagnostic::error(reason).with_source_span(operand.source_span)];
@@ -138,10 +139,7 @@ pub fn prepare_product_requirement_operand(
             .ok_or_else(|| {
                 refuse("native requirement has an invalid or incomplete outer application")
             })?;
-        lower
-            .program
-            .require_receiving_trait_operands(&scope)
-            .map_err(refuse)?;
+        nominal::require_trait_inputs(lower.program, &scope, demand).map_err(refuse)?;
         let environment = scope.environment();
         let member = lower.graph.operands.get(root_application.member).clone();
         let member_path = lower.path(member.path)?;
@@ -256,6 +254,38 @@ pub fn prepare_product_requirement_operand(
         .then(|| environment.retain(lower.program))
         .transpose()
         .map_err(refuse)?;
+    if demand == typed_trees::product_operand::ProductApplicationDemand::FormationOnly {
+        // Formation retains the original tuple and its declared obligations.
+        // It does not demand a closed executable member from an unused helper.
+        let source_application = lower
+            .program
+            .expression_table
+            .retain_static_machine_application(
+                requirement,
+                name,
+                std::slice::from_ref(&source_argument),
+            );
+        lower
+            .program
+            .expression_table
+            .static_machine_application_mut(source_application)
+            .lexical_owner = source_owner;
+        let input_scope = environment.retain(lower.program).map_err(refuse)?;
+        lower.retain_requirement_inputs(
+            operand,
+            source_owner,
+            requirement,
+            source_argument,
+            input_scope,
+            source_application,
+            demand,
+        );
+        return Ok(PreparedProductRequirement {
+            requirement,
+            closed_requirement: None,
+            trait_scope: retained_scope,
+        });
+    }
     if supplied.is_some() || (has_outer && parameters.is_empty()) {
         let mut supplied = supplied.unwrap_or(expr::StaticSymbolApplication {
             lifetime_arguments: Box::new([]),
@@ -319,6 +349,7 @@ pub fn prepare_product_requirement_operand(
             source_argument,
             input_scope,
             application,
+            demand,
         );
         return Ok(PreparedProductRequirement {
             requirement,
@@ -343,6 +374,7 @@ pub fn prepare_product_requirement_operand(
         source_argument,
         input_scope,
         source_application,
+        demand,
     );
     Ok(PreparedProductRequirement {
         requirement,
@@ -410,6 +442,7 @@ impl Lower<'_> {
         argument: expr::StaticMachineArgument,
         scope: RetainedTraitScope,
         supplying_application: typed_trees::static_applications::StaticMachineApplicationHandle,
+        demand: typed_trees::product_operand::ProductApplicationDemand,
     ) {
         let input_selections = self
             .program
@@ -422,7 +455,7 @@ impl Lower<'_> {
                 owner,
                 role: Some(ProductOperandRole::Requirement),
                 declaration,
-                demand: typed_trees::product_operand::ProductApplicationDemand::Selected,
+                demand,
                 argument,
                 input_selections,
                 scope,

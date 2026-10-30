@@ -38,7 +38,8 @@ pub fn capture_package_intents(
                     )]
                 })?,
                 target: event.target,
-                locator: event.locator.clone(),
+                intent: event.intent.clone(),
+                static_environment: event.static_environment.clone(),
             })
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;

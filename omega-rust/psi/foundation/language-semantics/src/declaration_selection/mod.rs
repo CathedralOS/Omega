@@ -1,5 +1,5 @@
 mod native_binding;
-pub use native_binding::{ExecutedNativeBinding, NativeBindingValue, decode_native_binding_value};
+pub use native_binding::{ExecutedNativeBinding, NativeBuildIntent, decode_native_locator};
 use source::SourceSpan;
 use symbols::SymbolHandle;
 
@@ -24,11 +24,11 @@ pub use build_selection_origin::BuildSelectionOrigin;
 mod product_target;
 pub use product::{
     BuildSelectionRequest, CapturedNativeDeclaration, CapturedNativeIntent, CompositionMode,
-    NativeBindingFormation, NativeBindingProducer, DescribedProductEntry, DescribedProductProvider,
-    DescribedProductSchema, EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection,
-    ExecutedEnumExclusion, ExecutedProductSelection, ExecutedRootBinding,
-    ProductDeclarationOperand, ProductDeclarationRequest, ProductOperandRole,
-    ProviderReadinessRequest, RootBindingOperand, RootBindingRequest, RootBindingSelection,
+    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema, EnumExclusionRequest,
+    ExclusionVocabulary, ExecutedBuildSelection, ExecutedEnumExclusion, ExecutedProductSelection,
+    ExecutedRootBinding, NativeBindingFormation, NativeBindingProducer, ProductDeclarationOperand,
+    ProductDeclarationRequest, ProductOperandRole, ProviderReadinessRequest, RootBindingOperand,
+    RootBindingRequest, RootBindingSelection,
 };
 pub use product_target::ProductTarget;
 
@@ -1075,7 +1075,6 @@ impl AuthoredDeclarationSelections {
             .map_err(|_| AuthoredDeclarationSelectionRecordError::OccurrenceCapacityExceeded)?;
         Ok(AuthoredDeclarationSelectionOccurrenceId(ordinal))
     }
-
 }
 
 impl<'ledger> IntoIterator for &'ledger AuthoredDeclarationSelections {

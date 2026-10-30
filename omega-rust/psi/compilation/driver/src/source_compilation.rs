@@ -353,12 +353,14 @@ impl SourceContinuation {
         static_environment: Option<
             &language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
         >,
+        demand: typed_trees::product_operand::ProductApplicationDemand,
     ) -> Result<typed_trees_to_typed_trees::PreparedProductRequirement, Vec<Diagnostic>> {
         typed_trees_to_typed_trees::prepare_product_requirement_operand(
             Arc::make_mut(&mut self.input).typing.typed_mut(),
             operand,
             author,
             static_environment,
+            demand,
         )
     }
 

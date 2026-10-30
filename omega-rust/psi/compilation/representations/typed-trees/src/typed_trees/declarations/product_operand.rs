@@ -440,9 +440,11 @@ pub fn native_binding_formation(
     let callable_identity = typed
         .machine_callable_identity_text(machine)
         .ok_or("native declaration has no checked callable identity")?;
-    let [operand] = request.operands.as_ref() else {
-        return Err("native formation lost its exact requirement".into());
-    };
+    request.validate_shape()?;
+    let operand = request
+        .operands
+        .first()
+        .ok_or("native formation lost its exact requirement")?;
     let relative = source
         .path
         .strip_prefix(&source.package_root)
@@ -468,6 +470,10 @@ pub fn native_binding_formation(
         language_semantics::declaration_selection::NativeBindingFormation {
             request,
             author: span,
+            sources: typed
+                .symbols
+                .source_map()
+                .ok_or("native source formation lost its complete immutable source map")?,
             author_package: typed.symbols.symbol_package_identity(author),
             root_scope,
             declaration_path: typed.symbols.display_path(author, "::"),

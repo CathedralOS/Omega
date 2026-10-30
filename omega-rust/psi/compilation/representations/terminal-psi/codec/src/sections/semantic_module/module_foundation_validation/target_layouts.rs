@@ -265,19 +265,8 @@ fn schema_storage_layout(
     let result = (|| {
         let ty = module.structural_type(identity)?;
         match &ty.shape {
-            StructuralTypeShape::Reference { referent, .. } => {
-                if matches!(
-                    module.structural_type(*referent)?.shape,
-                    StructuralTypeShape::PrimitiveScalar(_)
-                ) {
-                    let descriptor = layout_plans::scalar_reference_storage_layout(
-                        target.pointer_size,
-                        target.pointer_alignment,
-                    )?;
-                    Some((descriptor.0, descriptor.1))
-                } else {
-                    Some((target.pointer_size, target.pointer_alignment))
-                }
+            StructuralTypeShape::Reference { .. } => {
+                Some((target.pointer_size, target.pointer_alignment))
             }
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView { .. }) => {
                 Some((target.pointer_size, target.pointer_alignment))

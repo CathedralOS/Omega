@@ -5,7 +5,7 @@
 /// evaluation. Vector lengths retain the fixed-array widths of that value;
 /// unused coordinates are absent by construction rather than normalized from
 /// an independently supplied field.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum ForeignLocatorCandidate {
     PeByName {
         library: Vec<u8>,
@@ -43,7 +43,7 @@ impl ForeignLocatorCandidate {
 
 /// A typed native binding value; syscall applicability and import-format
 /// validation remain with target realization.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum NativeBindingLocator {
     Import(ForeignLocatorCandidate),
     Syscall { number: u64 },

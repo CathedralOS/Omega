@@ -1,121 +1,195 @@
-//! Admit reached native Build intent against its exact Product requirements.
-//! These rows describe source choices; native ABI, provider evidence and foreign
-//! behavior admission remain Omega judgments.
+//! Source admission of reached native Build choices. Requirement applications,
+//! table declarations and stack promises are joined here before Omega owns
+//! locator normalization, receipts, calling geometry and provider settlement.
 
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
-    BuildOperation, ExecutedNativeBinding, ProductDeclarationRequest, ProductOperandRole,
-    ProductTarget,
+    CapturedNativeDeclaration, NativeBuildIntent, ProductTarget,
 };
 use semantic_vocabulary::{NativeBindingLocator, PackageKeyIdentity};
 use symbols::SymbolHandle;
-use typed_trees::{
-    TypedTrees,
-    product_operand::{resolve_build_request_author, resolve_product_path},
-};
+use typed_trees::{TypedTrees, trait_definition::RetainedTraitScope};
+
+/// The entire applied requirement, including unused outer and local actuals.
+/// An absent scope/member instance denotes the declaration's universal schema.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeRequirementApplication {
+    pub requirement: SymbolHandle,
+    pub closed_requirement: Option<SymbolHandle>,
+    pub trait_scope: Option<RetainedTraitScope>,
+}
+impl NativeRequirementApplication {
+    pub fn callable(self) -> SymbolHandle {
+        self.closed_requirement.unwrap_or(self.requirement)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeTableField {
+    pub table: SymbolHandle,
+    pub field: SymbolHandle,
+    pub drops_receiver: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NativeBindingSupply {
+    Locator(NativeBindingLocator),
+    Table(NativeTableField),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeSameStackDemand {
+    pub bytes: u64,
+    pub producer: language_semantics::declaration_selection::NativeBindingProducer,
+    pub source_occurrence_digest: [u8; 32],
+    pub source_span: source::SourceSpan,
+    pub event_ordinal: usize,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBindingSelection {
     pub subject: SymbolHandle,
-    pub requirement: SymbolHandle,
+    pub application: NativeRequirementApplication,
     pub target: ProductTarget,
-    pub locator: NativeBindingLocator,
+    pub supply: NativeBindingSupply,
+    pub same_stack_demand: Option<NativeSameStackDemand>,
     pub producer: language_semantics::declaration_selection::NativeBindingProducer,
     pub source_occurrence_digest: [u8; 32],
     pub supplier_package: PackageKeyIdentity,
     pub source_span: source::SourceSpan,
 }
 
-fn requirement(
-    typed: &TypedTrees,
-    request: &ProductDeclarationRequest,
-) -> Result<(SymbolHandle, SymbolHandle), Diagnostic> {
-    request.validate_shape().map_err(Diagnostic::error)?;
-    if request.operation != BuildOperation::NativeBinding {
-        return Err(Diagnostic::error(
-            "native binding has the wrong designated operation",
-        ));
-    }
-    let [operand] = request.operands.as_ref() else {
-        return Err(Diagnostic::error(
-            "native binding lost its exact requirement operand",
-        ));
-    };
-    let symbol = resolve_product_path(typed, &operand.path, operand.source_span, ProductOperandRole::Requirement)
-        .ok_or_else(|| Diagnostic::error(format!("native binding operand `{}` does not resolve to one visible Product boundary requirement", operand.path)).with_source_span(operand.source_span))?;
-    requirement_owner(typed, symbol).map_err(Diagnostic::error)
+/// One source-prepared reached operation. The mutable Psi continuation owns
+/// preparation; this immutable join cannot construct another source instance.
+pub struct PreparedNativeIntent {
+    pub application: NativeRequirementApplication,
+    pub table: Option<NativeTableField>,
+    pub declaration: CapturedNativeDeclaration,
+    pub target: ProductTarget,
+    pub intent: NativeBuildIntent,
+    pub source_span: source::SourceSpan,
+    pub event_ordinal: usize,
 }
 
+pub fn requirement_owner(
+    typed: &TypedTrees,
+    requirement: SymbolHandle,
+) -> Result<SymbolHandle, String> {
+    if let Some((owner, _)) = typed.trait_machine_signature(requirement) {
+        return owner
+            .is_boundary
+            .then_some(owner.symbol)
+            .ok_or_else(|| "native binding must designate a boundary requirement".into());
+    }
+    typed
+        .machine(requirement)
+        .filter(|machine| {
+            machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+        })
+        .map(|machine| machine.symbol)
+        .ok_or_else(|| "native binding lost its exact boundary declaration".into())
+}
+
+/// Join separately reached footprints only within this completed activation.
+/// The full application, target and supplier identify a row; equal footprints
+/// retain their original occurrence while conflicting promises refuse.
 pub fn collect(
     typed: &TypedTrees,
-    activation: Option<SymbolHandle>,
-    declared: &[std::sync::Arc<ProductDeclarationRequest>],
-    executed: &[ExecutedNativeBinding],
+    intents: &[PreparedNativeIntent],
 ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
-    for request in declared
-        .iter()
-        .filter(|request| request.operation == BuildOperation::NativeBinding)
-    {
-        requirement(typed, request)
-            .map_err(|error| vec![error.with_source_span(request.source_span)])?;
-    }
-    if executed.is_empty() {
-        return Ok(Vec::new());
-    }
-    let root = activation
-        .filter(|symbol| typed.machine(*symbol).is_some())
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "native binding has no authoritative completed Build activation",
-            )]
-        })?;
-    let _ = root; // The runtime issued each event against this activation's original Build.
+    let fail = |intent: &PreparedNativeIntent, reason: &str| {
+        vec![Diagnostic::error(reason).with_source_span(intent.source_span)]
+    };
+    let same_key = |left: &PreparedNativeIntent, right: &PreparedNativeIntent| {
+        left.application == right.application
+            && left.target == right.target
+            && left.declaration.producer.package == right.declaration.producer.package
+    };
     let mut selections: Vec<NativeBindingSelection> = Vec::new();
-    for event in executed {
-        let span = event.request.source_span;
-        let refuse = |reason| vec![Diagnostic::error(reason).with_source_span(span)];
-        if !declared.contains(&event.request) {
-            return Err(refuse(
-                "executed native binding has no retained source formation request",
+    for intent in intents {
+        if !intent
+            .intent
+            .matches_operation(intent.declaration.request.operation)
+        {
+            return Err(fail(
+                intent,
+                "native effect has a different source operation",
             ));
         }
-        let (subject, selected) = requirement(typed, &event.request)
-            .map_err(|error| vec![error.with_source_span(span)])?;
-        let author = resolve_build_request_author(typed, event.selecting_machine)
-            .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(span)])?;
-        let supplier_package = typed
-            .symbols
-            .symbol_package_identity(author)
-            .ok_or_else(|| refuse("native binding supplier has no immutable package identity"))?;
+        if let NativeBuildIntent::SameStackDemand { bytes } = intent.intent {
+            if bytes == 0 {
+                return Err(fail(intent, "native same-stack demand must be positive"));
+            }
+            let mut matching = intents.iter().filter(|other| {
+                same_key(intent, other)
+                    && !matches!(other.intent, NativeBuildIntent::SameStackDemand { .. })
+            });
+            if matching.next().is_none() {
+                return Err(fail(
+                    intent,
+                    "native same-stack demand has no reached binding in this activation",
+                ));
+            }
+            continue;
+        }
+        let subject = requirement_owner(typed, intent.application.requirement)
+            .map_err(|reason| fail(intent, &reason))?;
+        let supply = match &intent.intent {
+            NativeBuildIntent::Locator(locator) => NativeBindingSupply::Locator(locator.clone()),
+            NativeBuildIntent::Table { drops_receiver } => {
+                let field = intent
+                    .table
+                    .filter(|field| field.drops_receiver == *drops_receiver)
+                    .ok_or_else(|| {
+                        fail(intent, "native table operation lost its exact typed field")
+                    })?;
+                NativeBindingSupply::Table(field)
+            }
+            NativeBuildIntent::SameStackDemand { .. } => unreachable!(),
+        };
+        let mut demand = None;
+        for footprint in intents.iter().filter(|other| same_key(intent, other)) {
+            let NativeBuildIntent::SameStackDemand { bytes } = footprint.intent else {
+                continue;
+            };
+            if demand
+                .as_ref()
+                .is_some_and(|prior: &NativeSameStackDemand| prior.bytes != bytes)
+            {
+                return Err(fail(
+                    footprint,
+                    "conflicting same-stack demands for one native requirement application",
+                ));
+            }
+            demand.get_or_insert_with(|| NativeSameStackDemand {
+                bytes,
+                producer: footprint.declaration.producer.clone(),
+                source_occurrence_digest: footprint.declaration.source_occurrence_digest,
+                source_span: footprint.source_span,
+                event_ordinal: footprint.event_ordinal,
+            });
+        }
         if selections.iter().any(|prior| {
-            prior.requirement == selected
-                && prior.target == event.target
-                && prior.supplier_package == supplier_package
-                && prior.locator != event.locator
+            prior.application == intent.application
+                && prior.target == intent.target
+                && prior.supplier_package == intent.declaration.producer.package
+                && prior.supply != supply
         }) {
-            return Err(refuse(
-                "conflicting native bindings for the same requirement, target and supplier precedence",
+            return Err(fail(
+                intent,
+                "conflicting native bindings for the same full requirement application, target and supplier",
             ));
         }
-        // Identical reached effects retain all actual source origins. Native
-        // derivation may share their one row without erasing execution provenance.
-        let scope = typed_trees::product_operand::native_binding_formation(
-            typed,
-            author,
-            Some(root),
-            event.request.clone(),
-        )
-        .and_then(|formation| formation.seal(supplier_package))
-        .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(span)])?;
         selections.push(NativeBindingSelection {
             subject,
-            requirement: selected,
-            target: event.target,
-            locator: event.locator.clone(),
-            producer: scope.producer,
-            source_occurrence_digest: scope.source_occurrence_digest,
-            supplier_package,
-            source_span: typed.symbols.rejoin_product_occurrence(span),
+            application: intent.application,
+            target: intent.target,
+            supply,
+            same_stack_demand: demand,
+            producer: intent.declaration.producer.clone(),
+            source_occurrence_digest: intent.declaration.source_occurrence_digest,
+            supplier_package: intent.declaration.producer.package,
+            source_span: intent.source_span,
         });
     }
     Ok(selections)
@@ -123,73 +197,3 @@ pub fn collect(
 
 mod capture;
 pub use capture::capture_package_intents;
-
-/// Admit every captured formation before using reached effects. The package
-/// output owner has already authenticated source/profile/closure custody; this
-/// query supplies only exact Product declaration and visibility judgments.
-pub fn collect_captured(
-    typed: &TypedTrees,
-    declarations: &[language_semantics::declaration_selection::CapturedNativeDeclaration],
-    intents: &[language_semantics::declaration_selection::CapturedNativeIntent],
-) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
-    let mut resolved = Vec::with_capacity(declarations.len());
-    for declaration in declarations {
-        let selected = typed_trees::product_operand::resolve_captured_product_path(typed, declaration, ProductOperandRole::Requirement)
-            .ok_or_else(|| vec![Diagnostic::error(format!("captured native requirement `{}` has no unique visible Product declaration in its supplying package", declaration.requirement_path))])?;
-        resolved.push(
-            requirement_owner(typed, selected).map_err(|reason| vec![Diagnostic::error(reason)])?,
-        );
-    }
-    intents
-        .iter()
-        .map(|intent| {
-            let declaration = declarations
-                .get(intent.declaration as usize)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "captured native effect lost its declared source occurrence",
-                    )]
-                })?;
-            let (subject, requirement) = resolved[intent.declaration as usize];
-            let span = typed
-                .symbols
-                .symbol_provenance_source_span(requirement)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "captured native requirement lost its checked Product source",
-                    )]
-                })?;
-            Ok(NativeBindingSelection {
-                subject,
-                requirement,
-                target: intent.target,
-                locator: intent.locator.clone(),
-                producer: declaration.producer.clone(),
-                supplier_package: declaration.producer.package,
-                source_occurrence_digest: declaration.source_occurrence_digest,
-                source_span: span,
-            })
-        })
-        .collect()
-}
-
-fn requirement_owner(
-    typed: &TypedTrees,
-    symbol: SymbolHandle,
-) -> Result<(SymbolHandle, SymbolHandle), String> {
-    let owner = typed
-        .traits()
-        .iter()
-        .find(|owner| {
-            owner.is_boundary
-                && typed
-                    .trait_machine_signatures(owner)
-                    .iter()
-                    .any(|signature| signature.symbol == symbol)
-        })
-        .ok_or("native binding requirement lost its exact boundary declaration")?;
-    if !typed.trait_type_parameters(owner).is_empty() || !owner.lifetime_parameters.is_empty() {
-        return Err("native binding requires a closed static boundary application".into());
-    }
-    Ok((owner.symbol, symbol))
-}
