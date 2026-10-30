@@ -488,14 +488,7 @@ fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
 
     // A dependency change — here a different resolved owner — produces a
     // different key: the stale row is never consulted, not even to reject.
-    let moved = bounded_value(
-        program.machine,
-        "Main",
-        program.data[1],
-        "count",
-        base,
-        arena::HandleSpan::empty(),
-    );
+    let moved = program.data_value(1, "count", base);
     assert!(
         DerivationConsultation::new(&plan, &moved, &mut cache)
             .recheck()
@@ -506,14 +499,7 @@ fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
     // key-granularity invalidate reclaims it; neighbors survive untouched.
     // `total` on `data[1]` is a distinct row — `moved` consulted earlier
     // before anything was retained under its key, so it stayed a miss.
-    let total = bounded_value(
-        program.machine,
-        "Main",
-        program.data[1],
-        "total",
-        base,
-        arena::HandleSpan::empty(),
-    );
+    let total = program.data_value(1, "total", base);
     let neighbor =
         closed_bounds_certificate(literal_term(3), math_literal(0), math_literal(10), 67)
             .expect("certificate");
@@ -565,14 +551,7 @@ fn dependency_invalidation_drops_affected_entries_and_is_tallied() {
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::new();
 
-    let total_obligation = bounded_value(
-        program.machine,
-        "Main",
-        program.data[1],
-        "total",
-        base,
-        arena::HandleSpan::empty(),
-    );
+    let total_obligation = program.data_value(1, "total", base);
     DerivationConsultation::new(&plan, &count_obligation, &mut cache).retain(
         closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 66)
             .expect("certificate"),
@@ -613,14 +592,7 @@ fn dependency_invalidation_drops_affected_entries_and_is_tallied() {
     );
 
     // The unaffected row still discharges its obligation.
-    let total_again = bounded_value(
-        program.machine,
-        "Main",
-        program.data[1],
-        "total",
-        base,
-        arena::HandleSpan::empty(),
-    );
+    let total_again = program.data_value(1, "total", base);
     assert!(
         DerivationConsultation::new(&plan, &total_again, &mut cache)
             .recheck()

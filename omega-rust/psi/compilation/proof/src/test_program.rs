@@ -61,6 +61,24 @@ impl Program {
         (base, obligation)
     }
 
+    /// A `Main`-owned bounded-value obligation over one of the fixture's data
+    /// symbols, carrying the `Int` reference the caller already resolved.
+    pub(crate) fn data_value(
+        &self,
+        data: usize,
+        name: &str,
+        base: TypeReferenceHandle,
+    ) -> ProofObligation {
+        bounded_value(
+            self.machine,
+            "Main",
+            self.data[data],
+            name,
+            base,
+            arena::HandleSpan::empty(),
+        )
+    }
+
     pub(crate) fn int_reference(&mut self) -> TypeReferenceHandle {
         self.typed_trees
             .type_reference_table
