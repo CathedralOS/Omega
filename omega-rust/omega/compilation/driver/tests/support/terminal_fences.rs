@@ -133,8 +133,10 @@ fn observe_target(
 ) -> Result<(), String> {
     let program = TerminalProgram::borrow(artifact.view());
     let selected = terminal_interpreter::admit_target_machine_selections(artifact.view(), target);
-    let target_facts = target::TargetProfile::from_target_name(target)
-        .and_then(target::TargetProfile::layout_target_facts)
+    let target_profile = target::TargetProfile::from_canonical_target_name(target)
+        .map_err(|_| format!("unknown fence target `{target}`"))?;
+    let target_facts = target_profile
+        .layout_target_facts()
         .ok_or_else(|| format!("fence target `{target}` has no representation facts"))?;
     let layouts =
         terminal_interpreter::admit_target_layouts(artifact.view(), &selected, &target_facts)
