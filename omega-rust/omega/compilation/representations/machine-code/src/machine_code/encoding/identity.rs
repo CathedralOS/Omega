@@ -6,7 +6,9 @@ use physical_instructions::PostAllocationMachineIdentity;
 
 use physical_instructions::PostAllocationMachineOptimizationCustody;
 
-use crate::machine_code::identity_encoding::{encode_nested_identity, encode_views};
+use crate::machine_code::identity_encoding::{
+    encode_invocation_site, encode_nested_identity, encode_views,
+};
 
 use super::{
     DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodedRowStore,
@@ -166,20 +168,7 @@ fn encode_encoding_row(
                                 selected_instructions::OutgoingArgumentSlotRole::Argument => 0,
                                 selected_instructions::OutgoingArgumentSlotRole::ValueCopy => 3,
                             });
-                            match slot.invocation_site {
-                                semantic_vocabulary::InvocationSite::Operation(operation) => {
-                                    hasher.byte(0);
-                                    hasher.raw(&operation.get().to_le_bytes());
-                                }
-                                semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
-                                    hasher.byte(2);
-                                    hasher.raw(&edge.get().to_le_bytes());
-                                }
-                                semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
-                                    hasher.byte(1);
-                                    hasher.raw(&edge.get().to_le_bytes());
-                                }
-                            }
+                            encode_invocation_site(hasher, slot.invocation_site);
                             hasher.raw(&slot.argument_index.to_le_bytes());
                         }
                         selected_instructions::FrameStorageSlotId::Local(slot) => {
