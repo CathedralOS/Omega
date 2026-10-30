@@ -58,7 +58,17 @@ pub(super) fn contribute_case_where_facts(
     if variant.where_facts.is_empty() {
         return;
     }
-    let Some(subject) = ordered_values::operand(program, machine, state, subject, None) else {
+    let observed = ordered_values::operand(program, machine, state, subject, None);
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        eprintln!(
+            "ORDERED selected-case-subject machine={} expression={subject:?} node={:?} actual={:?} operand={observed:?}",
+            program.symbols.name(machine.symbol),
+            program.expression_table.expression(subject),
+            crate::expression_result_type_reference(program, machine, state, subject)
+                .map(|reference| program.type_reference_table.type_reference(reference))
+        );
+    }
+    let Some(subject) = observed else {
         return;
     };
     for fact in program.proof_facts.span_or_empty(variant.where_facts) {

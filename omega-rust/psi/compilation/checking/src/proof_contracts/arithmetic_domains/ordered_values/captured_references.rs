@@ -19,9 +19,27 @@ pub(super) fn operand(
             &prepared
         }
     };
-    let sources = frames.completed_reference_read_sources(machine, state, expression)?;
+    let sources = frames.completed_reference_read_sources(machine, state, expression);
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        eprintln!(
+            "ORDERED captured-reference machine={} expression={expression:?} node={:?} type={:?} sources={sources:?}",
+            program.symbols.name(machine.symbol),
+            program.expression_table.expression(expression),
+            crate::expression_result_type_reference(program, machine, state, expression)
+                .map(|reference| program.type_reference_table.type_reference(reference))
+        );
+    }
+    let sources = sources?;
     let mut sources = sources.iter();
-    let first = source_operand(program, state, sources.next()?)?;
+    let first_source = sources.next()?;
+    let first = source_operand(program, state, first_source);
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        eprintln!(
+            "ORDERED captured-reference-identity machine={} expression={expression:?} source={first_source:?} operand={first:?}",
+            program.symbols.name(machine.symbol)
+        );
+    }
+    let first = first?;
     // Alternative descriptors can share an identity only when every exact
     // supplier names that same typed storage. Unavailable routes stay opaque.
     for source in sources {

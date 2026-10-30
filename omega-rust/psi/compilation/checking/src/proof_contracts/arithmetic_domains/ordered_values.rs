@@ -511,6 +511,20 @@ fn build_operand(
             if !path.symbol.is_valid() || path.symbol != path.head_symbol {
                 return None;
             }
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+                && let Some((_, local)) = program.state_local_declaration(state, path.symbol)
+            {
+                eprintln!(
+                    "ORDERED named-value machine={} name={} expression={expression:?} declared={:?} actual={:?}",
+                    program.symbols.name(machine.symbol),
+                    program.symbols.name(path.symbol),
+                    program
+                        .type_reference_table
+                        .type_reference(local.type_reference),
+                    crate::expression_result_type_reference(program, machine, state, expression)
+                        .map(|reference| program.type_reference_table.type_reference(reference))
+                );
+            }
             // Resolve the actual completed descriptor at this read. Missing
             // exact origins leave the named value opaque; its source recipe
             // cannot replace the captured address or selector epoch.
