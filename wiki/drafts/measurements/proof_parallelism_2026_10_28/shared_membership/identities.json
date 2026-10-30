@@ -1,0 +1,20 @@
+[
+  {
+    "producer": "payload",
+    "compiler_sha256": "a8b34dd48282e8b3bbf0695892d8efd967fa06835cdbafb9dc744c1ab805166f",
+    "accepted_lock_sha256": "3b9b89dc7bc2717fb706df6237a580d95a9c4d9beda26a0bfa88a2c43059c271",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  {
+    "producer": "shared-membership",
+    "compiler_sha256": "49f0dbdb0e178a16583d0731ebb8facce4048f727952dffc4c90514f8b8e2ab6",
+    "accepted_lock_sha256": "4abb8b3c82fa09031c11c22172701d1bc6cafe501ea820d5ed5b26af458ba3e5",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+]

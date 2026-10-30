@@ -1,0 +1,441 @@
+diff --git a/omega-rust/omega/foundation/artifacts/src/compile_timings/mod.rs b/omega-rust/omega/foundation/artifacts/src/compile_timings/mod.rs
+index 844fdb15cf6..f5e9237a10f 100644
+--- a/omega-rust/omega/foundation/artifacts/src/compile_timings/mod.rs
++++ b/omega-rust/omega/foundation/artifacts/src/compile_timings/mod.rs
+@@ -3,6 +3,9 @@
+ 
+ pub mod counters;
+ 
++#[cfg(windows)]
++mod cpu_probe;
++
+ use std::time::Instant;
+ 
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+@@ -93,9 +96,13 @@ impl CompileTimings {
+         if !self.enabled {
+             return work();
+         }
++        #[cfg(windows)]
++        let cpu_window = cpu_probe::begin(stage);
+         let time_start = Instant::now();
+         let result = work();
+         let microseconds = time_start.elapsed().as_micros();
++        #[cfg(windows)]
++        cpu_probe::finish(cpu_window);
+ 
+         self.add_completed(stage, microseconds);
+ 
+diff --git a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/reference_origins/memberships.rs b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/reference_origins/memberships.rs
+index d39bf30c487..6c3d22094b1 100644
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/reference_origins/memberships.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/reference_origins/memberships.rs
+@@ -99,10 +99,36 @@ impl<'module> ReferenceResultMemberships<'module> {
+             },
+             structural_arguments,
+         )?;
+-        let graph = self
+-            .graph
+-            .get_or_init(|| descriptors::terminal_borrowed_storage_graph(self.module));
+-        reference_call_preserved_memberships(
++        // Diagnostic control: both modes use this exact executable and query kernel.
++        let eager = std::env::var_os("OMEGA_REFERENCE_GRAPH_EXPERIMENT_MODE")
++            .is_some_and(|mode| mode == "eager");
++        let counts = std::env::var_os("OMEGA_REFERENCE_GRAPH_EXPERIMENT_COUNTS").is_some();
++        if counts {
++            eprintln!(
++                "SAME_GRAPH_READY\t{}\t{}",
++                if eager { "eager" } else { "lazy" },
++                self.module.machines.len()
++            );
++        }
++        let graph = || {
++            self.graph
++                .get_or_init(|| {
++                    let graph = descriptors::terminal_borrowed_storage_graph(self.module);
++                    if counts {
++                        eprintln!(
++                            "SAME_GRAPH_BUILD\t{}\t{}",
++                            self.module.machines.len(),
++                            graph.len()
++                        );
++                    }
++                    graph
++                })
++                .as_slice()
++        };
++        if eager {
++            let _ = graph();
++        }
++        preserve_call_memberships(
+             &self.module.structural_types,
+             &self.module.structural_domains,
+             graph,
+@@ -131,6 +157,31 @@ pub fn reference_call_preserved_memberships(
+     declaration: &StructuralResultDeclaration,
+     mappings: &[ReferenceCallResult],
+     source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
++) -> Result<Vec<StructuralPathQualification>, &'static str> {
++    preserve_call_memberships(
++        types,
++        domains,
++        || graph,
++        identity,
++        position,
++        result,
++        declaration,
++        mappings,
++        source,
++    )
++}
++
++#[allow(clippy::too_many_arguments)]
++fn preserve_call_memberships<'input>(
++    types: &'input [StructuralTypeDeclaration],
++    domains: &[terminal_psi::StructuralDomainDeclaration],
++    graph: impl Fn() -> &'input [DescriptorMachine],
++    identity: MachineId,
++    position: DescriptorPosition,
++    result: &StructuralOperationResult,
++    declaration: &StructuralResultDeclaration,
++    mappings: &[ReferenceCallResult],
++    source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
+ ) -> Result<Vec<StructuralPathQualification>, &'static str> {
+     if result.structural_type != declaration.structural_type
+         || result.multiplicity != declaration.multiplicity
+@@ -155,7 +206,8 @@ pub fn reference_call_preserved_memberships(
+             source(place)
+         }
+     };
+-    let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(types, graph);
++    // Unsupported leaves still validate before any graph adaptation is needed.
++    let mut replay = None;
+     let mut retained = Vec::new();
+     for (ordinal, mapping) in mappings.iter().enumerate() {
+         if mappings[..ordinal]
+@@ -211,6 +263,13 @@ pub fn reference_call_preserved_memberships(
+                     &path,
+                     None,
+                 )?;
++                let (graph, analysis) = replay.get_or_insert_with(|| {
++                    let graph = graph();
++                    (
++                        graph,
++                        DescriptorAnalysis::with_borrowed_storage_slots(types, graph),
++                    )
++                });
+                 let targets = analysis.payload_targets(identity, position, &query)?;
+                 descriptors::payload_memberships(types, domains, targets, |root| {
+                     descriptors::completed_payload_contract(
+@@ -302,3 +361,185 @@ pub fn reference_result_memberships_weaken<'types>(
+             crosses_shared
+         })
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use semantic_vocabulary::{BlockId, ScalarType};
++    use std::cell::Cell;
++    use terminal_psi::{StructuralArgument, StructuralMultiplicity, TerminalIdentityIndex};
++
++    fn declarations(
++        access: StructuralAccess,
++    ) -> (
++        Vec<StructuralTypeDeclaration>,
++        StructuralOperationResult,
++        StructuralResultDeclaration,
++    ) {
++        let scalar = StructuralTypeId::new(1).unwrap();
++        let reference = StructuralTypeId::new(2).unwrap();
++        let types = [
++            (
++                scalar,
++                StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
++            ),
++            (
++                reference,
++                StructuralTypeShape::Reference {
++                    referent: scalar,
++                    access,
++                },
++            ),
++        ]
++        .into_iter()
++        .map(|(id, shape)| StructuralTypeDeclaration {
++            quotient_carrier: None,
++            id,
++            identity: TerminalIdentityIndex(1),
++            owns_linear_claim: false,
++            copyable: false,
++            no_code_affine_cleanup: true,
++            descriptor_cleanup: true,
++            shape,
++            scalar_restriction: None,
++        })
++        .collect();
++        let result = StructuralOperationResult {
++            place: PlaceId::new(99).unwrap(),
++            structural_type: reference,
++            multiplicity: StructuralMultiplicity::Unrestricted,
++            qualifications: Vec::new(),
++            projected_qualifications: Vec::new(),
++            qualification_establishments: Vec::new(),
++            claims: Vec::new(),
++        };
++        let declaration = StructuralResultDeclaration {
++            place: result.place,
++            structural_type: reference,
++            multiplicity: result.multiplicity,
++            qualifications: Vec::new(),
++            projected_qualifications: Vec::new(),
++            reference_sources: Vec::new(),
++        };
++        (types, result, declaration)
++    }
++
++    fn mapping(extent: ReferenceOriginExtent) -> ReferenceCallResult {
++        ReferenceCallResult {
++            path: Vec::new(),
++            sources: vec![super::super::ReferenceCallSource {
++                origin: ReferenceCallOrigin::Parameter {
++                    source: StructuralArgument {
++                        place: PlaceId::new(3).unwrap(),
++                        path: Vec::new(),
++                        access: StructuralAccess::SharedBorrow,
++                    },
++                    transfers_existing: false,
++                },
++                suffix: Vec::new(),
++                endpoint: StructuralTypeId::new(1).unwrap(),
++                extent,
++            }],
++        }
++    }
++
++    fn observe(
++        types: &[StructuralTypeDeclaration],
++        result: &StructuralOperationResult,
++        declaration: &StructuralResultDeclaration,
++        mappings: &[ReferenceCallResult],
++    ) -> (
++        Result<Vec<StructuralPathQualification>, &'static str>,
++        usize,
++    ) {
++        let builds = Cell::new(0);
++        let outcome = preserve_call_memberships(
++            types,
++            &[],
++            || {
++                builds.set(builds.get() + 1);
++                &[]
++            },
++            MachineId::new(1).unwrap(),
++            (BlockId::new(1).unwrap(), 0),
++            result,
++            declaration,
++            mappings,
++            &|_| {
++                Some(PayloadMembershipContract {
++                    scalar_observations: Vec::new(),
++                    scalar_requirements: Vec::new(),
++                    carrier: StructuralTypeId::new(1).unwrap(),
++                    qualifications: Vec::new(),
++                    projected_qualifications: Vec::new(),
++                })
++            },
++        );
++        (outcome, builds.get())
++    }
++
++    #[test]
++    fn undemanded_rows_still_reject_malformed_mappings_without_a_graph() {
++        let (types, mut result, declaration) = declarations(StructuralAccess::MutableBorrow);
++        let repeated = [
++            mapping(ReferenceOriginExtent::Projected),
++            mapping(ReferenceOriginExtent::Projected),
++        ];
++        assert_eq!(
++            observe(&types, &result, &declaration, &repeated),
++            (
++                Err("returned reference membership repeats an output leaf"),
++                0
++            )
++        );
++        let mut invalid = mapping(ReferenceOriginExtent::Projected);
++        invalid.path.push(StructuralPathSegment::FixedIndex(0));
++        assert_eq!(
++            observe(&types, &result, &declaration, &[invalid]),
++            (Err("returned reference membership has no typed leaf"), 0)
++        );
++        result.structural_type = StructuralTypeId::new(1).unwrap();
++        assert_eq!(
++            observe(&types, &result, &declaration, &[]),
++            (
++                Err("preserved reference result has a different declared carrier"),
++                0
++            )
++        );
++    }
++
++    #[test]
++    fn only_a_projected_shared_referent_demands_the_graph() {
++        for access in [
++            StructuralAccess::MutableBorrow,
++            StructuralAccess::SharedBorrow,
++        ] {
++            let (types, result, declaration) = declarations(access);
++            assert_eq!(
++                observe(&types, &result, &declaration, &[]),
++                (Ok(Vec::new()), 0)
++            );
++            assert_eq!(
++                observe(
++                    &types,
++                    &result,
++                    &declaration,
++                    &[mapping(ReferenceOriginExtent::WithinRegion)]
++                ),
++                (Ok(Vec::new()), 0)
++            );
++            assert_eq!(
++                observe(
++                    &types,
++                    &result,
++                    &declaration,
++                    &[mapping(ReferenceOriginExtent::Projected)]
++                ),
++                (
++                    Ok(Vec::new()),
++                    usize::from(access == StructuralAccess::SharedBorrow)
++                )
++            );
++        }
++    }
++}
+diff --git a/omega-rust/omega/foundation/artifacts/src/compile_timings/cpu_probe.rs b/omega-rust/omega/foundation/artifacts/src/compile_timings/cpu_probe.rs
+new file mode 100644
+--- /dev/null
++++ b/omega-rust/omega/foundation/artifacts/src/compile_timings/cpu_probe.rs
+@@ -0,0 +1,121 @@
++//! Temporary process-CPU observations; never an input to a compiler judgment.
++use super::StageMeta;
++use std::ffi::c_void;
++use std::sync::OnceLock;
++use std::time::Instant;
++
++#[repr(C)]
++#[derive(Default, Clone, Copy)]
++struct FileTime {
++    low: u32,
++    high: u32,
++}
++impl FileTime {
++    fn ticks(self) -> u64 {
++        (u64::from(self.high) << 32) | u64::from(self.low)
++    }
++}
++
++#[link(name = "kernel32")]
++unsafe extern "system" {
++    fn GetCurrentProcess() -> *mut c_void;
++    fn GetProcessTimes(
++        process: *mut c_void,
++        created: *mut FileTime,
++        exited: *mut FileTime,
++        kernel: *mut FileTime,
++        user: *mut FileTime,
++    ) -> i32;
++}
++
++#[derive(Clone, Copy)]
++struct Snapshot {
++    wall: u128,
++    kernel: u64,
++    user: u64,
++}
++static ORIGIN: OnceLock<Instant> = OnceLock::new();
++
++fn snapshot() -> Snapshot {
++    let origin = ORIGIN.get_or_init(Instant::now);
++    let mut created = FileTime::default();
++    let mut exited = FileTime::default();
++    let mut kernel = FileTime::default();
++    let mut user = FileTime::default();
++    // The current-process pseudohandle remains valid; all four output buffers are live.
++    let ok = unsafe {
++        GetProcessTimes(
++            GetCurrentProcess(),
++            &mut created,
++            &mut exited,
++            &mut kernel,
++            &mut user,
++        )
++    };
++    assert_ne!(
++        ok,
++        0,
++        "CPU boundary observation failed: {}",
++        std::io::Error::last_os_error()
++    );
++    Snapshot {
++        wall: origin.elapsed().as_nanos(),
++        kernel: kernel.ticks(),
++        user: user.ticks(),
++    }
++}
++
++pub(super) struct Window {
++    stage: &'static str,
++    start: Snapshot,
++}
++
++pub(super) fn begin(stage: StageMeta) -> Option<Window> {
++    if !matches!(
++        stage.name,
++        "Stage 05" | "terminal-production" | "terminal-production/lowering"
++    ) || std::env::var_os("OMEGA_GRAPH_PHASE_CPU").is_none()
++    {
++        return None;
++    }
++    Some(Window {
++        stage: stage.name,
++        start: snapshot(),
++    })
++}
++
++pub(super) fn finish(window: Option<Window>) {
++    if let Some(window) = window {
++        let end = snapshot();
++        eprintln!(
++            "GRAPH_CPU\t{}\t{:?}\t{}\t{}\t{}\t{}\t{}\t{}",
++            window.stage,
++            std::thread::current().id(),
++            window.start.wall,
++            end.wall,
++            window.start.kernel,
++            window.start.user,
++            end.kernel,
++            end.user
++        );
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    #[test]
++    fn filetime_preserves_both_words() {
++        assert_eq!(
++            super::FileTime { low: 7, high: 3 }.ticks(),
++            (3u64 << 32) + 7
++        );
++    }
++    #[test]
++    fn process_snapshots_are_monotonic() {
++        let first = super::snapshot();
++        let second = super::snapshot();
++        assert!(
++            second.wall >= first.wall && second.kernel >= first.kernel && second.user >= first.user
++        );
++    }
++}

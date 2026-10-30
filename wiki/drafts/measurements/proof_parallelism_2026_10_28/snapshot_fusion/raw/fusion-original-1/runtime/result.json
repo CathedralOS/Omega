@@ -1,0 +1,10 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\fusion-original-1\\native\\omega-program.exe"
+  ],
+  "wall_seconds": 0.33608839999942575,
+  "exit_code": 0,
+  "cpu_seconds": 0.09375,
+  "peak_working_set_bytes": 5898240,
+  "peak_commit_bytes": 1253376
+}

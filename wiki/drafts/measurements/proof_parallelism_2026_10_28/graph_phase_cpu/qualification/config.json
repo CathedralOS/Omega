@@ -1,0 +1,61 @@
+{
+  "context": {
+    "host": "Windows-11-10.0.26200-SP0",
+    "target": "windows_x86_64",
+    "purpose": "native replay on the clean source-equivalent checkpoint; Terminal agreement is the preserved actual preparation observation",
+    "original_build_base": "d9c92de878a42e495f45fdf49ba228d64294f4aa",
+    "source_equivalent_producer_revision": "cddd308a3897564867c96dee274ac333b9902879"
+  },
+  "checks": [
+    {
+      "id": "dungeon-native-replay",
+      "kind": "native",
+      "command": [
+        "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+        "wiki\\drafts\\measurements\\proof_parallelism_2026_10_28\\graph_phase_cpu\\qualify-native.py",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\graph-phase-cpu\\producer-source-equivalence.json"
+      ],
+      "inputs": [
+        "omega-rust",
+        "source",
+        "tools",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "samples/cli/games/dungeon_crawler_cli",
+        "wiki/spec",
+        "wiki/drafts/measurements/proof_parallelism_2026_10_28/graph_phase_cpu/qualify-native.py",
+        "wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/raw/lazy-original-cold-0/runtime/stdout.txt",
+        "wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/candidate-source.json",
+        "wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/candidate.patch",
+        "wiki/drafts/measurements/proof_parallelism_2026_10_28/lazy_reference_graph/build.log.gz"
+      ],
+      "artifacts": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\lazy-reference\\omega.exe",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\lazy-reference\\omega.lock",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\graph-phase-cpu\\qualified-native.exe",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\lazy-clean-final-both\\result.json",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\lazy-clean-final-both\\terminal.stdout",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\graph-phase-cpu\\producer-source-equivalence.json"
+      ],
+      "producer": {
+        "revision": "cddd308a3897564867c96dee274ac333b9902879",
+        "inputs": [
+          "omega-rust",
+          "source",
+          "tools",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\lazy-reference\\omega.exe"
+        ]
+      },
+      "closure_reason": "Complete compiler, library, toolchain, validator, sample and oracle closure, plus original build/patch evidence and immutable compiler/native/preparation artifacts. Exact source equality supports producer reuse; no semantic-scope narrowing.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 120
+    }
+  ]
+}

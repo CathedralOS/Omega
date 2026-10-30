@@ -1,0 +1,3 @@
+compiler source record: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\first-checking\cases\diagnostic-runtime_numeric_operand_order_exit\cache\CathedralOS\Omega\source\v1\external-local-sources\compiled-review-cache\source-graphs\96653a290afacfc8099f497e2a45da2a9d2820db46f4bd4115762db6e12d9cfa.rec
+compiled for target `windows_x86_64` OK (C:\Users\User\AppData\Local\Temp\omega-probe-999940-0)
+build dir kept: C:\Users\User\AppData\Local\Temp\omega-probe-999940-0

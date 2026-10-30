@@ -1,0 +1,6 @@
+{
+  "source": "47fd3430a8b70cdd448a89a717e639557c1a7be9",
+  "pure_patch": "clean application to scratch index",
+  "instrumented_patch": "clean application to scratch index",
+  "incremental_patch": "clean application after eager-sharing patch; identical resulting tree to pure candidate"
+}

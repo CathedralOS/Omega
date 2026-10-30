@@ -1,0 +1,1242 @@
+RECONCILE	places	7	26600	declarations_added=0	leaf_copy_results=26	operations_scanned=55
+RECONCILE	residences	7	13100
+RECONCILE	memberships	7	900
+RECONCILE	places	2	3200	declarations_added=0	leaf_copy_results=2	operations_scanned=5
+RECONCILE	residences	2	2900
+RECONCILE	memberships	2	200
+RECONCILE	places	202	229400	declarations_added=0	leaf_copy_results=281	operations_scanned=2702
+RECONCILE	residences	202	38500
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	26200
+REPLAY_DETAIL	ThreadId(103)	setup=17900	clone=4200	close=5400	publish=5200	join=0	observe=7800	retire=600	transfer=42300	canonical=0	edges_inclusive=200	steps=1	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	3100
+REPLAY_DETAIL	ThreadId(103)	setup=2500	clone=700	close=300	publish=300	join=0	observe=900	retire=700	transfer=5000	canonical=0	edges_inclusive=200	steps=1	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	2900
+REPLAY_DETAIL	ThreadId(103)	setup=40000	clone=29600	close=12700	publish=41100	join=79500	observe=700	retire=82200	transfer=25800	canonical=12200	edges_inclusive=696400	steps=39	edges=39
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	2800
+REPLAY_DETAIL	ThreadId(103)	setup=11000	clone=7400	close=7700	publish=13600	join=35300	observe=1000	retire=17900	transfer=15000	canonical=4700	edges_inclusive=316800	steps=39	edges=39
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	1300
+REPLAY_DETAIL	ThreadId(103)	setup=12200	clone=7900	close=7600	publish=16600	join=41400	observe=1600	retire=61900	transfer=10800	canonical=7600	edges_inclusive=415200	steps=39	edges=39
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	619900
+REPLAY_DETAIL	ThreadId(103)	setup=2600	clone=172600	close=1100	publish=1600	join=700	observe=1100	retire=200	transfer=62400	canonical=700	edges_inclusive=57300	steps=8	edges=7
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	551600
+REPLAY_DETAIL	ThreadId(103)	setup=6700	clone=34900	close=900	publish=1600	join=800	observe=1600	retire=300	transfer=17200	canonical=0	edges_inclusive=10700	steps=4	edges=3
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	40700
+REPLAY_DETAIL	ThreadId(103)	setup=1900	clone=3800	close=700	publish=400	join=300	observe=1400	retire=300	transfer=8800	canonical=0	edges_inclusive=4800	steps=3	edges=2
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	791300
+REPLAY_DETAIL	ThreadId(103)	setup=1800	clone=16300	close=200	publish=200	join=100	observe=200	retire=0	transfer=2200	canonical=100	edges_inclusive=900	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	29500
+REPLAY_DETAIL	ThreadId(103)	setup=3000	clone=2500	close=400	publish=300	join=200	observe=600	retire=0	transfer=4900	canonical=100	edges_inclusive=3100	steps=3	edges=2
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	26300
+REPLAY_DETAIL	ThreadId(103)	setup=700	clone=400	close=0	publish=0	join=0	observe=500	retire=100	transfer=2100	canonical=100	edges_inclusive=0	steps=1	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	1600
+REPLAY_DETAIL	ThreadId(103)	setup=1900	clone=400	close=300	publish=200	join=300	observe=300	retire=0	transfer=3000	canonical=0	edges_inclusive=900	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=18000	clone=2100	close=400	publish=400	join=300	observe=300	retire=100	transfer=2400	canonical=100	edges_inclusive=3300	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=6100	clone=4000	close=1100	publish=600	join=500	observe=400	retire=200	transfer=3700	canonical=100	edges_inclusive=4000	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=25700	clone=5700	close=1600	publish=700	join=1500	observe=400	retire=100	transfer=4200	canonical=100	edges_inclusive=6800	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=11600	clone=4500	close=1700	publish=900	join=300	observe=300	retire=0	transfer=2500	canonical=100	edges_inclusive=4900	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=21000	clone=8700	close=2200	publish=900	join=900	observe=400	retire=0	transfer=3200	canonical=100	edges_inclusive=5000	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=13000	clone=11200	close=2600	publish=1100	join=800	observe=300	retire=0	transfer=2600	canonical=200	edges_inclusive=4400	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	901100
+REPLAY_DETAIL	ThreadId(103)	setup=856100	clone=37636800	close=7281200	publish=29686600	join=95632000	observe=3200	retire=38580900	transfer=14850100	canonical=5226900	edges_inclusive=228953500	steps=6561	edges=7654
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=1150800	clone=0	close=0	publish=0	join=0	observe=83900	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=993400	clone=0	close=0	publish=0	join=0	observe=62300	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=1038800	clone=0	close=0	publish=0	join=0	observe=73800	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=1041100	clone=0	close=0	publish=0	join=0	observe=72700	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=942600	clone=0	close=0	publish=0	join=0	observe=57000	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=892500	clone=0	close=0	publish=0	join=0	observe=74700	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=900600	clone=0	close=0	publish=0	join=0	observe=59900	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=851500	clone=0	close=0	publish=0	join=0	observe=13300	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=793500	clone=0	close=0	publish=0	join=0	observe=56900	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=759900	clone=0	close=0	publish=0	join=0	observe=12400	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=713400	clone=0	close=0	publish=0	join=0	observe=57000	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=1032000	clone=0	close=0	publish=0	join=0	observe=86700	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	639200
+REPLAY_DETAIL	ThreadId(103)	setup=481600	clone=21318700	close=6099100	publish=25082400	join=68986300	observe=3600	retire=27528700	transfer=8449600	canonical=3890000	edges_inclusive=169907900	steps=6561	edges=7654
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=986100	clone=0	close=0	publish=0	join=0	observe=61700	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=1040700	clone=0	close=0	publish=0	join=0	observe=90600	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=948200	clone=0	close=0	publish=0	join=0	observe=64400	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=914500	clone=0	close=0	publish=0	join=0	observe=95800	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=865600	clone=0	close=0	publish=0	join=0	observe=70000	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=804200	clone=0	close=0	publish=0	join=0	observe=83400	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=769700	clone=0	close=0	publish=0	join=0	observe=64700	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=762300	clone=0	close=0	publish=0	join=0	observe=16200	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=726800	clone=0	close=0	publish=0	join=0	observe=65100	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=720200	clone=0	close=0	publish=0	join=0	observe=14400	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=713100	clone=0	close=0	publish=0	join=0	observe=62900	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=698500	clone=0	close=0	publish=0	join=0	observe=57200	retire=0	transfer=0	canonical=0	edges_inclusive=0	steps=0	edges=0
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	14600
+REPLAY_DETAIL	ThreadId(103)	setup=3800	clone=2400	close=700	publish=600	join=700	observe=1000	retire=200	transfer=7800	canonical=100	edges_inclusive=4000	steps=3	edges=2
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	425500
+REPLAY_DETAIL	ThreadId(103)	setup=600	clone=4400	close=100	publish=0	join=0	observe=48600	retire=100	transfer=66100	canonical=100	edges_inclusive=100	steps=1	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=6200	clone=29200	close=600	publish=300	join=800	observe=48300	retire=0	transfer=138000	canonical=100	edges_inclusive=1800	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=10900	clone=184300	close=2900	publish=5300	join=1800	observe=50100	retire=400	transfer=141400	canonical=1500	edges_inclusive=64900	steps=12	edges=11
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=7100	clone=19300	close=500	publish=2700	join=100	observe=41300	retire=100	transfer=111500	canonical=700	edges_inclusive=800	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	643400
+REPLAY_DETAIL	ThreadId(103)	setup=2600	clone=9400	close=100	publish=300	join=0	observe=46700	retire=200	transfer=106000	canonical=100	edges_inclusive=200	steps=1	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=4100	clone=15800	close=300	publish=200	join=600	observe=56700	retire=0	transfer=156800	canonical=0	edges_inclusive=1400	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=8400	clone=259100	close=3300	publish=4500	join=1500	observe=42800	retire=200	transfer=163300	canonical=1400	edges_inclusive=59300	steps=12	edges=11
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=12400	clone=58500	close=800	publish=4100	join=400	observe=59100	retire=0	transfer=192300	canonical=1500	edges_inclusive=1300	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	1000
+REPLAY_DETAIL	ThreadId(103)	setup=800	clone=300	close=200	publish=100	join=100	observe=200	retire=0	transfer=2400	canonical=100	edges_inclusive=700	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	800
+REPLAY_DETAIL	ThreadId(103)	setup=1100	clone=400	close=200	publish=200	join=200	observe=200	retire=100	transfer=2100	canonical=0	edges_inclusive=600	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	500
+REPLAY_DETAIL	ThreadId(103)	setup=700	clone=400	close=100	publish=0	join=0	observe=200	retire=0	transfer=1700	canonical=100	edges_inclusive=700	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	563200
+REPLAY_DETAIL	ThreadId(103)	setup=1200	clone=9700	close=200	publish=200	join=100	observe=200	retire=300	transfer=2000	canonical=0	edges_inclusive=600	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=2900	clone=45000	close=800	publish=600	join=300	observe=300	retire=0	transfer=2200	canonical=0	edges_inclusive=3600	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	346300
+REPLAY_DETAIL	ThreadId(103)	setup=1100	clone=14200	close=300	publish=900	join=100	observe=46600	retire=100	transfer=72100	canonical=200	edges_inclusive=7700	steps=3	edges=2
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=2700	clone=15400	close=300	publish=1000	join=200	observe=42000	retire=0	transfer=115800	canonical=300	edges_inclusive=700	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	343000
+REPLAY_DETAIL	ThreadId(103)	setup=700	clone=11000	close=300	publish=500	join=100	observe=40600	retire=0	transfer=56800	canonical=0	edges_inclusive=5400	steps=3	edges=2
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=1600	clone=16500	close=300	publish=700	join=100	observe=60400	retire=0	transfer=122300	canonical=200	edges_inclusive=600	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	41100
+REPLAY_DETAIL	ThreadId(103)	setup=1000	clone=500	close=100	publish=200	join=0	observe=1000	retire=100	transfer=3800	canonical=0	edges_inclusive=0	steps=1	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=1200	clone=1400	close=100	publish=200	join=100	observe=700	retire=200	transfer=4100	canonical=0	edges_inclusive=900	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	32400
+REPLAY_DETAIL	ThreadId(103)	setup=300	clone=500	close=0	publish=100	join=0	observe=600	retire=100	transfer=1400	canonical=0	edges_inclusive=0	steps=1	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=600	clone=1000	close=300	publish=100	join=100	observe=700	retire=100	transfer=3100	canonical=0	edges_inclusive=600	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	25700
+REPLAY_DETAIL	ThreadId(103)	setup=200	clone=500	close=100	publish=100	join=0	observe=600	retire=0	transfer=2000	canonical=0	edges_inclusive=0	steps=1	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=800	clone=1400	close=100	publish=100	join=100	observe=500	retire=100	transfer=2500	canonical=100	edges_inclusive=800	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	28000
+REPLAY_DETAIL	ThreadId(103)	setup=200	clone=400	close=100	publish=0	join=0	observe=500	retire=0	transfer=1200	canonical=0	edges_inclusive=100	steps=1	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=600	clone=1300	close=100	publish=0	join=0	observe=800	retire=100	transfer=2800	canonical=100	edges_inclusive=600	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	5700
+REPLAY_DETAIL	ThreadId(103)	setup=300	clone=400	close=200	publish=0	join=0	observe=700	retire=300	transfer=2500	canonical=0	edges_inclusive=0	steps=1	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	556000
+REPLAY_DETAIL	ThreadId(103)	setup=6600	clone=11000	close=700	publish=600	join=900	observe=47800	retire=100	transfer=82300	canonical=200	edges_inclusive=2800	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=11100	clone=96100	close=600	publish=500	join=500	observe=49000	retire=100	transfer=367500	canonical=100	edges_inclusive=1400	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=21600	clone=323900	close=2900	publish=1800	join=1600	observe=6600	retire=200	transfer=90400	canonical=100	edges_inclusive=16600	steps=10	edges=9
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	462300
+REPLAY_DETAIL	ThreadId(103)	setup=1900	clone=8200	close=400	publish=200	join=200	observe=40400	retire=0	transfer=65700	canonical=0	edges_inclusive=700	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=2000	clone=19300	close=300	publish=200	join=100	observe=51800	retire=100	transfer=135100	canonical=200	edges_inclusive=500	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=12400	clone=429000	close=2700	publish=1700	join=2200	observe=5300	retire=300	transfer=142700	canonical=100	edges_inclusive=17000	steps=10	edges=9
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	1800
+REPLAY_DETAIL	ThreadId(103)	setup=1400	clone=500	close=600	publish=300	join=200	observe=400	retire=200	transfer=3600	canonical=100	edges_inclusive=800	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	196400
+REPLAY_DETAIL	ThreadId(103)	setup=6500	clone=6900	close=600	publish=4500	join=600	observe=2800	retire=1400	transfer=20400	canonical=100	edges_inclusive=22600	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=5200	clone=3700	close=300	publish=600	join=200	observe=2100	retire=100	transfer=12000	canonical=0	edges_inclusive=700	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	67000
+REPLAY_DETAIL	ThreadId(103)	setup=4300	clone=2700	close=500	publish=400	join=400	observe=1000	retire=500	transfer=3200	canonical=100	edges_inclusive=5400	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=2700	clone=1600	close=200	publish=200	join=100	observe=1300	retire=0	transfer=4300	canonical=0	edges_inclusive=500	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	38600
+REPLAY_DETAIL	ThreadId(103)	setup=1600	clone=2200	close=500	publish=600	join=300	observe=800	retire=900	transfer=3700	canonical=0	edges_inclusive=4600	steps=7	edges=6
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=3600	clone=1200	close=100	publish=500	join=200	observe=1000	retire=0	transfer=5400	canonical=0	edges_inclusive=600	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	31600
+REPLAY_DETAIL	ThreadId(103)	setup=1300	clone=3700	close=800	publish=400	join=800	observe=900	retire=1200	transfer=3000	canonical=200	edges_inclusive=4300	steps=7	edges=6
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=2400	clone=1400	close=300	publish=200	join=100	observe=1100	retire=0	transfer=4400	canonical=100	edges_inclusive=400	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	18600
+REPLAY_DETAIL	ThreadId(103)	setup=1000	clone=800	close=300	publish=100	join=0	observe=400	retire=100	transfer=2300	canonical=100	edges_inclusive=300	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	23100
+REPLAY_DETAIL	ThreadId(103)	setup=700	clone=1200	close=200	publish=100	join=100	observe=500	retire=0	transfer=2300	canonical=0	edges_inclusive=400	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	44200
+REPLAY_DETAIL	ThreadId(103)	setup=2700	clone=13900	close=1600	publish=1400	join=800	observe=600	retire=700	transfer=40000	canonical=400	edges_inclusive=6600	steps=11	edges=10
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=7800	clone=14400	close=2000	publish=1000	join=800	observe=600	retire=100	transfer=6400	canonical=200	edges_inclusive=14500	steps=8	edges=7
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	9600
+REPLAY_DETAIL	ThreadId(103)	setup=3700	clone=2900	close=500	publish=400	join=900	observe=1500	retire=100	transfer=7300	canonical=100	edges_inclusive=4200	steps=3	edges=2
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	17600
+REPLAY_DETAIL	ThreadId(103)	setup=1600	clone=1900	close=200	publish=300	join=100	observe=500	retire=200	transfer=4200	canonical=0	edges_inclusive=2100	steps=3	edges=2
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	41800
+REPLAY_DETAIL	ThreadId(103)	setup=1800	clone=1700	close=400	publish=300	join=200	observe=600	retire=0	transfer=4700	canonical=0	edges_inclusive=1000	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	25300
+REPLAY_DETAIL	ThreadId(103)	setup=800	clone=1000	close=200	publish=200	join=0	observe=500	retire=100	transfer=2300	canonical=0	edges_inclusive=700	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	696000
+REPLAY_DETAIL	ThreadId(103)	setup=5400	clone=123200	close=1300	publish=3000	join=600	observe=1200	retire=1300	transfer=41500	canonical=200	edges_inclusive=14600	steps=9	edges=8
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	358200
+REPLAY_DETAIL	ThreadId(103)	setup=1800	clone=161800	close=1500	publish=3500	join=1300	observe=6000	retire=2100	transfer=90300	canonical=400	edges_inclusive=21400	steps=9	edges=8
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	446700
+REPLAY_DETAIL	ThreadId(103)	setup=5500	clone=56900	close=1300	publish=1400	join=600	observe=3500	retire=1100	transfer=24400	canonical=600	edges_inclusive=7500	steps=9	edges=8
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	28500
+REPLAY_DETAIL	ThreadId(103)	setup=1700	clone=1100	close=300	publish=300	join=200	observe=800	retire=0	transfer=3200	canonical=200	edges_inclusive=700	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	19900
+REPLAY_DETAIL	ThreadId(103)	setup=800	clone=700	close=100	publish=100	join=100	observe=400	retire=0	transfer=2300	canonical=100	edges_inclusive=500	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	22500
+REPLAY_DETAIL	ThreadId(103)	setup=500	clone=500	close=200	publish=200	join=200	observe=600	retire=0	transfer=3500	canonical=100	edges_inclusive=700	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	20100
+REPLAY_DETAIL	ThreadId(103)	setup=1300	clone=300	close=0	publish=0	join=100	observe=500	retire=0	transfer=2600	canonical=200	edges_inclusive=600	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	23200
+REPLAY_DETAIL	ThreadId(103)	setup=800	clone=600	close=300	publish=200	join=300	observe=700	retire=0	transfer=3900	canonical=0	edges_inclusive=1100	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	51500
+REPLAY_DETAIL	ThreadId(103)	setup=1900	clone=1200	close=200	publish=100	join=400	observe=500	retire=0	transfer=2800	canonical=200	edges_inclusive=1100	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	53800
+REPLAY_DETAIL	ThreadId(103)	setup=1300	clone=1100	close=300	publish=200	join=200	observe=600	retire=100	transfer=3000	canonical=200	edges_inclusive=800	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	39900
+REPLAY_DETAIL	ThreadId(103)	setup=1200	clone=800	close=300	publish=200	join=200	observe=500	retire=0	transfer=2600	canonical=100	edges_inclusive=1000	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	39700
+REPLAY_DETAIL	ThreadId(103)	setup=700	clone=1100	close=100	publish=100	join=0	observe=500	retire=0	transfer=2600	canonical=100	edges_inclusive=600	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	27300
+REPLAY_DETAIL	ThreadId(103)	setup=800	clone=1000	close=300	publish=100	join=100	observe=300	retire=100	transfer=1900	canonical=0	edges_inclusive=900	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	40600
+REPLAY_DETAIL	ThreadId(103)	setup=2800	clone=3000	close=600	publish=1900	join=300	observe=1100	retire=600	transfer=7800	canonical=0	edges_inclusive=10900	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=6100	clone=3000	close=300	publish=1300	join=300	observe=1800	retire=100	transfer=14700	canonical=200	edges_inclusive=800	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=4400	clone=4300	close=500	publish=500	join=200	observe=2600	retire=200	transfer=4900	canonical=0	edges_inclusive=10300	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=3200	clone=1900	close=100	publish=300	join=100	observe=1200	retire=100	transfer=8000	canonical=0	edges_inclusive=600	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	82900
+REPLAY_DETAIL	ThreadId(103)	setup=1500	clone=4100	close=500	publish=600	join=300	observe=1100	retire=600	transfer=4300	canonical=100	edges_inclusive=5000	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=2900	clone=3000	close=100	publish=300	join=100	observe=2000	retire=0	transfer=7900	canonical=0	edges_inclusive=800	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=2000	clone=1600	close=0	publish=400	join=100	observe=1200	retire=0	transfer=2800	canonical=0	edges_inclusive=3000	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=4600	clone=2100	close=400	publish=900	join=300	observe=2800	retire=100	transfer=8900	canonical=0	edges_inclusive=800	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	41000
+REPLAY_DETAIL	ThreadId(103)	setup=800	clone=1000	close=200	publish=200	join=100	observe=800	retire=100	transfer=2800	canonical=0	edges_inclusive=500	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	518100
+REPLAY_DETAIL	ThreadId(103)	setup=2100	clone=62200	close=1200	publish=400	join=400	observe=600	retire=1000	transfer=97700	canonical=300	edges_inclusive=3200	steps=8	edges=7
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	428300
+REPLAY_DETAIL	ThreadId(103)	setup=6200	clone=128100	close=2000	publish=3400	join=2200	observe=3200	retire=8800	transfer=111400	canonical=2600	edges_inclusive=52800	steps=17	edges=16
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	412700
+REPLAY_DETAIL	ThreadId(103)	setup=1800	clone=57400	close=1100	publish=500	join=600	observe=600	retire=1300	transfer=81200	canonical=200	edges_inclusive=2300	steps=8	edges=7
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	456800
+REPLAY_DETAIL	ThreadId(103)	setup=3300	clone=77300	close=1500	publish=800	join=1100	observe=1000	retire=2500	transfer=104900	canonical=100	edges_inclusive=5200	steps=12	edges=11
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	10000
+REPLAY_DETAIL	ThreadId(103)	setup=1500	clone=500	close=200	publish=200	join=0	observe=800	retire=400	transfer=3000	canonical=100	edges_inclusive=100	steps=1	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	17000
+REPLAY_DETAIL	ThreadId(103)	setup=1100	clone=600	close=100	publish=100	join=0	observe=500	retire=300	transfer=2200	canonical=0	edges_inclusive=100	steps=1	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	500
+REPLAY_DETAIL	ThreadId(103)	setup=3300	clone=5400	close=800	publish=700	join=1000	observe=700	retire=100	transfer=9600	canonical=300	edges_inclusive=6300	steps=8	edges=7
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=9000	clone=32700	close=4000	publish=2100	join=2700	observe=2200	retire=3500	transfer=45200	canonical=300	edges_inclusive=14000	steps=17	edges=16
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	600
+REPLAY_DETAIL	ThreadId(103)	setup=2100	clone=4300	close=1200	publish=600	join=400	observe=800	retire=100	transfer=7900	canonical=100	edges_inclusive=5000	steps=8	edges=7
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=6800	clone=21500	close=3400	publish=1800	join=1600	observe=1600	retire=2100	transfer=33500	canonical=400	edges_inclusive=10500	steps=17	edges=16
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	71500
+REPLAY_DETAIL	ThreadId(103)	setup=170500	clone=2086200	close=228200	publish=17932900	join=71728500	observe=94800	retire=42573000	transfer=262800	canonical=11220300	edges_inclusive=336040600	steps=728	edges=822
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=261900	clone=5300	close=700	publish=175700	join=700	observe=86600	retire=200	transfer=318800	canonical=164100	edges_inclusive=2200	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	52000
+REPLAY_DETAIL	ThreadId(103)	setup=155500	clone=2081800	close=224400	publish=18658400	join=70296900	observe=91900	retire=43289200	transfer=254600	canonical=11559500	edges_inclusive=333472100	steps=728	edges=822
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=281700	clone=5500	close=700	publish=150100	join=1000	observe=85000	retire=200	transfer=316800	canonical=90000	edges_inclusive=1900	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	37500
+REPLAY_DETAIL	ThreadId(103)	setup=3000	clone=1000	close=600	publish=500	join=600	observe=900	retire=200	transfer=4900	canonical=100	edges_inclusive=1300	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	26000
+REPLAY_DETAIL	ThreadId(103)	setup=700	clone=800	close=100	publish=100	join=100	observe=400	retire=0	transfer=2100	canonical=100	edges_inclusive=500	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	17300
+REPLAY_DETAIL	ThreadId(103)	setup=600	clone=700	close=100	publish=0	join=100	observe=400	retire=0	transfer=2100	canonical=100	edges_inclusive=600	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	15800
+REPLAY_DETAIL	ThreadId(103)	setup=600	clone=700	close=200	publish=0	join=0	observe=400	retire=100	transfer=1900	canonical=0	edges_inclusive=400	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	30200
+REPLAY_DETAIL	ThreadId(103)	setup=2000	clone=2200	close=100	publish=1900	join=200	observe=1100	retire=700	transfer=7600	canonical=200	edges_inclusive=11800	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=2800	clone=1400	close=200	publish=300	join=200	observe=800	retire=0	transfer=4100	canonical=0	edges_inclusive=600	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=9900	clone=3000	close=800	publish=2300	join=700	observe=2200	retire=0	transfer=9200	canonical=100	edges_inclusive=12800	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=3200	clone=2100	close=300	publish=200	join=100	observe=1500	retire=100	transfer=7500	canonical=0	edges_inclusive=800	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	77300
+REPLAY_DETAIL	ThreadId(103)	setup=1500	clone=3300	close=600	publish=500	join=400	observe=1100	retire=900	transfer=4800	canonical=100	edges_inclusive=4500	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=2800	clone=1900	close=200	publish=300	join=0	observe=1800	retire=0	transfer=7400	canonical=100	edges_inclusive=700	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=2200	clone=1600	close=200	publish=200	join=100	observe=1100	retire=0	transfer=3300	canonical=0	edges_inclusive=2800	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=2200	clone=1400	close=200	publish=300	join=0	observe=2000	retire=0	transfer=6800	canonical=100	edges_inclusive=700	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	45000
+REPLAY_DETAIL	ThreadId(103)	setup=700	clone=600	close=200	publish=100	join=100	observe=600	retire=0	transfer=2700	canonical=100	edges_inclusive=400	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	33800
+REPLAY_DETAIL	ThreadId(103)	setup=900	clone=900	close=100	publish=100	join=100	observe=500	retire=100	transfer=2400	canonical=0	edges_inclusive=700	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	10000
+REPLAY_DETAIL	ThreadId(103)	setup=1600	clone=2300	close=400	publish=500	join=200	observe=500	retire=100	transfer=5500	canonical=0	edges_inclusive=2500	steps=3	edges=2
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	57500
+REPLAY_DETAIL	ThreadId(103)	setup=3800	clone=6400	close=1000	publish=1500	join=500	observe=1100	retire=1000	transfer=6600	canonical=100	edges_inclusive=8600	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=4400	clone=5100	close=700	publish=1300	join=500	observe=1100	retire=2600	transfer=5700	canonical=0	edges_inclusive=10900	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=4000	clone=4900	close=800	publish=1400	join=800	observe=1000	retire=2000	transfer=4600	canonical=100	edges_inclusive=8100	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=6300	clone=4500	close=700	publish=1100	join=400	observe=700	retire=2400	transfer=3600	canonical=0	edges_inclusive=9700	steps=5	edges=4
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	62800
+REPLAY_DETAIL	ThreadId(103)	setup=1800	clone=5300	close=700	publish=500	join=600	observe=3700	retire=500	transfer=266900	canonical=200	edges_inclusive=2400	steps=7	edges=6
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=3600	clone=3400	close=200	publish=300	join=100	observe=3300	retire=300	transfer=5800	canonical=100	edges_inclusive=800	steps=3	edges=2
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=8600	clone=32400	close=3400	publish=1700	join=2000	observe=400	retire=7800	transfer=29600	canonical=600	edges_inclusive=10200	steps=20	edges=19
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=12100	clone=15900	close=2400	publish=1200	join=700	observe=300	retire=3800	transfer=1400	canonical=200	edges_inclusive=5400	steps=9	edges=8
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=15400	clone=20700	close=2800	publish=1500	join=900	observe=300	retire=3300	transfer=1200	canonical=200	edges_inclusive=4900	steps=9	edges=8
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=17500	clone=21600	close=2900	publish=1500	join=800	observe=300	retire=4200	transfer=900	canonical=200	edges_inclusive=5700	steps=9	edges=8
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=19500	clone=21000	close=3500	publish=1900	join=1000	observe=2900	retire=2000	transfer=13600	canonical=500	edges_inclusive=5800	steps=10	edges=9
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	42700
+REPLAY_DETAIL	ThreadId(103)	setup=1400	clone=5400	close=800	publish=700	join=600	observe=2600	retire=400	transfer=16100	canonical=100	edges_inclusive=2200	steps=7	edges=6
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=3200	clone=2600	close=200	publish=200	join=0	observe=2600	retire=100	transfer=5700	canonical=0	edges_inclusive=900	steps=3	edges=2
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=6700	clone=24500	close=3400	publish=1700	join=1600	observe=400	retire=6800	transfer=21400	canonical=200	edges_inclusive=9500	steps=20	edges=19
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=11100	clone=13800	close=2200	publish=1100	join=500	observe=300	retire=3500	transfer=1200	canonical=200	edges_inclusive=5200	steps=9	edges=8
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=12400	clone=16700	close=2700	publish=1600	join=800	observe=200	retire=3200	transfer=1200	canonical=200	edges_inclusive=5300	steps=9	edges=8
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=16400	clone=16100	close=2900	publish=1700	join=900	observe=300	retire=3200	transfer=1200	canonical=100	edges_inclusive=5200	steps=9	edges=8
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+REPLAY_DETAIL	ThreadId(103)	setup=16400	clone=19800	close=3800	publish=1900	join=1400	observe=2700	retire=1700	transfer=12500	canonical=100	edges_inclusive=6100	steps=10	edges=9
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	14700
+REPLAY_DETAIL	ThreadId(103)	setup=2300	clone=400	close=200	publish=200	join=200	observe=600	retire=100	transfer=2700	canonical=100	edges_inclusive=700	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	11800
+REPLAY_DETAIL	ThreadId(103)	setup=900	clone=500	close=200	publish=100	join=0	observe=300	retire=0	transfer=2100	canonical=100	edges_inclusive=500	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	5000
+REPLAY_DETAIL	ThreadId(103)	setup=300	clone=300	close=100	publish=100	join=0	observe=300	retire=200	transfer=2100	canonical=0	edges_inclusive=100	steps=1	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	96100
+REPLAY_DETAIL	ThreadId(103)	setup=5900	clone=8000	close=900	publish=800	join=1000	observe=1400	retire=500	transfer=11600	canonical=100	edges_inclusive=5800	steps=4	edges=3
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	68100
+REPLAY_DETAIL	ThreadId(103)	setup=2500	clone=6500	close=600	publish=400	join=200	observe=700	retire=200	transfer=7500	canonical=400	edges_inclusive=4000	steps=4	edges=3
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	50500
+REPLAY_DETAIL	ThreadId(103)	setup=2100	clone=4800	close=700	publish=500	join=300	observe=500	retire=400	transfer=5500	canonical=100	edges_inclusive=2800	steps=4	edges=3
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	54900
+REPLAY_DETAIL	ThreadId(103)	setup=2000	clone=5900	close=600	publish=300	join=300	observe=600	retire=300	transfer=7200	canonical=0	edges_inclusive=2900	steps=4	edges=3
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	38200
+REPLAY_DETAIL	ThreadId(103)	setup=1700	clone=1100	close=300	publish=100	join=300	observe=600	retire=0	transfer=2900	canonical=200	edges_inclusive=800	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	24800
+REPLAY_DETAIL	ThreadId(103)	setup=900	clone=1500	close=200	publish=100	join=100	observe=500	retire=100	transfer=3300	canonical=100	edges_inclusive=700	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	28300
+REPLAY_DETAIL	ThreadId(103)	setup=900	clone=500	close=100	publish=100	join=200	observe=500	retire=0	transfer=1900	canonical=0	edges_inclusive=500	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	27300
+REPLAY_DETAIL	ThreadId(103)	setup=700	clone=500	close=0	publish=100	join=0	observe=400	retire=0	transfer=2200	canonical=100	edges_inclusive=500	steps=2	edges=1
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	3400
+REPLAY_DETAIL	ThreadId(103)	setup=1200	clone=1600	close=200	publish=100	join=0	observe=500	retire=100	transfer=4300	canonical=100	edges_inclusive=2600	steps=3	edges=2
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	6200
+REPLAY_DETAIL	ThreadId(103)	setup=2400	clone=4700	close=1200	publish=800	join=400	observe=500	retire=100	transfer=7600	canonical=200	edges_inclusive=4400	steps=7	edges=6
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	8600
+REPLAY_DETAIL	ThreadId(103)	setup=2900	clone=5400	close=1300	publish=800	join=600	observe=1000	retire=0	transfer=9200	canonical=0	edges_inclusive=5000	steps=7	edges=6
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	6700
+REPLAY_DETAIL	ThreadId(103)	setup=2900	clone=5000	close=1200	publish=1000	join=400	observe=600	retire=0	transfer=7500	canonical=200	edges_inclusive=4600	steps=7	edges=6
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	6300
+REPLAY_DETAIL	ThreadId(103)	setup=1800	clone=3200	close=1300	publish=700	join=500	observe=600	retire=200	transfer=6500	canonical=0	edges_inclusive=3700	steps=7	edges=6
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	7200
+REPLAY_DETAIL	ThreadId(103)	setup=2500	clone=3800	close=1500	publish=1000	join=800	observe=800	retire=200	transfer=8700	canonical=0	edges_inclusive=5500	steps=7	edges=6
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	100
+ENTRY_INIT	ThreadId(103)	8800
+REPLAY_DETAIL	ThreadId(103)	setup=2400	clone=4100	close=1200	publish=700	join=600	observe=700	retire=200	transfer=8600	canonical=100	edges_inclusive=4000	steps=7	edges=6
+SOURCE_QUERY_END	ThreadId(103)
+SOURCE_QUERY_BEGIN	ThreadId(103)
+ENTRY_PREVIOUS_DROP	ThreadId(103)	0
+ENTRY_INIT	ThreadId(103)	5900
+REPLAY_DETAIL	ThreadId(103)	setup=500	clone=600	close=100	publish=100	join=0	observe=600	retire=200	transfer=3000	canonical=0	edges_inclusive=100	steps=1	edges=0
+SOURCE_QUERY_END	ThreadId(103)
+RECONCILE	memberships	202	2048559100	analysis_constructions=1	analysis_drop_ns=2392800	candidate_machines=109	changing_rounds=18	discovery_ns=61200	eligible_operations=418	fixed_point_rounds=127	graph_drop_ns=1860500	graph_preparation_ns=136884300	history_creation_ns=37500	history_drop_ns=13962200	leaf_query_formation_ns=50100	leaf_root_lookup_ns=353500	merge_ns=1635000	operand_queries_ns=37363900	operations_scanned=3313	payload_contract_queries_ns=5494900	payload_target_queries=173	payload_target_queries_ns=4754300	proposed_updates=439	reachability_drop_ns=100	reference_context_constructions=127	reference_context_drop_ns=5263400	reference_queries=418	reference_queries_ns=400508000	source_contract_queries_ns=1418983600	types_drop_ns=12500	view_queries_ns=5243900
+    27.063 ms  prepare: project -> prepared sources
+ 19327.498 ms  compile: sources -> requested product
+    61.073 ms  publish: retained product -> published product
+    16.404 ms  Source ingress: SourceFiles -> SyntaxTrees
+     2.846 ms  Step: assemble: PreparedSources -> AssembledSyntax
+   181.811 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees
+   290.855 ms  Stage 04: SymbolResolvedTrees -> TypedTrees
+   971.479 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)
+  7662.853 ms  Stage 05: TypedTrees -> CheckedTrees
+   326.491 ms  Step: settle: CheckedTrees -> SelectedExecution
+  3794.828 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact
+  3747.386 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi
+     0.003 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine
+    11.246 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi
+     5.240 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt
+    30.593 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact
+ 20036.762 ms  total elapsed

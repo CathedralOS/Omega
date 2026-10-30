@@ -1,0 +1,26 @@
+No accepted lock baseline: reviewing the complete candidate graph.
+windows_x86_64: checked 1 source packages.
+New package source: copied_call_argument_snapshot_through_match_join [617032d3ffec]: no prior revision to compare.
+Standalone candidate source: copied_call_argument_snapshot_through_match_join [617032d3ffec]: 2 changed entries.
+Source-code output (separate from editable capability review): \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\preparation-convergence\cases\candidate-copied_call_argument_snapshot_through_match_join_exit\input\build\package-manager\source-diff.txt
+
+Published build.omg and omega.lock for 1 packages across 1 targets.
+review: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\preparation-convergence\cases\candidate-copied_call_argument_snapshot_through_match_join_exit\input\build\package-manager\review-windows_x86_64.txt
+omega_review_timings note=review_pass discovery occurrences=1 compiled=1 carried=0 frontier_reused=0 preliminary_checks=0 preliminary_micros=0 settled_checks=1 settled_micros=1012473
+omega_review_timings stage=package copied_call_argument_snapshot_through_match_join purpose=Product micros=1201611
+omega_review_timings stage=review_pass discovery root=copied_call_argument_snapshot_through_match_join micros=1201689
+omega_review_timings stage=candidate_compilation micros=1201694
+omega_review_timings run_micros=1201694
+omega_review_timings stage=policy_change_comparison micros=62
+omega_review_timings run_micros=62
+omega_review_timings stage=review_document_rendering micros=13
+omega_review_timings run_micros=13
+omega_review_timings stage=policy_decision_resolution micros=1
+omega_review_timings stage=review_document_recovery micros=22
+omega_review_timings run_micros=22
+omega_review_timings stage=source_patch_rendering micros=59
+omega_review_timings run_micros=59
+omega_review_timings stage=policy_change_comparison micros=37
+omega_review_timings run_micros=37
+omega_review_timings stage=source_custody_verification micros=5
+omega_review_timings run_micros=5

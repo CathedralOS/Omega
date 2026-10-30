@@ -22887,6 +22887,18 @@ fail/ranges/array_window_copy_requires_element_qualification rejected 1588ms exp
 	array window replacement source must preserve the complete destination element type, including its qualifications
 fail/ranges/borrowed_array_literal_element_out_of_range rejected 583ms expected @a92f16431042
 	data `Bounded` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/ranges/borrowed_case_payload_invalid_formation rejected 1367ms expected @02f650a3c5b1
+	data `Text` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/ranges/borrowed_case_payload_missing_bound rejected 2166ms expected @02f650a3c5b1
+	cannot prove subslice range end bound `0..__transition_subject#7.length` is within slice length 4
+fail/ranges/borrowed_case_payload_open_window rejected 1354ms expected @02f650a3c5b1
+	machine `length` state `entry` statement 1: reading `text` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Text`
+	machine `length` state `entry` statement 1: reading `text.<whole value>` inside an OPEN invariant window: a prior write left data `Text`'s default domain FALSE -- restore the facts before this consumption point (ch11)
+	machine `length` state `entry` statement 1: the next whole-value read of `text` occurs inside an OPEN invariant window: a prior write left data `Text`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	data `Text`'s default domain is still FALSE at a call: the invariant window opened on `text` must close first -- restore the `where` facts before this consumption point (ch11)
+	data `Text`'s default domain is still FALSE at state exit: the invariant window opened on `text` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/ranges/borrowed_case_payload_other_case rejected 2180ms expected @02f650a3c5b1
+	cannot prove subslice range end bound `0..__transition_subject#16.loose_length` is within slice length 4
 fail/ranges/case_payload_domain_literal_out_of_range rejected 1070ms expected @a92f16431042
 	construction of `Level` field `amount`: value 11 is outside its declared range `0..=10`
 fail/ranges/correlated_store_all_predecessors rejected 666ms expected @a92f16431042
@@ -22905,6 +22917,10 @@ fail/ranges/loop_saved_guard_stale_counter rejected 790ms expected @b0640f0a9309
 	cannot prove index `main.index` is within length 3 in Main::main::body
 fail/ranges/qualified_array_literal_element_full_width_out_of_range rejected 661ms expected @a92f16431042
 	data `Bounded` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/ranges/refuted_boolean_alias_replaced_subject rejected 2240ms expected @aab8b8443f04
+	cannot prove subslice range end bound `0..4` is within slice length 1
+fail/ranges/refuted_boolean_alias_wrong_polarity rejected 2387ms expected @aab8b8443f04
+	cannot prove subslice range end bound `0..4` is within unknown slice length of `bytes` in bounded::entry
 fail/ranges/relative_midpoint_at_slice_end rejected 2720ms expected @a92f16431042
 	cannot prove index `position` is within unknown slice length of `values` in read::entry
 fail/ranges/slice_bound_unbound_container_binder_rejected rejected 618ms unexpected @a92f16431042
@@ -35008,6 +35024,10 @@ run/proofs/quotient_copy_paths checked 8550ms check-target:macos_arm64 @a92f1643
 run/providers/module_named_float_conversion_family_exit checked 14341ms check-target:macos_arm64 @a92f16431042
 run/providers/target_applicable_provider_closure checked 10979ms check-target:macos_arm64 @a92f16431042
 run/providers/target_family_provider_boundary_identity_exit checked 10510ms check-target:macos_arm64 @a92f16431042
+run/ranges/borrowed_case_payload_alias checked 2774ms check-target:macos_arm64 @02f650a3c5b1
+run/ranges/borrowed_case_payload_bound checked 2823ms check-target:macos_arm64 @02f650a3c5b1
+run/ranges/refuted_boolean_alias_dispatch checked 2899ms check-target:macos_arm64 @aab8b8443f04
+run/ranges/refuted_boolean_alias_local checked 2971ms check-target:macos_arm64 @aab8b8443f04
 run/slices/call_result_mutable_window_exit incomplete 8836ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
 	`main` has no executable body: this compiler does not lower a call of it yet (state graph: structural result has duplicate dispositions); in state `main::entry`, statement 1
 run/slices/computed_record_window checked 12785ms check-target:macos_arm64 @a92f16431042

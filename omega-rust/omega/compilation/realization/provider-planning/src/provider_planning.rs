@@ -33,7 +33,7 @@ pub use effects::{
 };
 pub(crate) use external_binding_rows::extract_native_external_binding_rows;
 pub use operator_provider_evidence::{
-    selected_requirement_plan, selected_use_plan, specialized_provider_machines,
+    selected_checked_operator_body, selected_requirement_plan, selected_use_plan,
 };
 pub(crate) use provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,

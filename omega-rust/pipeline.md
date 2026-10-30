@@ -120,6 +120,14 @@ realization never starts another Psi production. Product constant applications
 and their checked conditions cross this boundary in canonical Terminal Psi.
 Selected realization completes them without copying or rewriting checked source;
 selected providers cannot inject completion roles into checked source.
+Psi retains each const argument's complete expression, lexical owner and result
+carrier. Type and body copying carry that relationship through exact occurrence
+maps; substituted array fields refer to the same retained extent. Preparation
+creates ordinary evaluation entries from closed expression inputs, including
+closed expressions inside generic owners, without dropping the template's
+checking obligations. Canonical publication consumes those entries, never the
+first nested helper as a substitute for the complete expression. Selected
+execution still owes provider admission, completion and every recorded bound.
 Accepted package roles enter source preparation before checking instead.
 Psi owns their declaration admission and confined nomination before matching
 retained checks. Realization only rejoins the resulting source declarations to
@@ -852,6 +860,14 @@ that stable issuer handle; the inventory alone creates no obligation. Omega's
 source-free grant policy consumes those occurrences, including uncalled bodies at
 the Check stop, and preserves declaring-owner preference and ambiguous-grant
 refusal without rescanning typed traits or signatures.
+
+Psi retains checked operator declaration eligibility separately from closed
+application body candidates. Open or dormant declarations do not root bodies or
+establish executable coverage. Omega admission and checked dispatch join selected
+plans to that inventory through one source-free choice operation, preserving
+provider/package identity, effective target context, scope and application
+coordinates. Neither consumer rediscovers specialization or source satisfaction;
+the exact application's existing body span supplies its executable alternatives.
 
 `omega/compilation/driver/` owns only compilation orchestration.
 [`omega/compilation/native-production/`](omega/compilation/native-production/README.md)

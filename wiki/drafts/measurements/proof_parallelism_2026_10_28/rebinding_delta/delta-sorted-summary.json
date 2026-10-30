@@ -1,0 +1,128 @@
+{
+  "pairs": [
+    {
+      "base": {
+        "wall_seconds": 17.74288979999983,
+        "cpu_seconds": 23.25,
+        "source_replay_ms": 1565.8838,
+        "peak_commit_bytes": 3507761152,
+        "peak_working_set_bytes": 2128838656
+      },
+      "candidate": {
+        "wall_seconds": 19.086422100000163,
+        "cpu_seconds": 26.140625,
+        "source_replay_ms": 1838.2495,
+        "peak_commit_bytes": 3500056576,
+        "peak_working_set_bytes": 2122231808
+      },
+      "pair": "a",
+      "replay_change_percent": 17.393736367922052
+    },
+    {
+      "base": {
+        "wall_seconds": 23.226939799999855,
+        "cpu_seconds": 29.640625,
+        "source_replay_ms": 1915.6247,
+        "peak_commit_bytes": 3513798656,
+        "peak_working_set_bytes": 2134421504
+      },
+      "candidate": {
+        "wall_seconds": 20.2971751999994,
+        "cpu_seconds": 27.3125,
+        "source_replay_ms": 1707.56,
+        "peak_commit_bytes": 3538997248,
+        "peak_working_set_bytes": 2145652736
+      },
+      "pair": "b",
+      "replay_change_percent": -10.861454229526279
+    },
+    {
+      "base": {
+        "wall_seconds": 26.001558099999784,
+        "cpu_seconds": 32.578125,
+        "source_replay_ms": 2142.1659,
+        "peak_commit_bytes": 3535720448,
+        "peak_working_set_bytes": 1908731904
+      },
+      "candidate": {
+        "wall_seconds": 23.11122929999965,
+        "cpu_seconds": 28.59375,
+        "source_replay_ms": 1872.6504,
+        "peak_commit_bytes": 3505889280,
+        "peak_working_set_bytes": 2129059840
+      },
+      "pair": "c",
+      "replay_change_percent": -12.581448523664761
+    },
+    {
+      "base": {
+        "wall_seconds": 20.44176950000019,
+        "cpu_seconds": 26.484375,
+        "source_replay_ms": 1905.5865,
+        "peak_commit_bytes": 3539787776,
+        "peak_working_set_bytes": 2130673664
+      },
+      "candidate": {
+        "wall_seconds": 21.19630920000054,
+        "cpu_seconds": 28.40625,
+        "source_replay_ms": 1588.1923,
+        "peak_commit_bytes": 3456978944,
+        "peak_working_set_bytes": 2072285184
+      },
+      "pair": "d",
+      "replay_change_percent": -16.655984915930077
+    },
+    {
+      "base": {
+        "wall_seconds": 22.13863549999951,
+        "cpu_seconds": 29.703125,
+        "source_replay_ms": 1846.5386,
+        "peak_commit_bytes": 3388350464,
+        "peak_working_set_bytes": 2017193984
+      },
+      "candidate": {
+        "wall_seconds": 22.23654009999973,
+        "cpu_seconds": 28.9375,
+        "source_replay_ms": 2176.9487,
+        "peak_commit_bytes": 3516092416,
+        "peak_working_set_bytes": 2139496448
+      },
+      "pair": "e",
+      "replay_change_percent": 17.893484598697242
+    },
+    {
+      "base": {
+        "wall_seconds": 23.600079599999845,
+        "cpu_seconds": 29.859375,
+        "source_replay_ms": 2060.7384,
+        "peak_commit_bytes": 3371991040,
+        "peak_working_set_bytes": 2010759168
+      },
+      "candidate": {
+        "wall_seconds": 24.947144300000218,
+        "cpu_seconds": 31.40625,
+        "source_replay_ms": 1758.4032,
+        "peak_commit_bytes": 3521363968,
+        "peak_working_set_bytes": 2105151488
+      },
+      "pair": "f",
+      "replay_change_percent": -14.671207175059198
+    }
+  ],
+  "medians": {
+    "base": {
+      "wall_seconds": 22.682787649999682,
+      "cpu_seconds": 29.671875,
+      "source_replay_ms": 1910.6055999999999,
+      "peak_commit_bytes": 3510779904.0,
+      "peak_working_set_bytes": 2073016320.0
+    },
+    "candidate": {
+      "wall_seconds": 21.716424650000135,
+      "cpu_seconds": 28.5,
+      "source_replay_ms": 1798.3263499999998,
+      "peak_commit_bytes": 3510990848.0,
+      "peak_working_set_bytes": 2125645824.0
+    }
+  }
+}

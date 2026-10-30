@@ -479,11 +479,11 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                     }
                 }
             }
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length,
-            } => {
-                if !matches!(length, FixedArrayLength::Literal(_)) {
+            TypeReferenceNode::FixedArray { element_type, .. } => {
+                // A retained scalar recipe is closed for representation:
+                // target completion still owes its value and range conditions.
+                // An unbound parameter or unrostered expression is not.
+                if program.declared_array_extent(reference).is_none() {
                     return false;
                 }
                 pending.push(*element_type);
@@ -556,7 +556,9 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 pending.extend(arguments.iter().copied());
             }
             TypeReferenceNode::ConstExpression(_) => {
-                return false;
+                if program.declared_constant_extent(reference).is_none() {
+                    return false;
+                }
             }
             TypeReferenceNode::Unit => {}
         }
@@ -736,16 +738,25 @@ fn instantiate_type(
                 && let Some((_, actual)) = substitutions
                     .iter()
                     .find(|(parameter, _)| parameter == symbol)
-                && let TypeReferenceNode::Named { symbol, name } =
-                    program.type_reference_table.type_reference(*actual)
             {
-                if symbol.is_valid() {
-                    length = FixedArrayLength::ConstParameter {
-                        symbol: *symbol,
-                        name: name.clone(),
-                    };
-                } else if let Ok(value) = name.as_str().parse::<usize>() {
-                    length = FixedArrayLength::Literal(value);
+                match program.type_reference_table.type_reference(*actual) {
+                    TypeReferenceNode::Named { symbol, name } if symbol.is_valid() => {
+                        length = FixedArrayLength::ConstParameter {
+                            symbol: *symbol,
+                            name: name.clone(),
+                        };
+                    }
+                    TypeReferenceNode::Named { name, .. } => {
+                        if let Ok(value) = name.as_str().parse::<usize>() {
+                            length = FixedArrayLength::Literal(value);
+                        }
+                    }
+                    TypeReferenceNode::ConstExpression(_) => {
+                        // Keep the complete argument, including its selected
+                        // evaluation and lexical context, as the extent.
+                        length = FixedArrayLength::Expression(*actual);
+                    }
+                    _ => {}
                 }
             }
             TypeReferenceNode::FixedArray {

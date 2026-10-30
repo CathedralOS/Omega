@@ -30,7 +30,9 @@ fn identities(
         ));
     };
     let project =
-        |operand: &language_semantics::declaration_selection::ProductDeclarationOperand, role| {
+        |operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
+         role|
+         -> Result<ProviderSelectionIdentity, Diagnostic> {
             let symbol = resolve_product_path(context.typed, &operand.path, operand.source_span, role)
             .ok_or_else(|| Diagnostic::error(format!("Product provider operand `{}` does not resolve to one visible declaration of role {role:?}", operand.path))
                 .with_source_span(operand.source_span))?;
@@ -136,7 +138,9 @@ pub fn validate_product_provider_description(
         ));
     };
     let describe =
-        |operand: &language_semantics::declaration_selection::ProductDeclarationOperand, role| {
+        |operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
+         role|
+         -> Result<ProviderSelectionIdentity, Diagnostic> {
             let symbol =
                 resolve_product_path(context.typed, &operand.path, operand.source_span, role)
                     .ok_or_else(|| {

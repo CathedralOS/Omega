@@ -1,0 +1,1547 @@
+[
+  {
+    "milliseconds": 428741.561,
+    "count": 4573,
+    "scope": "05.d.7.3b.1.calls"
+  },
+  {
+    "milliseconds": 424946.661,
+    "count": 4573,
+    "scope": "05.d.7.3b.1b.contextual_and_nominal"
+  },
+  {
+    "milliseconds": 207701.68,
+    "count": 6,
+    "scope": "05"
+  },
+  {
+    "milliseconds": 203715.226,
+    "count": 4,
+    "scope": "05.d.lower_typed_trees"
+  },
+  {
+    "milliseconds": 144152.042,
+    "count": 5581,
+    "scope": "05.d.2.a.2.machine.std_or_core"
+  },
+  {
+    "milliseconds": 143574.612,
+    "count": 5591,
+    "scope": "05.d.2.a.2b.state_statements"
+  },
+  {
+    "milliseconds": 139497.278,
+    "count": 765,
+    "scope": "05.num.2_observe_prefixes"
+  },
+  {
+    "milliseconds": 137471.202,
+    "count": 1378,
+    "scope": "05.num.2a_visitor_visit"
+  },
+  {
+    "milliseconds": 137353.02,
+    "count": 8785,
+    "scope": "05.d.2.a.2b.2.prepare_numeric_observations"
+  },
+  {
+    "milliseconds": 126454.376,
+    "count": 1403,
+    "scope": "05.num.2a.3_collect_assoc"
+  },
+  {
+    "milliseconds": 125395.252,
+    "count": 9,
+    "scope": "05.d.2.prepare_typed_program"
+  },
+  {
+    "milliseconds": 125369.076,
+    "count": 9,
+    "scope": "05.d.2.a.validate"
+  },
+  {
+    "milliseconds": 124189.005,
+    "count": 9,
+    "scope": "05.d.2.a.2.machine_loop"
+  },
+  {
+    "milliseconds": 104139.86,
+    "count": 1023,
+    "scope": "05.num.assoc.3_prove"
+  },
+  {
+    "milliseconds": 80834.597,
+    "count": 1023,
+    "scope": "05.num.prove.2_shared"
+  },
+  {
+    "milliseconds": 79949.343,
+    "count": 2110,
+    "scope": "05.num.prove.2b_project"
+  },
+  {
+    "milliseconds": 55402.187,
+    "count": 9,
+    "scope": "05.d.7.check_checked_facts"
+  },
+  {
+    "milliseconds": 50957.616,
+    "count": 9,
+    "scope": "05.d.7.3b.check_flow_call_contracts"
+  },
+  {
+    "milliseconds": 23301.173,
+    "count": 136,
+    "scope": "05.num.prove.3_fallback"
+  },
+  {
+    "milliseconds": 22300.617,
+    "count": 1260,
+    "scope": "05.num.assoc.2_build_preds"
+  },
+  {
+    "milliseconds": 19313.417,
+    "count": 9,
+    "scope": "05.d.3.build_check_facts"
+  },
+  {
+    "milliseconds": 15797.522,
+    "count": 5780,
+    "scope": "05.d.3.b.flow.state_statements"
+  },
+  {
+    "milliseconds": 14673.581,
+    "count": 9,
+    "scope": "05.d.3.b.flow_fixed_point"
+  },
+  {
+    "milliseconds": 10945.016,
+    "count": 1397,
+    "scope": "05.num.2a.1_completed_obs"
+  },
+  {
+    "milliseconds": 8998.516,
+    "count": 9,
+    "scope": "05.d.3.b.flow_fixed_point.build_flow_facts"
+  },
+  {
+    "milliseconds": 8800.204,
+    "count": 3102,
+    "scope": "05.d.3.b.flow.stmt.1_transition"
+  },
+  {
+    "milliseconds": 7990.659,
+    "count": 4916,
+    "scope": "05.d.3.b.flow.expr.invoke"
+  },
+  {
+    "milliseconds": 6817.446,
+    "count": 300,
+    "scope": "05.d.7.9.e.check_statements"
+  },
+  {
+    "milliseconds": 5614.893,
+    "count": 9,
+    "scope": "05.d.3.b.flow_fixed_point.prepare_permission_events"
+  },
+  {
+    "milliseconds": 5550.576,
+    "count": 9,
+    "scope": "05.d.3.b.perm.1_state_loop"
+  },
+  {
+    "milliseconds": 5348.032,
+    "count": 1562,
+    "scope": "05.d.7.3b.1.cap.2d.transitions"
+  },
+  {
+    "milliseconds": 5044.515,
+    "count": 4916,
+    "scope": "05.d.3.b.flow.invoke.2_build_call"
+  },
+  {
+    "milliseconds": 4638.574,
+    "count": 6335,
+    "scope": "05.d.3.b.flow.stmt.2_expression"
+  },
+  {
+    "milliseconds": 3895.042,
+    "count": 4,
+    "scope": "05.c.prepare_typed_trees"
+  },
+  {
+    "milliseconds": 3739.034,
+    "count": 8785,
+    "scope": "05.d.2.a.2b.5.validate_statement_node"
+  },
+  {
+    "milliseconds": 3622.946,
+    "count": 4916,
+    "scope": "05.d.3.b.flow.call.1_entry_and_requires"
+  },
+  {
+    "milliseconds": 3589.856,
+    "count": 931,
+    "scope": "05.d.7.3b.1d.captured_boolean"
+  },
+  {
+    "milliseconds": 3582.687,
+    "count": 4,
+    "scope": "psi.source.prepare"
+  },
+  {
+    "milliseconds": 3432.792,
+    "count": 9,
+    "scope": "05.d.3.c.post_flow_facts"
+  },
+  {
+    "milliseconds": 3177.056,
+    "count": 5591,
+    "scope": "05.perm.a_setup"
+  },
+  {
+    "milliseconds": 2972.509,
+    "count": 9,
+    "scope": "05.d.7.9.check_indexed_accesses"
+  },
+  {
+    "milliseconds": 2877.167,
+    "count": 9,
+    "scope": "05.c.2.specialization_loop"
+  },
+  {
+    "milliseconds": 2603.734,
+    "count": 9,
+    "scope": "05.d.8_10.finalize_execution_identities"
+  },
+  {
+    "milliseconds": 2489.372,
+    "count": 9,
+    "scope": "05.d.8_10.a.finalize_execution"
+  },
+  {
+    "milliseconds": 2446.734,
+    "count": 2306,
+    "scope": "05.d.3.b.flow.mutation.3_ceiling"
+  },
+  {
+    "milliseconds": 2365.241,
+    "count": 3041,
+    "scope": "05.perm.b_walk"
+  },
+  {
+    "milliseconds": 2313.247,
+    "count": 2340,
+    "scope": "05.num.visit.2_contra"
+  },
+  {
+    "milliseconds": 2286.859,
+    "count": 9,
+    "scope": "05.d.8_10.a.3.unit_effect_plans"
+  },
+  {
+    "milliseconds": 2085.048,
+    "count": 9,
+    "scope": "05.d.8_10.a.3.2.candidate_bodies"
+  },
+  {
+    "milliseconds": 1807.398,
+    "count": 1803,
+    "scope": "05.d.8_10.a.3.2c.graph_body"
+  },
+  {
+    "milliseconds": 1804.378,
+    "count": 9,
+    "scope": "05.d.3.c.5.post_admit_facts"
+  },
+  {
+    "milliseconds": 1670.01,
+    "count": 8781,
+    "scope": "05.d.2.a.2b.4.value_position_calls"
+  },
+  {
+    "milliseconds": 1648.264,
+    "count": 125,
+    "scope": "05.d.7.3b.1d.3.structural"
+  },
+  {
+    "milliseconds": 1576.461,
+    "count": 9437,
+    "scope": "05.d.3.b.flow.stmt.5_transfers"
+  },
+  {
+    "milliseconds": 1560.982,
+    "count": 4916,
+    "scope": "05.d.3.b.flow.invoke.1_storage_writes"
+  },
+  {
+    "milliseconds": 1491.302,
+    "count": 492,
+    "scope": "05.d.7.3b.1d.1.call_guarantees"
+  },
+  {
+    "milliseconds": 1477.78,
+    "count": 4573,
+    "scope": "05.d.3.b.flow.invoke.1a_mutation_writes"
+  },
+  {
+    "milliseconds": 1398.654,
+    "count": 4,
+    "scope": "psi.source.complete_authored"
+  },
+  {
+    "milliseconds": 1235.249,
+    "count": 4916,
+    "scope": "05.d.3.b.flow.invoke.3_capture_stores"
+  },
+  {
+    "milliseconds": 1171.343,
+    "count": 1061,
+    "scope": "05.num.2b_step_statement"
+  },
+  {
+    "milliseconds": 1112.218,
+    "count": 9,
+    "scope": "05.d.11_13.selections_custody_types_boundaries"
+  },
+  {
+    "milliseconds": 1109.864,
+    "count": 9,
+    "scope": "05.d.3.a.pre_flow_facts"
+  },
+  {
+    "milliseconds": 1064.507,
+    "count": 9,
+    "scope": "05.d.2.a.1.pre_machine_validators"
+  },
+  {
+    "milliseconds": 1053.55,
+    "count": 5,
+    "scope": "pre_resolution.constant_expressions"
+  },
+  {
+    "milliseconds": 1029.312,
+    "count": 9,
+    "scope": "05.d.3.c.5a.termination"
+  },
+  {
+    "milliseconds": 926.381,
+    "count": 9,
+    "scope": "05.d.3.c.1.scalar_and_index_plans"
+  },
+  {
+    "milliseconds": 905.184,
+    "count": 5,
+    "scope": "psi.source.complete_authored.evaluate_or_defer_recorded"
+  },
+  {
+    "milliseconds": 869.439,
+    "count": 4,
+    "scope": "pre_resolution.constant_initializers"
+  },
+  {
+    "milliseconds": 809.794,
+    "count": 8,
+    "scope": "evaluate_or_defer.evaluate_work"
+  },
+  {
+    "milliseconds": 806.313,
+    "count": 3237,
+    "scope": "05.d.7.3b.1.cap.2d.local_init"
+  },
+  {
+    "milliseconds": 788.802,
+    "count": 2171,
+    "scope": "05.d.8_10.a.3.2c.4.terminator"
+  },
+  {
+    "milliseconds": 770.53,
+    "count": 2171,
+    "scope": "05.d.8_10.a.3.2c.3.sequence"
+  },
+  {
+    "milliseconds": 766.933,
+    "count": 10516,
+    "scope": "05.d.7.3b.1.cap.2d.assign"
+  },
+  {
+    "milliseconds": 742.182,
+    "count": 2171,
+    "scope": "05.d.8_10.a.3.2c.3b.statement_sequence"
+  },
+  {
+    "milliseconds": 741.967,
+    "count": 8,
+    "scope": "evaluate_or_defer.evaluate_work.plan_laid_layouts"
+  },
+  {
+    "milliseconds": 730.214,
+    "count": 9,
+    "scope": "05.c.3.post_specialization"
+  },
+  {
+    "milliseconds": 715.149,
+    "count": 316,
+    "scope": "05.num.prove.2c_fork"
+  },
+  {
+    "milliseconds": 671.363,
+    "count": 9,
+    "scope": "05.d.7.2.check_flow_call_borrows"
+  },
+  {
+    "milliseconds": 653.062,
+    "count": 113,
+    "scope": "05.d.7.3b.1.cap.2d_recognize"
+  },
+  {
+    "milliseconds": 626.314,
+    "count": 4916,
+    "scope": "05.d.3.b.flow.call.2_sources_and_invalidation"
+  },
+  {
+    "milliseconds": 622.825,
+    "count": 3,
+    "scope": "psi.source.prepare.resolve_extension"
+  },
+  {
+    "milliseconds": 602.226,
+    "count": 9,
+    "scope": "05.d.3.c.4.admit_prepared_program_effects"
+  },
+  {
+    "milliseconds": 562.988,
+    "count": 4916,
+    "scope": "05.d.3.b.flow.call.5_referent_domains"
+  },
+  {
+    "milliseconds": 506.18,
+    "count": 318,
+    "scope": "05.d.7.3b.1.cap.2d.citation"
+  },
+  {
+    "milliseconds": 505.043,
+    "count": 9,
+    "scope": "05.d.11_13.h.boundary_and_portable_checks"
+  },
+  {
+    "milliseconds": 434.798,
+    "count": 43,
+    "scope": "05.rf.recognize"
+  },
+  {
+    "milliseconds": 419.527,
+    "count": 5591,
+    "scope": "05.d.2.a.2a.contract_entailment"
+  },
+  {
+    "milliseconds": 418.03,
+    "count": 166,
+    "scope": "typed_trees::collect_program_references"
+  },
+  {
+    "milliseconds": 369.86,
+    "count": 9437,
+    "scope": "05.d.3.b.flow.stmt.3_writes_and_loans"
+  },
+  {
+    "milliseconds": 362.64,
+    "count": 9,
+    "scope": "05.d.7.5_8.crashes_content_carry_operators"
+  },
+  {
+    "milliseconds": 334.541,
+    "count": 3017,
+    "scope": "05.d.8_10.a.3.2c.3b5.completion"
+  },
+  {
+    "milliseconds": 334.032,
+    "count": 9,
+    "scope": "05.d.7.3a.content_composition"
+  },
+  {
+    "milliseconds": 324.885,
+    "count": 9,
+    "scope": "05.c.1.pre_specialization"
+  },
+  {
+    "milliseconds": 301.252,
+    "count": 2,
+    "scope": "psi.source.complete_authored.complete_bodies"
+  },
+  {
+    "milliseconds": 273.489,
+    "count": 4361,
+    "scope": "05.d.7.3b.2.exits"
+  },
+  {
+    "milliseconds": 263.098,
+    "count": 167,
+    "scope": "05.d.7.3b.1d.2.current_values"
+  },
+  {
+    "milliseconds": 262.405,
+    "count": 8785,
+    "scope": "05.d.2.a.2b.1.transition_values"
+  },
+  {
+    "milliseconds": 245.595,
+    "count": 8785,
+    "scope": "05.d.2.a.2b.3.value_call_frames"
+  },
+  {
+    "milliseconds": 243.845,
+    "count": 1463,
+    "scope": "05.d.3.b.flow.stmt.4_invalidation"
+  },
+  {
+    "milliseconds": 234.712,
+    "count": 3017,
+    "scope": "05.d.8_10.a.3.2c.3b4.statement_loop"
+  },
+  {
+    "milliseconds": 227.435,
+    "count": 13886,
+    "scope": "05.d.3.b.flow.mutation.1_summary"
+  },
+  {
+    "milliseconds": 225.368,
+    "count": 9,
+    "scope": "05.d.2.a.1a2b.domains_and_signatures"
+  },
+  {
+    "milliseconds": 217.869,
+    "count": 4361,
+    "scope": "05.d.7.3b.2.exits.f.exclusive_referent_field_domains"
+  },
+  {
+    "milliseconds": 217.143,
+    "count": 3041,
+    "scope": "05.d.8_10.a.3.2a.body_route"
+  },
+  {
+    "milliseconds": 209.148,
+    "count": 9,
+    "scope": "05.d.3.c.5c.contract_plans"
+  },
+  {
+    "milliseconds": 206.268,
+    "count": 9,
+    "scope": "05.d.11_13.c.reference_custody"
+  },
+  {
+    "milliseconds": 205.389,
+    "count": 9,
+    "scope": "05.d.2.a.1a5c.default_domain_writes"
+  },
+  {
+    "milliseconds": 200.188,
+    "count": 34,
+    "scope": "05.num.2a.2_collect_ordering"
+  },
+  {
+    "milliseconds": 200.001,
+    "count": 3,
+    "scope": "psi.source.prepare.build_bodies_typed"
+  },
+  {
+    "milliseconds": 193.113,
+    "count": 4,
+    "scope": "pre_resolution.generic_data"
+  },
+  {
+    "milliseconds": 178.561,
+    "count": 6,
+    "scope": "05.d.7.3b.1d.4.captured_expr"
+  },
+  {
+    "milliseconds": 176.28,
+    "count": 9,
+    "scope": "05.d.11_13.a.finalize_selections"
+  },
+  {
+    "milliseconds": 173.626,
+    "count": 3017,
+    "scope": "05.d.8_10.a.3.2c.3b3.stores"
+  },
+  {
+    "milliseconds": 166.776,
+    "count": 2,
+    "scope": "psi.source.complete_authored.complete_machine_bodies"
+  },
+  {
+    "milliseconds": 159.35,
+    "count": 9,
+    "scope": "05.c.3.e.data_applications"
+  },
+  {
+    "milliseconds": 158.138,
+    "count": 9,
+    "scope": "05.d.2.a.1a6.static_machine_selections"
+  },
+  {
+    "milliseconds": 149.17,
+    "count": 2674,
+    "scope": "05.num.visit.1_arm_judge"
+  },
+  {
+    "milliseconds": 149.077,
+    "count": 9,
+    "scope": "05.c.3.i.requirement_applications"
+  },
+  {
+    "milliseconds": 141.916,
+    "count": 9,
+    "scope": "05.c.3.b.settle_value_destinations"
+  },
+  {
+    "milliseconds": 128.588,
+    "count": 9,
+    "scope": "05.d.11_13.a.3.expression_loop"
+  },
+  {
+    "milliseconds": 125.039,
+    "count": 9,
+    "scope": "05.d.2.a.1a2.proposition_entailment"
+  },
+  {
+    "milliseconds": 124.773,
+    "count": 3,
+    "scope": "05.bc.recognize"
+  },
+  {
+    "milliseconds": 118.877,
+    "count": 9,
+    "scope": "05.d.11_13.d.content_classes"
+  },
+  {
+    "milliseconds": 109.994,
+    "count": 9,
+    "scope": "05.c.3.d.constructed_result_types"
+  },
+  {
+    "milliseconds": 103.579,
+    "count": 9,
+    "scope": "05.d.3.c.5c.7.attach_crash_calls"
+  },
+  {
+    "milliseconds": 98.235,
+    "count": 9,
+    "scope": "05.d.2.a.3.post_machine_validators"
+  },
+  {
+    "milliseconds": 97.298,
+    "count": 4916,
+    "scope": "05.d.3.b.flow.call.4_result_and_param_domains"
+  },
+  {
+    "milliseconds": 95.54,
+    "count": 212,
+    "scope": "05.d.7.3b.1.cap.2e_visit"
+  },
+  {
+    "milliseconds": 95.246,
+    "count": 9,
+    "scope": "05.d.3.b.flow.build_state_mutation_summaries"
+  },
+  {
+    "milliseconds": 95.095,
+    "count": 8,
+    "scope": "evaluate_or_defer.check_defer"
+  },
+  {
+    "milliseconds": 92.533,
+    "count": 1753,
+    "scope": "05.d.8_10.a.3.2c.6.parameter_custody_and_finish"
+  },
+  {
+    "milliseconds": 89.471,
+    "count": 11,
+    "scope": "05.e.declaration_authority"
+  },
+  {
+    "milliseconds": 89.469,
+    "count": 8785,
+    "scope": "05.d.2.a.2b.4b.direct_written"
+  },
+  {
+    "milliseconds": 88.869,
+    "count": 9,
+    "scope": "05.d.2.a.1a5b.constants_and_literals"
+  },
+  {
+    "milliseconds": 88.617,
+    "count": 9,
+    "scope": "05.c.3.h.dynamic_slots"
+  },
+  {
+    "milliseconds": 88.294,
+    "count": 9,
+    "scope": "05.d.2.a.1a5b.2.struct_literals"
+  },
+  {
+    "milliseconds": 86.611,
+    "count": 28,
+    "scope": "05.d.7.3b.1.cap.2b_local_prefix"
+  },
+  {
+    "milliseconds": 81.311,
+    "count": 1787,
+    "scope": "05.d.8_10.a.3.2c.2.signatures"
+  },
+  {
+    "milliseconds": 80.726,
+    "count": 3902,
+    "scope": "05.d.11_13.a.3.operator"
+  },
+  {
+    "milliseconds": 74.785,
+    "count": 931,
+    "scope": "05.d.7.3b.1e.proves_core"
+  },
+  {
+    "milliseconds": 66.417,
+    "count": 9,
+    "scope": "05.d.3.c.5b.mutation_and_integer_writes"
+  },
+  {
+    "milliseconds": 62.372,
+    "count": 9,
+    "scope": "05.d.8_10.b.semantic_dependencies"
+  },
+  {
+    "milliseconds": 58.889,
+    "count": 9,
+    "scope": "05.d.11_13.e.resolved_types"
+  },
+  {
+    "milliseconds": 58.654,
+    "count": 1238,
+    "scope": "05.d.8_10.a.3.2b.sequence_body"
+  },
+  {
+    "milliseconds": 58.09,
+    "count": 5591,
+    "scope": "05.d.7.3b.3.writes"
+  },
+  {
+    "milliseconds": 58.019,
+    "count": 9,
+    "scope": "05.d.7.4.check_linear_obligations"
+  },
+  {
+    "milliseconds": 56.053,
+    "count": 10,
+    "scope": "05.d.2.a.2.machine.user_or_other"
+  },
+  {
+    "milliseconds": 54.913,
+    "count": 9,
+    "scope": "05.d.7.4.b.validate_linear"
+  },
+  {
+    "milliseconds": 53.117,
+    "count": 5591,
+    "scope": "05.d.2.a.2b.0b.value_env_init"
+  },
+  {
+    "milliseconds": 52.521,
+    "count": 4916,
+    "scope": "05.d.3.b.flow.invoke.4_reference_custody"
+  },
+  {
+    "milliseconds": 49.033,
+    "count": 9,
+    "scope": "05.d.3.b.perm.6_storage_deaths"
+  },
+  {
+    "milliseconds": 48.888,
+    "count": 4,
+    "scope": "psi.source.finish"
+  },
+  {
+    "milliseconds": 48.089,
+    "count": 9,
+    "scope": "05.d.3.b.flow.summaries.2_propagate"
+  },
+  {
+    "milliseconds": 47.934,
+    "count": 9,
+    "scope": "05.d.3.c.2.index_compatibility"
+  },
+  {
+    "milliseconds": 47.634,
+    "count": 9,
+    "scope": "05.d.2.a.1a5d.recasts_wire_operators"
+  },
+  {
+    "milliseconds": 46.999,
+    "count": 2713,
+    "scope": "05.d.3.b.flow.invoke.1c_entry_origins"
+  },
+  {
+    "milliseconds": 46.421,
+    "count": 9,
+    "scope": "05.d.3.b.flow.summaries.1_direct"
+  },
+  {
+    "milliseconds": 44.07,
+    "count": 32,
+    "scope": "05.d.11_13.a.3.call"
+  },
+  {
+    "milliseconds": 43.725,
+    "count": 931,
+    "scope": "05.d.7.3b.1c.membership"
+  },
+  {
+    "milliseconds": 41.731,
+    "count": 9,
+    "scope": "05.d.8_10.a.3.4.candidate_closure"
+  },
+  {
+    "milliseconds": 40.277,
+    "count": 116,
+    "scope": "typed_trees::program_scoped_proof_facts"
+  },
+  {
+    "milliseconds": 38.156,
+    "count": 751,
+    "scope": "05.d.3.b.flow.mutation.2_boundary"
+  },
+  {
+    "milliseconds": 36.135,
+    "count": 9,
+    "scope": "05.d.3.b.flow.summaries.2b_loop"
+  },
+  {
+    "milliseconds": 35.878,
+    "count": 9,
+    "scope": "05.d.8_10.a.1.rank_and_terminal_machines"
+  },
+  {
+    "milliseconds": 35.287,
+    "count": 9,
+    "scope": "05.d.2.a.1a4b.data_and_proof_faces"
+  },
+  {
+    "milliseconds": 34.015,
+    "count": 9,
+    "scope": "05.d.8_10.a.3.3.cleanup_selections"
+  },
+  {
+    "milliseconds": 33.791,
+    "count": 113,
+    "scope": "05.d.7.3b.1.cap.2c_judge_init"
+  },
+  {
+    "milliseconds": 33.686,
+    "count": 2139,
+    "scope": "05.d.8_10.a.3.2c.5.result_custody"
+  },
+  {
+    "milliseconds": 33.366,
+    "count": 9,
+    "scope": "05.d.4_6.quotients_borrows_identities"
+  },
+  {
+    "milliseconds": 32.425,
+    "count": 9,
+    "scope": "05.c.3.n.mathematical_declarations"
+  },
+  {
+    "milliseconds": 32.142,
+    "count": 4916,
+    "scope": "05.d.3.b.flow.call.6_inst_and_boundary"
+  },
+  {
+    "milliseconds": 31.68,
+    "count": 4916,
+    "scope": "05.d.3.b.flow.call.3_exit_and_carry"
+  },
+  {
+    "milliseconds": 31.412,
+    "count": 851,
+    "scope": "05.num.1_scan"
+  },
+  {
+    "milliseconds": 30.942,
+    "count": 9,
+    "scope": "05.d.8_10.a.3.1.boundary_and_dynamic"
+  },
+  {
+    "milliseconds": 29.611,
+    "count": 4361,
+    "scope": "05.d.7.3b.2.exits.e.result_field_domains"
+  },
+  {
+    "milliseconds": 28.256,
+    "count": 9,
+    "scope": "05.d.2.a.1a5.call_cycles_and_properties"
+  },
+  {
+    "milliseconds": 26.147,
+    "count": 8,
+    "scope": "evaluate_or_defer.check_defer.endpoint_calls"
+  },
+  {
+    "milliseconds": 25.599,
+    "count": 9,
+    "scope": "05.d.3.b.flow_fixed_point.bind_call_spans"
+  },
+  {
+    "milliseconds": 24.357,
+    "count": 8,
+    "scope": "evaluate_or_defer.evaluate_work.range_endpoints"
+  },
+  {
+    "milliseconds": 23.976,
+    "count": 9,
+    "scope": "05.d.2.b.build_proof_plan"
+  },
+  {
+    "milliseconds": 23.872,
+    "count": 9,
+    "scope": "05.d.7.2b.runtime_indices_case_fences"
+  },
+  {
+    "milliseconds": 22.978,
+    "count": 2171,
+    "scope": "05.d.8_10.a.3.2c.3a.outer_calls"
+  },
+  {
+    "milliseconds": 22.64,
+    "count": 9,
+    "scope": "05.d.11_13.a.1.owner_index"
+  },
+  {
+    "milliseconds": 22.5,
+    "count": 1799,
+    "scope": "05.d.8_10.a.3.2c.1.fused_and_ranks"
+  },
+  {
+    "milliseconds": 20.947,
+    "count": 8,
+    "scope": "evaluate_or_defer.check_defer.independent_lengths"
+  },
+  {
+    "milliseconds": 20.729,
+    "count": 8,
+    "scope": "evaluate_or_defer.evaluate_work.const_array_lengths"
+  },
+  {
+    "milliseconds": 20.433,
+    "count": 9,
+    "scope": "05.c.3.f.runtime_index_fields"
+  },
+  {
+    "milliseconds": 20.265,
+    "count": 8,
+    "scope": "evaluate_or_defer.check_defer.const_applications"
+  },
+  {
+    "milliseconds": 18.559,
+    "count": 8,
+    "scope": "evaluate_or_defer.evaluate_work.const_applications"
+  },
+  {
+    "milliseconds": 17.736,
+    "count": 4361,
+    "scope": "05.d.7.3b.2.exits.d.exit_ensures"
+  },
+  {
+    "milliseconds": 17.327,
+    "count": 1,
+    "scope": "source.graph.load.require_before"
+  },
+  {
+    "milliseconds": 16.983,
+    "count": 9,
+    "scope": "05.d.3.c.3.cleanup_effects_and_reaches"
+  },
+  {
+    "milliseconds": 16.855,
+    "count": 9,
+    "scope": "05.d.11_13.g.provider_closed_requirements"
+  },
+  {
+    "milliseconds": 16.673,
+    "count": 9,
+    "scope": "05.d.2.a.2.dependency_bodies"
+  },
+  {
+    "milliseconds": 16.57,
+    "count": 9,
+    "scope": "05.d.3.c.5c.6.identities"
+  },
+  {
+    "milliseconds": 16.262,
+    "count": 4,
+    "scope": "05.b.retained_input_clone"
+  },
+  {
+    "milliseconds": 15.87,
+    "count": 9,
+    "scope": "05.c.3.l.domain_test_carriers"
+  },
+  {
+    "milliseconds": 15.524,
+    "count": 4573,
+    "scope": "05.d.7.3b.1a.entry_contexts"
+  },
+  {
+    "milliseconds": 14.683,
+    "count": 6,
+    "scope": "05.b.retained_match"
+  },
+  {
+    "milliseconds": 13.382,
+    "count": 9,
+    "scope": "05.d.3.b.flow_fixed_point.infer_entry_requirements"
+  },
+  {
+    "milliseconds": 13.232,
+    "count": 9,
+    "scope": "05.d.7.3b.0.cleanup_requirements"
+  },
+  {
+    "milliseconds": 13.025,
+    "count": 9,
+    "scope": "05.d.3.c.5c.2.per_machine_plans"
+  },
+  {
+    "milliseconds": 12.255,
+    "count": 4,
+    "scope": "05.c.placement_lifecycle_plans"
+  },
+  {
+    "milliseconds": 11.974,
+    "count": 9,
+    "scope": "05.d.11_13.b.visibility_and_cleanup_selections"
+  },
+  {
+    "milliseconds": 11.265,
+    "count": 9,
+    "scope": "05.d.11_13.a.7.apply_resolutions"
+  },
+  {
+    "milliseconds": 9.773,
+    "count": 2713,
+    "scope": "05.d.3.b.flow.invoke.1b_close_aliases"
+  },
+  {
+    "milliseconds": 9.455,
+    "count": 9,
+    "scope": "05.d.3.c.5c.4.crash_capsules"
+  },
+  {
+    "milliseconds": 9.325,
+    "count": 9,
+    "scope": "05.d.3.c.5c.5.summary_graph"
+  },
+  {
+    "milliseconds": 8.826,
+    "count": 9,
+    "scope": "05.d.7.0.setup_guards_and_entailment"
+  },
+  {
+    "milliseconds": 8.796,
+    "count": 1365,
+    "scope": "05.num.assoc.1_reads"
+  },
+  {
+    "milliseconds": 8.386,
+    "count": 2,
+    "scope": "05.lower_terminal_selection"
+  },
+  {
+    "milliseconds": 8.219,
+    "count": 2,
+    "scope": "05.01_lower_selected_machine"
+  },
+  {
+    "milliseconds": 7.603,
+    "count": 9,
+    "scope": "05.d.7.1.bind_call_evidence_arguments"
+  },
+  {
+    "milliseconds": 6.092,
+    "count": 9,
+    "scope": "05.d.3.b.perm.4_publish_joins"
+  },
+  {
+    "milliseconds": 5.824,
+    "count": 9,
+    "scope": "05.d.3.b.perm.3_reconcile_origins"
+  },
+  {
+    "milliseconds": 5.782,
+    "count": 5,
+    "scope": "pre_resolution.constant_calls"
+  },
+  {
+    "milliseconds": 5.41,
+    "count": 9,
+    "scope": "05.c.3.k.assignment_destinations"
+  },
+  {
+    "milliseconds": 5.322,
+    "count": 4361,
+    "scope": "05.d.7.3b.2.exits.c.scalar_result_domains"
+  },
+  {
+    "milliseconds": 4.855,
+    "count": 9,
+    "scope": "05.c.3.g.dynamic_call_targets"
+  },
+  {
+    "milliseconds": 4.372,
+    "count": 9,
+    "scope": "05.d.3.b.flow.summaries.2a_calls"
+  },
+  {
+    "milliseconds": 4.115,
+    "count": 8,
+    "scope": "evaluate_or_defer.evaluate_work.dynamic_call_targets"
+  },
+  {
+    "milliseconds": 3.696,
+    "count": 1,
+    "scope": "psi.source.prepare.lower_seeded_base"
+  },
+  {
+    "milliseconds": 3.532,
+    "count": 9,
+    "scope": "05.d.11_13.a.6.proof_view_calls"
+  },
+  {
+    "milliseconds": 3.088,
+    "count": 9,
+    "scope": "05.d.7.4.a.crash_frontiers"
+  },
+  {
+    "milliseconds": 2.72,
+    "count": 3017,
+    "scope": "05.d.8_10.a.3.2c.3b1.scalar_control"
+  },
+  {
+    "milliseconds": 2.701,
+    "count": 2,
+    "scope": "05.01.a_discover_call_catalog"
+  },
+  {
+    "milliseconds": 2.189,
+    "count": 300,
+    "scope": "05.d.7.9.d.seed_state"
+  },
+  {
+    "milliseconds": 2.099,
+    "count": 9,
+    "scope": "05.d.11_13.a.5.membership_selections"
+  },
+  {
+    "milliseconds": 1.954,
+    "count": 3017,
+    "scope": "05.d.8_10.a.3.2c.3b2.erased_locals"
+  },
+  {
+    "milliseconds": 1.948,
+    "count": 9,
+    "scope": "05.d.8_10.a.4.nominal_affine_cleanups"
+  },
+  {
+    "milliseconds": 1.816,
+    "count": 7,
+    "scope": "05.01.g2_emit_ordinary_body"
+  },
+  {
+    "milliseconds": 1.776,
+    "count": 1,
+    "scope": "psi.source.prepare.build_bodies_resolved"
+  },
+  {
+    "milliseconds": 1.588,
+    "count": 9,
+    "scope": "05.d.11_13.a.2.root_bindings"
+  },
+  {
+    "milliseconds": 1.475,
+    "count": 9,
+    "scope": "05.d.3.b.perm.5_derive_maps"
+  },
+  {
+    "milliseconds": 1.416,
+    "count": 9,
+    "scope": "05.d.2.a.1a3.operational_and_service_reaches"
+  },
+  {
+    "milliseconds": 1.416,
+    "count": 9,
+    "scope": "05.d.2.c.check_proof_plan"
+  },
+  {
+    "milliseconds": 1.351,
+    "count": 9,
+    "scope": "05.d.3.c.5c.1.trapping_index"
+  },
+  {
+    "milliseconds": 1.329,
+    "count": 2,
+    "scope": "05.01.g1_emit_composed_body"
+  },
+  {
+    "milliseconds": 1.265,
+    "count": 9,
+    "scope": "05.d.7.3b.0b.assembly_and_refutations"
+  },
+  {
+    "milliseconds": 1.175,
+    "count": 9,
+    "scope": "05.d.8_10.a.2.structural_control_cleanups"
+  },
+  {
+    "milliseconds": 0.962,
+    "count": 300,
+    "scope": "05.d.7.9.a.range_call_context"
+  },
+  {
+    "milliseconds": 0.901,
+    "count": 9,
+    "scope": "05.d.3.b.flow_fixed_point.retain_selected_receiver_loans"
+  },
+  {
+    "milliseconds": 0.847,
+    "count": 9,
+    "scope": "05.d.11_13.f.state_locals"
+  },
+  {
+    "milliseconds": 0.805,
+    "count": 1,
+    "scope": "psi.source.prepare.resolve_deferred"
+  },
+  {
+    "milliseconds": 0.771,
+    "count": 2,
+    "scope": "05.01.g1.2_emit_states"
+  },
+  {
+    "milliseconds": 0.753,
+    "count": 9,
+    "scope": "05.d.2.d.bare_boundary_trait_values"
+  },
+  {
+    "milliseconds": 0.57,
+    "count": 4,
+    "scope": "pre_resolution.range_arguments"
+  },
+  {
+    "milliseconds": 0.559,
+    "count": 5591,
+    "scope": "05.d.2.a.2b.0a.ref_local_est"
+  },
+  {
+    "milliseconds": 0.537,
+    "count": 9,
+    "scope": "05.d.2.a.1a5b.3.destructure"
+  },
+  {
+    "milliseconds": 0.532,
+    "count": 4,
+    "scope": "05.01.f_lower_signatures"
+  },
+  {
+    "milliseconds": 0.49,
+    "count": 4361,
+    "scope": "05.d.7.3b.2.exits.b.boundary_refutations"
+  },
+  {
+    "milliseconds": 0.479,
+    "count": 9,
+    "scope": "05.d.3.b.perm.2_append_borrow"
+  },
+  {
+    "milliseconds": 0.469,
+    "count": 1023,
+    "scope": "05.num.prove.2a_prep"
+  },
+  {
+    "milliseconds": 0.431,
+    "count": 2,
+    "scope": "05.01.g1.3_finish"
+  },
+  {
+    "milliseconds": 0.378,
+    "count": 8,
+    "scope": "evaluate_or_defer.finish"
+  },
+  {
+    "milliseconds": 0.316,
+    "count": 2,
+    "scope": "05.01.c_lower_structural_types"
+  },
+  {
+    "milliseconds": 0.301,
+    "count": 9,
+    "scope": "05.d.2.a.1a.definition_fact_plan"
+  },
+  {
+    "milliseconds": 0.301,
+    "count": 9,
+    "scope": "05.d.3.c.5c.3.operator_crashes"
+  },
+  {
+    "milliseconds": 0.291,
+    "count": 9,
+    "scope": "05.d.11_13.a.4.statement_selections"
+  },
+  {
+    "milliseconds": 0.288,
+    "count": 8,
+    "scope": "evaluate_or_defer.finish.validate_retained_invocations"
+  },
+  {
+    "milliseconds": 0.278,
+    "count": 9,
+    "scope": "05.d.2.a.1b.call_frame_resolver"
+  },
+  {
+    "milliseconds": 0.275,
+    "count": 9,
+    "scope": "05.c.3.a.assembly_normalize"
+  },
+  {
+    "milliseconds": 0.26,
+    "count": 9,
+    "scope": "05.c.3.j.elaborate_new_types"
+  },
+  {
+    "milliseconds": 0.235,
+    "count": 2,
+    "scope": "05.01.g1.3d_continuations"
+  },
+  {
+    "milliseconds": 0.211,
+    "count": 4,
+    "scope": "05.01.d_lower_domains_and_services"
+  },
+  {
+    "milliseconds": 0.211,
+    "count": 85,
+    "scope": "05.d.7.3b.1.cap.2d.call_writes"
+  },
+  {
+    "milliseconds": 0.166,
+    "count": 9,
+    "scope": "05.01.g1.3e.2_complete_carriers"
+  },
+  {
+    "milliseconds": 0.141,
+    "count": 2,
+    "scope": "05.01.g1.3e_affine_cleanup"
+  },
+  {
+    "milliseconds": 0.134,
+    "count": 1023,
+    "scope": "05.num.prove.1_eq_loop"
+  },
+  {
+    "milliseconds": 0.111,
+    "count": 300,
+    "scope": "05.d.7.9.c.loop_invariant_facts"
+  },
+  {
+    "milliseconds": 0.105,
+    "count": 2,
+    "scope": "05.01.e_prepare_qualifications"
+  },
+  {
+    "milliseconds": 0.095,
+    "count": 6,
+    "scope": "05.a.source_completion"
+  },
+  {
+    "milliseconds": 0.09,
+    "count": 9,
+    "scope": "05.c.3.m.assembly_admit"
+  },
+  {
+    "milliseconds": 0.086,
+    "count": 8,
+    "scope": "evaluate_or_defer.finish.settle_target_observations"
+  },
+  {
+    "milliseconds": 0.067,
+    "count": 2,
+    "scope": "05.d.7.3b.1d.5.preserves_captures"
+  },
+  {
+    "milliseconds": 0.065,
+    "count": 2,
+    "scope": "05.01.g1.1_setup"
+  },
+  {
+    "milliseconds": 0.051,
+    "count": 2,
+    "scope": "05.01.b_admit_bodies"
+  },
+  {
+    "milliseconds": 0.05,
+    "count": 9,
+    "scope": "05.c.3.c.default_domain_zero"
+  },
+  {
+    "milliseconds": 0.039,
+    "count": 9,
+    "scope": "05.01.g1.3e.3_projected_transfers"
+  },
+  {
+    "milliseconds": 0.038,
+    "count": 2,
+    "scope": "05.10_reconcile_and_residences"
+  },
+  {
+    "milliseconds": 0.032,
+    "count": 2,
+    "scope": "05.01.g1.3b_places"
+  },
+  {
+    "milliseconds": 0.032,
+    "count": 2,
+    "scope": "05.02_declarations_retain"
+  },
+  {
+    "milliseconds": 0.032,
+    "count": 2,
+    "scope": "05.11_evidence_artifacts"
+  },
+  {
+    "milliseconds": 0.029,
+    "count": 8,
+    "scope": "evaluate_or_defer.check_defer.memberships"
+  },
+  {
+    "milliseconds": 0.028,
+    "count": 8,
+    "scope": "evaluate_or_defer.evaluate_work.domain_facts"
+  },
+  {
+    "milliseconds": 0.021,
+    "count": 9,
+    "scope": "05.d.3.b.perm.7_bind_applications"
+  },
+  {
+    "milliseconds": 0.02,
+    "count": 9,
+    "scope": "05.d.2.a.1a5b.1.constants"
+  },
+  {
+    "milliseconds": 0.018,
+    "count": 2,
+    "scope": "05.06_placed_and_suspension"
+  },
+  {
+    "milliseconds": 0.018,
+    "count": 9,
+    "scope": "05.d.8_10.c.accepted_template_identities"
+  },
+  {
+    "milliseconds": 0.015,
+    "count": 2,
+    "scope": "05.08_conformance_and_dyn"
+  },
+  {
+    "milliseconds": 0.009,
+    "count": 2,
+    "scope": "05.07_operation_crash_contracts"
+  },
+  {
+    "milliseconds": 0.007,
+    "count": 2,
+    "scope": "05.01.g1.3c_loans"
+  },
+  {
+    "milliseconds": 0.007,
+    "count": 2,
+    "scope": "05.validate_runtime_evidence_inputs"
+  },
+  {
+    "milliseconds": 0.007,
+    "count": 8,
+    "scope": "evaluate_or_defer.evaluate_work.wire_plans"
+  },
+  {
+    "milliseconds": 0.005,
+    "count": 2,
+    "scope": "05.01.g1.3a_requires"
+  },
+  {
+    "milliseconds": 0.005,
+    "count": 2,
+    "scope": "05.04_closed_reach_applications"
+  },
+  {
+    "milliseconds": 0.005,
+    "count": 2,
+    "scope": "05.boundary_applications"
+  },
+  {
+    "milliseconds": 0.005,
+    "count": 9,
+    "scope": "05.d.7.4.c.borrowed_windows"
+  },
+  {
+    "milliseconds": 0.004,
+    "count": 9,
+    "scope": "05.01.g1.3e.4_retire_borrowed"
+  },
+  {
+    "milliseconds": 0.004,
+    "count": 2,
+    "scope": "05.01.g1.3f_crash_and_ranking"
+  },
+  {
+    "milliseconds": 0.004,
+    "count": 2,
+    "scope": "05.01.h_provider_conformances"
+  },
+  {
+    "milliseconds": 0.003,
+    "count": 2,
+    "scope": "05.03_nominal_cleanup_roles"
+  },
+  {
+    "milliseconds": 0.003,
+    "count": 2,
+    "scope": "05.05_reborrow_restored_call_use"
+  },
+  {
+    "milliseconds": 0.002,
+    "count": 2,
+    "scope": "05.09_build_providers"
+  },
+  {
+    "milliseconds": 0.002,
+    "count": 8,
+    "scope": "evaluate_or_defer.evaluate_work.placed_view_plans"
+  },
+  {
+    "milliseconds": 0.001,
+    "count": 9,
+    "scope": "05.01.g1.3e.1_owned_extractions"
+  },
+  {
+    "milliseconds": 0.001,
+    "count": 2,
+    "scope": "05.callback_applications"
+  },
+  {
+    "milliseconds": 0.001,
+    "count": 2,
+    "scope": "05.identities_build"
+  },
+  {
+    "milliseconds": 0.0,
+    "count": 2,
+    "scope": "05.debug_map"
+  }
+]

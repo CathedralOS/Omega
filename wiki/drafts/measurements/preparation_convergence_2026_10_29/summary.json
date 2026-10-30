@@ -1,0 +1,41 @@
+{
+  "quality": {
+    "native_compiles": 5,
+    "terminal_agreements": 5,
+    "static_rejects": 6
+  },
+  "providers": {
+    "native_compiles": 4,
+    "terminal_agreements": 4,
+    "static_rejects": 6
+  },
+  "first_updates": [
+    {
+      "fixture": "pass/calls/runtime_numeric_operand_order_exit",
+      "seconds": 166.85139160000108,
+      "exit": 3
+    },
+    {
+      "fixture": "pass/calls/runtime_numeric_operand_single_evaluation_exit",
+      "seconds": 161.3955752999973,
+      "exit": 3
+    },
+    {
+      "fixture": "pass/calls/selected_contract_equation_reentry_exit",
+      "seconds": 1.9913799999994808,
+      "exit": 0
+    },
+    {
+      "fixture": "pass/borrows/runtime_reference_call_scalar_snapshot_exit",
+      "seconds": 2.0542484000034165,
+      "exit": 0
+    },
+    {
+      "fixture": "pass/facts/copied_call_argument_snapshot_through_match_join_exit",
+      "seconds": 1.9769751000058022,
+      "exit": 0
+    }
+  ],
+  "candidate_sha256": "5a596bcaa6fb117eefd8735c6bb545e0ebbde1cbf1b9b8c3ba79a586a6b16308",
+  "base": "cb087c46476f255397ba2e8cc3cbba4dd978c2ea"
+}

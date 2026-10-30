@@ -1,0 +1,24 @@
+{
+  "base": "fb37124e244cf436f99976b0a508ed24cc28d285",
+  "producer": {
+    "producer": "graph-phase-cpu",
+    "compiler_sha256": "babdabe9df24eec6d812f31e2c8324e45d58ce63d514984714fa2f4da801a6dd",
+    "accepted_lock_sha256": "07d093dce4fd258ce0b6ce72510d9839e50ee4cfda3a8ddd543807cf9d9a66c5",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "schedule": [
+    "ELLE",
+    "LEEL",
+    "ELLE",
+    "LEEL",
+    "ELLE",
+    "LEEL"
+  ],
+  "logical_processors": 32,
+  "platform": "Windows-11-10.0.26200-SP0",
+  "input_manifest_sha256": "ed2509429e3d6cc5c27aeb016d990505796de30b99554b02c89ad1db784f5ed4",
+  "observer": "endpoints only"
+}
