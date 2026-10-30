@@ -681,3 +681,27 @@ The unrelated closed-local-types callback control still refuses its static
 binder on the pre-repair producer too; it is retained as nonaccepted baseline
 evidence, not a passing control. This does not close the parent migration or
 claim execution on another host.
+
+## Audited copied scalar field and restricted peer
+
+Commit `7516f0970de014e3c13009bf67d9c69f087d4671` introduced three later
+suffix positions in the copied-field regression pair. These positions are
+additional to the earlier 30-position census above.
+
+| Original declaration | Canonical replacement |
+| --- | --- |
+| `pass/borrows/copied_scalar_field_with_restricted_peer`: `Limits.value: u64 [0..=5]` | Bare `u64` field with complete-data `requires value <= 5`. |
+| Same positive: `bounded.value: &u64 [0..=5]` | Bare `&u64` parameter with machine `requires value <= 5`. |
+| `fail/borrows/copied_scalar_field_without_restriction`: `bounded.value: &u64 [0..=5]` | The same borrowed parameter and invocation requirement; `Limits` stays unconstrained. |
+
+The unsigned carrier retains the zero floor. No nominal scalar domain replaces
+the anonymous interval. The copied `Frame` still contains 42 and sibling 99;
+the case selection, observed-value guard and exit-0 oracle are unchanged.
+The positive executes with native/Terminal agreement. Its twin now rejects the
+missing `limits.value <= 5` invocation fact rather than a range-type mismatch.
+Its later equality guard cannot establish the earlier call's requirement.
+
+Producer: optimized `867738eb9535b2fba0b8300eeaccd64d2c2e6474` on macOS
+ARM64. The original positive also ran 0/0 and the original negative rejected
+before migration. This closes only these three source positions, not the
+historical audit, parser retirement, a new fact row or the parent task.

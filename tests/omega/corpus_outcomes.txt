@@ -1178,8 +1178,8 @@ fail/borrows/copied_input_descriptor_retarget_rejected rejected 1843ms expected 
 fail/borrows/copied_reference_cohort_live_source_write rejected 1744ms expected @a92f16431042
 	statement 4 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
 	statement 4 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
-fail/borrows/copied_scalar_field_without_restriction rejected 3373ms expected @230151eef4fe
-	argument `value` for state `entry` expects `&u64[0..=5]`, got `member access`
+fail/borrows/copied_scalar_field_without_restriction rejected 826ms expected @867738eb9535+wt
+	cannot prove requires contract for call bounded from selected: limits.value <= 5 (needs fact `value <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/copied_shared_descendant_keeps_owner rejected 502ms expected @7fd97495b148+wt
 	state `drop$specialized$9e8160205d459d88$0` receives an owned value while local borrow `views` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/borrows/cyclic_arrival_duplicates_exclusive_reference rejected 2043ms expected @a92f16431042
@@ -24659,7 +24659,7 @@ pass/borrows/copied_input_descriptor_independent_mutation_exit checked 3956ms ch
 pass/borrows/copied_input_descriptor_local_copy_exit checked 1402ms check-target:macos_arm64 @27c558b731f4
 pass/borrows/copied_input_descriptor_return_copy_exit checked 2508ms check-target:macos_arm64 @a92f16431042
 pass/borrows/copied_intermediate_descriptor_snapshot_exit checked 2740ms check-target:macos_arm64 @a92f16431042
-pass/borrows/copied_scalar_field_with_restricted_peer checked 4838ms check-target:macos_arm64 @230151eef4fe
+pass/borrows/copied_scalar_field_with_restricted_peer checked 1179ms check-target:macos_arm64 @867738eb9535+wt
 pass/borrows/data_copy_property checked 2619ms @a92f16431042
 pass/borrows/disjoint_branch_closure_with_grandchild checked 2284ms check-target:macos_arm64 @a92f16431042
 pass/borrows/dynamic_window_return_custody_exit incomplete 2353ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @a92f16431042
@@ -25081,7 +25081,7 @@ pass/build/product_selection_conditional_exit checked 686ms check-target:macos_a
 pass/build/product_selection_helper_exit checked 686ms check-target:macos_arm64 @7530b1177ef5+wt
 pass/build/provider_applied_const29_exit checked 2345ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @bad69cc2a485
 pass/build/provider_nested_type_application_exit checked 2654ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @bad69cc2a485
-pass/build/provider_package_default_exit checked 2309ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
+pass/build/provider_package_default_exit checked 3805ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match provider-choice-controls:match terminal-inspections:match @867738eb9535+wt
 pass/build/provider_package_default_override_exit checked 2177ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
 pass/build/provider_package_generated_owner_exit checked 2411ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
 pass/build/provider_package_helper_exit checked 2199ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @5dd6fab9e76b
