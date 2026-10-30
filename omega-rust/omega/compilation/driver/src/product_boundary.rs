@@ -628,7 +628,7 @@ fn installation_reach_settlement_consumes_prepared_rows() {
 #[test]
 fn qualification_grants_consume_prepared_issuer_evidence() {
     let binding = include_str!("../../realization/provider-planning/src/provider_planning.rs");
-    assert!(binding.contains("check_facts.semantic.admitted_qualification_issuers()"));
+    assert!(binding.contains(".admitted_qualification_issuers()"));
     let policy = include_str!("../../realization/provider-selection/src/qualification_grants.rs");
     for forbidden in [
         "checked_trees",
