@@ -59,6 +59,7 @@ impl BoundaryStorageInputs {
                 binding.source,
                 &binding.source_path,
                 &binding.referent,
+                binding.aggregate.as_ref(),
                 binding.argument_index,
                 binding.access,
                 &binding.normal_qualifications,
@@ -125,10 +126,7 @@ impl BoundaryStorageInputs {
             if !request.argument_path.is_empty() {
                 continue;
             }
-            let loan = TerminalOriginalStorageLoan {
-                root: request.root,
-                referent: request.referent,
-            };
+            let loan = request.loan();
             let buffer = self
                 .buffers
                 .iter_mut()
@@ -239,6 +237,7 @@ impl TerminalExecution<'_> {
             argument_path: Vec::new(),
             view_type: original.structural_type,
             references: Vec::new(),
+            scalar_projection: None,
         })
     }
 
@@ -291,6 +290,7 @@ fn capture_graph(
     source: semantic_vocabulary::PlaceId,
     source_path: &[terminal_psi::StructuralPathSegment],
     referent: &TerminalStructuralValue,
+    aggregate: Option<&crate::reference::AggregateBacking>,
     argument_index: usize,
     access: StructuralAccess,
     normal_qualifications: &[crate::effects::normal_qualifications::CapturedNormalQualification],
@@ -306,10 +306,11 @@ fn capture_graph(
         ));
     }
     active.push(referent.structural_type);
-    let original = execution.original_storage_owner(referent)?;
+    let backing = aggregate.map_or(referent, |backing| &backing.value);
+    let original = execution.original_storage_owner(backing)?;
     let (selected, path) =
-        execution.actual_storage_projection(&original, &StructuralRuntimePlace::from(referent))?;
-    if selected != referent.structural_type {
+        execution.actual_storage_projection(&original, &StructuralRuntimePlace::from(backing))?;
+    if selected != backing.structural_type {
         return Err(malformed());
     }
     let leaves = contents::describe(execution, referent, access, None)?;
@@ -318,6 +319,7 @@ fn capture_graph(
         source,
         referent,
         None,
+        aggregate,
         access,
         &leaves,
         normal_qualifications,
@@ -330,6 +332,15 @@ fn capture_graph(
         execution.original_storage_request(&original, argument_index, access, path, values)?;
     request.argument_path = argument_path.clone();
     request.view_type = referent.structural_type;
+    if aggregate.is_some() {
+        request.scalar_projection = Some(
+            scalars
+                .iter()
+                .zip(&request.values)
+                .map(|(scalar, original)| (scalar.path.clone(), original.path.clone()))
+                .collect(),
+        );
+    }
     for leaf in &leaves {
         let StorageLeafKind::Opaque { declaration, .. } = leaf.kind else {
             continue;
@@ -379,6 +390,7 @@ fn capture_graph(
             source,
             &full,
             &child,
+            None,
             argument_index,
             child_access,
             normal_qualifications,

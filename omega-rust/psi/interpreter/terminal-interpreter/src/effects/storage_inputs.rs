@@ -84,6 +84,7 @@ struct StructuralLoanBinding {
     source_path: Vec<terminal_psi::StructuralPathSegment>,
     access: terminal_psi::StructuralAccess,
     referent: TerminalStructuralValue,
+    aggregate: Option<crate::reference::AggregateBacking>,
     /// Preservation promised for this exact formal, captured before dispatch.
     /// It can retain an existing membership, never introduce one from C bytes.
     normal_qualifications: Vec<crate::effects::normal_qualifications::CapturedNormalQualification>,
@@ -165,6 +166,7 @@ impl BoundaryStorageInputs {
         argument: &StructuralArgument,
         referent: &TerminalStructuralValue,
         array_loan: Option<&crate::element_views::ElementView>,
+        aggregate: Option<&crate::reference::AggregateBacking>,
         argument_index: usize,
         normal_guarantees: &[terminal_psi::StructuralDomainRequirement],
     ) -> Result<(), TerminalInterpretError> {
@@ -180,6 +182,7 @@ impl BoundaryStorageInputs {
                 argument.place,
                 referent,
                 array_loan,
+                aggregate,
                 parameter.access,
                 &leaves,
                 &[],
@@ -246,6 +249,7 @@ impl BoundaryStorageInputs {
             argument.place,
             referent,
             array_loan,
+            aggregate,
             parameter.access,
             &leaves,
             &normal_qualifications,
@@ -270,6 +274,7 @@ impl BoundaryStorageInputs {
             source_path: argument.path.clone(),
             access: parameter.access,
             referent: referent.clone(),
+            aggregate: aggregate.cloned(),
             normal_qualifications,
             original,
             leaves,

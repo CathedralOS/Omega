@@ -67,6 +67,7 @@ impl TerminalInstance<'_, '_> {
                     *place,
                     value,
                     None,
+                    None,
                     StructuralAccess::SharedBorrow,
                     std::slice::from_ref(&leaf),
                     &[],

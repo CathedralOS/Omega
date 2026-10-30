@@ -502,13 +502,41 @@ pub(super) fn scalar_storage(
     execution: &TerminalExecution,
     referent: &TerminalStructuralValue,
     array_loan: Option<&crate::element_views::ElementView>,
+    aggregate: Option<&crate::reference::AggregateBacking>,
     access: StructuralAccess,
     leaf: &StorageLeaf,
 ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
     let StorageLeafKind::Scalar { scalar, .. } = leaf.kind else {
         return Err(malformed());
     };
-    if let Some(loan) = array_loan {
+    if let Some(backing) = aggregate {
+        // Logical paths select bytes in the retained region. Only the core
+        // projector may join those bytes to original scalar endpoints.
+        let region = backing
+            .region
+            .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                "host aggregate storage needs a retained typed scalar region",
+            ))?;
+        if backing.placed.is_some() || backing.byte_region.is_some() || array_loan.is_some() {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "host aggregate storage has no resident codec for placed or byte-backed cells",
+            ));
+        }
+        let path = terminal_semantics::canonical_structural_storage_path(
+            execution.program.structural_types().values(),
+            referent.structural_type,
+            &leaf.path,
+        )
+        .ok_or_else(malformed)?;
+        execution.aggregate_view_primitive_access(
+            &backing.value,
+            crate::reference::AggregateViewTip::Aggregate {
+                view: region,
+                backing: backing.value.structural_type,
+            },
+            &path,
+        )
+    } else if let Some(loan) = array_loan {
         let path = leaf
             .path
             .iter()
@@ -528,6 +556,7 @@ pub(crate) fn capture(
     source: PlaceId,
     referent: &TerminalStructuralValue,
     array_loan: Option<&crate::element_views::ElementView>,
+    aggregate: Option<&crate::reference::AggregateBacking>,
     access: StructuralAccess,
     leaves: &[StorageLeaf],
     normal_qualifications: &[crate::effects::normal_qualifications::CapturedNormalQualification],
@@ -535,6 +564,16 @@ pub(crate) fn capture(
     let mut values = Vec::new();
     let mut endpoints = Vec::new();
     for leaf in leaves {
+        if aggregate.is_some()
+            && !matches!(
+                leaf.kind,
+                StorageLeafKind::Scalar { .. } | StorageLeafKind::ByteArray { .. }
+            )
+        {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "host aggregate re-view requires independently represented scalar leaves",
+            ));
+        }
         let contents = match &leaf.kind {
             StorageLeafKind::Case { case, .. } => TerminalStorageContents::Case(*case),
             StorageLeafKind::Scalar {
@@ -544,7 +583,7 @@ pub(crate) fn capture(
                 ..
             } => {
                 let (storage, logical, shared) =
-                    scalar_storage(execution, referent, array_loan, access, leaf)?;
+                    scalar_storage(execution, referent, array_loan, aggregate, access, leaf)?;
                 if logical != *scalar {
                     return Err(malformed());
                 }

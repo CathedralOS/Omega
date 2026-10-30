@@ -350,23 +350,13 @@ impl TerminalExecution<'_> {
                     StructuralTypeShape::PrimitiveScalar(_)
                 )
             {
-                if resolved
-                    .aggregate_backings
-                    .get(argument_index)
-                    .is_some_and(Option::is_some)
-                {
-                    // Host replacement still requires an exact backing-cell
-                    // projection. Logical ingress alone cannot name its fields.
-                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "aggregate re-view host storage needs its backing field projection",
-                    ));
-                }
                 resolved.storage_inputs.capture_fields(
                     self,
                     parameter,
                     argument,
                     &resolved.values[argument_index],
                     resolved.element_views[argument_index].as_ref(),
+                    resolved.aggregate_backings[argument_index].as_ref(),
                     argument_index,
                     normal_qualifications,
                 )?;
