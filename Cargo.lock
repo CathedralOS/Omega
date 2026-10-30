@@ -2056,8 +2056,10 @@ checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 name = "sample-runner"
 version = "0.1.0"
 dependencies = [
+ "bounded-process",
  "omega-build",
  "package-manager",
+ "serde_json",
  "sha2",
  "target",
  "terminal-runtime",
@@ -2067,13 +2069,7 @@ dependencies = [
 name = "sci04-terminal-validation"
 version = "0.1.0"
 dependencies = [
- "compiler",
- "omega-build",
- "package-manager",
- "serde_json",
- "target",
- "terminal-interpreter",
- "terminal-runtime",
+ "sample-runner",
 ]
 
 [[package]]
@@ -2791,12 +2787,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "wavelet-transient-validation"
 version = "0.1.0"
 dependencies = [
- "bounded-process",
- "compiler",
- "omega-build",
- "package-manager",
- "target",
- "terminal-runtime",
+ "sample-runner",
 ]
 
 [[package]]

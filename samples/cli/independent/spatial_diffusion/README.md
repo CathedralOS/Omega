@@ -65,14 +65,16 @@ Never bypass a custody or permission refusal in order to run this sample.
 Terminal numerical validation is separate from CLI exit-code comparison:
 
 ```sh
-CARGO_PROFILE_RELEASE_OPT_LEVEL=1 mbx run --release --locked -p sci04-terminal-validation -- /absolute/path/to/spatial_diffusion
+CARGO_PROFILE_RELEASE_OPT_LEVEL=1 mbx run --release --locked -p sci04-terminal-validation -- --evidence /absolute/path/to/spatial_diffusion
 python3 samples/cli/independent/spatial_diffusion/validate.py --captured samples/cli/independent/spatial_diffusion/build/validation/terminal
 ```
 
 The Rust harness is a root workspace member sharing the CLI dependency resolution.
 It uses the normal native report's retained Terminal artifact and
 admitted provisions, gives each case an isolated domain with finite stdin, and
-captures actual stdout, stderr and completion. After a normal `omega run --keep` compile, `validate.py --native-binary` can
+captures actual stdout, stderr and completion. Every capture is compared
+against the frozen oracle's exit for that case and must leave stderr empty
+before the numbers are checked. After a normal `omega run --keep` compile, `validate.py --native-binary` can
 reuse that exact retained executable for the full input matrix. This avoids
 recompiling identical Omega source for each request; every input still runs in
 a fresh OS process and is checked against the frozen oracle.
