@@ -1,0 +1,3 @@
+bubble_sort: in-place sort of [29, 10, 14, 37, 13] with runtime-indexed swaps
+result: nums[0] after sorting -- the minimum, 10 for this dataset (the exit code)
+[press Enter to close]

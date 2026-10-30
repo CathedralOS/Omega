@@ -19,10 +19,12 @@ data Phase [copy] {
 }
 
 // Traffic-light state: current phase + total advance count.
-data Light [copy] {
+data Light [copy]
+requires
+    0 <= self.advances && self.advances <= 100
+{
     phase: Phase;
-    // The modular-counter idiom at the increment: reducing `% 101` before the
-    // `+ 1` makes it Exact-provable with no overflow domain.
+    // The owner bound proves the exact increment before its remainder.
     advances: i32;
 }
 
@@ -41,14 +43,14 @@ machine Main::main(main: &mut Main) reaches Console {
 
     // After 4 advances the light should be Green and advances == 4.
     transition main.light.advances == 4 {
-        true -> check_phase(main)
-        false -> bad_count(main)
+        true -> block check_phase(main)
+        false -> block bad_count(main)
     }
 
     machine check_phase(main: &mut Main) {
         transition main.light.phase {
-            Phase::Green -> good(main)
-            _ -> bad_phase(main)
+            Phase::Green -> block good(main)
+            _ -> block bad_phase(main)
         }
     }
 
@@ -76,7 +78,7 @@ machine Main::main(main: &mut Main) reaches Console {
 
 // Advance the light one phase: Red->Green, Green->Yellow, Yellow->Red.
 machine Main::advance(main: &mut Main) {
-    main.light.advances = (main.light.advances % 101 + 1) % 101;
+    main.light.advances = (main.light.advances + 1) % 101;
 
     transition main.light.phase {
         Phase::Red -> go_green(main)
