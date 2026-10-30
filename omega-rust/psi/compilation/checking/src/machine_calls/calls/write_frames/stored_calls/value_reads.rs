@@ -64,6 +64,27 @@ pub(in crate::machine_calls::calls::write_frames) fn completed_value_reads(
 }
 
 impl CompletedValueReads {
+    /// Publish only the first captured descriptor's address. The old capture
+    /// inventory cannot supply a later pointer load through its referent.
+    pub(in crate::machine_calls::calls::write_frames) fn reference_sources(
+        &self,
+        program: &dyn crate::CheckingInput,
+    ) -> Option<Vec<frames::LocalWriteSource>> {
+        let (boundary, sources) = self.sources_at_boundary(program, &[])?;
+        if boundary != 0 {
+            return None;
+        }
+        sources
+            .into_iter()
+            .map(|source| {
+                (source.lifetime_access.is_none()
+                    && source.origin.precision == FramePathPrecision::Exact
+                    && source.origin.source.output_identity().is_none())
+                .then(|| source.origin.into())
+            })
+            .collect()
+    }
+
     pub(in crate::machine_calls::calls::write_frames) fn read_backing(
         &self,
         program: &dyn crate::CheckingInput,

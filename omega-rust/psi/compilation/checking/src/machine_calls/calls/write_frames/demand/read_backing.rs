@@ -54,20 +54,44 @@ impl CallFrameResolver<'_> {
             .read_backing(self.program, path)
     }
 
-    /// Exact contents of a completed reference observation. These are the
-    /// retained descriptor suppliers, not another execution of its initializer.
-    /// Every current pointer load and every alternative must be authenticated.
+    /// Exact address retained by an observed reference value. Immutable names
+    /// and saved subjects select their authenticated production cut, even when
+    /// normalization reuses their syntax in several later statements. Neither
+    /// mutable selectors nor subsequently loaded pointers are replayed there.
     pub(crate) fn completed_reference_read_sources(
         &self,
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
     ) -> Option<Vec<super::super::LocalWriteSource>> {
-        let (owner, completed) = self.completed_read_value(machine, expression)?;
+        let (owner, completed) = match self.program.expression_table.expression(expression) {
+            typed_trees::expression::ExpressionNode::Name(path) => {
+                if let Some((index, local)) =
+                    self.program.state_local_declaration(state, path.symbol)
+                    && !local.is_mutable
+                    && path.symbol == path.head_symbol
+                {
+                    let initial = local.ordinary_value_initializer()?;
+                    let statement = self
+                        .program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .get(index)?;
+                    self.completed_read_value_at(machine, state, statement, index, initial)?
+                } else {
+                    self.completed_read_value(machine, expression)?
+                }
+            }
+            typed_trees::expression::ExpressionNode::SavedSubject(saved) => {
+                let production = self.program.saved_value_source(saved)?;
+                self.completed_read_value(machine, production)?
+            }
+            _ => self.completed_read_value(machine, expression)?,
+        };
         if owner != state.symbol {
             return None;
         }
-        Some(completed.read_backing(self.program, &[])?.sources)
+        completed.reference_sources(self.program)
     }
 
     fn completed_read_value(
@@ -80,6 +104,17 @@ impl CallFrameResolver<'_> {
             machine,
             caller_aliases::CallerWriteSite::Expression(expression),
         )?;
+        self.completed_read_value_at(machine, state, statement, index, expression)
+    }
+
+    fn completed_read_value_at(
+        &self,
+        machine: &Machine,
+        state: &State,
+        statement: &typed_trees::statement::StatementNode,
+        index: usize,
+        expression: ExpressionHandle,
+    ) -> Option<(SymbolHandle, stored_calls::value_reads::CompletedValueReads)> {
         let reference =
             crate::expression_result_type_reference(self.program, machine, state, expression)?;
         let prefix = state_write_walk::collected_prefix_at(
