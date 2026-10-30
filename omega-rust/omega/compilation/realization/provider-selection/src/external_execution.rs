@@ -19,6 +19,26 @@ pub fn selected_external_execution(
     let requirement = identities
         .text(requirement.identity())
         .ok_or("numeric provider requirement has no nominal identity")?;
+    selected_execution_for_identity(
+        external_providers,
+        identities,
+        requirement,
+        plan,
+        row,
+        retained,
+        realization,
+    )
+}
+
+pub(crate) fn selected_execution_for_identity(
+    external_providers: &[terminal_psi::ExternalProviderConformance],
+    identities: &terminal_psi::TerminalIdentityTable,
+    requirement: &str,
+    plan: &ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
+    retained: Option<CompilerIntrinsicExecutionIdentity>,
+    realization: Option<&str>,
+) -> Result<Option<CompilerIntrinsicExecutionIdentity>, String> {
     let candidate = effects::external_providers::selected_numeric_provider(
         external_providers,
         identities,

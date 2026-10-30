@@ -2091,6 +2091,7 @@ dependencies = [
  "package-compilation",
  "program-entry-plan",
  "provider-planning",
+ "provider-selection",
  "psi-terminal-production",
  "representation-planning",
  "semantic-vocabulary",

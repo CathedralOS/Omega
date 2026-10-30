@@ -4,14 +4,7 @@
 
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
-use language_semantics::BoundaryBodySelection;
-
-pub struct CheckedBodyCandidate<'candidate, Body> {
-    pub body: Body,
-    pub declaration: &'candidate BoundaryBodySelection,
-    pub target: Option<&'candidate str>,
-    pub is_product: bool,
-}
+pub use language_semantics::CheckedBodyCandidate;
 
 /// Select exactly one retained declaration or one checked application body.
 /// A generic declaration is eligible policy, never a substitute for the

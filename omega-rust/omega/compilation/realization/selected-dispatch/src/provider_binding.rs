@@ -89,10 +89,10 @@ pub fn prepare_selected_execution(
     let binding = provider_planning::bind_selected_provider_plan_facts(
         &program,
         &program.facts,
-        provider_planning::CheckedNumericProviders {
+        provider_selection::BoundaryProviderAdmission {
+            review: &external_providers.boundary_provider_review(),
             identities: &external_providers.identities,
-            conformances: &external_providers.conformances,
-            correspondence: external_providers.correspondence(),
+            external_providers: &external_providers.conformances,
         },
         &provider_plans,
         settlement.selected_provider_plan_facts,
