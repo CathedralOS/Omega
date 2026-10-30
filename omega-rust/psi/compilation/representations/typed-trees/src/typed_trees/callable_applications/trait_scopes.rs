@@ -33,6 +33,12 @@ impl TypedTrees {
             ),
         };
         if let Some(closed) = self.closed_requirement_application(target) {
+            if application.is_valid() {
+                let written = self.applied_requirement_scope(lexical_owner, application)?;
+                if !self.requirement_application_matches_scope(target, &written) {
+                    return None;
+                }
+            }
             let scope = closed.trait_scope.scope(self)?;
             let (_, declared) = self.trait_machine_signature(closed.template)?;
             return self
