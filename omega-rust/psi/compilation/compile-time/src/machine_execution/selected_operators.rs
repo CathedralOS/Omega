@@ -501,15 +501,8 @@ pub fn validate_selected_provider_bodies(
                     .filter(|mapping| {
                         mapping.declaring_trait == owner.symbol
                             && mapping.requirement == row.requirement
-                            && (mapping.realization_machine == provider.symbol
-                                && mapping.realization_state == entry.symbol
-                                || program.target_machine_families.iter().any(|family| {
-                                    family.canonical == mapping.realization_machine
-                                        && family.members.iter().any(|member| {
-                                            member.machine == provider.symbol
-                                                && member.target.as_str() == row.target_scope
-                                        })
-                                }))
+                            && mapping.realization_machine == provider.symbol
+                            && mapping.realization_state == entry.symbol
                     })
                     .count()
             } else {

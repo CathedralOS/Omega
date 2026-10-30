@@ -405,23 +405,7 @@ fn produce_shared_terminal(
             .filter(|receipt| receipt.provider_machine.is_valid())
             .map(|receipt| receipt.provider_machine),
     );
-    // Normalize the default to its portable family head; application receipts
-    // still name the exact selected declaration.
     let default = machines[0];
-    let default = typed
-        .target_machine_families
-        .iter()
-        .find(|family| {
-            (family.canonical == default
-                || family
-                    .members
-                    .iter()
-                    .any(|member| member.machine == default))
-                && typed
-                    .machine_by_symbol(family.canonical)
-                    .is_some_and(|machine| machine.target_family_interface)
-        })
-        .map_or(default, |family| family.canonical);
     let applications = cohort
         .iter()
         .map(AdmittedTerminalProduct::custody)

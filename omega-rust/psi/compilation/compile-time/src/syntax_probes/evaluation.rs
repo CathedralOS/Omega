@@ -379,28 +379,6 @@ fn declaration_dependencies(
     let mut closure = typed_trees::references::ReferenceClosure::new();
     loop {
         let mut changed = false;
-        // A family declaration is one checking unit. Retain its members and
-        // their exact helper, operator, type and proof dependencies in the
-        // private projection. Projection alone grants no invocation authority.
-        for family in &program.target_machine_families {
-            if selection.contains(family.canonical)
-                || family
-                    .members
-                    .iter()
-                    .any(|member| selection.contains(member.machine))
-            {
-                if !selection.contains(family.canonical) {
-                    selection.include(family.canonical);
-                    changed = true;
-                }
-                for member in &family.members {
-                    if !selection.contains(member.machine) {
-                        selection.include(member.machine);
-                        changed = true;
-                    }
-                }
-            }
-        }
         let (mut referenced_symbols, new_expressions) = closure.extend(program, &selection);
         if !new_expressions.is_empty() {
             // Operator meaning is selected from operand types, not necessarily a
