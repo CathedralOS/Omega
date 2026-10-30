@@ -6,7 +6,7 @@ use super::super::behavior::{
 };
 use super::super::contracts::facts::{callable_contract_exposure, project_callable_contracts};
 use super::super::semantics::conformances::project_conformance_bounds;
-use super::super::semantics::facts::exactly_one;
+use super::super::semantics::facts::{exactly_one, machine_invocation};
 use super::super::semantics::signatures::parameters::project_signature_parameters;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::conformances::project_callable_conformances;
@@ -147,13 +147,9 @@ pub(super) fn project<'a>(
         subject,
         "realized contract envelope",
     )?;
-    let checked_invocation = exactly_one(
-        compilation
-            .facts
-            .synchronous_invocations
-            .machines
-            .iter()
-            .filter(|fact| fact.machine == machine.symbol),
+    let checked_invocation = machine_invocation(
+        &compilation.facts.synchronous_invocations.machines,
+        machine.symbol,
         subject,
         "synchronous-invocation",
     )?;
