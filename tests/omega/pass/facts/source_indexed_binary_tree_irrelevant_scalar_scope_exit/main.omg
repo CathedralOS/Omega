@@ -1,11 +1,12 @@
 // Expected exit: 0
 // A two-child Tree constructor preserves Total <= 10 * Nodes; Nodes <= 8 proves exact 80u64 - Total.
-data Tree<Nodes: u64, Total: u64> {
-    case Empty where Nodes == 0 && Total == 0;
+data Tree<Nodes: u64, Total: u64> 
+    requires ((self in Tree::Empty) && (Nodes == 0 && Total == 0)) || ((self in Tree::Fork) && (self.head <= 10 && embed(self.left_nodes) + embed(self.right_nodes) + 1 == embed(Nodes)
+              && embed(self.left_total) + embed(self.right_total) + embed(self.head) == embed(Total)))
+{
+    case Empty;
     case Fork(left_nodes: u64, left_total: u64, right_nodes: u64, right_total: u64, head: u64,
-              left [erased]: Tree<left_nodes, left_total>, right [erased]: Tree<right_nodes, right_total>)
-        where head <= 10 && embed(left_nodes) + embed(right_nodes) + 1 == embed(Nodes)
-              && embed(left_total) + embed(right_total) + embed(head) == embed(Total);
+              left [erased]: Tree<left_nodes, left_total>, right [erased]: Tree<right_nodes, right_total>);
 }
 machine tree_bound<Nodes: u64, Total: u64>(evidence [erased]: Tree<Nodes, Total>)
 terminates by Nodes;

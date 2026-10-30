@@ -120,6 +120,14 @@ crashes Trap
     }
 
     machine admit(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
+        let retired: bool = owner == ClauseOwner::DataCase && (kind == ClauseKind::Where || kind == ClauseKind::Requires);
+        transition retired {
+            true -> reject(parser, input, ParseDiagnosticCode::RetiredCasePredicate)
+            _ -> admit_owner(parser, input, owner, kind)
+        }
+    }
+
+    machine admit_owner(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         let admitted: bool = Parser::clause_admitted(owner, kind);
         transition admitted {
             true -> clause(parser, input, owner, kind)
@@ -691,7 +699,10 @@ crashes Trap
     // A fact ends where its expression does; the body's `{` admits no
     // construction there.
     machine fact(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
+        let logical: bool = owner == ClauseOwner::Domain || owner == ClauseOwner::Data;
+        parser.expression_allow_subject = logical;
         Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedClauseFact, false, true);
+        parser.expression_allow_subject = false;
         transition parser.output.accepted {
             true -> fact_retained(parser, input, owner, kind, parser.expression_result)
             _ -> done()
@@ -901,8 +912,9 @@ crashes Trap
 // Which clauses each owner admits: a machine, trait member or contract every
 // clause but `where`, a refinement member the operational axes it narrows
 // (`reaches`, `suspends`, `blocks`, `terminates`), a state its arrival
-// `requires` and a domain its predicate `requires`, and a data declaration
-// or case only `where`.
+// `requires` and a domain its predicate `requires`. A data declaration admits
+// `where` and default-domain `requires`. A case admits neither: case-local
+// predicates are written on the data declaration.
 machine Parser::clause_admitted(owner: ClauseOwner, kind: ClauseKind) -> bool {
     transition owner {
         ClauseOwner::Machine -> machine_clause(kind)
@@ -910,7 +922,17 @@ machine Parser::clause_admitted(owner: ClauseOwner, kind: ClauseKind) -> bool {
         ClauseOwner::Contract -> machine_clause(kind)
         ClauseOwner::Refinement -> narrowing(kind)
         ClauseOwner::Domain -> arrival(kind)
+        ClauseOwner::Data -> data_clause(kind)
+        ClauseOwner::DataCase -> refused()
         _ -> declaration(kind)
+    }
+
+    machine data_clause(kind: ClauseKind) -> bool {
+        transition kind {
+            ClauseKind::Where -> admitted()
+            ClauseKind::Requires -> admitted()
+            _ -> refused()
+        }
     }
 
     machine narrowing(kind: ClauseKind) -> bool {

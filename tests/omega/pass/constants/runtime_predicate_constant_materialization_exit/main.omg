@@ -1,10 +1,12 @@
 // Ordinary constants establish their data/case predicates without becoming
 // generic indices. Keep exact u64 bits through nested record/array copies.
 public data Bounded [copy] where value <= 7 { value: u64; }
-public data Choice [copy] {
+public data Choice [copy] 
+    requires (self in Choice::Empty) || ((self in Choice::Selected) && (self.value <= 7)) || ((self in Choice::Uninhabited) && (self.value < 0))
+{
     case Empty;
-    case Selected(value: u64) where value <= 7;
-    case Uninhabited(value: u64) where value < 0;
+    case Selected(value: u64);
+    case Uninhabited(value: u64);
 }
 public data Packet [copy] {
     bounded: Bounded;

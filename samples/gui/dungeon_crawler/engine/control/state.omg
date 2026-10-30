@@ -7,9 +7,11 @@ where direction >= -1 && direction < 4 {
 }
 
 public data ControlSource<const Actors: u64> [copy]
-where Actors >= 1 {
+where Actors >= 1 
+    requires (self in ControlSource::Input) || ((self in ControlSource::Pursuit) && (self.target < Actors))
+{
     case Input(device: u32);
-    case Pursuit(target: u64) where target < Actors;
+    case Pursuit(target: u64);
 }
 
 public data ControllerBinding<const Actors: u64> [copy]

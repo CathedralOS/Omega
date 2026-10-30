@@ -106,6 +106,8 @@ public data ValueBinding [copy] {
     // A domain declaration's subject binder in its predicates: the value the
     // domain classifies (wiki/spec/language/domains.md#declaration-and-membership).
     case DomainSubject(domain: u64 in Trapping);
+    // `self` in a data declaration's default-domain `requires`.
+    case DataSubject(item: u64 in Trapping);
     // A compiler-known primitive byte predicate applied to a byte view.
     case BytePredicate(predicate: BytePredicate);
     // `size_of` or `align_of`, the primitive layout queries

@@ -4,29 +4,31 @@
 const MAX_RES: u64 = 80u64;
 const MIN_RES: u64 = 40u64;
 
-data TwentyTwoChoice [copy] {
-    case V1(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V2(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V3(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V4(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V5(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V6(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V7(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V8(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V9(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V10(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V11(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V12(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V13(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V14(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V15(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V16(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V17(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V18(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V19(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V20(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V21(v: u64) where v >= MIN_RES && v <= MAX_RES;
-    case V22(v: u64) where v >= MIN_RES && v <= MAX_RES;
+data TwentyTwoChoice [copy] 
+    requires ((self in TwentyTwoChoice::V1) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V2) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V3) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V4) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V5) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V6) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V7) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V8) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V9) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V10) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V11) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V12) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V13) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V14) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V15) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V16) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V17) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V18) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V19) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V20) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V21) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in TwentyTwoChoice::V22) && (self.v >= MIN_RES && self.v <= MAX_RES))
+{
+    case V1(v: u64);
+    case V2(v: u64);
+    case V3(v: u64);
+    case V4(v: u64);
+    case V5(v: u64);
+    case V6(v: u64);
+    case V7(v: u64);
+    case V8(v: u64);
+    case V9(v: u64);
+    case V10(v: u64);
+    case V11(v: u64);
+    case V12(v: u64);
+    case V13(v: u64);
+    case V14(v: u64);
+    case V15(v: u64);
+    case V16(v: u64);
+    case V17(v: u64);
+    case V18(v: u64);
+    case V19(v: u64);
+    case V20(v: u64);
+    case V21(v: u64);
+    case V22(v: u64);
 }
 
 machine verify_payload(value: u64) -> u64

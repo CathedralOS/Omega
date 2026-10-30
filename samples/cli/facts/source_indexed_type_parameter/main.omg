@@ -1,11 +1,12 @@
 // Expected exit: 0
 // A Vector constructor with a copyable type parameter preserves Total <= 10 * Length; Length <= 8 proves exact 80u64 - Total.
-data Vector<T [copy], Length: u64, Total: u64> {
-    case Nil where Length == 0 && Total == 0;
+data Vector<T [copy], Length: u64, Total: u64> 
+    requires ((self in Vector::Nil) && (Length == 0 && Total == 0)) || ((self in Vector::Cons) && (self.head <= 10 && embed(self.previous) + 1 == embed(Length)
+              && embed(self.previous_total) + embed(self.head) == embed(Total)))
+{
+    case Nil;
     case Cons(previous: u64, previous_total: u64, head: u64, marker: T,
-              tail [erased]: Vector<T, previous, previous_total>)
-        where head <= 10 && embed(previous) + 1 == embed(Length)
-              && embed(previous_total) + embed(head) == embed(Total);
+              tail [erased]: Vector<T, previous, previous_total>);
 }
 
 machine vector_bound<T [copy], Length: u64, Total: u64>(evidence [erased]: Vector<T, Length, Total>)

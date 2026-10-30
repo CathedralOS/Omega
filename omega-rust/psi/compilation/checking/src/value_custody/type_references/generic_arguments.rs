@@ -1137,6 +1137,7 @@ fn validate_decoded_structured_const(
                 definition.where_facts,
                 &declared_fields,
                 fields,
+                SymbolHandle::invalid(),
             )?;
             visiting.push(*symbol);
             let result = members.iter().zip(fields).try_for_each(
@@ -1202,20 +1203,22 @@ fn validate_decoded_structured_const(
                     payload.len()
                 ));
             }
+            let declared_fields = payload.iter().collect::<Vec<_>>();
             super::const_predicates::validate(
                 program,
                 definition,
                 definition.where_facts,
-                &[],
-                &[],
+                &declared_fields,
+                fields,
+                variant.symbol,
             )?;
-            let declared_fields = payload.iter().collect::<Vec<_>>();
             super::const_predicates::validate(
                 program,
                 definition,
                 variant.where_facts,
                 &declared_fields,
                 fields,
+                variant.symbol,
             )?;
             visiting.push(*symbol);
             let result = payload.iter().zip(fields).try_for_each(

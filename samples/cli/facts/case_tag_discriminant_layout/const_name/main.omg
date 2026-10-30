@@ -1,9 +1,11 @@
 // Constructing and matching a multi-variant case value preserves its exact variant payload bound (payload <= 64u64) alongside its target layout geometry (size_of / align_of), discharging exact subtraction 64u64 - payload across all nine places.
 // Expected exit: 0
 
-data Packet [copy] {
+data Packet [copy] 
+    requires (self in Packet::Empty) || ((self in Packet::Bounded) && (self.payload <= 64u64))
+{
     case Empty;
-    case Bounded(payload: u64) where payload <= 64u64;
+    case Bounded(payload: u64);
 }
 
 const BOUNDED: Packet = Packet::Bounded { payload: 24u64 };

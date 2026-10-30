@@ -245,7 +245,50 @@ crashes Trap
         ValueBinding::PayloadField { field } -> payload_field(typer, syntax, field)
         ValueBinding::ReturnedValue { machine } -> returned(typer, syntax, machine)
         ValueBinding::DomainSubject { domain } -> subject(typer, syntax, domain)
+        ValueBinding::DataSubject { item } -> data_subject(typer, syntax, index, item)
         _ -> absent()
+    }
+
+    // `self` in a data default-domain predicate is that declaration applied to
+    // its own generic parameters. A bare template would make `Value<T>` and
+    // `Value` the same subject.
+    machine data_subject(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, item: u64 in Trapping) -> u64 in Trapping {
+        let expression: Expression = SyntaxTrees::expression(syntax, index);
+        let declared: DataItem = SyntaxTrees::data_item(syntax, item);
+        let first: u64 in Trapping = typer.output.types.argument_count as u64 in Trapping;
+        transition { _ -> argument(typer, syntax, item, expression, declared, first, 0) }
+
+        machine argument(typer: &mut Typer, syntax: &SyntaxTrees, item: u64 in Trapping, expression: Expression, declared: DataItem, first: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
+            transition offset < declared.generic_parameter_count {
+                true -> push(typer, syntax, item, expression, declared, first, offset)
+                _ -> applied(typer, item, expression, declared, first)
+            }
+        }
+
+        machine push(typer: &mut Typer, syntax: &SyntaxTrees, item: u64 in Trapping, expression: Expression, declared: DataItem, first: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
+            let parameter: u64 in Trapping = declared.first_generic_parameter + offset;
+            let mut argument_row: TypeRow = TypeRow::of(TypeKind::GenericParameter);
+            argument_row.item = parameter;
+            let argument: u64 in Trapping = Typer::intern(typer, argument_row, expression.source_span);
+            let kept: bool = TypeTable::push_argument(&mut typer.output.types, argument);
+            transition kept && argument > 0 {
+                true -> argument(typer, syntax, item, expression, declared, first, offset + 1)
+                _ -> zero()
+            }
+        }
+
+        machine zero() -> u64 in Trapping {
+            0
+        }
+
+        machine applied(typer: &mut Typer, item: u64 in Trapping, expression: Expression, declared: DataItem, first: u64 in Trapping) -> u64 in Trapping {
+            let mut row: TypeRow = TypeRow::of(TypeKind::Data);
+            row.item = item;
+            row.first_argument = first;
+            row.argument_count = declared.generic_parameter_count;
+            let handle: u64 in Trapping = Typer::intern(typer, row, expression.source_span);
+            handle
+        }
     }
 
     // A domain's subject binder has its carrier's type.
@@ -381,8 +424,44 @@ crashes Trap
     machine candidate(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
         transition offset < item.field_count {
             true -> compare(typer, sources, syntax, index, expression, row, item, offset)
+            _ -> payload_case(typer, sources, syntax, index, expression, row, item, 0)
+        }
+    }
+
+    // A guarded `self.payload` names the first case payload with that spelling.
+    // The Rust producer still checks the preceding case conjunct before use.
+    machine payload_case(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
+        transition offset < item.case_count {
+            true -> payload_open(typer, sources, syntax, index, expression, row, item, offset)
             _ -> unknown(typer, expression)
         }
+    }
+
+    machine payload_open(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
+        let declared: DataCase = SyntaxTrees::data_case(syntax, item.first_case + offset);
+        transition { _ -> payload_field(typer, sources, syntax, index, expression, row, item, offset, declared, 0) }
+    }
+
+    machine payload_field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping, declared: DataCase, field_offset: u64 in Trapping) {
+        transition field_offset < declared.payload_field_count {
+            true -> payload_compare(typer, sources, syntax, index, expression, row, item, offset, declared, field_offset)
+            _ -> payload_case(typer, sources, syntax, index, expression, row, item, offset + 1)
+        }
+    }
+
+    machine payload_compare(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping, declared: DataCase, field_offset: u64 in Trapping) {
+        let field: DataField = SyntaxTrees::payload_field(syntax, declared.first_payload_field + field_offset);
+        let spelled: bool = SourceSet::spans_equal(sources, field.name.source_span, expression.name.source_span);
+        transition spelled {
+            true -> payload_found(typer, syntax, index, expression, row, field)
+            _ -> payload_field(typer, sources, syntax, index, expression, row, item, offset, declared, field_offset + 1)
+        }
+    }
+
+    machine payload_found(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, field: DataField) {
+        let field_type: u64 in Trapping = Typing::reference_type(&typer.output, field.type_reference);
+        let substituted: u64 in Trapping = Typer::substitute(typer, syntax, field_type, row, expression.source_span);
+        Typing::set_expression_type(&mut typer.output, index, substituted);
     }
 
     machine compare(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {

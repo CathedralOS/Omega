@@ -17558,6 +17558,8 @@ fail/domains/refinement_chain_routed_provenance_forge rejected 1599ms expected @
 fail/domains/result_domain_overload_duplicate_predicate rejected 815ms expected @ccdb99ca2214
 	duplicate named machine overload `convert` with parameter signature `parameter(mutable(no),const(no),named(name(i32)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 	machine `convert` cannot prove ensures contract proof fact `result >= 0 && result <= 100` on the transition arm guarded by `<always>`
+fail/domains/retired_case_predicate rejected 4ms expected @3caadfad789f+wt
+	tests/omega/fail/domains/retired_case_predicate/main.omg:2:34: case-local predicate clauses are retired; write the predicate in the data declaration's default-domain `requires`
 fail/domains/retired_empty_body rejected 3ms expected @ccdb99ca2214
 	tests/omega/fail/domains/retired_empty_body/main.omg:1:20: empty domain bodies are retired; end the declaration with `;`
 fail/domains/retired_empty_predicate_body rejected 4ms expected @ccdb99ca2214

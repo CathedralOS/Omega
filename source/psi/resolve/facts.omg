@@ -80,7 +80,7 @@ crashes Trap
 
     machine data(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
         let item: DataItem = SyntaxTrees::data_item(syntax, index);
-        Resolver::bind_data_facts(resolver, sources, syntax, item, item.first_clause, item.clause_count, 0, 0);
+        Resolver::bind_data_facts(resolver, sources, syntax, index, item, item.first_clause, item.clause_count, 0, 0);
         transition { _ -> next_case(resolver, sources, syntax, index, item, 0) }
     }
 
@@ -97,6 +97,7 @@ crashes Trap
             resolver,
             sources,
             syntax,
+            index,
             item,
             declared.first_clause,
             declared.clause_count,
@@ -224,6 +225,7 @@ machine Resolver::bind_data_facts(
     resolver: &mut Resolver,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
+    item_index: u64 in Trapping,
     item: DataItem,
     first_clause: u64 in Trapping,
     clause_count: u64 in Trapping,
@@ -233,32 +235,34 @@ machine Resolver::bind_data_facts(
 crashes Trap
 {
     let payload: FactPayload = FactPayload { first: first_payload, count: payload_count };
-    transition { _ -> next(resolver, sources, syntax, item, payload, first_clause, first_clause + clause_count) }
+    transition { _ -> next(resolver, sources, syntax, item_index, item, payload, first_clause, first_clause + clause_count) }
 
-    machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, index: u64 in Trapping, end: u64 in Trapping) {
+    machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item_index: u64 in Trapping, item: DataItem, payload: FactPayload, index: u64 in Trapping, end: u64 in Trapping) {
         transition index < end && resolver.output.accepted {
-            true -> clause(resolver, sources, syntax, item, payload, index, end)
+            true -> clause(resolver, sources, syntax, item_index, item, payload, index, end)
             _ -> done()
         }
     }
 
-    machine clause(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, index: u64 in Trapping, end: u64 in Trapping) {
+    machine clause(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item_index: u64 in Trapping, item: DataItem, payload: FactPayload, index: u64 in Trapping, end: u64 in Trapping) {
         let clause: Clause = SyntaxTrees::clause(syntax, index);
-        transition clause.kind == ClauseKind::Where && clause.has_expression {
-            true -> fact(resolver, sources, syntax, item, payload, index, end, clause.expression)
-            _ -> next(resolver, sources, syntax, item, payload, index + 1, end)
+        let predicate: bool = clause.kind == ClauseKind::Where || clause.kind == ClauseKind::Requires;
+        transition predicate && clause.has_expression {
+            true -> fact(resolver, sources, syntax, item_index, item, payload, index, end, clause.expression)
+            _ -> next(resolver, sources, syntax, item_index, item, payload, index + 1, end)
         }
     }
 
-    machine fact(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, index: u64 in Trapping, end: u64 in Trapping, root: u64 in Trapping) {
+    machine fact(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item_index: u64 in Trapping, item: DataItem, payload: FactPayload, index: u64 in Trapping, end: u64 in Trapping, root: u64 in Trapping) {
         let expression: Expression = SyntaxTrees::expression(syntax, root);
-        transition { _ -> node(resolver, sources, syntax, item, payload, index, end, root, expression.first_row) }
+        transition { _ -> node(resolver, sources, syntax, item_index, item, payload, index, end, root, expression.first_row) }
     }
 
     machine node(
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
+        item_index: u64 in Trapping,
         item: DataItem,
         payload: FactPayload,
         index: u64 in Trapping,
@@ -267,8 +271,8 @@ crashes Trap
         handle: u64 in Trapping
     ) {
         transition handle <= root && resolver.output.accepted {
-            true -> named(resolver, sources, syntax, item, payload, index, end, root, handle)
-            _ -> next(resolver, sources, syntax, item, payload, index + 1, end)
+            true -> named(resolver, sources, syntax, item_index, item, payload, index, end, root, handle)
+            _ -> next(resolver, sources, syntax, item_index, item, payload, index + 1, end)
         }
     }
 
@@ -276,6 +280,7 @@ crashes Trap
         resolver: &mut Resolver,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
+        item_index: u64 in Trapping,
         item: DataItem,
         payload: FactPayload,
         index: u64 in Trapping,
@@ -284,8 +289,8 @@ crashes Trap
         handle: u64 in Trapping
     ) {
         let expression: Expression = SyntaxTrees::expression(syntax, handle);
-        Resolver::bind_data_name(resolver, sources, syntax, item, payload, root, handle, expression);
-        transition { _ -> node(resolver, sources, syntax, item, payload, index, end, root, handle + 1) }
+        Resolver::bind_data_name(resolver, sources, syntax, item_index, item, payload, root, handle, expression);
+        transition { _ -> node(resolver, sources, syntax, item_index, item, payload, index, end, root, handle + 1) }
     }
 
     machine done() {}
@@ -300,6 +305,7 @@ machine Resolver::bind_data_name(
     resolver: &mut Resolver,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
+    item_index: u64 in Trapping,
     item: DataItem,
     payload: FactPayload,
     root: u64 in Trapping,
@@ -310,21 +316,21 @@ crashes Trap
 {
     let role: NameRole = Resolver::role(resolver, handle);
     transition expression.kind {
-        ExpressionKind::Name -> single(resolver, sources, syntax, item, payload, root, handle, expression, role)
+        ExpressionKind::Name -> single(resolver, sources, syntax, item_index, item, payload, root, handle, expression, role)
         ExpressionKind::Path -> path(resolver, sources, syntax, root, handle, expression, role)
         _ -> done()
     }
 
-    machine single(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, role: NameRole) {
+    machine single(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item_index: u64 in Trapping, item: DataItem, payload: FactPayload, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, role: NameRole) {
         transition role {
-            NameRole::Value -> value(resolver, sources, syntax, item, payload, root, handle, expression)
+            NameRole::Value -> value(resolver, sources, syntax, item_index, item, payload, root, handle, expression)
             NameRole::Callee -> callee(resolver, sources, syntax, root, handle, expression)
             _ -> bound(resolver, syntax, root, handle, expression, ValueBinding::Unresolved)
         }
     }
 
-    machine value(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
-        let binding: ValueBinding = Resolver::data_value_name(sources, syntax, item, payload, expression.name.source_span);
+    machine value(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item_index: u64 in Trapping, item: DataItem, payload: FactPayload, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
+        let binding: ValueBinding = Resolver::data_value_name(sources, syntax, item_index, item, payload, expression.name.source_span);
         transition { _ -> bound(resolver, syntax, root, handle, expression, binding) }
     }
 
@@ -390,10 +396,14 @@ crashes Trap
 
 // A bare value name in a data fact: one of the case's payload fields, then
 // one of the declaration's own fields, then one of its value binders.
-machine Resolver::data_value_name(sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, name: SourceSpan) -> ValueBinding
+machine Resolver::data_value_name(sources: &SourceSet, syntax: &SyntaxTrees, item_index: u64 in Trapping, item: DataItem, payload: FactPayload, name: SourceSpan) -> ValueBinding
 crashes Trap
 {
-    transition { _ -> payload_field(sources, syntax, item, payload, name, 0) }
+    let subject: bool = SourceSet::span_spells(sources, name, "self");
+    transition subject {
+        true -> found(ValueBinding::DataSubject { item: item_index })
+        _ -> payload_field(sources, syntax, item, payload, name, 0)
+    }
 
     machine payload_field(sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, payload: FactPayload, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
         transition offset < payload.count {
