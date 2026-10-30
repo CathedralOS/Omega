@@ -1,0 +1,32 @@
+// Expected exit: 0
+data Payload { value: u64; }
+data Response {
+    case Value(payload: Payload);
+    case Empty;
+}
+data Outcome {
+    case Matched(payload: Payload);
+    case Unexpected(response: Response);
+}
+machine extract(response: Response) -> Outcome {
+    transition response {
+        Response::Value { payload } -> (Outcome::Matched { payload: payload })
+        _ -> (Outcome::Unexpected { response: response })
+    }
+}
+machine observe(response: Response) -> u64 {
+    let result: Outcome = extract(response);
+    transition result {
+        Outcome::Matched { payload } -> (payload.value)
+        _ -> (0)
+    }
+}
+machine main() crashes Trap {
+    let yes: u64 = observe(Response::Value { payload: Payload { value: 73 } });
+    let no: u64 = observe(Response::Empty);
+    transition yes == 73 && no == 0 {
+        true -> {}
+        _ -> bad()
+    }
+    machine bad() crashes Trap { crash Trap; }
+}
