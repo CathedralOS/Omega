@@ -108,7 +108,7 @@ impl CurrentScalarValues<'_> {
     /// Exact retained inline fields of one formal. The caller selects the
     /// frame: an entry frame supplies entry values; a later frame supplies
     /// only associations that survived its executed writes and calls.
-    pub(crate) fn scalar_field_observations(
+    pub(crate) fn entry_scalar_field_observations(
         &self,
         parameter: SymbolHandle,
     ) -> impl Iterator<
@@ -133,14 +133,47 @@ impl CurrentScalarValues<'_> {
         &self,
         field: &ScalarField,
     ) -> Option<Vec<checked_trees::CheckedEntryIndexBound>> {
-        // This arithmetic roster retains no case-membership judgment. A case
-        // projection cannot become an unconditional entry observation here.
-        if field
-            .path
+        let path = source_path(&field.path);
+        if path
             .iter()
-            .any(|step| matches!(step, ScalarProjection::Case(_)))
+            .any(|step| matches!(step, facts::PlaceSegment::Case { .. }))
         {
-            return None;
+            // Only the entry coordinate enumerator calls this query. All
+            // Requires have already formed; a body guard or later write can
+            // neither authorize nor retarget the saved entry observation.
+            let is_entry = self
+                .program
+                .machine_states(self.machine)
+                .first()
+                .is_some_and(|entry| entry.symbol == self.state.symbol);
+            let requires = self
+                .program
+                .state_contracts(self.state)
+                .iter()
+                .chain(
+                    self.program
+                        .machine_contracts(self.machine)
+                        .iter()
+                        .filter(|_| is_entry),
+                )
+                .filter(|contract| {
+                    contract.kind == typed_trees::signature::SignatureContractKind::Requires
+                })
+                .flat_map(|contract| self.program.proof_facts.span_or_empty(contract.facts))
+                .filter_map(|fact| fact.as_expression().copied())
+                .collect::<Vec<_>>();
+            if !validation::declaration_projection_cases_hold(
+                self.program,
+                self.machine.symbol,
+                self.program.state_parameters(self.state),
+                &requires,
+                &validation::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(field.owner),
+                    segments: path.clone(),
+                },
+            ) {
+                return None;
+            }
         }
         let geometry = validation::structural_scalar_coordinate(
             self.program,
@@ -341,45 +374,50 @@ impl CurrentScalarValues<'_> {
                 self.capture_window_elements(expression, indexed, depth)
                     .unwrap_or_default()
             }
-            ExpressionNode::StructLiteral(literal) if literal.case_symbol.is_none() => {
+            ExpressionNode::StructLiteral(literal) => {
+                let Some(definition) =
+                    validation::selected_construction_definition(self.program, expression, literal)
+                else {
+                    return Vec::new();
+                };
+                let selected_case = literal.case_symbol.and_then(|_| {
+                    validation::selected_construction_case(
+                        self.program,
+                        expression,
+                        literal,
+                        definition,
+                    )
+                });
+                if literal.case_symbol.is_some() && selected_case.is_none() {
+                    return Vec::new();
+                }
                 let mut captured = Vec::new();
                 for field in self.program.expression_table.struct_fields(literal.fields) {
                     if !field.field_symbol.is_valid() {
                         continue;
                     }
-                    let declared_field = self
-                        .program
-                        .data_application_definition(reference)
-                        .or_else(|| self.program.closed_data_definition(reference))
-                        .and_then(|data| {
-                            self.program
-                                .data_members(data)
-                                .iter()
-                                .filter_map(|member| {
-                                    if let typed_trees::data::DataMember::Field(field) = member {
-                                        Some(field)
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .find(|candidate| candidate.symbol == field.field_symbol)
-                        })
-                        .map(|field| field.type_reference)
-                        .or_else(|| {
-                            validation::expression_result_type_reference(
-                                self.program,
-                                self.machine,
-                                self.state,
-                                field.value,
-                            )
-                        })
-                        .unwrap_or_default();
+                    let Some(declared) = validation::selected_construction_field(
+                        self.program,
+                        expression,
+                        literal,
+                        field.field_symbol,
+                    ) else {
+                        continue;
+                    };
+                    let mut prefix = Vec::new();
+                    if self.program.symbols.get(declared.symbol).parent != definition.symbol {
+                        let Some(case) = selected_case else { continue };
+                        if self.program.symbols.get(declared.symbol).parent != case.symbol {
+                            continue;
+                        }
+                        prefix.push(ScalarProjection::Case(case.symbol));
+                    }
+                    prefix.push(ScalarProjection::Field(declared.symbol));
+                    let declared_field = declared.type_reference;
                     for mut nested in
                         self.captured_scalar_fields_of_type(field.value, declared_field, depth + 1)
                     {
-                        nested
-                            .path
-                            .insert(0, ScalarProjection::Field(field.field_symbol));
+                        nested.path.splice(0..0, prefix.iter().cloned());
                         captured.push(nested);
                     }
                     let carrier = integer_carrier(self.program, declared_field);
@@ -388,7 +426,7 @@ impl CurrentScalarValues<'_> {
                             self.capture(self.program, self.machine, self.state, field.value)
                     {
                         captured.push(CapturedScalarField {
-                            path: vec![ScalarProjection::Field(field.field_symbol)],
+                            path: prefix.clone(),
                             carrier,
                             value,
                             read_dependencies: Vec::new(),

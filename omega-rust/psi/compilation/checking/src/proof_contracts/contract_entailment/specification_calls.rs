@@ -58,13 +58,21 @@ impl<'program> SpecificationCaller<'program> {
         program: &'program dyn crate::CheckingInput,
     ) -> Vec<&'program StateParameter> {
         match self {
-            Self::Machine(machine, state) => program
-                .machine_states(machine)
-                .first()
-                .into_iter()
-                .chain(state)
-                .flat_map(|state| program.state_parameters(state))
-                .collect(),
+            Self::Machine(machine, state) => {
+                let entry = program.machine_states(machine).first();
+                // Machine-header formation already supplies the entry state.
+                // It is one telescope: repeating its exact symbols makes the
+                // case/projection owner correctly refuse an ambiguous binder.
+                // A distinct state retains its own additional parameters.
+                entry
+                    .into_iter()
+                    .chain(
+                        state
+                            .filter(|state| entry.is_none_or(|entry| entry.symbol != state.symbol)),
+                    )
+                    .flat_map(|state| program.state_parameters(state))
+                    .collect()
+            }
             Self::Declaration(_, parameters) => parameters.iter().collect(),
         }
     }

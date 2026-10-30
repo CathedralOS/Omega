@@ -6,7 +6,15 @@ use sample_runner::{Evidence, Sample};
 const SAMPLE: Sample = Sample {
     package: "new031-terminal-validation",
     review: true,
-    evidence: Evidence::Adjacent,
+    evidence: Evidence::Terminal {
+        sources: &[
+            "main.omg",
+            "build.omg",
+            "domain/shockley.omg",
+            "domain/solver.omg",
+            "io/protocol.omg",
+        ],
+    },
 };
 
 fn main() {

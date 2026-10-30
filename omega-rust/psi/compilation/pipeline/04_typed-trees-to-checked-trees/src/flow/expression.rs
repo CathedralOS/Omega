@@ -1975,6 +1975,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         &collection_operand,
                         &start_operand,
                         Some(&end_operand),
+                        possible_storage,
                     ));
                     // `self.expression(indexed.index)` would publish the
                     // range node's own result tags after evaluating both
@@ -2003,6 +2004,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         &collection_operand,
                         &index_operand,
                         None,
+                        possible_storage,
                     ));
                     self.record_operator_invocation(
                         expression,

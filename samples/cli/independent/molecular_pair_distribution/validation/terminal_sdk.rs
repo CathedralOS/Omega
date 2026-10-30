@@ -6,7 +6,7 @@ use sample_runner::{Evidence, Sample};
 const SAMPLE: Sample = Sample {
     package: "molecular-pair-distribution-validation",
     review: false,
-    evidence: Evidence::Adjacent,
+    evidence: Evidence::Named,
 };
 
 fn main() {

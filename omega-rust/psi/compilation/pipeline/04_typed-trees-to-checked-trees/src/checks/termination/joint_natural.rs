@@ -489,7 +489,7 @@ fn coordinates(
             // scalar path, including erasure and exact declaration identities.
             if observation == validation::RankPremiseObservation::Value {
                 for (path, primitive, value, entry_indexes) in
-                    values.scalar_field_observations(parameter.symbol)
+                    values.entry_scalar_field_observations(parameter.symbol)
                 {
                     let Some(field) = validation::structural_scalar_coordinate(
                         program,
