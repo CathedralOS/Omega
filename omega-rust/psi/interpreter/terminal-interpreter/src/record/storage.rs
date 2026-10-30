@@ -247,7 +247,7 @@ impl<'execution> ConstructorValue<'execution> {
 pub(crate) struct ConstructorStorage {
     original_roots: RuntimeRows<
         StructuralRuntimePlace,
-        crate::effects::original_storage::TerminalOriginalStorageRoot,
+        crate::effects::original_storage::OriginalStorageAllocation,
     >,
     completed_profiles: RuntimeRows<
         StructuralRuntimePlace,

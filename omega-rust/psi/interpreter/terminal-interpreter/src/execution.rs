@@ -114,7 +114,7 @@ pub struct TerminalExecution<'artifact> {
     /// projected pieces cannot infer a new whole allocation from resident bits.
     pub(crate) original_storage_roots: RuntimeRows<
         StructuralRuntimePlace,
-        crate::effects::original_storage::TerminalOriginalStorageRoot,
+        crate::effects::original_storage::OriginalStorageAllocation,
     >,
     pub(crate) original_byte_cells:
         RuntimeRows<(u64, usize), crate::effects::original_storage::OriginalByteCell>,

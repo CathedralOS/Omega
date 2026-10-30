@@ -387,14 +387,18 @@ impl BoundaryStorageInputs {
             let Some(owner) = owner else {
                 continue;
             };
+            let allocation = OriginalStorageAllocation {
+                root: request.root,
+                structural_type: request.structural_type,
+            };
             if execution
                 .original_storage_roots
                 .get(&owner)
-                .is_some_and(|previous| *previous != request.root)
+                .is_some_and(|previous| *previous != allocation)
             {
                 return Err(malformed());
             }
-            original_roots.insert(owner, request.root)?;
+            original_roots.insert(owner, allocation)?;
         }
         execution.original_byte_cells.validate_append(&raw_cells)?;
         execution
@@ -619,18 +623,16 @@ impl TerminalExecution<'_> {
         let source_home = StructuralRuntimePlace::from(source);
         let selected = self
             .original_storage_roots
-            .keys()
-            .filter(|home| {
+            .iter()
+            .filter(|(home, _)| {
                 home.opaque_identity == source_home.opaque_identity
                     && source_home.path.starts_with(&home.path)
             })
-            .min_by_key(|home| home.path.len());
-        if let Some(home) = selected {
+            .min_by_key(|(home, _)| home.path.len());
+        if let Some((home, allocation)) = selected {
             let mut original = TerminalStructuralValue::minted(
                 home.opaque_identity,
-                self.actual_storage_type_from_owner(home).map_err(|error| {
-                    error.in_argument_preparation("resolve retained original root type")
-                })?,
+                allocation.structural_type,
                 Vec::new(),
             );
             original.path = home.path.clone();
@@ -660,7 +662,7 @@ impl TerminalExecution<'_> {
             root: self
                 .original_storage_roots
                 .get(&StructuralRuntimePlace::from(original))
-                .copied()
+                .map(|allocation| allocation.root)
                 .unwrap_or(TerminalOriginalStorageRoot {
                     artifact: self.program.identity.semantic(),
                     namespace: self.local_structural_identities.exposure_namespace.ok_or(

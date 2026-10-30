@@ -23,6 +23,15 @@ pub struct TerminalOriginalStorageRoot {
     pub(crate) namespace: u64,
     pub(crate) allocation: u64,
 }
+
+/// Keep the allocation declaration established during original capture.
+/// Borrowed descriptors can present another type at the same storage path;
+/// those presentations never replace the allocation's own geometry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OriginalStorageAllocation {
+    pub(crate) root: TerminalOriginalStorageRoot,
+    pub(crate) structural_type: StructuralTypeId,
+}
 impl TerminalOriginalStorageRoot {
     pub fn artifact(&self) -> TerminalPsiIdentity {
         self.artifact
