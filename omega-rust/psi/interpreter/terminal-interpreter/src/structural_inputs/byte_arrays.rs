@@ -201,7 +201,16 @@ impl TerminalExecution<'_> {
                 }
             }
             if self.structural_byte_storage.contains_key(&array)
-                || storage.insert(array, bytes)?.is_some()
+                || storage
+                    .insert(
+                        array,
+                        storage::StructuralByteArrayStorage::new(
+                            array_type,
+                            bytes,
+                            self.account.as_ref(),
+                        ),
+                    )?
+                    .is_some()
             {
                 return Err(malformed());
             }

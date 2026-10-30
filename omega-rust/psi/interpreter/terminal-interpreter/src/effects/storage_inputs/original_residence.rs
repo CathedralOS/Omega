@@ -20,6 +20,17 @@ struct CapturedOriginal {
     endpoints: Vec<PrimitiveStorageEndpoint>,
 }
 
+enum OriginalArrayCell {
+    Frame {
+        home: crate::primitive_storage::PrimitiveStorageHome,
+        index: usize,
+    },
+    Structural {
+        array: StructuralRuntimePlace,
+        index: usize,
+    },
+}
+
 impl BoundaryStorageInputs {
     pub(crate) fn prepare_original_storage(
         &mut self,
@@ -108,7 +119,22 @@ impl BoundaryStorageInputs {
                 endpoint: endpoint.clone(),
                 encoding: None,
             };
-            if let Some((home, index)) = execution.original_array_cell(&storage)? {
+            if let Some(cell) = execution.original_array_cell(&storage)? {
+                let (home, index) = match cell {
+                    OriginalArrayCell::Frame { home, index } => (home, index),
+                    OriginalArrayCell::Structural { array, index } => {
+                        execution
+                            .structural_byte_storage
+                            .get_mut(&array)
+                            .ok_or_else(malformed)?
+                            .prepare_resident_install(
+                                index,
+                                resident,
+                                execution.account.as_ref(),
+                            )?;
+                        continue;
+                    }
+                };
                 let (depth, place, _) = home.scalar_array_frame();
                 let arrays = if depth == execution.call_stack.len() {
                     &mut execution.scalar_array_values
@@ -154,9 +180,20 @@ impl BoundaryStorageInputs {
                         endpoint,
                         encoding: None,
                     };
-                    let (home, index) = execution
+                    let (home, index) = match execution
                         .original_array_cell(&storage)?
-                        .ok_or_else(malformed)?;
+                        .ok_or_else(malformed)?
+                    {
+                        OriginalArrayCell::Frame { home, index } => (home, index),
+                        OriginalArrayCell::Structural { array, index } => {
+                            execution
+                                .structural_byte_storage
+                                .get_mut(&array)
+                                .ok_or_else(malformed)?
+                                .install_resident(index, resident)?;
+                            continue;
+                        }
+                    };
                     let (depth, place, _) = home.scalar_array_frame();
                     let arrays = if depth == execution.call_stack.len() {
                         &mut execution.scalar_array_values
@@ -231,23 +268,30 @@ impl TerminalExecution<'_> {
     fn original_array_cell(
         &self,
         storage: &PrimitiveStorage,
-    ) -> Result<
-        Option<(crate::primitive_storage::PrimitiveStorageHome, usize)>,
-        TerminalInterpretError,
-    > {
+    ) -> Result<Option<OriginalArrayCell>, TerminalInterpretError> {
         use crate::structural_inputs::byte_arrays::storage::ArrayStorageHome;
         let (home, index) = match &storage.endpoint {
             PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => (*home, *index),
             PrimitiveStorageEndpoint::ArrayElement { array, index } => {
-                let ArrayStorageHome::Frame {
-                    depth,
-                    place,
-                    structural_type,
-                } = array.home
-                else {
-                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "original foreign byte storage needs its resident runtime array codec",
-                    ));
+                let (depth, place, structural_type) = match array.home {
+                    ArrayStorageHome::Frame {
+                        depth,
+                        place,
+                        structural_type,
+                    } => (depth, place, structural_type),
+                    ArrayStorageHome::Runtime => {
+                        let payload = self
+                            .structural_byte_storage
+                            .get(&array.referent)
+                            .ok_or_else(malformed)?;
+                        if *index >= payload.len() {
+                            return Err(malformed());
+                        }
+                        return Ok(Some(OriginalArrayCell::Structural {
+                            array: array.referent.clone(),
+                            index: *index,
+                        }));
+                    }
                 };
                 let (start, end) = self.frame_byte_array_window(array)?;
                 let index = start
@@ -280,7 +324,7 @@ impl TerminalExecution<'_> {
         if array.structural_type != structural_type || index >= array.len() {
             return Err(malformed());
         }
-        Ok(Some((home, index)))
+        Ok(Some(OriginalArrayCell::Frame { home, index }))
     }
 
     fn original_scalar_owner(
@@ -288,7 +332,24 @@ impl TerminalExecution<'_> {
         storage: &PrimitiveStorage,
         identity_cursor: &mut Option<u64>,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-        if let Some((home, _)) = self.original_array_cell(storage)? {
+        if let Some(cell) = self.original_array_cell(storage)? {
+            let home = match cell {
+                OriginalArrayCell::Frame { home, .. } => home,
+                OriginalArrayCell::Structural { array, .. } => {
+                    let structural_type = self
+                        .structural_byte_storage
+                        .get(&array)
+                        .ok_or_else(malformed)?
+                        .structural_type;
+                    let mut source = TerminalStructuralValue::minted(
+                        array.opaque_identity,
+                        structural_type,
+                        Vec::new(),
+                    );
+                    source.path = array.path;
+                    return self.original_storage_owner(&source);
+                }
+            };
             let (depth, place, structural_type) = home.scalar_array_frame();
             let identity = self.array_storage_identity_staged(depth, place, identity_cursor)?;
             return Ok(TerminalStructuralValue::minted(
@@ -393,7 +454,37 @@ impl TerminalExecution<'_> {
                 "original scalar storage requires its exact representation-view codec",
             ));
         }
-        if let Some((home, index)) = self.original_array_cell(storage)? {
+        if let Some(cell) = self.original_array_cell(storage)? {
+            let (home, index) = match cell {
+                OriginalArrayCell::Frame { home, index } => (home, index),
+                OriginalArrayCell::Structural { array, index } => {
+                    let payload = self
+                        .structural_byte_storage
+                        .get(&array)
+                        .ok_or_else(malformed)?;
+                    let (selected, mut path) = self.actual_storage_projection(original, &array)?;
+                    if selected != payload.structural_type {
+                        return Err(malformed());
+                    }
+                    let (value, backing) = payload.capture_scalar(index)?;
+                    if storage
+                        .encoding
+                        .is_some_and(|encoding| encoding.source != value.scalar_type())
+                    {
+                        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "original byte array scalar requires its exact whole-byte codec",
+                        ));
+                    }
+                    path.push(Path::FixedIndex(
+                        u64::try_from(index).map_err(|_| malformed())?,
+                    ));
+                    return Ok(TerminalOriginalScalarValue {
+                        path,
+                        value,
+                        backing,
+                    });
+                }
+            };
             let (depth, place, structural_type) = home.scalar_array_frame();
             let array = self.frame_array(depth, place).ok_or_else(malformed)?;
             if array.storage_identity != Some(original.opaque_identity)
@@ -524,12 +615,6 @@ fn capture_graph(
             &observed_scalars
         }
     };
-    let packed = scalars
-        .first()
-        .map(|scalar| execution.original_array_cell(&scalar.storage))
-        .transpose()?
-        .flatten()
-        .is_some();
     let original = match scalars.first() {
         Some(scalar) => execution.original_scalar_owner(&scalar.storage, identity_cursor)?,
         None => execution.original_storage_owner(backing)?,
@@ -546,15 +631,20 @@ fn capture_graph(
             "mutable original storage lacks its owner qualification preservation",
         ));
     }
-    let path = if packed {
-        Vec::new()
-    } else {
+    // Scalar leaves have explicit original-root projections. A containing
+    // path is needed only for opaque/reference slots of the typed graph.
+    let path = if leaves
+        .iter()
+        .any(|leaf| matches!(leaf.kind, StorageLeafKind::Opaque { .. }))
+    {
         let (selected, path) = execution
             .actual_storage_projection(&original, &StructuralRuntimePlace::from(backing))?;
         if selected != backing.structural_type {
             return Err(malformed());
         }
         path
+    } else {
+        Vec::new()
     };
     let values = scalars
         .iter()

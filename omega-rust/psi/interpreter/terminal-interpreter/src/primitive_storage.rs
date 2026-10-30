@@ -1564,7 +1564,7 @@ impl TerminalExecution<'_> {
                     IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
                 let index = usize::try_from(*index).map_err(|_| malformed())?;
                 if scalar_type != ScalarType::Integer(byte_type)
-                    || bytes.get(index).is_none()
+                    || index >= bytes.len()
                     || self
                         .structural_primitive_storage
                         .contains_key(&StructuralRuntimePlace::from(view))

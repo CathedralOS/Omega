@@ -153,7 +153,10 @@ pub struct TerminalExecution<'artifact> {
     /// Completed byte payloads addressed by exact typed storage home. Fixed
     /// byte arrays and stored shared descriptors reuse the backing representation;
     /// each observing operation separately authenticates its declared carrier.
-    pub(crate) structural_byte_storage: RuntimeRows<StructuralRuntimePlace, ByteSequenceView>,
+    pub(crate) structural_byte_storage: RuntimeRows<
+        StructuralRuntimePlace,
+        crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage,
+    >,
     pub(crate) empty_array_storage: crate::scalar_array::empty_storage::EmptyArrayStorage,
     /// Entry-provided discriminators remain attached to the original referent
     /// across projected and forwarded calls, independent of machine-local IDs.

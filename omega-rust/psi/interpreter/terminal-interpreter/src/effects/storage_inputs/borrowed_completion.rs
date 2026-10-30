@@ -245,6 +245,7 @@ pub(super) fn stage(
                 }
                 StorageLeafKind::ByteArray {
                     destination,
+                    structural_type,
                     length,
                 } => {
                     let values = (0..*length).map(|element_index| {
@@ -277,7 +278,7 @@ pub(super) fn stage(
                         values,
                         execution.account.as_ref(),
                     )?;
-                    staged.stage_byte_array(destination.clone(), bytes)?;
+                    staged.stage_byte_array(destination.clone(), *structural_type, bytes)?;
                 }
                 _ => {}
             }

@@ -538,7 +538,9 @@ impl TerminalExecution<'_> {
             .get(&crate::values::StructuralRuntimePlace::from(selected))
         {
             return Ok(ByteSequenceBinding::Immutable(
-                bytes.clone().with_descriptor_home(selected.clone()),
+                bytes
+                    .copy_snapshot()?
+                    .with_descriptor_home(selected.clone()),
             ));
         }
         let home = crate::values::StructuralRuntimePlace::from(selected);
@@ -950,7 +952,13 @@ impl TerminalExecution<'_> {
                 place,
             } => (depth, machine, place),
             ByteOwnerHome::Storage(home) => {
-                return self.structural_byte_storage.get(home).ok_or_else(malformed);
+                return self
+                    .structural_byte_storage
+                    .get(home)
+                    .and_then(|owner| owner.local_view())
+                    .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "bounded byte owner requires its byte-sequence storage representation",
+                    ));
             }
         };
         let (machine, values) = if *depth == self.call_stack.len() {
@@ -981,10 +989,8 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 }
                 self.invalidate_stored_provenance(home);
-                return self
-                    .structural_byte_storage
-                    .get_mut(home)
-                    .ok_or_else(malformed);
+                return self.structural_byte_storage.get_mut(home).and_then(|owner| owner.local_view_mut())
+                    .ok_or(TerminalInterpretError::UnsupportedSemanticVariant("bounded byte owner requires its mutable byte-sequence storage representation"));
             }
         };
         let (machine, values, structural_values) = if *depth == self.call_stack.len() {

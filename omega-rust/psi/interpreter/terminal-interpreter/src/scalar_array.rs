@@ -87,6 +87,29 @@ pub(crate) struct PackedScalarArrayValue {
 }
 
 impl PackedScalarArrayValue {
+    /// Promote a fixed byte payload into the same runtime cell representation
+    /// used by frame arrays, funding cells before observing the old payload.
+    pub(crate) fn from_bytes(
+        structural_type: StructuralTypeId,
+        bytes: &[u8],
+        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    ) -> Result<Self, TerminalInterpretError> {
+        let scalar_type =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                .map_err(|_| malformed())?;
+        Self::collect(
+            structural_type,
+            Vec::new(),
+            u64::try_from(bytes.len()).map_err(|_| malformed())?,
+            bytes.iter().map(|byte| {
+                Ok(TerminalScalarValue::Integer {
+                    scalar_type,
+                    value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*byte)),
+                })
+            }),
+            account,
+        )
+    }
     #[cfg(test)]
     pub fn elements(&self) -> Result<Vec<TerminalScalarValue>, TerminalInterpretError> {
         self.cells().iter().map(ScalarCell::read).collect()
@@ -161,7 +184,6 @@ impl PackedScalarArrayValue {
         Ok(())
     }
 
-    #[cfg(test)]
     fn collect(
         structural_type: StructuralTypeId,
         qualifications: Vec<semantic_vocabulary::StructuralDomainId>,

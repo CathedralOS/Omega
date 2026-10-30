@@ -182,6 +182,7 @@ pub(crate) enum StorageLeafKind {
     },
     ByteArray {
         destination: StructuralRuntimePlace,
+        structural_type: StructuralTypeId,
         length: u64,
     },
     /// One fully validated scalar-array subtree with no scalar instances.
@@ -309,7 +310,7 @@ fn collect(
                 return Ok(());
             }
             if execution.program.structural_types().get(element).is_some_and(|row| matches!(row.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(carrier)) if carrier.bits() == 8 && !carrier.is_address() && carrier.sign() == semantic_vocabulary::IntegerSign::Unsigned)) {
-                leaves.push(StorageLeaf { path: path.clone(), kind: StorageLeafKind::ByteArray { destination: destination.clone(), length: *length } });
+                leaves.push(StorageLeaf { path: path.clone(), kind: StorageLeafKind::ByteArray { destination: destination.clone(), structural_type: root, length: *length } });
             }
             let elements = match selected_path {
                 None => 0..*length,
