@@ -1,0 +1,33 @@
+// Copy propagation must preserve rotating backedges and distinct branch arrivals.
+// Expected exit: 0
+machine rotate(first: u64, second: u64, third: u64, once: bool, twice: bool) -> u64 {
+    transition { _ -> repeat(first, second, third, once, twice) }
+    machine repeat(first: u64, second: u64, third: u64, once: bool, twice: bool) -> u64 {
+        transition once {
+            true -> repeat(second, third, first, twice, false)
+            false -> first
+        }
+    }
+}
+machine duplicated(select: bool) -> u64 {
+    transition select {
+        true -> joined(11, 29, 11)
+        false -> joined(37, 43, 37)
+    }
+    machine joined(first: u64, second: u64, again: u64) -> u64 {
+        transition first == again { true -> second false -> 0 }
+    }
+}
+machine main() crashes Trap {
+    let zero: u64 = rotate(11, 23, 37, false, false);
+    let one: u64 = rotate(11, 23, 37, true, false);
+    let two: u64 = rotate(11, 23, 37, true, true);
+    let left: u64 = duplicated(true);
+    let right: u64 = duplicated(false);
+    transition zero == 11 && one == 23 && two == 37 && left == 29 && right == 43 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -72,3 +72,17 @@ the next 20% whole-run opportunity. Do not skip drops, leak graphs or alter
 custody/admission to improve the timer. Claim `56a52aad2720476bbef3b252b2f4add1`
 owns publication through PR864; merge-queue admission remains separate from the
 Windows author evidence recorded here.
+
+Published through [PR864](https://github.com/CathedralOS/Omega/pull/864) as
+`bc1ed575da8c741b6b464776ad326a85d506510f`. The exact source head matched,
+source and merge-group admission passed, and the published commit was verified
+as an ancestor of fetched main. [Publication readback](publication.json) keeps
+all producer/runtime identities separate. The exact post-merge smoke was
+canceled as superseded; a newer descendant smoke was pending at this readback.
+Neither is reported as a runtime pass. Continue on the warm local source;
+publication observation does not require another compiler build.
+
+A later [post-merge smoke readback](post-smoke.json) passed on descendant
+`aa9e154379ffc5c15b58fc370605f51c2ab058a5`, with published-commit ancestry
+verified. This is observed Linux smoke at that descendant, not a relabeling of
+the canceled exact-publication run or full release/other-host qualification.
