@@ -29,15 +29,7 @@ use crate::rewrites::runtime_spill::control_mut;
 
 validated_transformed_receipt!(ValidatedFixedOccurrences, FixedOccurrencesReceipt);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FixedOccurrencesReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-}
-
-receipt_selected_identities!(FixedOccurrencesReceipt);
+rewrite_receipt!(FixedOccurrencesReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FixedOccurrencesError {

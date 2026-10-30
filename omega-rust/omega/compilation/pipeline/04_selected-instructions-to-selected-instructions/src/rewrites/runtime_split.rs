@@ -67,15 +67,7 @@ pub use rewrite::split_selected_runtime_value;
 
 validated_transformed_receipt!(ValidatedRuntimeSplit, RuntimeSplitReceipt);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeSplitReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-}
-
-receipt_selected_identities!(RuntimeSplitReceipt);
+rewrite_receipt!(RuntimeSplitReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeSplitError {

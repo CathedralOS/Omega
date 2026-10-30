@@ -50,15 +50,7 @@ validated_transformed_receipt!(
     RuntimeRematerializationReceipt
 );
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeRematerializationReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-}
-
-receipt_selected_identities!(RuntimeRematerializationReceipt);
+rewrite_receipt!(RuntimeRematerializationReceipt);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeRematerializationError {

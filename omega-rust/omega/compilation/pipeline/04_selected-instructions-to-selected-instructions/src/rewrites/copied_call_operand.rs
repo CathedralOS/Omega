@@ -121,8 +121,11 @@ rewrite_receipt_identity!(
     call,
 );
 
-/// An accepted copied-call-operand reroute with its replay receipt.
-validated_transformed_receipt!(ValidatedCopiedCallOperand, CopiedCallOperandReceipt);
+validated_transformed_receipt!(
+    /// An accepted copied-call-operand reroute with its replay receipt.
+    ValidatedCopiedCallOperand,
+    CopiedCallOperandReceipt
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CopiedCallOperandReceipt {

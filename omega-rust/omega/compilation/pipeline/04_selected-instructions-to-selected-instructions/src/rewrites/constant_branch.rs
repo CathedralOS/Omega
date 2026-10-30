@@ -95,30 +95,19 @@ use semantic_vocabulary::FuelScheduleIdentity;
 pub(crate) use rewrite::fold_selected_constant_branch;
 pub(crate) use validation::{measured_steps, surface_sizes};
 
-/// An accepted constant condition branch fold with its replay receipt.
-validated_transformed_receipt!(ValidatedConstantBranch, ConstantBranchReceipt);
+validated_transformed_receipt!(
+    /// An accepted constant condition branch fold with its replay receipt.
+    ValidatedConstantBranch,
+    ConstantBranchReceipt
+);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConstantBranchReceipt {
-    source_selected: SelectedInstructionPlanIdentity,
-    transformed_selected: SelectedInstructionPlanIdentity,
-    optimization_unit: OptimizationUnitIdentity,
-    fuel_schedule: FuelScheduleIdentity,
-    function_index: usize,
-    branch: SelectedInstructionId,
-}
-
-impl ConstantBranchReceipt {
-    receipt_accessor_rows!(ref ConstantBranchReceipt {
+rewrite_receipt!(ConstantBranchReceipt {
     /// The transformed function index carrying the folded branch.
-        function_index: usize,
+    function_index: usize,
     /// The folded branch instruction — the `Jump` terminator instruction
     /// carries this identity across.
-        branch: SelectedInstructionId,
-    });
-}
-
-receipt_selected_identities!(ConstantBranchReceipt);
+    branch: SelectedInstructionId,
+});
 
 // Canonical identity of one validated constant branch fold: every receipt
 // field — the coordinate, both plan identities, and the proof inputs — is
