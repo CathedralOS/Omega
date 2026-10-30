@@ -1407,6 +1407,17 @@ impl<'program> StructuralJudge<'program> {
         }
         let left = self.resolve(left);
         let right = self.resolve(right);
+        self.intake_equation_fact(left, right, depth);
+    }
+
+    /// Shared fact storage after the producer has selected its value inputs.
+    /// Ordinary equations normalize above. Independently established scalar
+    /// observations retain their occurrence instead of evaluating a description.
+    /// This operation supplies no observation, formation or domain authority.
+    fn intake_equation_fact(&mut self, left: StructuralTerm, right: StructuralTerm, depth: usize) {
+        if self.case_facts_only || depth >= 32 {
+            return;
+        }
         if super::structural_terms::term_is_unobserved_descriptor(self.program, &left)
             || super::structural_terms::term_is_unobserved_descriptor(self.program, &right)
         {

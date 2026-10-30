@@ -926,11 +926,17 @@ impl<'program> StructuralJudge<'program> {
             && self.captured_result_equations.is_empty()
     }
 
-    pub(in crate::proof_contracts::contract_entailment) fn resolved_completed_semantic_value(
+    /// Numeric association filtering uses the same admitted leaf namespace
+    /// as prepared integer atoms. This identity filter supplies no equality
+    /// proof; its caller still proves the original operands on every path.
+    pub(in crate::proof_contracts::contract_entailment) fn completed_integer_semantic_value(
         &self,
         value: &StructuralTerm,
     ) -> StructuralTerm {
-        self.resolve(self.completed_value_identity(value.clone()))
+        let value = self.integer_projection_value(self.completed_value_identity(value.clone()));
+        self.completed_integer_call(&value)
+            .map(|(_, canonical, _)| canonical)
+            .unwrap_or(value)
             .into_semantic_value()
     }
 

@@ -692,7 +692,7 @@ impl Observations {
             if has_no_rewrites_or_subs && is_trivial_identity_leaf(inner) {
                 inner.clone()
             } else {
-                judge.resolved_completed_semantic_value(value)
+                judge.completed_integer_semantic_value(value)
             }
         };
         let mut read_semantics: Vec<Option<StructuralTerm>> = Vec::new();
