@@ -30,6 +30,19 @@ fn u8_type() -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, 8).expect("u8")
 }
 
+/// The declared-`u8` certificate the forgery tests tamper with: premises
+/// `0 <= atom` and `atom <= 300` claimed against the `[0, 255]` target.
+fn declared_u8_certificate(seed: u64) -> super::BoundedValueCertificate {
+    declared_interval_certificate(
+        &integer_range(0, 255),
+        u8_type(),
+        math_literal(0),
+        math_literal(300),
+        seed,
+    )
+    .expect("certificate")
+}
+
 #[test]
 fn closed_arithmetic_term_verifies_under_kernel_evaluation() {
     // `2 + 3 <= 10` is arithmetic the kernel itself evaluates; the producer's
@@ -60,14 +73,7 @@ fn closed_arithmetic_term_outside_target_is_rejected() {
 
 #[test]
 fn declared_interval_certificate_rejects_an_uncited_premise() {
-    let mut certificate = declared_interval_certificate(
-        &integer_range(0, 255),
-        u8_type(),
-        math_literal(0),
-        math_literal(300),
-        12,
-    )
-    .expect("certificate");
+    let mut certificate = declared_u8_certificate(12);
     // Forge: cite an assumption index that was never supplied.
     let ProofRule::ConjunctionIntroduction(conjuncts) = &mut certificate.envelope.proof.rule else {
         panic!("conjunction root");
@@ -85,14 +91,7 @@ fn declared_interval_certificate_rejects_an_uncited_premise() {
 
 #[test]
 fn declared_interval_certificate_rejects_a_withheld_premise() {
-    let mut certificate = declared_interval_certificate(
-        &integer_range(0, 255),
-        u8_type(),
-        math_literal(0),
-        math_literal(300),
-        13,
-    )
-    .expect("certificate");
+    let mut certificate = declared_u8_certificate(13);
     // Forge: drop the lower premise from the roster the kernel sees. The
     // certificate still cites it; verification must fail.
     certificate.assumptions.remove(0);
@@ -101,14 +100,7 @@ fn declared_interval_certificate_rejects_a_withheld_premise() {
 
 #[test]
 fn declared_interval_certificate_rejects_a_false_premise_swap() {
-    let mut certificate = declared_interval_certificate(
-        &integer_range(0, 255),
-        u8_type(),
-        math_literal(0),
-        math_literal(300),
-        14,
-    )
-    .expect("certificate");
+    let mut certificate = declared_u8_certificate(14);
     // Forge: swap the roster so index 0 states `atom <= declared_upper`
     // instead of `declared_lower <= atom`. Citation matching must fail.
     certificate.assumptions.swap(0, 1);
@@ -131,14 +123,7 @@ fn tampered_obligation_conclusion_is_rejected() {
 
 #[test]
 fn transitivity_middle_mismatch_is_rejected() {
-    let mut certificate = declared_interval_certificate(
-        &integer_range(0, 255),
-        u8_type(),
-        math_literal(0),
-        math_literal(300),
-        16,
-    )
-    .expect("certificate");
+    let mut certificate = declared_u8_certificate(16);
     // Forge: the lower leg's closed step now ends at `200` while the premise
     // still starts from the declared lower bound, so the two children no
     // longer share the middle the transitivity chain requires.
