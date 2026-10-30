@@ -409,6 +409,11 @@ fn validate_authored_field_extent(
                     return malformed("repeated field stride overlaps or misaligns its elements");
                 }
             }
+            let length = length
+                .literal()
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "authored repeated storage requires a closed array extent",
+                ))?;
             let extent = length.checked_mul(*element_stride).ok_or(
                 CodecError::MalformedStructuralFoundation("repeated field extent overflows"),
             )?;
@@ -760,7 +765,10 @@ mod authored_storage_envelope_tests {
                 scalar_restriction: None,
                 id: array,
                 identity: terminal_psi::TerminalIdentityIndex(941),
-                shape: StructuralTypeShape::FixedArray { element, length: 2 },
+                shape: StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(2),
+                },
             });
         let field = StructuralFieldDeclaration {
             id: StructuralFieldId::new(1).expect("field"),
@@ -796,7 +804,7 @@ mod authored_storage_envelope_tests {
         }
         module.structural_types[1].shape = StructuralTypeShape::FixedArray {
             element,
-            length: u64::MAX,
+            length: terminal_psi::ArrayExtent::Literal(u64::MAX),
         };
         assert!(
             extent!(&super::StructuralCatalog::from(&module) => &field => &storage => u64::MAX)

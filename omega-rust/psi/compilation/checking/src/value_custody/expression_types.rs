@@ -98,7 +98,8 @@ pub(crate) use result_type::{
     cast_result_type_reference, operand_arithmetic_domain, selected_operator_result_type_reference,
 };
 pub(crate) use scalar_observations::{
-    builtin_scalar_operand_references, scalar_observation_meaning,
+    builtin_scalar_operand_references, readable_observation_type_reference,
+    scalar_observation_meaning,
 };
 
 pub(crate) use cast_validation::validate_cast_types;
@@ -164,6 +165,33 @@ pub(crate) fn completed_value_type_matches(
         || (actual.is_valid()
             && required.is_valid()
             && reference_values::reference_type_matches(program, actual, required, &[], &[]))
+}
+
+/// A completed operand selects a callable using its actual type. The ordinary
+/// argument validator deliberately defers scalar compatibility to other checks;
+/// its permissive syntax cases cannot distinguish overload parameter families.
+/// Reference correspondence retains the same access direction and referent
+/// identity as completed value delivery, under the callee's exact application.
+pub(crate) fn completed_call_operand_matches(
+    program: &dyn crate::CheckingInput,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    actual.is_valid()
+        && required.is_valid()
+        && (program.type_identity(TypeIdentityRequest::ordinary(actual))
+            == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+                substitutions: required_substitutions,
+                ..TypeIdentityRequest::ordinary(required)
+            })
+            || reference_values::reference_type_matches(
+                program,
+                actual,
+                required,
+                &[],
+                required_substitutions,
+            ))
 }
 
 /// Declaration-backed correspondence under an exact simultaneous telescope.
@@ -449,6 +477,7 @@ fn argument_matches_type_reference_using(
         if delivered_types::delivered_carrier_conflict(
             program,
             scope,
+            argument,
             actual.reference,
             &actual.substitutions,
             type_reference,
@@ -1050,4 +1079,51 @@ pub(crate) fn expression_type_name_handle(
         ExpressionNode::TypeExpression(_) => "static type operand",
         ExpressionNode::ZeroValue(_) => "zero-value representation observation",
     }
+}
+
+/// The store checks one slot runs on the value delivered to it, in the order
+/// the statement validators report them: the nominal conflict first, then the
+/// array/scalar and scalar/data shape guards. Each check still decides on its
+/// own evidence; this only names the roster a slot owes.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn report_place_value_mismatches(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: Option<&typed_trees::state::State>,
+    value: ExpressionHandle,
+    target_type: TypeReferenceHandle,
+    slot_context: &str,
+    slot_noun: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    report_data_type_conflict(
+        program,
+        machine,
+        state,
+        value,
+        target_type,
+        slot_context,
+        slot_noun,
+        diagnostics,
+    );
+    report_array_scalar_shape_mismatch(
+        program,
+        machine,
+        state,
+        value,
+        target_type,
+        slot_context,
+        slot_noun,
+        diagnostics,
+    );
+    report_scalar_data_shape_mismatch(
+        program,
+        machine,
+        state,
+        value,
+        target_type,
+        slot_context,
+        slot_noun,
+        diagnostics,
+    );
 }

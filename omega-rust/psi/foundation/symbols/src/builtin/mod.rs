@@ -5,7 +5,7 @@ pub const BUILTIN_TYPE_COUNT: usize = 22;
 /// Closed semantic identity for every compiler-installed source-free type.
 /// Ordinals are the exact root-child slots installed by
 /// [`builtin_type_symbols`]; names are diagnostic only.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum BuiltinTypeAtom {
     Bool,
     I8,
@@ -184,7 +184,7 @@ impl BuiltinType {
 /// function. Ordinals are the exact root-child slots following the builtin
 /// type slots installed by [`builtin_function_symbols`]; names are diagnostic
 /// only.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum BuiltinFunction {
     /// Unnameable execution identities selected only by admitted floating
     /// requirements. Ordinary library helpers have no builtin source identity.

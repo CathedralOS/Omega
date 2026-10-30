@@ -111,7 +111,7 @@ impl Types {
     ) -> StructuralTypeId {
         let array = self.add(StructuralTypeShape::FixedArray {
             element,
-            length: capacity,
+            length: terminal_psi::ArrayExtent::Literal(capacity),
         });
         self.record(&[array, count])
     }
@@ -220,21 +220,12 @@ fn encode(layout: &ProfileLayout, profile: &ResourceProfile) -> Vec<u8> {
                     s!(base => layout.atomic_transfer.width => u64::from(rule.transfer.width_bits));
                     s!(base => layout.atomic_transfer.alignment => rule.transfer.alignment_bytes);
                     let operations = rule.operations;
-                    for (field, value) in
-                        layout.atomic_transfer.operations.unwrap().into_iter().zip([
-                            operations.load,
-                            operations.store,
-                            operations.fetch_add,
-                            operations.fetch_sub,
-                            operations.fetch_xor,
-                            operations.fetch_or,
-                            operations.fetch_and,
-                            operations.swap,
-                            operations.compare_exchange,
-                            operations.compare_exchange_once,
-                            operations.try_exchange,
-                            operations.try_exchange_once,
-                        ])
+                    for (field, value) in layout
+                        .atomic_transfer
+                        .operations
+                        .unwrap()
+                        .into_iter()
+                        .zip(compatibility::atomic_bits(operations))
                     {
                         store(&mut bytes, base, field, u64::from(value));
                     }
@@ -301,6 +292,26 @@ fn run(
     registers[result.0 as usize] == 1
 }
 
+/// Open the fixture's selected block and stage the profile home at place 19.
+/// Both bounded checks build inside this operation block before deriving their
+/// scratch or availability rows from it.
+fn profile_home(builder: &mut Builder<'_>, row: &LegalizedScalarInstruction) -> ImageHome<'static> {
+    builder.open_block = Some(operation_control::OpenBlock {
+        id: SelectedBlockId(0),
+        origin: SelectedBlockOrigin::Source(BlockId::new(7).unwrap()),
+        start: 0,
+    });
+    builder.next_block = 1;
+    let place = PlaceId::new(19).unwrap();
+    let pointer = fragmented_scalar::constant(builder, row, place, 0).unwrap();
+    ImageHome {
+        storage: fragmented_scalar::StorageAccess::Place(&[]),
+        place,
+        pointer,
+        byte_offset: 0,
+    }
+}
+
 fn with_validator(available: u64, test: impl Fn(&Builder<'_>, VirtualRegisterId, &ProfileLayout)) {
     let mut declarations = Types::default();
     let profile_type = declarations.profile();
@@ -308,20 +319,8 @@ fn with_validator(available: u64, test: impl Fn(&Builder<'_>, VirtualRegisterId,
     let layout = ProfileLayout::derive(&declarations.0, profile_type).unwrap();
     for target in targets() {
         with_builder(target, |builder, row| {
-            builder.open_block = Some(operation_control::OpenBlock {
-                id: SelectedBlockId(0),
-                origin: SelectedBlockOrigin::Source(BlockId::new(7).unwrap()),
-                start: 0,
-            });
-            builder.next_block = 1;
-            let place = PlaceId::new(19).unwrap();
-            let pointer = fragmented_scalar::constant(builder, row, place, 0).unwrap();
-            let profile = ImageHome {
-                storage: fragmented_scalar::StorageAccess::Place(&[]),
-                place,
-                pointer,
-                byte_offset: 0,
-            };
+            let profile = profile_home(builder, row);
+            let place = profile.place;
             let scratch =
                 ImageHome::scratch(builder, row, place, VALIDATION_SCRATCH_BYTES).unwrap();
             let available = fragmented_scalar::constant(builder, row, place, available).unwrap();
@@ -763,20 +762,8 @@ fn runtime_profile_compatibility_matches_normalized_coverage_and_congruence() {
     for target in targets() {
         for (placement_position, placement) in placements.iter().enumerate() {
             with_builder(target, |builder, row| {
-                builder.open_block = Some(operation_control::OpenBlock {
-                    id: SelectedBlockId(0),
-                    origin: SelectedBlockOrigin::Source(BlockId::new(7).unwrap()),
-                    start: 0,
-                });
-                builder.next_block = 1;
-                let place = PlaceId::new(19).unwrap();
-                let pointer = fragmented_scalar::constant(builder, row, place, 0).unwrap();
-                let profile = ImageHome {
-                    storage: fragmented_scalar::StorageAccess::Place(&[]),
-                    place,
-                    pointer,
-                    byte_offset: 0,
-                };
+                let profile = profile_home(builder, row);
+                let place = profile.place;
                 let scratch = ImageHome::scratch(
                     builder,
                     row,

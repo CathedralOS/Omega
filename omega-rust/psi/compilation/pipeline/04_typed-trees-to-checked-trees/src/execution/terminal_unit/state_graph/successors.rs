@@ -263,9 +263,9 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 .and_then(|position| source_structural.iter().enumerate()
                     .find(|(_, parameter)| parameter.position as usize == position))
                 && source_parameter.type_identity == target.type_identity
-                && (source_parameter.access == target.access
-                    || (source_parameter.access == CheckedStructuralAccess::MutableBorrow
-                        && target.access == CheckedStructuralAccess::SharedBorrow))
+                // Narrowing access forms a new reborrow, with its own parent
+                // lifetime. Only unchanged access forwards the same descriptor.
+                && source_parameter.access == target.access
                 // Operand preparation retains a new value when the receiving
                 // declared type changes. Inferred arrival facts do not change
                 // that storage operation: the existing value carries them.
@@ -284,6 +284,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    incoming_loan_resources: Vec::new(),
                     retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                 });
@@ -308,6 +309,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     source: subslice.transfer(),
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    incoming_loan_resources: Vec::new(),
                     retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                 });
@@ -349,6 +351,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     source,
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    incoming_loan_resources: Vec::new(),
                     retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                 });
@@ -441,6 +444,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                             source: checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal: result.binding_ordinal },
                             target_parameter_index: u32::try_from(target_index).ok()?,
                             retained_loan_backing: None,
+                            incoming_loan_resources: Vec::new(),
                             retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                         });
@@ -468,6 +472,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         source,
                         target_parameter_index: u32::try_from(target_index).ok()?,
                         retained_loan_backing: None,
+                        incoming_loan_resources: Vec::new(),
                         retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                     });
@@ -497,6 +502,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    incoming_loan_resources: Vec::new(),
                     retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                 });
@@ -708,6 +714,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 },
                                 target_parameter_index: u32::try_from(target_index).ok()?,
                                 retained_loan_backing: None,
+                                incoming_loan_resources: Vec::new(),
                                 retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                             });
@@ -900,6 +907,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         },
                         target_parameter_index: u32::try_from(target_index).ok()?,
                         retained_loan_backing: None,
+                        incoming_loan_resources: Vec::new(),
                         retained_loan_parents: Vec::new(),
                         retained_operand_parents: Vec::new(),
                     });
@@ -946,6 +954,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                     retained_loan_backing: None,
+                    incoming_loan_resources: Vec::new(),
                     retained_loan_parents: Vec::new(),
                     retained_operand_parents: Vec::new(),
                 });
@@ -992,6 +1001,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
         .ok()?;
         if parameter.access != CheckedStructuralAccess::Owned {
             transfer.retained_loan_backing = storage.backing;
+            transfer.incoming_loan_resources = storage.incoming;
         }
         transfer.retained_loan_parents = storage.parents;
         transfer.retained_operand_parents = storage.operand_parents;
@@ -1158,6 +1168,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
     Some(CheckedStructuralControlSuccessorPlan::new(
         ordinal,
         target.symbol,
+        crate::execution::successor_completion::classify(program, machine, arrival.target),
         false,
         transfers,
         scalar_arguments,
@@ -1432,6 +1443,7 @@ fn projected_loan_transfer(
         },
         target_parameter_index: u32::try_from(target_index).ok()?,
         retained_loan_backing: None,
+        incoming_loan_resources: Vec::new(),
         retained_loan_parents: Vec::new(),
         retained_operand_parents: Vec::new(),
     })

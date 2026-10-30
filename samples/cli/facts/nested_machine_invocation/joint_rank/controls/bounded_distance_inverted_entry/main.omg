@@ -1,0 +1,14 @@
+// Inverted coordinates cannot establish Distance formation independently.
+machine count(lower: u64, upper: u64)
+requires lower > upper
+terminates;
+terminates by (lower, upper) -> Nat::BoundedDistance;
+{
+    transition { _ -> forward(lower, upper) }
+    machine forward(position: u64, cap: u64)
+    requires position > cap
+    {
+        transition { _ -> count(position, cap) }
+    }
+}
+machine main() { count(1, 0); }

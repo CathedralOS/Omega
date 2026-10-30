@@ -8,6 +8,7 @@ use crate::name::Identifier;
 use crate::typed_trees::remapped;
 
 mod copies;
+pub use copies::TypeExpressionCopy;
 mod display;
 mod substitution;
 
@@ -1174,7 +1175,7 @@ pub struct DomainConstraint {
     pub symbol: SymbolHandle,
     pub semantic_id: language_semantics::SemanticDomainId,
     pub classification: Option<language_semantics::DomainClassification>,
-    pub predicate_body: language_semantics::DomainPredicateBody,
+    pub predicate_presence: language_semantics::DomainPredicatePresence,
     pub semantic_roles: language_semantics::DomainSemanticRoles,
     pub establishment_routes: Vec<language_semantics::DomainEstablishmentRoute>,
     /// Temporary source custody retained only until carrier-aware domain

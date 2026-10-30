@@ -99,7 +99,7 @@ impl DomainSemanticRole {
 /// Role-keyed semantic contributions of one declared domain.
 ///
 /// Predicate membership is deliberately absent: it lives in
-/// [`DomainPredicateBody`] and the proof-fact lattice. Fixed fields make the
+/// [`DomainPredicatePresence`] and the proof-fact lattice. Fixed fields make the
 /// initial closed vocabulary explicit while allowing a hybrid domain to
 /// contribute independently on each axis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
@@ -189,6 +189,17 @@ impl DomainEstablishmentRoute {
             Self::ExactMachine { .. } => symbols::SymbolHandle::invalid(),
         }
     }
+}
+
+/// Source-independent issuer coordinates retained with checked qualification.
+/// These export identities describe the declaration, not an installed grant.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct BoundaryQualificationIssuer {
+    pub requirement_identity: String,
+    pub boundary_path: String,
+    pub boundary_package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    /// Build-only declarations cannot own a Product provider's grant.
+    pub is_product_owner: bool,
 }
 
 /// Why one checked membership fact may qualify its exact runtime subject.

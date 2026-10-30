@@ -300,6 +300,20 @@ fn validate_terms(
     value_type: &impl Fn(ValueId) -> Option<ScalarType>,
 ) -> Result<(), CodecError> {
     while let Some((term, selector)) = scalars.pop() {
+        if let ScalarTerm::Application {
+            application,
+            scalar_type,
+        } = term
+        {
+            if module
+                .scalar_applications
+                .declaration(*application)
+                .and_then(|declaration| declaration.scalar_type())
+                != Some(*scalar_type)
+            {
+                return malformed("scalar application term has no exact catalog carrier");
+            }
+        }
         if let ScalarTerm::BooleanField { root, path }
         | ScalarTerm::IntegerField { root, path, .. }
         | ScalarTerm::IeeeFloatField { root, path, .. } = term

@@ -118,17 +118,6 @@ impl CanonicalSourceClosureSubject {
         )
     }
 
-    /// Require a recovered subject to equal a fresh projection from the exact
-    /// current resolver custody. Decode or fingerprint equality alone is never
-    /// enough for this comparison.
-    pub(crate) fn matches_resolved(
-        &self,
-        target_closure: &ExactTargetPackageSourceClosure<'_>,
-        limits: CanonicalSourceClosureSubjectLimits,
-    ) -> Result<bool, CanonicalSourceClosureSubjectError> {
-        Ok(self == &Self::from_resolved(target_closure, limits)?)
-    }
-
     pub(super) fn finish(
         target_profile: TargetProfile,
         root: CanonicalRootSourceSelection,

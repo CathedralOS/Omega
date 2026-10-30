@@ -1,0 +1,19 @@
+// Distinct closed applications of one boundary are distinct provider slots.
+public boundary trait Stage<const Phase: u64> {
+    machine read() -> u64 reaches Stage invokes Stage;
+}
+FirstStage<const Phase: u64> satisfies Stage<Phase> {
+    machine read() -> u64 { Stage<2u64>::read() }
+}
+SecondStage<const Phase: u64> satisfies Stage<Phase> {
+    machine read() -> u64 { Stage<1u64>::read() }
+}
+machine main() reaches Stage crashes Trap {
+    let value: u64 = Stage<1u64>::read();
+    transition value == 73 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

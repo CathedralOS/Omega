@@ -139,25 +139,12 @@ struct Candidate {
 pub(crate) fn plan_elf_section_name_table(
     dynamic_table: ValidatedElfDynamicTableSectionDescriptorPlan,
 ) -> Result<ValidatedElfSectionNameTablePlan, Box<ElfSectionNameTablePlanningError>> {
-    checked::plan_candidate(
-        dynamic_table,
-        derive_contents,
-        |dynamic_table, contents| {
-            non_authoritative_table_compatibility_fingerprint(&dynamic_table, &contents)
-        },
-        |dynamic_table, contents, fingerprint| Candidate {
-            dynamic_table: dynamic_table,
-            contents: contents,
-            non_authoritative_table_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.dynamic_table,
-        |dynamic_table, diagnostic| {
-            Box::new(ElfSectionNameTablePlanningError {
-                dynamic_table: dynamic_table,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: dynamic_table,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_table_compatibility_fingerprint,
+        error: ElfSectionNameTablePlanningError,
     )
 }
 

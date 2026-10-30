@@ -26,6 +26,8 @@ pub struct TerminalComponentBinding<'host, 'artifact> {
     selected: AdmittedComponentProvider,
     program: TerminalProgram<'artifact>,
     supplies: TerminalRuntimeSupplies,
+    scalar_admission:
+        Option<std::borrow::Cow<'artifact, terminal_installation::AdmittedScalarApplications>>,
     required_imports: Vec<BoundaryMachineId>,
     bindings: BTreeMap<BoundaryMachineId, TerminalImportBinding<'host>>,
     components: ComponentBindings<'host, 'artifact>,
@@ -51,6 +53,9 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
         selected: AdmittedComponentProvider,
         program: TerminalProgram<'artifact>,
         supplies: TerminalRuntimeSupplies,
+        scalar_admission: Option<
+            std::borrow::Cow<'artifact, terminal_installation::AdmittedScalarApplications>,
+        >,
     ) -> Result<Self, String> {
         let provider_identity =
             terminal_codec::TerminalExecutionIdentity::portable(selected.provider());
@@ -67,6 +72,11 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
         let requirements = program
             .execution_requirements(Some(&supplies))
             .map_err(|error| format!("component closure admission: {error:?}"))?;
+        if let Some(admission) = scalar_admission.as_deref() {
+            program
+                .admitted_scalar_inputs(admission, Some(&supplies))
+                .map_err(|error| format!("component scalar admission: {error:?}"))?;
+        }
         if !requirements.missing_providers.is_empty()
             || !requirements.external_completions.is_empty()
         {
@@ -79,6 +89,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
             selected,
             program,
             supplies,
+            scalar_admission,
             required_imports: requirements.imports,
             bindings: BTreeMap::new(),
             components: BTreeMap::new(),
@@ -212,6 +223,9 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
                 },
                 installation: Some(&self.supplies),
                 account,
+                entry_results: None,
+                scalar_application: None,
+                scalar_admission: self.scalar_admission.as_deref(),
             })
             .map_err(|error| format!("component instance admission: {error:?}"))?;
         if instance.required_imports != self.required_imports {

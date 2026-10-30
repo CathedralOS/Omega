@@ -1,0 +1,34 @@
+No accepted lock baseline: reviewing the complete candidate graph.
+windows_x86_64: checked 2 source packages.
+Audit recommended: omega_language_std [cf58101a9690].
+New package source: omega_language_std [cf58101a9690]: no prior revision to compare.
+Source output unavailable: omega_language_std [cf58101a9690]: source rendering resource limit exceeded; obtain the exact sources for standalone audit.
+New package source: runtime_numeric_operand_order_exit [6d55fe1bf00e]: no prior revision to compare.
+Standalone candidate source: runtime_numeric_operand_order_exit [6d55fe1bf00e]: 2 changed entries.
+Source-code output (separate from editable capability review): \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\body-unfolding\cases\timing-2-B\input\build\package-manager\source-diff.txt
+
+Published build.omg and omega.lock for 2 packages across 1 targets.
+review: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\body-unfolding\cases\timing-2-B\input\build\package-manager\review-windows_x86_64.txt
+omega_review_timings note=review_pass discovery occurrences=2 compiled=1 carried=1 frontier_reused=0 preliminary_checks=0 preliminary_micros=0 settled_checks=1 settled_micros=2596616
+omega_review_timings note=review_pass bound occurrences=2 compiled=1 carried=1 frontier_reused=0 preliminary_checks=0 preliminary_micros=0 settled_checks=0 settled_micros=0
+omega_review_timings stage=package omega_language_std purpose=Product micros=93023
+omega_review_timings stage=package runtime_numeric_operand_order_exit purpose=Product micros=3247597
+omega_review_timings stage=review_pass discovery root=runtime_numeric_operand_order_exit micros=3340748
+omega_review_timings stage=package omega_language_std purpose=Product micros=95218
+omega_review_timings stage=package runtime_numeric_operand_order_exit purpose=Product micros=226794
+omega_review_timings stage=review_pass bound root=runtime_numeric_operand_order_exit discovered_bindings=4 micros=322139
+omega_review_timings stage=candidate_compilation micros=3665327
+omega_review_timings run_micros=3665327
+omega_review_timings stage=policy_change_comparison micros=18626
+omega_review_timings run_micros=18626
+omega_review_timings stage=policy_decision_resolution micros=104
+omega_review_timings stage=review_document_recovery micros=9944
+omega_review_timings run_micros=9944
+omega_review_timings stage=source_patch_rendering micros=6184
+omega_review_timings run_micros=6184
+omega_review_timings stage=source_patch_rendering micros=50
+omega_review_timings run_micros=50
+omega_review_timings stage=policy_change_comparison micros=20603
+omega_review_timings run_micros=20603
+omega_review_timings stage=source_custody_verification micros=9
+omega_review_timings run_micros=9

@@ -1,0 +1,25 @@
+{
+  "outcomes": [
+    {
+      "directory": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\runtime-suite\\case-00",
+      "plan": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\compute-plan.json",
+      "status": "complete"
+    },
+    {
+      "directory": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\runtime-suite\\case-01",
+      "plan": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\memory-plan.json",
+      "status": "complete"
+    },
+    {
+      "directory": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\runtime-suite\\case-02",
+      "plan": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\calls-plan.json",
+      "status": "complete"
+    },
+    {
+      "directory": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\runtime-suite\\case-03",
+      "plan": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\allocations-plan.json",
+      "status": "complete"
+    }
+  ],
+  "schema": "omega-performance-suite-result/1"
+}

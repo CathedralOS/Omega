@@ -1,0 +1,15 @@
+optimizer rollback: requested=[ControlFlowCleanup]; applied=[ControlFlowCleanup]; effective=[]
+published native output to \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\pass-ablation\build\pass-ablation\dispatch-off\omega-program.exe
+    37.135 ms  prepare: project -> prepared sources
+   336.161 ms  compile: sources -> requested product
+     3.683 ms  publish: retained product -> published product
+     4.633 ms  Stage 05: TypedTrees -> CheckedTrees
+    53.223 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)
+   128.076 ms  Step: settle: CheckedTrees -> SelectedExecution
+    12.891 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact
+    12.333 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi
+     0.002 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine
+     0.143 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi
+     0.025 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt
+     0.146 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact
+  2202.303 ms  total elapsed

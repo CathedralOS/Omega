@@ -1,0 +1,39 @@
+{
+  "baseline_observations": 12,
+  "candidate_observations": 12,
+  "comparison": {
+    "baseline": {
+      "maximum": 0.4459,
+      "mean": 0.39435000000000003,
+      "median": 0.39139999999999997,
+      "median_absolute_deviation": 0.012999999999999956,
+      "minimum": 0.3719,
+      "observed_p95": 0.4459,
+      "observed_p99": 0.4459
+    },
+    "bootstrap_resamples": 4000,
+    "bootstrap_seed": 7523671596422297889,
+    "candidate": {
+      "maximum": 0.4033,
+      "mean": 0.3755,
+      "median": 0.37124999999999997,
+      "median_absolute_deviation": 0.003049999999999997,
+      "minimum": 0.3648,
+      "observed_p95": 0.4033,
+      "observed_p99": 0.4033
+    },
+    "median_difference_bootstrap_95": [
+      -0.032850000000000046,
+      -0.006150000000000044
+    ],
+    "median_percent_change_bootstrap_95": [
+      -8.132194578536955,
+      -1.6124837451235274
+    ],
+    "minimum_sample_count_met": true
+  },
+  "comparison_kind": "unpaired_independent_runs",
+  "metric": "reported_work_ns_per_unit",
+  "schema": "omega-performance-history/1",
+  "warning": "Historical runs are not interleaved; their interval does not account for host drift or autocorrelation. Use fresh paired comparisons to establish a regression."
+}

@@ -1,0 +1,851 @@
+{
+  "producers": {
+    "baseline": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\retained-graph-integration\\producer\\omega.exe",
+      "sha256": "994af2870444891333948915cbcfd080bfdd24a4706878b2ce477ee3ad6673bf",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "3"
+      },
+      "source_revision": "9866d0273701b71e239bea275fcb25f6adb39835"
+    },
+    "candidate": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\root-graph-experiment\\producer\\omega.exe",
+      "sha256": "e95128f9eaf86fe38ce2c1c29afd9278c60e01f49ce843475f83883241b204b1",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "3"
+      },
+      "source_revision": "7a90c4e74b4abd26e7125b56e43bdc4479a66ba9"
+    }
+  },
+  "cohorts": {
+    "warm": {
+      "dispatch": {
+        "baseline": {
+          "n": 6,
+          "median_wall_ms": 1288.3908500007237,
+          "min_wall_ms": 957.5623000127962,
+          "max_wall_ms": 1530.8181000000332,
+          "median_root_cpu_ms": 1093.75,
+          "median_peak_job_private_commit_bytes": 545071104.0
+        },
+        "candidate": {
+          "n": 6,
+          "median_wall_ms": 897.8923500035307,
+          "min_wall_ms": 763.7757000047714,
+          "max_wall_ms": 1305.884799992782,
+          "median_root_cpu_ms": 750.0,
+          "median_peak_job_private_commit_bytes": 210681856.0
+        },
+        "paired_reductions": [
+          0.20237492642038557,
+          -0.023533791736809695,
+          0.361341936534044,
+          0.3470269263232175,
+          0.21454885151116265,
+          0.30295397258795453
+        ],
+        "median_reduction": 0.3030900910208837
+      },
+      "length": {
+        "baseline": {
+          "n": 6,
+          "median_wall_ms": 1220.837049993861,
+          "min_wall_ms": 886.7841999890516,
+          "max_wall_ms": 1449.263600006816,
+          "median_root_cpu_ms": 1125.0,
+          "median_peak_job_private_commit_bytes": 543160320.0
+        },
+        "candidate": {
+          "n": 6,
+          "median_wall_ms": 863.9236000017263,
+          "min_wall_ms": 675.1489999878686,
+          "max_wall_ms": 1451.744600009988,
+          "median_root_cpu_ms": 789.0625,
+          "median_peak_job_private_commit_bytes": 210452480.0
+        },
+        "paired_reductions": [
+          0.2386546805906058,
+          -0.08354569565266123,
+          0.37474342142312467,
+          0.36533496460376147,
+          0.22073557351617112,
+          0.2631706188459221
+        ],
+        "median_reduction": 0.2923514239627061
+      },
+      "stack32": {
+        "baseline": {
+          "n": 6,
+          "median_wall_ms": 1719.826299995475,
+          "min_wall_ms": 1426.4787000138313,
+          "max_wall_ms": 2532.1194999996806,
+          "median_root_cpu_ms": 1671.875,
+          "median_peak_job_private_commit_bytes": 554563584.0
+        },
+        "candidate": {
+          "n": 6,
+          "median_wall_ms": 1386.916299990844,
+          "min_wall_ms": 1217.3151999886613,
+          "max_wall_ms": 1896.0778000036953,
+          "median_root_cpu_ms": 1289.0625,
+          "median_peak_job_private_commit_bytes": 248946688.0
+        },
+        "paired_reductions": [
+          0.00952744686762308,
+          0.40155790435624805,
+          0.20937880854756763,
+          0.22366265314971878,
+          0.27825169402814987,
+          0.13847234695449806
+        ],
+        "median_reduction": 0.19357187409304466
+      }
+    },
+    "six_root": {
+      "callee": {
+        "baseline": {
+          "n": 4,
+          "median_wall_ms": 1401.0523000106332,
+          "min_wall_ms": 1318.826100003207,
+          "max_wall_ms": 1508.9270000025863,
+          "median_root_cpu_ms": 1375.0,
+          "median_peak_job_private_commit_bytes": 1036210176.0
+        },
+        "candidate": {
+          "n": 4,
+          "median_wall_ms": 787.1581999934278,
+          "min_wall_ms": 712.1517000050517,
+          "max_wall_ms": 937.186399998609,
+          "median_root_cpu_ms": 710.9375,
+          "median_peak_job_private_commit_bytes": 215037952.0
+        },
+        "paired_reductions": [
+          0.44210246970264677,
+          0.4182275434226185,
+          0.37890540761945235,
+          0.4746188736621113
+        ],
+        "median_reduction": 0.43816644104759417
+      },
+      "dispatch": {
+        "baseline": {
+          "n": 4,
+          "median_wall_ms": 1376.916049994179,
+          "min_wall_ms": 1287.4577000038698,
+          "max_wall_ms": 1427.9515000089305,
+          "median_root_cpu_ms": 1351.5625,
+          "median_peak_job_private_commit_bytes": 1032091648.0
+        },
+        "candidate": {
+          "n": 4,
+          "median_wall_ms": 707.6893499979633,
+          "min_wall_ms": 647.0069000060903,
+          "max_wall_ms": 801.1909999913769,
+          "median_root_cpu_ms": 656.25,
+          "median_peak_job_private_commit_bytes": 210606080.0
+        },
+        "paired_reductions": [
+          0.4841860525415498,
+          0.5122150748164328,
+          0.5244396211115074,
+          0.37769528273513864
+        ],
+        "median_reduction": 0.48603304464280517
+      },
+      "length": {
+        "baseline": {
+          "n": 4,
+          "median_wall_ms": 1456.2335000009625,
+          "min_wall_ms": 1297.1899000112899,
+          "max_wall_ms": 1477.261300009559,
+          "median_root_cpu_ms": 1320.3125,
+          "median_peak_job_private_commit_bytes": 1025556480.0
+        },
+        "candidate": {
+          "n": 4,
+          "median_wall_ms": 639.9449000018649,
+          "min_wall_ms": 621.4788999932352,
+          "max_wall_ms": 740.3465999959735,
+          "median_root_cpu_ms": 601.5625,
+          "median_peak_job_private_commit_bytes": 210511872.0
+        },
+        "paired_reductions": [
+          0.49162200757306307,
+          0.5209036857380509,
+          0.5724449019295312,
+          0.5548069277908629
+        ],
+        "median_reduction": 0.5605478791681129
+      },
+      "spill": {
+        "baseline": {
+          "n": 4,
+          "median_wall_ms": 1438.6119000046165,
+          "min_wall_ms": 1148.7676999968244,
+          "max_wall_ms": 1707.2080000070855,
+          "median_root_cpu_ms": 1390.625,
+          "median_peak_job_private_commit_bytes": 1028286464.0
+        },
+        "candidate": {
+          "n": 4,
+          "median_wall_ms": 734.0839500029688,
+          "min_wall_ms": 675.5056000110926,
+          "max_wall_ms": 815.1295999996364,
+          "median_root_cpu_ms": 671.875,
+          "median_peak_job_private_commit_bytes": 210100224.0
+        },
+        "paired_reductions": [
+          0.46420678303805496,
+          0.5017927567917018,
+          0.57703730301139,
+          0.35053657932367677
+        ],
+        "median_reduction": 0.4897275978319009
+      },
+      "stack-slots": {
+        "baseline": {
+          "n": 4,
+          "median_wall_ms": 1446.8800500035286,
+          "min_wall_ms": 1210.4593999974895,
+          "max_wall_ms": 1525.9902000107104,
+          "median_root_cpu_ms": 1406.25,
+          "median_peak_job_private_commit_bytes": 1036277760.0
+        },
+        "candidate": {
+          "n": 4,
+          "median_wall_ms": 779.3975000022328,
+          "min_wall_ms": 573.575799993705,
+          "max_wall_ms": 1202.494299999671,
+          "median_root_cpu_ms": 640.625,
+          "median_peak_job_private_commit_bytes": 212238336.0
+        },
+        "paired_reductions": [
+          0.40105887651584293,
+          0.5264598578159407,
+          0.21199081095590844,
+          0.5261503194614421
+        ],
+        "median_reduction": 0.4613254222419253
+      },
+      "stack32": {
+        "baseline": {
+          "n": 4,
+          "median_wall_ms": 1805.7406000007177,
+          "min_wall_ms": 1539.9193999910494,
+          "max_wall_ms": 1968.7703999952646,
+          "median_root_cpu_ms": 1804.6875,
+          "median_peak_job_private_commit_bytes": 1036048384.0
+        },
+        "candidate": {
+          "n": 4,
+          "median_wall_ms": 1199.5760499921744,
+          "min_wall_ms": 978.394899997511,
+          "max_wall_ms": 1476.820800002315,
+          "median_root_cpu_ms": 1101.5625,
+          "median_peak_job_private_commit_bytes": 248956928.0
+        },
+        "paired_reductions": [
+          0.24987657270453312,
+          0.34282274788719347,
+          0.3292258697363044,
+          0.3646453833861709
+        ],
+        "median_reduction": 0.33568750129908054
+      }
+    }
+  },
+  "first_visits": [
+    {
+      "exit": 0,
+      "wall_ms": 1916.9067000038922,
+      "root_cpu": {
+        "kernel_ms": 828.125,
+        "user_ms": 1843.75
+      },
+      "host_busy_cpu_ms": 25062.5,
+      "peak_job_private_commit_bytes": 1045250048,
+      "log": "build\\root-graph-experiment\\comparison\\logs\\seed-baseline-length.log",
+      "stages_ms": {
+        "prepare: project -> prepared sources": 20.214,
+        "compile: sources -> requested product": 1339.678,
+        "publish: retained product -> published product": 3.237,
+        "Source ingress: SourceFiles -> SyntaxTrees": 13.873,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 2.913,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 15.988,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 40.204,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 244.244,
+        "Stage 05: TypedTrees -> CheckedTrees": 1028.538,
+        "Step: settle: CheckedTrees -> SelectedExecution": 69.719,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 10.639,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 10.087,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.262,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.027,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.086,
+        "total elapsed": 1699.144
+      },
+      "artifact": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\root-graph-experiment\\comparison\\seed-baseline-length\\omega-program.exe",
+      "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+      "artifact_bytes": 1536,
+      "flavor": "baseline",
+      "subject": "length",
+      "native_exit": 0,
+      "native_observation": {
+        "exit": 0,
+        "wall_ms": 111.75399999774527,
+        "root_cpu": {
+          "kernel_ms": 93.75,
+          "user_ms": 0.0
+        },
+        "host_busy_cpu_ms": 1000.0,
+        "peak_job_private_commit_bytes": 966656,
+        "log": "build\\root-graph-experiment\\comparison\\logs\\seed-baseline-length-native.log"
+      },
+      "graph_count": 1,
+      "graph_bytes": 44401822
+    },
+    {
+      "exit": 0,
+      "wall_ms": 2042.6442999887513,
+      "root_cpu": {
+        "kernel_ms": 1218.75,
+        "user_ms": 1546.875
+      },
+      "host_busy_cpu_ms": 30906.25,
+      "peak_job_private_commit_bytes": 1042223104,
+      "log": "build\\root-graph-experiment\\comparison\\logs\\seed-candidate-length.log",
+      "stages_ms": {
+        "prepare: project -> prepared sources": 22.865,
+        "compile: sources -> requested product": 1474.713,
+        "publish: retained product -> published product": 3.947,
+        "Source ingress: SourceFiles -> SyntaxTrees": 13.667,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 3.008,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 21.281,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 52.81,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 263.175,
+        "Stage 05: TypedTrees -> CheckedTrees": 1095.918,
+        "Step: settle: CheckedTrees -> SelectedExecution": 82.158,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.114,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 4.858,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.091,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.02,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.056,
+        "total elapsed": 1860.732
+      },
+      "artifact": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\root-graph-experiment\\comparison\\seed-candidate-length\\omega-program.exe",
+      "artifact_sha256": "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50",
+      "artifact_bytes": 1536,
+      "flavor": "candidate",
+      "subject": "length",
+      "native_exit": 0,
+      "native_observation": {
+        "exit": 0,
+        "wall_ms": 127.83540000964422,
+        "root_cpu": {
+          "kernel_ms": 125.0,
+          "user_ms": 0.0
+        },
+        "host_busy_cpu_ms": 1765.625,
+        "peak_job_private_commit_bytes": 954368,
+        "log": "build\\root-graph-experiment\\comparison\\logs\\seed-candidate-length-native.log"
+      },
+      "graph_count": 1,
+      "graph_bytes": 44401822
+    },
+    {
+      "exit": 0,
+      "wall_ms": 2407.13059999689,
+      "root_cpu": {
+        "kernel_ms": 1687.5,
+        "user_ms": 2187.5
+      },
+      "host_busy_cpu_ms": 37468.75,
+      "peak_job_private_commit_bytes": 1039343616,
+      "log": "build\\root-graph-experiment\\comparison\\logs\\seed-candidate-dispatch.log",
+      "stages_ms": {
+        "prepare: project -> prepared sources": 20.461,
+        "compile: sources -> requested product": 1368.966,
+        "publish: retained product -> published product": 3.661,
+        "Source ingress: SourceFiles -> SyntaxTrees": 14.288,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 3.433,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 16.52,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 42.552,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 257.066,
+        "Stage 05: TypedTrees -> CheckedTrees": 1055.34,
+        "Step: settle: CheckedTrees -> SelectedExecution": 70.259,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 4.899,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 4.454,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.201,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.035,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.095,
+        "total elapsed": 2224.507
+      },
+      "artifact": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\root-graph-experiment\\comparison\\seed-candidate-dispatch\\omega-program.exe",
+      "artifact_sha256": "6ca84bb18317495c4914a0d3c9d83838289fae8fc3f89017439d5c650c797c3a",
+      "artifact_bytes": 2560,
+      "flavor": "candidate",
+      "subject": "dispatch",
+      "native_exit": 0,
+      "native_observation": {
+        "exit": 0,
+        "wall_ms": 316.8549999973038,
+        "root_cpu": {
+          "kernel_ms": 93.75,
+          "user_ms": 15.625
+        },
+        "host_busy_cpu_ms": 4625.0,
+        "peak_job_private_commit_bytes": 950272,
+        "log": "build\\root-graph-experiment\\comparison\\logs\\seed-candidate-dispatch-native.log"
+      },
+      "graph_count": 2,
+      "graph_bytes": 88906687
+    },
+    {
+      "exit": 0,
+      "wall_ms": 3066.8277999939164,
+      "root_cpu": {
+        "kernel_ms": 1312.5,
+        "user_ms": 2234.375
+      },
+      "host_busy_cpu_ms": 66250.0,
+      "peak_job_private_commit_bytes": 1219100672,
+      "log": "build\\root-graph-experiment\\comparison\\logs\\seed-baseline-dispatch.log",
+      "stages_ms": {
+        "prepare: project -> prepared sources": 31.71,
+        "compile: sources -> requested product": 1792.886,
+        "publish: retained product -> published product": 4.363,
+        "Source ingress: SourceFiles -> SyntaxTrees": 13.864,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 2.843,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 14.469,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 50.686,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 272.329,
+        "Stage 05: TypedTrees -> CheckedTrees": 1260.568,
+        "Step: settle: CheckedTrees -> SelectedExecution": 81.073,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.04,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 4.739,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.001,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.103,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.027,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.06,
+        "total elapsed": 2436.405
+      },
+      "artifact": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\root-graph-experiment\\comparison\\seed-baseline-dispatch\\omega-program.exe",
+      "artifact_sha256": "6ca84bb18317495c4914a0d3c9d83838289fae8fc3f89017439d5c650c797c3a",
+      "artifact_bytes": 2560,
+      "flavor": "baseline",
+      "subject": "dispatch",
+      "native_exit": 0,
+      "native_observation": {
+        "exit": 0,
+        "wall_ms": 117.3071999946842,
+        "root_cpu": {
+          "kernel_ms": 93.75,
+          "user_ms": 0.0
+        },
+        "host_busy_cpu_ms": 2421.875,
+        "peak_job_private_commit_bytes": 958464,
+        "log": "build\\root-graph-experiment\\comparison\\logs\\seed-baseline-dispatch-native.log"
+      },
+      "graph_count": 1,
+      "graph_bytes": 91318387
+    },
+    {
+      "exit": 0,
+      "wall_ms": 4751.679199995124,
+      "root_cpu": {
+        "kernel_ms": 1625.0,
+        "user_ms": 3578.125
+      },
+      "host_busy_cpu_ms": 103890.625,
+      "peak_job_private_commit_bytes": 1677168640,
+      "log": "build\\root-graph-experiment\\comparison\\logs\\seed-baseline-stack32.log",
+      "stages_ms": {
+        "prepare: project -> prepared sources": 26.273,
+        "compile: sources -> requested product": 2631.685,
+        "publish: retained product -> published product": 13.31,
+        "Source ingress: SourceFiles -> SyntaxTrees": 14.978,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 2.803,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 10.573,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 38.901,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 271.141,
+        "Stage 05: TypedTrees -> CheckedTrees": 1674.576,
+        "Step: settle: CheckedTrees -> SelectedExecution": 54.921,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.873,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.254,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.23,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.096,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.233,
+        "total elapsed": 3323.408
+      },
+      "artifact": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\root-graph-experiment\\comparison\\seed-baseline-stack32\\omega-program.exe",
+      "artifact_sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+      "artifact_bytes": 81408,
+      "flavor": "baseline",
+      "subject": "stack32",
+      "native_exit": 0,
+      "native_observation": {
+        "exit": 0,
+        "wall_ms": 143.1771000061417,
+        "root_cpu": {
+          "kernel_ms": 46.875,
+          "user_ms": 46.875
+        },
+        "host_busy_cpu_ms": 3578.125,
+        "peak_job_private_commit_bytes": 937984,
+        "log": "build\\root-graph-experiment\\comparison\\logs\\seed-baseline-stack32-native.log"
+      },
+      "graph_count": 1,
+      "graph_bytes": 138878978
+    },
+    {
+      "exit": 0,
+      "wall_ms": 3190.8473999937996,
+      "root_cpu": {
+        "kernel_ms": 1546.875,
+        "user_ms": 3375.0
+      },
+      "host_busy_cpu_ms": 68656.25,
+      "peak_job_private_commit_bytes": 1048879104,
+      "log": "build\\root-graph-experiment\\comparison\\logs\\seed-candidate-stack32.log",
+      "stages_ms": {
+        "prepare: project -> prepared sources": 26.016,
+        "compile: sources -> requested product": 2366.545,
+        "publish: retained product -> published product": 14.087,
+        "Source ingress: SourceFiles -> SyntaxTrees": 15.448,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 3.372,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 15.295,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 34.933,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 266.7,
+        "Stage 05: TypedTrees -> CheckedTrees": 1693.328,
+        "Step: settle: CheckedTrees -> SelectedExecution": 57.682,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.156,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 4.558,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.241,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.093,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.209,
+        "total elapsed": 2942.598
+      },
+      "artifact": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\root-graph-experiment\\comparison\\seed-candidate-stack32\\omega-program.exe",
+      "artifact_sha256": "ad8b1cc4a2bc4e5a4d39d7d789c0107a4edfccbd3d9b8e0002e558cefd494aca",
+      "artifact_bytes": 81408,
+      "flavor": "candidate",
+      "subject": "stack32",
+      "native_exit": 0,
+      "native_observation": {
+        "exit": 0,
+        "wall_ms": 654.8910999990767,
+        "root_cpu": {
+          "kernel_ms": 93.75,
+          "user_ms": 15.625
+        },
+        "host_busy_cpu_ms": 11625.0,
+        "peak_job_private_commit_bytes": 933888,
+        "log": "build\\root-graph-experiment\\comparison\\logs\\seed-candidate-stack32-native.log"
+      },
+      "graph_count": 3,
+      "graph_bytes": 134057992
+    },
+    {
+      "exit": 0,
+      "wall_ms": 2131.069099996239,
+      "root_cpu": {
+        "kernel_ms": 1515.625,
+        "user_ms": 1937.5
+      },
+      "host_busy_cpu_ms": 37218.75,
+      "peak_job_private_commit_bytes": 1044000768,
+      "log": "build\\root-graph-experiment\\comparison\\logs\\extend-candidate-spill.log",
+      "stages_ms": {
+        "prepare: project -> prepared sources": 25.748,
+        "compile: sources -> requested product": 1461.612,
+        "publish: retained product -> published product": 3.779,
+        "Source ingress: SourceFiles -> SyntaxTrees": 15.262,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 2.884,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 22.074,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 49.374,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 284.715,
+        "Stage 05: TypedTrees -> CheckedTrees": 1054.584,
+        "Step: settle: CheckedTrees -> SelectedExecution": 97.127,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.935,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.571,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.001,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.122,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.025,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.062,
+        "total elapsed": 1915.947
+      },
+      "artifact": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\root-graph-experiment\\comparison\\extend-candidate-spill\\omega-program.exe",
+      "artifact_sha256": "3f33cd672f43cf1abbfa822a66bcaf2460cd0b136b60a043aa18a464743751e1",
+      "artifact_bytes": 1536,
+      "flavor": "candidate",
+      "subject": "spill",
+      "native_exit": 0,
+      "native_observation": {
+        "exit": 0,
+        "wall_ms": 167.38540001097135,
+        "root_cpu": {
+          "kernel_ms": 109.375,
+          "user_ms": 31.25
+        },
+        "host_busy_cpu_ms": 2796.875,
+        "peak_job_private_commit_bytes": 942080,
+        "log": "build\\root-graph-experiment\\comparison\\logs\\extend-candidate-spill-native.log"
+      },
+      "graph_count": 4,
+      "graph_bytes": 178520494
+    },
+    {
+      "exit": 0,
+      "wall_ms": 2856.258899992099,
+      "root_cpu": {
+        "kernel_ms": 1843.75,
+        "user_ms": 2765.625
+      },
+      "host_busy_cpu_ms": 49531.25,
+      "peak_job_private_commit_bytes": 1691037696,
+      "log": "build\\root-graph-experiment\\comparison\\logs\\extend-baseline-spill.log",
+      "stages_ms": {
+        "prepare: project -> prepared sources": 30.635,
+        "compile: sources -> requested product": 1774.729,
+        "publish: retained product -> published product": 3.541,
+        "Source ingress: SourceFiles -> SyntaxTrees": 13.738,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 3.051,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 11.628,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 43.626,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 266.029,
+        "Stage 05: TypedTrees -> CheckedTrees": 1012.385,
+        "Step: settle: CheckedTrees -> SelectedExecution": 77.519,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 4.101,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 3.891,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.075,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.014,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.042,
+        "total elapsed": 2556.306
+      },
+      "artifact": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\root-graph-experiment\\comparison\\extend-baseline-spill\\omega-program.exe",
+      "artifact_sha256": "3f33cd672f43cf1abbfa822a66bcaf2460cd0b136b60a043aa18a464743751e1",
+      "artifact_bytes": 1536,
+      "flavor": "baseline",
+      "subject": "spill",
+      "native_exit": 0,
+      "native_observation": {
+        "exit": 0,
+        "wall_ms": 134.82659999863245,
+        "root_cpu": {
+          "kernel_ms": 125.0,
+          "user_ms": 0.0
+        },
+        "host_busy_cpu_ms": 1734.375,
+        "peak_job_private_commit_bytes": 950272,
+        "log": "build\\root-graph-experiment\\comparison\\logs\\extend-baseline-spill-native.log"
+      },
+      "graph_count": 1,
+      "graph_bytes": 185784254
+    },
+    {
+      "exit": 0,
+      "wall_ms": 3204.0975999989314,
+      "root_cpu": {
+        "kernel_ms": 2015.625,
+        "user_ms": 3046.875
+      },
+      "host_busy_cpu_ms": 57578.125,
+      "peak_job_private_commit_bytes": 2371588096,
+      "log": "build\\root-graph-experiment\\comparison\\logs\\extend-baseline-callee.log",
+      "stages_ms": {
+        "prepare: project -> prepared sources": 24.246,
+        "compile: sources -> requested product": 1929.688,
+        "publish: retained product -> published product": 3.602,
+        "Source ingress: SourceFiles -> SyntaxTrees": 12.165,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 2.723,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 13.487,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 45.881,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 256.174,
+        "Stage 05: TypedTrees -> CheckedTrees": 1074.445,
+        "Step: settle: CheckedTrees -> SelectedExecution": 79.176,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.105,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 4.768,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.001,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.113,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.027,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.078,
+        "total elapsed": 2912.186
+      },
+      "artifact": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\root-graph-experiment\\comparison\\extend-baseline-callee\\omega-program.exe",
+      "artifact_sha256": "e545da34faaf19f01cfed227baec79d9607d5433561ffa978a7bbd278bb6ff9d",
+      "artifact_bytes": 1536,
+      "flavor": "baseline",
+      "subject": "callee",
+      "native_exit": 0,
+      "native_observation": {
+        "exit": 0,
+        "wall_ms": 175.38249999051914,
+        "root_cpu": {
+          "kernel_ms": 109.375,
+          "user_ms": 0.0
+        },
+        "host_busy_cpu_ms": 2640.625,
+        "peak_job_private_commit_bytes": 942080,
+        "log": "build\\root-graph-experiment\\comparison\\logs\\extend-baseline-callee-native.log"
+      },
+      "graph_count": 1,
+      "graph_bytes": 232801495
+    },
+    {
+      "exit": 0,
+      "wall_ms": 2163.277100000414,
+      "root_cpu": {
+        "kernel_ms": 1281.25,
+        "user_ms": 1593.75
+      },
+      "host_busy_cpu_ms": 38078.125,
+      "peak_job_private_commit_bytes": 1067601920,
+      "log": "build\\root-graph-experiment\\comparison\\logs\\extend-candidate-callee.log",
+      "stages_ms": {
+        "prepare: project -> prepared sources": 26.403,
+        "compile: sources -> requested product": 1433.689,
+        "publish: retained product -> published product": 5.875,
+        "Source ingress: SourceFiles -> SyntaxTrees": 14.606,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 2.914,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 23.612,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 50.312,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 289.39,
+        "Stage 05: TypedTrees -> CheckedTrees": 1040.887,
+        "Step: settle: CheckedTrees -> SelectedExecution": 92.301,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.458,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.107,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.121,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.028,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.078,
+        "total elapsed": 1899.273
+      },
+      "artifact": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\root-graph-experiment\\comparison\\extend-candidate-callee\\omega-program.exe",
+      "artifact_sha256": "e545da34faaf19f01cfed227baec79d9607d5433561ffa978a7bbd278bb6ff9d",
+      "artifact_bytes": 1536,
+      "flavor": "candidate",
+      "subject": "callee",
+      "native_exit": 0,
+      "native_observation": {
+        "exit": 0,
+        "wall_ms": 127.15590000152588,
+        "root_cpu": {
+          "kernel_ms": 78.125,
+          "user_ms": 31.25
+        },
+        "host_busy_cpu_ms": 1796.875,
+        "peak_job_private_commit_bytes": 937984,
+        "log": "build\\root-graph-experiment\\comparison\\logs\\extend-candidate-callee-native.log"
+      },
+      "graph_count": 5,
+      "graph_bytes": 223085977
+    },
+    {
+      "exit": 0,
+      "wall_ms": 2005.7762999931583,
+      "root_cpu": {
+        "kernel_ms": 1375.0,
+        "user_ms": 2250.0
+      },
+      "host_busy_cpu_ms": 29046.875,
+      "peak_job_private_commit_bytes": 1113935872,
+      "log": "build\\root-graph-experiment\\comparison\\logs\\extend-candidate-stack-slots.log",
+      "stages_ms": {
+        "prepare: project -> prepared sources": 27.246,
+        "compile: sources -> requested product": 1396.551,
+        "publish: retained product -> published product": 4.01,
+        "Source ingress: SourceFiles -> SyntaxTrees": 13.266,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 2.401,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 15.812,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 39.637,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 255.637,
+        "Stage 05: TypedTrees -> CheckedTrees": 981.978,
+        "Step: settle: CheckedTrees -> SelectedExecution": 61.385,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 5.4,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 5.098,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.0,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.116,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.023,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.077,
+        "total elapsed": 1824.407
+      },
+      "artifact": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\root-graph-experiment\\comparison\\extend-candidate-stack-slots\\omega-program.exe",
+      "artifact_sha256": "3adf2227134c41f50ecf47333fbcd4d93c6efdc85e2fe6897913e293f1e03ba7",
+      "artifact_bytes": 2560,
+      "flavor": "candidate",
+      "subject": "stack-slots",
+      "native_exit": 0,
+      "native_observation": {
+        "exit": 0,
+        "wall_ms": 196.14200000069104,
+        "root_cpu": {
+          "kernel_ms": 109.375,
+          "user_ms": 15.625
+        },
+        "host_busy_cpu_ms": 5031.25,
+        "peak_job_private_commit_bytes": 966656,
+        "log": "build\\root-graph-experiment\\comparison\\logs\\extend-candidate-stack-slots-native.log"
+      },
+      "graph_count": 6,
+      "graph_bytes": 267721732
+    },
+    {
+      "exit": 0,
+      "wall_ms": 3646.025299996836,
+      "root_cpu": {
+        "kernel_ms": 1828.125,
+        "user_ms": 3093.75
+      },
+      "host_busy_cpu_ms": 61890.625,
+      "peak_job_private_commit_bytes": 2396307456,
+      "log": "build\\root-graph-experiment\\comparison\\logs\\extend-baseline-stack-slots.log",
+      "stages_ms": {
+        "prepare: project -> prepared sources": 24.716,
+        "compile: sources -> requested product": 2156.291,
+        "publish: retained product -> published product": 3.223,
+        "Source ingress: SourceFiles -> SyntaxTrees": 15.452,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 3.119,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 13.312,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 65.146,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 313.859,
+        "Stage 05: TypedTrees -> CheckedTrees": 1084.384,
+        "Step: settle: CheckedTrees -> SelectedExecution": 64.847,
+        "terminal-production: CheckedTrees -> CanonicalTerminalArtifact": 8.567,
+        "terminal-production/lowering: CheckedTrees -> LoweredPsi": 8.157,
+        "terminal-production/machine-selection: CheckedTrees -> TerminalMachine": 0.002,
+        "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi": 0.19,
+        "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt": 0.032,
+        "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact": 0.09,
+        "total elapsed": 3324.033
+      },
+      "artifact": "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\root-graph-experiment\\comparison\\extend-baseline-stack-slots\\omega-program.exe",
+      "artifact_sha256": "3adf2227134c41f50ecf47333fbcd4d93c6efdc85e2fe6897913e293f1e03ba7",
+      "artifact_bytes": 2560,
+      "flavor": "baseline",
+      "subject": "stack-slots",
+      "native_exit": 0,
+      "native_observation": {
+        "exit": 0,
+        "wall_ms": 144.89419999881648,
+        "root_cpu": {
+          "kernel_ms": 109.375,
+          "user_ms": 31.25
+        },
+        "host_busy_cpu_ms": 2328.125,
+        "peak_job_private_commit_bytes": 950272,
+        "log": "build\\root-graph-experiment\\comparison\\logs\\extend-baseline-stack-slots-native.log"
+      },
+      "graph_count": 1,
+      "graph_bytes": 279906248
+    }
+  ],
+  "exclusions": [],
+  "scope": "Warm sequential Windows compile latency with shared-host contention; not cold or concurrent throughput."
+}

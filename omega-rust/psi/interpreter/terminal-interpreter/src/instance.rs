@@ -37,6 +37,7 @@ use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
 use crate::program::TerminalProgram;
 use crate::results::TerminalExecutionStatus;
+use crate::values::TerminalScalarValue;
 
 /// Identity only: creating a domain grants no exit authority. Each instance
 /// owns a fresh simulated domain; no host or sibling process belongs to it.
@@ -571,6 +572,20 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             .and_then(|execution| execution.result())
     }
 
+    /// Read a requested operation's actual result after successful normal entry
+    /// completion. This is an execution observation, not an admitted proof fact.
+    pub fn observed_entry_result(
+        &self,
+        machine: semantic_vocabulary::MachineId,
+        result: semantic_vocabulary::ValueId,
+    ) -> Result<crate::TerminalScalarValue, TerminalInstanceError> {
+        self.execution
+            .as_ref()
+            .ok_or(TerminalInstanceError::Closed)?
+            .observed_entry_result(machine, result)
+            .map_err(TerminalInstanceError::Execution)
+    }
+
     /// Whether the entry invocation has reached a terminal outcome.
     pub fn is_finished(&self) -> bool {
         self.execution
@@ -675,10 +690,19 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
         self.adapter_for(effect)?.poll_effect_readiness(effect)
     }
 
-    fn requires_original_storage(&self, boundary: BoundaryMachineId) -> bool {
-        self.bindings
-            .get(&boundary)
-            .is_some_and(|binding| binding.adapter.requires_original_storage(boundary))
+    fn storage_requirements(
+        &self,
+        boundary: BoundaryMachineId,
+        scalar_arguments: &[TerminalScalarValue],
+    ) -> crate::TerminalCallStorageRequirements<'_> {
+        self.bindings.get(&boundary).map_or_else(
+            crate::TerminalCallStorageRequirements::default,
+            |binding| {
+                binding
+                    .adapter
+                    .storage_requirements(boundary, scalar_arguments)
+            },
+        )
     }
 
     fn prepare_original_storage(
@@ -695,12 +719,6 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
             .adapter
             .prepare_original_storage(boundary, requests)
     }
-    fn storage_arguments(&self, boundary: BoundaryMachineId) -> &[usize] {
-        self.bindings
-            .get(&boundary)
-            .map_or(&[], |binding| binding.adapter.storage_arguments(boundary))
-    }
-
     fn handle_effect_with_buffers(
         &mut self,
         effect: &TerminalEffect,

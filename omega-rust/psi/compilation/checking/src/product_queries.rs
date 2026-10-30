@@ -1,16 +1,17 @@
 //! Demand-time Product declaration queries, independent of an execution engine.
 //!
 //! Locators select within the query's lexical Product scope. Compatibility is
-//! supplied by the slot owner and cannot execute Product bodies. The result
+//! checked by Psi against source-only slot requirements. The result
 //! retains source identity; its runtime carrier and activation custody belong
 //! to the caller, not to this declaration lookup.
 
 use language_semantics::declaration_selection::{
     DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
 };
+use semantic_vocabulary::ProgramEntrySourceCatalog;
 use source::SourceSpan;
 use typed_trees::TypedTrees;
-use typed_trees::product_operand::{ProductEntryCompatibility, ProductEntryDeclaration};
+use typed_trees::product_operand::ProductEntryDeclaration;
 
 /// The lexical Product namespace is common to every description role. A
 /// dependency alias selects that exact package's public declarations; otherwise
@@ -164,7 +165,7 @@ pub fn describe_entry(
     occurrence: SourceSpan,
     path: &[u8],
     slot: &[u8],
-    compatibility: &dyn ProductEntryCompatibility,
+    slots: &dyn ProgramEntrySourceCatalog,
 ) -> Result<DescribedProductEntry, String> {
     let name = std::str::from_utf8(path)
         .map_err(|_| "product entry path must be canonical UTF-8".to_owned())?;
@@ -177,13 +178,31 @@ pub fn describe_entry(
     let mut visible = false;
     let mut selected = None;
     let mut rejection = None;
+    let mut slot_contract = None;
     for machine in program.machines() {
         if !scope.contains(program, machine.symbol, machine.is_public) {
             continue;
         }
         visible = true;
         let declaration = ProductEntryDeclaration::from_machine(program, machine);
-        match compatibility.validate_entry(program, declaration, slot) {
+        // Catalog lookup follows lexical visibility. A missing/private entry
+        // must not become an unrelated unknown-target diagnostic.
+        let compatibility = match slot_contract.get_or_insert_with(|| slots.source_contract(slot)) {
+            Ok(contract) => crate::product_entries::validate_source_compatibility(
+                program,
+                declaration,
+                *contract,
+            )
+            .map_err(|diagnostics| {
+                diagnostics
+                    .into_iter()
+                    .map(|diagnostic| diagnostic.message)
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            }),
+            Err(reason) => Err(reason.clone()),
+        };
+        match compatibility {
             Ok(()) => {
                 if selected.is_some() {
                     return Err(format!(

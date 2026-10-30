@@ -1,0 +1,2 @@
+use omega::language::core::float;
+machine main() { _ = float::max<f32 in Trapping>(); }

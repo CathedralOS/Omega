@@ -157,13 +157,7 @@ pub enum OptimizedPostAllocationMachinePipelineError {
     Optimization(PostAllocationMachineOptimizationError),
 }
 
-impl std::fmt::Display for OptimizedPostAllocationMachinePipelineError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "optimized post-allocation machine staging failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedPostAllocationMachinePipelineError {}
+stage_error_display!(
+    OptimizedPostAllocationMachinePipelineError,
+    "optimized post-allocation machine staging failed"
+);

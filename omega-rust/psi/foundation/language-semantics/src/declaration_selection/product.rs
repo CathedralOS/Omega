@@ -216,34 +216,36 @@ pub struct ProductDeclarationRequest {
     pub operands: Box<[ProductDeclarationOperand]>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProductDeclarationOperand {
     pub path: String,
     pub source_span: source::SourceSpan,
+    /// Complete inert authored application; None denotes a bare declaration.
+    pub application: Option<std::sync::Arc<super::product_operands::ProductStaticOperandGraph>>,
 }
 
 impl ProductDeclarationRequest {
-    pub fn validate_shape(&self) -> Result<(), &'static str> {
+    pub fn validate_shape(&self) -> Result<(), String> {
         if !self
             .operation
             .product_operand_count_valid(self.operands.len())
         {
-            return Err("Build product request has the wrong declaration operand count");
+            return Err("Build product request has the wrong declaration operand count".into());
         }
         if self.source_span.span.start >= self.source_span.span.end {
-            return Err("Build product request has no authored occurrence");
+            return Err("Build product request has no authored occurrence".into());
         }
         for (position, operand) in self.operands.iter().enumerate() {
             if operand.path.is_empty()
                 || operand.source_span.span.start >= operand.source_span.span.end
             {
-                return Err("Build product operand has no authored declaration locator");
+                return Err("Build product operand has no authored declaration locator".into());
             }
             if self.operation.product_operand_role(position)
                 == Some(ProductOperandRole::WireCompatibilityFact)
             {
                 let fact = crate::wire::WireCompatibilityFact::from_name(&operand.path)
-                    .ok_or("Build wire demand names an unknown compatibility fact")?;
+                    .ok_or_else(|| format!("unknown wire compatibility fact `{}`", operand.path))?;
                 if self.operands[..position]
                     .iter()
                     .enumerate()
@@ -254,7 +256,10 @@ impl ProductDeclarationRequest {
                                 == Some(fact)
                     })
                 {
-                    return Err("Build wire demand repeats a compatibility fact");
+                    return Err(format!(
+                        "wire compatibility fact `{}` is requested twice",
+                        operand.path
+                    ));
                 }
             }
         }
@@ -283,6 +288,10 @@ pub enum ExecutedBuildSelection {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedProductSelection {
+    /// Actuals belong to the exact reached helper specialization, independently
+    /// of the original source recipe and its lexical author.
+    pub static_environment:
+        Option<std::sync::Arc<super::product_operands::ProductStaticEnvironment>>,
     /// Exact evaluated deployment key; only provider choices carry a target.
     pub target: Option<super::ProductTarget>,
     pub request: std::sync::Arc<ProductDeclarationRequest>,
@@ -462,6 +471,7 @@ mod native_formation_tests {
                 source_span: Default::default(),
                 operation: BuildOperation::NativeBinding,
                 operands: vec![ProductDeclarationOperand {
+                    application: None,
                     path: "Raw::read".into(),
                     source_span: Default::default(),
                 }]

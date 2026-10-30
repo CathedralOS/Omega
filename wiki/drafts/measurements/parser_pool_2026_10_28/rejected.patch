@@ -1,0 +1,22 @@
+diff --git a/omega-rust/psi/compilation/driver/src/source_parsing/batches.rs b/omega-rust/psi/compilation/driver/src/source_parsing/batches.rs
+index 664b42f9bc0..8863c5a6aa9 100644
+--- a/omega-rust/psi/compilation/driver/src/source_parsing/batches.rs
++++ b/omega-rust/psi/compilation/driver/src/source_parsing/batches.rs
+@@ -25,0 +26,2 @@ pub(super) fn parse(
++        let parse_worker_count =
++            tokens_to_syntax_trees::parser::with_parse_workers(rayon::current_num_threads);
+@@ -27 +29 @@ pub(super) fn parse(
+-            .min(rayon::current_num_threads().max(1).saturating_mul(4))
++            .min(parse_worker_count.max(1).saturating_mul(4))
+diff --git a/omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parser.rs b/omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parser.rs
+index 2c007b68b2c..b68b00f10ea 100644
+--- a/omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parser.rs
++++ b/omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parser.rs
+@@ -121 +121,6 @@ pub fn parse_source_pages_from(
+-        .min(rayon::current_num_threads().max(1).saturating_mul(4))
++        .min(
++            parse_thread_pool()
++                .current_num_threads()
++                .max(1)
++                .saturating_mul(4),
++        )

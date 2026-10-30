@@ -11,18 +11,16 @@ use super::{
     ValidatedAarch64SelectedFormEncoding,
 };
 use crate::immediate_offset::{MAX_ADDRESS_BYTES, address_words, decode_address_words};
-use crate::machine_effects::form_alternative;
 use crate::selected_form_encoding::selected_forms::resolve_registers;
 use register_model::RegisterConstraintKey;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability,
-    MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
-    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
+    LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    SelectedInstructionKind,
 };
 use target::NativeTarget;
 
@@ -67,30 +65,26 @@ pub(crate) fn declaration(
     target: NativeTarget,
     constraint: RegisterConstraintKey,
 ) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
-        semantic: MachineSemanticKind::HostedWriteByteI32,
+    MachineEffectDeclaration::single(
+        MachineSemanticKind::HostedWriteByteI32,
         constraint,
-        memory: MachineMemoryEffect::HostedWriteByteV1,
-        trap: MachineTrapBehavior::HostedWriteFailureV1,
-        barrier: MachineBarrier::ExternalEffect,
-        call: MachineCallEffect::NoneV1,
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: form_alternative!(
-            MachineAlternativeFamily::HostedWriteByteI32,
-            {
-                let short = if target == NativeTarget::macos_arm64() {
-                    40
-                } else {
-                    36
-                };
-                MachineSizeKnowledge::EncoderResolved {
-                    minimum_bytes: short,
-                    maximum_bytes: Some(short + MAX_ADDRESS_BYTES),
-                }
-            },
-            effects(target)
-        ),
-    }
+        MachineMemoryEffect::HostedWriteByteV1,
+        MachineTrapBehavior::HostedWriteFailureV1,
+        MachineBarrier::ExternalEffect,
+        MachineAlternativeFamily::HostedWriteByteI32,
+        {
+            let short = if target == NativeTarget::macos_arm64() {
+                40
+            } else {
+                36
+            };
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: short,
+                maximum_bytes: Some(short + MAX_ADDRESS_BYTES),
+            }
+        },
+        effects(target),
+    )
 }
 
 fn request(

@@ -1379,11 +1379,6 @@ fail/facts/replaced_field_loan_through_target_body_rejected rejected 558ms expec
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `message` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/facts/repro_through_target_body_rejected rejected 1054ms expected @3c1b7104e4f6+wt
-	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/facts/result_cleanup_guarantee_through_target_body_rejected rejected 1428ms expected @3c1b7104e4f6+wt
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: missing make_token(&seed).ready == true required by Token::drop clause `token.ready`
@@ -2726,7 +2721,6 @@ pass/facts/record_layout_geometry_through_target_body_exit checked 5299ms check-
 pass/facts/reference_arrival_handoff_through_target_body_exit checked 4176ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/register_stack_arg_calling_plan_through_target_body_exit checked 3367ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/remainder_width_index_through_target_body_exit checked 3678ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
-pass/facts/repro_through_target_body_exit checked 9365ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/returned_write_destination_through_target_body_exit checked 3562ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/runtime_count_index_through_target_body_exit checked 3623ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt
 pass/facts/runtime_index_application_through_target_body_exit checked 3647ms check-target:macos_arm64 interpreter-engine:checked-tree interpreter-exit:0 @3c1b7104e4f6+wt

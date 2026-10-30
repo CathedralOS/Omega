@@ -7,11 +7,11 @@ use terminal_interpreter::{
     TerminalComponentBinding, TerminalProgram, TerminalRuntimeSupplyRequest,
 };
 
-pub(super) fn prepare<'host, 'code>(
+pub(super) fn admit_request(
     receiver: TerminalExecutionView<'_>,
     request: &BuildProviderRequest,
     provider: &ProducedBuildProvider,
-) -> Result<Vec<TerminalComponentBinding<'host, 'code>>, String> {
+) -> Result<(), String> {
     let (_, declaration) = request
         .backing
         .path
@@ -28,6 +28,18 @@ pub(super) fn prepare<'host, 'code>(
             "prepared Build provider satisfies a different exact requirement application".into(),
         );
     }
+    Ok(())
+}
+
+pub(super) fn prepare<'host, 'code>(
+    receiver: TerminalExecutionView<'_>,
+    request: &BuildProviderRequest,
+    provider: &ProducedBuildProvider,
+    profile: target::TargetProfile,
+    account: &evaluation_accounting::EvaluationInvocationAccount,
+    accounting: &mut build_time_evaluation::SourceCompletionAccounting,
+) -> Result<Vec<TerminalComponentBinding<'host, 'code>>, String> {
+    let identities = &receiver.module().identities;
     let Some(artifact) = provider.artifact() else {
         return if request.requirement.boundaries.is_empty() {
             Ok(Vec::new())
@@ -39,6 +51,12 @@ pub(super) fn prepare<'host, 'code>(
     // Keep freshly produced code alive after helper preparation is released;
     // decoding is an external-byte ingress, not a same-session ownership transfer.
     let program = TerminalProgram::retain(artifact.retain_code());
+    let targets = terminal_installation::admit_target_machine_selections(
+        artifact.view(),
+        profile.target_name(),
+    );
+    let layouts = terminal_installation::admit_target_layouts(artifact.view(), &targets)
+        .map_err(|error| format!("Build helper layouts: {error:?}"))?;
     let mut bindings = Vec::new();
     for boundary in &request.requirement.boundaries {
         let receiving = receiver
@@ -81,24 +99,74 @@ pub(super) fn prepare<'host, 'code>(
             artifact.view(),
             &selected,
         )?;
-        let supplies = program
-            .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
-                installation: Some(admitted.selection()),
-                entry: Some(terminal_psi::TargetMachineCallable::Machine(
-                    admitted.candidate(),
-                )),
-                host_imports: &[],
-                x86_flags: None,
-                memory_ordering: None,
-                target_machines: None,
-                target_layouts: None,
-            })
-            .map_err(|error| format!("Build helper closure admission: {error:?}"))?;
+        let supplies = runtime_supplies(&program, &admitted, &targets, &layouts)?;
+        let requirements = program
+            .execution_requirements(Some(&supplies))
+            .map_err(|error| format!("Build helper demands: {error:?}"))?;
+        // Complete against this exact slot selection, never the dependency's
+        // Product defaults or a union of independently admitted selections.
+        let completed = build_time_evaluation::complete_scalar_applications(
+            artifact,
+            profile.target_name(),
+            &requirements.scalar_applications,
+            Some(account),
+            accounting,
+            |scope| {
+                let scope_profile = target::TargetProfile::from_canonical_target_name(scope)
+                    .map_err(|diagnostic| diagnostic.message)?;
+                Ok(build_time_evaluation::ScalarScopeEvaluation {
+                    targets: terminal_installation::admit_target_machine_selections(
+                        artifact.view(),
+                        scope,
+                    ),
+                    providers: admitted.selection().clone(),
+                    address_model: Ok(target::TargetSemantics::close_address_model(scope_profile)
+                        .map(|model| terminal_installation::ScalarAddressModel {
+                            target: scope.to_owned(),
+                            carrier: model.carrier(),
+                            semantics_version: model.semantics_version(),
+                            commitment: model.commitment(),
+                        })),
+                    carrier_layout: scope_profile
+                        .native_realization()
+                        .map(runtime_abi::target_carrier_layout),
+                })
+            },
+        )
+        .map_err(|reason| format!("Build helper scalar completion: {reason}"))?;
+        let supplies = runtime_supplies(
+            &program,
+            &admitted,
+            completed.primary().targets(),
+            completed.primary().layouts(),
+        )?;
         bindings.push(TerminalComponentBinding::new(
             admitted,
             program.clone(),
             supplies,
+            Some(std::borrow::Cow::Owned(completed)),
         )?);
     }
     Ok(bindings)
+}
+
+fn runtime_supplies(
+    program: &TerminalProgram<'_>,
+    admitted: &terminal_installation::AdmittedComponentProvider,
+    targets: &terminal_installation::AdmittedTargetMachineSelections,
+    layouts: &terminal_installation::AdmittedTargetLayouts,
+) -> Result<terminal_interpreter::TerminalRuntimeSupplies, String> {
+    program
+        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            installation: Some(admitted.selection()),
+            entry: Some(terminal_psi::TargetMachineCallable::Machine(
+                admitted.candidate(),
+            )),
+            host_imports: &[],
+            x86_flags: None,
+            memory_ordering: None,
+            target_machines: Some(targets),
+            target_layouts: Some(layouts),
+        })
+        .map_err(|error| format!("Build helper closure admission: {error:?}"))
 }

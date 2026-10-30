@@ -19,9 +19,9 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-// Entry records no longer contain synthetic application-record service fields.
+// Provider plans retain complete applications and exact numeric realization declarations.
 // Reject older private records before reading their differently shaped payload.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI03";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI06";
 
 #[cfg(test)]
 mod tests {
@@ -79,7 +79,6 @@ fn capture(
         behavior_exclusions,
         package_terminal_authority_permissions,
         package_terminal_authority_permission_identities,
-        callback_placements,
         x86_scalar_fma_provider,
     } = request;
     let mut output = RecordWriter::new(RecordLimits::default());
@@ -107,6 +106,7 @@ fn capture(
         plan,
         semantic_schema,
         row_executions,
+        row_numeric_realizations,
     } in &boundaries.selected_provider_provenance
     {
         plan.write(&mut output)?;
@@ -117,6 +117,7 @@ fn capture(
                 .filter(|execution| !execution.is_numeric())
                 .write(&mut output)?;
         }
+        write_values(row_numeric_realizations, &mut output)?;
     }
     boundaries.calling_applications.write(&mut output)?;
     native_target.write(&mut output)?;
@@ -133,7 +134,6 @@ fn capture(
     write_values(behavior_exclusions, &mut output)?;
     package_terminal_authority_permissions.write(&mut output)?;
     package_terminal_authority_permission_identities.write(&mut output)?;
-    callback_placements.write(&mut output)?;
     x86_scalar_fma_provider.write(&mut output)?;
     write_values(accepted_package_permissions.rows(), &mut output)?;
     accepted_package_permissions
@@ -146,11 +146,13 @@ struct IntrinsicPlanRecord {
     plan: effects::provider_plan::ProviderPlan,
     semantic_schema: effects::provider_plan::ServiceSchema,
     row_executions: Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>,
+    row_numeric_realizations: Vec<Option<String>>,
 }
 records::record_fields!(IntrinsicPlanRecord {
     plan,
     semantic_schema,
-    row_executions
+    row_executions,
+    row_numeric_realizations
 });
 
 struct DerivationInputs {
@@ -173,7 +175,6 @@ struct DerivationInputs {
     exclusions: Vec<effects::AuthoredBehaviorExclusion>,
     permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     permission_identities: terminal_psi::TerminalIdentityTable,
-    callbacks: Vec<backend_plan::NativeCallbackPlacement>,
     fma: Option<target::AdmittedX86ScalarFmaProvider>,
     accepted_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     accepted_identities: terminal_psi::TerminalIdentityTable,
@@ -186,43 +187,30 @@ impl DerivationInputs {
         let evaluated_binding_identities =
             Arc::new(terminal_psi::TerminalIdentityTable::read(input)?);
         input.context.binding_identities = Some(Arc::clone(&evaluated_binding_identities));
-        let checked_entry = RecordValue::read(input)?;
-        let physical_adapter_requested = RecordValue::read(input)?;
-        let provider_proposals = RecordValue::read(input)?;
-        let leaves = RecordValue::read(input)?;
-        let provider_declarations = RecordValue::read(input)?;
-        let profile = RecordValue::read(input)?;
-        let families = RecordValue::read(input)?;
-        let selected = RecordValue::read(input)?;
-        let intrinsic_provenance = RecordValue::read(input)?;
-        let calling = RecordValue::read(input)?;
-        let native = RecordValue::read(input)?;
-        let entry = match u8::read(input)? {
-            0 => None,
-            1 => Some(EntryRecord::read(input)?),
-            _ => return Err(input.error("invalid native entry presence tag")),
-        };
         Ok(Self {
             evaluated_binding_identities,
-            checked_entry,
-            physical_adapter_requested,
-            provider_proposals,
-            leaves,
-            provider_declarations,
-            profile,
-            families,
-            selected,
-            intrinsic_provenance,
-            calling,
-            native,
-            entry,
+            checked_entry: RecordValue::read(input)?,
+            physical_adapter_requested: RecordValue::read(input)?,
+            provider_proposals: RecordValue::read(input)?,
+            leaves: RecordValue::read(input)?,
+            provider_declarations: RecordValue::read(input)?,
+            profile: RecordValue::read(input)?,
+            families: RecordValue::read(input)?,
+            selected: RecordValue::read(input)?,
+            intrinsic_provenance: RecordValue::read(input)?,
+            calling: RecordValue::read(input)?,
+            native: RecordValue::read(input)?,
+            entry: match u8::read(input)? {
+                0 => None,
+                1 => Some(EntryRecord::read(input)?),
+                _ => return Err(input.error("invalid native entry presence tag")),
+            },
             application: RecordValue::read(input)?,
             optimizations: RecordValue::read(input)?,
             external: RecordValue::read(input)?,
             exclusions: RecordValue::read(input)?,
             permissions: RecordValue::read(input)?,
             permission_identities: RecordValue::read(input)?,
-            callbacks: RecordValue::read(input)?,
             fma: RecordValue::read(input)?,
             accepted_permissions: RecordValue::read(input)?,
             accepted_identities: RecordValue::read(input)?,
@@ -264,7 +252,6 @@ pub fn recover_native_derivation_inputs(
         exclusions,
         permissions,
         permission_identities,
-        callbacks,
         fma,
         accepted_permissions,
         accepted_identities,
@@ -298,6 +285,7 @@ pub fn recover_native_derivation_inputs(
                         plan: &row.plan,
                         semantic_schema: &row.semantic_schema,
                         row_executions: &row.row_executions,
+                        row_numeric_realizations: &row.row_numeric_realizations,
                     },
                 )
                 .collect(),
@@ -311,7 +299,6 @@ pub fn recover_native_derivation_inputs(
         behavior_exclusions: &exclusions,
         package_terminal_authority_permissions: permissions,
         package_terminal_authority_permission_identities: permission_identities,
-        callback_placements: callbacks,
         x86_scalar_fma_provider: fma,
     };
     let mut proposal =

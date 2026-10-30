@@ -44,7 +44,7 @@ pub fn reference_source_memberships<'types>(
                         })
                         .ok_or("reference membership selection has no runtime carrier")?;
                 match parent.shape {
-                    StructuralTypeShape::FixedArray { length: 0, .. } => {
+                    StructuralTypeShape::FixedArray { length: terminal_psi::ArrayExtent::Literal(0), .. } => {
                         return Err("reference membership selection has an empty fixed array");
                     }
                     StructuralTypeShape::FixedArray { .. }
@@ -95,10 +95,17 @@ pub fn reference_source_memberships<'types>(
                 .and_then(|carrier| types.clone().find(|declaration| declaration.id == carrier))
                 .ok_or("reference membership selection has no runtime carrier")?;
             let extent = match parent.shape {
-                StructuralTypeShape::FixedArray { length: 0, .. } => {
+                StructuralTypeShape::FixedArray {
+                    length: terminal_psi::ArrayExtent::Literal(0),
+                    ..
+                } => {
                     return Err("reference membership selection has an empty fixed array");
                 }
-                StructuralTypeShape::FixedArray { length, .. } => Some(length),
+                StructuralTypeShape::FixedArray { length, .. } => Some(
+                    length
+                        .literal()
+                        .ok_or("reference membership selection requires a closed array extent")?,
+                ),
                 StructuralTypeShape::ElementView { .. } => None,
                 _ => return Err("reference membership selection has no collection carrier"),
             };

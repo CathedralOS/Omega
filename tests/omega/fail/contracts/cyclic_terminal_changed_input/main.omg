@@ -1,0 +1,20 @@
+// Equal parameter spellings do not identify the same invocation snapshot.
+machine first(remaining: u64, limit: u64) -> u64
+    requires remaining <= 8u64 && limit <= 256u64
+    ensures result <= limit
+{
+    transition remaining > 0u64 {
+        true -> second(remaining - 1u64, 256u64)
+        false -> (limit)
+    }
+}
+machine second(remaining: u64, limit: u64) -> u64
+    requires remaining <= 8u64 && limit <= 256u64
+    ensures result <= limit
+{
+    transition remaining > 0u64 {
+        true -> first(remaining - 1u64, limit)
+        false -> (limit)
+    }
+}
+machine main() {}

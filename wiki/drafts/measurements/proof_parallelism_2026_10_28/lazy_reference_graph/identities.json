@@ -1,0 +1,22 @@
+[
+  {
+    "role": "original",
+    "producer": "baseline",
+    "compiler_sha256": "e6142460b46c531e6e2e0ada4382663fe42353a12663f60a3f08e0909dbbddb5",
+    "accepted_lock_sha256": "f918f6395d68d55428e572edcb3ca0832881e1aa29904c0a8c4fca35ed61d681",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  {
+    "role": "candidate",
+    "producer": "lazy-reference",
+    "compiler_sha256": "379a5b851627c37fa53e6bd4f1fb8e6a7b75178c0cb18628b94c94faec0e5c8f",
+    "accepted_lock_sha256": "72f1ca47c4baa1952d525227a4f53de414dca86a22e076001684aaec6099b854",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+]

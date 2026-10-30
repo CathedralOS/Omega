@@ -36,12 +36,11 @@ pub(super) fn stage(
             &binding.normal_qualifications,
         )?;
     }
-    let owner = StructuralRuntimePlace::from(&binding.referent);
     for scalar in &binding.scalars {
         if binding.access == StructuralAccess::MutableBorrow {
             execution.validate_scalar_loan_restoration(
                 &scalar.storage,
-                &owner,
+                &scalar.restoration_owner,
                 &binding.normal_qualifications,
             )?;
         }
@@ -246,6 +245,7 @@ pub(super) fn stage(
                 }
                 StorageLeafKind::ByteArray {
                     destination,
+                    structural_type,
                     length,
                 } => {
                     let values = (0..*length).map(|element_index| {
@@ -278,7 +278,7 @@ pub(super) fn stage(
                         values,
                         execution.account.as_ref(),
                     )?;
-                    staged.stage_byte_array(destination.clone(), bytes)?;
+                    staged.stage_byte_array(destination.clone(), *structural_type, bytes)?;
                 }
                 _ => {}
             }

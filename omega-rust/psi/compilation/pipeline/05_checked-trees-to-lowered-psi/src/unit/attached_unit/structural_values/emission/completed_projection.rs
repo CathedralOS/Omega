@@ -9,6 +9,12 @@ use crate::expression_preparation::bindings::structural_paths::{
 };
 use semantic_vocabulary::PlaceId;
 
+pub(super) struct CompletedProjection {
+    pub(super) expression: typed_trees::expression::ExpressionHandle,
+    pub(super) argument: StructuralArgument,
+    pub(super) source_root: PlaceId,
+}
+
 impl Emission<'_, '_, '_> {
     pub(super) fn complete_projection_source(
         &mut self,
@@ -68,6 +74,7 @@ impl Emission<'_, '_, '_> {
         mut prepared: Vec<PreparedStructuralPathSegment>,
         access: StructuralAccess,
     ) -> Result<StructuralArgument, LoweringError> {
+        let source_root = place;
         let root = self.projection_root_type(place)?;
         let frontiers = crate::emission::completed_place::plan(
             self.structural_types,
@@ -181,11 +188,17 @@ impl Emission<'_, '_, '_> {
             Some((&mut *self.next_value, &mut *self.operations)),
         )?;
         self.values.truncate(source_count);
-        Ok(StructuralArgument {
+        let argument = StructuralArgument {
             place,
             path,
             access,
-        })
+        };
+        self.completed_projections.push(CompletedProjection {
+            expression,
+            argument: argument.clone(),
+            source_root,
+        });
+        Ok(argument)
     }
 
     /// Geometry comes from established source homes and producer declarations,

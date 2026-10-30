@@ -23,7 +23,9 @@ mod crash_entry_values;
 mod expression_children;
 pub(crate) use crash_entry_values::entry_parameter_place_before_statement;
 mod crash_plan_facts;
+pub(crate) mod declaration_descriptions;
 mod dynamic_conformance;
+pub(crate) mod proof_applications;
 pub(crate) use expression_children::{
     push_every_expression_child, push_expression_children, push_match_children,
 };
@@ -188,7 +190,8 @@ pub(crate) fn build_check_facts(
     crate::proof::bind_evidence_forwarding_facts(program, &mut proof)?;
     crate::proof::bind_outcome_specific_arm_facts(program, &mut proof)?;
     crate::proof::bind_evidence_projection_facts(program, &mut proof)?;
-    let semantic = build_semantic_facts(program, &proof, &operators);
+    let semantic =
+        build_semantic_facts(program, &proof, &operators).map_err(|diagnostic| vec![diagnostic])?;
     let domains = build_domain_facts(program, &semantic);
     // Meaning selection depends only on declarations and signatures. Complete
     // selected scalar plans before flow captures their evaluated local values.

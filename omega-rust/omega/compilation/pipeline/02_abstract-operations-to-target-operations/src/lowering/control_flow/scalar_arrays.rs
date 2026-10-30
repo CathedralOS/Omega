@@ -21,7 +21,10 @@ pub(in crate::lowering) fn shape(
     let mut array = false;
     for _ in 0..types.len() {
         match types.get(&current).ok_or_else(invalid)?.shape {
-            StructuralTypeShape::FixedArray { element, length } => {
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
                 array = true;
                 empty |= length == 0;
                 count = count.and_then(|count| count.checked_mul(length));

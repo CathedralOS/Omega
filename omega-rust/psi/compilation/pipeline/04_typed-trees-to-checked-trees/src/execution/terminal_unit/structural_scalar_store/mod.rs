@@ -81,9 +81,9 @@ pub(super) struct Occurrence<'a, 'program> {
 /// leaf family a lane judges is a property of the resolved place, not of the
 /// statement, so the two travel as one site.
 #[derive(Clone, Copy)]
-pub(super) struct Site<'a, 'program, 'destination> {
-    pub(super) occurrence: Occurrence<'a, 'program>,
-    pub(super) destination: &'a Destination<'destination>,
+struct Site<'a, 'program, 'destination> {
+    occurrence: Occurrence<'a, 'program>,
+    destination: &'a Destination<'destination>,
 }
 
 /// Capture scalar storage through the same destination resolution as its

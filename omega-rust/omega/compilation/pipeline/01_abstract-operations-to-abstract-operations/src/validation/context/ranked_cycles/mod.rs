@@ -59,10 +59,6 @@ impl ValidatedOptimizerCycleComponents {
         &self.snapshot.components
     }
 
-    pub const fn snapshot(&self) -> &OptimizerCycleComponentSnapshot {
-        &self.snapshot
-    }
-
     /// Exact well-founded evidence available to optimizer analyses only.
     pub const fn ranking_certificates(&self) -> &ValidatedOptimizerRankingCertificates {
         &self.rankings

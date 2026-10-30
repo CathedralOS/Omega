@@ -20,6 +20,13 @@ the runner checks the listed effects before discarding the test directory.
 Ordinary fixtures retain privately issued snapshot/staging execution. This
 is test-supplied authority, not a source spelling or a new product grant mode.
 
+A fail fixture may supply `expected_failed_scalar_accounting.txt` with a positive
+minimum canonical scalar receipt count. In addition to its normal package
+refusal, the runner submits the same reviewed inputs through the standalone
+native batch API and requires a failed outcome retaining complete, valid charges.
+This observes failed report accounting before package policy flattens diagnostics;
+it neither accepts the source nor replaces the fixture's expected diagnostic.
+
 `corpus_runner.rs` compiles every fixture and prints one outcome record each.
 Negative fixtures check once under their authored Build sponsors and input
 custody. Without a declared program entry, source acceptance records `checked`,
@@ -187,6 +194,15 @@ It round-trips its isolated literal-returning dynamic row, then requires exact
 canonical refusals for mutable/write-only public regions and an Invocation-origin
 contract. The access mutations exercise the earlier public access guard; the
 Invocation mutation exercises image-origin admission. No forged module executes.
+
+`synchronous-provider-controls` retains a source-authored provider alternative,
+then drops the source session and reloads its Terminal artifact. Selecting the
+alternative must reject a synchronous cycle in both portable and native
+admission, including when the default entry does not call either provider.
+Opaque bindings of those same authored schemas exercise their invocation ceilings
+and reject even with toolchain markers; removing one ceiling edge must admit.
+Changed selections never execute. The fixture's ordinary native/Terminal legs
+separately establish its authored runtime result.
 
 An optional `expected_native_component_descriptions.txt` contains the nonzero
 number of independently emitted native component products expected by a fixture.

@@ -20,6 +20,12 @@ pub fn consumer_captures(
         .filter(|row| row.statement_index == statement)
     {
         pending.extend([row.stored_value, row.store_target]);
+        for invocation in control
+            .operator_invocations
+            .span(row.operator_invocations)?
+        {
+            pending.extend(invocation.operands.handles());
+        }
         for observation in control
             .value_observations
             .span_or_empty(row.value_observations)
@@ -71,6 +77,10 @@ pub fn consumer_captures(
         {
             selected.push(handle);
         }
+        // The result's actual evaluation inputs are also completed consumers.
+        // This finds a selected operand's own occurrence; it does not claim
+        // that a conditional input executed on every completion route.
+        pending.extend(operand.evaluated_inputs.handles());
         pending.extend(
             control
                 .operand_children
@@ -88,3 +98,6 @@ pub fn consumer_captures(
     }
     (!selected.is_empty()).then_some(selected)
 }
+
+#[cfg(test)]
+mod tests;

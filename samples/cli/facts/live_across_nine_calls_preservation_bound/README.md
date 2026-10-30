@@ -70,7 +70,7 @@ All 18 positive and negative witness fixtures are pinned in the corpus suite:
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `compute_*(60u64)` across nine sequential helper calls preserves `saved == 60u64` within interval `40u64..80u64`. Performing exact subtractions `head: u64 = 80 - 60 == 20u64` and `underflow: u64 = 60 - 40 == 20u64` yields `head + underflow == 40u64`. In `main`, `transition outcome == 0` transitions to `machine done() {}`, terminating with native exit 0. If preservation fails or corrupts the live value, execution branches to `machine bad() { crash Trap; }`, causing exit 255.
+- In every positive place, evaluating `compute_*(60u64)` across nine sequential helper calls preserves `saved == 60u64` within interval `40u64..80u64`. Performing exact subtractions `head: u64 = 80 - 60 == 20u64` and `underflow: u64 = 60 - 40 == 20u64` yields `head + underflow == 40u64`. In `main`, `transition outcome == 0` transitions to `machine done() {}`, terminating with native exit 0. The final helper-chain result is checked, but the arithmetic sum cancels the preserved value: corruption within the admitted range can still return zero. This migration does not renew exact live-value preservation acceptance.
 - Each invalid twin widens the bound contract to `saved >= 39 && saved <= 80` (or `SAVED = 39`), so `res - 40` may underflow. Exact subtraction `let underflow: u64 = res - 40;` fails closed at compile time with `exact arithmetic in machine ... local underflow may overflow u64`. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -107,3 +107,18 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - **Pinned record:** the 18 fixtures are under `tests/omega/{pass,fail}/facts/live_across_nine_calls_preservation_bound_through_<place>_{exit,rejected}`, byte-equal to the nine `<place>/main.omg` programs and their `invalid/` twins. Recorded at `@595562a958b4+wt` on macOS arm64 with the shared generation's `corpus_runner` (opt-level 1 producer at base `595562a958b`): 18 rows in `corpus_outcomes.txt` (9 `checked` with `check-target:macos_arm64`, 9 `rejected ... expected` carrying the `exact arithmetic in machine ... local underflow may overflow u64` diagnostic), 9 `built ... exit:0` rows in `corpus_native_macos_arm64.txt`, and 9 `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `corpus_both_macos_arm64.txt`; 0 keys lost, 0 continuation lines dropped, 0 timeout rows.
 
 - **What remains open:** Values live across ten or more sequential calls with extreme register pressure forcing multi-slot stack frame spill reallocation, live-across-call floating point scalar preservation, and live-across-call vector register preservation.
+
+## Build-owned target-body migration
+
+`BUILD-OWNED-TARGET-SELECTION` migrates this existing target-body witness to
+ordinary named implementations selected by explicit target-keyed Build rows.
+Its original live-across-call body tokens, input and result contracts, helper parameter
+count and main exit oracle are preserved. A separately selected tag check
+(17 for X86, 29 for ARM) makes wrong implementation selection observable.
+The target-body pin requests five unchanged-artifact Terminal installations;
+other eight places, root, their authored Build rows and runtime oracles remain
+unchanged and are reobserved with the current optimized producer.
+
+This source migration does not renew historical calling-plan row completeness,
+claim native execution on Windows/Linux, or close the target/native migration
+parent tasks. The original head/underflow sum cancels the saved value, so in-range corruption can retain exit zero. The added tag guards discriminate provider selection only; exact live-value preservation acceptance is not renewed.

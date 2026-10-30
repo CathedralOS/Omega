@@ -272,7 +272,7 @@ pub struct VerifiedComponent {
     description: ComponentDescription,
     description_identity: [u8; 32],
     closure: [u8; 32],
-    artifact: terminal_codec::CanonicalTerminalArtifact,
+    artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
 }
 
 impl VerifiedComponent {
@@ -311,7 +311,11 @@ impl VerifiedComponent {
     /// verified together. Independent production must retain this custody,
     /// rather than reconstructing a proof envelope from the decoded module.
     /// Possession still establishes neither installation nor callable authority.
-    pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
+    pub fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
+        &self.artifact
+    }
+
+    pub fn shared_artifact(&self) -> &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact> {
         &self.artifact
     }
 
@@ -388,18 +392,17 @@ impl VerifiedComponent {
         &self,
         plan: &ProviderPlan,
     ) -> Result<(), IndependentRealizationMismatch> {
-        self.selected_plan_exports(plan).map(|_| ())
+        self.selected_plan_export_positions(plan).map(|_| ())
     }
 
-    /// Join the complete plan once and retain its exact artifact-local export
-    /// candidates. A caller must keep this component's subject beside those
-    /// handles; a dense machine identity alone never names another artifact.
+    /// Join the complete plan and return positions in this component's immutable
+    /// provider candidate catalog. A caller must retain this component beside
+    /// those positions; they never name candidates in another artifact.
     /// These are verified export descriptions, not installed entry capabilities.
-    pub fn selected_plan_exports(
+    pub fn selected_plan_export_positions(
         &self,
         plan: &ProviderPlan,
-    ) -> Result<Vec<&terminal_psi::ProviderCandidateConformance>, IndependentRealizationMismatch>
-    {
+    ) -> Result<Vec<usize>, IndependentRealizationMismatch> {
         if plan.provider_type.is_empty() {
             return Err(IndependentRealizationMismatch::EmptyProviderType {
                 plan: plan.name.clone(),
@@ -419,7 +422,8 @@ impl VerifiedComponent {
         let mut exports = Vec::with_capacity(plan.rows.len());
         for row in &plan.rows {
             let ProviderBinding::CheckedAdapter {
-                machine_identity, ..
+                machine_identity,
+                machine_package_identity,
             } = &row.binding
             else {
                 return Err(IndependentRealizationMismatch::UncheckedRow {
@@ -430,7 +434,8 @@ impl VerifiedComponent {
                 .module()
                 .provider_candidates
                 .iter()
-                .filter(|candidate| {
+                .enumerate()
+                .filter(|(_, candidate)| {
                     self.module()
                         .identities
                         .text(candidate.requirement_identity)
@@ -445,7 +450,7 @@ impl VerifiedComponent {
             let for_provider = for_requirement
                 .iter()
                 .copied()
-                .filter(|candidate| {
+                .filter(|(_, candidate)| {
                     self.module().identities.text(candidate.provider_identity)
                         == Some(plan.provider_type.as_str())
                 })
@@ -460,9 +465,13 @@ impl VerifiedComponent {
             let exact = for_provider
                 .iter()
                 .copied()
-                .filter(|candidate| {
+                .filter(|(_, candidate)| {
                     self.module().identities.text(candidate.candidate_identity)
                         == Some(machine_identity)
+                        // Two packages can declare the same provider/method
+                        // spelling. The selected adapter retains its package;
+                        // None is an exact coordinate, never a wildcard.
+                        && candidate.source_candidate_package_identity == *machine_package_identity
                 })
                 .collect::<Vec<_>>();
             match exact.as_slice() {
@@ -475,7 +484,7 @@ impl VerifiedComponent {
                         selected_machine: machine_identity.to_owned(),
                     });
                 }
-                [candidate] => exports.push(*candidate),
+                [(position, _)] => exports.push(*position),
                 _ => {
                     return Err(IndependentRealizationMismatch::DuplicateRealization {
                         requirement_identity: plan
@@ -705,7 +714,7 @@ pub fn verify_component(
         // Preserve the original sealed product, including its checked proof
         // section. A decoded-module copy cannot carry that product to an
         // independent execution consumer.
-        artifact,
+        artifact: std::sync::Arc::new(artifact),
     })
 }
 
@@ -1001,20 +1010,25 @@ fn check_providers(
             &provider.plan_digest,
         )
         .map_err(ComponentVerificationRejection::InconsistentProviderClosure)?;
-        let mut requirements: Vec<_> = plan.rows.iter().map(|row| row.requirement).collect();
-        requirements.sort();
-        if requirements
-            != provider
+        if provider
+            .requirement_identities
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+            || provider
                 .requirement_identities
                 .iter()
-                .map(String::as_str)
-                .collect::<Vec<_>>()
+                .any(|requirement| !plan.rows.iter().any(|row| row.requirement == requirement))
         {
             return Err(ComponentVerificationRejection::InconsistentProviderClosure(
-                "retained requirement roster differs from the complete committed plan",
+                "retained requirement claims are not a canonical subset of the complete committed plan",
             ));
         }
-        for row in &plan.rows {
+        for row in plan.rows.iter().filter(|row| {
+            provider
+                .requirement_identities
+                .iter()
+                .any(|claimed| claimed == row.requirement)
+        }) {
             let requirement = row.requirement;
             if called.contains(requirement) {
                 match sealed.get(requirement) {

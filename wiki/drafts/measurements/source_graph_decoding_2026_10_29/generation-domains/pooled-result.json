@@ -1,0 +1,680 @@
+{
+  "kind": "exploratory pooled paired analysis; all complete runs retained",
+  "assumptions": "Within-pair comparisons; percentile bootstrap does not model temporal correlation or contention. Initial and confirmation runs remain separately reported.",
+  "results": {
+    "length": {
+      "initial": {
+        "pairs": 32,
+        "baseline_median_ms": 1095.003,
+        "candidate_median_ms": 939.26145,
+        "paired_difference_median_ms": -133.04775,
+        "paired_percent_median": -9.920235723076598,
+        "paired_percent_change_bootstrap_95": [
+          -13.979787813463401,
+          -6.454103575178516
+        ],
+        "median_difference_bootstrap_95_ms": [
+          -160.0318,
+          -84.4729
+        ]
+      },
+      "confirmation": {
+        "pairs": 16,
+        "baseline_median_ms": 1527.65665,
+        "candidate_median_ms": 1520.7277,
+        "paired_difference_median_ms": -11.5968,
+        "paired_percent_median": -0.7795078420534618,
+        "paired_percent_change_bootstrap_95": [
+          -9.78256213872638,
+          6.538336858823657
+        ],
+        "median_difference_bootstrap_95_ms": [
+          -138.8891,
+          104.0008
+        ]
+      },
+      "all_observations": {
+        "pairs": 48,
+        "baseline_median_ms": 1273.9774,
+        "candidate_median_ms": 1239.0999,
+        "paired_difference_median_ms": -100.31225,
+        "paired_percent_median": -9.571621668553977,
+        "paired_percent_change_bootstrap_95": [
+          -11.280603670976674,
+          -2.8115651348095794
+        ],
+        "median_difference_bootstrap_95_ms": [
+          -150.1933,
+          -27.8199
+        ]
+      },
+      "raw_pairs": [
+        {
+          "batch": "comparison-suite",
+          "round": 0,
+          "baseline_ns": 1048754800.0,
+          "candidate_ns": 905294200.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 1,
+          "baseline_ns": 960614700.0,
+          "candidate_ns": 943479700.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 2,
+          "baseline_ns": 984097500.0,
+          "candidate_ns": 885266200.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 3,
+          "baseline_ns": 1190902600.0,
+          "candidate_ns": 880368700.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 4,
+          "baseline_ns": 989480900.0,
+          "candidate_ns": 961661000.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 5,
+          "baseline_ns": 1074455400.0,
+          "candidate_ns": 924262100.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 6,
+          "baseline_ns": 1176047200.0,
+          "candidate_ns": 1265665500.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 7,
+          "baseline_ns": 1568745200.0,
+          "candidate_ns": 1416220800.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 8,
+          "baseline_ns": 1290650300.0,
+          "candidate_ns": 1385183400.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 9,
+          "baseline_ns": 1315531400.0,
+          "candidate_ns": 1231058500.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 10,
+          "baseline_ns": 1793228500.0,
+          "candidate_ns": 1590941500.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 11,
+          "baseline_ns": 1819297600.0,
+          "candidate_ns": 1539056800.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 12,
+          "baseline_ns": 1652587300.0,
+          "candidate_ns": 1418584000.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 13,
+          "baseline_ns": 1400388100.0,
+          "candidate_ns": 1204599500.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 14,
+          "baseline_ns": 1257304500.0,
+          "candidate_ns": 1968237600.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 15,
+          "baseline_ns": 1462515700.0,
+          "candidate_ns": 1321697700.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 16,
+          "baseline_ns": 1417383100.0,
+          "candidate_ns": 939797300.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 17,
+          "baseline_ns": 1115079400.0,
+          "candidate_ns": 906606300.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 18,
+          "baseline_ns": 1188101400.0,
+          "candidate_ns": 866893600.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 19,
+          "baseline_ns": 1237630700.0,
+          "candidate_ns": 938224200.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 20,
+          "baseline_ns": 958405100.0,
+          "candidate_ns": 1171890700.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 21,
+          "baseline_ns": 962597500.0,
+          "candidate_ns": 1235723900.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 22,
+          "baseline_ns": 891913700.0,
+          "candidate_ns": 888197000.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 23,
+          "baseline_ns": 1057525800.0,
+          "candidate_ns": 956904700.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 24,
+          "baseline_ns": 1219802700.0,
+          "candidate_ns": 938725600.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 25,
+          "baseline_ns": 1002968100.0,
+          "candidate_ns": 938235500.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 26,
+          "baseline_ns": 940598900.0,
+          "candidate_ns": 936307100.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 27,
+          "baseline_ns": 1068165900.0,
+          "candidate_ns": 910092600.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 28,
+          "baseline_ns": 1074926600.0,
+          "candidate_ns": 912936300.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 29,
+          "baseline_ns": 950673400.0,
+          "candidate_ns": 865033700.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 30,
+          "baseline_ns": 955814800.0,
+          "candidate_ns": 830537300.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 31,
+          "baseline_ns": 928002500.0,
+          "candidate_ns": 837080200.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 0,
+          "baseline_ns": 1357154300.0,
+          "candidate_ns": 1345518300.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 1,
+          "baseline_ns": 1609978400.0,
+          "candidate_ns": 1799581200.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 2,
+          "baseline_ns": 1417499300.0,
+          "candidate_ns": 1278610200.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 3,
+          "baseline_ns": 1535485700.0,
+          "candidate_ns": 1419744300.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 4,
+          "baseline_ns": 1812487100.0,
+          "candidate_ns": 1420942700.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 5,
+          "baseline_ns": 1503115500.0,
+          "candidate_ns": 1242475900.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 6,
+          "baseline_ns": 1743644500.0,
+          "candidate_ns": 1391650900.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 7,
+          "baseline_ns": 1647241900.0,
+          "candidate_ns": 1635684300.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 8,
+          "baseline_ns": 1632491600.0,
+          "candidate_ns": 1739229400.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 9,
+          "baseline_ns": 1427958800.0,
+          "candidate_ns": 1531959600.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 10,
+          "baseline_ns": 1706653100.0,
+          "candidate_ns": 1539698700.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 11,
+          "baseline_ns": 1129631900.0,
+          "candidate_ns": 1808619500.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 12,
+          "baseline_ns": 1519827600.0,
+          "candidate_ns": 1509495800.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 13,
+          "baseline_ns": 1590488600.0,
+          "candidate_ns": 1646828400.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 14,
+          "baseline_ns": 1447997500.0,
+          "candidate_ns": 2016470800.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 15,
+          "baseline_ns": 1442177500.0,
+          "candidate_ns": 1342174100.0
+        }
+      ]
+    },
+    "square": {
+      "initial": {
+        "pairs": 32,
+        "baseline_median_ms": 959.2033,
+        "candidate_median_ms": 917.8219,
+        "paired_difference_median_ms": -32.99885,
+        "paired_percent_median": -3.796161317541713,
+        "paired_percent_change_bootstrap_95": [
+          -6.053845456203922,
+          -1.2880033839403615
+        ],
+        "median_difference_bootstrap_95_ms": [
+          -56.1016,
+          -12.2804
+        ]
+      },
+      "confirmation": {
+        "pairs": 16,
+        "baseline_median_ms": 1696.8737,
+        "candidate_median_ms": 1579.82335,
+        "paired_difference_median_ms": -91.5852,
+        "paired_percent_median": -6.432315396077554,
+        "paired_percent_change_bootstrap_95": [
+          -20.311721285623886,
+          8.79824886060463
+        ],
+        "median_difference_bootstrap_95_ms": [
+          -373.4039,
+          132.2677
+        ]
+      },
+      "all_observations": {
+        "pairs": 48,
+        "baseline_median_ms": 984.70165,
+        "candidate_median_ms": 960.55845,
+        "paired_difference_median_ms": -42.40225,
+        "paired_percent_median": -4.467412605324656,
+        "paired_percent_change_bootstrap_95": [
+          -6.514853636558538,
+          -1.5807674678713801
+        ],
+        "median_difference_bootstrap_95_ms": [
+          -74.6109,
+          -14.8925
+        ]
+      },
+      "raw_pairs": [
+        {
+          "batch": "comparison-suite",
+          "round": 0,
+          "baseline_ns": 875590200.0,
+          "candidate_ns": 819488600.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 1,
+          "baseline_ns": 957700800.0,
+          "candidate_ns": 838098000.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 2,
+          "baseline_ns": 866840200.0,
+          "candidate_ns": 834205500.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 3,
+          "baseline_ns": 1007198800.0,
+          "candidate_ns": 844576000.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 4,
+          "baseline_ns": 953444700.0,
+          "candidate_ns": 941164300.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 5,
+          "baseline_ns": 940682900.0,
+          "candidate_ns": 923701500.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 6,
+          "baseline_ns": 916256600.0,
+          "candidate_ns": 909856700.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 7,
+          "baseline_ns": 917325400.0,
+          "candidate_ns": 902432900.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 8,
+          "baseline_ns": 997191400.0,
+          "candidate_ns": 1106809400.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 9,
+          "baseline_ns": 980081100.0,
+          "candidate_ns": 899779300.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 10,
+          "baseline_ns": 960705800.0,
+          "candidate_ns": 932292300.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 11,
+          "baseline_ns": 1019934600.0,
+          "candidate_ns": 1006101600.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 12,
+          "baseline_ns": 1007686200.0,
+          "candidate_ns": 929172700.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 13,
+          "baseline_ns": 993779500.0,
+          "candidate_ns": 943283100.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 14,
+          "baseline_ns": 966291800.0,
+          "candidate_ns": 956059500.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 15,
+          "baseline_ns": 1042861000.0,
+          "candidate_ns": 935528600.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 16,
+          "baseline_ns": 964598800.0,
+          "candidate_ns": 901756600.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 17,
+          "baseline_ns": 965007500.0,
+          "candidate_ns": 909998200.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 18,
+          "baseline_ns": 935306500.0,
+          "candidate_ns": 1025241600.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 19,
+          "baseline_ns": 986553200.0,
+          "candidate_ns": 911942300.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 20,
+          "baseline_ns": 936717600.0,
+          "candidate_ns": 896661500.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 21,
+          "baseline_ns": 915335300.0,
+          "candidate_ns": 843187500.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 22,
+          "baseline_ns": 896560800.0,
+          "candidate_ns": 966524800.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 23,
+          "baseline_ns": 968048900.0,
+          "candidate_ns": 850823600.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 24,
+          "baseline_ns": 982850100.0,
+          "candidate_ns": 1042741500.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 25,
+          "baseline_ns": 1001942900.0,
+          "candidate_ns": 1491826200.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 26,
+          "baseline_ns": 933252400.0,
+          "candidate_ns": 1000201700.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 27,
+          "baseline_ns": 871657800.0,
+          "candidate_ns": 838294800.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 28,
+          "baseline_ns": 900614800.0,
+          "candidate_ns": 959543000.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 29,
+          "baseline_ns": 970621000.0,
+          "candidate_ns": 961573900.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 30,
+          "baseline_ns": 902800200.0,
+          "candidate_ns": 823985900.0
+        },
+        {
+          "batch": "comparison-suite",
+          "round": 31,
+          "baseline_ns": 843874900.0,
+          "candidate_ns": 799126500.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 0,
+          "baseline_ns": 1187300100.0,
+          "candidate_ns": 1100418300.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 1,
+          "baseline_ns": 1048512900.0,
+          "candidate_ns": 1275994400.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 2,
+          "baseline_ns": 1552428400.0,
+          "candidate_ns": 1395665100.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 3,
+          "baseline_ns": 1838366600.0,
+          "candidate_ns": 1464962700.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 4,
+          "baseline_ns": 1657890900.0,
+          "candidate_ns": 1631683500.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 5,
+          "baseline_ns": 1735856500.0,
+          "candidate_ns": 1639567900.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 6,
+          "baseline_ns": 1503341200.0,
+          "candidate_ns": 1635608900.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 7,
+          "baseline_ns": 1890042300.0,
+          "candidate_ns": 1468139300.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 8,
+          "baseline_ns": 1610567700.0,
+          "candidate_ns": 1535537700.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 9,
+          "baseline_ns": 1954673000.0,
+          "candidate_ns": 1499934300.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 10,
+          "baseline_ns": 1214236200.0,
+          "candidate_ns": 1448977000.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 11,
+          "baseline_ns": 1606739000.0,
+          "candidate_ns": 1855566800.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 12,
+          "baseline_ns": 1894775800.0,
+          "candidate_ns": 1624109000.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 13,
+          "baseline_ns": 2183019500.0,
+          "candidate_ns": 1674877400.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 14,
+          "baseline_ns": 1772483100.0,
+          "candidate_ns": 2122445300.0
+        },
+        {
+          "batch": "confirmation",
+          "round": 15,
+          "baseline_ns": 2298257500.0,
+          "candidate_ns": 1784700500.0
+        }
+      ]
+    }
+  }
+}

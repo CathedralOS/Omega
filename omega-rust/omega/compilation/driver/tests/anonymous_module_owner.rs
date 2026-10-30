@@ -44,18 +44,14 @@ fn checked_owner_for(root: &Path, file: &str) -> PackageKeyIdentity {
     owners[0]
 }
 
-fn artifact(root: &Path) -> CanonicalTerminalArtifact {
+fn artifact(root: &Path) -> std::sync::Arc<CanonicalTerminalArtifact> {
     omega_build::produce_source(
         &mut CompilationSession::default(),
         CheckedCompileRequest::new(&root.join("library.omg"), None),
         CompilationProduct::Inspection("library::read".to_owned()),
     )
     .and_then(CompilationOutput::into_inspection)
-    .map(|produced| {
-        produced
-            .into_artifact()
-            .expect("portable inspection product")
-    })
+    .map(|produced| std::sync::Arc::clone(produced.artifact()))
     .unwrap_or_else(|error| {
         panic!(
             "anonymous Terminal publication: {:?}",
@@ -69,7 +65,9 @@ fn declaration(artifact: &CanonicalTerminalArtifact) -> &terminal_psi::CheckedMa
     module
         .machines
         .iter()
-        .find(|machine| terminal_psi::TargetMachineCallable::Machine(machine.id) == module.entry)
+        .find(|machine| {
+            Some(terminal_psi::TargetMachineCallable::Machine(machine.id)) == module.entry
+        })
         .and_then(|machine| machine.declaration.as_ref())
         .expect("published source declaration")
 }
@@ -254,6 +252,7 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
             .expect("consumer artifact reload");
         let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
             entry: None,
+            filesystem: Default::default(),
             native_provider: None,
             x86_flags: None,
             memory_ordering: None,

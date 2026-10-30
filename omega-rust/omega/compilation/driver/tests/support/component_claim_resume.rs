@@ -38,6 +38,7 @@ pub(super) fn observe(
         terminal_runtime::execute_sliced(
             TerminalRuntimeRequest {
                 entry: None,
+                filesystem: Default::default(),
                 native_provider: None,
                 artifact,
                 provisions,

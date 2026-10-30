@@ -603,7 +603,10 @@ fn expression_symbol_trace(
             || format!("integer:{value}:unlanded"),
             |landing| integer_trace(value.canonical_spelling().as_str(), landing),
         ),
-        ExpressionNode::Float(value) => float_trace(value.text(), value.landing()),
+        ExpressionNode::Float(value) => value.presented_bits().map_or_else(
+            || float_trace(value.text(), value.landing()),
+            |(format, bits)| format!("float-bits:{}:{bits:016x}", format.name()),
+        ),
         ExpressionNode::UndeterminedNaN(format) => format!("undetermined-nan:{}", format.name()),
         ExpressionNode::String(value) => byte_string_trace(value),
     }

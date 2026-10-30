@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "applied_requirement_lexical_isolation_missing");
+    Build::select_provider<Stage<3u64>, Supply<3u64>>(builder, macos_arm64);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::select_provider<Stage<3u64>, Supply<3u64>>(builder, windows_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::select_provider<Stage<3u64>, Supply<3u64>>(builder, linux_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::select_provider<Stage<3u64>, Supply<3u64>>(builder, linux_arm64);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+}

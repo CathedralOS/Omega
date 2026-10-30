@@ -14,6 +14,7 @@ use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 mod candidate_validation;
 mod identity_classification;
 mod integer_constant_law;
+mod literal_operand;
 mod rule_catalog;
 mod same_operand;
 mod unit_divisor;

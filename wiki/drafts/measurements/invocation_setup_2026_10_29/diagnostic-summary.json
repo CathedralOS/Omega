@@ -1,0 +1,296 @@
+{
+  "length": {
+    "build.admit_outputs": [
+      2.073,
+      1
+    ],
+    "build.create_session": [
+      109.055,
+      1
+    ],
+    "build.resolve_sources": [
+      354.131,
+      1
+    ],
+    "compile.worker.await": [
+      363.701,
+      3
+    ],
+    "compile.worker.body": [
+      362.322,
+      3
+    ],
+    "setup.acquire_root": [
+      3.873,
+      1
+    ],
+    "setup.compiler_graph": [
+      30.413,
+      1
+    ],
+    "setup.compiler_storage": [
+      77.446,
+      1
+    ],
+    "setup.complete_resolution": [
+      0.103,
+      1
+    ],
+    "setup.execute_source": [
+      220.575,
+      1
+    ],
+    "setup.graph_current_identity": [
+      35.831,
+      2
+    ],
+    "setup.graph_custody": [
+      28.556,
+      2
+    ],
+    "setup.graph_identity": [
+      12.419,
+      1
+    ],
+    "setup.graph_lane": [
+      17.964,
+      1
+    ],
+    "setup.join_sources": [
+      0.112,
+      1
+    ],
+    "setup.package_grant": [
+      1.154,
+      1
+    ],
+    "setup.resolve_graph": [
+      0.099,
+      1
+    ],
+    "setup.retain_acquired_root": [
+      129.343,
+      1
+    ],
+    "setup.source_acquisitions": [
+      0.004,
+      1
+    ],
+    "source.graph.load.decode": [
+      94.814,
+      1
+    ],
+    "source.graph.load.digest": [
+      16.968,
+      1
+    ],
+    "source.graph.load.read": [
+      17.669,
+      1
+    ],
+    "source.graph.load.require_after": [
+      47.342,
+      1
+    ],
+    "source.graph.load.require_before": [
+      17.054,
+      1
+    ]
+  },
+  "dispatch": {
+    "build.admit_outputs": [
+      1.784,
+      1
+    ],
+    "build.create_session": [
+      109.066,
+      1
+    ],
+    "build.resolve_sources": [
+      238.796,
+      1
+    ],
+    "compile.worker.await": [
+      201.028,
+      3
+    ],
+    "compile.worker.body": [
+      200.136,
+      3
+    ],
+    "setup.acquire_root": [
+      5.103,
+      1
+    ],
+    "setup.compiler_graph": [
+      33.698,
+      1
+    ],
+    "setup.compiler_storage": [
+      74.026,
+      1
+    ],
+    "setup.complete_resolution": [
+      0.075,
+      1
+    ],
+    "setup.execute_source": [
+      139.759,
+      1
+    ],
+    "setup.graph_current_identity": [
+      17.25,
+      2
+    ],
+    "setup.graph_custody": [
+      11.056,
+      2
+    ],
+    "setup.graph_identity": [
+      15.13,
+      1
+    ],
+    "setup.graph_lane": [
+      18.541,
+      1
+    ],
+    "setup.join_sources": [
+      0.087,
+      1
+    ],
+    "setup.package_grant": [
+      1.314,
+      1
+    ],
+    "setup.resolve_graph": [
+      0.084,
+      1
+    ],
+    "setup.retain_acquired_root": [
+      93.667,
+      1
+    ],
+    "setup.source_acquisitions": [
+      0.004,
+      1
+    ],
+    "source.graph.load.decode": [
+      66.987,
+      1
+    ],
+    "source.graph.load.digest": [
+      16.65,
+      1
+    ],
+    "source.graph.load.read": [
+      13.63,
+      1
+    ],
+    "source.graph.load.require_after": [
+      14.159,
+      1
+    ],
+    "source.graph.load.require_before": [
+      14.152,
+      1
+    ]
+  },
+  "stack32": {
+    "build.admit_outputs": [
+      2.148,
+      1
+    ],
+    "build.create_session": [
+      104.526,
+      1
+    ],
+    "build.resolve_sources": [
+      257.384,
+      1
+    ],
+    "compile.worker.await": [
+      592.165,
+      3
+    ],
+    "compile.worker.body": [
+      590.246,
+      3
+    ],
+    "setup.acquire_root": [
+      3.196,
+      1
+    ],
+    "setup.compiler_graph": [
+      29.632,
+      1
+    ],
+    "setup.compiler_storage": [
+      74.044,
+      1
+    ],
+    "setup.complete_resolution": [
+      0.057,
+      1
+    ],
+    "setup.execute_source": [
+      155.69,
+      1
+    ],
+    "setup.graph_current_identity": [
+      21.291,
+      2
+    ],
+    "setup.graph_custody": [
+      12.218,
+      2
+    ],
+    "setup.graph_identity": [
+      13.794,
+      1
+    ],
+    "setup.graph_lane": [
+      15.81,
+      1
+    ],
+    "setup.join_sources": [
+      0.095,
+      1
+    ],
+    "setup.package_grant": [
+      0.82,
+      1
+    ],
+    "setup.resolve_graph": [
+      0.092,
+      1
+    ],
+    "setup.retain_acquired_root": [
+      98.233,
+      1
+    ],
+    "setup.source_acquisitions": [
+      0.004,
+      1
+    ],
+    "source.graph.load.decode": [
+      72.406,
+      1
+    ],
+    "source.graph.load.digest": [
+      18.861,
+      1
+    ],
+    "source.graph.load.read": [
+      16.108,
+      1
+    ],
+    "source.graph.load.require_after": [
+      16.103,
+      1
+    ],
+    "source.graph.load.require_before": [
+      17.412,
+      1
+    ]
+  }
+}

@@ -139,12 +139,12 @@ fn validate_store(
             value,
             definition_ordinal,
         } => (
-            exclusive_zero_code_immediate(
+            zero_code_immediate_is_exact(
                 function,
-                store,
                 defining_operation,
                 source_value,
                 definition_ordinal,
+                store,
             ),
             ScalarType::Boolean,
             1,
@@ -161,12 +161,12 @@ fn validate_store(
                 semantic_vocabulary::IeeeFloatValue::Binary64(bits) => (8, bits),
             };
             (
-                exclusive_zero_code_immediate(
+                zero_code_immediate_is_exact(
                     function,
-                    store,
                     defining_operation,
                     source_value,
                     definition_ordinal,
+                    store,
                 ),
                 ScalarType::IeeeFloat(value.format()),
                 byte_size,
@@ -277,29 +277,14 @@ fn validate_store(
     Some(())
 }
 
-pub(crate) fn native_scalar_shape(scalar_type: ScalarType) -> Option<(ValueShape, u16)> {
-    match scalar_type {
-        ScalarType::Boolean => Some((ValueShape::integer(1, 1), 1)),
-        ScalarType::Integer(integer)
-            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
-        {
-            let byte_size = integer.bits().checked_div(8)?;
-            Some((
-                ValueShape::integer(u32::from(byte_size), byte_size.min(8)),
-                byte_size,
-            ))
-        }
-        _ => None,
-    }
-}
-
-fn exclusive_zero_code_immediate(
+/// Whether one zero-code immediate definition is the sole admitted source of a
+/// store: attributed once, with no competing constant or home.
+fn zero_code_immediate_is_exact(
     function: &MachineCodeFunction,
-    store: &UnitWriteOnlyPrimitiveStoreRecord,
     defining_operation: semantic_vocabulary::OperationId,
     source_value: ValueId,
     definition_ordinal: usize,
+    store: &UnitWriteOnlyPrimitiveStoreRecord,
 ) -> bool {
     definition_ordinal < store.operation_ordinal
         && function
@@ -326,6 +311,23 @@ fn exclusive_zero_code_immediate(
             &function.unit_write_only_primitive_stores,
             store.source,
         )
+}
+
+pub(crate) fn native_scalar_shape(scalar_type: ScalarType) -> Option<(ValueShape, u16)> {
+    match scalar_type {
+        ScalarType::Boolean => Some((ValueShape::integer(1, 1), 1)),
+        ScalarType::Integer(integer)
+            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+        {
+            let byte_size = integer.bits().checked_div(8)?;
+            Some((
+                ValueShape::integer(u32::from(byte_size), byte_size.min(8)),
+                byte_size,
+            ))
+        }
+        _ => None,
+    }
 }
 
 fn exact_zero_code_definition_count(

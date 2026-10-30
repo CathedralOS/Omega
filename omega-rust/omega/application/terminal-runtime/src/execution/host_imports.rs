@@ -29,6 +29,7 @@ mod buffered_output;
 pub(super) mod clock;
 mod descriptor_io;
 mod descriptor_mode;
+mod filesystem;
 mod integer_absolute;
 mod integer_division;
 mod integer_parsing;
@@ -211,9 +212,10 @@ pub(super) fn matches_platform_c_symbol(
 pub(super) struct HostContext<'host> {
     output: buffered_output::BufferedStreams,
     input: Option<std::sync::Arc<std::sync::Mutex<Box<dyn std::io::Read + Send + 'host>>>>,
-    clock: Option<std::sync::Arc<std::sync::Mutex<clock::TerminalClockSnapshot>>>,
+    clock: Option<std::sync::Arc<std::sync::Mutex<clock::TerminalClockEnvironment>>>,
     addresses: std::sync::Arc<std::sync::Mutex<network_address::AddressValues>>,
     native: native_provider::NativeContext,
+    filesystem: filesystem::FilesystemContext,
     allocations: std::sync::Arc<std::sync::Mutex<allocation::AllocationValues>>,
 }
 impl<'host> HostContext<'host> {
@@ -224,11 +226,13 @@ impl<'host> HostContext<'host> {
     }
     pub(super) fn new(
         input: Option<Box<dyn std::io::Read + Send + 'host>>,
-        clock: Option<clock::TerminalClockSnapshot>,
+        clock: Option<clock::TerminalClockEnvironment>,
         native_provider: Option<std::process::Command>,
+        filesystem: super::TerminalFilesystemDelegation,
     ) -> Self {
         Self {
             native: native_provider::NativeContext::new(native_provider),
+            filesystem: filesystem::FilesystemContext::new(filesystem),
             output: buffered_output::BufferedStreams::new(),
             input: input.map(|reader| std::sync::Arc::new(std::sync::Mutex::new(reader))),
             clock: clock.map(|snapshot| std::sync::Arc::new(std::sync::Mutex::new(snapshot))),
@@ -369,6 +373,27 @@ pub(super) fn bind<'host>(
                         "foreign host binding does not match its admitted requirement row",
                     ));
                 }
+                let filesystem = context.filesystem.admit(program, declaration, binding)?;
+                if filesystem.as_ref().is_some_and(|call| call.descriptor_io()) {
+                    let adapter = native_provider::NativeImport::admit(
+                        program,
+                        declaration,
+                        binding,
+                        provisions,
+                        &context.native,
+                        filesystem,
+                        input.as_ref().cloned(),
+                        output.clone(),
+                    )?
+                    .ok_or_else(|| {
+                        TerminalRuntimeError::missing(
+                            "runtime-filesystem",
+                            "filesystem descriptor needs an explicit matching-host native sponsor",
+                        )
+                    })?;
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
                 if let Some(adapter) = absolute_value::AbsoluteValueImport::admit(
                     program,
                     declaration,
@@ -465,6 +490,9 @@ pub(super) fn bind<'host>(
                     binding,
                     provisions,
                     &context.native,
+                    filesystem,
+                    input.as_ref().cloned(),
+                    output.clone(),
                 )? {
                     instance.bind_import(*slot, adapter)?;
                     continue;

@@ -1,0 +1,7 @@
+{
+  "schema": "omega-performance-suite/1",
+  "plans": [
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-comparison.json",
+    "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-comparison.json"
+  ]
+}

@@ -13,7 +13,7 @@ use symbol_resolved_trees::{
 };
 use symbols::{SymbolHandle, SymbolKind};
 
-impl<'program> Collector<'program> {
+impl<'program> Collector<'program, '_> {
     pub(super) fn constant(
         &mut self,
         symbol: SymbolHandle,

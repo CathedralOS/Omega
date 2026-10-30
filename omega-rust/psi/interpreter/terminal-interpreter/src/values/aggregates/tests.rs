@@ -78,7 +78,7 @@ fn array(value: u32, element: u32, length: u64) -> StructuralTypeDeclaration {
         value,
         StructuralTypeShape::FixedArray {
             element: identity(element),
-            length,
+            length: length.into(),
         },
     )
 }

@@ -208,7 +208,7 @@ impl Execution<'_, '_, '_> {
             } else {
                 shared_qualifications = Some(qualifications);
             }
-            let members = self.constructed_values(&[], destination, &completed);
+            let members = self.captured_owned_value_observations(&[], destination, &completed);
             if let Some(shared) = &mut shared_members {
                 shared.retain(|member| members.contains(member));
             } else {
@@ -294,7 +294,7 @@ impl Execution<'_, '_, '_> {
                 self.publish_live_memberships(qualifications, contexts, constraints);
             }
             if let Some(members) = shared_members {
-                self.publish_constructed_values(expression, members, contexts, constraints);
+                self.publish_owned_value_observations(expression, members, contexts, constraints);
             }
             if let Some(shared) = shared_predicates {
                 self.publish_joined_values(
@@ -396,7 +396,7 @@ impl Execution<'_, '_, '_> {
                 let Some(domain) = self.program.domain_definition(domain_symbol) else {
                     continue;
                 };
-                if !domain.predicate_body.is_present() || domain.alias.is_some() {
+                if !domain.predicate_presence.is_present() || domain.alias.is_some() {
                     continue;
                 }
                 CarriedPredicate::Domain {

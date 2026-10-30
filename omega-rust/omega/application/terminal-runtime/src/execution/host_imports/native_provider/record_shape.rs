@@ -233,7 +233,10 @@ pub(super) fn validate<'declaration>(
                             pending.push(SchemaVisit::Field(field, public.shape));
                         }
                     }
-                    StructuralTypeShape::FixedArray { element, length } => {
+                    StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    } => {
                         let BoundaryValueClass::FixedArray {
                             element: public_element,
                             length: public_length,

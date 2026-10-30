@@ -1,0 +1,36 @@
+omega.lock missing; settling package review via omega update (records project acceptance, not an audit)
+package candidate checking failed: checked compilation failed for package `prime_counter` with 18 diagnostic(s)
+  error: call to `outer` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:34:14
+  error: call to `check_init` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:40:21
+  error: call to `done` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:41:18
+  error: call to `inner` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:49:18
+  error: call to `test_divisor` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:58:21
+  error: call to `tally` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:59:18
+  error: call to `mark_composite` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:65:21
+  error: call to `next_divisor` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:66:18
+  error: call to `next_divisor` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:73:18
+  error: call to `bump_divisor` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:81:21
+  error: call to `tally` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:82:18
+  error: call to `inner` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:89:18
+  error: call to `increment` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:95:21
+  error: call to `outer_next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:96:18
+  error: call to `outer_next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:105:18
+  error: call to `bump_candidate` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+    in package `prime_counter`, \\?\C:\Users\User\AppData\Local\CathedralOS\Omega\source\v1\external-local-sources\local-snapshots\source-v2-8ca9900b4bd912fa41ef365a793ac0d23f013cfff4dab4094921d494e0495ecc\source\main.omg:113:21
+  [truncated; 2 additional diagnostics omitted]
+package-review settlement failed; omega.lock missing in C:\SoftwareDevelopmentKits\Omega\.agents\worktree\compiler-dashboard\samples\cli\arithmetic\prime_counter (update exit 1)

@@ -201,6 +201,7 @@ fn named_const_rejects_conflicting_or_mixed_source_payloads() {
     assert!(!same!(&fixture => &mixed_literal => fixture.references[0] => fixture.owner));
     let mixed_application = StaticMachineArgument {
         application: Some(Box::new(StaticSymbolApplication {
+            member: arena::Handle::invalid(),
             lifetime_arguments: Box::default(),
             arguments: Box::default(),
         })),

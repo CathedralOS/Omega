@@ -8,9 +8,6 @@ use object_file::{RelocationKind, SymbolKind};
 fn word(bytes: &[u8], offset: usize) -> u32 {
     u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
 }
-fn wide(bytes: &[u8], offset: usize) -> u64 {
-    u64::from_le_bytes(bytes[offset..offset + 8].try_into().unwrap())
-}
 fn commands(bytes: &[u8]) -> Vec<&[u8]> {
     let mut result = Vec::new();
     let mut cursor = 32;

@@ -91,9 +91,14 @@ pub(super) fn establish(
                     .map(|field| (Some(result_case), field)),
             )
             .collect(),
-        (StructuralTypeShape::FixedArray { length, .. }, None)
-            if elements
-                .is_some_and(|elements| u64::try_from(elements.len()).ok() == Some(*length)) =>
+        (
+            StructuralTypeShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Literal(length),
+                ..
+            },
+            None,
+        ) if elements
+            .is_some_and(|elements| u64::try_from(elements.len()).ok() == Some(*length)) =>
         {
             Vec::new()
         }

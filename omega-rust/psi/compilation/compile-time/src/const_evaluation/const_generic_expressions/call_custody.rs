@@ -28,7 +28,9 @@ pub(super) struct Custody {
     pub origins: Vec<ConstArgumentOrigin>,
     pub operators: Vec<SourceSpan>,
     pub calls: Vec<(SourceSpan, SourceSpan)>,
+    pub pending_constants: Vec<(SourceSpan, SourceSpan)>,
     call_targets: Vec<(SourceSpan, SymbolHandle)>,
+    call_occurrences: Vec<typed_trees::AuthoredDeclarationSelectionOccurrenceId>,
     dependency_values: Vec<DependencyValue>,
 }
 
@@ -289,15 +291,37 @@ pub(crate) fn retain_current_initializer_calls(
     let [state] = program.machine_states(machine) else {
         return Err("pending initializer lost its custody state".into());
     };
-    let calls =
-        collect_internal(program, machine, state, &[root], false, None, false, true)?.call_targets;
-    for (reference, selected) in calls {
-        let occurrence = program.record_resolved_authored_declaration_selection_once(
-            reference,
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-            Kind::Call,
-            selected,
-        ).map_err(|reason| format!("pending initializer call custody cannot be retained: {reason:?}"))?;
+    let custody = collect_internal(program, machine, state, &[root], false, None, false, true)?;
+    let mut targets = Vec::new();
+    for occurrence in &custody.call_occurrences {
+        let selection = program
+            .authored_declaration_selections()
+            .get(*occurrence)
+            .ok_or("pending initializer lost its original call occurrence")?;
+        let target = selection
+            .target()
+            .as_resolved()
+            .ok_or("pending initializer retained an unresolved call occurrence")?
+            .selected_symbol();
+        if selection.kind() != Kind::Call {
+            return Err("pending initializer changed its original selection kind".into());
+        }
+        let target = (selection.source_span(), target);
+        if !targets.contains(&target) {
+            targets.push(target);
+        }
+    }
+    if targets.len() != custody.call_targets.len()
+        || custody
+            .call_targets
+            .iter()
+            .any(|target| !targets.contains(target))
+    {
+        return Err("pending initializer call closure lost original occurrence custody".into());
+    }
+    // Preserve each validated source occurrence, including its exposure and
+    // partition. A location and target cannot recreate its source authority.
+    for occurrence in custody.call_occurrences {
         program
             .expression_table
             .attach_authored_selection_occurrences(root, [occurrence]);
@@ -563,6 +587,10 @@ impl<'program> Collector<'program> {
         // Local alpha copies already name their exact executable declaration.
         // Ordinary retargeting instead retains the resolver's source target.
         // Do not project both applications: different tuples can share a template.
+        // A source selection made before body completion can name the machine
+        // itself. Once its body exists, that same declaration enters its first
+        // state; this correspondence does not erase a specialization's tuple.
+        let selected = call_selections::callable_entry(self.program, selected)?;
         Ok(selected == target || selected == self.authored_target(target, initializer)?)
     }
 
@@ -686,9 +714,26 @@ impl<'program> Collector<'program> {
             || selection.source_span() != reference
             || !self.call_selection_matches(&site, context, authored)?
         {
-            return Err("constant call differs from its exact authored selection".into());
+            let target = call_selections::retained_target(self.program, &site)?;
+            return Err(format!(
+                "constant call differs from its exact authored selection: owner {}, state {:?}, occurrence {:?}, kind {:?}, retained source {:?}, call source {:?}, authored {:?}, target {:?}, source target {:?}",
+                context.machine.name.as_str(),
+                context.state.symbol,
+                occurrence,
+                selection.kind(),
+                selection.source_span(),
+                reference,
+                authored,
+                target,
+                self.authored_target(target, context.initializer)?,
+            ));
         }
-        self.selected_call(&site, context, authored, reference)
+        let occurrence = selection.occurrence_id();
+        self.selected_call(&site, context, authored, reference)?;
+        if !self.custody.call_occurrences.contains(&occurrence) {
+            self.custody.call_occurrences.push(occurrence);
+        }
+        Ok(())
     }
 
     fn call(
@@ -816,6 +861,17 @@ impl<'program> Collector<'program> {
                 "private constant declaration cannot be selected by this initializer owner".into(),
             );
         }
+        if declaration.evaluated_value.is_none() && !self.specialized_calls && self.syntax.is_some()
+        {
+            // Source selection can precede readiness. Preserve the exact edge
+            // without inventing a canonical value; only the private observation
+            // owner consumes this inventory and cannot validate it for execution.
+            let pending = (reference, source);
+            if !self.custody.pending_constants.contains(&pending) {
+                self.custody.pending_constants.push(pending);
+            }
+            return Ok(());
+        }
         // Read the current concrete declaration, never copy a caller's expected
         // origin into this result. Readiness comparison happens before execution.
         let origin = ConstArgumentOrigin {
@@ -899,10 +955,10 @@ impl<'program> Collector<'program> {
                         .as_resolved()
                         .ok_or("constant dependency retained an unresolved call")?
                         .selected_symbol();
-                    Ok(Some((selection.source_span(), target)))
+                    Ok(Some((selection.source_span(), target, occurrence)))
                 })
                 .collect::<Result<Vec<_>, String>>()?;
-            for (reference, target) in calls.into_iter().flatten() {
+            for (reference, target, occurrence) in calls.into_iter().flatten() {
                 self.call(
                     ResolvedAuthoredCallBinding {
                         selected: target,
@@ -910,6 +966,9 @@ impl<'program> Collector<'program> {
                     },
                     reference,
                 )?;
+                if !self.custody.call_occurrences.contains(&occurrence) {
+                    self.custody.call_occurrences.push(occurrence);
+                }
             }
             self.expressions.push((
                 materialized,
@@ -984,7 +1043,14 @@ impl<'program> Collector<'program> {
             if selection.kind() == Kind::Call {
                 let selection_target = selection.target();
                 let Some(selected) = selection_target.as_resolved() else {
-                    return Err("constant closure retained an unresolved call selection".into());
+                    return Err(format!(
+                        "constant closure retained an unresolved call selection: occurrence {:?}, source {:?}, owner {}, expression {:?}, call {:?}",
+                        occurrence,
+                        selection.source_span(),
+                        context.machine.name.as_str(),
+                        table.source_span(expression),
+                        table.call_node(expression),
+                    ));
                 };
                 // This inventory and the published custody both name the
                 // original ledger declaration, independently of executable routing.
@@ -1113,18 +1179,40 @@ impl<'program> Collector<'program> {
                     } else {
                         owned_entry
                     };
-                    let selected = (target, selection.source_span(), entry);
+                    let selected = (target, selection.source_span(), entry, occurrence);
                     if !selections.contains(&selected) {
                         selections.push(selected);
                     }
                 }
-                let [(authored, reference, entry)] = selections.as_slice() else {
-                    return Err(if selections.is_empty() {
-                        "constant call lost its exact authored target selection"
-                    } else {
-                        "constant call has ambiguous authored target selections"
-                    }
-                    .into());
+                let [(authored, reference, entry, occurrence)] = selections.as_slice() else {
+                    return Err(format!(
+                        "{}: owner {}, call {:?}, retained {:?}",
+                        if selections.is_empty() {
+                            "constant call lost its exact authored target selection"
+                        } else {
+                            "constant call has ambiguous authored target selections"
+                        },
+                        context.machine.name.as_str(),
+                        call,
+                        table
+                            .authored_selection_occurrences(expression)
+                            .map(|occurrence| {
+                                (
+                                    occurrence,
+                                    program
+                                        .authored_declaration_selections()
+                                        .get(occurrence)
+                                        .map(|selection| {
+                                            (
+                                                selection.kind(),
+                                                selection.source_span(),
+                                                selection.target(),
+                                            )
+                                        }),
+                                )
+                            })
+                            .collect::<Vec<_>>(),
+                    ));
                 };
                 // A trait requirement names no body. A supplying map's row
                 // entry is the call custody executes. A map that does not
@@ -1143,6 +1231,9 @@ impl<'program> Collector<'program> {
                     return Err(message);
                 } else {
                     self.selected_call(&site, context, *authored, *reference)?;
+                }
+                if !self.custody.call_occurrences.contains(occurrence) {
+                    self.custody.call_occurrences.push(*occurrence);
                 }
             }
             ExpressionNode::Name(name)

@@ -1,0 +1,134 @@
+RUN ['cargo', 'fmt', '-p', 'omega-bench', '-p', 'allocation-observation', '-p', 'bounded-process']
+RUN ['mbx', 'nextest', 'run', '-p', 'omega-bench', '-p', 'allocation-observation', '-p', 'bounded-process', '--features', 'omega-bench/fixtures,omega-bench/allocation-observation', '--test-threads', '1']
+warning: use of deprecated method `std::sync::atomic::Atomic::<u64>::fetch_update`: renamed to `try_update` for consistency
+  --> omega-rust\omega\foundation\bounded-process\src\private_observation\windows.rs:60:10
+   |
+60 |         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |          ^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+   |
+60 -         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+60 +         .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |
+
+warning: `bounded-process` (lib) generated 1 warning (run `cargo fix --lib -p bounded-process` to apply 1 suggestion)
+   Compiling omega-bench v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\tools\benchmark)
+warning: `bounded-process` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [optimized] target(s) in 4.84s
+────────────
+ Nextest run ID 78c0545d-7822-4ba7-b09f-699443cb4635 with nextest profile: default
+    Starting 39 tests across 5 binaries
+        PASS [   0.422s] ( 1/39) bounded-process private_observation::tests::private_lane_checks_real_child_bytes_and_retires_after_failed_spawn
+        PASS [   0.020s] ( 2/39) bounded-process private_observation::tests::writer
+        PASS [   0.092s] ( 3/39) bounded-process process_child::windows::tests::lifecycle::job_reaches_active_process_zero_after_normal_exit
+        PASS [   0.082s] ( 4/39) bounded-process process_child::windows::tests::lifecycle::job_termination_reaches_active_process_zero
+        PASS [   1.688s] ( 5/39) bounded-process process_child::windows::tests::resource_limits::job_active_process_limit_rejects_excess_descendant
+        PASS [   0.938s] ( 6/39) bounded-process process_child::windows::tests::resource_limits::job_aggregate_cpu_limit_terminates_the_job
+        PASS [   1.710s] ( 7/39) bounded-process process_child::windows::tests::resource_limits::job_aggregate_memory_limit_spans_descendants
+        PASS [   0.158s] ( 8/39) bounded-process process_child::windows::tests::resource_limits::job_process_memory_limit_blocks_excess_commit
+        PASS [   0.016s] ( 9/39) bounded-process process_child::windows::tests::worker::job_limit_worker
+        PASS [   0.016s] (10/39) allocation-observation tests::failed_reallocation_does_not_retire_the_original_storage
+        PASS [   0.014s] (11/39) allocation-observation tests::freed_storage_is_retired_before_another_thread_reuses_it
+        PASS [   0.012s] (12/39) allocation-observation tests::recovers_known_live_peak_and_reallocation_counts
+        PASS [   0.075s] (13/39) omega-bench::runner a_missing_oracle_or_unknown_configuration_is_rejected
+        PASS [   0.116s] (14/39) omega-bench::runner allocation_profile_preserves_correctness_and_real_counters
+        PASS [   0.626s] (15/39) omega-bench::runner compiler_failure_cannot_be_recorded_as_a_fast_compile
+        PASS [   1.526s] (16/39) omega-bench::runner compiler_samples_check_native_output_and_retain_every_stage_table
+        PASS [   0.291s] (17/39) omega-bench::runner detects_declared_input_mutation_and_wrong_output
+        PASS [   4.213s] (18/39) omega-bench::runner failures_remain_observations_and_never_produce_a_report
+        PASS [   1.400s] (19/39) omega-bench::runner historical_comparisons_refuse_a_changed_workload_and_never_pair_separate_runs
+        PASS [   1.098s] (20/39) omega-bench::runner kernel_resource_observations_recover_touched_memory_and_cpu_work
+        PASS [   0.193s] (21/39) omega-bench::runner lost_input_still_retains_the_attempted_sample
+        PASS [   0.108s] (22/39) omega-bench::runner malformed_profile_retains_the_checked_sample_and_failure_reason
+        PASS [   0.075s] (23/39) omega-bench::runner reference_workloads_agree_with_independent_oracles
+        PASS [   0.583s] (24/39) omega-bench::runner regression_gate_refuses_nonfinite_budgets
+        PASS [   0.573s] (25/39) omega-bench::runner reported_work_checks_the_computation_and_uses_its_explicit_metric
+        PASS [   0.499s] (26/39) omega-bench::runner retains_warmups_abba_pairs_and_refuses_overwrite
+        PASS [   0.614s] (27/39) omega-bench::runner suite_preserves_successes_when_another_workload_fails
+        PASS [   0.818s] (28/39) omega-bench::runner unoptimized_producers_and_stale_artifact_paths_are_refused
+        PASS [   1.463s] (29/39) omega-bench::runner validation_binds_native_execution_to_the_published_compiler_artifact
+        PASS [   0.654s] (30/39) omega-bench::runner validation_detects_changed_streams_and_recomputed_fake_summaries
+        PASS [   0.017s] (31/39) omega-bench::bin/omega-bench experiment::tests::keeps_each_samples_stage_values_and_accumulates_repeated_labels
+        PASS [   0.014s] (32/39) omega-bench::bin/omega-bench plan::tests::compiler_options_cannot_replace_the_authored_subject_or_product
+        PASS [   0.018s] (33/39) omega-bench::bin/omega-bench profiling::tests::hardware_counter_refusals_are_not_zero_counts
+        PASS [   0.015s] (34/39) omega-bench::bin/omega-bench records::tests::gates_regressions_without_promoting_uncertain_or_small_runs
+        PASS [   0.015s] (35/39) omega-bench::bin/omega-bench statistics::tests::empirical_tails_use_nearest_rank_without_interpolation
+        PASS [   0.015s] (36/39) omega-bench::bin/omega-bench statistics::tests::equality_and_small_samples_do_not_claim_a_win
+        PASS [   0.013s] (37/39) omega-bench::bin/omega-bench statistics::tests::independent_histories_recover_known_distribution_shift
+        PASS [   0.013s] (38/39) omega-bench::bin/omega-bench statistics::tests::refuses_invalid_or_unmatched_samples
+        PASS [   0.013s] (39/39) omega-bench::bin/omega-bench statistics::tests::retains_pairing_under_host_drift
+────────────
+     Summary [  20.228s] 39 tests run: 39 passed, 0 skipped
+mbx[cache]: 0 hits, 0 misses, 3 not looked up, 3 incremental; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 59610 compilations served from cache to date
+RUN ['mbx', 'clippy', '-p', 'omega-bench', '-p', 'allocation-observation', '--all-targets', '--features', 'omega-bench/fixtures,omega-bench/allocation-observation', '--no-deps', '--', '-D', 'warnings']
+warning: use of deprecated method `std::sync::atomic::Atomic::<u64>::fetch_update`: renamed to `try_update` for consistency
+  --> omega-rust\omega\foundation\bounded-process\src\private_observation\windows.rs:60:10
+   |
+60 |         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |          ^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+   |
+60 -         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+60 +         .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |
+
+warning: `bounded-process` (lib) generated 1 warning (run `cargo clippy --fix --lib -p bounded-process -- --no-deps -D warnings` to apply 1 suggestion)
+    Checking omega-bench v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\tools\benchmark)
+    Finished `dev` profile [optimized] target(s) in 0.82s
+mbx[cache]: 0 hits, 0 misses, 3 not looked up, 3 incremental; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 1d 17h of compiler time avoided across 6004 builds
+RUN ['mbx', 'check', '--all-targets', '--target', 'x86_64-unknown-linux-gnu', '-p', 'omega-bench', '-p', 'allocation-observation', '--features', 'fixtures,allocation-observation']
+    Checking allocation-observation v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\tools\benchmark\allocation-observation)
+    Checking omega-bench v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\tools\benchmark)
+    Finished `dev` profile [optimized] target(s) in 2.07s
+mbx[cache]: 0 hits, 2 misses, 7 not looked up, 9 incremental; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 904.3 GiB logical of abandoned target directories removed
+RUN ['mbx', 'check', '--all-targets', '--target', 'aarch64-apple-darwin', '-p', 'omega-bench', '-p', 'allocation-observation', '--features', 'fixtures,allocation-observation']
+    Checking allocation-observation v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\tools\benchmark\allocation-observation)
+    Checking omega-bench v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\tools\benchmark)
+    Finished `dev` profile [optimized] target(s) in 2.01s
+mbx[cache]: 0 hits, 2 misses, 7 not looked up, 9 incremental; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 1.8 TiB logical of files removed by collection so far
+RUN ['mbx', 'rustc', '-p', 'omega-bench', '--bin', 'omega-bench-workload', '--', '--emit=asm=C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\workload.s']
+warning: use of deprecated method `std::sync::atomic::Atomic::<u64>::fetch_update`: renamed to `try_update` for consistency
+  --> omega-rust\omega\foundation\bounded-process\src\private_observation\windows.rs:60:10
+   |
+60 |         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |          ^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+   |
+60 -         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+60 +         .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |
+
+warning: `bounded-process` (lib) generated 1 warning (run `cargo fix --lib -p bounded-process` to apply 1 suggestion)
+   Compiling omega-bench v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\tools\benchmark)
+    Finished `dev` profile [optimized] target(s) in 0.75s
+mbx[cache]: 0 hits, 0 misses, 1 bypassed; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 59610 compilations served from cache to date
+RUN ['mbx', 'build', '-p', 'omega-bench']
+warning: use of deprecated method `std::sync::atomic::Atomic::<u64>::fetch_update`: renamed to `try_update` for consistency
+  --> omega-rust\omega\foundation\bounded-process\src\private_observation\windows.rs:60:10
+   |
+60 |         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |          ^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+   |
+60 -         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+60 +         .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |
+
+warning: `bounded-process` (lib) generated 1 warning (run `cargo fix --lib -p bounded-process` to apply 1 suggestion)
+   Compiling omega-bench v0.1.0 (C:\Users\User\.codex\worktrees\performance-tooling\Omega\tools\benchmark)
+    Finished `dev` profile [optimized] target(s) in 5.78s
+mbx[cache]: 0 hits, 1 misses, 1 incremental; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 59610 compilations served from cache to date

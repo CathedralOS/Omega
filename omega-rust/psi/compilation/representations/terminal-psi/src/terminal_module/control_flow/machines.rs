@@ -115,6 +115,28 @@ impl Block {
 }
 
 impl TerminalMachine {
+    /// The carrier declared by a signature, block parameter, result or local
+    /// producer. Provider attachments are not physical storage declarations.
+    pub fn structural_place_type(&self, place: PlaceId) -> Option<StructuralTypeId> {
+        self.structural_parameter(place)
+            .map(|parameter| parameter.structural_type)
+            .or_else(|| {
+                self.structural_places.iter().find_map(|row| {
+                    if row.id != place {
+                        return None;
+                    }
+                    match row.kind {
+                        semantic_vocabulary::StructuralPlaceKind::Result => self
+                            .result
+                            .structural()
+                            .filter(|result| result.place == place)
+                            .map(|result| result.structural_type),
+                        _ => row.kind.produced_structural_type(),
+                    }
+                })
+            })
+    }
+
     /// Check that the authored order consumes both runtime lanes exactly once.
     pub fn validate_parameter_order(&self) -> Result<(), &'static str> {
         let scalar_count = self

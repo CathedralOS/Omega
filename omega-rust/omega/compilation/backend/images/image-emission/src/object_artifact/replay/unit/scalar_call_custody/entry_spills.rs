@@ -8,6 +8,23 @@ use machine_code::{
 use semantic_vocabulary::ValueId;
 use target::{Architecture, NativeTarget};
 
+fn spill_code_start(target: NativeTarget, frame_bytes: u32) -> usize {
+    match target.architecture {
+        Architecture::X86_64 => {
+            if frame_bytes == 0 {
+                0
+            } else {
+                crate::object_artifact::replay::unit::stack::x86_64_stack_adjustment(
+                    frame_bytes,
+                    false,
+                )
+                .len()
+            }
+        }
+        Architecture::Aarch64 => 8,
+    }
+}
+
 pub(crate) fn storage_end(
     target: NativeTarget,
     parameters: &[UnitParameterHomeRecord],
@@ -100,20 +117,7 @@ pub(crate) fn validate_shape(
     if storage_end > frame_bytes {
         return None;
     }
-    let mut code_cursor = match target.architecture {
-        Architecture::X86_64 => {
-            if frame_bytes == 0 {
-                0
-            } else {
-                crate::object_artifact::replay::unit::stack::x86_64_stack_adjustment(
-                    frame_bytes,
-                    false,
-                )
-                .len()
-            }
-        }
-        Architecture::Aarch64 => 8,
-    };
+    let mut code_cursor = spill_code_start(target, frame_bytes);
     if let Some(abi) = abi {
         for spill in &abi.entry_register_spills {
             let expected = store_bytes(target, spill)?;
@@ -134,20 +138,7 @@ pub(crate) fn exact_prologue(
     frame_bytes: u32,
     first_operation_offset: usize,
 ) -> bool {
-    let mut cursor = match target.architecture {
-        Architecture::X86_64 => {
-            if frame_bytes == 0 {
-                0
-            } else {
-                crate::object_artifact::replay::unit::stack::x86_64_stack_adjustment(
-                    frame_bytes,
-                    false,
-                )
-                .len()
-            }
-        }
-        Architecture::Aarch64 => 8,
-    };
+    let mut cursor = spill_code_start(target, frame_bytes);
     if let Some(abi) = abi {
         for spill in &abi.entry_register_spills {
             let Some(expected) = store_bytes(target, spill) else {

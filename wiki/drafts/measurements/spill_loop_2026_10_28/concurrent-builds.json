@@ -1,0 +1,72 @@
+[
+  {
+    "process": "mbx.exe",
+    "pid": 1390724,
+    "command": "mbx build -p omega --release --message-format=json-render-diagnostics --target-dir C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\parallelism-target"
+  },
+  {
+    "process": "cargo.exe",
+    "pid": 1395744,
+    "command": "\"cargo\" build -p omega --release --message-format=json-render-diagnostics --target-dir C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\parallelism-target"
+  },
+  {
+    "process": "cargo.exe",
+    "pid": 1395804,
+    "command": "\"C:\\Users\\User\\.rustup\\toolchains\\nightly-2026-09-04-x86_64-pc-windows-msvc\\bin\\cargo.exe\" build -p omega --release --message-format=json-render-diagnostics --target-dir C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\parallelism-target"
+  },
+  {
+    "process": "mbx.exe",
+    "pid": 1396056,
+    "command": "mbx build -p omega --locked --target-dir build/pass-producer"
+  },
+  {
+    "process": "cargo.exe",
+    "pid": 1396240,
+    "command": "\"cargo\" build -p omega --locked --target-dir build/pass-producer"
+  },
+  {
+    "process": "cargo.exe",
+    "pid": 1396296,
+    "command": "\"C:\\Users\\User\\.rustup\\toolchains\\nightly-2026-09-04-x86_64-pc-windows-msvc\\bin\\cargo.exe\" build -p omega --locked --target-dir build/pass-producer"
+  },
+  {
+    "process": "rustc.exe",
+    "pid": 1378968,
+    "command": "\"C:\\Users\\User\\.rustup\\toolchains\\nightly-2026-09-04-x86_64-pc-windows-msvc\\bin\\rustc.exe\" --crate-name validation --edition=2024 omega-rust\\psi\\compilation\\checking\\src\\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --crate-type lib --emit=dep-info,metadata,l"
+  },
+  {
+    "process": "rustc.exe",
+    "pid": 1399640,
+    "command": "\"C:\\Users\\User\\.rustup\\toolchains\\nightly-2026-09-04-x86_64-pc-windows-msvc\\bin\\rustc.exe\" --crate-name symbol_resolved_trees_to_typed_trees --edition=2024 omega-rust\\psi\\compilation\\pipeline\\03_symbol-resolved-trees-to-typed-trees\\src\\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat"
+  },
+  {
+    "process": "rustc.exe",
+    "pid": 1398976,
+    "command": "\"C:\\Users\\User\\.rustup\\toolchains\\nightly-2026-09-04-x86_64-pc-windows-msvc\\bin\\rustc.exe\" --crate-name checked_interpreter --edition=2024 omega-rust\\psi\\interpreter\\checked-interpreter\\src\\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --crate-type lib --emit"
+  },
+  {
+    "process": "rustc.exe",
+    "pid": 1398656,
+    "command": "\"C:\\Users\\User\\.rustup\\toolchains\\nightly-2026-09-04-x86_64-pc-windows-msvc\\bin\\rustc.exe\" --crate-name checked_trees_to_lowered_psi --edition=2024 omega-rust\\psi\\compilation\\pipeline\\05_checked-trees-to-lowered-psi\\src\\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-"
+  },
+  {
+    "process": "rustc.exe",
+    "pid": 1401744,
+    "command": "\"C:\\Users\\User\\.rustup\\toolchains\\nightly-2026-09-04-x86_64-pc-windows-msvc\\bin\\rustc.exe\" --crate-name typed_trees_to_typed_trees --edition=2024 omega-rust\\psi\\compilation\\pipeline\\03b_typed-trees-to-typed-trees\\src\\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-sil"
+  },
+  {
+    "process": "rustc.exe",
+    "pid": 1396000,
+    "command": "\"C:\\Users\\User\\.rustup\\toolchains\\nightly-2026-09-04-x86_64-pc-windows-msvc\\bin\\rustc.exe\" --crate-name image_emission --edition=2024 omega-rust\\omega\\compilation\\backend\\images\\image-emission\\src\\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --crate-type lib"
+  },
+  {
+    "process": "rustc.exe",
+    "pid": 1399508,
+    "command": "\"C:\\Users\\User\\.rustup\\toolchains\\nightly-2026-09-04-x86_64-pc-windows-msvc\\bin\\rustc.exe\" --crate-name typed_trees_to_checked_trees --edition=2024 omega-rust\\psi\\compilation\\pipeline\\04_typed-trees-to-checked-trees\\src\\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-"
+  },
+  {
+    "process": "rustc.exe",
+    "pid": 1400068,
+    "command": "\"C:\\Users\\User\\.rustup\\toolchains\\nightly-2026-09-04-x86_64-pc-windows-msvc\\bin\\rustc.exe\" --crate-name native_artifact --edition=2024 omega-rust\\omega\\compilation\\backend\\artifacts\\native-artifact\\src\\lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat,unused-externs-silent --crate-typ"
+  }
+]

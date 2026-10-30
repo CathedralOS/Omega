@@ -13,8 +13,64 @@
 use std::sync::Arc;
 
 use package_compilation::IndependentComponentDescription;
+use terminal_psi_to_abstract_operations::RetainedComponentNativeInputs;
 use terminal_psi_to_abstract_operations::RetainedTerminalArtifact;
 mod retention;
+
+/// One selected component's completed producing join. This invocation-local
+/// record is not serialized and conveys no receiver installation authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedIndependentComponent {
+    input: RetainedComponentNativeInputs,
+    plan: effects::provider_plan::ProviderPlan,
+    receiving_identities: Arc<terminal_psi::TerminalIdentityTable>,
+    accepted_package_permissions:
+        terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy,
+}
+
+impl SelectedIndependentComponent {
+    pub fn join(
+        component: Arc<component_description::VerifiedComponent>,
+        product: &IndependentComponentProduct,
+        plan: effects::provider_plan::ProviderPlan,
+        receiving_identities: Arc<terminal_psi::TerminalIdentityTable>,
+        applications: &[calling_conventions::BoundaryCallingApplication],
+    ) -> Result<Self, String> {
+        let input = RetainedComponentNativeInputs::join(
+            component,
+            Arc::clone(&product.retained),
+            &plan,
+            applications,
+        )?;
+        Ok(Self {
+            input,
+            plan,
+            receiving_identities,
+            accepted_package_permissions: product.accepted_package_permissions.clone(),
+        })
+    }
+
+    pub fn input(
+        &self,
+    ) -> Result<terminal_psi_to_abstract_operations::ComponentNativeInputs<'_>, String> {
+        self.input.borrow()
+    }
+
+    pub fn plan(&self) -> &effects::provider_plan::ProviderPlan {
+        &self.plan
+    }
+
+    pub fn receiving_identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.receiving_identities
+    }
+
+    pub fn accepted_package_permissions(
+        &self,
+    ) -> &terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy
+    {
+        &self.accepted_package_permissions
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct IndependentComponentProduct {

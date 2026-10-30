@@ -25,11 +25,7 @@ pub(super) fn encode(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<SelectedFormEncodedRowDraft, OptimizedSelectedFormEncodingError> {
-    let views = machine
-        .operands
-        .iter()
-        .map(|operand| operand.view)
-        .collect::<Vec<_>>();
+    let views = super::operand_views(machine);
     if matches!(
         kind.call_target(),
         Some(selected_instructions::SelectedCallTarget::Dynamic { .. })

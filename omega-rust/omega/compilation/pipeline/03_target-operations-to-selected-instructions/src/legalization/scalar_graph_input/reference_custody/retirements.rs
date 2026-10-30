@@ -90,6 +90,12 @@ impl Custody {
                     previous_leaf != leaf || !alternative_residency(previous, location)
                 });
             if duplicate || self.retired.contains_key(&leaf.identity) {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE custody-duplicate location={:?} identity={:?} live={:?} retired={:?}",
+                        location, leaf.identity, self.leaves, self.retired
+                    );
+                }
                 return Err(LegalizationError::ReferenceCompletion {
                     reason: terminal_semantics::ReferenceCompletionError::DuplicateOccurrence,
                 });

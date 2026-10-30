@@ -56,11 +56,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                     encode_target(bytes, *callee);
                     encode_ids(bytes, arguments);
                     bytes.slice(structural_arguments, encode_structural_argument);
-                    bytes.slice(claim_transfers, |bytes, transfer| {
-                        bytes.id(transfer.claim);
-                        bytes.u32(transfer.argument_index);
-                        bytes.slice(&transfer.path, encode_structural_path_segment);
-                    });
+                    bytes.slice(claim_transfers, encode_claim_transfer);
                     encode_ids(bytes, requirement_obligations);
                     bytes.slice(crash_continuations, encode_crash_route_bucket);
                     bytes.slice(selected_evidence, encode_outcome_specific_call_evidence);
@@ -159,17 +155,24 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
     }
 }
 
+/// One callee-owned transfer: the claim, the argument it becomes, and the
+/// static path into that argument.
+pub(super) fn encode_claim_transfer(
+    bytes: &mut CanonicalBytes,
+    transfer: &terminal_psi::ClaimTransfer,
+) {
+    bytes.id(transfer.claim);
+    bytes.u32(transfer.argument_index);
+    bytes.slice(&transfer.path, encode_structural_path_segment);
+}
+
 fn encode_ordinary_call_tail(
     bytes: &mut CanonicalBytes,
     claim_transfers: &[terminal_psi::ClaimTransfer],
     requirement_obligations: &[semantic_vocabulary::ObligationId],
     crash_continuations: &[terminal_psi::CrashRouteBucket],
 ) {
-    bytes.slice(claim_transfers, |bytes, transfer| {
-        bytes.id(transfer.claim);
-        bytes.u32(transfer.argument_index);
-        bytes.slice(&transfer.path, encode_structural_path_segment);
-    });
+    bytes.slice(claim_transfers, encode_claim_transfer);
     encode_ids(bytes, requirement_obligations);
     bytes.slice(crash_continuations, encode_crash_route_bucket);
 }

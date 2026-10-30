@@ -87,7 +87,10 @@ fn collect_partial_affine_residuals(
                 residuals,
             )?;
         }
-        StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
+        StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } if *length != 0 => {
             // Every untouched child costs one supplied cleanup. Count that
             // lower bound before enumerating children, including for an empty
             // complement, so forged dimensions cannot create unbounded work.

@@ -892,31 +892,6 @@ pub(crate) fn finalize_completion_actions(
                 &facts.operators,
             );
             let mut owners = Vec::new();
-            // A materialized reference carrier has intrinsic lifetime cleanup,
-            // whether it is a stored pointer or a formed slice descriptor.
-            // Its actual completed root selects the carrier declaration; a
-            // borrowed formal cannot turn an owned backing into a descriptor.
-            for operand in &reserved {
-                let root = operand.root;
-                if validation::reference_shell(program, root.type_reference).is_some() {
-                    shapes.add_type(root.type_reference, &[], &[])?;
-                    let selected = super::descriptor_retirement(
-                        program,
-                        CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                            expression: root.expression,
-                        },
-                        root.type_reference,
-                    )?;
-                    if !selected.is_empty() {
-                        owners.push((
-                            operand.argument_ordinal,
-                            operand.operand,
-                            root.root,
-                            selected,
-                        ));
-                    }
-                }
-            }
             // The ownership producer has already selected the roots, paths and
             // exclusions at this exact consumer. Contained graph nodes grant no
             // additional death. Multiple regions of one owner stay one ordered
@@ -993,14 +968,6 @@ pub(crate) fn finalize_completion_actions(
                     }
                 };
                 if owners.iter().any(|(_, _, owner, _)| *owner == root.root) {
-                    // Descriptor lifetime and a nominal contextual death may
-                    // not both dispose the same carrier.
-                    if validation::reference_shell(program, root.type_reference).is_some() {
-                        refusal = format!(
-                            "{site}: descriptor retirement overlaps a contextual owner death for {expression:?}"
-                        );
-                        return None;
-                    }
                     continue;
                 }
                 let actions = selected_actions(
@@ -1021,6 +988,35 @@ pub(crate) fn finalize_completion_actions(
                     root.root,
                     actions,
                 ));
+            }
+            // A contextual death already owns the completed carrier's entire
+            // disposal partition, including its home. Only an unselected
+            // reference carrier needs intrinsic descriptor retirement. Its
+            // referent is never an additional dying owner. Selecting these in
+            // the opposite order gives one affine temporary two deaths.
+            for operand in &reserved {
+                let root = operand.root;
+                if owners.iter().any(|(_, _, owner, _)| *owner == root.root) {
+                    continue;
+                }
+                if validation::reference_shell(program, root.type_reference).is_some() {
+                    shapes.add_type(root.type_reference, &[], &[])?;
+                    let selected = super::descriptor_retirement(
+                        program,
+                        CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                            expression: root.expression,
+                        },
+                        root.type_reference,
+                    )?;
+                    if !selected.is_empty() {
+                        owners.push((
+                            operand.argument_ordinal,
+                            operand.operand,
+                            root.root,
+                            selected,
+                        ));
+                    }
+                }
             }
             for operand in &reserved {
                 if !owners

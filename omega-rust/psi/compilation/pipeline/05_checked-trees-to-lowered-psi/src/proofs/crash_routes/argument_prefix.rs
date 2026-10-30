@@ -128,6 +128,8 @@ pub(crate) fn captured_crash_argument(
         for supplier in suppliers {
             let supplying = borrow.loans.get(*supplier);
             if occurrence.incoming_reference != supplying.incoming_reference
+                || borrow.access_segments.span(occurrence.incoming_owner_path)
+                    != borrow.access_segments.span(supplying.incoming_owner_path)
                 || occurrence.root != supplying.root
                 || borrow.access_segments.span_or_empty(occurrence.segments)
                     != borrow.access_segments.span_or_empty(supplying.segments)
@@ -307,7 +309,11 @@ pub(crate) fn structural_crash_route_prefix_from_type(
                 }
             }
             StructuralPathSegment::FixedIndex(index) => {
-                let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+                let StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                } = declaration.shape
+                else {
                     return unsupported(
                         "structural crash route argument fixed index receiver is not an array",
                     );

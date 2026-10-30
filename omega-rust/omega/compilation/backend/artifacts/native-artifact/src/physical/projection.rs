@@ -260,15 +260,12 @@ fn optimized_boundary_occurrence_identity(
 
 fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u8> {
     let mut canonical = Vec::with_capacity(104);
-    canonical.extend_from_slice(&terminal_identity_bytes(authority.terminal));
+    canonical.extend_from_slice(&super::identity_bytes::terminal_identity_bytes(authority.terminal));
     canonical.extend_from_slice(&authority.validation.bytes());
     canonical.extend_from_slice(&authority.final_unit.bytes());
     canonical
 }
 
-fn terminal_identity_bytes(terminal: TerminalPsiIdentity) -> Vec<u8> {
-    super::identity_bytes::terminal_identity_bytes(terminal)
-}
 
 #[cfg(test)]
 mod tests {

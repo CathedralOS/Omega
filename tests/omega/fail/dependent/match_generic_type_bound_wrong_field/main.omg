@@ -1,0 +1,15 @@
+// CASE-CONSTRAINTS payload names bind through the exact closed instance:
+// `count` is not a field of `Value<bool>::Boolean`, so the pattern rejects
+// it even though the template's `Boolean` case exists.
+data Value<T> [copy]
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: i32);
+    case Boolean(value: bool);
+}
+machine flag(v: Value<bool>) -> bool {
+    match v {
+        Value::Boolean { count } -> count
+    }
+}

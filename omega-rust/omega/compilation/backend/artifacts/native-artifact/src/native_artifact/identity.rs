@@ -246,28 +246,11 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
         hash_call_site_owner(&mut digest, &call.owner);
         digest.raw(&canonical_usize(call.text_offset));
         digest.raw(&call.caller_live_bytes.to_le_bytes());
-        macro_rules! hash_floating_control {
-            ($control:expr) => {
-                match $control {
-                    None => digest.raw(&[0]),
-                    Some(control) => {
-                        digest.raw(&[1]);
-                        digest.raw(&control.target.wire_identity_bytes());
-                        digest.raw(&control.saved_slot_byte_offset.to_le_bytes());
-                        for value in [
-                            control.save_offset,
-                            control.save_byte_count,
-                            control.restore_offset,
-                            control.restore_byte_count,
-                        ] {
-                            digest.raw(&canonical_usize(value));
-                        }
-                    }
-                }
-            };
+        // MXCSR/FPCR preservation around the call: one saved slot plus the
+        // exact save and restore intervals per target lane.
+        for control in [call.x86_floating_control, call.aarch64_floating_control] {
+            hash_floating_control(&mut digest, control);
         }
-        hash_floating_control!(call.x86_floating_control);
-        hash_floating_control!(call.aarch64_floating_control);
         if let Some(kernel) = call.binding.system_call() {
             digest.raw(&[2]);
             hash_bytes(&mut digest, kernel.target.target_name().as_bytes());
@@ -330,6 +313,28 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
         digest.raw(&contribution.alignment().to_le_bytes());
     }
     digest.finish()
+}
+
+fn hash_floating_control(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    control: Option<machine_code::ForeignCallFloatingControlRecord>,
+) {
+    match control {
+        None => digest.raw(&[0]),
+        Some(control) => {
+            digest.raw(&[1]);
+            digest.raw(&control.target.wire_identity_bytes());
+            digest.raw(&control.saved_slot_byte_offset.to_le_bytes());
+            for value in [
+                control.save_offset,
+                control.save_byte_count,
+                control.restore_offset,
+                control.restore_byte_count,
+            ] {
+                digest.raw(&canonical_usize(value));
+            }
+        }
+    }
 }
 
 fn hash_optional_digest(

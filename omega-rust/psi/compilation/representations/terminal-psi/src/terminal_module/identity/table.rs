@@ -293,7 +293,6 @@ impl compiler_storage::Record for TerminalIdentityTable {
         &self,
         output: &mut compiler_storage::RecordWriter,
     ) -> Result<(), compiler_storage::RecordError> {
-        use compiler_storage::Record;
         if self.invocation.is_some() || !self.invocation_local.is_empty() {
             return Err(output.error("invocation-local identity cannot leave its retained owner"));
         }
@@ -302,7 +301,6 @@ impl compiler_storage::Record for TerminalIdentityTable {
     fn read<Context>(
         input: &mut compiler_storage::RecordReader<'_, Context>,
     ) -> Result<Self, compiler_storage::RecordError> {
-        use compiler_storage::Record;
         let entries = Vec::<String>::read(input)?;
         if entries.first().is_none_or(|entry| !entry.is_empty()) {
             return Err(input.error("identity table has no absent entry"));

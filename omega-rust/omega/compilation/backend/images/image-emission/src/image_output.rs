@@ -14,7 +14,6 @@ pub use application_metadata::ImageApplicationMetadataError;
 
 use diagnostics::Diagnostic;
 use image::{EmittedImageOutput, FinalImageInput, emitted_direct_executable_output};
-use installation_evidence::ObjectEvidence;
 use object_file::ObjectContainerOutput;
 use target::{Architecture, NativeTarget, NormalizedElfInterpreterPlan, ObjectFormat};
 use terminal_psi::TerminalPsiIdentity;

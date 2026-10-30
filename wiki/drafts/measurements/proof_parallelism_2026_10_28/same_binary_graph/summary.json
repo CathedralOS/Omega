@@ -1,0 +1,656 @@
+{
+  "cold_blocks": [
+    {
+      "block": 0,
+      "order": "LEEL",
+      "metrics": {
+        "wall_seconds": {
+          "eager": 20.043672699997842,
+          "lazy": 22.320181350001803,
+          "reduction": -2.2765086500039615,
+          "reduction_percent": -11.357742086879151
+        },
+        "cpu_seconds": {
+          "eager": 27.546875,
+          "lazy": 28.359375,
+          "reduction": -0.8125,
+          "reduction_percent": -2.949517867271696
+        },
+        "checking_seconds": {
+          "eager": 6.810208,
+          "lazy": 7.660387,
+          "reduction": -0.8501789999999998,
+          "reduction_percent": -12.48389182826721
+        },
+        "lowering_seconds": {
+          "eager": 4.2453840000000005,
+          "lazy": 4.356869,
+          "reduction": -0.11148499999999917,
+          "reduction_percent": -2.6260286466430163
+        }
+      }
+    },
+    {
+      "block": 1,
+      "order": "LEEL",
+      "metrics": {
+        "wall_seconds": {
+          "eager": 34.37617500000124,
+          "lazy": 29.299520100001246,
+          "reduction": 5.076654899999994,
+          "reduction_percent": 14.76794582294223
+        },
+        "cpu_seconds": {
+          "eager": 40.1015625,
+          "lazy": 35.8203125,
+          "reduction": 4.28125,
+          "reduction_percent": 10.67601792324177
+        },
+        "checking_seconds": {
+          "eager": 11.239367999999999,
+          "lazy": 10.3226025,
+          "reduction": 0.9167654999999986,
+          "reduction_percent": 8.156735325331447
+        },
+        "lowering_seconds": {
+          "eager": 7.539868,
+          "lazy": 6.665212,
+          "reduction": 0.8746559999999999,
+          "reduction_percent": 11.600415285784843
+        }
+      }
+    },
+    {
+      "block": 2,
+      "order": "ELLE",
+      "metrics": {
+        "wall_seconds": {
+          "eager": 29.307916199999454,
+          "lazy": 31.214133049998054,
+          "reduction": -1.9062168499986,
+          "reduction_percent": -6.5041022943781845
+        },
+        "cpu_seconds": {
+          "eager": 35.8984375,
+          "lazy": 37.03125,
+          "reduction": -1.1328125,
+          "reduction_percent": -3.1556039173014145
+        },
+        "checking_seconds": {
+          "eager": 9.709561500000001,
+          "lazy": 10.827365499999999,
+          "reduction": -1.1178039999999978,
+          "reduction_percent": -11.512404550916102
+        },
+        "lowering_seconds": {
+          "eager": 6.8120355,
+          "lazy": 6.587464,
+          "reduction": 0.2245715000000006,
+          "reduction_percent": 3.296687164945053
+        }
+      }
+    },
+    {
+      "block": 3,
+      "order": "LEEL",
+      "metrics": {
+        "wall_seconds": {
+          "eager": 21.36677674999737,
+          "lazy": 21.169556250002643,
+          "reduction": 0.19722049999472802,
+          "reduction_percent": 0.9230241056117755
+        },
+        "cpu_seconds": {
+          "eager": 27.203125,
+          "lazy": 27.703125,
+          "reduction": -0.5,
+          "reduction_percent": -1.8380241240666284
+        },
+        "checking_seconds": {
+          "eager": 7.181214000000001,
+          "lazy": 7.0114795,
+          "reduction": 0.16973450000000057,
+          "reduction_percent": 2.3635906129520796
+        },
+        "lowering_seconds": {
+          "eager": 4.3576865,
+          "lazy": 4.193179000000001,
+          "reduction": 0.16450749999999914,
+          "reduction_percent": 3.775110944763905
+        }
+      }
+    },
+    {
+      "block": 4,
+      "order": "ELLE",
+      "metrics": {
+        "wall_seconds": {
+          "eager": 23.459923550002713,
+          "lazy": 22.867592700004025,
+          "reduction": 0.5923308499986888,
+          "reduction_percent": 2.5248626609382976
+        },
+        "cpu_seconds": {
+          "eager": 28.765625,
+          "lazy": 30.0234375,
+          "reduction": -1.2578125,
+          "reduction_percent": -4.3726235741444865
+        },
+        "checking_seconds": {
+          "eager": 6.8739565,
+          "lazy": 7.985071999999999,
+          "reduction": -1.1111154999999986,
+          "reduction_percent": -16.164133421560035
+        },
+        "lowering_seconds": {
+          "eager": 6.927674499999999,
+          "lazy": 4.3336455,
+          "reduction": 2.594028999999999,
+          "reduction_percent": 37.444441132446386
+        }
+      }
+    },
+    {
+      "block": 5,
+      "order": "ELLE",
+      "metrics": {
+        "wall_seconds": {
+          "eager": 25.089891349998652,
+          "lazy": 25.301834699996107,
+          "reduction": -0.2119433499974548,
+          "reduction_percent": -0.844736021535088
+        },
+        "cpu_seconds": {
+          "eager": 31.5703125,
+          "lazy": 32.421875,
+          "reduction": -0.8515625,
+          "reduction_percent": -2.6973521405592673
+        },
+        "checking_seconds": {
+          "eager": 9.294151,
+          "lazy": 8.4121555,
+          "reduction": 0.8819954999999986,
+          "reduction_percent": 9.489790944864126
+        },
+        "lowering_seconds": {
+          "eager": 5.010896,
+          "lazy": 5.1532455,
+          "reduction": -0.1423494999999999,
+          "reduction_percent": -2.840799330099845
+        }
+      }
+    }
+  ],
+  "warm_pairs": [
+    {
+      "block": 0,
+      "order": "EL",
+      "metrics": {
+        "wall_seconds": {
+          "eager": 8.351163799998176,
+          "lazy": 7.3635477000061655,
+          "reduction": 0.9876160999920103,
+          "reduction_percent": 11.826089436686969
+        },
+        "cpu_seconds": {
+          "eager": 8.25,
+          "lazy": 7.34375,
+          "reduction": 0.90625,
+          "reduction_percent": 10.984848484848484
+        },
+        "checking_seconds": {
+          "eager": 0.025186,
+          "lazy": 0.022765999999999998,
+          "reduction": 0.002420000000000002,
+          "reduction_percent": 9.608512665766705
+        },
+        "lowering_seconds": {
+          "eager": 4.494697,
+          "lazy": 3.951686,
+          "reduction": 0.5430110000000004,
+          "reduction_percent": 12.081148072940184
+        }
+      }
+    },
+    {
+      "block": 1,
+      "order": "LE",
+      "metrics": {
+        "wall_seconds": {
+          "eager": 14.077898299998196,
+          "lazy": 14.437463299997034,
+          "reduction": -0.3595649999988382,
+          "reduction_percent": -2.554109941246587
+        },
+        "cpu_seconds": {
+          "eager": 13.953125,
+          "lazy": 14.21875,
+          "reduction": -0.265625,
+          "reduction_percent": -1.9036954087346025
+        },
+        "checking_seconds": {
+          "eager": 0.038997,
+          "lazy": 0.038487,
+          "reduction": 0.0005099999999999966,
+          "reduction_percent": 1.307792907146695
+        },
+        "lowering_seconds": {
+          "eager": 8.107084,
+          "lazy": 8.372354999999999,
+          "reduction": -0.2652709999999985,
+          "reduction_percent": -3.272088953315378
+        }
+      }
+    },
+    {
+      "block": 2,
+      "order": "LE",
+      "metrics": {
+        "wall_seconds": {
+          "eager": 11.557107499997073,
+          "lazy": 11.13993599999958,
+          "reduction": 0.4171714999974938,
+          "reduction_percent": 3.6096531939120533
+        },
+        "cpu_seconds": {
+          "eager": 11.375,
+          "lazy": 10.953125,
+          "reduction": 0.421875,
+          "reduction_percent": 3.708791208791209
+        },
+        "checking_seconds": {
+          "eager": 0.031048,
+          "lazy": 0.030989,
+          "reduction": 5.9000000000000025e-05,
+          "reduction_percent": 0.19002834321051285
+        },
+        "lowering_seconds": {
+          "eager": 6.487045,
+          "lazy": 6.204505,
+          "reduction": 0.28254,
+          "reduction_percent": 4.3554499776092195
+        }
+      }
+    },
+    {
+      "block": 3,
+      "order": "EL",
+      "metrics": {
+        "wall_seconds": {
+          "eager": 9.504701700003352,
+          "lazy": 8.736537400000088,
+          "reduction": 0.7681643000032636,
+          "reduction_percent": 8.081940120256407
+        },
+        "cpu_seconds": {
+          "eager": 9.34375,
+          "lazy": 8.625,
+          "reduction": 0.71875,
+          "reduction_percent": 7.6923076923076925
+        },
+        "checking_seconds": {
+          "eager": 0.036872,
+          "lazy": 0.023618,
+          "reduction": 0.013254000000000002,
+          "reduction_percent": 35.945975265784334
+        },
+        "lowering_seconds": {
+          "eager": 4.7977229999999995,
+          "lazy": 4.899004,
+          "reduction": -0.10128100000000018,
+          "reduction_percent": -2.11102224951295
+        }
+      }
+    },
+    {
+      "block": 4,
+      "order": "EL",
+      "metrics": {
+        "wall_seconds": {
+          "eager": 8.222548100005952,
+          "lazy": 7.710414399996807,
+          "reduction": 0.5121337000091444,
+          "reduction_percent": 6.228406252908069
+        },
+        "cpu_seconds": {
+          "eager": 8.0625,
+          "lazy": 7.65625,
+          "reduction": 0.40625,
+          "reduction_percent": 5.038759689922481
+        },
+        "checking_seconds": {
+          "eager": 0.021184,
+          "lazy": 0.023997,
+          "reduction": -0.0028129999999999995,
+          "reduction_percent": -13.278889728096672
+        },
+        "lowering_seconds": {
+          "eager": 4.566038,
+          "lazy": 4.057998,
+          "reduction": 0.5080399999999994,
+          "reduction_percent": 11.12649522408704
+        }
+      }
+    },
+    {
+      "block": 5,
+      "order": "LE",
+      "metrics": {
+        "wall_seconds": {
+          "eager": 12.061249100006535,
+          "lazy": 17.682076099998085,
+          "reduction": -5.62082699999155,
+          "reduction_percent": -46.602362270989865
+        },
+        "cpu_seconds": {
+          "eager": 11.84375,
+          "lazy": 17.171875,
+          "reduction": -5.328125,
+          "reduction_percent": -44.9868073878628
+        },
+        "checking_seconds": {
+          "eager": 0.037795,
+          "lazy": 0.062142,
+          "reduction": -0.024347,
+          "reduction_percent": -64.41857388543457
+        },
+        "lowering_seconds": {
+          "eager": 6.994466999999999,
+          "lazy": 10.753514,
+          "reduction": -3.759047,
+          "reduction_percent": -53.74315155107602
+        }
+      }
+    }
+  ],
+  "cold_summary": {
+    "wall_seconds": {
+      "lazy_faster": 3,
+      "median_reduction_percent": 0.03914404203834376,
+      "reduction_percent_range": [
+        -11.357742086879151,
+        14.76794582294223
+      ]
+    },
+    "cpu_seconds": {
+      "lazy_faster": 1,
+      "median_reduction_percent": -2.8234350039154816,
+      "reduction_percent_range": [
+        -4.3726235741444865,
+        10.67601792324177
+      ]
+    },
+    "checking_seconds": {
+      "lazy_faster": 3,
+      "median_reduction_percent": -4.574406968982011,
+      "reduction_percent_range": [
+        -16.164133421560035,
+        9.489790944864126
+      ]
+    },
+    "lowering_seconds": {
+      "lazy_faster": 4,
+      "median_reduction_percent": 3.535899054854479,
+      "reduction_percent_range": [
+        -2.840799330099845,
+        37.444441132446386
+      ]
+    }
+  },
+  "warm_summary": {
+    "wall_seconds": {
+      "lazy_faster": 4,
+      "median_reduction_percent": 4.919029723410061,
+      "reduction_percent_range": [
+        -46.602362270989865,
+        11.826089436686969
+      ]
+    },
+    "cpu_seconds": {
+      "lazy_faster": 4,
+      "median_reduction_percent": 4.373775449356845,
+      "reduction_percent_range": [
+        -44.9868073878628,
+        10.984848484848484
+      ]
+    },
+    "checking_seconds": {
+      "lazy_faster": 4,
+      "median_reduction_percent": 0.7489106251786039,
+      "reduction_percent_range": [
+        -64.41857388543457,
+        35.945975265784334
+      ]
+    },
+    "lowering_seconds": {
+      "lazy_faster": 3,
+      "median_reduction_percent": 1.1222138640481347,
+      "reduction_percent_range": [
+        -53.74315155107602,
+        12.081148072940184
+      ]
+    }
+  },
+  "same_mode_repeats": [
+    {
+      "block": 0,
+      "mode": "eager",
+      "distance": 1,
+      "metrics": {
+        "wall_seconds": 19.68438848034222,
+        "cpu_seconds": 10.096426545660805,
+        "checking_seconds": 9.149793956366679,
+        "lowering_seconds": 30.474793328471595
+      }
+    },
+    {
+      "block": 0,
+      "mode": "lazy",
+      "distance": 3,
+      "metrics": {
+        "wall_seconds": 20.902043880557013,
+        "cpu_seconds": 7.933884297520661,
+        "checking_seconds": 22.104653459414,
+        "lowering_seconds": 11.26744917049377
+      }
+    },
+    {
+      "block": 1,
+      "mode": "eager",
+      "distance": 1,
+      "metrics": {
+        "wall_seconds": 5.795636076430299,
+        "cpu_seconds": 7.7537502435223065,
+        "checking_seconds": 10.01956693650391,
+        "lowering_seconds": 3.999380360504978
+      }
+    },
+    {
+      "block": 1,
+      "mode": "lazy",
+      "distance": 3,
+      "metrics": {
+        "wall_seconds": 14.597346937399156,
+        "cpu_seconds": 17.055616139585606,
+        "checking_seconds": 17.60338054284275,
+        "lowering_seconds": 8.137535610270163
+      }
+    },
+    {
+      "block": 2,
+      "mode": "eager",
+      "distance": 3,
+      "metrics": {
+        "wall_seconds": 15.321137706844452,
+        "cpu_seconds": 11.795429815016321,
+        "checking_seconds": 26.89867096469805,
+        "lowering_seconds": 15.247850660790018
+      }
+    },
+    {
+      "block": 2,
+      "mode": "lazy",
+      "distance": 1,
+      "metrics": {
+        "wall_seconds": 7.750300468463916,
+        "cpu_seconds": 7.594936708860759,
+        "checking_seconds": 12.198747700906557,
+        "lowering_seconds": 7.637051223353934
+      }
+    },
+    {
+      "block": 3,
+      "mode": "eager",
+      "distance": 1,
+      "metrics": {
+        "wall_seconds": 1.3826975563500106,
+        "cpu_seconds": 4.135554279149914,
+        "checking_seconds": 1.883776197172239,
+        "lowering_seconds": 14.708332047291629
+      }
+    },
+    {
+      "block": 3,
+      "mode": "lazy",
+      "distance": 3,
+      "metrics": {
+        "wall_seconds": 9.39603304152621,
+        "cpu_seconds": 5.3017484489565705,
+        "checking_seconds": 9.477101088293846,
+        "lowering_seconds": 26.53967312151472
+      }
+    },
+    {
+      "block": 4,
+      "mode": "eager",
+      "distance": 3,
+      "metrics": {
+        "wall_seconds": 19.261572998593152,
+        "cpu_seconds": 11.841390548614884,
+        "checking_seconds": 10.319951835598621,
+        "lowering_seconds": 48.731316692203116
+      }
+    },
+    {
+      "block": 4,
+      "mode": "lazy",
+      "distance": 1,
+      "metrics": {
+        "wall_seconds": 31.67453301719172,
+        "cpu_seconds": 25.65703877179287,
+        "checking_seconds": 48.610081411914635,
+        "lowering_seconds": 2.1626365146849316
+      }
+    },
+    {
+      "block": 5,
+      "mode": "eager",
+      "distance": 3,
+      "metrics": {
+        "wall_seconds": 6.3388576610729634,
+        "cpu_seconds": 5.988616679039842,
+        "checking_seconds": 9.517017745892007,
+        "lowering_seconds": 9.178158956003086
+      }
+    },
+    {
+      "block": 5,
+      "mode": "lazy",
+      "distance": 1,
+      "metrics": {
+        "wall_seconds": 17.40875731831569,
+        "cpu_seconds": 10.987951807228916,
+        "checking_seconds": 30.98557795323685,
+        "lowering_seconds": 23.305604206126038
+      }
+    }
+  ],
+  "resources": {
+    "cold": {
+      "eager": {
+        "external_busy_capacity_percent": [
+          24.0903647752395,
+          96.32011925795052
+        ],
+        "peak_commit_bytes": [
+          3379511296,
+          3543457792
+        ],
+        "page_faults_observed": [
+          628619,
+          680597
+        ]
+      },
+      "lazy": {
+        "external_busy_capacity_percent": [
+          23.2666015625,
+          96.29518072289157
+        ],
+        "peak_commit_bytes": [
+          3406544896,
+          3526569984
+        ],
+        "page_faults_observed": [
+          637542,
+          672797
+        ]
+      }
+    },
+    "warm": {
+      "eager": {
+        "external_busy_capacity_percent": [
+          32.11145437262358,
+          95.32463928967813
+        ],
+        "peak_commit_bytes": [
+          1024393216,
+          1028157440
+        ],
+        "page_faults_observed": [
+          330450,
+          365496
+        ]
+      },
+      "lazy": {
+        "external_busy_capacity_percent": [
+          22.319532908704883,
+          90.25974025974025
+        ],
+        "peak_commit_bytes": [
+          1022853120,
+          1024000000
+        ],
+        "page_faults_observed": [
+          331456,
+          372753
+        ]
+      }
+    }
+  },
+  "same_mode_variation": {
+    "wall_seconds": {
+      "median_percent": 14.959242322121803,
+      "maximum_percent": 31.67453301719172
+    },
+    "cpu_seconds": {
+      "median_percent": 9.015155421590734,
+      "maximum_percent": 25.65703877179287
+    },
+    "checking_seconds": {
+      "median_percent": 11.259349768252589,
+      "maximum_percent": 48.610081411914635
+    },
+    "lowering_seconds": {
+      "median_percent": 12.987890608892698,
+      "maximum_percent": 48.731316692203116
+    }
+  },
+  "host_capacity_percent_range": [
+    22.319532908704883,
+    96.32011925795052
+  ],
+  "maximum_sampling_fraction_percent": 3.294713320313581,
+  "observations": 42,
+  "timed_cold": 24,
+  "timed_warm": 12
+}

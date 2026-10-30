@@ -4,7 +4,7 @@ use crate::interpreter::evaluator::{
     DataDefinition, DataMember, EvalResult, EvaluatedArgument, EvaluationUsage, Evaluator,
     FilesystemLogicalHandles, FilesystemMetadataLayout, Frame, FrameLocal, Halt, Machine,
     PrimitiveType, State, StatementNode, SymbolHandle, TextByteMeter, TransitionDecision,
-    TypeReferenceNode, TypedTrees, Value, ambient_step_budget, trap, unsupported, wrap_to_width,
+    TypedTrees, Value, ambient_step_budget, trap, unsupported, wrap_to_width,
 };
 impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn new_build(
@@ -59,7 +59,7 @@ impl<'program> Evaluator<'program> {
             executed_build_selections: Vec::new(),
             executed_wire_demands: Vec::new(),
             product_entry_descriptions: Vec::new(),
-            product_entry_compatibility: None,
+            product_entry_slots: None,
             product_schema_descriptions: Vec::new(),
             product_provider_descriptions: Vec::new(),
             stdin,
@@ -92,7 +92,6 @@ impl<'program> Evaluator<'program> {
             output_seal_states: BTreeMap::new(),
             output_open_writers: BTreeMap::new(),
             host_boundary_touched: false,
-            non_fs_host_boundary_touched: false,
             filesystem_operation_attempts: Vec::new(),
             filesystem_logical_handles: FilesystemLogicalHandles::default(),
             filesystem_live_handle_leases: BTreeMap::new(),
@@ -415,134 +414,6 @@ impl<'program> Evaluator<'program> {
         crate::build_time::observe_build_time_value(&value, &|reference| {
             self.read_reference(reference)
         })
-    }
-
-    /// The augmenting-machine variant: run and read back the FINAL argument
-    /// values (a `&mut` parameter aliases its argument cell, so mutations land
-    /// there). A unit terminal is accepted -- the machine's OUTPUT is its
-    /// arguments.
-    pub(in crate::interpreter) fn run_build_time_machine_arguments(
-        &mut self,
-        machine_name: &str,
-        arguments: Vec<build_time_values::BuildTimeValue>,
-    ) -> EvalResult<Vec<build_time_values::BuildTimeValue>> {
-        self.run_build_machine_arguments_with_policy(machine_name, arguments, false)
-    }
-
-    /// Exact-symbol form of [`Self::run_build_time_machine_arguments`]. The
-    /// selected declaration must exist in this program; spelling is never
-    /// consulted as a fallback.
-    pub(in crate::interpreter) fn run_build_time_machine_symbol_arguments(
-        &mut self,
-        machine_symbol: SymbolHandle,
-        arguments: Vec<build_time_values::BuildTimeValue>,
-    ) -> EvalResult<Vec<build_time_values::BuildTimeValue>> {
-        self.run_build_machine_symbol_arguments_with_policy(machine_symbol, arguments, false)
-    }
-
-    /// The shared augmenting-machine runner. `allow_filesystem` selects the
-    /// dynamic backstop: `false` = the PURE build-time entry (any host touch
-    /// rejects -- decision 12's discipline); `true` = the GRANTED build entry
-    /// (filesystem ops are the point; every OTHER host boundary rejects).
-    pub(in crate::interpreter) fn run_build_machine_arguments_with_policy(
-        &mut self,
-        machine_name: &str,
-        arguments: Vec<build_time_values::BuildTimeValue>,
-        allow_filesystem: bool,
-    ) -> EvalResult<Vec<build_time_values::BuildTimeValue>> {
-        self.enable_rooted_build_paths_from_arguments(&arguments);
-        let machine = self
-            .find_machine_by_name(machine_name)
-            .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?;
-        self.run_resolved_build_machine_arguments(machine, arguments, allow_filesystem)
-    }
-
-    /// Exact-symbol form of [`Self::run_build_machine_arguments_with_policy`].
-    /// This is the execution seam used by admitted prepared build entries.
-    pub(in crate::interpreter) fn run_build_machine_symbol_arguments_with_policy(
-        &mut self,
-        machine_symbol: SymbolHandle,
-        arguments: Vec<build_time_values::BuildTimeValue>,
-        allow_filesystem: bool,
-    ) -> EvalResult<Vec<build_time_values::BuildTimeValue>> {
-        self.enable_rooted_build_paths_from_arguments(&arguments);
-        let machine = self.find_machine_by_symbol(machine_symbol).ok_or_else(|| {
-            Halt::Trap(format!(
-                "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
-            ))
-        })?;
-        self.run_resolved_build_machine_arguments(machine, arguments, allow_filesystem)
-    }
-
-    fn run_resolved_build_machine_arguments(
-        &mut self,
-        machine: &'program Machine,
-        arguments: Vec<build_time_values::BuildTimeValue>,
-        allow_filesystem: bool,
-    ) -> EvalResult<Vec<build_time_values::BuildTimeValue>> {
-        let machine_name = machine.name.as_str();
-        let entry_state = self.build_time_entry_state(machine, arguments.len())?;
-
-        let argument_cells: Vec<Cell> = arguments
-            .into_iter()
-            .map(|argument| {
-                let value = crate::build_time::materialize_build_time_value(
-                    argument,
-                    &|value| self.allocate_cell(value),
-                    &|bytes| self.allocate_text(bytes),
-                )?;
-                self.allocate_cell(value)
-            })
-            .collect::<EvalResult<_>>()?;
-        // Keep the cells: a `&mut` parameter aliases its cell, so the run's
-        // mutations are visible here afterward.
-        let kept: Vec<Cell> = argument_cells.clone();
-        self.retain_root_build(entry_state, &argument_cells)?;
-        let evaluated_arguments = argument_cells
-            .into_iter()
-            .zip(self.program.state_parameters(entry_state).iter())
-            .map(|(cell, parameter)| {
-                // Snapshot arguments supply referent values. Reference parameters
-                // need the same wrapper used by ordinary calls, or forwarding a
-                // bare parameter copies the record at the first helper call.
-                let cell = if matches!(
-                    self.program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference),
-                    TypeReferenceNode::Reference { .. }
-                ) {
-                    self.allocate_cell(Value::reference(cell))?
-                } else {
-                    cell
-                };
-                Ok(EvaluatedArgument::plain(cell))
-            })
-            .collect::<EvalResult<_>>()?;
-        let _terminal = self.run_state_collect(machine, entry_state, evaluated_arguments)?;
-        let impure = if allow_filesystem {
-            self.non_fs_host_boundary_touched
-        } else {
-            self.host_boundary_touched
-        };
-        if impure {
-            return Err(Halt::Trap(if allow_filesystem {
-                format!(
-                    "machine `{machine_name}` drove a NON-filesystem host-boundary call during \
-                     granted build evaluation -- only the Filesystem capability is granted"
-                )
-            } else {
-                format!(
-                    "machine `{machine_name}` is not effect-free: it drove a host-boundary call during build-time evaluation"
-                )
-            }));
-        }
-        kept.iter()
-            .map(|cell| {
-                crate::build_time::observe_build_time_value(&cell.borrow(), &|reference| {
-                    self.read_reference(reference)
-                })
-            })
-            .collect()
     }
 
     // ---- explicit data construction ----------------------------------------

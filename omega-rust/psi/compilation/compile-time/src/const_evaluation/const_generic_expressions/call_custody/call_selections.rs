@@ -159,6 +159,15 @@ pub(super) fn retained_target(
         CallSite::Expression { call, .. } => call.target_symbol,
         CallSite::TransitionNamed { path, .. } => path.symbol,
     };
+    callable_entry(program, target)
+}
+
+/// The exact callable coordinate of one declaration, without projecting an
+/// executable instance to its template or changing a nonentry state.
+pub(super) fn callable_entry(
+    program: &TypedTrees,
+    target: SymbolHandle,
+) -> Result<SymbolHandle, String> {
     if program.symbols.get(target).kind != SymbolKind::Machine {
         return Ok(target);
     }
@@ -304,6 +313,7 @@ pub(super) fn logical_requirement_matches(
         let applications = program.selected_conformance_applications(
             owner,
             dispatch.selection_application,
+            dispatch.evidence_parameter,
             dispatch.requirement,
             dispatch.application_report_fingerprint,
             dispatch.application_commitment,

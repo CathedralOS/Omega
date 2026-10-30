@@ -20,6 +20,52 @@ pub struct ComponentCompilation<'input> {
     pub accepted_package_permissions: &'input TerminalAuthorityPermissionPolicy,
 }
 
+pub(crate) struct PreparedComponent<'input> {
+    compilation: &'input ComponentCompilation<'input>,
+    pub(crate) calls: Vec<AdmittedNativeComponentCall<'input>>,
+    pub(crate) scalars: crate::NativeScalarCompletion<'input>,
+    exports: Vec<terminal_psi_to_abstract_operations::PreparedNativeWork<'input>>,
+}
+
+pub(crate) fn prepare_components<'input>(
+    components: &'input [ComponentCompilation<'input>],
+    receiver: terminal_codec::TerminalArtifactView<'_>,
+) -> Result<Vec<PreparedComponent<'input>>, Vec<Diagnostic>> {
+    let mut prepared = Vec::with_capacity(components.len());
+    for compilation in components {
+        let input = &compilation.input;
+        let calls = input
+            .admit_native_calls(receiver)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let artifact = input.component().shared_artifact();
+        let proposal = input.proposal();
+        let exports = input
+            .exports()
+            .iter()
+            .map(|export| {
+                proposal.prepare_native_callable_execution(
+                    artifact,
+                    terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate),
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let scalars = crate::NativeScalarCompletion::new(
+            artifact,
+            proposal,
+            exports
+                .iter()
+                .flat_map(|work| work.scalar_application_demand().iter().copied()),
+        );
+        prepared.push(PreparedComponent {
+            compilation,
+            calls,
+            scalars,
+            exports,
+        });
+    }
+    Ok(prepared)
+}
+
 /// Keep each emitted export beside its exact call and selecting plan. Root
 /// realization borrows these owners; successful publication consumes them.
 pub(crate) struct EmittedComponent<'input> {
@@ -50,19 +96,22 @@ impl EmittedComponent<'_> {
 }
 
 pub(crate) fn emit_components<'input>(
-    components: &[ComponentCompilation<'input>],
-    receiver: terminal_codec::TerminalArtifactView<'_>,
+    components: Vec<PreparedComponent<'input>>,
     terminal_authority_policy: &TerminalAuthorityPolicy,
     receiving_permissions: &Option<TerminalAuthorityPermissionPolicy>,
 ) -> Result<Vec<EmittedComponent<'input>>, Vec<Diagnostic>> {
     let mut emitted = Vec::new();
     for component in components {
-        let calls = component
-            .input
-            .admit_native_calls(receiver)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let PreparedComponent {
+            compilation: component,
+            calls,
+            scalars,
+            exports: work,
+        } = component;
         let exports = crate::realization::emit_component_exports(
             &component.input,
+            work,
+            scalars.native_input()?,
             ComponentExportRequest {
                 accepted_package_permissions: component.accepted_package_permissions,
                 terminal_authority_policy,

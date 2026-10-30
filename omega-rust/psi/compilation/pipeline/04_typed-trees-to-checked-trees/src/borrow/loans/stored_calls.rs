@@ -178,6 +178,7 @@ pub(in crate::borrow) fn from_effects(
                         retained_operand: None,
                         place: checked_trees::CapturedPlace {
                             incoming_reference: Default::default(),
+                            incoming_owner_path: Default::default(),
                             root: facts::PlaceRoot::InvocationOutput(identity),
                             segments: Vec::new(),
                         },
@@ -201,6 +202,7 @@ pub(in crate::borrow) fn from_effects(
                 program,
                 checked_trees::CapturedPlace {
                     incoming_reference: Default::default(),
+                    incoming_owner_path: Default::default(),
                     root: facts::PlaceRoot::Symbol(source.carrier_symbol),
                     segments: source.carrier_segments.clone(),
                 },
@@ -272,6 +274,7 @@ pub(in crate::borrow) fn from_effects(
                     place: supplying.as_ref().map_or_else(
                         || checked_trees::CapturedPlace {
                             incoming_reference: Default::default(),
+                            incoming_owner_path: Default::default(),
                             root: facts::PlaceRoot::Symbol(backing.root),
                             segments: backing.segments.clone(),
                         },
@@ -365,6 +368,7 @@ fn transferred_place(
             && candidate.place.segments == base.segments)
             .then(|| checked_trees::CapturedPlace {
                 incoming_reference: Default::default(),
+                incoming_owner_path: Default::default(),
                 root: facts::PlaceRoot::Symbol(backing.root),
                 segments: backing.segments.clone(),
             })

@@ -65,6 +65,7 @@ pub(crate) fn empty_program() -> Arc<AdmittedTerminalProgram<'static>> {
         ),
         catalogs: Arc::new(crate::program::ProgramStorage::Owned(module)),
         target_layouts: None,
+        scalar_geometry: None,
     })
 }
 

@@ -36,20 +36,24 @@ pub(super) struct ReferenceStorage {
     pub(super) placed: Option<target_operations::TargetPlacedInterpretation>,
 }
 
+/// The referent root of one reference descriptor: which storage a use reaches.
+/// This shape is stated once, here, because the custody replay downstream
+/// resolves the same three cases; a second spelling would let the two drift.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) enum ReferenceRoot {
+pub enum ReferenceRoot {
     /// A mutable borrowed parameter or activation-local primitive place.
     Place(PlaceId),
     /// One leaf of an owned reference-bearing ingress parameter; the referent
     /// storage belongs to the caller, so no local pointer exists for it.
     Ingress(PlaceId, Vec<StructuralPathSegment>),
-    /// Possible backing paths for one runtime-selected descriptor.
+    /// One permission's possible backing paths for a runtime-selected
+    /// descriptor; its selected static path is carried by the pointer.
     Alternatives(Vec<target_operations::TargetReferenceOrigin>),
 }
 
 impl ReferenceRoot {
     /// Compose presentation metadata without selecting a runtime address.
-    fn projected(&self, suffix: &[StructuralPathSegment]) -> Self {
+    pub fn projected(&self, suffix: &[StructuralPathSegment]) -> Self {
         self.projected_family(
             &suffix
                 .iter()
@@ -60,7 +64,7 @@ impl ReferenceRoot {
         )
     }
 
-    fn projected_family(
+    pub fn projected_family(
         &self,
         suffix: &[terminal_psi::ReferenceOriginProjection],
         extent: semantic_vocabulary::ReferenceOriginExtent,
@@ -78,6 +82,9 @@ impl ReferenceRoot {
                 origin.extent = extent;
             }
         }
+        // `exact_path` admits only `Storage`, so one exact origin names a
+        // physical place. Incoming contents name a captured pointer value:
+        // their slot is not the pointee's storage, so they stay families.
         if origins.len() == 1
             && let Some(path) = origins[0].exact_path()
             && let Some(root) = origins[0].base.root_place()
@@ -90,7 +97,7 @@ impl ReferenceRoot {
         }
     }
 
-    pub(super) fn origins(&self) -> Vec<target_operations::TargetReferenceOrigin> {
+    pub fn origins(&self) -> Vec<target_operations::TargetReferenceOrigin> {
         match self {
             Self::Place(root) => vec![target_operations::TargetReferenceOrigin {
                 base: target_operations::TargetReferenceOriginBase::Storage { root: *root },
@@ -107,6 +114,15 @@ impl ReferenceRoot {
                     .collect(),
             }],
             Self::Alternatives(origins) => origins.clone(),
+        }
+    }
+
+    pub fn contains_place(&self, place: PlaceId) -> bool {
+        match self {
+            Self::Place(root) | Self::Ingress(root, _) => *root == place,
+            Self::Alternatives(origins) => origins
+                .iter()
+                .any(|origin| origin.base.root_place() == Some(place)),
         }
     }
 }
@@ -197,7 +213,10 @@ pub(super) fn window_projection(
     }
     crate::lowering::structural_layout::reference_referent_projection(
         root_type,
-        path,
+        // Authenticate descriptor loads here. The final suffix belongs to the
+        // consuming operation: a field store can end in a Case namespace whose
+        // scalar field is a separate operand, not a standalone aggregate value.
+        &path[..=crossing],
         required_access,
         None,
         types,
@@ -373,7 +392,8 @@ pub(super) fn leaf_paths(
                 if !contains_reference(types, *element) {
                     continue;
                 }
-                let count = usize::try_from(*length).ok()?;
+                let length = length.literal()?;
+                let count = usize::try_from(length).ok()?;
                 if pending
                     .len()
                     .checked_add(output.len())?
@@ -382,7 +402,7 @@ pub(super) fn leaf_paths(
                 {
                     return None;
                 }
-                for index in (0..*length).rev() {
+                for index in (0..length).rev() {
                     let mut child_path = path.clone();
                     child_path.push(StructuralPathSegment::FixedIndex(index));
                     pending.push((*element, child_path));

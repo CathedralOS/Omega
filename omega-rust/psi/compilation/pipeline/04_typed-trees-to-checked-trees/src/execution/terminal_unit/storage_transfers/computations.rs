@@ -7,9 +7,8 @@ use super::{Query, Transfers, ValueReceiver};
 use checked_trees::{
     CheckedByteSequenceValue, CheckedByteSequenceValuePlan, CheckedCallScalarArgument,
     CheckedScalarComputationHandle, CheckedScalarComputationKind,
-    CheckedScalarComputationStructuralArgument, CheckedScalarDispatchPattern,
-    CheckedScalarStoreValue, CheckedStoreValue, CheckedUnitEffectOperationPlan,
-    CheckedUnitLocalBindingPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedScalarComputationStructuralArgument, CheckedScalarStoreValue, CheckedStoreValue,
+    CheckedUnitEffectOperationPlan, CheckedUnitLocalBindingPlan, CheckedUnitStructuralArgumentPlan,
 };
 
 impl Query<'_> {

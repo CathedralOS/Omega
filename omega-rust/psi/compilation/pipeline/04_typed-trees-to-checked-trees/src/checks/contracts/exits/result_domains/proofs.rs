@@ -17,9 +17,52 @@ pub(super) fn establishes_scalar_predicates(
     domain: &typed_trees::domain::DomainDefinition,
     constraint: &typed_trees::types::DomainConstraint,
 ) -> bool {
-    if domain.alias.is_some() {
+    establishes_scalar_predicates_inner(
+        program,
+        facts,
+        exit,
+        contexts,
+        domain,
+        constraint,
+        &mut Vec::new(),
+    )
+}
+
+/// `domain A::B` desugars B's theory to include the same-subject membership
+/// `self in A`; an authored `self in Other` conjunct is the same obligation.
+/// Discharge it by establishing this returned value in that exact parent
+/// instance — the recursion reuses this entry's evidence and proof frame, so a
+/// different subject's membership stays an obligation and a cyclic authored
+/// theory fails closed at the visited roster.
+fn establishes_scalar_predicates_inner(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    exit: &FlowExitFact,
+    contexts: &[FactContextHandle],
+    domain: &typed_trees::domain::DomainDefinition,
+    constraint: &typed_trees::types::DomainConstraint,
+    visited: &mut Vec<(symbols::SymbolHandle, language_semantics::SemanticDomainId)>,
+) -> bool {
+    if domain.alias.is_some() || visited.contains(&(domain.symbol, domain.semantic_id)) {
         return false;
     }
+    visited.push((domain.symbol, domain.semantic_id));
+    let result = establishes_scalar_predicates_visited(
+        program, facts, exit, contexts, domain, constraint, visited,
+    );
+    visited.pop();
+    result
+}
+
+fn establishes_scalar_predicates_visited(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    exit: &FlowExitFact,
+    contexts: &[FactContextHandle],
+    domain: &typed_trees::domain::DomainDefinition,
+    constraint: &typed_trees::types::DomainConstraint,
+    visited: &mut Vec<(symbols::SymbolHandle, language_semantics::SemanticDomainId)>,
+) -> bool {
     let Some(indices) = closed_domain_indices(program, domain, constraint) else {
         return false;
     };
@@ -149,9 +192,36 @@ pub(super) fn establishes_scalar_predicates(
         .span_or_empty(domain.facts)
         .iter()
         .all(|fact| {
+            if let Some(membership) = fact.as_membership() {
+                let Some(parent) = program.domain_definition_for_instance(
+                    membership.domain_symbol,
+                    membership.semantic_domain,
+                ) else {
+                    return false;
+                };
+                if !typed_trees::domain::domain_subject_reference(
+                    program,
+                    domain,
+                    membership.value,
+                ) {
+                    return false;
+                }
+                let constraint = typed_trees::types::DomainConstraint {
+                    symbol: membership.domain_symbol,
+                    semantic_id: membership.semantic_domain,
+                    arguments: program
+                        .type_reference_table
+                        .type_reference_handles(membership.domain_arguments)
+                        .to_vec(),
+                    ..Default::default()
+                };
+                return establishes_scalar_predicates_inner(
+                    program, facts, exit, contexts, parent, &constraint, visited,
+                );
+            }
             let Some(expression) = fact.as_expression() else {
-                // A membership or proposition conjunct remains an obligation; an
-                // arithmetic proof of its neighbors cannot discard it.
+                // A proposition conjunct remains an obligation; an arithmetic
+                // proof of its neighbors cannot discard it.
                 return false;
             };
             let returned = exit_return_expression(program, exit);

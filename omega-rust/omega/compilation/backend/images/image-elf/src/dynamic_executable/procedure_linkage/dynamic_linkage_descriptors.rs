@@ -57,6 +57,7 @@ impl ValidatedElfProcedureLinkageSectionDescriptorPlan {
         UPSTREAM_DESCRIPTOR_COUNT + self.contents.descriptors.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn appended_descriptor_count(&self) -> usize {
         self.contents.descriptors.len()
     }
@@ -172,25 +173,12 @@ pub(crate) fn plan_elf_procedure_linkage_section_descriptors(
     ValidatedElfProcedureLinkageSectionDescriptorPlan,
     Box<ElfProcedureLinkageSectionDescriptorPlanningError>,
 > {
-    checked::plan_candidate(
-        templates,
-        derive_contents,
-        |templates, contents| {
-            non_authoritative_descriptor_compatibility_fingerprint(&templates, &contents)
-        },
-        |templates, contents, fingerprint| Candidate {
-            templates: templates,
-            contents: contents,
-            non_authoritative_descriptor_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.templates,
-        |templates, diagnostic| {
-            Box::new(ElfProcedureLinkageSectionDescriptorPlanningError {
-                templates: templates,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: templates,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_descriptor_compatibility_fingerprint,
+        error: ElfProcedureLinkageSectionDescriptorPlanningError,
     )
 }
 

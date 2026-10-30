@@ -90,44 +90,17 @@ fn finite_owned_shape(
         return false;
     };
     let valid = match &declaration.shape {
-        terminal_psi::StructuralTypeShape::Record { fields, .. } => fields.iter().all(|field| {
-            !field.relevance.is_erased()
-                && match field.field_type {
-                    terminal_psi::StructuralFieldType::Structural(child) => {
-                        finite_owned_shape(types, child, active, complete)
-                    }
-                    terminal_psi::StructuralFieldType::Scalar(_)
-                    | terminal_psi::StructuralFieldType::Atomic(_)
-                    | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
-                    | terminal_psi::StructuralFieldType::IeeeFloat(_)
-                    | terminal_psi::StructuralFieldType::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                    ) => true,
-                    _ => false,
-                }
-        }),
-        terminal_psi::StructuralTypeShape::FixedArray { element, length } if *length > 0 => {
-            finite_owned_shape(types, *element, active, complete)
-        }
+        terminal_psi::StructuralTypeShape::Record { fields, .. } => fields
+            .iter()
+            .all(|field| finite_owned_field(types, active, complete, field)),
+        terminal_psi::StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } if *length > 0 => finite_owned_shape(types, *element, active, complete),
         terminal_psi::StructuralTypeShape::Mixed { fields, cases } => fields
             .iter()
             .chain(cases.iter().flat_map(|case| case.fields.iter()))
-            .all(|field| {
-                !field.relevance.is_erased()
-                    && match field.field_type {
-                        terminal_psi::StructuralFieldType::Structural(child) => {
-                            finite_owned_shape(types, child, active, complete)
-                        }
-                        terminal_psi::StructuralFieldType::Scalar(_)
-                        | terminal_psi::StructuralFieldType::Atomic(_)
-                        | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
-                        | terminal_psi::StructuralFieldType::IeeeFloat(_)
-                        | terminal_psi::StructuralFieldType::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                        ) => true,
-                        _ => false,
-                    }
-            }),
+            .all(|field| finite_owned_field(types, active, complete, field)),
         _ => false,
     };
     active.remove(&root);
@@ -135,4 +108,28 @@ fn finite_owned_shape(
         complete.insert(root);
     }
     valid
+}
+
+/// Erased rows are omitted from native layout; a live field stays owned without
+/// cleanup only when it recurses into a structural child or is a fixed carrier.
+fn finite_owned_field(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    complete: &mut BTreeSet<StructuralTypeId>,
+    field: &terminal_psi::StructuralFieldDeclaration,
+) -> bool {
+    !field.relevance.is_erased()
+        && match field.field_type {
+            terminal_psi::StructuralFieldType::Structural(child) => {
+                finite_owned_shape(types, child, active, complete)
+            }
+            terminal_psi::StructuralFieldType::Scalar(_)
+            | terminal_psi::StructuralFieldType::Atomic(_)
+            | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
+            | terminal_psi::StructuralFieldType::IeeeFloat(_)
+            | terminal_psi::StructuralFieldType::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+            ) => true,
+            _ => false,
+        }
 }

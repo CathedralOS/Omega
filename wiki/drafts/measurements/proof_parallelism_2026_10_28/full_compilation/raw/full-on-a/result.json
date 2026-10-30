@@ -1,0 +1,3703 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\full-profile\\omega.exe",
+    "--timings",
+    "--target",
+    "windows_x86_64",
+    "--build-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\full-on-a\\native",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 21.89595260000351,
+  "exit_code": 0,
+  "cpu_seconds": 28.5,
+  "peak_working_set_bytes": 1918513152,
+  "peak_commit_bytes": 3496841216,
+  "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+  "runtime_wall_seconds": 0.23884980000002543,
+  "producer": "full-profile",
+  "compiler_sha256": "e3a518bf53a9a8895065b1e3dcc3e9048fee7c3a8c03df05a24d60590a381635",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "0b759159006b8e08911b7def02040edf18437b0c3d6e261b1999c6c83ed959ae",
+  "cache_mode": "fresh private cache",
+  "full_profile": true,
+  "full_events": [
+    {
+      "thread": "ThreadId(2)",
+      "name": "app.prepare_project",
+      "start": 2327600,
+      "end": 35830200
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "cache.session_drop_hook",
+      "start": 140864300,
+      "end": 140865000
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "cache.source_graph.restore_request",
+      "start": 258562700,
+      "end": 274334700
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "pre_resolution.constant_initializers",
+      "start": 296332100,
+      "end": 298722800
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "pre_resolution.constant_expressions",
+      "start": 298790700,
+      "end": 298985900
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "psi.source.prepare",
+      "start": 296063500,
+      "end": 306860900
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.c.prepare_typed_trees",
+      "start": 313977600,
+      "end": 327373400
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.2.prepare_typed_program",
+      "start": 328242300,
+      "end": 344798700
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.3.a.pre_flow_facts",
+      "start": 344887900,
+      "end": 358863300
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.3.b.flow_fixed_point.build_flow_facts",
+      "start": 366026900,
+      "end": 389826900
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.3.b.flow_fixed_point.bind_call_spans",
+      "start": 390054500,
+      "end": 390298800
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.3.b.flow_fixed_point.prepare_permission_events",
+      "start": 390437300,
+      "end": 410663000
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.3.b.flow_fixed_point.infer_entry_requirements",
+      "start": 410753500,
+      "end": 410956300
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.3.b.flow_fixed_point",
+      "start": 365909100,
+      "end": 410985200
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.3.c.post_flow_facts",
+      "start": 411024300,
+      "end": 422927200
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.3.build_check_facts",
+      "start": 344840400,
+      "end": 422994900
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.4_6.quotients_borrows_identities",
+      "start": 423094200,
+      "end": 423646000
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.7.3b.check_flow_call_contracts",
+      "start": 431335100,
+      "end": 432788800
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.7.check_checked_facts",
+      "start": 423722800,
+      "end": 441040300
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.8_10.a.3.2.candidate_bodies",
+      "start": 442074100,
+      "end": 452541400
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.8_10.a.3.unit_effect_plans",
+      "start": 441594400,
+      "end": 453795200
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.8_10.a.finalize_execution",
+      "start": 441522200,
+      "end": 454477000
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.8_10.finalize_execution_identities",
+      "start": 441111800,
+      "end": 454761100
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.11_13.selections_custody_types_boundaries",
+      "start": 454789900,
+      "end": 459783800
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.d.lower_typed_trees",
+      "start": 327640500,
+      "end": 459950200
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05",
+      "start": 313640700,
+      "end": 459990100
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.01.a_discover_call_catalog",
+      "start": 463918800,
+      "end": 465800700
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 469122100,
+      "end": 470150900
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 470407800,
+      "end": 470959700
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.01_lower_selected_machine",
+      "start": 463902100,
+      "end": 471309200
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.10_reconcile_and_residences",
+      "start": 471553600,
+      "end": 471582500
+    },
+    {
+      "thread": "ThreadId(3)",
+      "name": "05.lower_terminal_selection",
+      "start": 463900400,
+      "end": 471656900
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "cache.source_graph.restore_request",
+      "start": 512533700,
+      "end": 512534300
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "pre_resolution.constant_initializers",
+      "start": 536475400,
+      "end": 536602500
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "pre_resolution.constant_expressions",
+      "start": 536675400,
+      "end": 536733700
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "psi.source.prepare",
+      "start": 530087200,
+      "end": 544550800
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.c.prepare_typed_trees",
+      "start": 552861100,
+      "end": 572321100
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.2.prepare_typed_program",
+      "start": 573005300,
+      "end": 586492100
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.3.a.pre_flow_facts",
+      "start": 586651300,
+      "end": 600645800
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.3.b.flow_fixed_point.build_flow_facts",
+      "start": 608130000,
+      "end": 630290400
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.3.b.flow_fixed_point.bind_call_spans",
+      "start": 630459500,
+      "end": 630620200
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.3.b.flow_fixed_point.prepare_permission_events",
+      "start": 630672600,
+      "end": 646107000
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.3.b.flow_fixed_point.infer_entry_requirements",
+      "start": 646178400,
+      "end": 646347600
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.3.b.flow_fixed_point",
+      "start": 608052400,
+      "end": 646389900
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.3.c.post_flow_facts",
+      "start": 646437900,
+      "end": 656828400
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.3.build_check_facts",
+      "start": 586547500,
+      "end": 656927000
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.4_6.quotients_borrows_identities",
+      "start": 657000500,
+      "end": 657598800
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.7.3b.check_flow_call_contracts",
+      "start": 664828600,
+      "end": 665928200
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.7.check_checked_facts",
+      "start": 657650500,
+      "end": 674416600
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.8_10.a.3.2.candidate_bodies",
+      "start": 675870800,
+      "end": 686688900
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.8_10.a.3.unit_effect_plans",
+      "start": 675176500,
+      "end": 687951700
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.8_10.a.finalize_execution",
+      "start": 675076100,
+      "end": 688793400
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.8_10.finalize_execution_identities",
+      "start": 674515300,
+      "end": 689070400
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.11_13.selections_custody_types_boundaries",
+      "start": 689130500,
+      "end": 694809400
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.d.lower_typed_trees",
+      "start": 572565400,
+      "end": 694987300
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05",
+      "start": 552478600,
+      "end": 695045400
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.01.a_discover_call_catalog",
+      "start": 698716000,
+      "end": 699869000
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.01_lower_selected_machine",
+      "start": 698712600,
+      "end": 700889300
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.10_reconcile_and_residences",
+      "start": 700988900,
+      "end": 700997800
+    },
+    {
+      "thread": "ThreadId(100)",
+      "name": "05.lower_terminal_selection",
+      "start": 698712200,
+      "end": 701063900
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "app.source_discovery",
+      "start": 35931400,
+      "end": 711136300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.2.prepare_typed_program",
+      "start": 2241425200,
+      "end": 2243842100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.a.pre_flow_facts",
+      "start": 2244008100,
+      "end": 2246159400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.b.flow_fixed_point.build_flow_facts",
+      "start": 2246750000,
+      "end": 2248757800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.b.flow_fixed_point.bind_call_spans",
+      "start": 2248863000,
+      "end": 2248866200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.b.flow_fixed_point.prepare_permission_events",
+      "start": 2248927800,
+      "end": 2249242300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.b.flow_fixed_point.infer_entry_requirements",
+      "start": 2249320900,
+      "end": 2249322200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.b.flow_fixed_point",
+      "start": 2246722500,
+      "end": 2249387000
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.c.post_flow_facts",
+      "start": 2249450400,
+      "end": 2250631300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.build_check_facts",
+      "start": 2243924300,
+      "end": 2250766800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.4_6.quotients_borrows_identities",
+      "start": 2250822900,
+      "end": 2250834800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.7.3b.check_flow_call_contracts",
+      "start": 2251283800,
+      "end": 2251900100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.7.check_checked_facts",
+      "start": 2250873900,
+      "end": 2252134400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.8_10.a.3.2.candidate_bodies",
+      "start": 2252304700,
+      "end": 2253569000
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.8_10.a.3.unit_effect_plans",
+      "start": 2252300300,
+      "end": 2253792400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.8_10.a.finalize_execution",
+      "start": 2252285300,
+      "end": 2253874900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.8_10.finalize_execution_identities",
+      "start": 2252219500,
+      "end": 2253934800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.11_13.selections_custody_types_boundaries",
+      "start": 2253979700,
+      "end": 2293922100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "pre_resolution.constant_initializers",
+      "start": 1128435600,
+      "end": 2303438200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "pre_resolution.constant_expressions",
+      "start": 2303560500,
+      "end": 3545350100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "pre_resolution.constant_expressions",
+      "start": 4391558700,
+      "end": 4823722200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "psi.source.prepare",
+      "start": 1076407000,
+      "end": 5932225700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "pre_resolution.constant_initializers",
+      "start": 6498821300,
+      "end": 6498842600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "pre_resolution.constant_expressions",
+      "start": 6498978800,
+      "end": 6512215100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "psi.source.prepare",
+      "start": 6059343800,
+      "end": 6879142400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.c.prepare_typed_trees",
+      "start": 7231224400,
+      "end": 8405165000
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.2.prepare_typed_program",
+      "start": 8421626300,
+      "end": 8898162000
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.a.pre_flow_facts",
+      "start": 8898241300,
+      "end": 9142148200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.b.flow_fixed_point.build_flow_facts",
+      "start": 9231794700,
+      "end": 9621955700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.b.flow_fixed_point.bind_call_spans",
+      "start": 9623309000,
+      "end": 9628533700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.b.flow_fixed_point.prepare_permission_events",
+      "start": 9628603200,
+      "end": 10514248900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.b.flow_fixed_point.infer_entry_requirements",
+      "start": 10514587600,
+      "end": 10516757200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.b.flow_fixed_point",
+      "start": 9229373600,
+      "end": 10516817500
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.c.post_flow_facts",
+      "start": 10517002100,
+      "end": 11055216800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.3.build_check_facts",
+      "start": 8898240300,
+      "end": 11055496600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.4_6.quotients_borrows_identities",
+      "start": 11055796900,
+      "end": 11067176800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.7.3b.check_flow_call_contracts",
+      "start": 11264778900,
+      "end": 12521407800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.7.check_checked_facts",
+      "start": 11067256900,
+      "end": 12626501400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.8_10.a.3.2.candidate_bodies",
+      "start": 12660648100,
+      "end": 13985092700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.8_10.a.3.unit_effect_plans",
+      "start": 12653666800,
+      "end": 14026117700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.8_10.a.finalize_execution",
+      "start": 12642441000,
+      "end": 14412570200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.8_10.finalize_execution_identities",
+      "start": 12626553900,
+      "end": 14425032600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.11_13.selections_custody_types_boundaries",
+      "start": 14425083100,
+      "end": 14767827200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.d.lower_typed_trees",
+      "start": 8409271300,
+      "end": 14789161600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05",
+      "start": 7214008400,
+      "end": 14789222600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.a_discover_call_catalog",
+      "start": 15669270700,
+      "end": 16228383200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16670623900,
+      "end": 16681328700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16684314600,
+      "end": 16686611900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16686682700,
+      "end": 16689519500
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16689628700,
+      "end": 16693328900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16693475500,
+      "end": 16697556300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16704083100,
+      "end": 16709707800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16709774200,
+      "end": 16714834900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16714936100,
+      "end": 16719722600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16721932800,
+      "end": 16724089200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16724149600,
+      "end": 16726152800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16726228200,
+      "end": 16728527200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16728610000,
+      "end": 16731015400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16731590100,
+      "end": 16734757400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16734833800,
+      "end": 16738820500
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16738883000,
+      "end": 16743148100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16743215900,
+      "end": 16747026200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16747606200,
+      "end": 16749308800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16749403700,
+      "end": 16751591500
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16751992900,
+      "end": 16760245700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16760341800,
+      "end": 16768652600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16768745200,
+      "end": 16777558400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16777685200,
+      "end": 16781916900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16781979900,
+      "end": 16784751900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16784809600,
+      "end": 16788543700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16788622900,
+      "end": 16793216700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16793279200,
+      "end": 16802209700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16802293600,
+      "end": 16805379000
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16805439700,
+      "end": 16807850300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16807909800,
+      "end": 16810323900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16818316600,
+      "end": 16821643600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16821762700,
+      "end": 16827755400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16827875900,
+      "end": 16833392900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16847155700,
+      "end": 16853756900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16853820800,
+      "end": 16860878700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16863118300,
+      "end": 16873573500
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16880716100,
+      "end": 16886396800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 16900534200,
+      "end": 17055860600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17055939300,
+      "end": 17062727900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17064129900,
+      "end": 17078871000
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17079002100,
+      "end": 17086422300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17108441800,
+      "end": 17113483400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17135663100,
+      "end": 17143985000
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17146230200,
+      "end": 17150965400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17151891000,
+      "end": 17154995300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17191991100,
+      "end": 17198132300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17198438200,
+      "end": 17202220000
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17202280300,
+      "end": 17204200900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17213050400,
+      "end": 17219005100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17219088100,
+      "end": 17228227900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17230472700,
+      "end": 17234698000
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17234763000,
+      "end": 17239546100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17239731600,
+      "end": 17246062200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17246118300,
+      "end": 17252184400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17252235800,
+      "end": 17257811100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17259858500,
+      "end": 17265614800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17267796500,
+      "end": 17271518600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17280423100,
+      "end": 17288230800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17288321500,
+      "end": 17290792200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17290864500,
+      "end": 17295314200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17295366800,
+      "end": 17296915400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17296998400,
+      "end": 17302954400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17321607900,
+      "end": 17329893000
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17336498800,
+      "end": 17342637400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17342692600,
+      "end": 17345192900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17345239400,
+      "end": 17350083500
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17350165600,
+      "end": 17355734200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17355846000,
+      "end": 17360741300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17360797000,
+      "end": 17364276200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17375473200,
+      "end": 17379054300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17380082800,
+      "end": 17383035600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17397790900,
+      "end": 17400799100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17400870600,
+      "end": 17403803700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17403871400,
+      "end": 17410374000
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17410424800,
+      "end": 17415917000
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17416006300,
+      "end": 17417736300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17426699700,
+      "end": 17431529900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17431595500,
+      "end": 17437241700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17437290800,
+      "end": 17443310700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17449199600,
+      "end": 17452698900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17452753800,
+      "end": 17456372800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17458510900,
+      "end": 17460167400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17460224900,
+      "end": 17462449900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17462494700,
+      "end": 17464453300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17464494300,
+      "end": 17466084300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17467190900,
+      "end": 17469577800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17471137000,
+      "end": 17473792500
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17473841100,
+      "end": 17474987700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17475036500,
+      "end": 17482026200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17482080500,
+      "end": 17484335700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17484377800,
+      "end": 17490289400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17496416300,
+      "end": 17499592100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17499642400,
+      "end": 17501981200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17506155800,
+      "end": 17508237700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17508295800,
+      "end": 17511292400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17511390700,
+      "end": 17514184600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17514226900,
+      "end": 17516715400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17516756100,
+      "end": 17519199300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17519242000,
+      "end": 17523625700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17523668300,
+      "end": 17528228600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17536654600,
+      "end": 17543813700
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17543867600,
+      "end": 17546358300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17546401900,
+      "end": 17549455400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17549502100,
+      "end": 17554454200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17554502200,
+      "end": 17558222300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17558266700,
+      "end": 17560128400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17581569000,
+      "end": 17584148200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17584199600,
+      "end": 17589198000
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01.g1_emit_composed_body",
+      "start": 17592582400,
+      "end": 17595036400
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.01_lower_selected_machine",
+      "start": 15669253100,
+      "end": 17597493100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.10_reconcile_and_residences",
+      "start": 17600815500,
+      "end": 19463534200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "05.lower_terminal_selection",
+      "start": 15669252200,
+      "end": 19463674100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.0.b_admit_permissions_and_trust",
+      "start": 19526389200,
+      "end": 19542927300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.0.c_report_prepare",
+      "start": 19543002800,
+      "end": 19543018500
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.0.d_finish_terminal_application",
+      "start": 19543055100,
+      "end": 19549902100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.1.a_prepare_terminal",
+      "start": 19549978800,
+      "end": 19549981800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.1.b_admit_target_layouts",
+      "start": 19550032100,
+      "end": 19550034800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.1.c1_prepare_native_execution",
+      "start": 19550065700,
+      "end": 19562166100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.1.c2_prepare_native_providers",
+      "start": 19562215800,
+      "end": 19562244100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.1.c3_admit_prepared_native_realization",
+      "start": 19562288400,
+      "end": 19564143800
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.1.c4_admit_executable_entry",
+      "start": 19564180800,
+      "end": 19565522600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.1.c5_capture_native_admission",
+      "start": 19565555400,
+      "end": 19566109500
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.1.d.01_lower_to_target",
+      "start": 19566151500,
+      "end": 19851173500
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.1.d.04_stage_instruction_selection",
+      "start": 19852948700,
+      "end": 19993743300
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.1.d.04b_optimize_selected_instructions",
+      "start": 19993808400,
+      "end": 20048546600
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.1.d.05_stage_register_allocation",
+      "start": 20048624900,
+      "end": 20188207500
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.1.d.06_stage_frame_realization",
+      "start": 20188281000,
+      "end": 20576417900
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.1.d_emit_realization_object",
+      "start": 19566139600,
+      "end": 20576477100
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.1.e_emit_admitted_image",
+      "start": 20577981700,
+      "end": 20582605200
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.0.e_produce_native_product",
+      "start": 19549948400,
+      "end": 20583251500
+    },
+    {
+      "thread": "ThreadId(103)",
+      "name": "06.0.f_settlement_finish_native",
+      "start": 20583283400,
+      "end": 20583297900
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "app.package_product_lifetime",
+      "start": 711360900,
+      "end": 20600826500
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "cache.encode.preparation",
+      "start": 20600895700,
+      "end": 20803805400
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "cache.encode.sources",
+      "start": 20803941800,
+      "end": 20900986900
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "cache.encode.checks",
+      "start": 20901056300,
+      "end": 21169164000
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "cache.hash_and_write_digest",
+      "start": 21185072900,
+      "end": 21270431800
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "cache.stage_hash_and_write",
+      "start": 21184779700,
+      "end": 21452826000
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "cache.prune",
+      "start": 21453056100,
+      "end": 21453237200
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "cache.source_graph.store",
+      "start": 20600892800,
+      "end": 21453338000
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "cache.session_drop_hook",
+      "start": 20600889000,
+      "end": 21453393700
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "app.requested_product",
+      "start": 711217400,
+      "end": 21525298200
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "app.publication",
+      "start": 21525367100,
+      "end": 21629111300
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "app.build",
+      "start": 6400,
+      "end": 21629521600
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "cli.compile",
+      "start": 100,
+      "end": 21631062800
+    }
+  ],
+  "full_counts": [
+    {
+      "thread": "ThreadId(3)",
+      "name": "source.graph.cold",
+      "amount": 1
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "source.graph.preparation.bytes",
+      "amount": 85024175
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "source.graph.sources.bytes",
+      "amount": 27362321
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "source.graph.checks.bytes",
+      "amount": 117881745
+    },
+    {
+      "thread": "ThreadId(2)",
+      "name": "source.graph.retained",
+      "amount": 1
+    }
+  ],
+  "full_partition": {
+    "cli_ns": 21631062700,
+    "disjoint_ns": {
+      "other CLI work": 1547500,
+      "package orchestration and cleanup": 1886061800,
+      "project preparation": 33502600,
+      "source discovery and Build execution": 335146900,
+      "retained graph restore requests": 15772600,
+      "source and frontend preparation": 5648688800,
+      "typed preparation and checking": 7916319900,
+      "Terminal lowering": 3804530100,
+      "native production": 1033303100,
+      "retained graph persistence": 852445200,
+      "native publication": 103744200
+    },
+    "cells": [
+      {
+        "start": 100,
+        "end": 6400,
+        "category": "other CLI work"
+      },
+      {
+        "start": 6400,
+        "end": 2327600,
+        "category": "package orchestration and cleanup"
+      },
+      {
+        "start": 2327600,
+        "end": 35830200,
+        "category": "project preparation"
+      },
+      {
+        "start": 35830200,
+        "end": 35931400,
+        "category": "package orchestration and cleanup"
+      },
+      {
+        "start": 35931400,
+        "end": 258562700,
+        "category": "source discovery and Build execution"
+      },
+      {
+        "start": 258562700,
+        "end": 274334700,
+        "category": "retained graph restore requests"
+      },
+      {
+        "start": 274334700,
+        "end": 296063500,
+        "category": "source discovery and Build execution"
+      },
+      {
+        "start": 296063500,
+        "end": 306860900,
+        "category": "source and frontend preparation"
+      },
+      {
+        "start": 306860900,
+        "end": 313640700,
+        "category": "source discovery and Build execution"
+      },
+      {
+        "start": 313640700,
+        "end": 313977600,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 313977600,
+        "end": 327373400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 327373400,
+        "end": 327640500,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 327640500,
+        "end": 328242300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 328242300,
+        "end": 344798700,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 344798700,
+        "end": 344840400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 344840400,
+        "end": 344887900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 344887900,
+        "end": 358863300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 358863300,
+        "end": 365909100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 365909100,
+        "end": 366026900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 366026900,
+        "end": 389826900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 389826900,
+        "end": 390054500,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 390054500,
+        "end": 390298800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 390298800,
+        "end": 390437300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 390437300,
+        "end": 410663000,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 410663000,
+        "end": 410753500,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 410753500,
+        "end": 410956300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 410956300,
+        "end": 410985200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 410985200,
+        "end": 411024300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 411024300,
+        "end": 422927200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 422927200,
+        "end": 422994900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 422994900,
+        "end": 423094200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 423094200,
+        "end": 423646000,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 423646000,
+        "end": 423722800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 423722800,
+        "end": 431335100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 431335100,
+        "end": 432788800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 432788800,
+        "end": 441040300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 441040300,
+        "end": 441111800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 441111800,
+        "end": 441522200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 441522200,
+        "end": 441594400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 441594400,
+        "end": 442074100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 442074100,
+        "end": 452541400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 452541400,
+        "end": 453795200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 453795200,
+        "end": 454477000,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 454477000,
+        "end": 454761100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 454761100,
+        "end": 454789900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 454789900,
+        "end": 459783800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 459783800,
+        "end": 459950200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 459950200,
+        "end": 459990100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 459990100,
+        "end": 463900400,
+        "category": "source discovery and Build execution"
+      },
+      {
+        "start": 463900400,
+        "end": 463902100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 463902100,
+        "end": 463918800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 463918800,
+        "end": 465800700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 465800700,
+        "end": 469122100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 469122100,
+        "end": 470150900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 470150900,
+        "end": 470407800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 470407800,
+        "end": 470959700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 470959700,
+        "end": 471309200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 471309200,
+        "end": 471553600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 471553600,
+        "end": 471582500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 471582500,
+        "end": 471656900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 471656900,
+        "end": 512533700,
+        "category": "source discovery and Build execution"
+      },
+      {
+        "start": 512533700,
+        "end": 512534300,
+        "category": "retained graph restore requests"
+      },
+      {
+        "start": 512534300,
+        "end": 530087200,
+        "category": "source discovery and Build execution"
+      },
+      {
+        "start": 530087200,
+        "end": 544550800,
+        "category": "source and frontend preparation"
+      },
+      {
+        "start": 544550800,
+        "end": 552478600,
+        "category": "source discovery and Build execution"
+      },
+      {
+        "start": 552478600,
+        "end": 552861100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 552861100,
+        "end": 572321100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 572321100,
+        "end": 572565400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 572565400,
+        "end": 573005300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 573005300,
+        "end": 586492100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 586492100,
+        "end": 586547500,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 586547500,
+        "end": 586651300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 586651300,
+        "end": 600645800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 600645800,
+        "end": 608052400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 608052400,
+        "end": 608130000,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 608130000,
+        "end": 630290400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 630290400,
+        "end": 630459500,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 630459500,
+        "end": 630620200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 630620200,
+        "end": 630672600,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 630672600,
+        "end": 646107000,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 646107000,
+        "end": 646178400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 646178400,
+        "end": 646347600,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 646347600,
+        "end": 646389900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 646389900,
+        "end": 646437900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 646437900,
+        "end": 656828400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 656828400,
+        "end": 656927000,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 656927000,
+        "end": 657000500,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 657000500,
+        "end": 657598800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 657598800,
+        "end": 657650500,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 657650500,
+        "end": 664828600,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 664828600,
+        "end": 665928200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 665928200,
+        "end": 674416600,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 674416600,
+        "end": 674515300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 674515300,
+        "end": 675076100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 675076100,
+        "end": 675176500,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 675176500,
+        "end": 675870800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 675870800,
+        "end": 686688900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 686688900,
+        "end": 687951700,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 687951700,
+        "end": 688793400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 688793400,
+        "end": 689070400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 689070400,
+        "end": 689130500,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 689130500,
+        "end": 694809400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 694809400,
+        "end": 694987300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 694987300,
+        "end": 695045400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 695045400,
+        "end": 698712200,
+        "category": "source discovery and Build execution"
+      },
+      {
+        "start": 698712200,
+        "end": 698712600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 698712600,
+        "end": 698716000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 698716000,
+        "end": 699869000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 699869000,
+        "end": 700889300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 700889300,
+        "end": 700988900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 700988900,
+        "end": 700997800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 700997800,
+        "end": 701063900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 701063900,
+        "end": 711136300,
+        "category": "source discovery and Build execution"
+      },
+      {
+        "start": 711136300,
+        "end": 711217400,
+        "category": "package orchestration and cleanup"
+      },
+      {
+        "start": 711217400,
+        "end": 711360900,
+        "category": "package orchestration and cleanup"
+      },
+      {
+        "start": 711360900,
+        "end": 1076407000,
+        "category": "package orchestration and cleanup"
+      },
+      {
+        "start": 1076407000,
+        "end": 2241425200,
+        "category": "source and frontend preparation"
+      },
+      {
+        "start": 2241425200,
+        "end": 2243842100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2243842100,
+        "end": 2243924300,
+        "category": "source and frontend preparation"
+      },
+      {
+        "start": 2243924300,
+        "end": 2244008100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2244008100,
+        "end": 2246159400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2246159400,
+        "end": 2246722500,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2246722500,
+        "end": 2246750000,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2246750000,
+        "end": 2248757800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2248757800,
+        "end": 2248863000,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2248863000,
+        "end": 2248866200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2248866200,
+        "end": 2248927800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2248927800,
+        "end": 2249242300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2249242300,
+        "end": 2249320900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2249320900,
+        "end": 2249322200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2249322200,
+        "end": 2249387000,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2249387000,
+        "end": 2249450400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2249450400,
+        "end": 2250631300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2250631300,
+        "end": 2250766800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2250766800,
+        "end": 2250822900,
+        "category": "source and frontend preparation"
+      },
+      {
+        "start": 2250822900,
+        "end": 2250834800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2250834800,
+        "end": 2250873900,
+        "category": "source and frontend preparation"
+      },
+      {
+        "start": 2250873900,
+        "end": 2251283800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2251283800,
+        "end": 2251900100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2251900100,
+        "end": 2252134400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2252134400,
+        "end": 2252219500,
+        "category": "source and frontend preparation"
+      },
+      {
+        "start": 2252219500,
+        "end": 2252285300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2252285300,
+        "end": 2252300300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2252300300,
+        "end": 2252304700,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2252304700,
+        "end": 2253569000,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2253569000,
+        "end": 2253792400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2253792400,
+        "end": 2253874900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2253874900,
+        "end": 2253934800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2253934800,
+        "end": 2253979700,
+        "category": "source and frontend preparation"
+      },
+      {
+        "start": 2253979700,
+        "end": 2293922100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 2293922100,
+        "end": 5932225700,
+        "category": "source and frontend preparation"
+      },
+      {
+        "start": 5932225700,
+        "end": 6059343800,
+        "category": "package orchestration and cleanup"
+      },
+      {
+        "start": 6059343800,
+        "end": 6879142400,
+        "category": "source and frontend preparation"
+      },
+      {
+        "start": 6879142400,
+        "end": 7214008400,
+        "category": "package orchestration and cleanup"
+      },
+      {
+        "start": 7214008400,
+        "end": 7231224400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 7231224400,
+        "end": 8405165000,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 8405165000,
+        "end": 8409271300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 8409271300,
+        "end": 8421626300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 8421626300,
+        "end": 8898162000,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 8898162000,
+        "end": 8898240300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 8898240300,
+        "end": 8898241300,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 8898241300,
+        "end": 9142148200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 9142148200,
+        "end": 9229373600,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 9229373600,
+        "end": 9231794700,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 9231794700,
+        "end": 9621955700,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 9621955700,
+        "end": 9623309000,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 9623309000,
+        "end": 9628533700,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 9628533700,
+        "end": 9628603200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 9628603200,
+        "end": 10514248900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 10514248900,
+        "end": 10514587600,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 10514587600,
+        "end": 10516757200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 10516757200,
+        "end": 10516817500,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 10516817500,
+        "end": 10517002100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 10517002100,
+        "end": 11055216800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 11055216800,
+        "end": 11055496600,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 11055496600,
+        "end": 11055796900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 11055796900,
+        "end": 11067176800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 11067176800,
+        "end": 11067256900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 11067256900,
+        "end": 11264778900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 11264778900,
+        "end": 12521407800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 12521407800,
+        "end": 12626501400,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 12626501400,
+        "end": 12626553900,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 12626553900,
+        "end": 12642441000,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 12642441000,
+        "end": 12653666800,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 12653666800,
+        "end": 12660648100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 12660648100,
+        "end": 13985092700,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 13985092700,
+        "end": 14026117700,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 14026117700,
+        "end": 14412570200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 14412570200,
+        "end": 14425032600,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 14425032600,
+        "end": 14425083100,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 14425083100,
+        "end": 14767827200,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 14767827200,
+        "end": 14789161600,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 14789161600,
+        "end": 14789222600,
+        "category": "typed preparation and checking"
+      },
+      {
+        "start": 14789222600,
+        "end": 15669252200,
+        "category": "package orchestration and cleanup"
+      },
+      {
+        "start": 15669252200,
+        "end": 15669253100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 15669253100,
+        "end": 15669270700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 15669270700,
+        "end": 16228383200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16228383200,
+        "end": 16670623900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16670623900,
+        "end": 16681328700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16681328700,
+        "end": 16684314600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16684314600,
+        "end": 16686611900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16686611900,
+        "end": 16686682700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16686682700,
+        "end": 16689519500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16689519500,
+        "end": 16689628700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16689628700,
+        "end": 16693328900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16693328900,
+        "end": 16693475500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16693475500,
+        "end": 16697556300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16697556300,
+        "end": 16704083100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16704083100,
+        "end": 16709707800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16709707800,
+        "end": 16709774200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16709774200,
+        "end": 16714834900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16714834900,
+        "end": 16714936100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16714936100,
+        "end": 16719722600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16719722600,
+        "end": 16721932800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16721932800,
+        "end": 16724089200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16724089200,
+        "end": 16724149600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16724149600,
+        "end": 16726152800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16726152800,
+        "end": 16726228200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16726228200,
+        "end": 16728527200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16728527200,
+        "end": 16728610000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16728610000,
+        "end": 16731015400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16731015400,
+        "end": 16731590100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16731590100,
+        "end": 16734757400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16734757400,
+        "end": 16734833800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16734833800,
+        "end": 16738820500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16738820500,
+        "end": 16738883000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16738883000,
+        "end": 16743148100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16743148100,
+        "end": 16743215900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16743215900,
+        "end": 16747026200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16747026200,
+        "end": 16747606200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16747606200,
+        "end": 16749308800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16749308800,
+        "end": 16749403700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16749403700,
+        "end": 16751591500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16751591500,
+        "end": 16751992900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16751992900,
+        "end": 16760245700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16760245700,
+        "end": 16760341800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16760341800,
+        "end": 16768652600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16768652600,
+        "end": 16768745200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16768745200,
+        "end": 16777558400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16777558400,
+        "end": 16777685200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16777685200,
+        "end": 16781916900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16781916900,
+        "end": 16781979900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16781979900,
+        "end": 16784751900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16784751900,
+        "end": 16784809600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16784809600,
+        "end": 16788543700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16788543700,
+        "end": 16788622900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16788622900,
+        "end": 16793216700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16793216700,
+        "end": 16793279200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16793279200,
+        "end": 16802209700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16802209700,
+        "end": 16802293600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16802293600,
+        "end": 16805379000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16805379000,
+        "end": 16805439700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16805439700,
+        "end": 16807850300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16807850300,
+        "end": 16807909800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16807909800,
+        "end": 16810323900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16810323900,
+        "end": 16818316600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16818316600,
+        "end": 16821643600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16821643600,
+        "end": 16821762700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16821762700,
+        "end": 16827755400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16827755400,
+        "end": 16827875900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16827875900,
+        "end": 16833392900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16833392900,
+        "end": 16847155700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16847155700,
+        "end": 16853756900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16853756900,
+        "end": 16853820800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16853820800,
+        "end": 16860878700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16860878700,
+        "end": 16863118300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16863118300,
+        "end": 16873573500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16873573500,
+        "end": 16880716100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16880716100,
+        "end": 16886396800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16886396800,
+        "end": 16900534200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 16900534200,
+        "end": 17055860600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17055860600,
+        "end": 17055939300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17055939300,
+        "end": 17062727900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17062727900,
+        "end": 17064129900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17064129900,
+        "end": 17078871000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17078871000,
+        "end": 17079002100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17079002100,
+        "end": 17086422300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17086422300,
+        "end": 17108441800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17108441800,
+        "end": 17113483400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17113483400,
+        "end": 17135663100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17135663100,
+        "end": 17143985000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17143985000,
+        "end": 17146230200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17146230200,
+        "end": 17150965400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17150965400,
+        "end": 17151891000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17151891000,
+        "end": 17154995300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17154995300,
+        "end": 17191991100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17191991100,
+        "end": 17198132300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17198132300,
+        "end": 17198438200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17198438200,
+        "end": 17202220000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17202220000,
+        "end": 17202280300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17202280300,
+        "end": 17204200900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17204200900,
+        "end": 17213050400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17213050400,
+        "end": 17219005100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17219005100,
+        "end": 17219088100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17219088100,
+        "end": 17228227900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17228227900,
+        "end": 17230472700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17230472700,
+        "end": 17234698000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17234698000,
+        "end": 17234763000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17234763000,
+        "end": 17239546100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17239546100,
+        "end": 17239731600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17239731600,
+        "end": 17246062200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17246062200,
+        "end": 17246118300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17246118300,
+        "end": 17252184400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17252184400,
+        "end": 17252235800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17252235800,
+        "end": 17257811100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17257811100,
+        "end": 17259858500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17259858500,
+        "end": 17265614800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17265614800,
+        "end": 17267796500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17267796500,
+        "end": 17271518600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17271518600,
+        "end": 17280423100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17280423100,
+        "end": 17288230800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17288230800,
+        "end": 17288321500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17288321500,
+        "end": 17290792200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17290792200,
+        "end": 17290864500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17290864500,
+        "end": 17295314200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17295314200,
+        "end": 17295366800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17295366800,
+        "end": 17296915400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17296915400,
+        "end": 17296998400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17296998400,
+        "end": 17302954400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17302954400,
+        "end": 17321607900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17321607900,
+        "end": 17329893000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17329893000,
+        "end": 17336498800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17336498800,
+        "end": 17342637400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17342637400,
+        "end": 17342692600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17342692600,
+        "end": 17345192900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17345192900,
+        "end": 17345239400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17345239400,
+        "end": 17350083500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17350083500,
+        "end": 17350165600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17350165600,
+        "end": 17355734200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17355734200,
+        "end": 17355846000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17355846000,
+        "end": 17360741300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17360741300,
+        "end": 17360797000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17360797000,
+        "end": 17364276200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17364276200,
+        "end": 17375473200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17375473200,
+        "end": 17379054300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17379054300,
+        "end": 17380082800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17380082800,
+        "end": 17383035600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17383035600,
+        "end": 17397790900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17397790900,
+        "end": 17400799100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17400799100,
+        "end": 17400870600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17400870600,
+        "end": 17403803700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17403803700,
+        "end": 17403871400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17403871400,
+        "end": 17410374000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17410374000,
+        "end": 17410424800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17410424800,
+        "end": 17415917000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17415917000,
+        "end": 17416006300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17416006300,
+        "end": 17417736300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17417736300,
+        "end": 17426699700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17426699700,
+        "end": 17431529900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17431529900,
+        "end": 17431595500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17431595500,
+        "end": 17437241700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17437241700,
+        "end": 17437290800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17437290800,
+        "end": 17443310700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17443310700,
+        "end": 17449199600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17449199600,
+        "end": 17452698900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17452698900,
+        "end": 17452753800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17452753800,
+        "end": 17456372800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17456372800,
+        "end": 17458510900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17458510900,
+        "end": 17460167400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17460167400,
+        "end": 17460224900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17460224900,
+        "end": 17462449900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17462449900,
+        "end": 17462494700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17462494700,
+        "end": 17464453300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17464453300,
+        "end": 17464494300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17464494300,
+        "end": 17466084300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17466084300,
+        "end": 17467190900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17467190900,
+        "end": 17469577800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17469577800,
+        "end": 17471137000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17471137000,
+        "end": 17473792500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17473792500,
+        "end": 17473841100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17473841100,
+        "end": 17474987700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17474987700,
+        "end": 17475036500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17475036500,
+        "end": 17482026200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17482026200,
+        "end": 17482080500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17482080500,
+        "end": 17484335700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17484335700,
+        "end": 17484377800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17484377800,
+        "end": 17490289400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17490289400,
+        "end": 17496416300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17496416300,
+        "end": 17499592100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17499592100,
+        "end": 17499642400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17499642400,
+        "end": 17501981200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17501981200,
+        "end": 17506155800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17506155800,
+        "end": 17508237700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17508237700,
+        "end": 17508295800,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17508295800,
+        "end": 17511292400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17511292400,
+        "end": 17511390700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17511390700,
+        "end": 17514184600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17514184600,
+        "end": 17514226900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17514226900,
+        "end": 17516715400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17516715400,
+        "end": 17516756100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17516756100,
+        "end": 17519199300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17519199300,
+        "end": 17519242000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17519242000,
+        "end": 17523625700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17523625700,
+        "end": 17523668300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17523668300,
+        "end": 17528228600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17528228600,
+        "end": 17536654600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17536654600,
+        "end": 17543813700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17543813700,
+        "end": 17543867600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17543867600,
+        "end": 17546358300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17546358300,
+        "end": 17546401900,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17546401900,
+        "end": 17549455400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17549455400,
+        "end": 17549502100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17549502100,
+        "end": 17554454200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17554454200,
+        "end": 17554502200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17554502200,
+        "end": 17558222300,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17558222300,
+        "end": 17558266700,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17558266700,
+        "end": 17560128400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17560128400,
+        "end": 17581569000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17581569000,
+        "end": 17584148200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17584148200,
+        "end": 17584199600,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17584199600,
+        "end": 17589198000,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17589198000,
+        "end": 17592582400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17592582400,
+        "end": 17595036400,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17595036400,
+        "end": 17597493100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17597493100,
+        "end": 17600815500,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 17600815500,
+        "end": 19463534200,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 19463534200,
+        "end": 19463674100,
+        "category": "Terminal lowering"
+      },
+      {
+        "start": 19463674100,
+        "end": 19549948400,
+        "category": "package orchestration and cleanup"
+      },
+      {
+        "start": 19549948400,
+        "end": 20583251500,
+        "category": "native production"
+      },
+      {
+        "start": 20583251500,
+        "end": 20600826500,
+        "category": "package orchestration and cleanup"
+      },
+      {
+        "start": 20600826500,
+        "end": 20600892800,
+        "category": "package orchestration and cleanup"
+      },
+      {
+        "start": 20600892800,
+        "end": 21453338000,
+        "category": "retained graph persistence"
+      },
+      {
+        "start": 21453338000,
+        "end": 21525298200,
+        "category": "package orchestration and cleanup"
+      },
+      {
+        "start": 21525298200,
+        "end": 21525367100,
+        "category": "package orchestration and cleanup"
+      },
+      {
+        "start": 21525367100,
+        "end": 21629111300,
+        "category": "native publication"
+      },
+      {
+        "start": 21629111300,
+        "end": 21629521600,
+        "category": "package orchestration and cleanup"
+      },
+      {
+        "start": 21629521600,
+        "end": 21631062800,
+        "category": "other CLI work"
+      }
+    ]
+  }
+}

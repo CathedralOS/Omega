@@ -725,6 +725,7 @@ fn selected_call_target(
                     }),
                 dispatch: Some(StaticRequirementDispatch {
                     selection_application: Default::default(),
+                    evidence_parameter: SymbolHandle::invalid(),
                     application_report_fingerprint: meaning.application.report_fingerprint,
                     application_commitment: meaning.application.commitment,
                     declaring_trait: meaning.row.declaring_trait,

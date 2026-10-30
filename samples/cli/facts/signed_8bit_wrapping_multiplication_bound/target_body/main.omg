@@ -9,51 +9,78 @@ machine verify_prod(value: i8) -> i8
     head + tail
 }
 
-linux_x86_64 machine compute_target_body(lhs: i8, rhs: i8) -> i8
-    requires lhs >= 8 && lhs <= 12 && rhs >= 5 && rhs <= 8
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedProbe {
+    machine compute_target_body(lhs: i8, rhs: i8) -> i8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires lhs >= 8 && lhs <= 12 && rhs >= 5 && rhs <= 8;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine compute_target_body(lhs: i8, rhs: i8) -> i8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires lhs >= 8 && lhs <= 12 && rhs >= 5 && rhs <= 8
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let a: i8 in Wrapping = lhs as i8 in Wrapping;
+        let b: i8 in Wrapping = rhs as i8 in Wrapping;
+        let wrapped: i8 in Wrapping = a * b;
+        let prod: i8 = wrapped as i8;
+        verify_prod(prod)
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine compute_target_body(lhs: i8, rhs: i8) -> i8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+        requires lhs >= 8 && lhs <= 12 && rhs >= 5 && rhs <= 8
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let a: i8 in Wrapping = lhs as i8 in Wrapping;
+        let b: i8 in Wrapping = rhs as i8 in Wrapping;
+        let wrapped: i8 in Wrapping = a * b;
+        let prod: i8 = wrapped as i8;
+        verify_prod(prod)
+    }
+}
+
+
+
+
+
+
+
+
+
+machine evaluate() -> i8
+    reaches SelectedProbe, SelectedBodyCheck crashes Trap
 {
-    let a: i8 in Wrapping = lhs as i8 in Wrapping;
-    let b: i8 in Wrapping = rhs as i8 in Wrapping;
-    let wrapped: i8 in Wrapping = a * b;
-    let prod: i8 = wrapped as i8;
-    verify_prod(prod)
+    SelectedProbe::compute_target_body(10, 7)
 }
 
-linux_arm64 machine compute_target_body(lhs: i8, rhs: i8) -> i8
-    requires lhs >= 8 && lhs <= 12 && rhs >= 5 && rhs <= 8
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    crashes Trap
 {
-    let a: i8 in Wrapping = lhs as i8 in Wrapping;
-    let b: i8 in Wrapping = rhs as i8 in Wrapping;
-    let wrapped: i8 in Wrapping = a * b;
-    let prod: i8 = wrapped as i8;
-    verify_prod(prod)
-}
-
-macos_arm64 machine compute_target_body(lhs: i8, rhs: i8) -> i8
-    requires lhs >= 8 && lhs <= 12 && rhs >= 5 && rhs <= 8
-{
-    let a: i8 in Wrapping = lhs as i8 in Wrapping;
-    let b: i8 in Wrapping = rhs as i8 in Wrapping;
-    let wrapped: i8 in Wrapping = a * b;
-    let prod: i8 = wrapped as i8;
-    verify_prod(prod)
-}
-
-windows_x86_64 machine compute_target_body(lhs: i8, rhs: i8) -> i8
-    requires lhs >= 8 && lhs <= 12 && rhs >= 5 && rhs <= 8
-{
-    let a: i8 in Wrapping = lhs as i8 in Wrapping;
-    let b: i8 in Wrapping = rhs as i8 in Wrapping;
-    let wrapped: i8 in Wrapping = a * b;
-    let prod: i8 = wrapped as i8;
-    verify_prod(prod)
-}
-
-machine evaluate() -> i8 {
-    compute_target_body(10, 7)
-}
-
-machine main() crashes Trap {
     let res: i8 = evaluate();
     transition res == 56 {
         true -> done()
@@ -61,4 +88,13 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

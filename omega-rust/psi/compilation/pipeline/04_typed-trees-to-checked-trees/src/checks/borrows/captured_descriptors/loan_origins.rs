@@ -57,6 +57,7 @@ fn captured_places(
         constraints,
         CapturedPlace {
             incoming_reference: Handle::invalid(),
+            incoming_owner_path: Default::default(),
             root: source.root,
             segments: source.segments,
         },

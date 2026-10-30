@@ -46,7 +46,7 @@ pub(crate) struct PendingConstApplication {
     pub(crate) root: ExpressionHandle,
     /// The const parameter's declared carrier type, when the generic base
     /// resolves to a declaration with const parameters.
-    destination: Option<TypeReferenceHandle>,
+    pub(crate) destination: Option<TypeReferenceHandle>,
 }
 
 /// One authored call reachable inside a pending const application. Call nodes

@@ -1,0 +1,619 @@
+{
+  "runs": {
+    "recon-baseline-a": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\baseline\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\recon-baseline-a\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 22.9686195999966,
+      "exit_code": 0,
+      "cpu_seconds": 29.609375,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.11180600000079721,
+      "producer": "baseline",
+      "compiler_sha256": "e6142460b46c531e6e2e0ada4382663fe42353a12663f60a3f08e0909dbbddb5",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "f918f6395d68d55428e572edcb3ca0832881e1aa29904c0a8c4fca35ed61d681",
+      "cache_mode": "fresh private cache",
+      "reconciliation_mode": "off",
+      "reconciliation": []
+    },
+    "recon-baseline-b": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\baseline\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\recon-baseline-b\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 21.01176239999768,
+      "exit_code": 0,
+      "cpu_seconds": 27.015625,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.09677679999731481,
+      "producer": "baseline",
+      "compiler_sha256": "e6142460b46c531e6e2e0ada4382663fe42353a12663f60a3f08e0909dbbddb5",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "f918f6395d68d55428e572edcb3ca0832881e1aa29904c0a8c4fca35ed61d681",
+      "cache_mode": "fresh private cache",
+      "reconciliation_mode": "off",
+      "reconciliation": []
+    },
+    "recon-counts": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\reconcile\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\recon-counts\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 17.34805120000965,
+      "exit_code": 0,
+      "cpu_seconds": 24.546875,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.09359540000150446,
+      "producer": "reconcile",
+      "compiler_sha256": "f397a36b442a192dfdde1dec247b7fe35d3a5286863543b538c5f9c85a1a33fe",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "449cb0548bd725f68fb3333655200a72af1a1e9beb9757d5c5cd86cbc22cb8a1",
+      "cache_mode": "fresh private cache",
+      "reconciliation_mode": "counts",
+      "reconciliation": [
+        {
+          "operation": "places",
+          "machines": 7,
+          "wall_ns": 16400,
+          "metrics": {
+            "declarations_added": 0,
+            "leaf_copy_results": 26,
+            "operations_scanned": 55
+          }
+        },
+        {
+          "operation": "residences",
+          "machines": 7,
+          "wall_ns": 11100,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 7,
+          "wall_ns": 1600,
+          "metrics": {}
+        },
+        {
+          "operation": "places",
+          "machines": 2,
+          "wall_ns": 3500,
+          "metrics": {
+            "declarations_added": 0,
+            "leaf_copy_results": 2,
+            "operations_scanned": 5
+          }
+        },
+        {
+          "operation": "residences",
+          "machines": 2,
+          "wall_ns": 3400,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 2,
+          "wall_ns": 100,
+          "metrics": {}
+        },
+        {
+          "operation": "places",
+          "machines": 202,
+          "wall_ns": 323100,
+          "metrics": {
+            "declarations_added": 0,
+            "leaf_copy_results": 281,
+            "operations_scanned": 2702
+          }
+        },
+        {
+          "operation": "residences",
+          "machines": 202,
+          "wall_ns": 51900,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 202,
+          "wall_ns": 1955274100,
+          "metrics": {
+            "analysis_constructions": 1,
+            "candidate_machines": 109,
+            "changing_rounds": 18,
+            "eligible_operations": 418,
+            "fixed_point_rounds": 127,
+            "graph_preparation_ns": 185725100,
+            "operations_scanned": 3313,
+            "payload_target_queries": 173,
+            "proposed_updates": 439,
+            "reference_context_constructions": 127,
+            "reference_queries": 418,
+            "reference_queries_ns": 423843800
+          }
+        }
+      ]
+    },
+    "recon-counts-pilot": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\reconcile\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\recon-counts-pilot\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 19.92208170000231,
+      "exit_code": 0,
+      "cpu_seconds": 26.453125,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.10316950001288205,
+      "producer": "reconcile",
+      "compiler_sha256": "f397a36b442a192dfdde1dec247b7fe35d3a5286863543b538c5f9c85a1a33fe",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "449cb0548bd725f68fb3333655200a72af1a1e9beb9757d5c5cd86cbc22cb8a1",
+      "cache_mode": "fresh private cache",
+      "reconciliation_mode": "counts",
+      "reconciliation": [
+        {
+          "operation": "places",
+          "machines": 7,
+          "wall_ns": 28700,
+          "metrics": {
+            "declarations_added": 0,
+            "leaf_copy_results": 26,
+            "operations_scanned": 55
+          }
+        },
+        {
+          "operation": "residences",
+          "machines": 7,
+          "wall_ns": 13200,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 7,
+          "wall_ns": 1400,
+          "metrics": {}
+        },
+        {
+          "operation": "places",
+          "machines": 2,
+          "wall_ns": 4800,
+          "metrics": {
+            "declarations_added": 0,
+            "leaf_copy_results": 2,
+            "operations_scanned": 5
+          }
+        },
+        {
+          "operation": "residences",
+          "machines": 2,
+          "wall_ns": 5100,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 2,
+          "wall_ns": 100,
+          "metrics": {}
+        },
+        {
+          "operation": "places",
+          "machines": 202,
+          "wall_ns": 317800,
+          "metrics": {
+            "declarations_added": 0,
+            "leaf_copy_results": 281,
+            "operations_scanned": 2702
+          }
+        },
+        {
+          "operation": "residences",
+          "machines": 202,
+          "wall_ns": 47700,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 202,
+          "wall_ns": 2576774400,
+          "metrics": {
+            "analysis_constructions": 1,
+            "candidate_machines": 109,
+            "changing_rounds": 18,
+            "eligible_operations": 418,
+            "fixed_point_rounds": 127,
+            "graph_preparation_ns": 182310300,
+            "operations_scanned": 3313,
+            "payload_target_queries": 173,
+            "proposed_updates": 439,
+            "reference_context_constructions": 127,
+            "reference_queries": 418,
+            "reference_queries_ns": 563343600
+          }
+        }
+      ]
+    },
+    "recon-off-a": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\reconcile\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\recon-off-a\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 22.034298999991734,
+      "exit_code": 0,
+      "cpu_seconds": 28.25,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.11299589999543969,
+      "producer": "reconcile",
+      "compiler_sha256": "f397a36b442a192dfdde1dec247b7fe35d3a5286863543b538c5f9c85a1a33fe",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "449cb0548bd725f68fb3333655200a72af1a1e9beb9757d5c5cd86cbc22cb8a1",
+      "cache_mode": "fresh private cache",
+      "reconciliation_mode": "off",
+      "reconciliation": []
+    },
+    "recon-off-b": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\reconcile\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\recon-off-b\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 20.22595400000864,
+      "exit_code": 0,
+      "cpu_seconds": 27.1875,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.10110879999410827,
+      "producer": "reconcile",
+      "compiler_sha256": "f397a36b442a192dfdde1dec247b7fe35d3a5286863543b538c5f9c85a1a33fe",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "449cb0548bd725f68fb3333655200a72af1a1e9beb9757d5c5cd86cbc22cb8a1",
+      "cache_mode": "fresh private cache",
+      "reconciliation_mode": "off",
+      "reconciliation": []
+    },
+    "recon-timing-a": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\reconcile\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\recon-timing-a\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 22.857798800003366,
+      "exit_code": 0,
+      "cpu_seconds": 29.109375,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.10821210000722203,
+      "producer": "reconcile",
+      "compiler_sha256": "f397a36b442a192dfdde1dec247b7fe35d3a5286863543b538c5f9c85a1a33fe",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "449cb0548bd725f68fb3333655200a72af1a1e9beb9757d5c5cd86cbc22cb8a1",
+      "cache_mode": "fresh private cache",
+      "reconciliation_mode": "timing",
+      "reconciliation": [
+        {
+          "operation": "places",
+          "machines": 7,
+          "wall_ns": 15600,
+          "metrics": {}
+        },
+        {
+          "operation": "residences",
+          "machines": 7,
+          "wall_ns": 14700,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 7,
+          "wall_ns": 1400,
+          "metrics": {}
+        },
+        {
+          "operation": "places",
+          "machines": 2,
+          "wall_ns": 2000,
+          "metrics": {}
+        },
+        {
+          "operation": "residences",
+          "machines": 2,
+          "wall_ns": 4600,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 2,
+          "wall_ns": 500,
+          "metrics": {}
+        },
+        {
+          "operation": "places",
+          "machines": 202,
+          "wall_ns": 192500,
+          "metrics": {}
+        },
+        {
+          "operation": "residences",
+          "machines": 202,
+          "wall_ns": 50400,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 202,
+          "wall_ns": 2862246600,
+          "metrics": {
+            "graph_preparation_ns": 213359600,
+            "reference_queries_ns": 673460000
+          }
+        }
+      ]
+    },
+    "recon-timing-b": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\reconcile\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\recon-timing-b\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 21.182326099995407,
+      "exit_code": 0,
+      "cpu_seconds": 28.015625,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.10177000000840053,
+      "producer": "reconcile",
+      "compiler_sha256": "f397a36b442a192dfdde1dec247b7fe35d3a5286863543b538c5f9c85a1a33fe",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "449cb0548bd725f68fb3333655200a72af1a1e9beb9757d5c5cd86cbc22cb8a1",
+      "cache_mode": "fresh private cache",
+      "reconciliation_mode": "timing",
+      "reconciliation": [
+        {
+          "operation": "places",
+          "machines": 7,
+          "wall_ns": 12700,
+          "metrics": {}
+        },
+        {
+          "operation": "residences",
+          "machines": 7,
+          "wall_ns": 13000,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 7,
+          "wall_ns": 1600,
+          "metrics": {}
+        },
+        {
+          "operation": "places",
+          "machines": 2,
+          "wall_ns": 2000,
+          "metrics": {}
+        },
+        {
+          "operation": "residences",
+          "machines": 2,
+          "wall_ns": 5500,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 2,
+          "wall_ns": 300,
+          "metrics": {}
+        },
+        {
+          "operation": "places",
+          "machines": 202,
+          "wall_ns": 152600,
+          "metrics": {}
+        },
+        {
+          "operation": "residences",
+          "machines": 202,
+          "wall_ns": 43000,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 202,
+          "wall_ns": 2277950500,
+          "metrics": {
+            "graph_preparation_ns": 204911800,
+            "reference_queries_ns": 514185900
+          }
+        }
+      ]
+    },
+    "recon-timing-c": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\reconcile\\omega.exe",
+        "--timings",
+        "--target",
+        "windows_x86_64",
+        "--build-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\recon-timing-c\\native",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 20.05418279999867,
+      "exit_code": 0,
+      "cpu_seconds": 26.75,
+      "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+      "runtime_wall_seconds": 0.09380420000525191,
+      "producer": "reconcile",
+      "compiler_sha256": "f397a36b442a192dfdde1dec247b7fe35d3a5286863543b538c5f9c85a1a33fe",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "449cb0548bd725f68fb3333655200a72af1a1e9beb9757d5c5cd86cbc22cb8a1",
+      "cache_mode": "fresh private cache",
+      "reconciliation_mode": "timing",
+      "reconciliation": [
+        {
+          "operation": "places",
+          "machines": 7,
+          "wall_ns": 12600,
+          "metrics": {}
+        },
+        {
+          "operation": "residences",
+          "machines": 7,
+          "wall_ns": 15400,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 7,
+          "wall_ns": 1600,
+          "metrics": {}
+        },
+        {
+          "operation": "places",
+          "machines": 2,
+          "wall_ns": 2300,
+          "metrics": {}
+        },
+        {
+          "operation": "residences",
+          "machines": 2,
+          "wall_ns": 4500,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 2,
+          "wall_ns": 200,
+          "metrics": {}
+        },
+        {
+          "operation": "places",
+          "machines": 202,
+          "wall_ns": 136200,
+          "metrics": {}
+        },
+        {
+          "operation": "residences",
+          "machines": 202,
+          "wall_ns": 39700,
+          "metrics": {}
+        },
+        {
+          "operation": "memberships",
+          "machines": 202,
+          "wall_ns": 2187491600,
+          "metrics": {
+            "graph_preparation_ns": 139361200,
+            "reference_queries_ns": 555953900
+          }
+        }
+      ]
+    },
+    "recon-verified": {
+      "command": [
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\reconcile\\omega.exe",
+        "run",
+        "--both",
+        "--keep",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+      ],
+      "wall_seconds": 16.369129099999554,
+      "exit_code": 0,
+      "cpu_seconds": 23.265625,
+      "producer": "reconcile",
+      "compiler_sha256": "f397a36b442a192dfdde1dec247b7fe35d3a5286863543b538c5f9c85a1a33fe",
+      "mode": "off",
+      "workers": 0,
+      "phase_profile": false,
+      "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+      "accepted_lock_sha256": "449cb0548bd725f68fb3333655200a72af1a1e9beb9757d5c5cd86cbc22cb8a1",
+      "cache_mode": "shared user cache",
+      "reconciliation_mode": "off",
+      "reconciliation": [],
+      "terminal_stdout_agrees": true,
+      "guest_stdout_sha256": "0e1e29e8d6ab7c2f123f8146b8ac62be6c828a67bf5541548734962b013fa5a6",
+      "retained_image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8"
+    }
+  },
+  "timings_ms": {
+    "places": [
+      0.2101,
+      0.1673,
+      0.1511
+    ],
+    "residences": [
+      0.0697,
+      0.0615,
+      0.0596
+    ],
+    "memberships": [
+      2862.2485,
+      2277.9524,
+      2187.4934
+    ]
+  },
+  "median_ms": {
+    "places": 0.1673,
+    "residences": 0.0615,
+    "memberships": 2277.9524
+  }
+}

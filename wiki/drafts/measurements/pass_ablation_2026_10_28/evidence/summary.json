@@ -1,0 +1,106 @@
+{
+  "summary": {
+    "length": {
+      "A": {
+        "count": 4,
+        "median_wall_ms": 6314.905650004221,
+        "range_wall_ms": [
+          6155.983699994977,
+          6347.238500005915
+        ],
+        "median_optimization_ms": 0.255
+      },
+      "B": {
+        "count": 4,
+        "median_wall_ms": 6208.189450000646,
+        "range_wall_ms": [
+          5852.824100002181,
+          6228.456700002425
+        ],
+        "median_optimization_ms": 0.147
+      },
+      "native_sha256": [
+        "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50"
+      ],
+      "off_change_percent": -1.689909650566257
+    },
+    "dispatch": {
+      "A": {
+        "count": 4,
+        "median_wall_ms": 5796.26155000733,
+        "range_wall_ms": [
+          5124.668700009352,
+          6914.438599997084
+        ],
+        "median_optimization_ms": 0.1935
+      },
+      "B": {
+        "count": 4,
+        "median_wall_ms": 5328.10795000114,
+        "range_wall_ms": [
+          4665.2889999968465,
+          6040.5885000072885
+        ],
+        "median_optimization_ms": 0.086
+      },
+      "native_sha256": [
+        "966c1f40ce0ba3640d60be211767fd1c15957bd9f985119f45d44b5d6e3ebb4b"
+      ],
+      "off_change_percent": -8.076819790949518
+    },
+    "stack32": {
+      "A": {
+        "count": 4,
+        "median_wall_ms": 12334.937100000388,
+        "range_wall_ms": [
+          11621.032399998512,
+          14124.754400007077
+        ],
+        "median_optimization_ms": 0.558
+      },
+      "B": {
+        "count": 4,
+        "median_wall_ms": 12683.744199996,
+        "range_wall_ms": [
+          11503.99660000403,
+          13198.141100001521
+        ],
+        "median_optimization_ms": 0.358
+      },
+      "native_sha256": [
+        "55adb749405f33a9dcefcadb5a0c3f165452d1a8f05993f11f30ce8114aeb8b8"
+      ],
+      "off_change_percent": 2.827797962549794
+    },
+    "control": {
+      "A": {
+        "count": 4,
+        "median_wall_ms": 5216.442849996383,
+        "range_wall_ms": [
+          5040.943299987703,
+          5505.419699999038
+        ],
+        "median_optimization_ms": 0.1005
+      },
+      "B": {
+        "count": 4,
+        "median_wall_ms": 5336.533800007601,
+        "range_wall_ms": [
+          4949.949100002414,
+          5606.150700012222
+        ],
+        "median_optimization_ms": 0.122
+      },
+      "native_sha256": [
+        "6a82736272f38a07eea38db3b71a681d2da4f09f856f7a5e3d7ee049bae41b50"
+      ],
+      "off_change_percent": 2.302161711812878
+    }
+  },
+  "input_stability": {
+    "length": "main.omg and experimental build.omg unchanged through measurement",
+    "dispatch": "main.omg and experimental build.omg unchanged through measurement",
+    "stack32": "main.omg and experimental build.omg unchanged through measurement",
+    "control": "main.omg and experimental build.omg unchanged through measurement"
+  }
+}

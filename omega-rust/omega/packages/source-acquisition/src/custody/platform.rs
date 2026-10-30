@@ -138,12 +138,21 @@ pub(super) fn verify_windows_open_cache_directory_identity(
 }
 
 #[cfg(windows)]
-pub(super) fn verify_windows_open_cache_ancestry_identity(
+pub(super) fn retain_verified_windows_cache_ancestor(
     kind: CacheCustodyKind,
     path: &Path,
     classified: &std::fs::Metadata,
-) -> Result<(), SourceResolveError> {
-    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
+    verified_parent: Option<&CapabilityDirectory>,
+) -> Result<CapabilityDirectory, SourceResolveError> {
+    use cap_fs_ext::DirExt;
+
+    let directory = match verified_parent {
+        Some(parent) => parent.open_dir_nofollow(path.file_name().ok_or_else(|| {
+            cache_custody_invalid(kind, path, "cache ancestor has no child component")
+        })?),
+        None => open_absolute_directory_nofollow(path),
+    }
+    .map_err(|error| {
         cache_custody_invalid(
             kind,
             path,
@@ -160,7 +169,7 @@ pub(super) fn verify_windows_open_cache_ancestry_identity(
             "cache ancestry changed between classification and no-follow open",
         ));
     }
-    Ok(())
+    Ok(directory)
 }
 
 #[cfg(not(windows))]

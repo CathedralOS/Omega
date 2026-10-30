@@ -35,6 +35,11 @@ pub(crate) fn user_direct_call_effects(
     }
 }
 
+/// The x86-64 call declaration for `semantic`: a direct call's own encoded row
+/// under the return-address write/lifecycle pair at the encoding's exact byte
+/// count. An imported callee shares that row and only restates who transfers —
+/// an external normal return, or the 12-byte number materialization plus
+/// supervisor entry for a kernel import.
 pub(super) fn declaration(
     semantic: MachineSemanticKind,
     constraint: RegisterConstraintKey,
@@ -44,69 +49,18 @@ pub(super) fn declaration(
         .catalog()
         .constraint(constraint)
         .expect("canonical x86-64 catalog contains its scalar-call constraint");
-    let physical = crate::x86_64_physical_register_model_ref();
-    let stack_pointer = physical
+    let stack_pointer = crate::x86_64_physical_register_model_ref()
         .view_named("rsp")
         .expect("canonical x86-64 model declares rsp")
         .id;
-    MachineEffectDeclaration {
+    MachineEffectDeclaration::call(
         semantic,
         constraint,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::NeverV1,
-        barrier: MachineBarrier::Call,
-        call: if semantic == MachineSemanticKind::InvokeNoNormal {
-            MachineCallEffect::InternalNoNormalV1 {
-                pre_call_stack_alignment: 16,
-            }
-        } else {
-            MachineCallEffect::InternalNormalReturnV1 {
-                pre_call_stack_alignment: 16,
-            }
-        },
-        cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: vec![MachineAlternative {
-            key: MachineAlternativeKey {
-                family: semantic.into(),
-                variant: 0,
-            },
-            applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(5),
-            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
-            encoded: user_direct_call_effects(row, stack_pointer),
-        }],
-    }
-}
-
-/// An imported foreign call shares the internal-call row effects — operand
-/// views, return-address stack lifecycle, implicit uses/defs, and clobbers all
-/// come from the exact selected constraint row — but its callee is an external
-/// import, so the call effect declares the external normal-return form.
-pub(super) fn normalized_foreign_declaration(
-    constraint: RegisterConstraintKey,
-    constraints: &ValidatedRegisterConstraintCatalog,
-) -> MachineEffectDeclaration {
-    let mut declaration = declaration(
-        MachineSemanticKind::NormalizedForeignCall,
-        constraint,
-        constraints,
-    );
-    if constraint.family == register_model::RegisterConstraintFamily::SystemCall {
-        declaration.call = MachineCallEffect::SupervisorNormalReturnV1;
-        for alternative in &mut declaration.alternatives {
-            // Fixed-width number materialization followed by supervisor entry.
-            // The number is encoded inside the form, not a source operand.
-            alternative.size = MachineSizeKnowledge::ExactBytes(12);
-            alternative.encoded.memory = MachineEncodedMemoryEffect::NoneV1;
-            alternative.encoded.stack = MachineEncodedStackEffect::UnchangedV1;
-            alternative.encoded.control = MachineEncodedControlEffect::SupervisorCallV1;
-        }
-        return declaration;
-    }
-    declaration.call = MachineCallEffect::ExternalNormalReturnV1 {
-        pre_call_stack_alignment: 16,
-    };
-    declaration
+        16,
+        5,
+        (semantic == MachineSemanticKind::NormalizedForeignCall).then_some(12),
+        user_direct_call_effects(row, stack_pointer),
+    )
 }
 
 /// Instantiate the complete x86-64 effects from the retained call contract.

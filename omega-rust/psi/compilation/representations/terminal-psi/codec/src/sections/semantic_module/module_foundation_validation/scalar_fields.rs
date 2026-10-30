@@ -151,7 +151,7 @@ fn contains_membership(
             StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases.as_slice()),
             StructuralTypeShape::Sum { cases } => (&[][..], cases.as_slice()),
             StructuralTypeShape::FixedArray { element, length } => {
-                if *length != 0 {
+                if length.literal() != Some(0) {
                     pending.push(*element);
                 }
                 continue;

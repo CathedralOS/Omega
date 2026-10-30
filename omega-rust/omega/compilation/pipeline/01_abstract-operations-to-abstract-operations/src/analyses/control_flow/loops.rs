@@ -4,10 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_unit::PsiOptimizationUnit;
 
-use super::{
-    LoopAnalysis, LoopRegion, components::strongly_connected_components,
-    dominance::fixed_point_dominators, graph::control_flow,
-};
+use super::{LoopAnalysis, LoopRegion, dominance::fixed_point_dominators, graph::control_flow};
+use crate::cycles::strongly_connected_components;
 
 pub(in crate::analyses) fn loops(unit: &PsiOptimizationUnit) -> LoopAnalysis {
     let cfg = control_flow(unit);

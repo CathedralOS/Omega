@@ -8,7 +8,7 @@
 //! rebuilding records field by field and discarding non-scalar evidence.
 
 use super::super::{Builder, ExpressionHandle, ExpressionNode, TypeReferenceNode};
-use super::place_types::{projection_root_expression, readable_place_type};
+use super::place_types::{projection_root_expression, readable_place};
 use checked_trees::CheckedStructuralValueKind;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -207,7 +207,7 @@ impl Builder<'_, '_> {
             crossings.append(&mut path);
             path = crossings;
         }
-        let projected = readable_place_type(
+        let projected = readable_place(
             self.program,
             self.state,
             self.statement_index,
@@ -217,8 +217,15 @@ impl Builder<'_, '_> {
         // Copying a leaf lends its stored carrier. Its declared qualification
         // remains on `projected` and in the comparison above, while descriptors
         // and bounded-byte shapes follow the same registry rule as owned values.
-        let type_identity =
-            validation::stored_structural_type_identity(self.program, projected, &[], &[]);
+        for _ in 0..projected.referent_crossings {
+            path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+        }
+        let type_identity = validation::stored_structural_type_identity(
+            self.program,
+            projected.reference,
+            &[],
+            &[],
+        );
         let mut source = checked_trees::CheckedUnitStructuralArgumentPlan {
             source,
             path,
@@ -230,7 +237,7 @@ impl Builder<'_, '_> {
             self.projection_selector_span(expression, &selectors)?,
             &self.plans.operands,
         )?;
-        Some((source, projected, selectors))
+        Some((source, projected.reference, selectors))
     }
 
     /// One projected owned child of an existing owner. The checked ownership

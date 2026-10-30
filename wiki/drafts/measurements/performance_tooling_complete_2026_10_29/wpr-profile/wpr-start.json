@@ -1,0 +1,55 @@
+{
+  "program": "wpr.exe",
+  "arguments": [
+    "-start",
+    "CPU",
+    "-filemode",
+    "-recordtempto",
+    "\\\\?\\C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\wpr-profile",
+    "-instancename",
+    "OmegaBench-183368-1793268450070272900"
+  ],
+  "process_wall_ns": 114169000,
+  "exit_code": -984068079,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "8d651cf857c6abd8fd418bd40fe746ebf4750df3d5f12913024a68dc24d6f385",
+  "resources": {
+    "cpu_cycles": {
+      "status": "measured",
+      "unit": "cycles",
+      "value": 243383850
+    },
+    "major_page_faults": {
+      "reason": "metric not supplied by this platform provider",
+      "status": "unavailable",
+      "unit": "count"
+    },
+    "minor_page_faults": {
+      "reason": "metric not supplied by this platform provider",
+      "status": "unavailable",
+      "unit": "count"
+    },
+    "peak_resident_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "value": 12255232
+    },
+    "provider": "Win32_GetProcessTimes_GetProcessMemoryInfo_QueryProcessCycleTime",
+    "scope": "primary process only; excludes descendants",
+    "system_cpu_ns": {
+      "status": "measured",
+      "unit": "ns",
+      "value": 0
+    },
+    "total_page_faults": {
+      "status": "measured",
+      "unit": "count",
+      "value": 3216
+    },
+    "user_cpu_ns": {
+      "status": "measured",
+      "unit": "ns",
+      "value": 46875000
+    }
+  }
+}

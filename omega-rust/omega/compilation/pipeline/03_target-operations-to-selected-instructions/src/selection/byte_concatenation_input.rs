@@ -4,7 +4,7 @@ use crate::selection::place_declaration::declares_operation_result;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
-use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
+use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeShape,

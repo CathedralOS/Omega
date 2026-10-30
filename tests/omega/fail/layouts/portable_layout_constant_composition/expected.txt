@@ -1,0 +1,2 @@
+constant checking: scalar predicate is false
+requires contract for call require_layout

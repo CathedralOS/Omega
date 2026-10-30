@@ -87,9 +87,6 @@ impl ObjectArtifact {
     pub const fn hosted_receiver_binding(&self) -> Option<&HostedReceiverBinding> {
         self.hosted_receiver.as_ref()
     }
-    #[cfg(any(test, feature = "test-support"))]
-    #[cfg(any(test, feature = "test-support"))]
-    #[cfg(any(test, feature = "test-support"))]
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
@@ -128,9 +125,9 @@ impl ObjectArtifact {
             entry
         } else {
             match module.entry {
-                terminal_psi::TargetMachineCallable::Machine(machine) => machine,
-                terminal_psi::TargetMachineCallable::Boundary(_) => {
-                    return Err("native family entry requires retained deployment selection");
+                Some(terminal_psi::TargetMachineCallable::Machine(machine)) => machine,
+                Some(terminal_psi::TargetMachineCallable::Boundary(_)) | None => {
+                    return Err("native entry requires retained deployment selection");
                 }
             }
         };
@@ -434,10 +431,10 @@ pub struct ObjectForeignCall {
     pub scalar_result: Option<machine_code::ForeignCallScalarResultRecord>,
     /// Absolute object-text intervals proving complete MXCSR preservation for
     /// this returning x86 foreign call.
-    pub x86_floating_control: Option<machine_code::X86ForeignCallFloatingControlRecord>,
+    pub x86_floating_control: Option<machine_code::ForeignCallFloatingControlRecord>,
     /// Absolute object-text intervals proving complete FPCR preservation for
     /// this returning AArch64 foreign call.
-    pub aarch64_floating_control: Option<machine_code::Aarch64ForeignCallFloatingControlRecord>,
+    pub aarch64_floating_control: Option<machine_code::ForeignCallFloatingControlRecord>,
     /// Absolute object-text offset of the import relocation field, or of the
     /// complete supervisor-entry instruction for a kernel binding.
     pub text_offset: usize,

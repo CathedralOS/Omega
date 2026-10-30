@@ -113,6 +113,19 @@ impl compiler_storage::Record for ProducedTerminalProgram {
 }
 
 impl ProducedTerminalProgram {
+    /// Share portable code and its exact source-issued companions without
+    /// copying bytes or recreating companion custody from external ingress.
+    pub fn into_shared_portable(
+        self,
+    ) -> Result<PortableTerminalProgram, terminal_codec::CanonicalTerminalArtifactError> {
+        Ok(PortableTerminalProgram {
+            artifact: std::sync::Arc::new(self.program.into_portable()?),
+            build_bindings: self.build_bindings,
+            build_requests: self.build_requests,
+            build_filesystem: self.build_filesystem,
+            applications: self.applications,
+        })
+    }
     pub const fn build_filesystem(&self) -> &crate::TerminalBuildFilesystem {
         &self.build_filesystem
     }
@@ -166,6 +179,39 @@ impl ProducedTerminalProgram {
     }
 }
 
+/// Portable production storage shared by descriptive consumers. The artifact
+/// and source-issued companions retain one identity; no native authority is
+/// created by sharing them. Invocation-only code cannot construct this result.
+#[derive(Debug)]
+pub struct PortableTerminalProgram {
+    artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+    build_bindings: crate::TerminalBuildBindings,
+    build_requests: crate::TerminalBuildRequests,
+    build_filesystem: crate::TerminalBuildFilesystem,
+    applications:
+        Vec<Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>>,
+}
+
+impl PortableTerminalProgram {
+    pub fn artifact(&self) -> &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact> {
+        &self.artifact
+    }
+    pub fn build_bindings(&self) -> &crate::TerminalBuildBindings {
+        &self.build_bindings
+    }
+    pub fn build_requests(&self) -> &crate::TerminalBuildRequests {
+        &self.build_requests
+    }
+    pub fn build_filesystem(&self) -> &crate::TerminalBuildFilesystem {
+        &self.build_filesystem
+    }
+    pub fn applications(
+        &self,
+    ) -> &[Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>] {
+        &self.applications
+    }
+}
+
 /// What production retains beside the canonical portable artifact.
 /// The entry identity is opaque checked source-signature custody; it does not
 /// select a target or install host services.
@@ -175,9 +221,10 @@ pub struct TerminalApplicationCustody<'a> {
     /// Exact checked source member whose signature the companion retains.
     /// This does not select or rewrite the portable semantic root.
     pub entry_machine: Option<crate::TerminalMachineSelection<'a>>,
-    /// Additional checked roots governed by this application's policy, such as
-    /// its selected callbacks. These mint no ProgramEntry receipt.
-    pub admission_roots: &'a [symbols::SymbolHandle],
+    /// Exact selected callback declarations. These mint no ProgramEntry receipt.
+    pub callback_roots: Option<&'a crate::PreparedTerminalRoots>,
+    /// Physical entry remains a distinct source selection during migration.
+    pub physical_adapter: symbols::SymbolHandle,
     pub admission: Option<&'a dyn crate::TerminalCompositionAdmission>,
 }
 

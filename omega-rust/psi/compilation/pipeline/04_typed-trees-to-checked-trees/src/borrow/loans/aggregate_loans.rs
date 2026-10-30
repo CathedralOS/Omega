@@ -126,7 +126,9 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
             rebased
                 .iter()
                 .map(|source| StatementBorrowLoan {
-                    formation_owner_path: None,
+                    // This expression forms the descriptor root; owner_path
+                    // is its later installation prefix, not its identity.
+                    formation_owner_path: Some(Vec::new()),
                     incoming_origin: None,
                     formation_expression: initializer.expression,
                     representation_address: source.representation_address.clone(),
@@ -270,7 +272,7 @@ pub(super) fn aggregate_expression_borrow_loans(
             rebased
                 .iter()
                 .map(|source| StatementBorrowLoan {
-                    formation_owner_path: None,
+                    formation_owner_path: Some(Vec::new()),
                     incoming_origin: None,
                     formation_expression: expression,
                     representation_address: None,
@@ -564,10 +566,14 @@ fn transferred_aggregate_loans<'loan>(
                     return None;
                 };
 
+            // Retain the source value's leaf before adding its receiving
+            // prefix. Readers select formation identity independently from
+            // where the descriptor was subsequently stored or returned.
+            let formation_owner_path = Some(owner_path.clone());
             let mut prefixed_owner_path = owner_path_prefix.to_vec();
             prefixed_owner_path.extend(owner_path);
             Some(StatementBorrowLoan {
-                formation_owner_path: None,
+                formation_owner_path,
                 incoming_origin: None,
                 formation_expression: expression,
                 representation_address: None,

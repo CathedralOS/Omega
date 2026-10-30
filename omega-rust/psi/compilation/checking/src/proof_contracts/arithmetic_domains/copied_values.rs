@@ -55,6 +55,15 @@ struct CapturedScalarObservation<Value> {
 }
 
 impl CopiedIntegerValue {
+    /// The scalar root emitted by this completed copy. Descendant recipes do
+    /// not describe the argument itself, and are not invocation scalar inputs.
+    pub(crate) fn integer_range_recipe(&self) -> Option<&checked_trees::IntegerRangeRecipe> {
+        self.recipes
+            .iter()
+            .find(|(segments, suffix, _)| segments.is_empty() && suffix.is_empty())
+            .map(|(_, _, recipe)| recipe)
+    }
+
     /// Completed associations are consumed only at a delivered value and
     /// its supplied record fields, not at every expression evaluated inside it.
     /// Keep numeric observation requests on the same delivery-child owner.
@@ -823,7 +832,9 @@ fn retain_places(
                 bindings.push((operand.clone(), operand.clone()));
             }
         }
-        Operand::Integer(..) | Operand::CompletedCall { .. } => {}
+        Operand::Integer(..) => {}
+        #[cfg(test)]
+        Operand::CompletedCall { .. } => {}
         Operand::CollectionLength(collection) => retain_places(collection, observed, bindings),
         Operand::Field { receiver, .. } => {
             // A sibling field can survive even when its containing record's
@@ -860,7 +871,9 @@ fn depends_on(operand: &ordered_values::Operand, observed: &ordered_values::Oper
     use ordered_values::Operand;
     operand == observed
         || match operand {
-            Operand::Place { .. } | Operand::Integer(..) | Operand::CompletedCall { .. } => false,
+            Operand::Place { .. } | Operand::Integer(..) => false,
+            #[cfg(test)]
+            Operand::CompletedCall { .. } => false,
             Operand::Field { receiver, .. } => depends_on(receiver, observed),
             Operand::CollectionLength(collection) => depends_on(collection, observed),
             Operand::Indexed {

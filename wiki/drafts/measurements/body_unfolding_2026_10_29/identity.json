@@ -1,0 +1,53 @@
+{
+  "base": "c38d69bb14f8773414312e15388f7776ef966379",
+  "producers": {
+    "baseline": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\first-checking\\candidate\\omega.exe",
+      "sha256": "1c7645a93c087116c69bb5951cc940709cdadecfeae847d38f9de957d3ad4d60",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "diagnostic": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\diagnostic\\omega.exe",
+      "sha256": "9f987d9220309319671d18d49cd80abf2433dfad19e037a45567bb59bd662b07",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "guards": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\guards\\omega.exe",
+      "sha256": "b27ae2f9464942dbcb93cf0aca9b4e624367ad49067492431cc99145ea64f05a",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "candidate": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\body-unfolding\\candidate\\omega.exe",
+      "sha256": "91fd78466448953038b0c519db16fe7fbdf4f32c9a22ffb8c65f707d5423f7a0",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "controls": {
+    "tests\\omega\\pass\\calls\\selected_contract_equation_reentry_exit\\build.omg": "56b650139c1eb42a68d192cb5767f0c2db6a6670f4111a8f2e8e836501aeccee",
+    "tests\\omega\\pass\\calls\\selected_contract_equation_reentry_exit\\expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests\\omega\\pass\\calls\\selected_contract_equation_reentry_exit\\expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests\\omega\\pass\\calls\\selected_contract_equation_reentry_exit\\main.omg": "cbb1c1a619d500a47cf21662e54aa62bdc8d2aa98aea8cc14bb58cb3fbfc5f5d",
+    "tests\\omega\\fail\\calls\\selected_contract_equation_reentry_unproved_requirement\\expected.txt": "4d4d7c446ba4ed580871f5ca36ba6a5a08f2dc20c6ec91244c9588ec912fac3e",
+    "tests\\omega\\fail\\calls\\selected_contract_equation_reentry_unproved_requirement\\main.omg": "be9246b95e2b785a7e6b3658ddf10d022781833dfaaba179031ce89c92e97868",
+    "tests\\omega\\pass\\calls\\runtime_numeric_operand_order_exit\\build.omg": "6fd974fd8880bee344acc5dfa233ad321dfd6d85d6893ec7990a8a5026761171",
+    "tests\\omega\\pass\\calls\\runtime_numeric_operand_order_exit\\expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests\\omega\\pass\\calls\\runtime_numeric_operand_order_exit\\main.omg": "30acb6433f417e223a8c6c2526aa03bc85d8dce44620bc39bdfd159578a11f00"
+  },
+  "patches": {
+    "candidate.patch": "1999727911366dc6c920f410f9b2dec96adf71c8775863c5d10bfdda7afd3e93",
+    "diagnostic.patch": "7c3fa81493a717c258d9ff32255c317d01e41e0f360d704efd0a741cf63a281d",
+    "guards.patch": "a90dc4660836771a187a08cadffb84ce7601e2c7dafa36690006026548d39f91"
+  }
+}

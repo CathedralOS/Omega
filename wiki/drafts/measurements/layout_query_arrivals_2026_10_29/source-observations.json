@@ -1,0 +1,569 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "8b519ca647cd3fb6c8d4259ff422cb8f6fefb978",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 20302
+  },
+  "subset": true,
+  "filter": "facts/size_align_layout_geometry,layouts/runtime_layout_arithmetic_value_flow_exit,layouts/nested_reference_carrier_geometry_exit,layouts/runtime_constant_layout_contract_exit,layouts/layout_query_private_arrival_,layouts/layout_query_captured_result_join_unknown,calls/converted_call_value_private_arrival,arithmetic/runtime_composite_bound_arrivals_exit,core/scoped_integer_call_abstract_trait_operator_requires_formation,generics/runtime_value_recipe_prior_write_overflow,generics/runtime_value_recipe_unused_overflow,generics/runtime_value_recipe_typed_narrow_overflow",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 35,
+    "by_status": {
+      "checked": 16,
+      "rejected": 19
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/arithmetic/runtime_composite_bound_arrivals_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1291,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/calls/converted_call_value_private_arrival_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1309,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_private_arrival_calls_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1871,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_terminal_returns_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1853,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1740,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1769,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1921,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1949,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1900,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1788,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1839,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1711,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/facts/size_align_layout_geometry_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1874,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/layouts/nested_reference_carrier_geometry_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1412,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/layouts/runtime_constant_layout_contract_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 1297,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "pass/layouts/runtime_layout_arithmetic_value_flow_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2023,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64",
+        "terminal-target.windows_x86_64": "0",
+        "terminal-target.linux_x86_64": "0",
+        "terminal-target.linux_arm64": "0",
+        "terminal-target.macos_arm64": "0",
+        "terminal-target-artifact": "unchanged",
+        "terminal-targets": "match"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/calls/converted_call_value_private_arrival_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 854,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call verify_wide from step: forwarded >= 300 && forwarded <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/core/scoped_integer_call_abstract_trait_operator_requires_formation",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5829,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot form specification operator `==` in trait `ReplacementArithmetic` state `restricted` requires contract: no exact selected meaning",
+        "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact",
+        "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/facts/size_align_layout_geometry_private_arrival_calls_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1133,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/facts/size_align_layout_geometry_terminal_returns_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1431,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/facts/size_align_layout_geometry_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1243,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/facts/size_align_layout_geometry_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1158,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/facts/size_align_layout_geometry_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1144,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/facts/size_align_layout_geometry_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1084,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/facts/size_align_layout_geometry_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1167,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/facts/size_align_layout_geometry_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1163,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/facts/size_align_layout_geometry_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1196,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/facts/size_align_layout_geometry_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1118,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/facts/size_align_layout_geometry_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1126,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/generics/runtime_value_recipe_prior_write_overflow",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 418,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in machine `main` state `entry` local `__value_index#2544#0` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/generics/runtime_value_recipe_typed_narrow_overflow",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 251,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in value argument `Count` of `Index` may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/generics/runtime_value_recipe_unused_overflow",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 259,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "exact arithmetic in value argument `Count` of `Index` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/layouts/layout_query_captured_result_join_unknown",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1104,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant checking: scalar range condition 1: bounds [-16, 18446744073709551599] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/layouts/layout_query_private_arrival_child_formation",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1200,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant checking: scalar range condition 1: bounds [-8, -8] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    },
+    {
+      "fixture": "fail/layouts/layout_query_private_arrival_unknown_input",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1055,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "constant checking: scalar range condition 1: bounds [-16, 18446744073709551599] lie outside [0, 18446744073709551615]"
+      ],
+      "regressed_from": null,
+      "recorded_at": "8b519ca647cd+wt"
+    }
+  ],
+  "fixtures": []
+}

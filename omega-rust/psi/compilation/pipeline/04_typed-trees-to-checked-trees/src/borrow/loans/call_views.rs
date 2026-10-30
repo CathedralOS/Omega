@@ -2,7 +2,7 @@
 //! Declared referee storage stops pointer traversal; interpreted geometry and
 //! independent lifetime debts retain their supplying occurrence.
 
-use super::super::accesses::{self, borrow_access_place};
+use super::super::accesses;
 use super::super::tracker::StateLoanTracker;
 use super::RebasedBorrowPlace;
 use super::owner_paths::owner_path_matches;
@@ -398,15 +398,14 @@ pub(super) fn rebase_reference_formation_geometry(
             statement,
             &validation::CanonicalPlace {
                 root: place.root,
-                segments: place.segments.clone(),
+                segments: Vec::new(),
             },
         ) else {
             return false;
         };
         // A whole borrowed formal lends its ingress referent, rather than
         // the callee's descriptor slot. Further reference shells are stored.
-        if place.segments.is_empty()
-            && let Some(symbol) = place.root.as_symbol()
+        if let Some(symbol) = place.root.as_symbol()
             && program
                 .state_by_symbol(state)
                 .is_some_and(|state| program.state_parameter_by_symbol(state, symbol).is_some())
@@ -414,7 +413,15 @@ pub(super) fn rebase_reference_formation_geometry(
         {
             reference = shell.referee;
         }
-        validation::stored_structural_type_identity(program, reference, &[], &[]) == expected
+        // A canonical leaf type may already have crossed a stored descriptor.
+        // Such a projection still owes the descriptor's current supplier loan;
+        // matching its referee does not make the local descriptor its backing.
+        // Stop only at actual inline storage, retaining the shared projection
+        // owner's complete generic environment and final descriptor boundary.
+        validation::owned_projection_type_reference(program, reference, &place.segments)
+            .is_some_and(|stored| {
+                validation::stored_structural_type_identity(program, stored, &[], &[]) == expected
+            })
     };
     rebase_borrow_places_following(
         program,
@@ -505,6 +512,7 @@ fn rebase_borrow_places_following(
                 representation_address.as_ref().and_then(|address| {
                     if address.root != place.root
                         || address.incoming_reference != place.incoming_reference
+                        || address.incoming_owner_path != place.incoming_owner_path
                         || !owner_path_matches(program, &source_loan.owner_path, &address.segments)
                     {
                         return None;
@@ -514,6 +522,15 @@ fn rebase_borrow_places_following(
                     crate::flow::compose_captured_view_segments(&mut segments)?;
                     Some(accesses::BorrowAccessPlace {
                         incoming_reference: source_loan.place.incoming_reference,
+                        incoming_owner_path: if source_loan.place.incoming_owner_path.is_empty()
+                            && source_loan
+                                .owner_path
+                                .contains(&super::super::tracker::BorrowOwnerSegment::DynamicIndex)
+                        {
+                            place.segments[..source_loan.owner_path.len()].to_vec()
+                        } else {
+                            source_loan.place.incoming_owner_path.clone()
+                        },
                         root: source_loan.place.root,
                         segments,
                     })
@@ -529,6 +546,15 @@ fn rebase_borrow_places_following(
                 retained_operand: source_loan.retained_operand,
                 place: accesses::BorrowAccessPlace {
                     incoming_reference: source_loan.place.incoming_reference,
+                    incoming_owner_path: if source_loan.place.incoming_owner_path.is_empty()
+                        && source_loan
+                            .owner_path
+                            .contains(&super::super::tracker::BorrowOwnerSegment::DynamicIndex)
+                    {
+                        place.segments[..source_loan.owner_path.len()].to_vec()
+                    } else {
+                        source_loan.place.incoming_owner_path.clone()
+                    },
                     root: source_loan.place.root,
                     segments: rebased_segments,
                 },

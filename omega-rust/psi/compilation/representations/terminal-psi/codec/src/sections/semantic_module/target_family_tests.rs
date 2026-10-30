@@ -11,6 +11,23 @@ use terminal_psi::{
 };
 
 #[test]
+fn declaration_catalog_round_trip_preserves_absent_default_entry() {
+    let mut module = TerminalModule::declarations();
+    for retain_body in [false, true] {
+        if retain_body {
+            module
+                .machines
+                .push(unit_machine(MachineId::new(1).unwrap()));
+        }
+        let bytes = encode_module(&module).unwrap();
+        let decoded = decode_module(&bytes).unwrap();
+        assert_eq!(decoded, module);
+        assert!(decoded.entry.is_none());
+        assert_eq!(encode_module(&decoded).unwrap(), bytes);
+    }
+}
+
+#[test]
 fn target_family_round_trip_preserves_exact_tags_callables_and_supplies() {
     let machine = MachineId::new(1).unwrap();
     let mut module = TerminalModule::for_entry(machine);

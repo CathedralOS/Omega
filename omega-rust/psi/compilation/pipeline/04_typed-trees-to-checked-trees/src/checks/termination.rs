@@ -25,7 +25,7 @@ pub(crate) use progress::{entry_covers_progress_premises, profile_requirement_co
 
 // Contract induction uses the same authored-edge graph as ranking; graph
 // membership supplies no ranking or invariant evidence by itself.
-pub(crate) use graph::{machine_adjacency, strongly_connected_components};
+pub(crate) use graph::strongly_connected_components;
 pub(crate) use ranking::proves_ranked_entry_requirement;
 
 use crate::labels::machine_name;
@@ -196,20 +196,47 @@ pub(crate) fn admit_machine_rankings(
                     .iter()
                     .any(|state| state.symbol == coordinate.state)
             })
-            .map(|coordinate| checked_trees::CheckedStateNaturalRank {
-                state: coordinate.state,
-                parameter: coordinate.parameter,
-                parameter_position: coordinate.parameter_position,
-                measure: checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
-                    primitive_type: coordinate.primitive_type,
-                },
-                observation: Default::default(),
+            .map(|coordinate| {
+                let path = admitted
+                    .path_segments
+                    .insert_many(coordinate.coordinate.path.clone());
+                let entry_indexes = admitted
+                    .entry_indexes
+                    .insert_many(coordinate.entry_indexes.clone());
+                let selected = admitted
+                    .coordinates
+                    .insert(checked_trees::CheckedRankCoordinate {
+                        parameter: coordinate.parameter,
+                        path,
+                        entry_indexes,
+                    });
+                let measure = match coordinate.observation {
+                    validation::RankPremiseObservation::Value => {
+                        checked_trees::CheckedNaturalRankMeasure::IntegerValue {
+                            coordinate: selected,
+                            primitive_type: coordinate.primitive_type,
+                        }
+                    }
+                    validation::RankPremiseObservation::Length => {
+                        checked_trees::CheckedNaturalRankMeasure::SequenceLength {
+                            coordinate: selected,
+                        }
+                    }
+                };
+                checked_trees::CheckedStateNaturalRank {
+                    function: coordinate.function,
+                    state: coordinate.state,
+                    parameter: coordinate.parameter,
+                    parameter_position: coordinate.parameter_position,
+                    measure,
+                    observation: Default::default(),
+                }
             })
             .collect::<Vec<_>>();
         let observations = if local_terminates && !joint_observations.is_empty() {
             admitted.observations.insert_many(joint_observations)
         } else if local_terminates && witness.is_some() {
-            ranking::prepare_natural_observations(program, machine, &admitted)
+            ranking::prepare_natural_observations(program, machine, &mut admitted)
                 .map(|observations| admitted.observations.insert_many(observations))
                 .unwrap_or_default()
         } else {

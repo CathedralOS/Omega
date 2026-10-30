@@ -1,0 +1,38 @@
+omega-package-review 1
+comparison 6cf9e33c685402d2a3b0d1004e7b9de16c42851d4f85bbe44f09e824f6950635
+# Edit each pending decision to accept or reject. Findings are generated.
+# Decisions record project acceptance, not proof that an audit occurred.
+baseline 75c8ba6a4a4f2096f9c058aa6a05b6408d6900bf4a7ff224908c5f15cc66493e
+candidate 75c8ba6a4a4f2096f9c058aa6a05b6408d6900bf4a7ff224908c5f15cc66493e
+audit-recommended true
+
+package "dungeon_crawler_cli" b30cca7b8ce273f806ef0acbe763595f28bb0f79b4aa79f46ae87151e7c1edae local "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli"
+- source local content da8ad8220033c53a33786bae16c345e5d06116abab30aed344cceeda236c6c81
++ source local content da8ad8220033c53a33786bae16c345e5d06116abab30aed344cceeda236c6c81
+- path b30cca7b8ce273f806ef0acbe763595f28bb0f79b4aa79f46ae87151e7c1edae
++ path b30cca7b8ce273f806ef0acbe763595f28bb0f79b4aa79f46ae87151e7c1edae
+- purposes product
++ purposes product
+- occurrence product target windows_x86_64 execution windows_x86_64
++ occurrence product target windows_x86_64 execution windows_x86_64
+occurrence-contexts-changed false
+source-changed false
+source-association-changed false
+audit-recommended true
+end-package
+
+package "omega_language_std" 4c3c7fd10ee80b813d943f07a6a273a2f7819260d71fbefcc76f8e76fd2e258f local "\\\\?\\C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\source\\library\\std"
+- source local content e5be81b9f6ca28a62f9784d1e60b93ac2724ea696db2fefe7919de703795fb6a
++ source local content e5be81b9f6ca28a62f9784d1e60b93ac2724ea696db2fefe7919de703795fb6a
+- path b30cca7b8ce273f806ef0acbe763595f28bb0f79b4aa79f46ae87151e7c1edae -> "omega_language_std" 4c3c7fd10ee80b813d943f07a6a273a2f7819260d71fbefcc76f8e76fd2e258f
++ path b30cca7b8ce273f806ef0acbe763595f28bb0f79b4aa79f46ae87151e7c1edae -> "omega_language_std" 4c3c7fd10ee80b813d943f07a6a273a2f7819260d71fbefcc76f8e76fd2e258f
+- purposes product
++ purposes product
+- occurrence product target windows_x86_64 execution windows_x86_64
++ occurrence product target windows_x86_64 execution windows_x86_64
+occurrence-contexts-changed false
+source-changed false
+source-association-changed false
+audit-recommended true
+end-package
+end-review

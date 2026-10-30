@@ -1,0 +1,2 @@
+cannot prove ensures contract for exit from false_bits
+result == read_bits(right)

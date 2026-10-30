@@ -207,6 +207,11 @@ pub(crate) enum LoweredDirectExpression {
         value: IntegerValue,
         scalar_type: ScalarType,
     },
+    /// A value settled by installation; its application remains immutable.
+    ScalarApplication {
+        application: semantic_vocabulary::ScalarApplicationId,
+        scalar_type: ScalarType,
+    },
     IeeeFloatLiteral {
         value: IeeeFloatValue,
     },
@@ -387,6 +392,7 @@ impl LoweredDirectExpression {
             | Self::ElementViewRead { scalar_type, .. }
             | Self::Local { scalar_type, .. }
             | Self::IntegerLiteral { scalar_type, .. }
+            | Self::ScalarApplication { scalar_type, .. }
             | Self::ImplementationSelection { scalar_type, .. }
             | Self::IntegerBinary { scalar_type, .. }
             | Self::SaturatingShiftLeft { scalar_type, .. }
@@ -772,6 +778,17 @@ pub(crate) fn emit_direct_expression(
         LoweredDirectExpression::IntegerLiteral { value, scalar_type } => emit_leaf!(
             OperationKind::IntegerConstant { value: *value },
             *scalar_type
+        ),
+        LoweredDirectExpression::ScalarApplication {
+            application,
+            scalar_type,
+        } => emit_scalar_leaf(
+            OperationKind::ReadScalarApplication {
+                application: *application,
+            },
+            *scalar_type,
+            next_value_identity,
+            operations,
         ),
         LoweredDirectExpression::ImplementationSelection {
             implementation,

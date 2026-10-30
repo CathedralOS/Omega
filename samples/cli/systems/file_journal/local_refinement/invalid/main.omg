@@ -1,0 +1,21 @@
+// A refined local in a fused helper keeps its arrival obligation in the emitted machine.
+// Expected exit: 0
+
+domain u64::Nonzero requires self > 0 established by issue;
+machine issue() -> u64 in Nonzero { 0 }
+machine walk(remaining: u64) -> u64 {
+    transition { _ -> next(remaining, 0) }
+    machine next(remaining: u64, previous: u64) -> u64 {
+        transition remaining > 0 { true -> again(remaining - 1) false -> (previous) }
+    }
+    machine again(remaining: u64) -> u64 {
+        let value: u64 in Nonzero = issue();
+        let consumed: u64 = value - 1;
+        transition { _ -> next(remaining, consumed) }
+    }
+}
+machine main() crashes Trap {
+    let result: u64 = walk(3);
+    transition result == 6 { true -> {} false -> wrong() }
+    machine wrong() crashes Trap { crash Trap; }
+}

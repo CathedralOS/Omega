@@ -96,7 +96,7 @@ fn membership(
             }
             return Proven;
         }
-        if !definition.predicate_body.is_present() {
+        if !definition.predicate_presence.is_present() {
             return if crate::field_domains::domain_is_vacuous(
                 program,
                 definition.symbol,

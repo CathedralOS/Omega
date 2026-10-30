@@ -1,0 +1,337 @@
+[
+  {
+    "label": "prepare-native-length-a-0",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-before.exe",
+      "--build-dir",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\prepare-native-length-a-0",
+      "--target",
+      "windows_x86_64",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-a\\main.omg"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "prepare-native-length-a-1",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-before.exe",
+      "--build-dir",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\prepare-native-length-a-1",
+      "--target",
+      "windows_x86_64",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-a\\main.omg"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "prepare-native-length-b-0",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-after.exe",
+      "--build-dir",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\prepare-native-length-b-0",
+      "--target",
+      "windows_x86_64",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-b\\main.omg"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "prepare-native-length-b-1",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-after.exe",
+      "--build-dir",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\prepare-native-length-b-1",
+      "--target",
+      "windows_x86_64",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-b\\main.omg"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "prepare-native-square-a-0",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-before.exe",
+      "--build-dir",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\prepare-native-square-a-0",
+      "--target",
+      "windows_x86_64",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-a\\main.omg"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "prepare-native-square-a-1",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-before.exe",
+      "--build-dir",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\prepare-native-square-a-1",
+      "--target",
+      "windows_x86_64",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-a\\main.omg"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "prepare-native-square-b-0",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-after.exe",
+      "--build-dir",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\prepare-native-square-b-0",
+      "--target",
+      "windows_x86_64",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-b\\main.omg"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "prepare-native-square-b-1",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-after.exe",
+      "--build-dir",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\prepare-native-square-b-1",
+      "--target",
+      "windows_x86_64",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-b\\main.omg"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "comparison-suite",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "suite",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\comparison-suite.json",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\comparison-suite"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "check-0",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "check",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\comparison-suite\\case-00",
+      "0"
+    ],
+    "exit_code": 2
+  },
+  {
+    "label": "check-1",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "check",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\comparison-suite\\case-01",
+      "0"
+    ],
+    "exit_code": 2
+  },
+  {
+    "label": "phase-length-0-baseline",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-comparison.json",
+      "baseline",
+      "phase",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\phase-length-0-baseline"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "phase-length-0-candidate",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-comparison.json",
+      "candidate",
+      "phase",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\phase-length-0-candidate"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "phase-length-1-candidate",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-comparison.json",
+      "candidate",
+      "phase",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\phase-length-1-candidate"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "phase-length-1-baseline",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-comparison.json",
+      "baseline",
+      "phase",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\phase-length-1-baseline"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "phase-length-2-baseline",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-comparison.json",
+      "baseline",
+      "phase",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\phase-length-2-baseline"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "phase-length-2-candidate",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-comparison.json",
+      "candidate",
+      "phase",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\phase-length-2-candidate"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "phase-square-0-baseline",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-comparison.json",
+      "baseline",
+      "phase",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\phase-square-0-baseline"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "phase-square-0-candidate",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-comparison.json",
+      "candidate",
+      "phase",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\phase-square-0-candidate"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "phase-square-1-candidate",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-comparison.json",
+      "candidate",
+      "phase",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\phase-square-1-candidate"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "phase-square-1-baseline",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-comparison.json",
+      "baseline",
+      "phase",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\phase-square-1-baseline"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "phase-square-2-baseline",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-comparison.json",
+      "baseline",
+      "phase",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\phase-square-2-baseline"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "phase-square-2-candidate",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-comparison.json",
+      "candidate",
+      "phase",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\phase-square-2-candidate"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "length-both-a",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-before.exe",
+      "run",
+      "--both",
+      "--target",
+      "windows_x86_64",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-a\\main.omg"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "length-invalid-a",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-before.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-a\\invalid\\main.omg"
+    ],
+    "exit_code": 1
+  },
+  {
+    "label": "length-both-b",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-after.exe",
+      "run",
+      "--both",
+      "--target",
+      "windows_x86_64",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-b\\main.omg"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "length-invalid-b",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-after.exe",
+      "--check",
+      "--target",
+      "windows_x86_64",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\length-b\\invalid\\main.omg"
+    ],
+    "exit_code": 1
+  },
+  {
+    "label": "corrupt-cache-recovery",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\omega-after.exe",
+      "--build-dir",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\corrupt-cache-recovery",
+      "--target",
+      "windows_x86_64",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\square-b\\main.omg"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "corrupt-cache-native",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\source-decoding\\corrupt-cache-recovery\\omega-program.exe"
+    ],
+    "exit_code": 0
+  }
+]

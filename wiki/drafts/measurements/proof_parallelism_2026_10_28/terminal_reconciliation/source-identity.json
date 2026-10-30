@@ -1,0 +1,15 @@
+{
+  "base": "9901ccc4146b00fdcc4e4280be12fd57a79ceab5",
+  "semantic_base": "456c5e984452a45d977295e254b3ca9ae3cc7750",
+  "patch_sha256": "1dea782185c525aaf311d2902af334a74fddccb566a704f862462d7f8f9756f5",
+  "files": [
+    "omega-rust/omega/compilation/driver/src/checked/compilation_session.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/descriptor_residences.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/place_declarations.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs",
+    "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs",
+    "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/reference_origins/memberships.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/reconciliation_probe.rs"
+  ]
+}

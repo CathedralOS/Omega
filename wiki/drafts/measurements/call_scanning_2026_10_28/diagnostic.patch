@@ -1,0 +1,20 @@
+--- a/omega-rust/psi/compilation/checking/src/machine_calls/calls/expression_scanning/traversal.rs
++++ b/omega-rust/psi/compilation/checking/src/machine_calls/calls/expression_scanning/traversal.rs
+@@ -301,0 +302 @@
++        let profile = phase_profile::guard("05.call_scan.prelude");
+@@ -475,0 +477 @@
++        drop(profile);
+@@ -592,0 +595,2 @@
++                {
++                    let _profile = phase_profile::guard("05.call_scan.call_bounds");
+@@ -607,0 +612 @@
++                }
+@@ -629,0 +635,2 @@
++                {
++                    let _profile = phase_profile::guard("05.call_scan.binary_types");
+@@ -640,0 +648 @@
++                }
+@@ -641,0 +650 @@
++                let profile = phase_profile::guard("05.call_scan.short_circuit");
+@@ -649,0 +659 @@
++                drop(profile);

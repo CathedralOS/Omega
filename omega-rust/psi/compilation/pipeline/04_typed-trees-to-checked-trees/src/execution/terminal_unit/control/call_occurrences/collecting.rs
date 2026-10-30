@@ -169,9 +169,18 @@ pub(super) fn collect_constructor_calls(
             continue;
         };
         let plans = &facts.values.scalar_computations;
-        for (element_index, (expression, primitive_type)) in
-            elements.elements.into_iter().enumerate()
-        {
+        for (element_index, element) in elements.elements.into_iter().enumerate() {
+            let (expression, primitive_type) = match element {
+                validation::ScalarArrayElement::Authored {
+                    expression,
+                    primitive_type,
+                }
+                | validation::ScalarArrayElement::Projected {
+                    row: expression,
+                    primitive_type,
+                    ..
+                } => (expression, primitive_type),
+            };
             let role = CheckedScalarExpressionRole::ArrayElement {
                 source,
                 element_ordinal: u32::try_from(element_index).ok()?,

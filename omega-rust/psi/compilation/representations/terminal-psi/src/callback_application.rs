@@ -10,5 +10,8 @@ pub struct TerminalCallbackApplication {
     pub static_machine_ordinal: u32,
     pub requirement: String,
     pub published_contract: [u8; 32],
+    /// Psi admitted the requirement's callback entry contract. An emitted
+    /// boundary use without one is retained so a foreign realization refuses.
+    pub entry_admitted: bool,
     pub body: crate::CheckedMachineDeclaration,
 }

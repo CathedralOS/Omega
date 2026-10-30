@@ -360,9 +360,13 @@ fn resolve_path<'a>(
                     }
                 }
             }
-            (Source::FixedIndex(index), StructuralTypeShape::FixedArray { element, length })
-                if index < length =>
-            {
+            (
+                Source::FixedIndex(index),
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                },
+            ) if index < length => {
                 result.push(CheckedUnitStructuralPathSegment::FixedIndex(*index));
                 if let Some(observation) = &mut observation {
                     observation.push(ScalarReadProjection::Static(

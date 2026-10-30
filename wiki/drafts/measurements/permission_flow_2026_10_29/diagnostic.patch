@@ -1,0 +1,68 @@
+--- a/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/multiplicity/permission_events.rs
++++ b/omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/multiplicity/permission_events.rs
+@@ -407,6 +407,7 @@
+             |step, custody| {
+                 let (places, remaining, selections, selected_cleanup, instruction_dispositions) =
+                     custody;
++                let selected_cases_guard = phase_profile::guard("05.permission_detail.selected_cases");
+                 if state_needs_case_exclusions
+                     && let Some(selected) = super::permission_schedule::SelectedCases::at_step(
+                         program,
+@@ -420,11 +421,13 @@
+                     selected.apply_claims(places);
+                     selected.apply_cleanup(remaining);
+                 }
++                drop(selected_cases_guard);
+                 match step {
+                     super::permission_schedule::PermissionStep::Evaluate {
+                         statement: statement_index,
+                         evaluation,
+                     } => {
++                        let prepare_guard = phase_profile::guard("05.permission_detail.prepare_evaluation");
+                         if !matches!(
+                             evaluation,
+                             checked_trees::FlowPermissionEvaluation::TransitionTarget(_)
+@@ -480,6 +483,8 @@
+                             .collect::<Vec<_>>();
+                         let event_start = permission_events.len();
+                         remaining.reserve(program, &statements[statement_index]);
++                        drop(prepare_guard);
++                        let evaluate_guard = phase_profile::guard("05.permission_detail.evaluate");
+                         let evaluated = match evaluate_statement_permissions(
+                             program,
+                             facts,
+@@ -512,6 +517,8 @@
+                                 return;
+                             }
+                         };
++                        drop(evaluate_guard);
++                        let record_guard = phase_profile::guard("05.permission_detail.record_selection");
+                         let routes =
+                             super::selected_evaluation::ExpressionRoutes::from_steps(&occurrences);
+                         if let Some(capture) = &capture {
+@@ -552,6 +559,8 @@
+                                 }
+                             }
+                         }
++                        drop(record_guard);
++                        let complete_guard = phase_profile::guard("05.permission_detail.complete");
+                         let produced_storage = match complete_statement_permissions(
+                             program,
+                             facts,
+@@ -576,6 +585,8 @@
+                                 return;
+                             }
+                         };
++                        drop(complete_guard);
++                        let _publish_guard = phase_profile::guard("05.permission_detail.publish");
+                         if let Some((_, receipt)) =
+                             facts.flow.ownership.owned_selection_at_evaluation(
+                                 state.symbol,
+@@ -663,6 +674,7 @@
+                         coordinate,
+                         crash: false,
+                     } => {
++                        let _exit_guard = phase_profile::guard("05.permission_detail.exit");
+                         let event_start = permission_events.len();
+                         instruction_dispositions.exit(
+                             program,

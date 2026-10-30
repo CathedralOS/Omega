@@ -87,3 +87,24 @@ The nine reject twins are pinned under `tests/omega/fail/facts/`, each rejecting
   - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve to concrete stack offsets for the backing `slot`, basic blocks lay out with short/near branch relaxation and offset reflow, machine-state footprint evidence validates against permitted limits, and direct PE/ELF/Mach-O executable images are emitted. Complete agreement between Terminal Psi interpretation and native execution (`omega run --both`, exit 0) is verified across host platforms including `windows_x86_64` and `macos_arm64`.
 
 - **What remains open:** Callee `ensures` postcondition propagation on unrefined `&write` scalar parameters, multi-field write-only struct partial initialization matrices, and write-only dynamic slice view initialization.
+
+## Build-owned target selection migration
+
+This authored-source migration belongs to `BUILD-OWNED-TARGET-SELECTION`.
+The original fact, domains, write-only operation, result contract and main exit
+oracle remain unchanged. Ordinary X86/ARM implementations supply `SelectedProbe`
+through explicit Build rows; separately selected entry/body checks distinguish
+tags 17/29 so wrong target selection is observable even when the numeric bodies
+are identical. All nine places and root bind five hosted profiles, with matching
+positive/reject pins and unchanged-artifact Terminal installation requests.
+
+Fresh fixed 9eb baseline already passes all 20 authored positives and 18 reject
+controls. This migration does not claim a necessary compiler repair, renew
+historical numeric/loan-row closure claims, establish Windows/Linux native
+execution, or close the parent target/native migration tasks.
+
+The old initialization witness starts with the same 100 value that its helper
+writes, so omitting that store would not change its runtime result. This
+preexisting limitation remains explicit; the migration does not claim that
+those witnesses establish store-omission discrimination or fresh uninitialized
+storage behavior. Static rejection and target-selection evidence remain separate.

@@ -1,0 +1,44 @@
+{
+  "source_revision": "c3e8a3559d5e718716eb62824df23bf759fecbe5",
+  "producer": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+  "producer_sha256": "64983946d8bccabbfa18efcc9a25e8339ff8a5aa6cc297d044b1454bcda4308d",
+  "profile": {
+    "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug\\omega.exe",
+    "sha256": "64983946d8bccabbfa18efcc9a25e8339ff8a5aa6cc297d044b1454bcda4308d",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "platform": "Windows-11-10.0.26200-SP0",
+  "processor": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+  "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+  "target": "windows_x86_64",
+  "sources": {
+    "length": {
+      "root": "samples\\cli\\facts\\length\\local\\main.omg",
+      "main_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+      "build_sha256": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f",
+      "experiment_build_sha256": "1414381b7272d9b82b543c2049713313562903f5bd90267542462301220f3501"
+    },
+    "dispatch": {
+      "root": "samples\\cli\\facts\\dyn_dispatch_selector_payload_bound\\local\\main.omg",
+      "main_sha256": "d21361b9316ddeee3c61ed018de667c239a2c740159e4a126dc656bb94c401db",
+      "build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543",
+      "experiment_build_sha256": "72c4698bef44d0b03c4a756af617fb53e9809da89df0359bbe7ef490a9769543"
+    },
+    "stack32": {
+      "root": "samples\\cli\\facts\\thirtytwo_arg_stack_calling_plan\\other_machine\\main.omg",
+      "main_sha256": "93cf1dddd3ab249a9aa6f9f68ca198394affb199ec6697c6da39608db37e7686",
+      "build_sha256": "467ba43680810802f19ba2c399ff5d359059c6404cb9b3bf71d061b819729005",
+      "experiment_build_sha256": "8ad4b8e31ea1d866039d2339b548a3db13354fbba42e2f28d81060f54a413244"
+    },
+    "control": {
+      "root": "samples\\cli\\facts\\length\\local\\main.omg",
+      "main_sha256": "96652ff59556121d6d5443db2e78d9947b8ce3aa7fd11645000eaaee1c5eea67",
+      "build_sha256": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f",
+      "experiment_build_sha256": "fe8a416885ead9f706ad2de25b5fd406957bd57dbd9cda29a3f858507aa7c68f"
+    }
+  },
+  "checkout_compiler_patch_sha256": "a21a908fdcc4fee72542980335bb180b5829bc4353f71089b37a6dc3813097f4"
+}

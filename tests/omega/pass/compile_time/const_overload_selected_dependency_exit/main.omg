@@ -1,0 +1,16 @@
+// Expected exit: 0
+// Only the selected overload contributes initializer dependencies.
+machine choose(value: u32) -> u32 { value }
+machine choose(value: u64) -> u64 { ROOT as u64 }
+
+const ROOT: u32 = choose(1u32);
+const SELECTED: u32 = choose(37u32);
+
+machine main() crashes Trap {
+    transition ROOT == 1u32 && SELECTED == 37u32 && choose(73u64) == 1u64 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

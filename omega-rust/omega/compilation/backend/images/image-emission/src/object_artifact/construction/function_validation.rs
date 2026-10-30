@@ -43,7 +43,7 @@ use crate::object_artifact::{
 };
 use crate::order::strictly_increasing;
 use machine_code::MachineCodeFunction;
-use machine_code::{MachineCodePlan, SemanticCodeSite};
+use machine_code::{BoundarySettlementRecord, MachineCodePlan, SemanticCodeSite};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
 use target::{Architecture, NativeTarget};
 use target_operations::{BoundaryRealization, CallSiteOwner};
@@ -151,6 +151,33 @@ struct AffineParameterFacts<'a> {
     projected_affine_parameter: bool,
 }
 
+/// The one spelling of the hosted-write custody predicate: a
+/// `HostedWriteByteI32` settlement whose i32 argument spills from the last
+/// preceding scalar home producer. The stack phase reserves the scratch slot
+/// it implies and the settlement phase admits the settlement by it.
+fn hosted_write_is_exact(
+    plan: &MachineCodePlan,
+    function: &MachineCodeFunction,
+    settlement: &BoundarySettlementRecord,
+) -> bool {
+    hosted_write_byte_custody_is_exact(
+        plan.target,
+        settlement,
+        &function.boundary_settlements,
+        &function.unit_integer_constants,
+        &function.unit_scalar_homes,
+        |home, consumer_ordinal, consumer_offset| {
+            crate::object_artifact::replay::unit::scalar_call_custody::exact_preceding_internal_unit_scalar_home_producer_count(
+                &function.internal_unit_scalar_calls,
+                home,
+                consumer_ordinal,
+                consumer_offset,
+            )
+        },
+        Some(&function.bytes),
+    )
+}
+
 /// The function's Unit stack evidence, replayed against its bytes; a hosted
 /// write settlement reserves its scratch slot on top of the frame.
 fn validate_unit_stack(
@@ -169,24 +196,11 @@ fn validate_unit_stack(
             )
         })
         .transpose()?;
-    if function.boundary_settlements.iter().any(|settlement| {
-        hosted_write_byte_custody_is_exact(
-            plan.target,
-            settlement,
-            &function.boundary_settlements,
-            &function.unit_integer_constants,
-            &function.unit_scalar_homes,
-            |home, consumer_ordinal, consumer_offset| {
-                crate::object_artifact::replay::unit::scalar_call_custody::exact_preceding_internal_unit_scalar_home_producer_count(
-                    &function.internal_unit_scalar_calls,
-                    home,
-                    consumer_ordinal,
-                    consumer_offset,
-                )
-            },
-            Some(&function.bytes),
-        )
-    }) {
+    if function
+        .boundary_settlements
+        .iter()
+        .any(|row| hosted_write_is_exact(plan, function, row))
+    {
         let stack = validated_function_stack
             .as_mut()
             .ok_or(ObjectError::UnaccountedTerminalStack(function.machine))?;
@@ -1457,22 +1471,7 @@ fn validate_boundary_settlements(
                 }
             }
             BoundaryRealization::HostedWriteByteI32(_) => {
-                hosted_write_byte_custody_is_exact(
-                    plan.target,
-                    settlement,
-                    &function.boundary_settlements,
-                    &function.unit_integer_constants,
-                    &function.unit_scalar_homes,
-                    |home, consumer_ordinal, consumer_offset| {
-                        crate::object_artifact::replay::unit::scalar_call_custody::exact_preceding_internal_unit_scalar_home_producer_count(
-                            &function.internal_unit_scalar_calls,
-                            home,
-                            consumer_ordinal,
-                            consumer_offset,
-                        )
-                    },
-                    Some(&function.bytes),
-                ) && function.unit_stack.is_some()
+                hosted_write_is_exact(plan, function, settlement) && function.unit_stack.is_some()
                     && function.scalar_stack.is_none()
             }
             BoundaryRealization::HostedReadByte(_) => {

@@ -232,10 +232,22 @@ pub fn has_builtin_spelled_expression_meaning(
                         )
                 })
     };
+    // Wholly anonymous numeric operands already have exact meaning. They are
+    // not unresolved typed operands: visible primitive overloads cannot land
+    // them. A typed peer still uses the complete ordinary candidate tuple.
+    // Retained occurrence custody and trait meanings remain checked below.
+    let anonymous_operands = operand_types.iter().all(Option::is_none)
+        && program
+            .expression_table
+            .binary_node(expression)
+            .is_some_and(|binary| {
+                crate::closed_numeric::has_anonymous_numeric_results(program, binary.left)
+                    && crate::closed_numeric::has_anonymous_numeric_results(program, binary.right)
+            });
     // Existence only: both resolution walks stop at the first match instead
     // of materializing candidate sets whose per-candidate operand matching
     // allocates generic substitutions.
-    !spelling_for_operands_exists(
+    (anonymous_operands || !spelling_for_operands_exists(
         program,
         spelling,
         &operand_types
@@ -244,7 +256,7 @@ pub fn has_builtin_spelled_expression_meaning(
             .map(OperandType::from_reference)
             .collect::<Vec<_>>(),
         program.expression_table.source_span(expression),
-    ) && !abstract_trait_meaning
+    )) && !abstract_trait_meaning
         && !selected_trait_operator_meaning_exists(program, machine_symbol, spelling, operand_types)
         // Raw contracts can select an operator through a lexical implementation
         // bound before specialization publishes a selected implementation.

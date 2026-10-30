@@ -1,0 +1,10 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\term-counts-cold\\native\\omega-program.exe"
+  ],
+  "wall_seconds": 0.05949970000074245,
+  "exit_code": 0,
+  "cpu_seconds": 0.0625,
+  "peak_working_set_bytes": 5910528,
+  "peak_commit_bytes": 1261568
+}

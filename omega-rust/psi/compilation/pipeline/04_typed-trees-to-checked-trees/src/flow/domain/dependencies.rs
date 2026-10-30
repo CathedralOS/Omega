@@ -45,7 +45,7 @@ pub(in crate::flow) fn qualification_is_content_independent(
         if domain.classification.is_some()
             || !domain.semantic_roles.is_empty()
             || !domain.operators.is_empty()
-            || (domain.predicate_body.is_present() && program.proof_facts(domain).is_empty())
+            || (domain.predicate_presence.is_present() && program.proof_facts(domain).is_empty())
         {
             return false;
         }

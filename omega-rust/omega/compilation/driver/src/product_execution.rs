@@ -1,12 +1,13 @@
-//! Plan a requested stop, then complete its target-local installation and output.
+//! Plan a requested stop and prepare its admitted Terminal product.
 //!
 //! The compiler owns batch ordering and shared Terminal production. This owner
-//! owns the work remaining for one product: nonexecuting stops finish directly,
-//! while executable stops carry one product-owned report/optimization plan
-//! across Terminal production. Permission and trust admission stay after selected
+//! finishes non-native stops and transfers native work, without checked source,
+//! to application Build. Permission and trust admission stay after selected
 //! execution installation; planning is not authority to execute or publish.
 
+mod checking;
 mod component;
+mod inspection;
 mod native_inputs;
 
 use crate::execution_settlement::SelectedProductTarget;
@@ -41,10 +42,12 @@ impl CompilationProduct {
     }
 }
 
-/// Finished output; checked source and continuation state stay in the compiler.
+/// Source compilation output. Native work transfers to application Build;
+/// checked source and continuation state never cross that boundary.
 pub enum CompilationOutput {
+    Native(Box<compilation_products::PendingNativeProduct>),
     Report(CompileReport),
-    Inspection(psi_compiler::ProducedTerminalProgram),
+    Inspection(std::sync::Arc<psi_compiler::PortableTerminalProgram>),
     Component(compilation_products::IndependentComponentProduct),
 }
 
@@ -52,6 +55,10 @@ impl CompilationOutput {
     pub fn into_report(self) -> Result<CompileReport, CompilationProductError> {
         match self {
             Self::Report(report) => Ok(report),
+            Self::Native(_) => Err(vec![Diagnostic::error(
+                "native product requires application completion",
+            )]
+            .into()),
             Self::Inspection(_) => Err(CompilationProductError::Production(vec![
                 Diagnostic::error("requested a report from an inspection product"),
             ])),
@@ -64,10 +71,11 @@ impl CompilationOutput {
 
     pub fn into_inspection(
         self,
-    ) -> Result<psi_compiler::ProducedTerminalProgram, CompilationProductError> {
+    ) -> Result<std::sync::Arc<psi_compiler::PortableTerminalProgram>, CompilationProductError>
+    {
         match self {
             Self::Inspection(artifact) => Ok(artifact),
-            Self::Report(_) => Err(CompilationProductError::Production(vec![
+            Self::Report(_) | Self::Native(_) => Err(CompilationProductError::Production(vec![
                 Diagnostic::error("requested an inspection from a compilation report"),
             ])),
             Self::Component(_) => Err(vec![Diagnostic::error(
@@ -82,18 +90,31 @@ impl CompilationOutput {
     ) -> Result<compilation_products::IndependentComponentProduct, CompilationProductError> {
         match self {
             Self::Component(product) => Ok(product),
-            Self::Report(_) | Self::Inspection(_) => Err(vec![Diagnostic::error(
-                "requested a component from a non-component product",
-            )]
-            .into()),
+            Self::Report(_) | Self::Inspection(_) | Self::Native(_) => {
+                Err(vec![Diagnostic::error(
+                    "requested a component from a non-component product",
+                )]
+                .into())
+            }
         }
     }
+}
+
+/// Source result in its original requested target position, before application
+/// execution. Failed siblings remain part of the returned roster.
+pub struct TargetProductOutcome {
+    pub target: Option<target::TargetProfile>,
+    pub result: Result<CompilationOutput, CompilationProductError>,
 }
 
 #[derive(Debug)]
 pub enum CompilationProductError {
     TrustAdmission(Vec<Diagnostic>),
     Production(Vec<Diagnostic>),
+    ProductionAttempt {
+        diagnostics: Vec<Diagnostic>,
+        accounting: build_time_evaluation::SourceCompletionAccounting,
+    },
 }
 
 impl From<Vec<Diagnostic>> for CompilationProductError {
@@ -106,6 +127,21 @@ impl CompilationProductError {
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
             Self::TrustAdmission(diagnostics) | Self::Production(diagnostics) => diagnostics,
+            Self::ProductionAttempt { diagnostics, .. } => diagnostics,
+        }
+    }
+
+    pub fn into_target_outcome(
+        self,
+        target: Option<target::TargetProfile>,
+    ) -> crate::CompileTargetOutcome {
+        match self {
+            Self::ProductionAttempt {
+                diagnostics,
+                accounting,
+            } => crate::CompileTargetOutcome::new(target, Err(diagnostics))
+                .with_failed_source_completion_accounting(accounting),
+            error => crate::CompileTargetOutcome::new(target, Err(error.into_diagnostics())),
         }
     }
 }
@@ -118,8 +154,9 @@ pub(crate) enum ProductRequest {
         product: CompilationProduct,
         permissions: Option<TerminalPermissionAcceptance>,
     },
-    /// Review and dependency demands already own installed checked custody.
-    /// They publish a component without selecting or installing it again.
+    /// Review and dependency demands own Psi-checked, target-selected custody.
+    /// Declaration obligations complete against the shared produced artifact,
+    /// before publishing a component description or admitting it to the cache.
     Component {
         checked: CheckedCompilation,
         retain_native_inputs: bool,
@@ -136,7 +173,9 @@ pub(crate) enum CompilationWork {
 /// there is no independent requested-mode/report-mode pair to reconcile later.
 pub(crate) enum TerminalCompilation {
     Requested(RequestedTerminalCompilation),
+    Checking(checking::CheckingCompilation),
     Component(ComponentPublication),
+    Inspection(inspection::InspectionCompilation),
 }
 
 pub(crate) struct RequestedTerminalCompilation {
@@ -166,11 +205,9 @@ impl ProductRequest {
         };
         let requested = match product {
             CompilationProduct::Inspection(machine) => {
-                let checked = realization.finish_check()?;
-                return crate::inspection::inspect_terminal(checked, &machine)
-                    .map(CompilationOutput::Inspection)
-                    .map(CompilationWork::Complete)
-                    .map_err(CompilationProductError::Production);
+                return Ok(CompilationWork::Terminal(TerminalCompilation::Inspection(
+                    inspection::InspectionCompilation::new(realization, machine),
+                )));
             }
             CompilationProduct::Check => ProductReportRequest::Check,
             CompilationProduct::Terminal(rollback) => ProductReportRequest::Terminal(rollback),
@@ -186,6 +223,18 @@ impl ProductRequest {
                 },
             )))
         } else {
+            if realization
+                .custody
+                .execution
+                .program
+                .facts
+                .proof_applications
+                .has_obligations
+            {
+                return Ok(CompilationWork::Terminal(TerminalCompilation::Checking(
+                    checking::CheckingCompilation::new(realization, report, permissions),
+                )));
+            }
             let checked = realization.finish_check()?;
             admit_permissions(&checked, permissions.as_ref(), false)?;
             checked
@@ -208,20 +257,23 @@ impl TerminalCompilation {
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
         match self {
             Self::Requested(product) => product.terminal_request(),
+            Self::Checking(product) => product.terminal_request(),
             Self::Component(product) => product.terminal_request(),
+            Self::Inspection(product) => product.terminal_request(),
         }
     }
 
     pub(crate) fn finish(
         self,
-        produced: TerminalApplication,
+        produced: crate::terminal::ProducedTerminalProduct,
     ) -> Result<CompilationOutput, CompilationProductError> {
         match self {
-            Self::Requested(product) => product.finish(produced),
+            Self::Requested(product) => product.finish(produced.into_application()?),
+            Self::Checking(product) => product.finish(produced),
+            Self::Inspection(product) => product.finish(produced),
             Self::Component(product) => product
-                .finish(produced)
-                .map(CompilationOutput::Component)
-                .map_err(CompilationProductError::Production),
+                .finish(produced.into_application()?)
+                .map(CompilationOutput::Component),
         }
     }
 }
@@ -233,9 +285,10 @@ impl RequestedTerminalCompilation {
                 &mut self.realization.custody,
                 self.report
                     .is_native()
-                    .then_some(self.realization.independent_component_products.as_slice()),
+                    .then_some(&self.realization.independent_components),
             ),
             selections: self.report.optimizations(),
+            use_kind: crate::terminal::TerminalProductUse::Application,
         }
     }
 
@@ -276,7 +329,7 @@ impl RequestedTerminalCompilation {
                     .finish_terminal(terminal, rollback.into_receipt())?
             }
             CheckedProductReport::Native {
-                settlement,
+                mut settlement,
                 request,
                 rollback,
             } => {
@@ -285,37 +338,27 @@ impl RequestedTerminalCompilation {
                         checked.terminal_native_proposal_request(rollback.effective(), &[])?;
                     produced.prepare(request)
                 })?;
-                let produced = phase_profile::scope("06.0.e_produce_native_product", || {
-                    let accepted_package_terminal_authority_permission_policy =
-                        native_inputs::accepted_terminal_authority_permission_policy(&checked)?;
-                    let components = native_inputs::independent_components(&checked, &terminal)?;
-                    let post_terminal = rollback.effective().project_post_terminal();
-                    let request = native_production::NativeCompileRequest {
-                        private_entry_ram: &request.private_entry_ram,
-                        optimization_selections: post_terminal.selections(),
-                        terminal_authority_policy: request.terminal_authority_policy,
-                        accepted_package_terminal_authority_permission_policy,
-                        terminal_authority_permission_policy: request
-                            .terminal_authority_permission_policy,
-                        image_request: image_emission::ExecutableImageEmissionRequest::direct(
-                            checked.build().config.settings.subsystem,
-                        ),
-                        imports: &[],
-                        components: &components,
-                    };
-                    native_production::compile(terminal, request)
-                        .map_err(|(_, diagnostics)| diagnostics)
-                })?;
-                phase_profile::scope(
-                    "06.0.f_settlement_finish_native",
-                    || -> Result<_, CompilationProductError> {
-                        Ok(settlement
-                            .with_timings(checked.timings().phases().to_vec())
-                            .finish_native(produced.artifact, rollback.into_receipt())?
-                            .with_runtime_provisions(produced.runtime_provisions)
-                            .map_err(|message| vec![Diagnostic::error(message)])?)
+                let accepted_package_permissions =
+                    native_inputs::accepted_terminal_authority_permission_policy(&checked)
+                        .map_err(|diagnostics| CompilationProductError::ProductionAttempt {
+                            diagnostics,
+                            accounting: std::mem::take(
+                                settlement.source_completion_accounting_mut(),
+                            ),
+                        })?;
+                let subsystem = checked.build().config.settings.subsystem;
+                let settlement = settlement.with_timings(checked.timings().phases().to_vec());
+                return Ok(CompilationOutput::Native(Box::new(
+                    compilation_products::PendingNativeProduct {
+                        terminal,
+                        components: checked.into_independent_components(),
+                        accepted_package_permissions,
+                        request,
+                        rollback,
+                        subsystem,
+                        settlement,
                     },
-                )?
+                )));
             }
         };
         Ok(CompilationOutput::Report(report))

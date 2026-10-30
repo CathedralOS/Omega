@@ -169,21 +169,13 @@ pub(super) fn validate(
             }
         }
         PsiRewritePatch::RemoveDeadScalarNode(patch) => {
-            let input = PsiRealizationSite::Node(patch.location);
             if !substitutions.is_empty()
-                || !provenance.iter().any(|row| row.input == input)
-                || !provenance_realized_within(patch.location.machine, affected_blocks, provenance)
-                || !matches!(
-                    witness,
-                    PsiRewriteWitness::StructuralIdentity
-                        | PsiRewriteWitness::AcceptedObligation(_)
-                )
+                || !elimination_consistent(patch.location, affected_blocks, provenance, witness)
             {
                 return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
             }
         }
         PsiRewritePatch::EliminateLocalScalarCommonSubexpression(patch) => {
-            let redundant_input = PsiRealizationSite::Node(patch.redundant);
             if patch.leader.machine != patch.redundant.machine
                 || patch.leader.block != patch.redundant.block
                 || patch.leader.node >= patch.redundant.node
@@ -195,19 +187,12 @@ pub(super) fn validate(
                         to: patch.leader_result,
                         scalar_type: patch.scalar_type,
                     }]
-                || !provenance.iter().any(|row| row.input == redundant_input)
-                || !provenance_realized_within(patch.redundant.machine, affected_blocks, provenance)
-                || !matches!(
-                    witness,
-                    PsiRewriteWitness::StructuralIdentity
-                        | PsiRewriteWitness::AcceptedObligation(_)
-                )
+                || !elimination_consistent(patch.redundant, affected_blocks, provenance, witness)
             {
                 return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
             }
         }
         PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(patch) => {
-            let redundant_input = PsiRealizationSite::Node(patch.redundant);
             if patch.leader.machine != patch.redundant.machine
                 || patch.leader.block == patch.redundant.block
                 || patch.leader_operation == patch.redundant_operation
@@ -218,19 +203,12 @@ pub(super) fn validate(
                         to: patch.leader_result,
                         scalar_type: patch.scalar_type,
                     }]
-                || !provenance.iter().any(|row| row.input == redundant_input)
-                || !provenance_realized_within(patch.redundant.machine, affected_blocks, provenance)
-                || !matches!(
-                    witness,
-                    PsiRewriteWitness::StructuralIdentity
-                        | PsiRewriteWitness::AcceptedObligation(_)
-                )
+                || !elimination_consistent(patch.redundant, affected_blocks, provenance, witness)
             {
                 return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
             }
         }
         PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) => {
-            let redundant_input = PsiRealizationSite::Node(patch.redundant);
             if !substitutions.is_empty()
                 || patch.incoming.len() < 2
                 || patch
@@ -243,13 +221,7 @@ pub(super) fn validate(
                         || incoming.leader_result == patch.redundant_result
                         || !affected_blocks.contains(&incoming.source)
                 })
-                || !provenance.iter().any(|row| row.input == redundant_input)
-                || !provenance_realized_within(patch.redundant.machine, affected_blocks, provenance)
-                || !matches!(
-                    witness,
-                    PsiRewriteWitness::StructuralIdentity
-                        | PsiRewriteWitness::AcceptedObligation(_)
-                )
+                || !elimination_consistent(patch.redundant, affected_blocks, provenance, witness)
             {
                 return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
             }
@@ -413,6 +385,25 @@ fn incoming_realization_consistent(
     affected_blocks.contains(&target)
         && provenance.iter().any(|row| row.input == incoming)
         && provenance_realized_within(predecessor.machine, affected_blocks, provenance)
+}
+
+/// Whether an eliminated scalar definition is a provenance input whose every
+/// realization row stays on its own machine inside the affected blocks, under a
+/// witness that carries no obligation beyond one accepted proof.
+fn elimination_consistent(
+    location: NodeLocation,
+    affected_blocks: &[BlockId],
+    provenance: &[ProvenanceRewrite],
+    witness: &PsiRewriteWitness,
+) -> bool {
+    provenance
+        .iter()
+        .any(|row| row.input == PsiRealizationSite::Node(location))
+        && provenance_realized_within(location.machine, affected_blocks, provenance)
+        && matches!(
+            witness,
+            PsiRewriteWitness::StructuralIdentity | PsiRewriteWitness::AcceptedObligation(_)
+        )
 }
 
 /// Whether every provenance row is realized on `machine` at a node inside the

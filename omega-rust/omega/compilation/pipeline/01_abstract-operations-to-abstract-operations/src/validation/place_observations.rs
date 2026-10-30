@@ -961,6 +961,22 @@ pub(crate) fn invariant_subslice_admission(
     .then_some((root, substitution))
 }
 
+/// The block and node `value`'s definition site names, when that site is a
+/// block node: the producer a descriptor or length operand is read from.
+/// `None` for a parameter, or a node index the block does not hold.
+fn defining_node(
+    function: &PsiOptimizationFunction,
+    value: ValueId,
+) -> Option<(BlockId, &OptimizationNode)> {
+    let sites = value_definition_sites(function);
+    let ValueDefinitionSite::Node { block, node } = sites.get(&value)? else {
+        return None;
+    };
+    let block = function.block(*block)?;
+    let defining = block.nodes.get(usize::try_from(*node).ok()?)?;
+    Some((block.id, defining))
+}
+
 /// A subrange retains the exact descriptor selected by its count, including
 /// access and captured selector identities. Root relocation alone cannot
 /// identify a sibling descriptor or a byte extent as an element count.
@@ -977,15 +993,7 @@ fn descriptor_length_operand_matches(
         O::ElementViewSubslice { source, .. } => (source, true),
         _ => return false,
     };
-    let sites = value_definition_sites(function);
-    let Some(ValueDefinitionSite::Node { block, node }) = sites.get(&length) else {
-        return false;
-    };
-    let Some(producing) = function.block(*block).and_then(|block| {
-        usize::try_from(*node)
-            .ok()
-            .and_then(|node| block.nodes.get(node))
-    }) else {
+    let Some((block, producing)) = defining_node(function, length) else {
         return false;
     };
     let measured = match &producing.operation {
@@ -996,7 +1004,7 @@ fn descriptor_length_operand_matches(
     let mut rebound = source.clone();
     rebound.place = root;
     let mut measured = measured.clone();
-    if component.members.contains(block) {
+    if component.members.contains(&block) {
         let Some(place) =
             invariant_observation_root(function, component, measured.place, relocating_roots)
         else {
@@ -1023,21 +1031,13 @@ fn byte_length_operand_measures_root(
     relocating_roots: &BTreeSet<PlaceId>,
 ) -> bool {
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
-    let sites = value_definition_sites(function);
-    let Some(ValueDefinitionSite::Node { block, node }) = sites.get(&rebound_length) else {
-        return false;
-    };
-    let Some(producing) = function.block(*block).and_then(|block| {
-        usize::try_from(*node)
-            .ok()
-            .and_then(|node| block.nodes.get(node))
-    }) else {
+    let Some((block, producing)) = defining_node(function, rebound_length) else {
         return false;
     };
     match &producing.operation {
         O::ByteSequenceLength {
             source: measured, ..
-        } if members.contains(block) => {
+        } if members.contains(&block) => {
             measured.path.is_empty()
                 && invariant_observation_root(function, component, measured.place, relocating_roots)
                     == Some(root)
@@ -1067,15 +1067,7 @@ fn field_byte_length_operand_measures_root(
     field: semantic_vocabulary::StructuralFieldId,
 ) -> bool {
     let members: BTreeSet<BlockId> = component.members.iter().copied().collect();
-    let sites = value_definition_sites(function);
-    let Some(ValueDefinitionSite::Node { block, node }) = sites.get(&length) else {
-        return false;
-    };
-    let Some(producing) = function.block(*block).and_then(|block| {
-        usize::try_from(*node)
-            .ok()
-            .and_then(|node| block.nodes.get(node))
-    }) else {
+    let Some((block, producing)) = defining_node(function, length) else {
         return false;
     };
     match &producing.operation {
@@ -1084,7 +1076,7 @@ fn field_byte_length_operand_measures_root(
             path: measured_path,
             field: measured_field,
             ..
-        } if members.contains(block) => {
+        } if members.contains(&block) => {
             measured_path == path
                 && *measured_field == field
                 && invariant_observation_root(function, component, *measured, relocating_roots)

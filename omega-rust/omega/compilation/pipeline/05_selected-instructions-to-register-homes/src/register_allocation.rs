@@ -135,10 +135,4 @@ pub enum RegisterAllocationError {
     Admission(AllocationAdmissionError),
 }
 
-impl std::fmt::Display for RegisterAllocationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "register allocation failed: {self:?}")
-    }
-}
-
-impl std::error::Error for RegisterAllocationError {}
+stage_error_display!(RegisterAllocationError, "register allocation failed");
