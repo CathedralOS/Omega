@@ -239,6 +239,26 @@ pub(in crate::machine_calls::calls::write_frames) fn contents_invalidation_paths
         }
     }
     cursor.finish()?;
+    if source.origin.precision == FramePathPrecision::CollectionCoarse {
+        // A completed window already names a physical containing region. It
+        // can retire an existing scalar observation anywhere in that region,
+        // but cannot identify a descriptor which the suffix would load.
+        if !spans.is_empty()
+            || source.lifetime_access.is_some()
+            || source.origin.source.output_identity().is_some()
+            || !source.origin.source.builtin_coordinates
+            || (!source.origin.source.root.is_valid() && !source.origin.source.is_static())
+        {
+            return None;
+        }
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT captured-reference-coarse-dependency path={} source={:?}",
+                source.origin.path, source.origin.source
+            );
+        }
+        return Some(vec![source.origin.path]);
+    }
     let read = admitted(
         CapturedReferenceRead {
             source,
