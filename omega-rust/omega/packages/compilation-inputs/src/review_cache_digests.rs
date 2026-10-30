@@ -66,7 +66,8 @@ pub fn review_cache_inputs_digest(inputs: &PackageCompilationInputs) -> [u8; 32]
     }
     digest.byte(purpose_tag(inputs.compilation_purpose()));
     digest.byte(u8::from(inputs.semantic_role_discovery()));
-    for bundle in inputs.dependency_build_handoffs() {
+    for (scope, bundle) in inputs.dependency_build_handoff_instances() {
+        digest.byte(purpose_tag(scope));
         hash_generated_bundle(&mut digest, bundle);
     }
     for binding in inputs.accepted_semantic_bindings() {

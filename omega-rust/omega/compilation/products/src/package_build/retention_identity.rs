@@ -31,7 +31,11 @@ impl PreparedPackageBuild {
             source_contents: HashMap::new(),
         };
         identity.computed(&self.prepared.built.computed_build_config)?;
-        for bundle in self.inputs.dependency_build_handoffs() {
+        for (scope, bundle) in self.inputs.dependency_build_handoff_instances() {
+            identity.digest.byte(match scope {
+                build_declarations::DependencyPurpose::Product => 0,
+                build_declarations::DependencyPurpose::Build => 1,
+            });
             identity.package(bundle.package());
             identity
                 .digest

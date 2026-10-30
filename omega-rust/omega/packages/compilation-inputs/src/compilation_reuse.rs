@@ -94,13 +94,16 @@ impl PackageSourceContent {
                         .provider_selections()
                         .iter()
                         .flat_map(|selection| [&selection.subject, &selection.provider])
-                        .chain(
-                            bundle
-                                .native_bindings()
-                                .iter()
-                                .flat_map(|row| row.anchors()),
-                        )
                         .map(|anchor| anchor.source().path.clone())
+                        .chain(bundle.native_declarations().iter().flat_map(|declaration| {
+                            declaration
+                                .sources
+                                .selected_files()
+                                .filter(|file| {
+                                    file.dependency_scope == source::DependencyScope::Product
+                                })
+                                .map(|file| file.path.clone())
+                        }))
                         .collect(),
                 })
                 .collect(),

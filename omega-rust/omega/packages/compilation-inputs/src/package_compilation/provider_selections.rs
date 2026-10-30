@@ -6,6 +6,7 @@
 //! is introduced. Activation authorship stays on the original receipt.
 
 use super::{PackageBuildHandoff, PackageCompilationInputs};
+use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use source::{SourceOrigin, SourceResolutionStratum};
 use symbols::RetainedDeclaration;

@@ -312,7 +312,7 @@ impl PackageBuildHandoff {
             return Err("package provider choices have no original Build observation");
         }
         if selections.iter().any(|selection| {
-            selection.origin.activation().source().package_identity != Some(self.package())
+            selection.origin.activation().source().package_identity != self.package()
                 || selection.origin.event_ordinal().is_none()
         }) {
             return Err(
@@ -409,6 +409,63 @@ impl PackageCompilationInputs {
     /// bundles for this root's dependencies. Empty bundles are retained so an
     /// omitted dependency build cannot be confused with a build that handed
     /// off no generated source. Coverage is per checked purpose, not package:
+    /// identical target profiles or bytes never let one role satisfy another.
+    pub fn with_complete_dependency_build_handoffs(
+        mut self,
+        bundles: Vec<PackageBuildHandoff>,
+    ) -> Result<Self, Vec<PackageCompilationInputError>> {
+        let mut errors = Vec::new();
+        let required = self.required_dependency_source_instances();
+        let mut generated = BTreeMap::new();
+        for bundle in bundles {
+            let Some(package) = bundle.package() else {
+                errors
+                    .push(PackageCompilationInputError::ToolchainBuildHandoffRequiresSourceContext);
+                continue;
+            };
+            let purpose = bundle.purpose();
+            if package == self.source.root {
+                errors.push(PackageCompilationInputError::RootBuildHandoff { package });
+                continue;
+            }
+            if !self.source.packages.contains_key(&package) {
+                errors.push(PackageCompilationInputError::ForeignBuildHandoff { package });
+                continue;
+            }
+            if !required.contains(&(package, purpose)) {
+                errors.push(PackageCompilationInputError::BuildHandoffPurposeMismatch {
+                    package,
+                    purpose,
+                });
+                continue;
+            }
+            if bundle.dependency_closure() != Some(&self.dependency_closure_for(package)) {
+                errors.push(PackageCompilationInputError::BuildHandoffClosureMismatch { package });
+            }
+            if generated.insert((package, purpose), bundle).is_some() {
+                errors.push(PackageCompilationInputError::DuplicateBuildHandoff { package });
+            }
+        }
+        for (package, purpose) in required {
+            if !generated.contains_key(&(package, purpose)) {
+                errors.push(PackageCompilationInputError::MissingBuildHandoff { package });
+            }
+        }
+        if errors.is_empty() {
+            self.target.dependency_build_handoffs = generated;
+            Ok(self)
+        } else {
+            Err(errors)
+        }
+    }
+
+    #[doc(hidden)]
+    pub(crate) fn dependency_build_handoffs(&self) -> impl Iterator<Item = &PackageBuildHandoff> {
+        self.target.dependency_build_handoffs.values()
+    }
+
+    /// Each retained handoff together with the relative source scope in which
+    /// it is consumed. The same build instance can serve both relative scopes
     /// inside a build helper, but never serves a product activation.
     pub fn dependency_build_handoff_instances(
         &self,
