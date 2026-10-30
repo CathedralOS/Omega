@@ -522,12 +522,22 @@ impl TerminalExecution<'_> {
                 place,
                 structural_type,
             } => {
-                let identity = self.array_storage_identity_staged(depth, place, identity_cursor)?;
+                let identity = self
+                    .array_storage_identity_staged(depth, place, identity_cursor)
+                    .map_err(|error| TerminalInterpretError::StructuralArgumentPreparation {
+                        stage: "resolve original frame-array identity",
+                        detail: format!(
+                            "depth {depth}, place {place:?}, type {structural_type:?}, current depth {}: {error:?}",
+                            self.call_stack.len()
+                        ),
+                    })?;
                 Ok(TerminalStructuralValue::minted(
                     identity,
                     structural_type,
                     self.frame_array(depth, place)
-                        .ok_or_else(malformed)?
+                        .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "original frame-array payload is absent",
+                        ))?
                         .qualifications
                         .clone(),
                 ))
@@ -536,7 +546,9 @@ impl TerminalExecution<'_> {
                 let structural_type = self
                     .structural_byte_storage
                     .get(&array.referent)
-                    .ok_or_else(malformed)?
+                    .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "original runtime byte-array payload is absent",
+                    ))?
                     .structural_type;
                 let mut source = TerminalStructuralValue::minted(
                     array.referent.opaque_identity,
@@ -544,7 +556,9 @@ impl TerminalExecution<'_> {
                     Vec::new(),
                 );
                 source.path = array.referent.path.clone();
-                self.original_storage_owner(&source)
+                self.original_storage_owner(&source).map_err(|error| {
+                    error.in_argument_preparation("resolve original runtime-array enclosing owner")
+                })
             }
         }
     }
@@ -614,13 +628,18 @@ impl TerminalExecution<'_> {
         if let Some(home) = selected {
             let mut original = TerminalStructuralValue::minted(
                 home.opaque_identity,
-                self.actual_storage_type_from_owner(home)?,
+                self.actual_storage_type_from_owner(home).map_err(|error| {
+                    error.in_argument_preparation("resolve retained original root type")
+                })?,
                 Vec::new(),
             );
             original.path = home.path.clone();
             return Ok(original);
         }
-        let original = self.original_owned_allocation(source)?.value;
+        let original = self
+            .original_owned_allocation(source)
+            .map_err(|error| error.in_argument_preparation("resolve live original allocation"))?
+            .value;
         if !original.path.is_empty() {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                 "original storage requires retained enclosing geometry after projected transfer",
