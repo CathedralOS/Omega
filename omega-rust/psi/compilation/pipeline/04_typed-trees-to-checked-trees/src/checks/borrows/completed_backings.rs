@@ -277,9 +277,7 @@ impl Resolver<'_> {
         ) && let Some(source) = &coordinate
             && source.root.as_symbol().is_some()
         {
-            return self
-                .stored(operand, source, path)
-                .map(BackingFrontier::borrowed);
+            return self.stored(capture, operand, source, path, ancestors, forwarded_inputs);
         }
         // A saved subject is the producer's retained value, not another read
         // of its authored initializer. Missing saved custody has no backing.
@@ -461,6 +459,7 @@ impl Resolver<'_> {
             coordinate.ok_or("the completed descriptor has no source storage coordinate")?;
         let mut place = CapturedPlace {
             incoming_reference: Default::default(),
+            incoming_owner_path: Default::default(),
             root: source.root,
             segments: source.segments,
         };
@@ -524,25 +523,285 @@ impl Resolver<'_> {
 
     fn stored(
         &self,
+        capture: Handle<FlowOperandFact>,
         operand: &FlowOperandFact,
         source: &validation::CanonicalPlace,
         path: &[PlaceSegment],
-    ) -> Result<Vec<ResolvedAlias>, &'static str> {
+        ancestors: &mut Vec<Handle<FlowOperandFact>>,
+        forwarded_inputs: &mut Vec<Handle<FlowOperandFact>>,
+    ) -> Result<BackingFrontier, &'static str> {
         let mut place = CapturedPlace {
-            incoming_reference: Default::default(),
+            incoming_reference: Handle::invalid(),
+            incoming_owner_path: Vec::new(),
             root: source.root,
             segments: source.segments.clone(),
         };
         place.segments.extend_from_slice(path);
-        super::access_sources::resolve_descriptor_all(
+        // Current checked descriptor occurrences own custody even when a weak
+        // call store cannot reconstruct one value producer. Authenticate that
+        // complete roster first. Abstract incoming families still cannot pass
+        // this raw lookup and must join the completed storage cut below.
+        if let Some(places) = super::access_sources::resolve_descriptor_all(
             self.program,
             self.facts,
             self.state,
             operand.statement_index,
             operand.constraints,
             place,
+        ) {
+            return Ok(BackingFrontier::borrowed(places));
+        }
+        let control = &self.facts.flow.control;
+        // An indexed incoming family describes permissions for unchanged
+        // entry leaves. The completed receiver owns which leaf value survives
+        // at this cut: a replacement must follow its produced value instead
+        // of resurrecting the entry family from its declared shape.
+        if control.operands.is_valid(operand.backing) && operand.backing != capture {
+            let receiver = control.operands.get(operand.backing);
+            if receiver.state_symbol == operand.state_symbol
+                && let Some(receiver_place) = validation::canonical_place_from_expression_in_state(
+                    self.program,
+                    self.state.state_symbol,
+                    receiver.statement_index,
+                    receiver.expression,
+                )
+                && receiver_place.root == source.root
+                && receiver_place.segments.len() < source.segments.len()
+                && same_path(
+                    self.program,
+                    &receiver_place.segments,
+                    &source.segments[..receiver_place.segments.len()],
+                )
+            {
+                let mut projection = source.segments[receiver_place.segments.len()..].to_vec();
+                projection.extend_from_slice(path);
+                let frontier = validation::completed_storage::reference_sources_at_path(
+                    self.program,
+                    control,
+                    operand.backing,
+                    &projection,
+                    operand.storage_snapshot,
+                );
+                return self.stored_frontier(frontier, operand, ancestors, forwarded_inputs);
+            }
+        }
+        Err("the stored descriptor has no retained loan occurrence")
+    }
+
+    fn stored_frontier(
+        &self,
+        source: validation::completed_storage::StoredOperand,
+        operand: &FlowOperandFact,
+        ancestors: &mut Vec<Handle<FlowOperandFact>>,
+        forwarded_inputs: &mut Vec<Handle<FlowOperandFact>>,
+    ) -> Result<BackingFrontier, &'static str> {
+        use validation::completed_storage::StoredOperand;
+        match source {
+            StoredOperand::Unavailable => Err("the stored descriptor has no current value source"),
+            StoredOperand::Incoming(source) => {
+                if let Some(places) = super::aliases::unchanged_incoming_leaf(
+                    self.program,
+                    self.facts,
+                    self.state,
+                    operand.constraints,
+                    &source,
+                )? {
+                    return Ok(BackingFrontier::borrowed(places));
+                }
+                super::access_sources::resolve_descriptor_all(
+                    self.program,
+                    self.facts,
+                    self.state,
+                    operand.statement_index,
+                    operand.constraints,
+                    CapturedPlace {
+                        incoming_reference: Handle::invalid(),
+                        incoming_owner_path: Vec::new(),
+                        root: source.root,
+                        segments: source.segments,
+                    },
+                )
+                .map(BackingFrontier::borrowed)
+                .ok_or("the incoming descriptor has no retained loan occurrence")
+            }
+            StoredOperand::Value {
+                capture,
+                projection,
+                slot,
+                ..
+            } => {
+                if let Some(formed) =
+                    self.current_formation(capture, &projection, slot.as_ref(), operand)?
+                {
+                    Ok(formed)
+                } else {
+                    self.retained_descriptor(capture, &projection, ancestors, forwarded_inputs)
+                }
+            }
+            StoredOperand::Alternatives(alternatives) => {
+                if alternatives.is_empty() {
+                    return Err("the stored descriptor has no incoming alternatives");
+                }
+                let mut result = BackingFrontier::default();
+                for alternative in alternatives {
+                    result.append(self.stored_frontier(
+                        alternative,
+                        operand,
+                        ancestors,
+                        forwarded_inputs,
+                    )?);
+                }
+                Ok(result)
+            }
+        }
+    }
+
+    /// The storage owner selected this exact produced descriptor. Rejoin its
+    /// active installed occurrence before following older construction inputs:
+    /// those inputs retain backing, but cannot exempt a current descriptor's
+    /// own loan from interference. Every matching formation alternative stays.
+    fn current_formation(
+        &self,
+        capture: Handle<FlowOperandFact>,
+        projection: &[PlaceSegment],
+        slot: Option<&validation::CanonicalPlace>,
+        observation: &FlowOperandFact,
+    ) -> Result<Option<BackingFrontier>, &'static str> {
+        let Some(slot) = slot else {
+            return Ok(None);
+        };
+        let control = &self.facts.flow.control;
+        if !control.operands.is_valid(capture) {
+            return Err("the installed descriptor has no completed formation");
+        }
+        let source = control.operands.get(capture);
+        if source.state_symbol != self.state.state_symbol {
+            return Err("the installed descriptor formation belongs to another state");
+        }
+        let (_, owner) = self
+            .facts
+            .borrow
+            .first_state_borrow(self.state.machine_symbol, self.state.state_symbol)
+            .ok_or("the installed descriptor has no owning borrow state")?;
+        let sources = validation::completed_storage::descriptor_formation_sources(
+            self.program,
+            control,
+            capture,
+            projection,
+            self.state.statements,
         )
-        .ok_or("the stored descriptor has no retained loan occurrence")
+        .ok_or("the installed descriptor has no complete formation graph")?;
+        let typed_state = self
+            .program
+            .state_by_symbol(self.state.state_symbol)
+            .ok_or("the installed descriptor has no state declaration")?;
+        let order = self
+            .program
+            .statement_table
+            .admitted_execution_order(typed_state.statement_nodes);
+        let homes = validation::completed_storage::InstalledLoanHomes {
+            control,
+            semantic: &self.facts.semantic,
+            borrow: &self.facts.borrow,
+            statements: self.state.statements,
+            order: &order,
+            state: self.state.state_symbol,
+        };
+        let mut candidates = Vec::new();
+        for handle in self
+            .facts
+            .flow
+            .borrow_loan_constraints(observation.constraints)
+        {
+            if !self.facts.borrow.state_owns_loan(owner, handle) {
+                return Err("the installed descriptor roster contains a foreign loan");
+            }
+            let loan = self.facts.borrow.loans.get(handle);
+            if loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency
+                || loan.storage_owner != slot.root
+            {
+                continue;
+            }
+            let Some(formed) = loan.formation_owner_path else {
+                continue;
+            };
+            let path = self
+                .facts
+                .borrow
+                .owner_segments
+                .span(formed)
+                .ok_or("the installed descriptor formation has an incomplete leaf path")?;
+            if path.contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
+                || !sources.iter().any(|formed| {
+                    let value = control.operands.get(formed.capture);
+                    value.expression == loan.formation_expression
+                        && value.statement_index == loan.statement_index
+                        && crate::borrow::owner_path_selects_leaf(
+                            self.program,
+                            path,
+                            &formed.projection,
+                        )
+                })
+                || crate::checks::storage_path_compatibility(
+                    self.program,
+                    crate::checks::StorageSelectorFacts {
+                        flow: &self.facts.flow,
+                        semantic: &self.facts.semantic,
+                    },
+                    &crate::borrow::owner_place_segments(&homes.owner_path(self.program, loan)),
+                    &slot.segments,
+                )
+                .1 != checked_trees::CapturedPlaceContainment::Same
+            {
+                continue;
+            }
+            candidates.push(super::aliases::ResolvedPlace {
+                place: CapturedPlace {
+                    incoming_reference: loan.incoming_reference,
+                    incoming_owner_path: self
+                        .facts
+                        .borrow
+                        .access_segments
+                        .span_or_empty(loan.incoming_owner_path)
+                        .to_vec(),
+                    root: loan.root,
+                    segments: self.facts.borrow.loan_segments(loan).to_vec(),
+                },
+                local_loan: handle,
+            });
+        }
+        if candidates.is_empty() {
+            return Ok(None);
+        }
+        let coordinate = slot.clone();
+        // The completed storage query selected one owned descriptor from one
+        // installed value. Matching formation rows are its alternative input
+        // debts, even when its receiving owner uses a dynamic index. This does
+        // not group raw wildcard storage paths or unrelated descriptors.
+        let alternatives = candidates
+            .iter()
+            .map(|candidate| candidate.local_loan)
+            .collect::<Vec<_>>();
+        let mut places = super::access_sources::retain_captured_lineage(
+            self.program,
+            self.facts,
+            self.state,
+            observation.statement_index,
+            CapturedPlace {
+                incoming_reference: Handle::invalid(),
+                incoming_owner_path: Vec::new(),
+                root: coordinate.root,
+                segments: coordinate.segments,
+            },
+            candidates,
+        )
+        .ok_or("the installed descriptor has incomplete formation lineage")?;
+        for place in &mut places {
+            for alternative in &alternatives {
+                crate::collections::push_unique(&mut place.lineage, *alternative);
+            }
+        }
+        Ok(Some(BackingFrontier::borrowed(places)))
     }
 
     fn input_descriptor(

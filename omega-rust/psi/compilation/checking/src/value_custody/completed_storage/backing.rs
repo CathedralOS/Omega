@@ -459,6 +459,7 @@ pub fn direct_referent_places(
         }
         let place = CapturedPlace {
             incoming_reference: Handle::invalid(),
+            incoming_owner_path: Default::default(),
             root: referent.root,
             segments: control
                 .operand_referent_segments

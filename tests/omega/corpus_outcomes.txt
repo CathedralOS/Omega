@@ -1664,11 +1664,11 @@ fail/borrows/returned_case_reference_live_source_write rejected 564ms expected @
 fail/borrows/returned_computed_record_parent_stays_borrowed rejected 8512ms expected @a92f16431042
 	state `write_pair` receives `view` while local borrow `leading` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	state `write_pair` receives `view` while local borrow `leading` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
-fail/borrows/returned_image_borrowed_alternative rejected 1281ms expected @7d1421067c5a
+fail/borrows/returned_image_borrowed_alternative rejected 583ms expected @04f5793fae62
 	state `mutate` receives `bytes` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 	statement 2 borrows `bytes` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 	statement 2 mutates `bytes[0]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/returned_image_replaced_backing rejected 1295ms expected @7d1421067c5a
+fail/borrows/returned_image_replaced_backing rejected 569ms expected @04f5793fae62
 	state `mutate` receives `bytes` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 borrows `bytes` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `bytes[0]` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
@@ -5881,38 +5881,60 @@ fail/facts/callee_saved_across_nested_calls_unproved_target_body rejected 982ms 
 	exact arithmetic in machine `run` state `entry` local `remaining` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/captured_scalar_is_not_current_storage rejected 1648ms expected @a92f16431042
 	cannot prove requires contract for call demand_equal from main: saved == current (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/captured_window_slot_retirement_through_call_result_rejected rejected 1250ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_incoming_family_requires_its_extent_rejected rejected 770ms expected @04f5793fae62
+	cannot prove index `slot` is within unknown slice length of `windows` in retained::entry
+fail/facts/captured_window_slot_retirement_neighbor_remains_borrowed_rejected rejected 765ms expected @04f5793fae62
+	statement 7 mutates `neighbor[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 8)
+fail/facts/captured_window_slot_retirement_old_descriptor_retains_original_rejected rejected 764ms expected @04f5793fae62
+	state `check` receives `original` while local borrow `previous` is still active (borrowed at statement 5; its last use is at statement 8)
+	statement 8 borrows `original` while local borrow `previous` is still active (borrowed at statement 5; its last use is at statement 8)
+	statement 8 mutates `original[0].value` while local borrow `previous` is still active (borrowed at statement 5; its last use is at statement 8)
+fail/facts/captured_window_slot_retirement_overlapping_family_occurrences_rejected rejected 773ms expected @04f5793fae62
+	state `hold` receives `windows[left].values` as mutable more than once
+fail/facts/captured_window_slot_retirement_replacement_remains_borrowed_rejected rejected 760ms expected @04f5793fae62
+	statement 7 mutates `replacement[0].value` while local borrow `windows` is still active (borrowed at statement 6; its last use is at statement 8)
+fail/facts/captured_window_slot_retirement_through_call_result_rejected rejected 768ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/captured_window_slot_retirement_through_const_name_rejected rejected 1262ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_const_name_rejected rejected 782ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/captured_window_slot_retirement_through_field_rejected rejected 1264ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_field_rejected rejected 785ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 borrows `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
 	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/captured_window_slot_retirement_through_local_rejected rejected 1321ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_local_rejected rejected 771ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 borrows `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
 	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/captured_window_slot_retirement_through_match_join_rejected rejected 1252ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_match_join_rejected rejected 763ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 borrows `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
 	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/captured_window_slot_retirement_through_other_machine_rejected rejected 1228ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_other_machine_rejected rejected 767ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/captured_window_slot_retirement_through_other_state_rejected rejected 1203ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_other_state_rejected rejected 763ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/captured_window_slot_retirement_through_parameter_rejected rejected 1288ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_parameter_rejected rejected 773ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/captured_window_slot_retirement_through_target_body_rejected rejected 1285ms expected @fe4789a121e2
+fail/facts/captured_window_slot_retirement_through_target_body_rejected rejected 782ms expected @04f5793fae62
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 borrows `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 borrows `original` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+	statement 7 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 4; its last use is at statement 7)
+fail/facts/captured_window_slot_retirement_unknown_selector_retains_original_rejected rejected 764ms expected @04f5793fae62
 	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	state `check` receives `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
-	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
+	statement 6 borrows `original` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 	statement 6 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
 fail/facts/case_const_unequal_literals_subtraction_rejected rejected 508ms expected @a92f16431042
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -26911,15 +26933,22 @@ pass/facts/callee_saved_across_nested_calls_through_other_machine_exit checked 2
 pass/facts/callee_saved_across_nested_calls_through_other_state_exit checked 3420ms check-target:macos_arm64 @a92f16431042
 pass/facts/callee_saved_across_nested_calls_through_parameter_exit checked 2795ms check-target:macos_arm64 @a92f16431042
 pass/facts/callee_saved_across_nested_calls_through_target_body_exit checked 2827ms check-target:macos_arm64 @a92f16431042
-pass/facts/captured_window_slot_retirement_through_call_result_exit checked 1592ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_const_name_exit checked 1683ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_field_exit checked 1680ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_local_exit checked 1587ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_match_join_exit checked 1695ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_other_machine_exit checked 1627ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_other_state_exit checked 1755ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_parameter_exit checked 1633ms check-target:macos_arm64 @fe4789a121e2
-pass/facts/captured_window_slot_retirement_through_target_body_exit checked 1718ms check-target:macos_arm64 @fe4789a121e2
+pass/facts/captured_window_slot_retirement_arbitrary_incoming_selector_exit checked 1146ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_descriptor_restore_uses_fresh_occurrence_exit checked 1181ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_distinct_family_occurrences_exit checked 1139ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_installed_copy_retains_descriptor_identity_exit checked 1060ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_installed_selection_retains_descriptor_identity_exit checked 1129ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_nested_window_owner_exit checked 1070ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_old_descriptor_survives_replacement_exit checked 1054ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_call_result_exit checked 1089ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_const_name_exit checked 1118ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_field_exit checked 1018ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_local_exit checked 1099ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_match_join_exit checked 1050ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_other_machine_exit checked 1072ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_other_state_exit checked 1072ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_parameter_exit checked 1104ms check-target:macos_arm64 @04f5793fae62
+pass/facts/captured_window_slot_retirement_through_target_body_exit checked 1387ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @04f5793fae62
 pass/facts/case_const_equal_literals_with_predicate checked 3348ms @a92f16431042
 pass/facts/case_const_equal_literals_without_predicate checked 1637ms @a92f16431042
 pass/facts/case_const_forwarded_binder_compile checked 2047ms @a92f16431042
@@ -34843,8 +34872,8 @@ run/borrows/recast_mut_borrow checked 5752ms check-target:macos_arm64 @a92f16431
 run/borrows/reference_local_binding_routes checked 5429ms check-target:macos_arm64 @a92f16431042
 run/borrows/reference_result_call_binding checked 5404ms check-target:macos_arm64 @a92f16431042
 run/borrows/returned_element_from_offset_view checked 1711ms check-target:macos_arm64 @a92f16431042
-run/borrows/returned_image_nested_arrival checked 1990ms check-target:macos_arm64 @7d1421067c5a
-run/borrows/returned_image_nested_field checked 1986ms check-target:macos_arm64 @7d1421067c5a
+run/borrows/returned_image_nested_arrival checked 1013ms check-target:macos_arm64 @04f5793fae62
+run/borrows/returned_image_nested_field checked 1382ms check-target:macos_arm64 @04f5793fae62
 run/borrows/returned_indexed_case checked 2094ms check-target:macos_arm64 @efcd7fe73ad0
 run/borrows/returned_indexed_case_descriptor_field checked 2097ms check-target:macos_arm64 @efcd7fe73ad0
 run/borrows/runtime_index_bounded_borrow checked 5284ms check-target:macos_arm64 @a92f16431042

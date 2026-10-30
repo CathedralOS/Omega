@@ -57,6 +57,7 @@ pub(in crate::borrow) fn capture_replacement(
                 loan.storage_owner,
                 loan.owner_path.as_slice(),
                 loan.place.incoming_reference,
+                loan.place.incoming_owner_path.as_slice(),
                 loan.place.root,
                 loan.place.segments.as_slice(),
             )

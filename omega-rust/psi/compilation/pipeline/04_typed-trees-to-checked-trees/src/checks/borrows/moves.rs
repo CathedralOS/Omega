@@ -120,6 +120,7 @@ pub(super) fn owned_storage_source(
         Some(ResolvedAlias {
             place: checked_trees::CapturedPlace {
                 incoming_reference: Default::default(),
+                incoming_owner_path: Default::default(),
                 root: facts::PlaceRoot::Symbol(root),
                 segments: Vec::new(),
             },

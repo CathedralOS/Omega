@@ -396,6 +396,7 @@ pub(super) fn check_statement_borrows<'p>(
             Some(vec![super::aliases::ResolvedAlias {
                 place: checked_trees::CapturedPlace {
                     incoming_reference: Default::default(),
+                    incoming_owner_path: Default::default(),
                     root: facts::PlaceRoot::Symbol(root),
                     segments: mutated_place.segments.clone(),
                 },
