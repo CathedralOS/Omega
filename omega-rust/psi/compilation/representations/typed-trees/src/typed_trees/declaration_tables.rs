@@ -745,7 +745,17 @@ impl TypedTrees {
                         .iter()
                         .filter(|(_, application)| application.instance == owner)
                         .map(|(_, application)| application.template),
-                );
+                )
+                .chain(self.retained_static_machine_contract(owner).and_then(|_| {
+                    // Applying a logical callable freshens its nested contract
+                    // symbols, while each rigid lifetime slot keeps the exact
+                    // authored declaration. Rejoin only a retained contract's
+                    // explicit compiler derivation, never an equal signature.
+                    let original = self.symbols.get(owner).generated_from;
+                    (original.is_valid()
+                        && self.retained_static_machine_contract(original).is_some())
+                    .then_some(original)
+                }));
             let Some(template) = templates.next() else {
                 break;
             };
