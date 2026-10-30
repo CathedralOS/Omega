@@ -19,9 +19,10 @@ without four copies of the same body. The target-body place additionally selects
 an ordinary subtraction implementation. Public contracts establish the bound;
 Build selection supplies no additional source-level facts or conformance evidence.
 
-The match place also observes which arm ran. Both arms carry the same bounded
-value, and choosing the wrong arm must fail the authored runtime oracle after
-forming the subtraction. That observation supplies no arithmetic premise.
+The match place executes both choices and observes which arm ran. Both arms
+carry the same bounded value; each choice forms the subtraction before checking
+its distinct arm marker. Choosing either wrong arm fails the runtime oracle.
+Those observations supply no arithmetic premise.
 
 ## Governing contracts
 

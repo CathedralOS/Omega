@@ -26,7 +26,14 @@ machine main() reaches BoundedValue invokes BoundedValue; crashes Trap {
         false -> observe_arm(result, 29)
     };
     let remaining: u64 = 64u64 - joined.value;
-    transition remaining == 22 && joined.arm == 17 { true -> done() false -> bad() }
+    let fallback: BranchValue = match false {
+        true -> observe_arm(result, 17),
+        false -> observe_arm(result, 29)
+    };
+    let fallback_remaining: u64 = 64u64 - fallback.value;
+    transition remaining == 22 && joined.arm == 17 && fallback_remaining == 22 && fallback.arm == 29 {
+        true -> done() false -> bad()
+    }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }
