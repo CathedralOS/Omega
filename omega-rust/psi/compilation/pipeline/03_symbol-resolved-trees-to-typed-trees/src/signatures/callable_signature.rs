@@ -1,4 +1,5 @@
 use crate::lowerer::Lowerer;
+use crate::lowerer::name::lower_names;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -16,11 +17,7 @@ pub(crate) fn lower_state_signature(
         symbol: signature.symbol,
         name: crate::lowerer::name::lower_name(&signature.name),
         spelling: signature.spelling,
-        lifetime_parameters: signature
-            .lifetime_parameters
-            .iter()
-            .map(crate::lowerer::name::lower_name)
-            .collect(),
+        lifetime_parameters: lower_names(&signature.lifetime_parameters),
         type_parameters: Default::default(),
         is_default: signature.is_default,
         parameters: Default::default(),

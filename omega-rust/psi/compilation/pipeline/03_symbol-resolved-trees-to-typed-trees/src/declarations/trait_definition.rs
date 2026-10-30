@@ -1,4 +1,5 @@
 use crate::lowerer::Lowerer;
+use crate::lowerer::name::lower_names;
 use crate::signatures::callable_signature::lower_state_signature;
 use crate::signatures::type_parameters::lower_type_parameters;
 use diagnostics::Diagnostic;
@@ -14,11 +15,7 @@ pub(crate) fn lower_trait_definition(
         is_boundary: trait_definition.is_boundary,
         is_public: trait_definition.is_public,
         name: crate::lowerer::name::lower_name(&trait_definition.name),
-        lifetime_parameters: trait_definition
-            .lifetime_parameters
-            .iter()
-            .map(crate::lowerer::name::lower_name)
-            .collect(),
+        lifetime_parameters: lower_names(&trait_definition.lifetime_parameters),
         type_parameters: arena::HandleSpan::empty(),
         conformance_bounds: Vec::new(),
         requires: arena::HandleSpan::empty(),
@@ -77,11 +74,7 @@ pub(crate) fn lower_trait_definition(
             typed::trait_definition::TraitRequirement {
                 symbol: requirement.symbol,
                 name: crate::lowerer::name::lower_name(&requirement.name),
-                lifetime_arguments: requirement
-                    .lifetime_arguments
-                    .iter()
-                    .map(crate::lowerer::name::lower_name)
-                    .collect(),
+                lifetime_arguments: lower_names(&requirement.lifetime_arguments),
                 arguments,
                 source_span: requirement.name.source_span(),
             },
@@ -127,11 +120,7 @@ pub(crate) fn lower_trait_definition(
         typed_trait.refines = Some(typed::trait_definition::TraitRequirement {
             symbol: base.symbol,
             name: crate::lowerer::name::lower_name(&base.name),
-            lifetime_arguments: base
-                .lifetime_arguments
-                .iter()
-                .map(crate::lowerer::name::lower_name)
-                .collect(),
+            lifetime_arguments: lower_names(&base.lifetime_arguments),
             arguments: base_arguments,
             source_span: base.name.source_span(),
         });
@@ -298,11 +287,7 @@ pub(crate) fn lower_trait_definition(
                         .as_ref()
                         .map(crate::lowerer::name::lower_name),
                     signature,
-                    service_reaches: clause
-                        .service_reaches
-                        .iter()
-                        .map(crate::lowerer::name::lower_name)
-                        .collect(),
+                    service_reaches: lower_names(&clause.service_reaches),
                     service_reach,
                 });
         }
