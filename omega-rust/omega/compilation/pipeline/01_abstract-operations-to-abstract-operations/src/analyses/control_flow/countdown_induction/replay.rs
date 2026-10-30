@@ -4,27 +4,20 @@ use super::{
     AnalysisRoot, CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, CycleComponentEdge,
     ExactUnsignedTripCount, MachineId, O, OptimizerCycleComponent,
     OptimizerUnsignedCountdownRankingCertificate, PsiOptimizationFunction, PsiOptimizationUnit,
-    ScalarType, UnsignedCountdownLoopSummary, ValidatedOptimizerCycleComponents, region, shape,
-    validate_analysis_root,
+    ScalarType, UnsignedCountdownLoopSummary, ValidatedOptimizerCycleComponents, by_key, region,
+    shape, validate_analysis_root,
 };
-use std::collections::BTreeMap;
 
 pub(super) fn reconstruct(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,
 ) -> Result<CountedLoopAnalysisSnapshot, CountedLoopAnalysisError> {
     validate_analysis_root(unit, custody, &[]).map_err(CountedLoopAnalysisError::Root)?;
-    let components = custody
-        .components()
-        .iter()
-        .map(|component| (component.id.clone(), component))
-        .collect::<BTreeMap<_, _>>();
-    let certificates = custody
-        .ranking_certificates()
-        .certificates()
-        .iter()
-        .map(|certificate| (certificate.component.clone(), certificate))
-        .collect::<BTreeMap<_, _>>();
+    let components = by_key(custody.components(), |component| component.id.clone());
+    let certificates = by_key(
+        custody.ranking_certificates().certificates(),
+        |certificate| certificate.component.clone(),
+    );
     // Certificates are keyed by the certified subset of the validated SCC
     // roster. Uncertified components stay in custody without requiring a
     // counted-loop summary.
@@ -36,11 +29,7 @@ pub(super) fn reconstruct(
     {
         return Err(CountedLoopAnalysisError::CertificateComponentRosterMismatch);
     }
-    let functions = unit
-        .functions
-        .iter()
-        .map(|function| (function.machine, function))
-        .collect::<BTreeMap<_, _>>();
+    let functions = by_key(&unit.functions, |function| function.machine);
     let mut loops = Vec::with_capacity(certificates.len());
     for (id, certificate) in certificates {
         let component = components[&id];
@@ -63,11 +52,7 @@ fn reconstruct_one(
 ) -> Result<UnsignedCountdownLoopSummary, CountedLoopAnalysisError> {
     let preheader_edge = single_edge(&component.entries, function.machine)?;
     let exit_edge = single_edge(&component.exits, function.machine)?;
-    let blocks = function
-        .blocks
-        .iter()
-        .map(|block| (block.id, block))
-        .collect::<BTreeMap<_, _>>();
+    let blocks = by_key(&function.blocks, |block| block.id);
     let preheader = blocks
         .get(&preheader_edge.source)
         .and_then(|block| block.nodes.last())

@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::BlockId;
 
-use super::{DominatorAnalysis, FunctionControlFlow, graph::control_flow};
+use super::{DominatorAnalysis, FunctionControlFlow, by_key, graph::control_flow};
 
 pub(crate) fn block_dominates(
     dominators: &[(BlockId, Vec<BlockId>)],
@@ -44,11 +44,7 @@ pub(in crate::analyses) fn fixed_point_dominators(
     function: &FunctionControlFlow,
     reverse: bool,
 ) -> BTreeMap<BlockId, BTreeSet<BlockId>> {
-    let rows = function
-        .blocks
-        .iter()
-        .map(|block| (block.block, block))
-        .collect::<BTreeMap<_, _>>();
+    let rows = by_key(&function.blocks, |block| block.block);
     let considered = function
         .blocks
         .iter()
