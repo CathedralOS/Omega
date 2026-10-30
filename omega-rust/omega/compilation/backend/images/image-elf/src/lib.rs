@@ -209,6 +209,30 @@ pub(crate) mod test_support {
         normalize_elf_interpreter_plan(interpreter_path.to_vec(), target).unwrap()
     }
 
+    /// The import image the load-placement and file-envelope fixtures stage:
+    /// 32 bytes of `.text`, 13 bytes of `0x5a` `.data`, a 23-byte `.bss` at
+    /// `bss_alignment`, and `symbol_capacity` symbols over one import and one
+    /// relocation slot each.
+    pub(crate) fn import_image(
+        target: TargetProfile,
+        bss_alignment: usize,
+        symbol_capacity: usize,
+    ) -> FinalImage {
+        FinalImage::with_capacity(
+            target.native_target(),
+            image::FinalImageMemory {
+                text: vec![0; 32],
+                data: vec![0x5a; 13],
+                bss_size: 23,
+                bss_alignment,
+            },
+            arena::Handle::invalid(),
+            symbol_capacity,
+            1,
+            1,
+        )
+    }
+
     /// The shared dynamic-link staging chain every dynamic-executable test
     /// drives through section planning to the procedure-linkage relocation
     /// plan.

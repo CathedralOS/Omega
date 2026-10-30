@@ -9,24 +9,10 @@ use super::{
 };
 use crate::apply_elf_section_header_placements;
 use crate::dynamic_executable::checked::read_i64;
-use arena::Handle;
-use image::{FinalImage, FinalImageMemory};
 use target::TargetProfile;
 
 fn placed(target: TargetProfile, imported_symbol: &[u8]) -> ValidatedElfPlacedSectionHeaderTable {
-    let mut image = FinalImage::with_capacity(
-        target.native_target(),
-        FinalImageMemory {
-            text: vec![0; 32],
-            data: vec![0x5a; 13],
-            bss_size: 23,
-            bss_alignment: 16,
-        },
-        Handle::invalid(),
-        1,
-        1,
-        1,
-    );
+    let mut image = crate::test_support::import_image(target, 16, 1);
     let symbol_handle = crate::test_support::versioned_import(
         &mut image,
         "__omega_resolved_dynamic_import",

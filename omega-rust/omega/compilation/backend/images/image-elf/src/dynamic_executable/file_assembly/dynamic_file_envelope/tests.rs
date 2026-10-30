@@ -12,8 +12,7 @@ use crate::{
     plan_elf_dynamic_load_layout, plan_elf_indexed_section_payloads,
     plan_elf_relative_section_payload_layout,
 };
-use arena::Handle;
-use image::{FinalImage, FinalImageMemory, FinalImageSymbol};
+use image::{FinalImage, FinalImageSymbol};
 use object_file::SymbolKind;
 
 #[derive(Clone, Copy)]
@@ -42,19 +41,7 @@ fn resolved(
     entry_fixture: EntryFixture,
     imported_symbol: &[u8],
 ) -> ValidatedElfResolvedDynamicTable {
-    let mut image = FinalImage::with_capacity(
-        target.native_target(),
-        FinalImageMemory {
-            text: vec![0; 32],
-            data: vec![0x5a; 13],
-            bss_size: 23,
-            bss_alignment: 16,
-        },
-        Handle::invalid(),
-        2,
-        1,
-        1,
-    );
+    let mut image = crate::test_support::import_image(target, 16, 2);
     let entry = match entry_fixture {
         EntryFixture::Text { offset } => {
             Some((FinalImageSection::Text, offset, 4, SymbolKind::Function))

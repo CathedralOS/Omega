@@ -15,8 +15,6 @@ use crate::dynamic_executable::load_placement::load_layout::compatibility_finger
 use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::ElfProcedureLinkagePlacementConstraintKind;
 use crate::dynamic_executable::section_headers::relative_section_layout::ElfRelativeSectionPayloadRegion;
 use crate::plan_elf_relative_section_payload_layout;
-use arena::Handle;
-use image::{FinalImage, FinalImageMemory};
 use target::TargetProfile;
 
 fn relative(target: TargetProfile) -> ValidatedElfRelativeSectionPayloadLayout {
@@ -27,19 +25,7 @@ fn relative_with_bss_alignment(
     target: TargetProfile,
     bss_alignment: usize,
 ) -> ValidatedElfRelativeSectionPayloadLayout {
-    let mut image = FinalImage::with_capacity(
-        target.native_target(),
-        FinalImageMemory {
-            text: vec![0; 32],
-            data: vec![0x5a; 13],
-            bss_size: 23,
-            bss_alignment,
-        },
-        Handle::invalid(),
-        1,
-        1,
-        1,
-    );
+    let mut image = crate::test_support::import_image(target, bss_alignment, 1);
     let symbol_handle = crate::test_support::versioned_import(
         &mut image,
         "__omega_load_layout_import",
