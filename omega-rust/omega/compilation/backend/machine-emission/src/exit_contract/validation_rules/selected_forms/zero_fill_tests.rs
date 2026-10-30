@@ -54,11 +54,7 @@ fn zero_fill_exit_contract_retains_the_span_and_register_roles() {
         }
         assert_non_return_refused(
             &format!("mutation {mutation}"),
-            instruction,
-            kind,
-            &encoding,
-            &layout,
-            &changed,
+            (instruction, kind, &encoding, &layout, &changed),
         );
     }
 }

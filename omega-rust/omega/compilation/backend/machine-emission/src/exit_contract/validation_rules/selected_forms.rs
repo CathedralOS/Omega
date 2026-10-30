@@ -175,18 +175,22 @@ pub(in crate::exit_contract) fn validated_aarch64_addressed_form_fixture(
     (store, encoding, layout)
 }
 
+/// The instruction under admission with the three rows the replay reads.
+#[cfg(test)]
+type NonReturnCase<'a> = (
+    SelectedInstructionId,
+    SelectedInstructionKind,
+    &'a machine_code::SelectedFormEncodingRow,
+    &'a machine_code::ResolvedSelectedFormRow,
+    &'a machine_code::SelectedFormEncodedRowStore,
+);
+
 /// Whole-function admission refuses the submitted row set. The test states
 /// the mutation it made and why it must be refused; this owner states the
 /// admission call shape once.
 #[cfg(test)]
-pub(in crate::exit_contract) fn assert_non_return_refused(
-    message: &str,
-    instruction: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    encoding: &machine_code::SelectedFormEncodingRow,
-    layout: &machine_code::ResolvedSelectedFormRow,
-    store: &machine_code::SelectedFormEncodedRowStore,
-) {
+pub(in crate::exit_contract) fn assert_non_return_refused(message: &str, case: NonReturnCase<'_>) {
+    let (instruction, kind, encoding, layout, store) = case;
     assert!(
         validate_non_return(
             target::Architecture::Aarch64,
