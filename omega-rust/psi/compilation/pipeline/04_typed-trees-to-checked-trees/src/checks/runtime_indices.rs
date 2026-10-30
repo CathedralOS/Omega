@@ -57,7 +57,11 @@ struct Scope<'a> {
 }
 
 impl Scope<'_> {
-    fn expression_is_const(&self, expr: ExpressionHandle) -> bool {
+    fn expression_is_const(
+        &self,
+        expr: ExpressionHandle,
+        static_parameters: &[typed_trees::data::TypeParameter],
+    ) -> bool {
         let is_const_symbol = |symbol: SymbolHandle| {
             !symbol.is_valid()
                 || self.program.const_declaration_by_symbol(symbol).is_some()
@@ -65,6 +69,7 @@ impl Scope<'_> {
                     .program
                     .machine_type_parameters(self.machine)
                     .iter()
+                    .chain(static_parameters)
                     .any(|p| {
                         p.symbol == symbol && matches!(p.kind, TypeParameterKind::Const { .. })
                     })
@@ -76,11 +81,12 @@ impl Scope<'_> {
             | ExpressionNode::String(_)
             | ExpressionNode::ZeroValue(_) => true,
             ExpressionNode::Name(name) => is_const_symbol(name.symbol),
-            ExpressionNode::Unary(u) => self.expression_is_const(u.operand),
+            ExpressionNode::Unary(u) => self.expression_is_const(u.operand, static_parameters),
             ExpressionNode::Binary(b) => {
-                self.expression_is_const(b.left) && self.expression_is_const(b.right)
+                self.expression_is_const(b.left, static_parameters)
+                    && self.expression_is_const(b.right, static_parameters)
             }
-            ExpressionNode::Cast(c) => self.expression_is_const(c.value),
+            ExpressionNode::Cast(c) => self.expression_is_const(c.value, static_parameters),
             ExpressionNode::Call(call) => call.machine_arguments.iter().all(|arg| {
                 (!arg.symbol.is_valid() || is_const_symbol(arg.symbol))
                     && (arg.const_literal.is_some()
@@ -98,7 +104,13 @@ impl Scope<'_> {
     fn static_index(
         &self,
         argument: TypeReferenceHandle,
+        application: &Application<'_>,
     ) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
+        let source = self.application_source(application);
+        let static_parameters = source.map_or(&[][..], |(_, source)| {
+            self.program
+                .declaration_type_parameters(source.binding_declaration)
+        });
         let is_const_symbol = |symbol: SymbolHandle| {
             !symbol.is_valid()
                 || self.program.const_declaration_by_symbol(symbol).is_some()
@@ -106,37 +118,72 @@ impl Scope<'_> {
                     .program
                     .machine_type_parameters(self.machine)
                     .iter()
+                    .chain(static_parameters)
                     .any(|p| {
                         p.symbol == symbol && matches!(p.kind, TypeParameterKind::Const { .. })
                     })
         };
         let table = &self.program.type_reference_table;
-        match table.type_reference(argument) {
-            TypeReferenceNode::Named { symbol, .. } => {
-                if !is_const_symbol(*symbol) {
-                    return None;
-                }
-                typed_trees::type_identity::applied_index_identity(
-                    self.program,
-                    typed_trees::type_identity::IndexIdentityArgument::TypeReference(argument),
-                    self.machine.symbol,
-                    &[],
-                )
-            }
+        let eligible = match table.type_reference(argument) {
+            TypeReferenceNode::Named { symbol, .. } => is_const_symbol(*symbol),
             TypeReferenceNode::ConstExpression(expression) => {
-                if !self.expression_is_const(*expression) {
-                    return None;
-                }
-                typed_trees::type_identity::applied_index_identity(
-                    self.program,
-                    typed_trees::type_identity::IndexIdentityArgument::TypeReference(argument),
-                    self.machine.symbol,
-                    &[],
-                )
+                self.expression_is_const(*expression, static_parameters)
             }
-            _ => None,
+            _ => false,
+        };
+        if !eligible {
+            return None;
         }
+        let argument = typed_trees::type_identity::IndexIdentityArgument::TypeReference(argument);
+        let (Some((handle, source)), Some(site)) = (source, application.call) else {
+            return typed_trees::type_identity::applied_index_identity(
+                self.program,
+                argument,
+                self.machine.symbol,
+                &[],
+            );
+        };
+        if !source.binding_declaration.is_valid() || !source.lexical_owner.is_valid() {
+            return None;
+        }
+        use crate::facts::index_compatibility::{
+            BoundIndexArgument, call_index_substitutions, index_identity_bindings,
+        };
+        // Even exact immutable indices belong to the incoming call frame.
+        // In a recursive permutation the callee and caller reuse declaration
+        // symbols; comparing those symbols before substitution would erase
+        // the independently supplied actuals. Runtime subjects stay with the
+        // captured-value comparison rather than this static fast path.
+        let mut substitutions = call_index_substitutions(self.program, self.machine.symbol, &site);
+        substitutions.retain(|(_, argument)| {
+            matches!(
+                argument,
+                BoundIndexArgument::Reference(_) | BoundIndexArgument::Algebra(_)
+            )
+        });
+        if static_parameters.iter().any(|parameter| {
+            matches!(parameter.kind, TypeParameterKind::Const { .. })
+                && !substitutions
+                    .iter()
+                    .any(|(symbol, _)| *symbol == parameter.symbol)
+        }) {
+            return None;
+        }
+        let arguments = index_identity_bindings(&substitutions);
+        let lifetimes = self.application_lifetimes(handle);
+        let scopes = [typed_trees::type_identity::AppliedTypeIdentityScope {
+            declaration: source.binding_declaration,
+            arguments: &arguments,
+            lifetimes: &lifetimes,
+        }];
+        typed_trees::type_identity::applied_index_identity(
+            self.program,
+            argument,
+            source.lexical_owner,
+            &scopes,
+        )
     }
+
     fn values(&self, at: usize) -> Option<CurrentScalarValues<'_>> {
         CurrentScalarValues::at(
             self.program,
@@ -369,6 +416,76 @@ impl Scope<'_> {
             .unzip()
     }
 
+    fn call_substitutions(
+        &self,
+        site: validation::CallSite<'_>,
+        parameters: &[typed_trees::signature::StateParameter],
+        arguments: &[ExpressionHandle],
+    ) -> (
+        Vec<(SymbolHandle, Option<ScopedArithmeticValue>)>,
+        Vec<(SymbolHandle, Option<ExpressionHandle>)>,
+    ) {
+        let (mut substitutions, captured_arguments) =
+            self.argument_substitutions(parameters, arguments);
+        let inert = arguments.iter().all(|argument| {
+            self.frames.is_some_and(|frames| {
+                frames
+                    .expression_write_frame(self.machine, *argument)
+                    .complete_paths()
+                    .is_some_and(|paths| paths.is_empty())
+            })
+        });
+        let target = site.target_symbol(self.program);
+        let static_arguments = match site {
+            validation::CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
+            validation::CallSite::Statement(call) => call.machine_arguments.as_ref(),
+            validation::CallSite::TransitionNamed { .. } => &[][..],
+        };
+        if let Some(signature) = self
+            .program
+            .dynamic_slot_by_symbol(target)
+            .and_then(|slot| self.program.dynamic_slot_requirement(slot))
+            .or_else(|| {
+                self.program
+                    .trait_machine_signature(target)
+                    .map(|(_, signature)| signature)
+            })
+        {
+            let locals = self.program.state_signature_type_parameters(signature);
+            if locals.len() == static_arguments.len() {
+                let values = self.values(self.statement);
+                for (formal, actual) in locals.iter().zip(static_arguments.iter()) {
+                    if matches!(
+                        formal.kind,
+                        TypeParameterKind::Value { .. } | TypeParameterKind::Const { .. }
+                    ) {
+                        substitutions.push((
+                            formal.symbol,
+                            inert
+                                .then(|| values.as_ref()?.static_argument_value(actual))
+                                .flatten(),
+                        ));
+                    }
+                }
+            }
+        }
+        if let Some(callee) = self.program.machine_by_own_or_state_symbol(target)
+            && let Some(values) = self.values(self.statement)
+            && let Some(bindings) = values.machine_value_bindings(callee, site)
+        {
+            // Generic value coordinates share the ordinary call's
+            // substitution. Effectful operands require the completed
+            // operand projection rather than a current-home read.
+            substitutions.extend(
+                bindings
+                    .into_iter()
+                    .map(|(symbol, value)| (symbol, inert.then_some(value))),
+            );
+        }
+
+        (substitutions, captured_arguments)
+    }
+
     fn actual(&self, expression: ExpressionHandle) -> Option<Application<'_>> {
         if !expression.is_valid() {
             return None;
@@ -402,68 +519,9 @@ impl Scope<'_> {
                     .program
                     .expression_table
                     .expression_handles(call.arguments);
-                let (mut substitutions, captured_arguments) =
-                    self.argument_substitutions(parameters, arguments);
-                let inert = arguments.iter().all(|argument| {
-                    self.frames.is_some_and(|frames| {
-                        frames
-                            .expression_write_frame(self.machine, *argument)
-                            .complete_paths()
-                            .is_some_and(|paths| paths.is_empty())
-                    })
-                });
-                if let Some(signature) = self
-                    .program
-                    .dynamic_slot_by_symbol(call.target_symbol)
-                    .and_then(|slot| self.program.dynamic_slot_requirement(slot))
-                    .or_else(|| {
-                        self.program
-                            .trait_machine_signature(call.target_symbol)
-                            .map(|(_, signature)| signature)
-                    })
-                {
-                    let locals = self.program.state_signature_type_parameters(signature);
-                    if locals.len() == call.machine_arguments.len() {
-                        let values = self.values(self.statement);
-                        for (formal, actual) in locals.iter().zip(call.machine_arguments.iter()) {
-                            if matches!(
-                                formal.kind,
-                                TypeParameterKind::Value { .. } | TypeParameterKind::Const { .. }
-                            ) {
-                                substitutions.push((
-                                    formal.symbol,
-                                    inert
-                                        .then(|| values.as_ref()?.static_argument_value(actual))
-                                        .flatten(),
-                                ));
-                            }
-                        }
-                    }
-                }
                 let site = validation::CallSite::Expression { expression, call };
-                if let Some(callee) = self
-                    .program
-                    .machine_by_own_or_state_symbol(call.target_symbol)
-                    && let Some(values) = self.values(self.statement)
-                    && let Some(bindings) = values.machine_value_bindings(callee, site)
-                {
-                    // Generic value coordinates share the ordinary call's
-                    // substitution. Effectful operands require the completed
-                    // operand projection rather than a current-home read.
-                    let inert = arguments.iter().all(|argument| {
-                        self.frames.is_some_and(|frames| {
-                            frames
-                                .expression_write_frame(self.machine, *argument)
-                                .complete_paths()
-                                .is_some_and(|paths| paths.is_empty())
-                        })
-                    });
-                    substitutions.extend(
-                        bindings
-                            .into_iter()
-                            .map(|(symbol, value)| (symbol, inert.then_some(value))),
-                    );
-                }
+                let (substitutions, captured_arguments) =
+                    self.call_substitutions(site, parameters, arguments);
 
                 Some(Application {
                     // Interpret the declaration under captured formal bindings.
@@ -497,6 +555,79 @@ impl Scope<'_> {
             }
             _ => None,
         }
+    }
+
+    fn application_source(
+        &self,
+        application: &Application<'_>,
+    ) -> Option<(
+        typed_trees::static_applications::StaticMachineApplicationHandle,
+        &typed_trees::static_applications::StaticMachineApplication,
+    )> {
+        application.call.and_then(|site| {
+            let handle = match site {
+                validation::CallSite::Statement(call) => call.authored_machine_application,
+                validation::CallSite::Expression { call, .. } => call.authored_machine_application,
+                validation::CallSite::TransitionNamed { .. } => Default::default(),
+            };
+            handle.is_valid().then(|| {
+                (
+                    handle,
+                    self.program
+                        .expression_table
+                        .static_machine_application(handle),
+                )
+            })
+        })
+    }
+
+    fn application_lifetimes(
+        &self,
+        handle: typed_trees::static_applications::StaticMachineApplicationHandle,
+    ) -> Vec<(String, String)> {
+        self.program
+            .expression_table
+            .static_machine_application_lifetimes(handle)
+            .iter()
+            .map(|binding| (binding.parameter.to_string(), binding.argument.to_string()))
+            .collect()
+    }
+
+    fn application_lifetime_identity(
+        &self,
+        application: &Application<'_>,
+        reference: TypeReferenceHandle,
+        ordinal: usize,
+    ) -> Option<typed_trees::type_identity::NormalizedTypeIdentity> {
+        use typed_trees::type_identity::{
+            AppliedTypeIdentityScope, applied_type_lifetime_identity,
+        };
+        let source = self.application_source(application);
+        let Some((handle, source)) = source else {
+            return applied_type_lifetime_identity(
+                self.program,
+                reference,
+                ordinal,
+                self.machine.symbol,
+                &[],
+            );
+        };
+        if !source.binding_declaration.is_valid() || !source.lexical_owner.is_valid() {
+            return None;
+        }
+        let lifetimes = self.application_lifetimes(handle);
+        let scopes = [AppliedTypeIdentityScope {
+            declaration: source.binding_declaration,
+            arguments: &[],
+            lifetimes: &lifetimes,
+        }];
+        applied_type_lifetime_identity(
+            self.program,
+            reference,
+            ordinal,
+            source.lexical_owner,
+            &scopes,
+        )
     }
 
     fn compare(
@@ -610,24 +741,16 @@ impl Scope<'_> {
                 // Contextual value equality never erases independent region
                 // operands, including phantom regions on selected code.
                 if left_lifetimes.len() != right_lifetimes.len()
-                    || !left_lifetimes
-                        .iter()
-                        .zip(right_lifetimes)
-                        .all(|(left, right)| {
-                            let left = typed_trees::type_identity::applied_lifetime_identity(
-                                self.program,
-                                left.as_str(),
-                                self.machine.symbol,
-                                &[],
-                            );
-                            let right = typed_trees::type_identity::applied_lifetime_identity(
-                                self.program,
-                                right.as_str(),
-                                self.machine.symbol,
-                                &[],
-                            );
-                            left.is_some() && left == right
-                        })
+                    || !(0..left_lifetimes.len()).all(|ordinal| {
+                        let left =
+                            self.application_lifetime_identity(actual, actual_reference, ordinal);
+                        let right = self.application_lifetime_identity(
+                            required,
+                            required_reference,
+                            ordinal,
+                        );
+                        left.is_some() && left == right
+                    })
                 {
                     return false;
                 }
@@ -646,7 +769,7 @@ impl Scope<'_> {
                             TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
                         ) {
                             if let (Some(left), Some(right)) =
-                                (self.static_index(*left), self.static_index(*right))
+                                (self.static_index(*left, actual), self.static_index(*right, required))
                             {
                                 if left == right {
                                     return true;
@@ -671,7 +794,7 @@ impl Scope<'_> {
                             if !matches!(parameter.kind, TypeParameterKind::Value { .. }) {
                                 return false;
                             }
-                            let closed_requirement = self.static_index(*right).is_some()
+                            let closed_requirement = self.static_index(*right, required).is_some()
                                 || matches!(self.program.type_reference_table.type_reference(*right),
                                     TypeReferenceNode::ConstExpression(expression)
                                         if self.program.closed_integer_expression_value_in(*expression, self.machine.symbol).is_some());
@@ -751,15 +874,17 @@ impl Scope<'_> {
         application: &Application<'_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let static_equal = self.static_index(argument).is_some_and(|required| {
-            typed_trees::type_identity::applied_index_identity(
-                self.program,
-                typed_trees::type_identity::IndexIdentityArgument::Expression(value),
-                self.machine.symbol,
-                &[],
-            )
-            .is_some_and(|actual| actual == required)
-        });
+        let static_equal = self
+            .static_index(argument, application)
+            .is_some_and(|required| {
+                typed_trees::type_identity::applied_index_identity(
+                    self.program,
+                    typed_trees::type_identity::IndexIdentityArgument::Expression(value),
+                    self.machine.symbol,
+                    &[],
+                )
+                .is_some_and(|actual| actual == required)
+            });
         let equal = static_equal
             || self.values(self.statement).is_some_and(|values| {
                 let Some(required) = self.index(argument, application) else {
@@ -1813,7 +1938,7 @@ pub(super) fn check(
                 frames,
             };
             let (substitutions, captured_arguments) =
-                scope.argument_substitutions(parameters, &arguments);
+                scope.call_substitutions(site, parameters, &arguments);
             for (position, (parameter, argument)) in
                 parameters.iter().zip(arguments.iter()).enumerate()
             {

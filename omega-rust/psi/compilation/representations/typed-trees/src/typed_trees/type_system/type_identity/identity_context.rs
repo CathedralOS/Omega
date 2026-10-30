@@ -80,6 +80,36 @@ impl PackageQualifiedNominalOwner {
 }
 
 impl TypeIdentityContext<'_> {
+    /// An erased region name retains the type operand's supplying telescope.
+    /// Complete symbol substitutions remain available independently of this
+    /// region fence; an unrelated later application cannot capture its names.
+    pub(crate) fn enter_type_operand(
+        &self,
+        program: &TypedTrees,
+        reference: TypeReferenceHandle,
+    ) -> Self {
+        let operand_owner = program
+            .type_reference_table
+            .operand_lifetime_owner(reference);
+        if self.invalid_application.is_some() && operand_owner.is_valid() && !self.declared_carrier
+        {
+            Self {
+                application_owner: operand_owner,
+                application_scopes: self
+                    .application_scopes
+                    .iter()
+                    .rposition(|scope| {
+                        program.lifetime_declaration_owner(scope.declaration)
+                            == program.lifetime_declaration_owner(operand_owner)
+                    })
+                    .map_or(&[][..], |ordinal| &self.application_scopes[..=ordinal]),
+                ..*self
+            }
+        } else {
+            Self { ..*self }
+        }
+    }
+
     pub(crate) fn applied_argument(
         &self,
         symbol: SymbolHandle,
@@ -556,33 +586,8 @@ pub(crate) fn normalize_type_reference(
             encountered.set(true);
         }
     }
-    let operand_owner = program
-        .type_reference_table
-        .operand_lifetime_owner(type_reference);
-    let scoped_context;
-    // That fence protects lexical region names. Carrier substitution uses
-    // complete binder symbols and simultaneous prefixes, so a member's genuine
-    // map Type/Const frame remains usable even without a body specialization.
-    let context = if context.invalid_application.is_some()
-        && operand_owner.is_valid()
-        && !context.declared_carrier
-    {
-        scoped_context = TypeIdentityContext {
-            application_owner: operand_owner,
-            application_scopes: context
-                .application_scopes
-                .iter()
-                .rposition(|scope| {
-                    program.lifetime_declaration_owner(scope.declaration)
-                        == program.lifetime_declaration_owner(operand_owner)
-                })
-                .map_or(&[][..], |ordinal| &context.application_scopes[..=ordinal]),
-            ..*context
-        };
-        &scoped_context
-    } else {
-        context
-    };
+    let scoped_context = context.enter_type_operand(program, type_reference);
+    let context = &scoped_context;
     if let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(type_reference)
         && let Some((argument, outer)) = context.applied_argument(*symbol)

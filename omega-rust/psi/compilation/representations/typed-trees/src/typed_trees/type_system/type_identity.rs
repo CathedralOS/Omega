@@ -285,6 +285,42 @@ pub fn applied_lifetime_identity(
     )
 }
 
+/// Resolve an explicit Generic region operand using the same retained supplier
+/// fence as full type identity. The ordinal names the authored argument, not a
+/// caller-selected spelling. Application operands remain simultaneous.
+pub fn applied_type_lifetime_identity(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    ordinal: usize,
+    lexical_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+) -> Option<NormalizedTypeIdentity> {
+    if !program
+        .type_reference_table
+        .contains_type_reference(reference)
+    {
+        return None;
+    }
+    let crate::types::TypeReferenceNode::Generic {
+        lifetime_arguments, ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    let name = lifetime_arguments.get(ordinal)?;
+    let invalid = Cell::new(false);
+    let context = TypeIdentityContext {
+        application_scopes: scopes,
+        application_owner: lexical_owner,
+        application_argument_owner: lexical_owner,
+        invalid_application: Some(&invalid),
+        ..TypeIdentityContext::default()
+    }
+    .enter_type_operand(program, reference);
+    let identity = context.lifetime(program, name.as_str());
+    (!invalid.get()).then(|| program_intern_type_identity(program, identity))
+}
+
 /// Publish one resolved region through the same simultaneous scopes as its
 /// containing argument, including unused public lifetime operands.
 pub fn portable_applied_lifetime_identity(
