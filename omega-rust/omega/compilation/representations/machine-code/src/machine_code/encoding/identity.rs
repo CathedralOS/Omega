@@ -75,9 +75,7 @@ fn encode_encoding_row(
                     form,
                     contract,
                 } => {
-                    hasher.byte(16);
-                    hasher.raw(&base_operand.to_le_bytes());
-                    hasher.raw(&byte_offset.to_le_bytes());
+                    encode_base_byte_offset(hasher, 16, base_operand, byte_offset);
                     hasher.byte(form.machine_payload());
                     hasher.raw(&contract);
                 }
@@ -102,18 +100,14 @@ fn encode_encoding_row(
                     byte_offset,
                     byte_size,
                 } => {
-                    hasher.byte(6);
-                    hasher.raw(&base_operand.to_le_bytes());
-                    hasher.raw(&byte_offset.to_le_bytes());
+                    encode_base_byte_offset(hasher, 6, base_operand, byte_offset);
                     hasher.byte(byte_size);
                 }
                 Address::AddressOffset {
                     base_operand,
                     byte_offset,
                 } => {
-                    hasher.byte(7);
-                    hasher.raw(&base_operand.to_le_bytes());
-                    hasher.raw(&byte_offset.to_le_bytes());
+                    encode_base_byte_offset(hasher, 7, base_operand, byte_offset);
                 }
                 Address::Load8Indexed {
                     base_operand,
@@ -128,9 +122,7 @@ fn encode_encoding_row(
                     byte_offset,
                     width,
                 } => {
-                    hasher.byte(12);
-                    hasher.raw(&base_operand.to_le_bytes());
-                    hasher.raw(&byte_offset.to_le_bytes());
+                    encode_base_byte_offset(hasher, 12, base_operand, byte_offset);
                     hasher.byte(width.byte_size());
                 }
                 Address::StorePacked {
@@ -138,42 +130,32 @@ fn encode_encoding_row(
                     byte_offset,
                     width,
                 } => {
-                    hasher.byte(13);
-                    hasher.raw(&base_operand.to_le_bytes());
-                    hasher.raw(&byte_offset.to_le_bytes());
+                    encode_base_byte_offset(hasher, 13, base_operand, byte_offset);
                     hasher.byte(width.byte_size());
                 }
                 Address::Load8 {
                     base_operand,
                     byte_offset,
                 } => {
-                    hasher.byte(10);
-                    hasher.raw(&base_operand.to_le_bytes());
-                    hasher.raw(&byte_offset.to_le_bytes());
+                    encode_base_byte_offset(hasher, 10, base_operand, byte_offset);
                 }
                 Address::Load16 {
                     base_operand,
                     byte_offset,
                 } => {
-                    hasher.byte(11);
-                    hasher.raw(&base_operand.to_le_bytes());
-                    hasher.raw(&byte_offset.to_le_bytes());
+                    encode_base_byte_offset(hasher, 11, base_operand, byte_offset);
                 }
                 Address::Load32 {
                     base_operand,
                     byte_offset,
                 } => {
-                    hasher.byte(8);
-                    hasher.raw(&base_operand.to_le_bytes());
-                    hasher.raw(&byte_offset.to_le_bytes());
+                    encode_base_byte_offset(hasher, 8, base_operand, byte_offset);
                 }
                 Address::Load64 {
                     base_operand,
                     byte_offset,
                 } => {
-                    hasher.byte(1);
-                    hasher.raw(&base_operand.to_le_bytes());
-                    hasher.raw(&byte_offset.to_le_bytes());
+                    encode_base_byte_offset(hasher, 1, base_operand, byte_offset);
                 }
                 Address::Store64 { slot, byte_offset }
                 | Address::FrameAddress { slot, byte_offset } => {
@@ -370,6 +352,19 @@ fn encode_counts(
         hasher.raw(b"image-address-fixups-v2");
         hasher.raw(&counts.ordinary_image_address_fixups.to_le_bytes());
     }
+}
+
+/// One base-plus-displacement address arm: its own discriminant, then the
+/// operand and displacement every such arm writes.
+fn encode_base_byte_offset(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    tag: u8,
+    base_operand: u16,
+    byte_offset: u32,
+) {
+    hasher.byte(tag);
+    hasher.raw(&base_operand.to_le_bytes());
+    hasher.raw(&byte_offset.to_le_bytes());
 }
 
 fn encode_machine_disposition(
