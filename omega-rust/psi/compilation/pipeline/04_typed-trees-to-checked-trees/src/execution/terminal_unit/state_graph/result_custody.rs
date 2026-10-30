@@ -1039,6 +1039,19 @@ pub(super) fn account<'calls>(
             + reference_releases
             + independent_view_releases;
         if total != 1 && !(total == 0 && !has_normal_caller_completion) {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "result custody: machine={:?} state={:?} result={result:?} local={result_local:?} construction={construction_transfers} cleanup={cleanup_discards} implicit={implicit_disposition} calls={call_transfers} release={reference_releases} views={independent_view_releases} operations={operations:#?}",
+                    machine.symbol, state.symbol
+                );
+                for (_, establishment) in facts.contextual_cleanup.storage_establishments.iter() {
+                    if establishment.machine == machine.symbol
+                        && establishment.state == state.symbol
+                    {
+                        eprintln!("result custody receiving storage: {establishment:?}");
+                    }
+                }
+            }
             trace.phase(if total == 0 {
                 "state graph: structural result has no selected disposition"
             } else if construction_transfers != 0 && reference_releases != 0 {

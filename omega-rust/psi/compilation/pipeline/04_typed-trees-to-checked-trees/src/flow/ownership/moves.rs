@@ -128,7 +128,7 @@ pub(super) fn append_move_events_for_expression(
     );
     if type_references::expression_is_place_like(program, expression)
         && value_type
-            .map(|reference| type_requires_ownership(program, reference))
+            .map(|reference| type_references::stored_value_requires_transfer(program, reference))
             .unwrap_or(true)
     {
         if let Some(place) = ownership_place_from_expression_in_state(
@@ -144,13 +144,30 @@ pub(super) fn append_move_events_for_expression(
             // the argument's runtime contents. Every other reach keeps the
             // real move so the borrowed-window and shared-loan rejections
             // stand.
-            if observations::detached_borrowed_copy_admitted(
-                program,
-                state_symbol,
-                statement_index,
-                &place,
-                source,
-            ) {
+            // Reusable reference observations are not owned descriptor
+            // transfers. Only a receiving use requesting that same reference
+            // carrier can consume its slot; numeric and predicate operands
+            // read through it. Explicit borrowing still owns its own capture.
+            let observes_reference = value_type.is_some_and(|reference| {
+                validation::reference_shell(program, reference).is_some()
+                    && (!expected_type.is_valid()
+                        || !validation::declared_carriers_match(program, reference, expected_type)
+                        || reference_slot_is_borrowed(
+                            program,
+                            state_symbol,
+                            statement_index,
+                            &place,
+                        ))
+            });
+            if observes_reference
+                || observations::detached_borrowed_copy_admitted(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    &place,
+                    source,
+                )
+            {
                 append_observation!(expression);
             } else {
                 append_move_event_for_place(
@@ -235,7 +252,7 @@ pub(super) fn append_move_events_for_expression(
             append_child!(binary.left, Default::default());
             append_child!(binary.right, Default::default());
         }
-        ExpressionNode::Cast(cast) => append_child!(cast.value, Default::default()),
+        ExpressionNode::Cast(cast) => append_child!(cast.value, cast.target_type),
         ExpressionNode::Unary(unary) => append_child!(unary.operand, Default::default()),
         ExpressionNode::StructLiteral(struct_literal) => {
             for field in program
@@ -692,4 +709,44 @@ pub(in crate::flow::ownership) fn initializer_produces_owned_value(
             == OperatorResultOwnership::OwnedValue
     })
     .unwrap_or(false)
+}
+
+/// Only a positively known borrowed boundary suppresses a descriptor move.
+/// Unknown geometry retains the candidate for ordinary ownership validation;
+/// the final slot is the carried descriptor, not a crossed reference.
+fn reference_slot_is_borrowed(
+    program: &dyn ::validation::CheckingInput,
+    state: SymbolHandle,
+    statement: usize,
+    place: &validation::CanonicalPlace,
+) -> bool {
+    let mut prefix = validation::CanonicalPlace {
+        root: place.root,
+        segments: Vec::new(),
+    };
+    let Some(root) = validation::canonical_place_type_reference(program, state, statement, &prefix)
+    else {
+        return false;
+    };
+    if validation::reference_shell(program, root).is_some()
+        && place.root.as_symbol().is_some_and(|symbol| {
+            program
+                .state_by_symbol(state)
+                .is_some_and(|state| program.state_parameter_by_symbol(state, symbol).is_some())
+        })
+    {
+        return true;
+    }
+    for segment in &place.segments {
+        let Some(reference) =
+            validation::canonical_place_type_reference(program, state, statement, &prefix)
+        else {
+            return false;
+        };
+        if validation::reference_shell(program, reference).is_some() {
+            return true;
+        }
+        prefix.segments.push(*segment);
+    }
+    false
 }

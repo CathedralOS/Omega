@@ -49,11 +49,81 @@ impl CallFrameResolver<'_> {
         expression: ExpressionHandle,
         path: &[facts::PlaceSegment],
     ) -> Option<CapturedStorageReadBacking> {
+        self.completed_read_value(machine, expression)?
+            .1
+            .read_backing(self.program, path)
+    }
+
+    /// Exact address retained by an observed reference value. Immutable names
+    /// and saved subjects select their authenticated production cut, even when
+    /// normalization reuses their syntax in several later statements. Neither
+    /// mutable selectors nor subsequently loaded pointers are replayed there.
+    pub(crate) fn completed_reference_read_sources(
+        &self,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+    ) -> Option<Vec<super::super::LocalWriteSource>> {
+        let (owner, completed) = match self.program.expression_table.expression(expression) {
+            typed_trees::expression::ExpressionNode::Name(path) => {
+                if let Some((index, local)) =
+                    self.program.state_local_declaration(state, path.symbol)
+                    && !local.is_mutable
+                    && path.symbol == path.head_symbol
+                {
+                    let initial = local.ordinary_value_initializer()?;
+                    let statement = self
+                        .program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .get(index)?;
+                    self.completed_read_value_at(machine, state, statement, index, initial)?
+                } else {
+                    self.completed_read_value(machine, expression)?
+                }
+            }
+            typed_trees::expression::ExpressionNode::SavedSubject(saved) => {
+                let production = self.program.saved_value_source(saved)?;
+                self.completed_read_value(machine, production)?
+            }
+            _ => self.completed_read_value(machine, expression)?,
+        };
+        if owner != state.symbol {
+            return None;
+        }
+        let sources = completed.reference_sources(self.program);
+        if sources.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT captured-reference-address-refused machine={} expression={expression:?} phase=descriptor",
+                self.program.symbols.name(machine.symbol)
+            );
+        }
+        sources
+    }
+
+    fn completed_read_value(
+        &self,
+        machine: &Machine,
+        expression: ExpressionHandle,
+    ) -> Option<(SymbolHandle, stored_calls::value_reads::CompletedValueReads)> {
         let (state, statement, index) = caller_aliases::caller_statement_owner(
             self.program,
             machine,
             caller_aliases::CallerWriteSite::Expression(expression),
         )?;
+        self.completed_read_value_at(machine, state, statement, index, expression)
+    }
+
+    fn completed_read_value_at(
+        &self,
+        machine: &Machine,
+        state: &State,
+        statement: &typed_trees::statement::StatementNode,
+        index: usize,
+        expression: ExpressionHandle,
+    ) -> Option<(SymbolHandle, stored_calls::value_reads::CompletedValueReads)> {
+        let reference =
+            crate::expression_result_type_reference(self.program, machine, state, expression)?;
         let prefix = state_write_walk::collected_prefix_at(
             &self.caches.state_write_shared_collections,
             self.program,
@@ -63,16 +133,59 @@ impl CallFrameResolver<'_> {
             index,
             true,
         )?;
-        stored_calls::completed_result_read_backing(
-            self.program,
-            machine,
-            state,
-            statement,
-            expression,
-            path,
-            &prefix,
-            &self.tables.symbols,
-        )
+        Some((
+            state.symbol,
+            stored_calls::completed_value_reads(
+                self.program,
+                machine,
+                state,
+                statement,
+                expression,
+                reference,
+                &prefix,
+                &self.tables.symbols,
+            )?,
+        ))
+    }
+
+    /// Invalidation paths of fields reached through one completed reference
+    /// value. The copied descriptor's old home is frozen; later pointer slots
+    /// and pointee contents remain live dependencies. Every path keeps its own
+    /// unavailable result, and all alternatives must supply complete backing.
+    /// These paths grant no value equality, read, loan or result guarantee.
+    pub fn captured_reference_read_paths(
+        &self,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        paths: &[Vec<facts::PlaceSegment>],
+    ) -> Vec<Option<Vec<String>>> {
+        let completed = (|| {
+            let reference =
+                crate::expression_result_type_reference(self.program, machine, state, expression)?;
+            let shell = crate::reference_shell(self.program, reference)?;
+            if !shell.access.is_readable() {
+                return None;
+            }
+            let (owner, completed) = self.completed_read_value(machine, expression)?;
+            (owner == state.symbol).then_some(completed)
+        })();
+        if completed.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT captured-reference-dependency-refused machine={:?} expression={expression:?} phase=completion",
+                machine.symbol
+            );
+        }
+        paths
+            .iter()
+            .map(|path| {
+                let result = completed.as_ref()?.invalidation_paths(self.program, path);
+                if result.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    eprintln!("STRUCT captured-reference-dependency-refused machine={:?} expression={expression:?} path={path:?} phase=projection", machine.symbol);
+                }
+                result
+            })
+            .collect()
     }
 
     /// An invocation-entry contract observes this original statement prefix.

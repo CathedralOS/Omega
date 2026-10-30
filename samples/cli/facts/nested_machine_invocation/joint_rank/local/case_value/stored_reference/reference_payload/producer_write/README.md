@@ -61,3 +61,6 @@ native/Terminal agreement on the full caller-visible oracle. The existing long-c
 rank witness retains physical-stack coverage. Other-host execution and the parent
 capability's remaining obligations remain open; source admission alone closes none
 of those runtime requirements.
+
+[Saved-reference transport after descriptor reseating](saved_reference/README.md)
+continues the remaining joined-bound and cleanup composition.

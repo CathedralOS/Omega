@@ -150,7 +150,7 @@ pub(super) fn transfers_value_custody(
     path: &[facts::PlaceSegment],
 ) -> bool {
     selected_value_type(program, state, statement_index, event, path).is_some_and(|reference| {
-        type_multiplicity(program, reference) != Multiplicity::Unrestricted
+        program.stored_value_multiplicity(reference) != Multiplicity::Unrestricted
     })
 }
 
