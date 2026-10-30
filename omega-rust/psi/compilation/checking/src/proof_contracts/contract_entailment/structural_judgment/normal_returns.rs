@@ -1460,17 +1460,13 @@ impl<'program> StructuralJudge<'program> {
                         .collect::<Option<Vec<_>>>()?),
                     None => None,
                 };
-                // Completion-only consumers need the selected call's full
-                // guarantees and ordered write effects below, not a private
-                // body's alternatives for a result they never observe.
-                // Value consumers retain body refinement; completion still
-                // captures the result and post-storage contract together.
-                if !matches!(demand, NormalValueDemand::Completion)
-                    && let Some(paths) = judge.completed_body_paths(
-                        expression, call_values.as_deref(), environment, scope, &writes,
-                    )
-                {
-                    return Some(paths.into_iter().map(|path| {
+                if let Some(paths) = judge.completed_body_paths(
+                    expression, call_values.as_deref(), environment, scope, &writes,
+                ) {
+                    return Some(paths.into_iter().map(|mut path| {
+                        if matches!(demand, NormalValueDemand::Completion) {
+                            path.observation = NormalValueObservation::NotObserved;
+                        }
                         path.at_expression(expression, demand)
                     }).collect());
                 }
