@@ -5,6 +5,27 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::statement::StatementNode;
 use syntax_trees::types::TypeReferenceNode;
 
+/// The ranking-clause tests count arena handles rather than compare trees;
+/// one accessor per arena keeps the count assertion from re-spelling the walk.
+fn assert_expression_count(
+    trees: &syntax_trees::SyntaxTrees,
+    handles: arena::HandleSpan<syntax_trees::expression::ExpressionHandle>,
+    expected: usize,
+) {
+    assert_eq!(
+        trees.expressions.expression_handles(handles).len(),
+        expected
+    );
+}
+
+fn assert_path_member_count(
+    trees: &syntax_trees::SyntaxTrees,
+    path: arena::HandleSpan<syntax_trees::identifier::Identifier>,
+    expected: usize,
+) {
+    assert_eq!(trees.items.identifier_path_members(path).len(), expected);
+}
+
 #[test]
 fn logical_domain_subject_preserves_ordinary_machine_operands() {
     let source = r#"
@@ -85,20 +106,8 @@ fn parses_machine_termination_clauses() {
     let parsed = super::parse_source(source, "parse should succeed");
     let machine = super::root_machine(&parsed, "machine root item");
 
-    assert_eq!(
-        parsed
-            .expressions
-            .expression_handles(machine.ranking_subjects)
-            .len(),
-        1
-    );
-    assert_eq!(
-        parsed
-            .items
-            .identifier_path_members(machine.ranking_view)
-            .len(),
-        2
-    );
+    assert_expression_count(&parsed, machine.ranking_subjects, 1);
+    assert_path_member_count(&parsed, machine.ranking_view, 2);
 }
 
 #[test]
@@ -115,20 +124,8 @@ fn parses_machine_termination_tuple_subjects() {
     let parsed = super::parse_source(source, "parse should succeed");
     let machine = super::root_machine(&parsed, "machine root item");
 
-    assert_eq!(
-        parsed
-            .expressions
-            .expression_handles(machine.ranking_subjects)
-            .len(),
-        2
-    );
-    assert_eq!(
-        parsed
-            .items
-            .identifier_path_members(machine.ranking_view)
-            .len(),
-        2
-    );
+    assert_expression_count(&parsed, machine.ranking_subjects, 2);
+    assert_path_member_count(&parsed, machine.ranking_view, 2);
 }
 
 #[test]
@@ -148,27 +145,9 @@ fn parses_machine_termination_argumented_view() {
 
     // The by-form supplies only the witness -- never the public guarantee.
     assert!(!machine.terminates_guarantee);
-    assert_eq!(
-        parsed
-            .expressions
-            .expression_handles(machine.ranking_subjects)
-            .len(),
-        1
-    );
-    assert_eq!(
-        parsed
-            .items
-            .identifier_path_members(machine.ranking_view)
-            .len(),
-        2
-    );
-    assert_eq!(
-        parsed
-            .expressions
-            .expression_handles(machine.ranking_view_arguments)
-            .len(),
-        1
-    );
+    assert_expression_count(&parsed, machine.ranking_subjects, 1);
+    assert_path_member_count(&parsed, machine.ranking_view, 2);
+    assert_expression_count(&parsed, machine.ranking_view_arguments, 1);
 }
 
 #[test]
