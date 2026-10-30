@@ -1,12 +1,14 @@
-// Under the `Interval::Range` arm the selected case's `where` fact
-// (`lo <= hi`) is a branch-local proposition on the exact subject,
-// so the target state's `requires lo <= hi` proves at arrival with
-// no extra evidence. The destructured bindings rewrite to
-// `main.interval.lo`/`.hi` — the contributed fact carries that
-// canonical identity.
-data Interval {
+// CASE-CONSTRAINTS migrated: the Range case predicate lives in the data
+// `requires` disjunction; under the `Interval::Range` arm the projected
+// case fact (`lo <= hi`) is a branch-local proposition on the exact subject,
+// so the target state's `requires lo <= hi` proves at arrival with no extra
+// evidence.
+data Interval requires
+    (self in Interval::Empty)
+    || ((self in Interval::Range) && self.lo <= self.hi)
+{
     case Empty;
-    case Range(lo: u64, hi: u64) where lo <= hi;
+    case Range(lo: u64, hi: u64);
 }
 data Main { interval: Interval; }
 machine Main::main(main: &mut Main) {
