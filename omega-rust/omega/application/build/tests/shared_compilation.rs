@@ -54,21 +54,27 @@ fn second_consumer_reuses_the_dependency_judgment_and_declaration_pages() {
     let dependency = root.join("dependency.omg");
     std::fs::write(
         &dependency,
-        "public machine bounded(value: u64) -> u64 requires value < 10u64 { value }\n",
+        "public data Cell [copy] { value: u64; }\n\
+         public machine project<'storage>(value: &'storage Cell) -> &'storage u64 {\n\
+             let view: &u64 = &value.value;\n\
+             view\n\
+         }\n\
+         public machine count(value: u64) -> u64 { value }\n\
+         public machine equal(value: u64) -> bool { value == 19u64 }\n",
     )
     .unwrap();
+    let consumer = "use dependency;\n\
+         machine require_equal(value: u64) requires equal(value) { }\n\
+         machine main() -> u64 {\n\
+             let cell: Cell = Cell { value: 19u64 };\n\
+             let view: &u64 = project(&cell);\n\
+             let observed: u64 = count(19u64);\n\
+             let difference: u64 = observed - 19u64;\n\
+             require_equal(19u64);\n";
     let first = root.join("first.omg");
     let second = root.join("second.omg");
-    std::fs::write(
-        &first,
-        "use dependency; machine main() -> u64 { bounded(5u64) }\n",
-    )
-    .unwrap();
-    std::fs::write(
-        &second,
-        "use dependency; machine main() -> u64 { bounded(6u64) }\n",
-    )
-    .unwrap();
+    std::fs::write(&first, format!("{consumer}    view + difference\n}}\n")).unwrap();
+    std::fs::write(&second, format!("{consumer}    difference + view\n}}\n")).unwrap();
     let mut compiler = compiler::CompilationSession::default();
     let forks_before = compiler::declaration_page_fork_totals();
     let entailment_before = compiler::dependency_entailment_totals();
@@ -82,6 +88,7 @@ fn second_consumer_reuses_the_dependency_judgment_and_declaration_pages() {
     );
     let settled_before_second = compiler::settled_check_totals().0;
     let whole_before_second = compiler::whole_program_reuse_hits();
+    let reads_before_second = compiler::dependency_body_read_totals();
     check(&mut compiler, &second).unwrap();
     let after_second = compiler::dependency_entailment_totals();
     let reused_second = after_second.0 - after_first.0;
@@ -102,6 +109,41 @@ fn second_consumer_reuses_the_dependency_judgment_and_declaration_pages() {
         compiler::whole_program_reuse_hits(),
         whole_before_second,
         "whole-program reuse matched a different typed input"
+    );
+    let reads = compiler::dependency_body_read_totals();
+    let frozen_return_origins = reads[0].0 - reads_before_second[0].0;
+    let frozen_binding_stability = reads[1].0 - reads_before_second[1].0;
+    let frozen_observation = reads[2].0 - reads_before_second[2].0;
+    let frozen_return_interval = reads[3].0 - reads_before_second[3].0;
+    let source_reads = (
+        reads[0].1 - reads_before_second[0].1,
+        reads[1].1 - reads_before_second[1].1,
+        reads[2].1 - reads_before_second[2].1,
+        reads[3].1 - reads_before_second[3].1,
+    );
+    assert!(
+        frozen_return_origins
+            + frozen_binding_stability
+            + frozen_observation
+            + frozen_return_interval
+            > 0,
+        "frozen body reads {frozen_return_origins} {frozen_binding_stability} {frozen_observation} {frozen_return_interval} source {source_reads:?}"
+    );
+    assert!(
+        frozen_return_origins > 0,
+        "returned-reference origins did not read the frozen dependency body; frozen {frozen_return_origins} {frozen_binding_stability} {frozen_observation} {frozen_return_interval} source {source_reads:?}"
+    );
+    assert!(
+        frozen_binding_stability > 0,
+        "binding stability did not read the frozen dependency body"
+    );
+    assert!(
+        frozen_observation > 0,
+        "denotational admission did not read the frozen dependency body"
+    );
+    assert!(
+        frozen_return_interval > 0,
+        "return intervals did not read the frozen dependency body under the caller actual"
     );
     let forks = compiler::declaration_page_fork_totals();
     let shared = forks.0 - forks_before.0;

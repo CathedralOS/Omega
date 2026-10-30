@@ -170,6 +170,11 @@ impl CheckRequest<'_> {
                 .iter()
                 .flat_map(|prior| prior.strict_dependency_bodies().iter().cloned())
                 .collect();
+            let prior_frozen_bodies: Vec<_> = self
+                .previous
+                .iter()
+                .flat_map(|prior| prior.strict_frozen_dependency_bodies().iter().cloned())
+                .collect();
             phase_profile::scope("05.d.lower_typed_trees", || {
                 typed_trees_to_checked_trees::lower_typed_trees_reusing(
                     program,
@@ -177,6 +182,7 @@ impl CheckRequest<'_> {
                     retained_input,
                     &checking,
                     &prior_dependency_bodies,
+                    &prior_frozen_bodies,
                     self.retain,
                 )
             })?

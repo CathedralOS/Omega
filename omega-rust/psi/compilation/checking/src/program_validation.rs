@@ -52,7 +52,7 @@ mod statements;
 pub use contract_queries::{
     validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
 };
-pub use dependency_bodies::DependencyBodyJudgment;
+pub use dependency_bodies::{DependencyBodyJudgment, FrozenDependencyBody};
 use statements::validate_state_statement_node;
 
 pub use checked_trees::operators::ExactIntegerCastFact;
@@ -150,6 +150,9 @@ pub struct ProgramValidation {
     /// strict check that the caller will retain. Empty when this pass is not
     /// recording. Consumers remap ordinals into their own arenas.
     pub dependency_body_judgments: Vec<DependencyBodyJudgment>,
+    /// Bodies whose correspondence matched, including bodies whose entailment
+    /// ordinals stay local. Query sites read these instead of source text.
+    pub frozen_dependency_bodies: Vec<FrozenDependencyBody>,
 }
 
 /// Validate a standalone program, including its generic contracts.
@@ -159,6 +162,7 @@ pub fn validate_program(program: &dyn crate::CheckingInput) -> Result<(), Vec<Di
         OpaquePropertyValidation::Required(&[]),
         QuotientRequestAdmission::AtValidation,
         EffectAdmission::Complete,
+        &[],
         &[],
         false,
     )
@@ -171,6 +175,7 @@ pub fn prepare_specialized_program(
     program: &dyn crate::CheckingInput,
     opaque_properties: OpaquePropertyValidation<'_>,
     prior_dependency_bodies: &[DependencyBodyJudgment],
+    prior_frozen_bodies: &[FrozenDependencyBody],
     record_dependency_bodies: bool,
 ) -> Result<ProgramValidation, Vec<Diagnostic>> {
     validate(
@@ -179,6 +184,7 @@ pub fn prepare_specialized_program(
         QuotientRequestAdmission::AfterCheckedFacts,
         EffectAdmission::AfterOwnership,
         prior_dependency_bodies,
+        prior_frozen_bodies,
         record_dependency_bodies,
     )
 }
@@ -203,6 +209,62 @@ pub fn dependency_entailment_totals() -> (u64, u64) {
     )
 }
 
+/// Which frozen-body query read a dependency machine.
+#[derive(Clone, Copy)]
+pub(crate) enum DependencyBodyRead {
+    ReturnOrigin,
+    BindingStability,
+    ObservationFreedom,
+    ReturnInterval,
+}
+
+static FROZEN_BODY_READS: [std::sync::atomic::AtomicU64; 4] = [
+    std::sync::atomic::AtomicU64::new(0),
+    std::sync::atomic::AtomicU64::new(0),
+    std::sync::atomic::AtomicU64::new(0),
+    std::sync::atomic::AtomicU64::new(0),
+];
+static SOURCE_BODY_READS: [std::sync::atomic::AtomicU64; 4] = [
+    std::sync::atomic::AtomicU64::new(0),
+    std::sync::atomic::AtomicU64::new(0),
+    std::sync::atomic::AtomicU64::new(0),
+    std::sync::atomic::AtomicU64::new(0),
+];
+
+/// Frozen-body versus source reads for return origins, binding stability,
+/// observation freedom, and return intervals, in that order.
+pub fn dependency_body_read_totals() -> [(u64, u64); 4] {
+    let load =
+        |counter: &std::sync::atomic::AtomicU64| counter.load(std::sync::atomic::Ordering::Relaxed);
+    std::array::from_fn(|index| {
+        (
+            load(&FROZEN_BODY_READS[index]),
+            load(&SOURCE_BODY_READS[index]),
+        )
+    })
+}
+
+/// Record whether this query read an admitted frozen dependency body.
+pub(crate) fn note_dependency_body_read(
+    program: &dyn crate::CheckingInput,
+    machine: symbols::SymbolHandle,
+    read: DependencyBodyRead,
+) {
+    let frozen = program.checking_memos().is_some_and(|memos| {
+        memos
+            .admitted_dependency_bodies
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .contains_key(&machine)
+    });
+    let counters = if frozen {
+        &FROZEN_BODY_READS
+    } else {
+        &SOURCE_BODY_READS
+    };
+    counters[read as usize].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
 fn record_dependency_entailment(reused: bool) {
     let counter = if reused {
         &DEPENDENCY_ENTAILMENT_REUSED
@@ -218,6 +280,7 @@ fn validate<'program>(
     quotient_admission: QuotientRequestAdmission,
     effect_admission: EffectAdmission,
     prior_dependency_bodies: &[DependencyBodyJudgment],
+    prior_frozen_bodies: &[FrozenDependencyBody],
     record_dependency_bodies: bool,
 ) -> Result<ProgramValidation, Vec<Diagnostic>> {
     let mut formation_obligations = Vec::new();
@@ -502,9 +565,21 @@ fn validate<'program>(
         dependency_bodies::DependencyBodyIndex::prepare(
             program,
             prior_dependency_bodies,
+            prior_frozen_bodies,
             record_dependency_bodies,
         )
     });
+    if let Some(memos) = program.checking_memos() {
+        let mut admitted = memos
+            .admitted_dependency_bodies
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for (machine_index, machine) in program.machines().iter().enumerate() {
+            if body_index.admits_frozen_body(machine_index) {
+                admitted.insert(machine.symbol, ());
+            }
+        }
+    }
     let machine_loop_guard = phase_profile::guard("05.d.2.a.2.machine_loop");
     let mut proven_machine_contracts = Vec::new();
     let has_plan_laid_integer_fields = program.plan_laid_layouts.iter().any(|plan| {
@@ -1021,6 +1096,7 @@ fn validate<'program>(
         self_call_descents.extend(machine.self_call_descents);
     }
     let dependency_body_judgments = body_index.judgments(&captured_entailments);
+    let frozen_dependency_bodies = body_index.frozen_bodies();
     drop(machine_loop_guard);
     let _post_machine_guard = phase_profile::guard("05.d.2.a.3.post_machine_validators");
 
@@ -1138,6 +1214,7 @@ fn validate<'program>(
             proven_machine_contracts,
         },
         dependency_body_judgments,
+        frozen_dependency_bodies,
     })
 }
 

@@ -534,6 +534,10 @@ pub struct CheckingMemos {
     /// caller places. Recipe-bearing arguments use ordinary inference. Retain
     /// the complete result recipe and negative results; immutable actuals and
     /// the exact stored machine/state own this invocation-specific judgment.
+    /// Machines whose declaration/state/expression correspondence matches a
+    /// strict dependency judgment. Call-frame, denotation, and return-range
+    /// queries read that frozen body instead of judging it from source again.
+    pub(crate) admitted_dependency_bodies: Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, ()>>,
     pub(crate) normal_return_intervals: Mutex<
         symbols::SymbolKeyMap<
             (
@@ -758,6 +762,7 @@ impl CheckingMemos {
             private_closed_arrivals: self.private_closed_arrivals,
             state_prefix_reachability_edges: self.state_prefix_reachability_edges,
             normal_completion_possible: self.normal_completion_possible,
+            admitted_dependency_bodies: self.admitted_dependency_bodies,
             ..Self::default()
         }
     }
@@ -809,6 +814,12 @@ impl CheckingMemos {
             ),
             normal_completion_possible: Mutex::new(
                 self.normal_completion_possible
+                    .lock()
+                    .map(|guard| guard.clone())
+                    .unwrap_or_default(),
+            ),
+            admitted_dependency_bodies: Mutex::new(
+                self.admitted_dependency_bodies
                     .lock()
                     .map(|guard| guard.clone())
                     .unwrap_or_default(),

@@ -2,17 +2,16 @@
 
 Owner: `CHECKED-PACKAGE-REUSE`.
 
-`dependency` publishes `seven`, which returns 7. The application calls that
-machine and accepts only that result. The matching arm exits. The fallback
-traps. `Expected exit: 0`.
+`dependency` publishes three bodies and no result guarantees. `project`
+returns a reference to the caller's cell. `count` returns its argument, so
+`observed - 19` is proved from that arrival. `equal` is an observation-free
+denotation used by `require_equal`. The caller accepts only the live view 19
+and the difference 0. The other arm traps. `Expected exit: 0`.
 
-Immutable declaration pages and their fact-context index are shared across
-independent flow groups. Each group keeps its own local facts, fixed-point
-join, and unknown-input fallback. A second consumer in the same compiler
-session reuses the dependency body's entailment judgment instead of judging
-that body from source again. Whole-program reuse still requires the typed
-input and the complete preparation admission to match, so a different caller
-does not take the first program's judgment.
+Those queries read the dependency through one declaration, state, and
+expression correspondence. A second consumer reuses that frozen body instead
+of judging it from source again. A different typed program does not take the
+first consumer's whole-program judgment.
 
 ```sh
 omega run --both samples/cli/facts/checked_dependency_reuse/main.omg

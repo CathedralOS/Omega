@@ -1,10 +1,17 @@
-// The caller observes the dependency's checked result, 7.
+// The caller reads the dependency's frozen body: a returned reference, a
+// counted arrival, and an observation-free predicate. The match arm exits.
+// The fallback traps.
 // Expected exit: 0
 use dependency;
 
+machine require_equal(value: u64) requires equal(value) { }
 machine main() crashes Trap {
-    let observed: u64 = seven();
-    transition observed == 7 { true -> done() _ -> bad() }
+    let cell: Cell = Cell { value: 19u64 };
+    let view: &u64 = project(&cell);
+    let observed: u64 = count(19u64);
+    let difference: u64 = observed - 19u64;
+    require_equal(19u64);
+    transition view == 19u64 && difference == 0u64 { true -> done() false -> wrong() }
     machine done() {}
-    machine bad() { crash Trap; }
+    machine wrong() { crash Trap; }
 }

@@ -474,11 +474,6 @@ retired-syntax deletions to completion.
   through compiler-private checked package reuse bound to exact source,
   dependency, and compiler identities (`std` is checked once at package review
   and reused in dependents at the same precision).
-  - Keep frozen dependency bodies available to `CallFrameResolver`
-    (returned-reference origins and binding stability), denotational admission
-    (observation freedom), and `return_ranges::infer_return_interval` (captured
-    arrivals under the caller's actual intervals) over one
-    declaration/state/expression correspondence.
   - Complete cross-consumer checked dependency admission bound to full producer
     dependency context. Exact-program source/check graphs and native Terminal
     products persist across invocations with fresh source, dependency, compiler
