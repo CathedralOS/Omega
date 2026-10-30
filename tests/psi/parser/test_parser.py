@@ -1676,7 +1676,7 @@ def machine_form_cases(program: str) -> None:
         ("contract-end", b"machine f<machine F>() requires machine F() x {}", 166, b"x", 1, {"generic_parameter_count": 1}),
         ("nominal-contract-takes-no-binding", b"machine f<machine F>() requires machine F satisfies H::c via b; {}",
          166, b"via", 1, {"generic_parameter_count": 1, "member_count": 2}),
-        ("contract-after-clause", b"machine f() requires a requires machine F(); {}", 105, b"requires", 2,
+        ("contract-after-clause", b"machine f() requires a requires machine F(); {}", 47, b"requires", 2,
          {"expression_count": 1}),
         ("proposition-binder-name", b"trait T<proposition> {}", 33, b">", 1, {}),
         ("evidence-binder-trait", b"trait T<P satisfies> {}", 179, b">", 1, {}),

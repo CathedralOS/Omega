@@ -4,63 +4,95 @@ Owning outcome: **BUILD-OWNED-TARGET-SELECTION** in `TASKS.md`.
 
 Fact: a selected callback satisfies the public callable guarantee, and its bounded result permits subtraction from 64u64.
 
-Every standard place keeps input42 and forms64-result from the returned bound,
-before observing remaining22. Each twin removes only identity's public
-result>=value guarantee and keeps its body unchanged. A concrete private body
-cannot supply a missing published callable obligation.
+The nine places are [local](local/main.omg), [field](field/main.omg),
+[parameter](parameter/main.omg), [call result](call_result/main.omg),
+[match join](match_join/main.omg), [const name](const_name/main.omg),
+[nested machine](other_state/main.omg), [another machine](other_machine/main.omg),
+and [another selected implementation](target_body/main.omg).
+Every place keeps input42 and forms64-result from the returned bound before
+observing remaining22. Its `invalid/main.omg` twin removes only identity's
+published result>=value guarantee; its body and consuming operation stay the
+same. A concrete private body cannot supply a missing callable obligation.
+All positives bind all four hosted targets; the target controls also bind x86macOS.
+The positive/twin sources are pinned under
+`tests/omega/{pass,fail}/facts/target_family_callback_guarantee/`.
 
 One ordinary CallbackApply requirement explicitly retains the complete static
 callback contract formerly demanded by all four implicit members: input<=64,
 result<=64 and result>=input. SharedApply uses an independently named Action
-binder and proves its own public result<=64 obligation. Build selects this
-ordinary checked implementation for each hosted target. It contributes no
-additional source proof or authority. Duplicate source bodies are removed.
+binder and proves its public result<=64 obligation. Build selects this ordinary
+checked implementation separately for each target. Selection grants no source
+proof or authority, and duplicate target-prefixed bodies are removed.
 
-The match place exercises both choices, carrying the same42 and bound through
-both arms; each subtraction forms before checking distinct17/29arm markers.
-The target-body place performs the same subtraction in an ordinary selected
-implementation. The const-name place still names the selected call result
-itself, rather than a different input or precomputed bound.
+The match place exercises both choices with the same42 and bound; both
+subtractions form before checking distinct17/29arm markers. The const-name
+place still names the selected call result itself. The target-values control
+retains that same call constant, with Windows selecting41 and observing
+remaining23, while the other targets select42 and observe remaining22.
+The target-body place nests the selected callback directly inside the selected
+subtraction call.
 
-The retained controls cover an invalid non-host helper implementation, a weaker
-disjunctive guarantee, a stronger callback precondition, and exact declaration
-scope of equal versus distinct captured constants. The target_values control
-retains one selected-call constant and the original Windows remaining23 versus
-other hosted targets remaining22; selected bodies and entry oracles stay distinct.
-The captured-constant formation control is checking-only.
+Additional witnesses retain the same fact and operation:
 
-Accepted contracts are [static callback applications](../../../../wiki/spec/language/generics.md#static-machine-binder-categories),
+- [Interleaved bare binder](bare_interleaved/main.omg): outer entry/result clauses
+  surround a complete nested callable requirement, which determines binder kind.
+- [Repeated application](repeated_application/main.omg): two calls retain
+  distinct42/41result snapshots despite sharing a canonical public application.
+- [Single evaluation](evaluation_once/main.omg): observable inner and outer
+  counters must each be1 after the nested callback and its enclosing consumer.
+
+Each has a guarantee-sensitive reject twin. Other retained controls cover a
+non-host invalid helper, a weaker disjunctive guarantee, a stronger callback
+precondition and equal versus distinct captured constants. The captured-constant
+formation control is checking-only.
+
+The accepted contracts are [static callback applications](../../../../wiki/spec/language/generics.md#static-machine-binder-categories),
 [named implementations](../../../../wiki/spec/language/conformances.md),
 [Build selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection),
 and [requirement scopes](../../../../wiki/spec/language/state_contracts.md#requirement-clauses).
-Canonical requires-machine clauses own their complete nested contracts and
-terminating semicolons; outer runtime conditions retain their own subjects.
+Canonical requires-machine clauses own their nested contracts and terminating
+semicolons. The parser stages an owner's clauses before publishing contiguous
+arena spans, so interleaved nested clauses cannot become outer predicates.
 
-Establishment comes from each callback's published contract and each checked
-implementation's return. Exact formal/result identities and module constants
-survive substitution without borrowing new storage or granting access. Calls
-and joins transport the same bound into subtraction, with no caller guard
-manufacturing it. Static kinds, complete callable contracts and invalid
-unselected implementations remain independently checked. Current validation
-must carry this through Terminal erasure/interpretation, exact Build/provider
-joins, scalar calling/frame plans, instruction realization and native emission.
-This row establishes no new mutation, cleanup or foreign-authority mechanism.
+Establishment comes from the callback's published contract and each checked
+implementation's return. Full original static tuples are admitted independently
+of executable specialization. Exact formal/result identities, captured
+constants and call arguments survive substitution. Calls and joins transport
+the bound directly into subtraction; no caller guard manufactures it. Invalid
+unselected implementations and wrong static kinds/scopes still reject. Ordinary
+boundary calls carry their scalar arguments through the same computation owner,
+so a nested producer executes once. Private service-contract exposure follows
+the authored declaration; public contracts still reject private constants.
 
-On fixed local base472bcd85026456652e414e1f834301b662558674, optimized producer
-ad909308cdb32b3c95b5cbf8093262e4630e0c51 with byte-identical compiler/library
-inputs checks all25 original Source controls and runs all11 original executable
-programs with native0/Terminal0 on macOS ARM64. Those are historical pre-migration
-observations. The first ordinary replacement wrongly refuses canonical static
-requires-machine contracts; P01 is unchanged in published mainf5e96dfe4d1.
-Its parser repair, source migration and executable validation are in progress;
-no new-producer runtime or other-host native acceptance is claimed yet.
+Optimized producer3e904b0883480a9d77d894c302271d43fbdea979 has34proper Source
+outcomes (15positives,19reject controls) and14actual sample native0/Terminal0
+observations on macOSARM64. The pinned corpus has14ARM native/Terminal
+agreements and one x86macOS/Rosetta agreement. The target-body and target-values
+controls also execute one unchanged Terminal artifact across all five authored
+target installations. ARM/x86captured products retain the actual portable bytes
+and component inputs. Other-host native execution is not established here.
+Terminal-only counterfactuals retain a positive0 and typedTraps for a wrong
+payload, wrong match marker and duplicated inner-counter effect.
 
-Positive and reject twins remain in local, field, parameter, call_result,
-match_join, const_name, other_state, other_machine and target_body, mirrored
-under tests/omega/{pass,fail}/facts/target_family_callback_guarantee. Detailed
-source/producers/raw evidence stay under build/content-provider/callback.
+Against fixed Source base472bcd85026456652e414e1f834301b662558674, the534affected
+fixture comparison has no losses and the six added fixtures have their intended
+outcomes. All329samples changed by the static-clause migration retain their
+original checking outcomes (155acceptances and174refusals); this comparison is
+Source evidence, not329native runs. The Omega-written prefix parser's retained
+native artifact passes503decoder cases. The original explicit `terminates;;`
+control is pinned as
+`tests/omega/pass/calls/requires_machine_explicit_operational_closers_exit`
+and runs native0/Terminal0. Its full nested/interleaved requirement
+implementation remains open under REQUIRES-UNIFICATION.
 
-Full parent acceptance still includes all remaining source-family/native-binding
-retirement, library/product/customer migration and matching-host observations.
-The broader REQUIRES-UNIFICATION outcome retains its other predicate, assembly
-and product-compiler requirements. Neither parent is closed by this row.
+Original producerad909308cdb32b3c95b5cbf8093262e4630e0c51 checked all25old Source
+controls and ran all11old executable programs with native0/Terminal0. The new
+ordinary forms initially refused in P01, private review, public tuple transport
+and nested computation lowering. Frozen baselines, every intermediate refusal,
+actual products and raw observations remain under `build/content-provider/callback`;
+archive manifests preserve closed compiler images with exact restoration metadata.
+
+The parent target/native retirement and remaining requirement forms remain open.
+The single-semicolon operational ownership question is narrowly recorded in
+[OWNER_QUESTIONS.md](../../../../OWNER_QUESTIONS.md); explicit distinct terminators
+remain engineering and are accepted by the Rust producer.
