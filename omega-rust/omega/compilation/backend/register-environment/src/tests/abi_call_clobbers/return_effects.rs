@@ -1,8 +1,8 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, ScalarAbiCase,
     abi_case_context, assert_faulting_trap, assert_storage_free,
-    baseline_target_register_environment, convention_for, declaration_mut, produced_effects,
-    scalar_abi_cases, units_for_names, validate_effects,
+    baseline_target_register_environment, binds_catalog_provenance, convention_for,
+    declaration_mut, produced_effects, scalar_abi_cases, units_for_names, validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
@@ -98,14 +98,7 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
             case.convention
         );
 
-        // The catalog is bound to this exact validated constraint catalog,
-        // target, and key selection — provenance, not a re-derived roster.
-        assert_eq!(catalog.catalog().target, case.target);
-        assert_eq!(
-            catalog.catalog().register_constraints,
-            environment.constraints().identity()
-        );
-        assert_eq!(catalog.catalog().selected_keys, keys);
+        binds_catalog_provenance(&catalog, case, &environment, keys);
 
         for (key, semantic) in &return_rules {
             let row = environment

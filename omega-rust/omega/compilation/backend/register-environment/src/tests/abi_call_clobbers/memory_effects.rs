@@ -1,7 +1,7 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
-    baseline_target_register_environment, declaration_mut, named_view, produced_effects,
-    scalar_abi_cases, validate_effects, validated_effects,
+    baseline_target_register_environment, binds_catalog_provenance, declaration_mut, named_view,
+    produced_effects, scalar_abi_cases, validate_effects, validated_effects,
 };
 use register_model::{RegisterOperandAccess, RegisterViewId};
 use selected_instructions::{
@@ -462,14 +462,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
             case.convention
         );
 
-        // The catalog is bound to this exact validated constraint catalog,
-        // target, and key selection — provenance, not a re-derived roster.
-        assert_eq!(catalog.catalog().target, case.target);
-        assert_eq!(
-            catalog.catalog().register_constraints,
-            environment.constraints().identity()
-        );
-        assert_eq!(catalog.catalog().selected_keys, keys);
+        binds_catalog_provenance(&catalog, case, &environment, keys);
 
         let stack_pointer = named_view(
             model,

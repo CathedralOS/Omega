@@ -1,7 +1,8 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     assert_faulting_trap, assert_storage_free, baseline_target_register_environment,
-    declaration_mut, named_view, produced_effects, scalar_abi_cases, validate_effects,
+    binds_catalog_provenance, declaration_mut, named_view, produced_effects, scalar_abi_cases,
+    validate_effects,
 };
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -153,14 +154,7 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
             case.convention
         );
 
-        // The catalog is bound to this exact validated constraint catalog,
-        // target, and key selection — provenance, not a re-derived roster.
-        assert_eq!(catalog.catalog().target, case.target);
-        assert_eq!(
-            catalog.catalog().register_constraints,
-            environment.constraints().identity()
-        );
-        assert_eq!(catalog.catalog().selected_keys, keys);
+        binds_catalog_provenance(&catalog, case, &environment, keys);
 
         let flags = named_view(
             model,

@@ -26,12 +26,13 @@ use register_model::{
 use selected_instructions::{
     MachineEffectCatalog, MachineEffectCatalogValidationError, MachineEffectDeclaration,
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, MachineSemanticKind, ValidatedMachineEffectCatalog,
+    MachineEncodedTrapBehavior, MachineSemanticKind, SelectedConstraintKeys,
+    ValidatedMachineEffectCatalog,
 };
 use target::{Architecture, NativeTarget};
 
-use super::super::baseline_target_register_environment;
 use super::super::catalog::scalar_call_constraint_key;
+use super::super::{ValidatedTargetRegisterEnvironment, baseline_target_register_environment};
 
 #[derive(Clone, Copy)]
 struct ScalarAbiCase {
@@ -236,6 +237,23 @@ fn produced_effects(
         Architecture::X86_64 => x86_64_machine_effect_catalog(case.target, constraints).unwrap(),
         Architecture::Aarch64 => aarch64_machine_effect_catalog(case.target, constraints).unwrap(),
     }
+}
+
+/// The produced catalog names this exact target, this validated constraint
+/// catalog's root, and this environment's selected keys: provenance, not a
+/// re-derived roster.
+fn binds_catalog_provenance(
+    catalog: &ValidatedMachineEffectCatalog,
+    case: ScalarAbiCase,
+    environment: &ValidatedTargetRegisterEnvironment,
+    keys: SelectedConstraintKeys,
+) {
+    assert_eq!(catalog.catalog().target, case.target);
+    assert_eq!(
+        catalog.catalog().register_constraints,
+        environment.constraints().identity()
+    );
+    assert_eq!(catalog.catalog().selected_keys, keys);
 }
 
 /// One encoded rule may take an architectural fault: its encoded trap surface
