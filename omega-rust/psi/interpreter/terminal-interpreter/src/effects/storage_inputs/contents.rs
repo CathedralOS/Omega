@@ -533,6 +533,8 @@ pub(super) fn scalar_storage(
                     backing: backing.value.structural_type,
                 },
                 &path,
+                backing.collection_home.as_ref(),
+                matches!(access, terminal_psi::exclusive_borrow_pair_pattern!()),
             )
         } else {
             let region = backing.byte_region.as_ref().ok_or_else(malformed)?;

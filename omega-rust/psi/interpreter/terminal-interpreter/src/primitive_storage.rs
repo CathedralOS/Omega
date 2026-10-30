@@ -469,6 +469,15 @@ impl TerminalExecution<'_> {
         storage: &PrimitiveStorage,
     ) -> Result<(), TerminalInterpretError> {
         let changed = match &storage.endpoint {
+            PrimitiveStorageEndpoint::Projection { fragments, .. } => {
+                // The provider already wrote these exact original cells. A
+                // composed presentation invalidates each endpoint's provenance
+                // without replaying any of its pre-call logical snapshots.
+                for fragment in fragments {
+                    self.record_original_scalar_write(&fragment.storage)?;
+                }
+                return Ok(());
+            }
             PrimitiveStorageEndpoint::Scalar(home) => {
                 self.invalidate_stored_provenance(home);
                 return Ok(());
