@@ -10,42 +10,7 @@ pub(crate) fn validate_machine_operational(
 ) -> Result<(), Vec<Diagnostic>> {
     validate_authored_keywords(compilation, machine)?;
     let (suspension, blocking) = operational_plans(compilation.program, machine)?;
-    let Some(members) = super::family_interfaces::members(compilation, machine)? else {
-        return validate_machine_operational_interfaces(machine, suspension, blocking);
-    };
-    let rejected = || {
-        vec![Diagnostic::error(format!(
-            "reviewed family `{}` operational interface differs from its exact complete member custody",
-            machine.name,
-        ))]
-    };
-    if machine.suspends || machine.blocks {
-        return Err(rejected());
-    }
-    let mut may_suspend = false;
-    let mut may_block = false;
-    for member in members {
-        validate_authored_keywords(compilation, member)?;
-        let (member_suspension, member_blocking) = operational_plans(compilation.program, member)?;
-        validate_machine_operational_interfaces(member, member_suspension, member_blocking)?;
-        let original = operational_plans(compilation.custody, member)?;
-        if (member_suspension, member_blocking) != original {
-            return Err(rejected());
-        }
-        // The retained transitive rows already account for public contracts
-        // and private inferred effects, independently for the two axes.
-        may_suspend |= member_suspension.checked_may_suspend;
-        may_block |= member_blocking.checked_may_block;
-    }
-    if suspension.interface
-        != language_semantics::SuspensionInterface::PublishedMaySuspend(may_suspend)
-        || blocking.interface != language_semantics::BlockingInterface::PublishedMayBlock(may_block)
-        || suspension.checked_may_suspend != may_suspend
-        || blocking.checked_may_block != may_block
-    {
-        return Err(rejected());
-    }
-    Ok(())
+    validate_machine_operational_interfaces(machine, suspension, blocking)
 }
 
 fn validate_authored_keywords(
