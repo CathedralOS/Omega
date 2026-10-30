@@ -3,27 +3,25 @@
 const OFFSET: u64 = 0;
 data EvenLength where length % 2 == 0 { length: u16; }
 machine observe(value: EvenLength) -> u16 { value.length }
-windows_x86_64 machine probe(count: u64) -> u16 requires count > 0 && count < 4096 {
+boundary trait SelectedProbe {
+    machine probe(count: u64) -> u16 reaches
+requires count > 0 && count < 4096;
+}
+CheckedProbe satisfies SelectedProbe {
+    machine probe(count: u64) -> u16 requires count > 0 && count < 4096
+{
     let length: u16 = (count * 2 + OFFSET) as u16;
     observe(EvenLength { length: length })
+}
 }
 
-linux_x86_64 machine probe(count: u64) -> u16 requires count > 0 && count < 4096 {
-    let length: u16 = (count * 2 + OFFSET) as u16;
-    observe(EvenLength { length: length })
-}
 
-macos_arm64 machine probe(count: u64) -> u16 requires count > 0 && count < 4096 {
-    let length: u16 = (count * 2 + OFFSET) as u16;
-    observe(EvenLength { length: length })
-}
 
-linux_arm64 machine probe(count: u64) -> u16 requires count > 0 && count < 4096 {
-    let length: u16 = (count * 2 + OFFSET) as u16;
-    observe(EvenLength { length: length })
-}
+
+
+
 machine main() crashes Trap {
-    transition probe(7) == 14 { true -> done() _ -> bad() }
+    transition SelectedProbe::probe(7) == 14 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

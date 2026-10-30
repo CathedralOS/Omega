@@ -7,24 +7,39 @@ trait Value<T> { machine unrealized(helper: &T) -> u32; }
 data Unused {}
 boundary requirement Unused::read(helper: &Helper) -> u32;
 
-linux_x86_64 machine Helper::delta(helper: &Helper) -> u32 {
+boundary trait SelectedHelperDelta {
+    machine delta(helper: &Helper) -> u32 reaches
+;
+}
+LinuxX8664HelperDelta satisfies SelectedHelperDelta {
+    machine delta(helper: &Helper) -> u32
+{
     transition { _ -> 63 }
 }
-macos_arm64 machine Helper::delta(helper: &Helper) -> u32 {
+}
+MacosArm64HelperDelta satisfies SelectedHelperDelta {
+    machine delta(helper: &Helper) -> u32
+{
     transition { _ -> 7 }
 }
-uefi_x86_64 machine Helper::delta(helper: &Helper) -> u32 {
+}
+uefi_x86_64 machine delta(helper: &Helper) -> u32 {
     transition { _ -> 31 }
 }
 
-linux_x86_64 machine Helper::value(helper: &Helper) -> u32 {
-    transition { _ -> Helper::delta(helper) }
+boundary trait SelectedHelperValue {
+    machine value(helper: &Helper) -> u32 reaches
+;
 }
-macos_arm64 machine Helper::value(helper: &Helper) -> u32 {
-    transition { _ -> Helper::delta(helper) }
+CheckedHelperValue satisfies SelectedHelperValue {
+    machine value(helper: &Helper) -> u32
+{
+    transition { _ -> SelectedHelperDelta::delta(helper) }
 }
-uefi_x86_64 machine Helper::value(helper: &Helper) -> u32 {
-    transition { _ -> Helper::delta(helper) }
+}
+
+uefi_x86_64 machine value(helper: &Helper) -> u32 {
+    transition { _ -> SelectedHelperDelta::delta(helper) }
 }
 
 archive_target machine Helper::unrealized(helper: &Helper) -> u32

@@ -26,38 +26,30 @@ ensures result == 0i32
     }
 }
 
-linux_x86_64 machine evaluate_prod() -> i32 crashes Trap
+boundary trait SelectedEvaluateProd {
+    machine evaluate_prod() -> i32 reaches
+crashes Trap
+ensures result == 0i32;
+}
+CheckedEvaluateProd satisfies SelectedEvaluateProd {
+    machine evaluate_prod() -> i32 crashes Trap
 ensures result == 0i32
 {
     let prod: i32 = compute_prod(25, 21);
     verify_prod(prod)
+}
 }
 
-linux_arm64 machine evaluate_prod() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let prod: i32 = compute_prod(25, 21);
-    verify_prod(prod)
-}
 
-macos_arm64 machine evaluate_prod() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let prod: i32 = compute_prod(25, 21);
-    verify_prod(prod)
-}
 
-windows_x86_64 machine evaluate_prod() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let prod: i32 = compute_prod(25, 21);
-    verify_prod(prod)
-}
+
+
+
 
 machine probe() -> i32 crashes Trap
 ensures result == 0i32
 {
-    evaluate_prod()
+    SelectedEvaluateProd::evaluate_prod()
 }
 
 machine main() crashes Trap {

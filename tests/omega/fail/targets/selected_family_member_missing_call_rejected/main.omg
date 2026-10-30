@@ -7,14 +7,24 @@ uefi_x86_64 machine Firmware::read() -> u64 { 7 }
 machine bridge() -> u64 { Firmware::read() }
 
 data Relay {}
-windows_x86_64 machine Relay::read() -> u64 { 17 }
-linux_x86_64 machine Relay::read() -> u64 { 17 }
-linux_arm64 machine Relay::read() -> u64 { 17 }
-macos_arm64 machine Relay::read() -> u64 { bridge() }
+boundary trait SelectedRelayRead {
+    machine read() -> u64 reaches
+;
+}
+WindowsX8664RelayRead satisfies SelectedRelayRead {
+    machine read() -> u64
+{ 17 }
+}
+
+
+MacosArm64RelayRead satisfies SelectedRelayRead {
+    machine read() -> u64
+{ bridge() }
+}
 
 data Main {}
 machine Main::main(main: &mut Main) {
-    let value: u64 = Relay::read();
+    let value: u64 = SelectedRelayRead::read();
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -19,7 +19,13 @@ UnitCombine satisfies WeightedCombine {
     }
 }
 
-linux_x86_64 machine probe(a: u64, b: u64) -> i32
+boundary trait SelectedProbe {
+    machine probe(a: u64, b: u64) -> i32 reaches
+requires a >= 60u64 && a <= 60u64
+requires b >= 40u64 && b <= 40u64;
+}
+CheckedProbe satisfies SelectedProbe {
+    machine probe(a: u64, b: u64) -> i32
 requires a >= 60u64 && a <= 60u64
 requires b >= 40u64 && b <= 40u64
 {
@@ -27,40 +33,17 @@ requires b >= 40u64 && b <= 40u64
     let total: u64 = WeightedCombine::combine(selector, a, b);
     let diff: u64 = total - 100u64;
     diff as i32
+}
 }
 
-linux_arm64 machine probe(a: u64, b: u64) -> i32
-requires a >= 60u64 && a <= 60u64
-requires b >= 40u64 && b <= 40u64
-{
-    let selector: dyn WeightedCombine = UnitCombine as dyn WeightedCombine;
-    let total: u64 = WeightedCombine::combine(selector, a, b);
-    let diff: u64 = total - 100u64;
-    diff as i32
-}
 
-macos_arm64 machine probe(a: u64, b: u64) -> i32
-requires a >= 60u64 && a <= 60u64
-requires b >= 40u64 && b <= 40u64
-{
-    let selector: dyn WeightedCombine = UnitCombine as dyn WeightedCombine;
-    let total: u64 = WeightedCombine::combine(selector, a, b);
-    let diff: u64 = total - 100u64;
-    diff as i32
-}
 
-windows_x86_64 machine probe(a: u64, b: u64) -> i32
-requires a >= 60u64 && a <= 60u64
-requires b >= 40u64 && b <= 40u64
-{
-    let selector: dyn WeightedCombine = UnitCombine as dyn WeightedCombine;
-    let total: u64 = WeightedCombine::combine(selector, a, b);
-    let diff: u64 = total - 100u64;
-    diff as i32
-}
+
+
+
 
 machine main() crashes Trap {
-    let result: i32 = probe(60u64, 40u64);
+    let result: i32 = SelectedProbe::probe(60u64, 40u64);
     transition result == 0 {
         true -> done()
         _ -> bad()

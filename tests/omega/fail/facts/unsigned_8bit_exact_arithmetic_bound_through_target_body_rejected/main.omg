@@ -2,7 +2,13 @@
 // Invalid: target bodies compute 80 + 120 = 200u8, causing 180u8 - sum to underflow u8. Place: target_body.
 // Expected diagnostic: may overflow `u8`
 
-linux_x86_64 machine verify_target() -> i32 {
+boundary trait SelectedVerifyTarget {
+    machine verify_target() -> i32 reaches
+;
+}
+CheckedVerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+{
     let lhs: u8 = 80u8;
     let rhs: u8 = 120u8;
     let sum: u8 = lhs + rhs;
@@ -13,49 +19,17 @@ linux_x86_64 machine verify_target() -> i32 {
         true -> 0i32,
         false -> 1i32,
     }
+}
 }
 
-linux_arm64 machine verify_target() -> i32 {
-    let lhs: u8 = 80u8;
-    let rhs: u8 = 120u8;
-    let sum: u8 = lhs + rhs;
-    let headroom: u8 = 180u8 - sum;
-    let margin: u8 = sum - 70u8;
-    let total: u8 = headroom + margin;
-    match total == 110u8 {
-        true -> 0i32,
-        false -> 1i32,
-    }
-}
 
-macos_arm64 machine verify_target() -> i32 {
-    let lhs: u8 = 80u8;
-    let rhs: u8 = 120u8;
-    let sum: u8 = lhs + rhs;
-    let headroom: u8 = 180u8 - sum;
-    let margin: u8 = sum - 70u8;
-    let total: u8 = headroom + margin;
-    match total == 110u8 {
-        true -> 0i32,
-        false -> 1i32,
-    }
-}
 
-windows_x86_64 machine verify_target() -> i32 {
-    let lhs: u8 = 80u8;
-    let rhs: u8 = 120u8;
-    let sum: u8 = lhs + rhs;
-    let headroom: u8 = 180u8 - sum;
-    let margin: u8 = sum - 70u8;
-    let total: u8 = headroom + margin;
-    match total == 110u8 {
-        true -> 0i32,
-        false -> 1i32,
-    }
-}
+
+
+
 
 machine probe() -> i32 {
-    verify_target()
+    SelectedVerifyTarget::verify_target()
 }
 
 machine main() crashes Trap {

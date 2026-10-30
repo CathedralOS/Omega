@@ -32,21 +32,22 @@ invokes Console;
     machine bad() { Console::exit_process(1); }
 }
 
-linux_x86_64 machine RawMeasureDefaults::provider_defaults(defaults: &mut RawMeasureDefaults) {
+boundary trait SelectedRawMeasureDefaultsProviderDefaults {
+    machine provider_defaults(defaults: &mut RawMeasureDefaults) reaches
+;
+}
+CheckedRawMeasureDefaultsProviderDefaults satisfies SelectedRawMeasureDefaultsProviderDefaults {
+    machine provider_defaults(defaults: &mut RawMeasureDefaults)
+{
     RawMeasureDefaults::select_provider<RawMeasure, RawMeasureProvider>(defaults);
+}
 }
 
-linux_arm64 machine RawMeasureDefaults::provider_defaults(defaults: &mut RawMeasureDefaults) {
-    RawMeasureDefaults::select_provider<RawMeasure, RawMeasureProvider>(defaults);
-}
 
-macos_arm64 machine RawMeasureDefaults::provider_defaults(defaults: &mut RawMeasureDefaults) {
-    RawMeasureDefaults::select_provider<RawMeasure, RawMeasureProvider>(defaults);
-}
 
-windows_x86_64 machine RawMeasureDefaults::provider_defaults(defaults: &mut RawMeasureDefaults) {
-    RawMeasureDefaults::select_provider<RawMeasure, RawMeasureProvider>(defaults);
-}
+
+
+
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console

@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedExercise, LinuxX8664Exercise>(builder, linux_x86_64);
+    Build::select_provider<SelectedExercise, LinuxX8664Exercise>(builder, windows_x86_64);
+    Build::select_provider<SelectedExercise, LinuxArm64Exercise>(builder, linux_arm64);
+    Build::select_provider<SelectedExercise, LinuxArm64Exercise>(builder, macos_arm64);
+
     Build::application(builder, "checked_asm_register_contract_bound");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

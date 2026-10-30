@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedWrite, CheckedWrite>(builder, linux_x86_64);
+    Build::select_provider<SelectedWrite, CheckedWrite>(builder, linux_arm64);
+    Build::select_provider<SelectedWrite, CheckedWrite>(builder, macos_arm64);
+    Build::select_provider<SelectedWrite, CheckedWrite>(builder, windows_x86_64);
+
     Build::application(builder, "reference_arrival_handoff_through_target_body_held_source");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

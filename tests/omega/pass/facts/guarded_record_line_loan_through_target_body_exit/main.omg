@@ -11,22 +11,20 @@ data ReadOutcome {
     case End(count: u64);
     case Full(count: u64);
 }
-linux_x86_64 machine inspect(application: &mut Application, line: &[u8; 64], count: u64) -> bool {
+boundary trait SelectedInspect {
+    machine inspect(application: &mut Application, line: &[u8; 64], count: u64) -> bool reaches
+;
+}
+CheckedInspect satisfies SelectedInspect {
+    machine inspect(application: &mut Application, line: &[u8; 64], count: u64) -> bool
+{
         application.ledger.count = count as u64 in Wrapping;
         (line[0] as u64 in Wrapping + application.ledger.count) == 42
 }
-linux_arm64 machine inspect(application: &mut Application, line: &[u8; 64], count: u64) -> bool {
-        application.ledger.count = count as u64 in Wrapping;
-        (line[0] as u64 in Wrapping + application.ledger.count) == 42
 }
-macos_arm64 machine inspect(application: &mut Application, line: &[u8; 64], count: u64) -> bool {
-        application.ledger.count = count as u64 in Wrapping;
-        (line[0] as u64 in Wrapping + application.ledger.count) == 42
-}
-windows_x86_64 machine inspect(application: &mut Application, line: &[u8; 64], count: u64) -> bool {
-        application.ledger.count = count as u64 in Wrapping;
-        (line[0] as u64 in Wrapping + application.ledger.count) == 42
-}
+
+
+
 machine receive(line: &mut [u8; 64], end: bool) -> ReadOutcome {
     line[0] = 37;
     match end { true -> ReadOutcome::End { count: 5 }, false -> ReadOutcome::Complete { count: 5 } }
@@ -44,7 +42,7 @@ machine exercise(application: &mut Application, end: bool) -> bool {
         }
     }
     machine observe(application: &mut Application, line: &[u8; 64], count: u64) -> bool {
-        inspect(application, line, count)
+        SelectedInspect::inspect(application, line, count)
     }
 }
 machine main() crashes Trap {

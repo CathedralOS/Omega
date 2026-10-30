@@ -2,24 +2,25 @@
 // Place: another target body. Each of four target bodies evaluates size_of and align_of and subtracts.
 // Expected exit: 0
 
-linux_x86_64 machine compute_geometry() -> u64 {
+boundary trait SelectedComputeGeometry {
+    machine compute_geometry() -> u64 reaches
+;
+}
+CheckedComputeGeometry satisfies SelectedComputeGeometry {
+    machine compute_geometry() -> u64
+{
     size_of<[u64; 4]>() - (align_of<[u64; 4]>() * 4u64)
+}
 }
 
-linux_arm64 machine compute_geometry() -> u64 {
-    size_of<[u64; 4]>() - (align_of<[u64; 4]>() * 4u64)
-}
 
-macos_arm64 machine compute_geometry() -> u64 {
-    size_of<[u64; 4]>() - (align_of<[u64; 4]>() * 4u64)
-}
 
-windows_x86_64 machine compute_geometry() -> u64 {
-    size_of<[u64; 4]>() - (align_of<[u64; 4]>() * 4u64)
-}
+
+
+
 
 machine probe() -> u64 {
-    compute_geometry()
+    SelectedComputeGeometry::compute_geometry()
 }
 
 machine main() crashes Trap {

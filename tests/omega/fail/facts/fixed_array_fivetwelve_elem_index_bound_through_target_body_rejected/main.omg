@@ -2,34 +2,28 @@
 // Invalid: target-scoped read_element contracts are weakened to idx <= 512, so idx may exceed length 512.
 // Expected exit: 0
 
-linux_x86_64 machine read_element(arr: [u64; 512], idx: u64) -> u64
+boundary trait SelectedReadElement {
+    machine read_element(arr: [u64; 512], idx: u64) -> u64 reaches
+requires idx <= 512;
+}
+CheckedReadElement satisfies SelectedReadElement {
+    machine read_element(arr: [u64; 512], idx: u64) -> u64
     requires idx <= 512
 {
     arr[idx]
+}
 }
 
-linux_arm64 machine read_element(arr: [u64; 512], idx: u64) -> u64
-    requires idx <= 512
-{
-    arr[idx]
-}
 
-macos_arm64 machine read_element(arr: [u64; 512], idx: u64) -> u64
-    requires idx <= 512
-{
-    arr[idx]
-}
 
-windows_x86_64 machine read_element(arr: [u64; 512], idx: u64) -> u64
-    requires idx <= 512
-{
-    arr[idx]
-}
+
+
+
 
 machine probe(arr: [u64; 512], idx: u64) -> u64
     requires idx <= 512
 {
-    read_element(arr, idx)
+    SelectedReadElement::read_element(arr, idx)
 }
 
 machine main() crashes Trap {

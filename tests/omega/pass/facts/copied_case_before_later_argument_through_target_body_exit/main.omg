@@ -14,33 +14,27 @@ requires before in Slot::Present
     before.value
 }
 
-linux_x86_64 machine apply(mut chosen: Slot) -> u64
+boundary trait SelectedApply {
+    machine apply(mut chosen: Slot) -> u64 reaches
+requires chosen in Slot::Present;
+}
+CheckedApply satisfies SelectedApply {
+    machine apply(mut chosen: Slot) -> u64
 requires chosen in Slot::Present
 {
     read_payload(chosen, set_to_absent(&mut chosen))
+}
 }
 
-linux_arm64 machine apply(mut chosen: Slot) -> u64
-requires chosen in Slot::Present
-{
-    read_payload(chosen, set_to_absent(&mut chosen))
-}
 
-macos_arm64 machine apply(mut chosen: Slot) -> u64
-requires chosen in Slot::Present
-{
-    read_payload(chosen, set_to_absent(&mut chosen))
-}
 
-windows_x86_64 machine apply(mut chosen: Slot) -> u64
-requires chosen in Slot::Present
-{
-    read_payload(chosen, set_to_absent(&mut chosen))
-}
+
+
+
 
 machine main() crashes Trap {
     let chosen: Slot = Slot::Present { value: 7 };
-    let observed: u64 = apply(chosen);
+    let observed: u64 = SelectedApply::apply(chosen);
     transition observed == 7 {
         true -> done()
         false -> wrong()

@@ -68,28 +68,26 @@ machine extract(choice: TwentySixChoice) -> u64 {
     }
 }
 
-linux_x86_64 machine target_probe(choice: TwentySixChoice) -> u64 {
+boundary trait SelectedTargetProbe {
+    machine target_probe(choice: TwentySixChoice) -> u64 reaches
+;
+}
+CheckedTargetProbe satisfies SelectedTargetProbe {
+    machine target_probe(choice: TwentySixChoice) -> u64
+{
     let res: u64 = extract(choice);
     verify_payload(res)
+}
 }
 
-linux_arm64 machine target_probe(choice: TwentySixChoice) -> u64 {
-    let res: u64 = extract(choice);
-    verify_payload(res)
-}
 
-macos_arm64 machine target_probe(choice: TwentySixChoice) -> u64 {
-    let res: u64 = extract(choice);
-    verify_payload(res)
-}
 
-windows_x86_64 machine target_probe(choice: TwentySixChoice) -> u64 {
-    let res: u64 = extract(choice);
-    verify_payload(res)
-}
+
+
+
 
 machine probe(choice: TwentySixChoice) -> u64 {
-    target_probe(choice)
+    SelectedTargetProbe::target_probe(choice)
 }
 
 machine main() crashes Trap {

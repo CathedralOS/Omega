@@ -15,7 +15,12 @@ machine step2(x: u64) -> u64
     12
 }
 
-linux_x86_64 machine compute_target_body(saved: u64) -> i32
+boundary trait SelectedComputeTargetBody {
+    machine compute_target_body(saved: u64) -> i32 reaches
+requires saved >= 39 && saved <= 80;
+}
+CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
+    machine compute_target_body(saved: u64) -> i32
     requires saved >= 39 && saved <= 80
 {
     let c1: u64 = step1(10);
@@ -29,58 +34,17 @@ linux_x86_64 machine compute_target_body(saved: u64) -> i32
     }
     machine done() -> i32 { 0 }
     machine bad() -> i32 { 1 }
+}
 }
 
-linux_arm64 machine compute_target_body(saved: u64) -> i32
-    requires saved >= 39 && saved <= 80
-{
-    let c1: u64 = step1(10);
-    let c2: u64 = step2(c1);
-    let res: u64 = saved;
-    let head: u64 = 80 - res;
-    let underflow: u64 = res - 40;
-    transition head + underflow == 40 && c2 == 12 {
-        true -> done()
-        _ -> bad()
-    }
-    machine done() -> i32 { 0 }
-    machine bad() -> i32 { 1 }
-}
 
-macos_arm64 machine compute_target_body(saved: u64) -> i32
-    requires saved >= 39 && saved <= 80
-{
-    let c1: u64 = step1(10);
-    let c2: u64 = step2(c1);
-    let res: u64 = saved;
-    let head: u64 = 80 - res;
-    let underflow: u64 = res - 40;
-    transition head + underflow == 40 && c2 == 12 {
-        true -> done()
-        _ -> bad()
-    }
-    machine done() -> i32 { 0 }
-    machine bad() -> i32 { 1 }
-}
 
-windows_x86_64 machine compute_target_body(saved: u64) -> i32
-    requires saved >= 39 && saved <= 80
-{
-    let c1: u64 = step1(10);
-    let c2: u64 = step2(c1);
-    let res: u64 = saved;
-    let head: u64 = 80 - res;
-    let underflow: u64 = res - 40;
-    transition head + underflow == 40 && c2 == 12 {
-        true -> done()
-        _ -> bad()
-    }
-    machine done() -> i32 { 0 }
-    machine bad() -> i32 { 1 }
-}
+
+
+
 
 machine evaluate() -> i32 {
-    compute_target_body(39)
+    SelectedComputeTargetBody::compute_target_body(39)
 }
 
 machine main() crashes Trap {

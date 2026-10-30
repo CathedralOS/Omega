@@ -7,13 +7,19 @@ public boundary trait Magnitude {
 }
 
 
-macos_arm64 machine observe() -> i32 reaches Magnitude { Magnitude::absolute(-70) }
-linux_x86_64 machine observe() -> i32 reaches Magnitude { Magnitude::absolute(-70) }
-linux_arm64 machine observe() -> i32 reaches Magnitude { Magnitude::absolute(-70) }
-windows_x86_64 machine observe() -> i32 reaches Magnitude { Magnitude::absolute(-70) }
+boundary trait SelectedObserve {
+    machine observe() -> i32 reaches Magnitude;
+}
+CheckedObserve satisfies SelectedObserve {
+    machine observe() -> i32 reaches Magnitude
+{ Magnitude::absolute(-70) }
+}
+
+
+
 
 machine main() reaches Magnitude crashes Trap {
-    transition observe() == 70 { true -> done() _ -> failed() }
+    transition SelectedObserve::observe() == 70 { true -> done() _ -> failed() }
     machine done() {}
     machine failed() crashes Trap { crash Trap; }
 }

@@ -20,38 +20,30 @@ ensures result == 0u64
     }
 }
 
-linux_x86_64 machine evaluate_bytes() -> u64 crashes Trap
+boundary trait SelectedEvaluateBytes {
+    machine evaluate_bytes() -> u64 reaches
+crashes Trap
+ensures result == 0u64;
+}
+CheckedEvaluateBytes satisfies SelectedEvaluateBytes {
+    machine evaluate_bytes() -> u64 crashes Trap
 ensures result == 0u64
 {
     let bytes: &[u8] = "omega";
     inspect_bytes(bytes)
+}
 }
 
-linux_arm64 machine evaluate_bytes() -> u64 crashes Trap
-ensures result == 0u64
-{
-    let bytes: &[u8] = "omega";
-    inspect_bytes(bytes)
-}
 
-macos_arm64 machine evaluate_bytes() -> u64 crashes Trap
-ensures result == 0u64
-{
-    let bytes: &[u8] = "omega";
-    inspect_bytes(bytes)
-}
 
-windows_x86_64 machine evaluate_bytes() -> u64 crashes Trap
-ensures result == 0u64
-{
-    let bytes: &[u8] = "omega";
-    inspect_bytes(bytes)
-}
+
+
+
 
 machine probe() -> u64 crashes Trap
 ensures result == 0u64
 {
-    evaluate_bytes()
+    SelectedEvaluateBytes::evaluate_bytes()
 }
 
 machine main() crashes Trap {

@@ -11,7 +11,12 @@ requires counter == 0
     true
 }
 
-linux_x86_64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
+boundary trait SelectedApply {
+    machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 reaches
+requires chosen in Slot::Present, other in Slot::Present, visits == 0;
+}
+CheckedApply satisfies SelectedApply {
+    machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
 requires chosen in Slot::Present, other in Slot::Present, visits == 0
 {
     let selected: &mut [i64] = match choose(visits) {
@@ -21,49 +26,20 @@ requires chosen in Slot::Present, other in Slot::Present, visits == 0
     chosen = Slot::Present { value: [7, 0, 7, 0] };
     selected[0] = 41;
     selected[0]
+}
 }
 
-linux_arm64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
-requires chosen in Slot::Present, other in Slot::Present, visits == 0
-{
-    let selected: &mut [i64] = match choose(visits) {
-        true -> &mut chosen.value[0..2]
-        false -> &mut other.value[2..4]
-    };
-    chosen = Slot::Present { value: [7, 0, 7, 0] };
-    selected[0] = 41;
-    selected[0]
-}
 
-macos_arm64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
-requires chosen in Slot::Present, other in Slot::Present, visits == 0
-{
-    let selected: &mut [i64] = match choose(visits) {
-        true -> &mut chosen.value[0..2]
-        false -> &mut other.value[2..4]
-    };
-    chosen = Slot::Present { value: [7, 0, 7, 0] };
-    selected[0] = 41;
-    selected[0]
-}
 
-windows_x86_64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
-requires chosen in Slot::Present, other in Slot::Present, visits == 0
-{
-    let selected: &mut [i64] = match choose(visits) {
-        true -> &mut chosen.value[0..2]
-        false -> &mut other.value[2..4]
-    };
-    chosen = Slot::Present { value: [7, 0, 7, 0] };
-    selected[0] = 41;
-    selected[0]
-}
+
+
+
 
 machine main() crashes Trap {
     let mut chosen: Slot = Slot::Present { value: [17, 0, 5, 6] };
     let mut other: Slot = Slot::Present { value: [0, 0, 8, 9] };
     let mut visits: u64 = 0;
-    let observed: i64 = apply(&mut chosen, &mut other, &mut visits);
+    let observed: i64 = SelectedApply::apply(&mut chosen, &mut other, &mut visits);
     transition observed == 41 && visits == 1 {
         true -> done()
         false -> wrong()

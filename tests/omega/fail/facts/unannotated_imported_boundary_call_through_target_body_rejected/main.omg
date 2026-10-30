@@ -2,20 +2,20 @@
 // Expected exit: 0
 use support::values;
 MarkerMark satisfies Mark { machine read() -> u64 { 7 } }
-linux_x86_64 machine read_mark() -> u64 reaches {
+boundary trait SelectedReadMark {
+    machine read_mark() -> u64 reaches;
+}
+CheckedReadMark satisfies SelectedReadMark {
+    machine read_mark() -> u64 reaches
+{
     fetch_mark()
 }
-linux_arm64 machine read_mark() -> u64 reaches {
-    fetch_mark()
 }
-macos_arm64 machine read_mark() -> u64 reaches {
-    fetch_mark()
-}
-windows_x86_64 machine read_mark() -> u64 reaches {
-    fetch_mark()
-}
+
+
+
 machine main() crashes Trap {
-    transition read_mark() == 7 { true -> done() _ -> bad() }
+    transition SelectedReadMark::read_mark() == 7 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

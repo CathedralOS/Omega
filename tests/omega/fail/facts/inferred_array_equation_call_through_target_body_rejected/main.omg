@@ -3,13 +3,23 @@
 machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
 where Length == [u8; Capacity]
 { Capacity }
-linux_x86_64 machine consume(items: [u8; 2]) -> u64 { capacity<[u8; 2], 3>(items) }
-windows_x86_64 machine consume(items: [u8; 2]) -> u64 { capacity(items) }
-macos_arm64 machine consume(items: [u8; 2]) -> u64 { capacity(items) }
-linux_arm64 machine consume(items: [u8; 2]) -> u64 { capacity(items) }
+boundary trait SelectedConsume {
+    machine consume(items: [u8; 2]) -> u64 reaches
+;
+}
+LinuxX8664Consume satisfies SelectedConsume {
+    machine consume(items: [u8; 2]) -> u64
+{ capacity<[u8; 2], 3>(items) }
+}
+WindowsX8664Consume satisfies SelectedConsume {
+    machine consume(items: [u8; 2]) -> u64
+{ capacity(items) }
+}
+
+
 machine main() crashes Trap {
     let items: [u8; 2] = [7, 11];
-    let observed: u64 = consume(items);
+    let observed: u64 = SelectedConsume::consume(items);
     transition observed == 2 { true -> done() _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

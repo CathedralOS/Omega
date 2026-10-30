@@ -9,7 +9,12 @@ machine verify_diff(value: u64) -> u64
     head + tail
 }
 
-linux_x86_64 machine compute_target_body(lhs: u64, rhs: u64) -> u64
+boundary trait SelectedComputeTargetBody {
+    machine compute_target_body(lhs: u64, rhs: u64) -> u64 reaches
+requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40;
+}
+CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
+    machine compute_target_body(lhs: u64, rhs: u64) -> u64
     requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
 {
     let a: u64 in Saturating = lhs as u64 in Saturating;
@@ -17,40 +22,17 @@ linux_x86_64 machine compute_target_body(lhs: u64, rhs: u64) -> u64
     let sat: u64 in Saturating = a - b;
     let diff: u64 = sat as u64;
     verify_diff(diff)
+}
 }
 
-linux_arm64 machine compute_target_body(lhs: u64, rhs: u64) -> u64
-    requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let a: u64 in Saturating = lhs as u64 in Saturating;
-    let b: u64 in Saturating = rhs as u64 in Saturating;
-    let sat: u64 in Saturating = a - b;
-    let diff: u64 = sat as u64;
-    verify_diff(diff)
-}
 
-macos_arm64 machine compute_target_body(lhs: u64, rhs: u64) -> u64
-    requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let a: u64 in Saturating = lhs as u64 in Saturating;
-    let b: u64 in Saturating = rhs as u64 in Saturating;
-    let sat: u64 in Saturating = a - b;
-    let diff: u64 = sat as u64;
-    verify_diff(diff)
-}
 
-windows_x86_64 machine compute_target_body(lhs: u64, rhs: u64) -> u64
-    requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let a: u64 in Saturating = lhs as u64 in Saturating;
-    let b: u64 in Saturating = rhs as u64 in Saturating;
-    let sat: u64 in Saturating = a - b;
-    let diff: u64 = sat as u64;
-    verify_diff(diff)
-}
+
+
+
 
 machine evaluate() -> u64 {
-    compute_target_body(100, 30)
+    SelectedComputeTargetBody::compute_target_body(100, 30)
 }
 
 machine main() crashes Trap {

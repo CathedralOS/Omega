@@ -84,37 +84,29 @@ ensures result >= 99 && result <= 99
     }
 }
 
-linux_x86_64 machine evaluate(total: u64) -> u64
+boundary trait SelectedEvaluate {
+    machine evaluate(total: u64) -> u64 reaches
+requires total >= 99 && total <= 99
+ensures result == 0;
+}
+CheckedEvaluate satisfies SelectedEvaluate {
+    machine evaluate(total: u64) -> u64
 requires total >= 99 && total <= 99
 ensures result == 0
 {
     total - 100
+}
 }
 
-linux_arm64 machine evaluate(total: u64) -> u64
-requires total >= 99 && total <= 99
-ensures result == 0
-{
-    total - 100
-}
 
-macos_arm64 machine evaluate(total: u64) -> u64
-requires total >= 99 && total <= 99
-ensures result == 0
-{
-    total - 100
-}
 
-windows_x86_64 machine evaluate(total: u64) -> u64
-requires total >= 99 && total <= 99
-ensures result == 0
-{
-    total - 100
-}
+
+
+
 
 machine main() crashes Trap {
     let res: u64 = loop_calc(10, 99);
-    let diff: u64 = evaluate(res);
+    let diff: u64 = SelectedEvaluate::evaluate(res);
     transition diff == 0 {
         true -> done()
         _ -> bad()

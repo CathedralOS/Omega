@@ -12,39 +12,31 @@ data Envelope [copy] {
     payload: u64;
 }
 
-linux_x86_64 machine sum_envelope(envelope: Envelope) -> u64
+boundary trait SelectedSumEnvelope {
+    machine sum_envelope(envelope: Envelope) -> u64 reaches
+requires envelope.payload <= 50
+ensures result <= 100;
+}
+CheckedSumEnvelope satisfies SelectedSumEnvelope {
+    machine sum_envelope(envelope: Envelope) -> u64
 requires envelope.payload <= 50
 ensures result <= 100
 {
     envelope.header.limit + envelope.payload
+}
 }
 
-linux_arm64 machine sum_envelope(envelope: Envelope) -> u64
-requires envelope.payload <= 50
-ensures result <= 100
-{
-    envelope.header.limit + envelope.payload
-}
 
-macos_arm64 machine sum_envelope(envelope: Envelope) -> u64
-requires envelope.payload <= 50
-ensures result <= 100
-{
-    envelope.header.limit + envelope.payload
-}
 
-windows_x86_64 machine sum_envelope(envelope: Envelope) -> u64
-requires envelope.payload <= 50
-ensures result <= 100
-{
-    envelope.header.limit + envelope.payload
-}
+
+
+
 
 machine probe(envelope: Envelope) -> u64
 requires envelope.header.limit <= 50 && envelope.payload <= 50
 ensures result <= 100
 {
-    sum_envelope(envelope)
+    SelectedSumEnvelope::sum_envelope(envelope)
 }
 
 machine main() crashes Trap {

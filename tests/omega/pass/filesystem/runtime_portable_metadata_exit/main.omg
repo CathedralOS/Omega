@@ -43,7 +43,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
     machine creation(main: &mut Main) {
         let result: TimestampResult = Metadata::created(&main.original);
-        let expected: bool = expected_creation_time(result);
+        let expected: bool = SelectedExpectedCreationTime::expected_creation_time(result);
         transition expected { true -> path(main) _ -> bad(17) }
     }
     machine path(main: &mut Main) {
@@ -96,16 +96,23 @@ machine Main::main(main: &mut Main) reaches Console {
     machine bad(code: i32) { Console::exit_process(code); }
 }
 
-linux_arm64 machine expected_creation_time(result: TimestampResult) -> bool {
+boundary trait SelectedExpectedCreationTime {
+    machine expected_creation_time(result: TimestampResult) -> bool reaches
+;
+}
+LinuxArm64ExpectedCreationTime satisfies SelectedExpectedCreationTime {
+    machine expected_creation_time(result: TimestampResult) -> bool
+{
     transition result { TimestampResult::Error { kind } -> error(kind) _ -> false }
     machine error(kind: ErrorKind) -> bool { transition kind { ErrorKind::Unsupported -> true _ -> false } }
 }
-linux_x86_64 machine expected_creation_time(result: TimestampResult) -> bool {
-    transition result { TimestampResult::Error { kind } -> error(kind) _ -> false }
-    machine error(kind: ErrorKind) -> bool { transition kind { ErrorKind::Unsupported -> true _ -> false } }
 }
-macos_arm64 machine expected_creation_time(result: TimestampResult) -> bool {
+
+MacosArm64ExpectedCreationTime satisfies SelectedExpectedCreationTime {
+    machine expected_creation_time(result: TimestampResult) -> bool
+{
     transition result { TimestampResult::Ok { seconds } -> (seconds > 0) _ -> false }
+}
 }
 
 // The entry owns ordinary local state; selection supplies no context.

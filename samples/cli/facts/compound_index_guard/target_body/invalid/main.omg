@@ -6,7 +6,13 @@ data Main {
     b: i32 in Wrapping;
     grid: [i32; 200] in Wrapping;
 }
-linux_x86_64 machine Main::main(main: &mut Main) {
+boundary trait SelectedMainMain {
+    machine main(main: &mut Main) reaches
+;
+}
+CheckedMainMain satisfies SelectedMainMain {
+    machine main(main: &mut Main)
+{
     transition main.b * 20 + main.a >= 0 {
         true -> put(main)
         _ -> done(main)
@@ -16,40 +22,11 @@ linux_x86_64 machine Main::main(main: &mut Main) {
         main.hits = 1;
     }
     machine done(main: &mut Main) { main.hits = -1; }
+}
 }
 
-linux_arm64 machine Main::main(main: &mut Main) {
-    transition main.b * 20 + main.a >= 0 {
-        true -> put(main)
-        _ -> done(main)
-    }
-    machine put(main: &mut Main) {
-        main.grid[main.b * 20 + main.a] = 7;
-        main.hits = 1;
-    }
-    machine done(main: &mut Main) { main.hits = -1; }
-}
 
-macos_arm64 machine Main::main(main: &mut Main) {
-    transition main.b * 20 + main.a >= 0 {
-        true -> put(main)
-        _ -> done(main)
-    }
-    machine put(main: &mut Main) {
-        main.grid[main.b * 20 + main.a] = 7;
-        main.hits = 1;
-    }
-    machine done(main: &mut Main) { main.hits = -1; }
-}
 
-windows_x86_64 machine Main::main(main: &mut Main) {
-    transition main.b * 20 + main.a >= 0 {
-        true -> put(main)
-        _ -> done(main)
-    }
-    machine put(main: &mut Main) {
-        main.grid[main.b * 20 + main.a] = 7;
-        main.hits = 1;
-    }
-    machine done(main: &mut Main) { main.hits = -1; }
-}
+
+
+

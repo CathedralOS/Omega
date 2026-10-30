@@ -8,7 +8,12 @@ machine verify_prod(value: i64) -> i64 requires value >= 50i64 && value <= 200i6
     headroom + margin
 }
 
-linux_x86_64 machine sat_target(lhs: i64, rhs: i64) -> i64
+boundary trait SelectedSatTarget {
+    machine sat_target(lhs: i64, rhs: i64) -> i64 reaches
+requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10;
+}
+CheckedSatTarget satisfies SelectedSatTarget {
+    machine sat_target(lhs: i64, rhs: i64) -> i64
 requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
 {
     let a: i64 in Wrapping = lhs as i64 in Wrapping;
@@ -16,40 +21,17 @@ requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
     let wrap_prod: i64 in Wrapping = a * b;
     let prod: i64 = wrap_prod as i64;
     verify_prod(prod)
+}
 }
 
-linux_arm64 machine sat_target(lhs: i64, rhs: i64) -> i64
-requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
-{
-    let a: i64 in Wrapping = lhs as i64 in Wrapping;
-    let b: i64 in Wrapping = rhs as i64 in Wrapping;
-    let wrap_prod: i64 in Wrapping = a * b;
-    let prod: i64 = wrap_prod as i64;
-    verify_prod(prod)
-}
 
-macos_arm64 machine sat_target(lhs: i64, rhs: i64) -> i64
-requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
-{
-    let a: i64 in Wrapping = lhs as i64 in Wrapping;
-    let b: i64 in Wrapping = rhs as i64 in Wrapping;
-    let wrap_prod: i64 in Wrapping = a * b;
-    let prod: i64 = wrap_prod as i64;
-    verify_prod(prod)
-}
 
-windows_x86_64 machine sat_target(lhs: i64, rhs: i64) -> i64
-requires lhs >= 10 && lhs <= 21 && rhs >= 5 && rhs <= 10
-{
-    let a: i64 in Wrapping = lhs as i64 in Wrapping;
-    let b: i64 in Wrapping = rhs as i64 in Wrapping;
-    let wrap_prod: i64 in Wrapping = a * b;
-    let prod: i64 = wrap_prod as i64;
-    verify_prod(prod)
-}
+
+
+
 
 machine probe() -> i64 {
-    sat_target(15i64, 8i64)
+    SelectedSatTarget::sat_target(15i64, 8i64)
 }
 
 machine main() crashes Trap {

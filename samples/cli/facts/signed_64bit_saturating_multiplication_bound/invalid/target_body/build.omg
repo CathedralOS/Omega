@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedComputeTargetBody, CheckedComputeTargetBody>(builder, linux_x86_64);
+    Build::select_provider<SelectedComputeTargetBody, CheckedComputeTargetBody>(builder, linux_arm64);
+    Build::select_provider<SelectedComputeTargetBody, CheckedComputeTargetBody>(builder, macos_arm64);
+    Build::select_provider<SelectedComputeTargetBody, CheckedComputeTargetBody>(builder, windows_x86_64);
+
     Build::application(builder, "signed_64bit_saturating_multiplication_bound");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

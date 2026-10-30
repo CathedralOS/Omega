@@ -35,13 +35,19 @@ machine consume(first: Transform, copied: Transform) -> i32 reaches AffineTransf
 }
 
 machine receive(value: Transform) -> bool reaches AffineTransforms { consume(value, value) == 0 }
-macos_arm64 machine observe() -> bool reaches AffineTransforms { receive(AffineTransforms::make(1.25, -2.5, 3.75, -4.0, 5.5, -6.25)) }
-linux_x86_64 machine observe() -> bool reaches AffineTransforms { receive(AffineTransforms::make(1.25, -2.5, 3.75, -4.0, 5.5, -6.25)) }
-linux_arm64 machine observe() -> bool reaches AffineTransforms { receive(AffineTransforms::make(1.25, -2.5, 3.75, -4.0, 5.5, -6.25)) }
-windows_x86_64 machine observe() -> bool reaches AffineTransforms { receive(AffineTransforms::make(1.25, -2.5, 3.75, -4.0, 5.5, -6.25)) }
+boundary trait SelectedObserve {
+    machine observe() -> bool reaches AffineTransforms;
+}
+CheckedObserve satisfies SelectedObserve {
+    machine observe() -> bool reaches AffineTransforms
+{ receive(AffineTransforms::make(1.25, -2.5, 3.75, -4.0, 5.5, -6.25)) }
+}
+
+
+
 
 machine main() reaches AffineTransforms crashes Trap {
-    transition observe() { true -> done() false -> failed() }
+    transition SelectedObserve::observe() { true -> done() false -> failed() }
     machine done() {}
     machine failed() { crash Trap; }
 }

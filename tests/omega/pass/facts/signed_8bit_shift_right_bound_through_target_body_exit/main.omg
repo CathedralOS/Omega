@@ -9,36 +9,28 @@ requires shifted >= 25i8 && shifted <= 25i8
     0i32
 }
 
-linux_x86_64 machine verify_target() -> i32 {
+boundary trait SelectedVerifyTarget {
+    machine verify_target() -> i32 reaches
+;
+}
+CheckedVerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+{
     let val: i8 = 100i8;
     let shift: u32 = 2u32;
     let shifted: i8 = val >> shift;
     verify_shifted(shifted)
+}
 }
 
-linux_arm64 machine verify_target() -> i32 {
-    let val: i8 = 100i8;
-    let shift: u32 = 2u32;
-    let shifted: i8 = val >> shift;
-    verify_shifted(shifted)
-}
 
-macos_arm64 machine verify_target() -> i32 {
-    let val: i8 = 100i8;
-    let shift: u32 = 2u32;
-    let shifted: i8 = val >> shift;
-    verify_shifted(shifted)
-}
 
-windows_x86_64 machine verify_target() -> i32 {
-    let val: i8 = 100i8;
-    let shift: u32 = 2u32;
-    let shifted: i8 = val >> shift;
-    verify_shifted(shifted)
-}
+
+
+
 
 machine probe() -> i32 {
-    verify_target()
+    SelectedVerifyTarget::verify_target()
 }
 
 machine main() crashes Trap {

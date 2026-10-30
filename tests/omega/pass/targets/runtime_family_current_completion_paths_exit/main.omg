@@ -16,16 +16,23 @@ machine settle(pair: Pair) -> bool {
     correct
 }
 
-linux_x86_64 machine Pair::consume(pair: Pair) -> bool { settle(pair) }
-windows_x86_64 machine Pair::consume(pair: Pair) -> bool { settle(pair) }
-linux_arm64 machine Pair::consume(pair: Pair) -> bool { settle(pair) }
-macos_arm64 machine Pair::consume(pair: Pair) -> bool { settle(pair) }
+boundary trait SelectedPairConsume {
+    machine consume(pair: Pair) -> bool reaches
+;
+}
+CheckedPairConsume satisfies SelectedPairConsume {
+    machine consume(pair: Pair) -> bool
+{ settle(pair) }
+}
+
+
+
 
 machine exercise(mut pair: Pair, replacement: Receipt) -> bool {
     let previous: Receipt = pair.left;
     pair.left = replacement;
     drop(previous);
-    Pair::consume(pair)
+    SelectedPairConsume::consume(pair)
 }
 
 machine main() crashes Trap {

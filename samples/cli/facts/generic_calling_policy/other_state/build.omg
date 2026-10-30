@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedValuePlan, LinuxX8664ValuePlan>(builder, linux_x86_64);
+    Build::select_provider<SelectedValuePlan, WindowsX8664ValuePlan>(builder, windows_x86_64);
+    Build::select_provider<SelectedValuePlan, MacosArm64ValuePlan>(builder, macos_arm64);
+    Build::select_provider<SelectedValuePlan, MacosArm64ValuePlan>(builder, linux_arm64);
+
     Build::application(builder, "generic_policy_other_state");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

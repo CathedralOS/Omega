@@ -37,17 +37,27 @@ public NestedByteWriter satisfies NestedWriter {
     }
 }
 
-windows_x86_64 machine endpoint() -> u64 ensures result >= 129 && result <= 145 { 145 }
-linux_x86_64 machine endpoint() -> u64 ensures result >= 129 && result <= 145 { 145 }
-macos_arm64 machine endpoint() -> u64 ensures result >= 129 && result <= 145 { 145 }
-linux_arm64 machine endpoint() -> u64 ensures result >= 129 && result <= 145 { 129 }
+boundary trait SelectedEndpoint {
+    machine endpoint() -> u64 reaches
+ensures result >= 129 && result <= 145;
+}
+WindowsX8664Endpoint satisfies SelectedEndpoint {
+    machine endpoint() -> u64 ensures result >= 129 && result <= 145
+{ 145 }
+}
+
+
+LinuxArm64Endpoint satisfies SelectedEndpoint {
+    machine endpoint() -> u64 ensures result >= 129 && result <= 145
+{ 129 }
+}
 
 machine Main::main(main: &mut Main) crashes Trap
 reaches Writer + GenericWriter + NestedWriter
 invokes Writer; invokes GenericWriter; invokes NestedWriter;
 {
     main.record[0] = 93;
-    let end: u64 = endpoint();
+    let end: u64 = SelectedEndpoint::endpoint();
     main.record[end] = 94;
     let status: i32 = Writer::write(".", &mut main.record[1..end]);
     let generic_status: i32 = GenericWriter<u8>::write(".", &mut main.record[1..end]);

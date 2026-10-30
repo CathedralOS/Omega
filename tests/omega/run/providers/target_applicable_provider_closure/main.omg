@@ -12,7 +12,7 @@ boundary trait Value {
 boundary trait Upstream { machine read() -> i32 reaches; }
 
 PortableValue satisfies Value {
-    machine read() -> i32 { selected_member() }
+    machine read() -> i32 { SelectedSelectedMember::selected_member() }
     machine other() -> i32 { 0 }
 }
 SourceValue satisfies Upstream {
@@ -23,12 +23,26 @@ FirmwareValue satisfies Value {
     machine other() -> i32 { 0 }
 }
 // The foreign sibling must not contaminate the selected member's closure.
-macos_arm64 machine selected_member() -> i32 { Upstream::read() }
-linux_arm64 machine selected_member() -> i32 { Upstream::read() }
-linux_x86_64 machine selected_member() -> i32 { Upstream::read() }
-windows_x86_64 machine selected_member() -> i32 { Upstream::read() }
-uefi_x86_64 machine selected_member() -> i32 { absent_on_uefi() }
-linux_x86_64 machine absent_on_uefi() -> i32 { 1 }
+boundary trait SelectedSelectedMember {
+    machine selected_member() -> i32 reaches
+;
+}
+CheckedSelectedMember satisfies SelectedSelectedMember {
+    machine selected_member() -> i32
+{ Upstream::read() }
+}
+
+
+
+uefi_x86_64 machine selected_member() -> i32 { SelectedAbsentOnUefi::absent_on_uefi() }
+boundary trait SelectedAbsentOnUefi {
+    machine absent_on_uefi() -> i32 reaches
+;
+}
+CheckedAbsentOnUefi satisfies SelectedAbsentOnUefi {
+    machine absent_on_uefi() -> i32
+{ 1 }
+}
 machine bridge(remaining: u64) -> i32
 terminates by remaining;
 { transition { _ -> nested_bridge(remaining) } }

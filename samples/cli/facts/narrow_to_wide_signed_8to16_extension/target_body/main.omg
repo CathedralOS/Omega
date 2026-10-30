@@ -27,38 +27,30 @@ ensures result == 0i32
     }
 }
 
-linux_x86_64 machine evaluate_wide() -> i32 crashes Trap
+boundary trait SelectedEvaluateWide {
+    machine evaluate_wide() -> i32 reaches
+crashes Trap
+ensures result == 0i32;
+}
+CheckedEvaluateWide satisfies SelectedEvaluateWide {
+    machine evaluate_wide() -> i32 crashes Trap
 ensures result == 0i32
 {
     let wide: i16 = compute_wide(60i8);
     verify_wide(wide)
+}
 }
 
-linux_arm64 machine evaluate_wide() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let wide: i16 = compute_wide(60i8);
-    verify_wide(wide)
-}
 
-macos_arm64 machine evaluate_wide() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let wide: i16 = compute_wide(60i8);
-    verify_wide(wide)
-}
 
-windows_x86_64 machine evaluate_wide() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let wide: i16 = compute_wide(60i8);
-    verify_wide(wide)
-}
+
+
+
 
 machine probe() -> i32 crashes Trap
 ensures result == 0i32
 {
-    evaluate_wide()
+    SelectedEvaluateWide::evaluate_wide()
 }
 
 machine main() crashes Trap {

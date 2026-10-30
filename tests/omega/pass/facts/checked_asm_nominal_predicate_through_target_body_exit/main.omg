@@ -7,8 +7,14 @@ machine reset(cursor: &mut u64) -> u64
 ensures cursor == 0 && result == 0 { cursor = 0; 0 }
 machine finished() {}
 machine failed() crashes Trap { crash Trap; }
-linux_x86_64 machine move_selected(selected: Counted, ignored: u64) -> u64
-ensures result == 7 {
+boundary trait SelectedMoveSelected {
+    machine move_selected(selected: Counted, ignored: u64) -> u64 reaches
+ensures result == 7;
+}
+CheckedMoveSelected satisfies SelectedMoveSelected {
+    machine move_selected(selected: Counted, ignored: u64) -> u64
+ensures result == 7
+{
     let mut output: u64 = 99;
     asm where clobbers none {
     entry:
@@ -17,45 +23,16 @@ ensures result == 7 {
         nop
     }
     output
+}
 }
 
-windows_x86_64 machine move_selected(selected: Counted, ignored: u64) -> u64
-ensures result == 7 {
-    let mut output: u64 = 99;
-    asm where clobbers none {
-    entry:
-        mov output, selected.length;
-    done requires output == 7 ensures output == selected.length && output == 7:
-        nop
-    }
-    output
-}
 
-linux_arm64 machine move_selected(selected: Counted, ignored: u64) -> u64
-ensures result == 7 {
-    let mut output: u64 = 99;
-    asm where clobbers none {
-    entry:
-        mov output, selected.length;
-    done requires output == 7 ensures output == selected.length && output == 7:
-        nop
-    }
-    output
-}
 
-macos_arm64 machine move_selected(selected: Counted, ignored: u64) -> u64
-ensures result == 7 {
-    let mut output: u64 = 99;
-    asm where clobbers none {
-    entry:
-        mov output, selected.length;
-    done requires output == 7 ensures output == selected.length && output == 7:
-        nop
-    }
-    output
-}
+
+
+
 machine main() crashes Trap {
     let mut cursor: u64 = 2;
-    let observed: u64 = move_selected(snapshot(cursor, 9), reset(&mut cursor));
+    let observed: u64 = SelectedMoveSelected::move_selected(snapshot(cursor, 9), reset(&mut cursor));
     transition observed == 7 && cursor == 0 { true -> finished() false -> failed() }
 }

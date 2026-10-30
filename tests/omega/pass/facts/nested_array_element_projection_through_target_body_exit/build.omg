@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedReadAndSub, CheckedReadAndSub>(builder, linux_x86_64);
+    Build::select_provider<SelectedReadAndSub, CheckedReadAndSub>(builder, linux_arm64);
+    Build::select_provider<SelectedReadAndSub, CheckedReadAndSub>(builder, macos_arm64);
+    Build::select_provider<SelectedReadAndSub, CheckedReadAndSub>(builder, windows_x86_64);
+
     Build::application(builder, "nested_array_element_projection_target_body");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

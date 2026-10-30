@@ -11,36 +11,27 @@ machine verify_combined(res: i64) -> i32
     diff as i32
 }
 
-linux_x86_64 machine compute_target_body(base: i64) -> i32
+boundary trait SelectedComputeTargetBody {
+    machine compute_target_body(base: i64) -> i32 reaches
+requires base >= 64 && base <= 64;
+}
+CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
+    machine compute_target_body(base: i64) -> i32
     requires base >= 64 && base <= 64
 {
     let combined: i64 = base | 32;
     verify_combined(combined)
+}
 }
 
-linux_arm64 machine compute_target_body(base: i64) -> i32
-    requires base >= 64 && base <= 64
-{
-    let combined: i64 = base | 32;
-    verify_combined(combined)
-}
 
-macos_arm64 machine compute_target_body(base: i64) -> i32
-    requires base >= 64 && base <= 64
-{
-    let combined: i64 = base | 32;
-    verify_combined(combined)
-}
 
-windows_x86_64 machine compute_target_body(base: i64) -> i32
-    requires base >= 64 && base <= 64
-{
-    let combined: i64 = base | 32;
-    verify_combined(combined)
-}
+
+
+
 
 machine evaluate() -> i32 {
-    compute_target_body(64)
+    SelectedComputeTargetBody::compute_target_body(64)
 }
 
 machine main() crashes Trap {

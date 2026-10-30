@@ -8,36 +8,28 @@ data PaddedFrame {
     tail: [u64; 8];
 }
 
-linux_x86_64 machine compute_geometry() -> u64 {
+boundary trait SelectedComputeGeometry {
+    machine compute_geometry() -> u64 reaches
+;
+}
+CheckedComputeGeometry satisfies SelectedComputeGeometry {
+    machine compute_geometry() -> u64
+{
     let s: u64 = size_of<PaddedFrame>();
     let a: u64 = align_of<PaddedFrame>();
     let extra: u64 = align_of<u32>();
     (s + a + extra) - 100u64
+}
 }
 
-linux_arm64 machine compute_geometry() -> u64 {
-    let s: u64 = size_of<PaddedFrame>();
-    let a: u64 = align_of<PaddedFrame>();
-    let extra: u64 = align_of<u32>();
-    (s + a + extra) - 100u64
-}
 
-macos_arm64 machine compute_geometry() -> u64 {
-    let s: u64 = size_of<PaddedFrame>();
-    let a: u64 = align_of<PaddedFrame>();
-    let extra: u64 = align_of<u32>();
-    (s + a + extra) - 100u64
-}
 
-windows_x86_64 machine compute_geometry() -> u64 {
-    let s: u64 = size_of<PaddedFrame>();
-    let a: u64 = align_of<PaddedFrame>();
-    let extra: u64 = align_of<u32>();
-    (s + a + extra) - 100u64
-}
+
+
+
 
 machine probe() -> u64 {
-    compute_geometry()
+    SelectedComputeGeometry::compute_geometry()
 }
 
 machine main() crashes Trap {

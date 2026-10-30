@@ -6,32 +6,26 @@ crashes Trap value == 0.0
     transition value == 0.0 { true -> bad() false -> (value) }
     machine bad() -> f32 { crash Trap; }
 }
-windows_x86_64 machine forward(value: f32) -> f32
+boundary trait SelectedForward {
+    machine forward(value: f32) -> f32 reaches
+crashes Trap value == 0.0;
+}
+CheckedForward satisfies SelectedForward {
+    machine forward(value: f32) -> f32
 crashes Trap value == 0.0
 {
     maybe_zero(value)
 }
-linux_x86_64 machine forward(value: f32) -> f32
-crashes Trap value == 0.0
-{
-    maybe_zero(value)
 }
-macos_arm64 machine forward(value: f32) -> f32
-crashes Trap value == 0.0
-{
-    maybe_zero(value)
-}
-linux_arm64 machine forward(value: f32) -> f32
-crashes Trap value == 0.0
-{
-    maybe_zero(value)
-}
+
+
+
 public machine read_bits(value: i32) -> f32
 requires value == 1065353216
 {
     let view: &f32 = &value as &f32;
     let observed: f32 = view;
-    forward(observed)
+    SelectedForward::forward(observed)
 }
 machine main() crashes Trap {
     let observed: f32 = read_bits(1065353216);

@@ -10,7 +10,13 @@ requires prod >= 50i16 && prod <= 200i16
     0i32
 }
 
-linux_x86_64 machine verify_target() -> i32 {
+boundary trait SelectedVerifyTarget {
+    machine verify_target() -> i32 reaches
+;
+}
+CheckedVerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+{
     let lhs: i16 = 21i16;
     let rhs: i16 = 10i16;
     let w_lhs: i16 in Saturating = lhs as i16 in Saturating;
@@ -18,40 +24,17 @@ linux_x86_64 machine verify_target() -> i32 {
     let prod_sat: i16 in Saturating = w_lhs * w_rhs;
     let prod: i16 = prod_sat as i16;
     verify_prod(prod)
+}
 }
 
-linux_arm64 machine verify_target() -> i32 {
-    let lhs: i16 = 21i16;
-    let rhs: i16 = 10i16;
-    let w_lhs: i16 in Saturating = lhs as i16 in Saturating;
-    let w_rhs: i16 in Saturating = rhs as i16 in Saturating;
-    let prod_sat: i16 in Saturating = w_lhs * w_rhs;
-    let prod: i16 = prod_sat as i16;
-    verify_prod(prod)
-}
 
-macos_arm64 machine verify_target() -> i32 {
-    let lhs: i16 = 21i16;
-    let rhs: i16 = 10i16;
-    let w_lhs: i16 in Saturating = lhs as i16 in Saturating;
-    let w_rhs: i16 in Saturating = rhs as i16 in Saturating;
-    let prod_sat: i16 in Saturating = w_lhs * w_rhs;
-    let prod: i16 = prod_sat as i16;
-    verify_prod(prod)
-}
 
-windows_x86_64 machine verify_target() -> i32 {
-    let lhs: i16 = 21i16;
-    let rhs: i16 = 10i16;
-    let w_lhs: i16 in Saturating = lhs as i16 in Saturating;
-    let w_rhs: i16 in Saturating = rhs as i16 in Saturating;
-    let prod_sat: i16 in Saturating = w_lhs * w_rhs;
-    let prod: i16 = prod_sat as i16;
-    verify_prod(prod)
-}
+
+
+
 
 machine probe() -> i32 {
-    verify_target()
+    SelectedVerifyTarget::verify_target()
 }
 
 machine main() crashes Trap {

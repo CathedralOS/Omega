@@ -19,42 +19,30 @@ machine clamp(val: u64) -> u64
     }
 }
 
-linux_x86_64 machine compute(clamped: u64) -> u64
+boundary trait SelectedCompute {
+    machine compute(clamped: u64) -> u64 reaches
+requires clamped >= 10u64 && clamped <= 100u64;
+}
+CheckedCompute satisfies SelectedCompute {
+    machine compute(clamped: u64) -> u64
     requires clamped >= 10u64 && clamped <= 100u64
 {
     let headroom: u64 = 100u64 - clamped;
     let above_floor: u64 = clamped - 10u64;
     headroom + above_floor
+}
 }
 
-linux_arm64 machine compute(clamped: u64) -> u64
-    requires clamped >= 10u64 && clamped <= 100u64
-{
-    let headroom: u64 = 100u64 - clamped;
-    let above_floor: u64 = clamped - 10u64;
-    headroom + above_floor
-}
 
-macos_arm64 machine compute(clamped: u64) -> u64
-    requires clamped >= 10u64 && clamped <= 100u64
-{
-    let headroom: u64 = 100u64 - clamped;
-    let above_floor: u64 = clamped - 10u64;
-    headroom + above_floor
-}
 
-windows_x86_64 machine compute(clamped: u64) -> u64
-    requires clamped >= 10u64 && clamped <= 100u64
-{
-    let headroom: u64 = 100u64 - clamped;
-    let above_floor: u64 = clamped - 10u64;
-    headroom + above_floor
-}
+
+
+
 
 machine probe(val: u64) -> u64
     requires val >= 10u64 && val <= 100u64
 {
-    compute(val)
+    SelectedCompute::compute(val)
 }
 
 machine main() crashes Trap {

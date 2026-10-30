@@ -2,44 +2,30 @@
 // Place: target_body. Each of four target bodies performs exact 16-bit subtraction and discharges subtraction bounds.
 // Expected exit: 0
 
-linux_x86_64 machine verify_target() -> i32 {
+boundary trait SelectedVerifyTarget {
+    machine verify_target() -> i32 reaches
+;
+}
+CheckedVerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+{
     let lhs: u16 = 400u16;
     let rhs: u16 = 80u16;
     let diff: u16 = lhs - rhs;
     let headroom: u16 = 450u16 - diff;
     let margin: u16 = diff - 200u16;
     0i32
+}
 }
 
-linux_arm64 machine verify_target() -> i32 {
-    let lhs: u16 = 400u16;
-    let rhs: u16 = 80u16;
-    let diff: u16 = lhs - rhs;
-    let headroom: u16 = 450u16 - diff;
-    let margin: u16 = diff - 200u16;
-    0i32
-}
 
-macos_arm64 machine verify_target() -> i32 {
-    let lhs: u16 = 400u16;
-    let rhs: u16 = 80u16;
-    let diff: u16 = lhs - rhs;
-    let headroom: u16 = 450u16 - diff;
-    let margin: u16 = diff - 200u16;
-    0i32
-}
 
-windows_x86_64 machine verify_target() -> i32 {
-    let lhs: u16 = 400u16;
-    let rhs: u16 = 80u16;
-    let diff: u16 = lhs - rhs;
-    let headroom: u16 = 450u16 - diff;
-    let margin: u16 = diff - 200u16;
-    0i32
-}
+
+
+
 
 machine probe() -> i32 {
-    verify_target()
+    SelectedVerifyTarget::verify_target()
 }
 
 machine main() crashes Trap {

@@ -2,7 +2,13 @@
 // Invalid: target bodies compute with lhs 501u16 and rhs 100u16, causing 600u16 - sum to underflow. Place: target_body.
 // Expected diagnostic: may overflow `u16`
 
-linux_x86_64 machine verify_target() -> i32 {
+boundary trait SelectedVerifyTarget {
+    machine verify_target() -> i32 reaches
+;
+}
+CheckedVerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+{
     let lhs: u16 = 501u16;
     let rhs: u16 = 100u16;
     let w_lhs: u16 in Wrapping = lhs as u16 in Wrapping;
@@ -12,46 +18,17 @@ linux_x86_64 machine verify_target() -> i32 {
     let headroom: u16 = 600u16 - sum;
     let margin: u16 = sum - 350u16;
     0i32
+}
 }
 
-linux_arm64 machine verify_target() -> i32 {
-    let lhs: u16 = 501u16;
-    let rhs: u16 = 100u16;
-    let w_lhs: u16 in Wrapping = lhs as u16 in Wrapping;
-    let w_rhs: u16 in Wrapping = rhs as u16 in Wrapping;
-    let sum_wrap: u16 in Wrapping = w_lhs + w_rhs;
-    let sum: u16 = sum_wrap as u16;
-    let headroom: u16 = 600u16 - sum;
-    let margin: u16 = sum - 350u16;
-    0i32
-}
 
-macos_arm64 machine verify_target() -> i32 {
-    let lhs: u16 = 501u16;
-    let rhs: u16 = 100u16;
-    let w_lhs: u16 in Wrapping = lhs as u16 in Wrapping;
-    let w_rhs: u16 in Wrapping = rhs as u16 in Wrapping;
-    let sum_wrap: u16 in Wrapping = w_lhs + w_rhs;
-    let sum: u16 = sum_wrap as u16;
-    let headroom: u16 = 600u16 - sum;
-    let margin: u16 = sum - 350u16;
-    0i32
-}
 
-windows_x86_64 machine verify_target() -> i32 {
-    let lhs: u16 = 501u16;
-    let rhs: u16 = 100u16;
-    let w_lhs: u16 in Wrapping = lhs as u16 in Wrapping;
-    let w_rhs: u16 in Wrapping = rhs as u16 in Wrapping;
-    let sum_wrap: u16 in Wrapping = w_lhs + w_rhs;
-    let sum: u16 = sum_wrap as u16;
-    let headroom: u16 = 600u16 - sum;
-    let margin: u16 = sum - 350u16;
-    0i32
-}
+
+
+
 
 machine probe() -> i32 {
-    verify_target()
+    SelectedVerifyTarget::verify_target()
 }
 
 machine main() crashes Trap {

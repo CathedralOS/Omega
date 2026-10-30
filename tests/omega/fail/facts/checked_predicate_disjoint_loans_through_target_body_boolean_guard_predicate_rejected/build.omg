@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedReplace, CheckedReplace>(builder, windows_x86_64);
+    Build::select_provider<SelectedReplace, CheckedReplace>(builder, linux_x86_64);
+    Build::select_provider<SelectedReplace, CheckedReplace>(builder, macos_arm64);
+    Build::select_provider<SelectedReplace, CheckedReplace>(builder, linux_arm64);
+
     Build::application(builder, "checked_predicate_disjoint_loans_through_target_body_boolean_guard_predicate_rejected");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

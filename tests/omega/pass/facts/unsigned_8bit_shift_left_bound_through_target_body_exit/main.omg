@@ -2,36 +2,27 @@
 // Place: another target body. Each of four target-scoped machine bodies shifts the bounded 8-bit operand and subtracts 100u8.
 // Expected exit: 0
 
-linux_x86_64 machine shift_target(val: u8, shift: u32) -> u8
+boundary trait SelectedShiftTarget {
+    machine shift_target(val: u8, shift: u32) -> u8 reaches
+requires val >= 25 && val <= 25 && shift == 2;
+}
+CheckedShiftTarget satisfies SelectedShiftTarget {
+    machine shift_target(val: u8, shift: u32) -> u8
 requires val >= 25 && val <= 25 && shift == 2
 {
     let shifted: u8 = val << shift;
     shifted - 100u8
+}
 }
 
-linux_arm64 machine shift_target(val: u8, shift: u32) -> u8
-requires val >= 25 && val <= 25 && shift == 2
-{
-    let shifted: u8 = val << shift;
-    shifted - 100u8
-}
 
-macos_arm64 machine shift_target(val: u8, shift: u32) -> u8
-requires val >= 25 && val <= 25 && shift == 2
-{
-    let shifted: u8 = val << shift;
-    shifted - 100u8
-}
 
-windows_x86_64 machine shift_target(val: u8, shift: u32) -> u8
-requires val >= 25 && val <= 25 && shift == 2
-{
-    let shifted: u8 = val << shift;
-    shifted - 100u8
-}
+
+
+
 
 machine probe() -> u8 {
-    shift_target(25u8, 2)
+    SelectedShiftTarget::shift_target(25u8, 2)
 }
 
 machine main() crashes Trap {

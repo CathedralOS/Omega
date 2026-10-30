@@ -30,38 +30,30 @@ ensures result == 0i8
     }
 }
 
-linux_x86_64 machine evaluate_diff() -> i8 crashes Trap
+boundary trait SelectedEvaluateDiff {
+    machine evaluate_diff() -> i8 reaches
+crashes Trap
+ensures result == 0i8;
+}
+CheckedEvaluateDiff satisfies SelectedEvaluateDiff {
+    machine evaluate_diff() -> i8 crashes Trap
 ensures result == 0i8
 {
     let diff: i8 = compute_diff(105i8, 10i8);
     verify_diff(diff)
+}
 }
 
-linux_arm64 machine evaluate_diff() -> i8 crashes Trap
-ensures result == 0i8
-{
-    let diff: i8 = compute_diff(105i8, 10i8);
-    verify_diff(diff)
-}
 
-macos_arm64 machine evaluate_diff() -> i8 crashes Trap
-ensures result == 0i8
-{
-    let diff: i8 = compute_diff(105i8, 10i8);
-    verify_diff(diff)
-}
 
-windows_x86_64 machine evaluate_diff() -> i8 crashes Trap
-ensures result == 0i8
-{
-    let diff: i8 = compute_diff(105i8, 10i8);
-    verify_diff(diff)
-}
+
+
+
 
 machine probe() -> i8 crashes Trap
 ensures result == 0i8
 {
-    evaluate_diff()
+    SelectedEvaluateDiff::evaluate_diff()
 }
 
 machine main() crashes Trap {

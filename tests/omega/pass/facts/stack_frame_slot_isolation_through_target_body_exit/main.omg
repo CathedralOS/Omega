@@ -13,33 +13,25 @@ ensures target.left == next_left && target.right == next_right
     target.right = next_right;
 }
 
-linux_x86_64 machine evaluate(isolated: u64) -> u64
+boundary trait SelectedEvaluate {
+    machine evaluate(isolated: u64) -> u64 reaches
+requires isolated == 100
+ensures result == 0;
+}
+CheckedEvaluate satisfies SelectedEvaluate {
+    machine evaluate(isolated: u64) -> u64
 requires isolated == 100
 ensures result == 0
 {
     isolated - 100
+}
 }
 
-linux_arm64 machine evaluate(isolated: u64) -> u64
-requires isolated == 100
-ensures result == 0
-{
-    isolated - 100
-}
 
-macos_arm64 machine evaluate(isolated: u64) -> u64
-requires isolated == 100
-ensures result == 0
-{
-    isolated - 100
-}
 
-windows_x86_64 machine evaluate(isolated: u64) -> u64
-requires isolated == 100
-ensures result == 0
-{
-    isolated - 100
-}
+
+
+
 
 machine main() crashes Trap {
     let mut slot_a: SlotPair = SlotPair { left: 10, right: 20 };
@@ -56,7 +48,7 @@ machine main() crashes Trap {
     requires a.left == 10 && a.right == 20 && b.left == 15 && b.right == 25 && c.left == 10 && c.right == 20
     {
         let sum: u64 = a.left + a.right + b.left + b.right + c.left + c.right;
-        let res: u64 = evaluate(sum);
+        let res: u64 = SelectedEvaluate::evaluate(sum);
         transition res == 0 {
             true -> done()
             _ -> bad()

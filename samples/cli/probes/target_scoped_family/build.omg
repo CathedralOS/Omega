@@ -1,4 +1,11 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedHelperPick, CheckedHelperPick>(builder, windows_x86_64);
+    Build::select_provider<SelectedHelperPick, CheckedHelperPick>(builder, macos_arm64);
+    Build::select_provider<SelectedHelperPick, CheckedHelperPick>(builder, linux_x86_64);
+    Build::select_provider<SelectedHelperPick, CheckedHelperPick>(builder, linux_arm64);
+    Build::select_provider<SelectedHelperDelta, CheckedHelperDelta>(builder, windows_x86_64);
+    Build::select_provider<SelectedHelperDelta, CheckedHelperDelta>(builder, linux_x86_64);
+
     Build::application(builder, "target_scoped_family");
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

@@ -3,15 +3,22 @@
 use omega::language::core::atomic;
 data Cell { value: AtomicBool; }
 machine publish(cell: &Cell, value: bool) { cell.value.store(value, Publish); }
-windows_x86_64 machine observe(cell: &Cell) -> bool { cell.value.load(Receive) }
-linux_x86_64 machine observe(cell: &Cell) -> bool { cell.value.load(Receive) }
-linux_arm64 machine observe(cell: &Cell) -> bool { cell.value.load(Receive) }
-macos_arm64 machine observe(cell: &Cell) -> bool { cell.value.load(Receive) }
+boundary trait SelectedObserve {
+    machine observe(cell: &Cell) -> bool reaches
+;
+}
+CheckedObserve satisfies SelectedObserve {
+    machine observe(cell: &Cell) -> bool
+{ cell.value.load(Receive) }
+}
+
+
+
 machine main() crashes Trap {
     let cell: Cell;
     publish(&cell, true);
     Atomic::fence(FenceOrdering::Receive);
-    let observed: bool = observe(&cell);
+    let observed: bool = SelectedObserve::observe(&cell);
     transition observed { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

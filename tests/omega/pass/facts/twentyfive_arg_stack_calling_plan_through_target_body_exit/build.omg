@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedEvaluate25, CheckedEvaluate25>(builder, linux_x86_64);
+    Build::select_provider<SelectedEvaluate25, CheckedEvaluate25>(builder, linux_arm64);
+    Build::select_provider<SelectedEvaluate25, CheckedEvaluate25>(builder, macos_arm64);
+    Build::select_provider<SelectedEvaluate25, CheckedEvaluate25>(builder, windows_x86_64);
+
     Build::application(builder, "twentyfive_arg_stack_calling_plan_through_target_body");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

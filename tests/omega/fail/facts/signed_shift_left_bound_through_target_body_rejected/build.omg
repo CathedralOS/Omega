@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedShiftLeft, CheckedShiftLeft>(builder, linux_x86_64);
+    Build::select_provider<SelectedShiftLeft, CheckedShiftLeft>(builder, linux_arm64);
+    Build::select_provider<SelectedShiftLeft, CheckedShiftLeft>(builder, macos_arm64);
+    Build::select_provider<SelectedShiftLeft, CheckedShiftLeft>(builder, windows_x86_64);
+
     Build::application(builder, "signed_shift_left_bound_unproved_target_body");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

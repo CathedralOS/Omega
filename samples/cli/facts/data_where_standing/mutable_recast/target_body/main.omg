@@ -16,33 +16,25 @@ requires replacement <= 60
     replace(&mut storage.value, replacement);
     storage
 }
-windows_x86_64 machine inspect(counter: &mut Counter) -> i32 {
+boundary trait SelectedInspect {
+    machine inspect(counter: &mut Counter) -> i32 reaches
+;
+}
+CheckedInspect satisfies SelectedInspect {
+    machine inspect(counter: &mut Counter) -> i32
+{
     let total: i32 = 70 + counter.value;
     let neighbors: bool = counter.before == 17 && counter.after == 53;
     counter.before = 23;
     transition neighbors { true -> total false -> -99 }
 }
-linux_x86_64 machine inspect(counter: &mut Counter) -> i32 {
-    let total: i32 = 70 + counter.value;
-    let neighbors: bool = counter.before == 17 && counter.after == 53;
-    counter.before = 23;
-    transition neighbors { true -> total false -> -99 }
 }
-macos_arm64 machine inspect(counter: &mut Counter) -> i32 {
-    let total: i32 = 70 + counter.value;
-    let neighbors: bool = counter.before == 17 && counter.after == 53;
-    counter.before = 23;
-    transition neighbors { true -> total false -> -99 }
-}
-linux_arm64 machine inspect(counter: &mut Counter) -> i32 {
-    let total: i32 = 70 + counter.value;
-    let neighbors: bool = counter.before == 17 && counter.after == 53;
-    counter.before = 23;
-    transition neighbors { true -> total false -> -99 }
-}
+
+
+
 machine compute(storage: &mut Storage) -> i32 {
     let formed: &mut Counter = storage as &mut Counter;
-    inspect(formed)
+    SelectedInspect::inspect(formed)
 }
 machine main() crashes Trap {
     let mut high: Storage = produce(60);

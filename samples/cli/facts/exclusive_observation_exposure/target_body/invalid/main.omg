@@ -11,7 +11,12 @@ machine expose(slot: &mut u64) -> u64 {
     slot
 }
 
-linux_x86_64 machine observe(items: &mut [u64; 2]) -> u64
+boundary trait SelectedObserve {
+    machine observe(items: &mut [u64; 2]) -> u64 reaches
+requires items[0] == 7;
+}
+CheckedObserve satisfies SelectedObserve {
+    machine observe(items: &mut [u64; 2]) -> u64
 requires items[0] == 7
 {
     let saved: u64 = items[0];
@@ -21,47 +26,18 @@ requires items[0] == 7
     machine finish(agreed: u64, held: u64) -> u64 {
         transition held == held { true -> agreed _ -> agreed }
     }
+}
 }
 
-linux_arm64 machine observe(items: &mut [u64; 2]) -> u64
-requires items[0] == 7
-{
-    let saved: u64 = items[0];
-    let held: u64 = expose(&mut items[0]);
-    let agreed: u64 = agree(saved, items[0]);
-    transition { _ -> finish(agreed, held) }
-    machine finish(agreed: u64, held: u64) -> u64 {
-        transition held == held { true -> agreed _ -> agreed }
-    }
-}
 
-macos_arm64 machine observe(items: &mut [u64; 2]) -> u64
-requires items[0] == 7
-{
-    let saved: u64 = items[0];
-    let held: u64 = expose(&mut items[0]);
-    let agreed: u64 = agree(saved, items[0]);
-    transition { _ -> finish(agreed, held) }
-    machine finish(agreed: u64, held: u64) -> u64 {
-        transition held == held { true -> agreed _ -> agreed }
-    }
-}
 
-windows_x86_64 machine observe(items: &mut [u64; 2]) -> u64
-requires items[0] == 7
-{
-    let saved: u64 = items[0];
-    let held: u64 = expose(&mut items[0]);
-    let agreed: u64 = agree(saved, items[0]);
-    transition { _ -> finish(agreed, held) }
-    machine finish(agreed: u64, held: u64) -> u64 {
-        transition held == held { true -> agreed _ -> agreed }
-    }
-}
+
+
+
 
 machine main() crashes Trap {
     let mut items: [u64; 2] = [7, 1];
-    transition observe(&mut items) == 7 { true -> done() _ -> bad() }
+    transition SelectedObserve::observe(&mut items) == 7 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

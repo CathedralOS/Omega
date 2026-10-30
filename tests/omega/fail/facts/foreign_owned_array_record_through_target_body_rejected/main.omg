@@ -23,13 +23,19 @@ machine consume(first: Division, copied: Division) -> bool reaches IntegerDivisi
  && IntegerDivision::verify(first, copied)
 }
 machine receive(value: Division) -> bool reaches IntegerDivision { consume(value, value) }
-macos_arm64 machine observe() -> bool reaches IntegerDivision { receive(IntegerDivision::divide(-70000000000, 3)) }
-linux_x86_64 machine observe() -> bool reaches IntegerDivision { receive(IntegerDivision::divide(-70000000000, 3)) }
-linux_arm64 machine observe() -> bool reaches IntegerDivision { receive(IntegerDivision::divide(-70000000000, 3)) }
-windows_x86_64 machine observe() -> bool reaches IntegerDivision { receive(IntegerDivision::divide(-70000000000, 3)) }
+boundary trait SelectedObserve {
+    machine observe() -> bool reaches IntegerDivision;
+}
+CheckedObserve satisfies SelectedObserve {
+    machine observe() -> bool reaches IntegerDivision
+{ receive(IntegerDivision::divide(-70000000000, 3)) }
+}
+
+
+
 
 machine main() reaches IntegerDivision crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition SelectedObserve::observe() { true -> done() _ -> failed() }
  machine done() {}
  machine failed() crashes Trap { crash Trap; }
 }

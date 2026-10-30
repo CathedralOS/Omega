@@ -7,31 +7,25 @@ crashes Trap value == value
     transition value == value { true -> bad() false -> (value) }
     machine bad() -> f32 { crash Trap; }
 }
-windows_x86_64 machine forward(value: f32) -> f32
+boundary trait SelectedForward {
+    machine forward(value: f32) -> f32 reaches
+crashes Trap value == value;
+}
+CheckedForward satisfies SelectedForward {
+    machine forward(value: f32) -> f32
 crashes Trap value == value
 {
     maybe_ordered(value)
 }
-linux_x86_64 machine forward(value: f32) -> f32
-crashes Trap value == value
-{
-    maybe_ordered(value)
 }
-macos_arm64 machine forward(value: f32) -> f32
-crashes Trap value == value
-{
-    maybe_ordered(value)
-}
-linux_arm64 machine forward(value: f32) -> f32
-crashes Trap value == value
-{
-    maybe_ordered(value)
-}
+
+
+
 public machine read_nan() -> f32
 {
     let nan: f32 = 0.0f32 / 0.0f32;
     let observed: f32 = nan;
-    forward(observed)
+    SelectedForward::forward(observed)
 }
 machine main() crashes Trap {
     let observed: f32 = read_nan();

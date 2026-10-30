@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedEndpoint, WindowsX8664Endpoint>(builder, windows_x86_64);
+    Build::select_provider<SelectedEndpoint, WindowsX8664Endpoint>(builder, linux_x86_64);
+    Build::select_provider<SelectedEndpoint, WindowsX8664Endpoint>(builder, macos_arm64);
+    Build::select_provider<SelectedEndpoint, LinuxArm64Endpoint>(builder, linux_arm64);
+
     Build::application(builder, "normal_return_contextual_call_arguments");
     Build::select_provider<Writer, ByteWriter>(builder, linux_arm64);
     Build::select_provider<Writer, ByteWriter>(builder, linux_x86_64);

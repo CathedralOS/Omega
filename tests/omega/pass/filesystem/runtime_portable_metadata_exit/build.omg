@@ -1,4 +1,8 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedExpectedCreationTime, LinuxArm64ExpectedCreationTime>(builder, linux_arm64);
+    Build::select_provider<SelectedExpectedCreationTime, LinuxArm64ExpectedCreationTime>(builder, linux_x86_64);
+    Build::select_provider<SelectedExpectedCreationTime, MacosArm64ExpectedCreationTime>(builder, macos_arm64);
+
     Build::application(builder, "runtime_portable_metadata_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

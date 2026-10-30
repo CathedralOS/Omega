@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedReceive, CheckedReceive>(builder, windows_x86_64);
+    Build::select_provider<SelectedReceive, CheckedReceive>(builder, linux_x86_64);
+    Build::select_provider<SelectedReceive, CheckedReceive>(builder, macos_arm64);
+    Build::select_provider<SelectedReceive, CheckedReceive>(builder, linux_arm64);
+
     Build::application(builder, "owner_target_body");
     Build::depend_as(builder, "shared", Source::Path { location: "../library" });
     Build::bind(builder, windows_x86_64::ProgramEntry, main);

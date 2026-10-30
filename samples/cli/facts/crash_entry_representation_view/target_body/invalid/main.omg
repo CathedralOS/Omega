@@ -5,31 +5,25 @@ crashes Trap value == 0
     transition value == 0 { true -> bad() false -> (value) }
     machine bad() -> i64 { crash Trap; }
 }
-windows_x86_64 machine forward(value: i64) -> i64
+boundary trait SelectedForward {
+    machine forward(value: i64) -> i64 reaches
+crashes Trap value == 0;
+}
+CheckedForward satisfies SelectedForward {
+    machine forward(value: i64) -> i64
 crashes Trap value == 0
 {
     maybe_zero(value)
 }
-linux_x86_64 machine forward(value: i64) -> i64
-crashes Trap value == 0
-{
-    maybe_zero(value)
 }
-macos_arm64 machine forward(value: i64) -> i64
-crashes Trap value == 0
-{
-    maybe_zero(value)
-}
-linux_arm64 machine forward(value: i64) -> i64
-crashes Trap value == 0
-{
-    maybe_zero(value)
-}
+
+
+
 public machine read_bits(value: u64) -> i64
 {
     let view: &i64 = &value as &i64;
     let observed: i64 = view;
-    forward(observed)
+    SelectedForward::forward(observed)
 }
 machine main() crashes Trap {
     let observed: i64 = read_bits(7);

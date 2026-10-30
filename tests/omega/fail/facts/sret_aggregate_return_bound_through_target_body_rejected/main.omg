@@ -12,7 +12,12 @@ data Triple [copy] where
     c: u64;
 }
 
-linux_x86_64 machine make_triple() -> Triple
+boundary trait SelectedMakeTriple {
+    machine make_triple() -> Triple reaches
+ensures result.c >= 91u64 && result.c <= 91u64;
+}
+CheckedMakeTriple satisfies SelectedMakeTriple {
+    machine make_triple() -> Triple
 ensures result.c >= 91u64 && result.c <= 91u64
 {
     Triple {
@@ -20,41 +25,18 @@ ensures result.c >= 91u64 && result.c <= 91u64
         b: 30,
         c: 91,
     }
+}
 }
 
-linux_arm64 machine make_triple() -> Triple
-ensures result.c >= 91u64 && result.c <= 91u64
-{
-    Triple {
-        a: 20,
-        b: 30,
-        c: 91,
-    }
-}
 
-macos_arm64 machine make_triple() -> Triple
-ensures result.c >= 91u64 && result.c <= 91u64
-{
-    Triple {
-        a: 20,
-        b: 30,
-        c: 91,
-    }
-}
 
-windows_x86_64 machine make_triple() -> Triple
-ensures result.c >= 91u64 && result.c <= 91u64
-{
-    Triple {
-        a: 20,
-        b: 30,
-        c: 91,
-    }
-}
+
+
+
 
 machine probe() -> u64
 {
-    let t: Triple = make_triple();
+    let t: Triple = SelectedMakeTriple::make_triple();
     let remaining: u64 = 90u64 - t.c;
     let sum_ab: u64 = t.a + t.b;
     remaining - sum_ab

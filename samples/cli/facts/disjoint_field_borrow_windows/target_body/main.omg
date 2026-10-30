@@ -22,43 +22,29 @@ crashes Trap
     machine bad() { crash Trap; }
 }
 
-linux_x86_64 machine exercise(pair: &mut Pair)
+boundary trait SelectedExercise {
+    machine exercise(pair: &mut Pair) reaches
+requires pair.right <= 75u64
+crashes Trap;
+}
+CheckedExercise satisfies SelectedExercise {
+    machine exercise(pair: &mut Pair)
 requires pair.right <= 75u64
 crashes Trap
 {
     touch_left(&mut pair.left);
     let diff: u64 = 75u64 - pair.right;
     verify(diff);
+}
 }
 
-linux_arm64 machine exercise(pair: &mut Pair)
-requires pair.right <= 75u64
-crashes Trap
-{
-    touch_left(&mut pair.left);
-    let diff: u64 = 75u64 - pair.right;
-    verify(diff);
-}
 
-macos_arm64 machine exercise(pair: &mut Pair)
-requires pair.right <= 75u64
-crashes Trap
-{
-    touch_left(&mut pair.left);
-    let diff: u64 = 75u64 - pair.right;
-    verify(diff);
-}
 
-windows_x86_64 machine exercise(pair: &mut Pair)
-requires pair.right <= 75u64
-crashes Trap
-{
-    touch_left(&mut pair.left);
-    let diff: u64 = 75u64 - pair.right;
-    verify(diff);
-}
+
+
+
 
 machine main() crashes Trap {
     let mut pair: Pair = Pair { left: 10u64, right: 25u64 };
-    exercise(&mut pair);
+    SelectedExercise::exercise(&mut pair);
 }

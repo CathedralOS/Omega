@@ -30,38 +30,30 @@ ensures result == 0u64
     }
 }
 
-linux_x86_64 machine evaluate_prod() -> u64 crashes Trap
+boundary trait SelectedEvaluateProd {
+    machine evaluate_prod() -> u64 reaches
+crashes Trap
+ensures result == 0u64;
+}
+CheckedEvaluateProd satisfies SelectedEvaluateProd {
+    machine evaluate_prod() -> u64 crashes Trap
 ensures result == 0u64
 {
     let prod: u64 = compute_prod(21u64, 10u64);
     verify_prod(prod)
+}
 }
 
-linux_arm64 machine evaluate_prod() -> u64 crashes Trap
-ensures result == 0u64
-{
-    let prod: u64 = compute_prod(21u64, 10u64);
-    verify_prod(prod)
-}
 
-macos_arm64 machine evaluate_prod() -> u64 crashes Trap
-ensures result == 0u64
-{
-    let prod: u64 = compute_prod(21u64, 10u64);
-    verify_prod(prod)
-}
 
-windows_x86_64 machine evaluate_prod() -> u64 crashes Trap
-ensures result == 0u64
-{
-    let prod: u64 = compute_prod(21u64, 10u64);
-    verify_prod(prod)
-}
+
+
+
 
 machine probe() -> u64 crashes Trap
 ensures result == 0u64
 {
-    evaluate_prod()
+    SelectedEvaluateProd::evaluate_prod()
 }
 
 machine main() crashes Trap {

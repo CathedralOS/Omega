@@ -1,4 +1,6 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedProvidersProviderDefaults, CheckedProvidersProviderDefaults>(builder, linux_x86_64);
+
     Build::application(builder, "inherited_receiver_calling_contracts_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

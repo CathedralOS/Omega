@@ -22,33 +22,27 @@ requires carrier.value >= 100u64 && carrier.value <= 100u64
     }
 }
 
-linux_x86_64 machine probe(carrier: Carrier) -> u64
+boundary trait SelectedProbe {
+    machine probe(carrier: Carrier) -> u64 reaches
+requires carrier.value >= 100u64 && carrier.value <= 100u64;
+}
+CheckedProbe satisfies SelectedProbe {
+    machine probe(carrier: Carrier) -> u64
 requires carrier.value >= 100u64 && carrier.value <= 100u64
 {
     verify_carrier(carrier)
+}
 }
 
-linux_arm64 machine probe(carrier: Carrier) -> u64
-requires carrier.value >= 100u64 && carrier.value <= 100u64
-{
-    verify_carrier(carrier)
-}
 
-macos_arm64 machine probe(carrier: Carrier) -> u64
-requires carrier.value >= 100u64 && carrier.value <= 100u64
-{
-    verify_carrier(carrier)
-}
 
-windows_x86_64 machine probe(carrier: Carrier) -> u64
-requires carrier.value >= 100u64 && carrier.value <= 100u64
-{
-    verify_carrier(carrier)
-}
+
+
+
 
 machine main() crashes Trap {
     let carrier: Carrier = Carrier { token: Token { empty: [] }, value: 100u64 };
-    let exit_code: u64 = probe(carrier);
+    let exit_code: u64 = SelectedProbe::probe(carrier);
     transition exit_code == 0 {
         true -> done()
         _ -> bad()

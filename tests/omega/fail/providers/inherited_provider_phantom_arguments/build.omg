@@ -1,4 +1,6 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedTargetProvidersProviderDefaults, CheckedTargetProvidersProviderDefaults>(builder, macos_arm64);
+
     Build::application(builder, "inherited_provider_phantom_arguments");
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
 }

@@ -45,7 +45,13 @@ requires windows.len == 2
     valid && adjacent && original[0].value == 9 && original[0].tag == 17
 }
 
-windows_x86_64 machine exercise() crashes Trap {
+boundary trait SelectedExercise {
+    machine exercise() reaches
+crashes Trap;
+}
+CheckedExercise satisfies SelectedExercise {
+    machine exercise() crashes Trap
+{
     let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
     let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
     let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
@@ -58,47 +64,12 @@ windows_x86_64 machine exercise() crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-
-linux_x86_64 machine exercise() crashes Trap {
-    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
-    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
-    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
-    let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
-    windows[first_slot()].values = &mut replacement[..];
-    transition check(&mut windows[..], &mut original) {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() { crash Trap; }
 }
 
-linux_arm64 machine exercise() crashes Trap {
-    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
-    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
-    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
-    let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
-    windows[first_slot()].values = &mut replacement[..];
-    transition check(&mut windows[..], &mut original) {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() { crash Trap; }
-}
 
-macos_arm64 machine exercise() crashes Trap {
-    let mut original: [Cell; 1] = [Cell { value: 7, tag: 17 }];
-    let mut neighbor: [Cell; 1] = [Cell { value: 31, tag: 41 }];
-    let mut replacement: [Cell; 2] = [Cell { value: 42, tag: 7 }, Cell { value: 19, tag: 29 }];
-    let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];
-    windows[first_slot()].values = &mut replacement[..];
-    transition check(&mut windows[..], &mut original) {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() { crash Trap; }
-}
 
-machine main() crashes Trap { exercise(); }
+
+
+
+
+machine main() crashes Trap { SelectedExercise::exercise(); }

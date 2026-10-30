@@ -74,27 +74,25 @@ ensures result in Buffer::Owned, result.pointer == buffer.pointer {
     let pending: PendingWrite in PendingWrite::Retained = Writer::submit(buffer);
     Writer::complete(pending)
 }
-windows_x86_64 machine transport(buffer: Buffer in Buffer::Owned) -> Buffer in Buffer::Owned
-reaches Writer ensures result.pointer == buffer.pointer {
+boundary trait SelectedTransport {
+    machine transport(buffer: Buffer in Buffer::Owned) -> Buffer in Buffer::Owned
+reaches Writer ensures result.pointer == buffer.pointer;
+}
+CheckedTransport satisfies SelectedTransport {
+    machine transport(buffer: Buffer in Buffer::Owned) -> Buffer in Buffer::Owned
+reaches Writer ensures result.pointer == buffer.pointer
+{
     round_trip(buffer)
 }
-linux_x86_64 machine transport(buffer: Buffer in Buffer::Owned) -> Buffer in Buffer::Owned
-reaches Writer ensures result.pointer == buffer.pointer {
-    round_trip(buffer)
 }
-macos_arm64 machine transport(buffer: Buffer in Buffer::Owned) -> Buffer in Buffer::Owned
-reaches Writer ensures result.pointer == buffer.pointer {
-    round_trip(buffer)
-}
-linux_arm64 machine transport(buffer: Buffer in Buffer::Owned) -> Buffer in Buffer::Owned
-reaches Writer ensures result.pointer == buffer.pointer {
-    round_trip(buffer)
-}
+
+
+
 data Main {}
 machine Main::main(context: &mut Main) reaches InitialSupply + Writer + NativeBytes crashes Trap {
     let buffer: Buffer in Buffer::Owned = InitialSupplyProvider::acquire();
     let original_pointer: addr = buffer.pointer;
-    let restored: Buffer in Buffer::Owned = transport(buffer);
+    let restored: Buffer in Buffer::Owned = SelectedTransport::transport(buffer);
     let same_backing: bool = restored.pointer == original_pointer;
     NativeBytes::release(restored);
     transition same_backing { true -> done() _ -> failed() }

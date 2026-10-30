@@ -28,7 +28,13 @@ ensures
     (prefix - 66u64) + a12
 }
 
-linux_x86_64 machine evaluate12() -> i32 crashes Trap
+boundary trait SelectedEvaluate12 {
+    machine evaluate12() -> i32 reaches
+crashes Trap
+ensures result == 0i32;
+}
+CheckedEvaluate12 satisfies SelectedEvaluate12 {
+    machine evaluate12() -> i32 crashes Trap
 ensures result == 0i32
 {
     let res: u64 = pick12(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 60);
@@ -45,69 +51,19 @@ ensures result == 0i32
     machine bad() -> i32 {
         crash Trap;
     }
+}
 }
 
-linux_arm64 machine evaluate12() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let res: u64 = pick12(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 60);
-    let headroom: u64 = 80u64 - res;
-    let margin: u64 = res - 40u64;
-    let diff: u64 = (headroom + margin) - 40u64;
-    transition diff == 0u64 && headroom == 20u64 && margin == 20u64 {
-        true -> ok()
-        _ -> bad()
-    }
-    machine ok() -> i32 {
-        0i32
-    }
-    machine bad() -> i32 {
-        crash Trap;
-    }
-}
 
-macos_arm64 machine evaluate12() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let res: u64 = pick12(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 60);
-    let headroom: u64 = 80u64 - res;
-    let margin: u64 = res - 40u64;
-    let diff: u64 = (headroom + margin) - 40u64;
-    transition diff == 0u64 && headroom == 20u64 && margin == 20u64 {
-        true -> ok()
-        _ -> bad()
-    }
-    machine ok() -> i32 {
-        0i32
-    }
-    machine bad() -> i32 {
-        crash Trap;
-    }
-}
 
-windows_x86_64 machine evaluate12() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let res: u64 = pick12(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 60);
-    let headroom: u64 = 80u64 - res;
-    let margin: u64 = res - 40u64;
-    let diff: u64 = (headroom + margin) - 40u64;
-    transition diff == 0u64 && headroom == 20u64 && margin == 20u64 {
-        true -> ok()
-        _ -> bad()
-    }
-    machine ok() -> i32 {
-        0i32
-    }
-    machine bad() -> i32 {
-        crash Trap;
-    }
-}
+
+
+
 
 machine probe() -> i32 crashes Trap
 ensures result == 0i32
 {
-    evaluate12()
+    SelectedEvaluate12::evaluate12()
 }
 
 machine main() crashes Trap {

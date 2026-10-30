@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedTransfer, CheckedTransfer>(builder, linux_x86_64);
+    Build::select_provider<SelectedTransfer, CheckedTransfer>(builder, linux_arm64);
+    Build::select_provider<SelectedTransfer, CheckedTransfer>(builder, windows_x86_64);
+    Build::select_provider<SelectedTransfer, CheckedTransfer>(builder, macos_arm64);
+
     Build::application(builder, "provider_contract_endpoint_probe");
     Build::select_provider<Endpoint, Actual>(builder, linux_arm64);
     Build::select_provider<Endpoint, Actual>(builder, linux_x86_64);

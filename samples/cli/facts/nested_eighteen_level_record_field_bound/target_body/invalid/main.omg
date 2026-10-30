@@ -74,41 +74,26 @@ data RootRec [copy] {
     l1: Level1;
 }
 
-linux_x86_64 machine check_target(root: RootRec) -> u64
+boundary trait SelectedCheckTarget {
+    machine check_target(root: RootRec) -> u64 reaches
+requires root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.val >= 40 && root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.val <= 81;
+}
+CheckedCheckTarget satisfies SelectedCheckTarget {
+    machine check_target(root: RootRec) -> u64
 requires root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.val >= 40 && root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.val <= 81
 {
     let res: u64 = root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.val;
     let headroom: u64 = 80u64 - res;
     let margin: u64 = res - 40u64;
     headroom + margin
+}
 }
 
-linux_arm64 machine check_target(root: RootRec) -> u64
-requires root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.val >= 40 && root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.val <= 81
-{
-    let res: u64 = root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.val;
-    let headroom: u64 = 80u64 - res;
-    let margin: u64 = res - 40u64;
-    headroom + margin
-}
 
-macos_arm64 machine check_target(root: RootRec) -> u64
-requires root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.val >= 40 && root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.val <= 81
-{
-    let res: u64 = root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.val;
-    let headroom: u64 = 80u64 - res;
-    let margin: u64 = res - 40u64;
-    headroom + margin
-}
 
-windows_x86_64 machine check_target(root: RootRec) -> u64
-requires root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.val >= 40 && root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.val <= 81
-{
-    let res: u64 = root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.val;
-    let headroom: u64 = 80u64 - res;
-    let margin: u64 = res - 40u64;
-    headroom + margin
-}
+
+
+
 
 machine probe() -> u64 {
     let root: RootRec = RootRec {
@@ -148,7 +133,7 @@ machine probe() -> u64 {
             },
         },
     };
-    check_target(root)
+    SelectedCheckTarget::check_target(root)
 }
 
 machine main() crashes Trap {

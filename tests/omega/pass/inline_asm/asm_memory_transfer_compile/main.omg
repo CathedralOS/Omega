@@ -11,33 +11,33 @@ data Main {
     buffer: [u64; 4];
 }
 
-linux_arm64 machine transfer(main: &mut Main) {
+boundary trait SelectedTransfer {
+    machine transfer(main: &mut Main) reaches
+;
+}
+LinuxArm64Transfer satisfies SelectedTransfer {
+    machine transfer(main: &mut Main)
+{
     asm {
         str main.value, main.buffer[0];
         ldr main.value, main.buffer[0]
     }
 }
-
-macos_arm64 machine transfer(main: &mut Main) {
-    asm {
-        str main.value, main.buffer[0];
-        ldr main.value, main.buffer[0]
-    }
 }
 
-windows_x86_64 machine transfer(main: &mut Main) {
+
+
+WindowsX8664Transfer satisfies SelectedTransfer {
+    machine transfer(main: &mut Main)
+{
     asm {
         mov main.buffer[0], main.value;
         mov main.value, main.buffer[0]
     }
 }
-
-linux_x86_64 machine transfer(main: &mut Main) {
-    asm {
-        mov main.buffer[0], main.value;
-        mov main.value, main.buffer[0]
-    }
 }
+
+
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() crashes Trap {
@@ -45,7 +45,7 @@ machine entry_start() crashes Trap {
         value: 37,
         buffer: [0, 0, 0, 0]
     };
-    transfer(&mut entry_storage);
+    SelectedTransfer::transfer(&mut entry_storage);
     transition entry_storage.value == 37 && entry_storage.buffer[0] == 37 {
         true -> done()
         false -> bad()

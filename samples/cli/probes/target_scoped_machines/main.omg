@@ -10,16 +10,32 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-linux_x86_64 machine probe() -> i32 { 86 }
-linux_arm64 machine probe() -> i32 { 64 }
-macos_arm64 machine probe() -> i32 { 14 }
-windows_x86_64 machine probe() -> i32 { 32 }
+boundary trait SelectedProbe {
+    machine probe() -> i32 reaches
+;
+}
+LinuxX8664Probe satisfies SelectedProbe {
+    machine probe() -> i32
+{ 86 }
+}
+LinuxArm64Probe satisfies SelectedProbe {
+    machine probe() -> i32
+{ 64 }
+}
+MacosArm64Probe satisfies SelectedProbe {
+    machine probe() -> i32
+{ 14 }
+}
+WindowsX8664Probe satisfies SelectedProbe {
+    machine probe() -> i32
+{ 32 }
+}
 
 data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: &mut Main) {
     main.hits = 0;
-    transition probe() > 0 {
+    transition SelectedProbe::probe() > 0 {
         true -> pass(main)
         _ -> fail(main)
     }

@@ -1,4 +1,7 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedSelected, MacosArm64Selected>(builder, macos_arm64);
+    Build::select_provider<SelectedSelected, LinuxX8664Selected>(builder, linux_x86_64);
+
  Build::application(builder, "bounded_distance_suffix_nonhost_reentry");
  Build::bind(builder, macos_arm64::ProgramEntry, program);
 }

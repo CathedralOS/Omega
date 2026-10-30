@@ -14,40 +14,29 @@ requires value == 17
     value
 }
 
-linux_x86_64 machine apply(chosen: i64, spare: i64) -> i64 {
+boundary trait SelectedApply {
+    machine apply(chosen: i64, spare: i64) -> i64 reaches
+;
+}
+CheckedApply satisfies SelectedApply {
+    machine apply(chosen: i64, spare: i64) -> i64
+{
     let joined: i64 = match choose() {
         true -> chosen
         false -> spare
     };
     read_origin(joined)
+}
 }
 
-linux_arm64 machine apply(chosen: i64, spare: i64) -> i64 {
-    let joined: i64 = match choose() {
-        true -> chosen
-        false -> spare
-    };
-    read_origin(joined)
-}
 
-macos_arm64 machine apply(chosen: i64, spare: i64) -> i64 {
-    let joined: i64 = match choose() {
-        true -> chosen
-        false -> spare
-    };
-    read_origin(joined)
-}
 
-windows_x86_64 machine apply(chosen: i64, spare: i64) -> i64 {
-    let joined: i64 = match choose() {
-        true -> chosen
-        false -> spare
-    };
-    read_origin(joined)
-}
+
+
+
 
 machine main() crashes Trap {
-    let observed: i64 = apply(17, 5);
+    let observed: i64 = SelectedApply::apply(17, 5);
     transition observed == 17 {
         true -> done()
         false -> wrong()

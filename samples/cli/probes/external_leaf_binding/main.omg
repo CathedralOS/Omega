@@ -26,13 +26,20 @@ boundary trait Mixed {
 }
 
 
-macos_arm64 machine import_binding() -> ForeignBinding<17, 5, 0> {
+boundary trait SelectedImportBinding {
+    machine import_binding() -> ForeignBinding<17, 5, 0> reaches
+;
+}
+CheckedImportBinding satisfies SelectedImportBinding {
+    machine import_binding() -> ForeignBinding<17, 5, 0>
+{
     ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",
             symbol: "_exit",
         },
     }
+}
 }
 
 data NativeTable { reserved0: addr; reserved1: addr; via_vtable: addr; }

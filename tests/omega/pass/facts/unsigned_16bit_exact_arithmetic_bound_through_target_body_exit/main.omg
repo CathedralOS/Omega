@@ -2,44 +2,29 @@
 // Place: another target body. Each of four target-scoped machine bodies adds bounded 16-bit operands and discharges the interval.
 // Expected exit: 0
 
-linux_x86_64 machine compute_target(lhs: u16, rhs: u16) -> u16
+boundary trait SelectedComputeTarget {
+    machine compute_target(lhs: u16, rhs: u16) -> u16 reaches
+requires lhs >= 100 && lhs <= 200 && rhs >= 150 && rhs <= 300;
+}
+CheckedComputeTarget satisfies SelectedComputeTarget {
+    machine compute_target(lhs: u16, rhs: u16) -> u16
 requires lhs >= 100 && lhs <= 200 && rhs >= 150 && rhs <= 300
 {
     let sum: u16 = lhs + rhs;
     let headroom: u16 = 500u16 - sum;
     let margin: u16 = sum - 250u16;
     headroom + margin
+}
 }
 
-linux_arm64 machine compute_target(lhs: u16, rhs: u16) -> u16
-requires lhs >= 100 && lhs <= 200 && rhs >= 150 && rhs <= 300
-{
-    let sum: u16 = lhs + rhs;
-    let headroom: u16 = 500u16 - sum;
-    let margin: u16 = sum - 250u16;
-    headroom + margin
-}
 
-macos_arm64 machine compute_target(lhs: u16, rhs: u16) -> u16
-requires lhs >= 100 && lhs <= 200 && rhs >= 150 && rhs <= 300
-{
-    let sum: u16 = lhs + rhs;
-    let headroom: u16 = 500u16 - sum;
-    let margin: u16 = sum - 250u16;
-    headroom + margin
-}
 
-windows_x86_64 machine compute_target(lhs: u16, rhs: u16) -> u16
-requires lhs >= 100 && lhs <= 200 && rhs >= 150 && rhs <= 300
-{
-    let sum: u16 = lhs + rhs;
-    let headroom: u16 = 500u16 - sum;
-    let margin: u16 = sum - 250u16;
-    headroom + margin
-}
+
+
+
 
 machine probe() -> u16 {
-    compute_target(150u16, 200u16)
+    SelectedComputeTarget::compute_target(150u16, 200u16)
 }
 
 machine main() crashes Trap {

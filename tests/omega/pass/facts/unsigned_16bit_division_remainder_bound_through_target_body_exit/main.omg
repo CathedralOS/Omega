@@ -2,36 +2,27 @@
 // Place: another target body. Each of four target-scoped machine bodies computes remainder on bounded 16-bit operands and subtracts.
 // Expected exit: 0
 
-linux_x86_64 machine rem_target(dividend: u16, divisor: u16) -> u16
+boundary trait SelectedRemTarget {
+    machine rem_target(dividend: u16, divisor: u16) -> u16 reaches
+requires dividend >= 43 && dividend <= 43 && divisor >= 16 && divisor <= 16;
+}
+CheckedRemTarget satisfies SelectedRemTarget {
+    machine rem_target(dividend: u16, divisor: u16) -> u16
 requires dividend >= 43 && dividend <= 43 && divisor >= 16 && divisor <= 16
 {
     let rem: u16 = dividend % divisor;
     15u16 - rem
+}
 }
 
-linux_arm64 machine rem_target(dividend: u16, divisor: u16) -> u16
-requires dividend >= 43 && dividend <= 43 && divisor >= 16 && divisor <= 16
-{
-    let rem: u16 = dividend % divisor;
-    15u16 - rem
-}
 
-macos_arm64 machine rem_target(dividend: u16, divisor: u16) -> u16
-requires dividend >= 43 && dividend <= 43 && divisor >= 16 && divisor <= 16
-{
-    let rem: u16 = dividend % divisor;
-    15u16 - rem
-}
 
-windows_x86_64 machine rem_target(dividend: u16, divisor: u16) -> u16
-requires dividend >= 43 && dividend <= 43 && divisor >= 16 && divisor <= 16
-{
-    let rem: u16 = dividend % divisor;
-    15u16 - rem
-}
+
+
+
 
 machine probe() -> u16 {
-    rem_target(43u16, 16u16)
+    SelectedRemTarget::rem_target(43u16, 16u16)
 }
 
 machine main() crashes Trap {

@@ -15,13 +15,18 @@ machine borrow<'source>(value: &'source i32) -> &'source i32 { value }
 machine borrow_mut<'source>(value: &'source mut i32) -> &'source mut i32 { value }
 machine choose() -> i32 { 19 }
 data TargetProviders {}
-macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+boundary trait SelectedTargetProvidersProviderDefaults {
+    machine provider_defaults(defaults: &mut TargetProviders) reaches
+;
+}
+CheckedTargetProvidersProviderDefaults satisfies SelectedTargetProvidersProviderDefaults {
+    machine provider_defaults(defaults: &mut TargetProviders)
+{
     TargetProviders::select_provider<Child, ChildMap>(defaults);
+}
 }
 
-linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
-    TargetProviders::select_provider<Child, ChildMap>(defaults);
-}
+
 
 machine observed<'source>(value: &'source i32)
     -> &'source i32 reaches Parent {

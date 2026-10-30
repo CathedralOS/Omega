@@ -9,7 +9,12 @@ machine verify_sum(value: i16) -> i16
     head + tail
 }
 
-linux_x86_64 machine compute_target_body(lhs: i16, rhs: i16) -> i16
+boundary trait SelectedComputeTargetBody {
+    machine compute_target_body(lhs: i16, rhs: i16) -> i16 reaches
+requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 101;
+}
+CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
+    machine compute_target_body(lhs: i16, rhs: i16) -> i16
     requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 101
 {
     let a: i16 in Wrapping = lhs as i16 in Wrapping;
@@ -17,40 +22,17 @@ linux_x86_64 machine compute_target_body(lhs: i16, rhs: i16) -> i16
     let wrapped: i16 in Wrapping = a + b;
     let sum: i16 = wrapped as i16;
     verify_sum(sum)
+}
 }
 
-linux_arm64 machine compute_target_body(lhs: i16, rhs: i16) -> i16
-    requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 101
-{
-    let a: i16 in Wrapping = lhs as i16 in Wrapping;
-    let b: i16 in Wrapping = rhs as i16 in Wrapping;
-    let wrapped: i16 in Wrapping = a + b;
-    let sum: i16 = wrapped as i16;
-    verify_sum(sum)
-}
 
-macos_arm64 machine compute_target_body(lhs: i16, rhs: i16) -> i16
-    requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 101
-{
-    let a: i16 in Wrapping = lhs as i16 in Wrapping;
-    let b: i16 in Wrapping = rhs as i16 in Wrapping;
-    let wrapped: i16 in Wrapping = a + b;
-    let sum: i16 = wrapped as i16;
-    verify_sum(sum)
-}
 
-windows_x86_64 machine compute_target_body(lhs: i16, rhs: i16) -> i16
-    requires lhs >= 300 && lhs <= 500 && rhs >= 50 && rhs <= 101
-{
-    let a: i16 in Wrapping = lhs as i16 in Wrapping;
-    let b: i16 in Wrapping = rhs as i16 in Wrapping;
-    let wrapped: i16 in Wrapping = a + b;
-    let sum: i16 = wrapped as i16;
-    verify_sum(sum)
-}
+
+
+
 
 machine evaluate() -> i16 {
-    compute_target_body(400, 80)
+    SelectedComputeTargetBody::compute_target_body(400, 80)
 }
 
 machine main() crashes Trap {

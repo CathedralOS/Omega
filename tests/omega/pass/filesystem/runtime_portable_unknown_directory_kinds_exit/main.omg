@@ -186,7 +186,7 @@ reaches DirectoryEnumeration
     machine clear(buffer: &mut [u8], total: i64, length: u64, offset: u64, record_length: u64) -> i64
     requires offset < 489, record_length <= 512 - offset;
     {
-        let kind_offset: u64 = offset + directory_kind_offset();
+        let kind_offset: u64 = offset + SelectedDirectoryKindOffset::directory_kind_offset();
         transition kind_offset < buffer.len {
             true -> store(buffer, total, length, offset, record_length, kind_offset) _ -> -5
         }
@@ -198,9 +198,19 @@ reaches DirectoryEnumeration
         transition { _ -> walk(buffer, total, length, offset + record_length) }
     }
 }
-linux_x86_64 machine directory_kind_offset() -> u64 ensures result >= 18 && result <= 20 { 18 }
-linux_arm64 machine directory_kind_offset() -> u64 ensures result >= 18 && result <= 20 { 18 }
-macos_arm64 machine directory_kind_offset() -> u64 ensures result >= 18 && result <= 20 { 20 }
+boundary trait SelectedDirectoryKindOffset {
+    machine directory_kind_offset() -> u64 reaches
+ensures result >= 18 && result <= 20;
+}
+LinuxX8664DirectoryKindOffset satisfies SelectedDirectoryKindOffset {
+    machine directory_kind_offset() -> u64 ensures result >= 18 && result <= 20
+{ 18 }
+}
+
+MacosArm64DirectoryKindOffset satisfies SelectedDirectoryKindOffset {
+    machine directory_kind_offset() -> u64 ensures result >= 18 && result <= 20
+{ 20 }
+}
 
 data Main { filesystem: Filesystem; index: u64 in Wrapping; seen: u32; }
 machine Main::main(main: &mut Main) reaches Console {

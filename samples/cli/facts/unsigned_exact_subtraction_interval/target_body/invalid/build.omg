@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedSubtractTargetBody, CheckedSubtractTargetBody>(builder, linux_x86_64);
+    Build::select_provider<SelectedSubtractTargetBody, CheckedSubtractTargetBody>(builder, linux_arm64);
+    Build::select_provider<SelectedSubtractTargetBody, CheckedSubtractTargetBody>(builder, macos_arm64);
+    Build::select_provider<SelectedSubtractTargetBody, CheckedSubtractTargetBody>(builder, windows_x86_64);
+
     Build::application(builder, "unsigned_exact_subtraction_interval_target_body_invalid");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

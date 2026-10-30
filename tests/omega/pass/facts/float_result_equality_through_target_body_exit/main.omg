@@ -13,41 +13,29 @@ requires observed == current && observed == 7.0
 {
     observed
 }
-linux_x86_64 machine observe(item: &Ends) -> f64
+boundary trait SelectedObserve {
+    machine observe(item: &Ends) -> f64 reaches
+requires item.kept == 7.0;
+}
+CheckedObserve satisfies SelectedObserve {
+    machine observe(item: &Ends) -> f64
 requires item.kept == 7.0
 {
     let saved: f64 = read_kept(item);
     let agreed: f64 = agree(saved, item.kept);
     transition { _ -> agreed }
+}
 }
 
-linux_arm64 machine observe(item: &Ends) -> f64
-requires item.kept == 7.0
-{
-    let saved: f64 = read_kept(item);
-    let agreed: f64 = agree(saved, item.kept);
-    transition { _ -> agreed }
-}
 
-macos_arm64 machine observe(item: &Ends) -> f64
-requires item.kept == 7.0
-{
-    let saved: f64 = read_kept(item);
-    let agreed: f64 = agree(saved, item.kept);
-    transition { _ -> agreed }
-}
 
-windows_x86_64 machine observe(item: &Ends) -> f64
-requires item.kept == 7.0
-{
-    let saved: f64 = read_kept(item);
-    let agreed: f64 = agree(saved, item.kept);
-    transition { _ -> agreed }
-}
+
+
+
 
 machine main() crashes Trap {
     let item: Ends = Ends { kept: 7.0, other: 1.0 };
-    transition observe(&item) == 7.0 { true -> done() _ -> bad() }
+    transition SelectedObserve::observe(&item) == 7.0 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -27,12 +27,19 @@ requires width == 16 || width == 32;
     machine bad() { crash Trap; }
 }
 
-linux_x86_64 machine forward(packet: Packet) crashes Trap { check(&packet, 16); check(&packet, 32); }
-linux_arm64 machine forward(packet: Packet) crashes Trap { check(&packet, 16); check(&packet, 32); }
-macos_arm64 machine forward(packet: Packet) crashes Trap { check(&packet, 16); check(&packet, 32); }
-windows_x86_64 machine forward(packet: Packet) crashes Trap { check(&packet, 16); check(&packet, 32); }
+boundary trait SelectedForward {
+    machine forward(packet: Packet) reaches
+crashes Trap;
+}
+CheckedForward satisfies SelectedForward {
+    machine forward(packet: Packet) crashes Trap
+{ check(&packet, 16); check(&packet, 32); }
+}
+
+
+
 machine main() crashes Trap {
     let backing: [u8; 3] = [11, 22, 33];
     let packet: Packet = Packet { bytes: &backing[..] };
-    forward(packet);
+    SelectedForward::forward(packet);
 }

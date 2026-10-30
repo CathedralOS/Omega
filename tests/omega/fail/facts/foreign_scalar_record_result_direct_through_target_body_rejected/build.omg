@@ -1,5 +1,10 @@
 use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedObserve, CheckedObserve>(builder, macos_arm64);
+    Build::select_provider<SelectedObserve, CheckedObserve>(builder, linux_x86_64);
+    Build::select_provider<SelectedObserve, CheckedObserve>(builder, linux_arm64);
+    Build::select_provider<SelectedObserve, CheckedObserve>(builder, windows_x86_64);
+
  Build::application(builder, "foreign_scalar_record_result_direct");
  Build::bind(builder, macos_arm64::ProgramEntry, main);
  Build::bind(builder, linux_x86_64::ProgramEntry, main);

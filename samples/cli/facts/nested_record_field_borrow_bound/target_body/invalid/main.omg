@@ -11,7 +11,13 @@ data Outer {
     header: u64;
 }
 
-linux_x86_64 machine evaluate() -> u64 {
+boundary trait SelectedEvaluate {
+    machine evaluate() -> u64 reaches
+;
+}
+CheckedEvaluate satisfies SelectedEvaluate {
+    machine evaluate() -> u64
+{
     let outer: Outer = Outer {
         inner: Inner { quota: 30, tag: 7 },
         header: 10,
@@ -20,43 +26,17 @@ linux_x86_64 machine evaluate() -> u64 {
     let quota: u64 = view.inner.quota;
     let diff: u64 = 72u64 - quota;
     diff
+}
 }
 
-linux_arm64 machine evaluate() -> u64 {
-    let outer: Outer = Outer {
-        inner: Inner { quota: 30, tag: 7 },
-        header: 10,
-    };
-    let view: &Outer = &outer;
-    let quota: u64 = view.inner.quota;
-    let diff: u64 = 72u64 - quota;
-    diff
-}
 
-macos_arm64 machine evaluate() -> u64 {
-    let outer: Outer = Outer {
-        inner: Inner { quota: 30, tag: 7 },
-        header: 10,
-    };
-    let view: &Outer = &outer;
-    let quota: u64 = view.inner.quota;
-    let diff: u64 = 72u64 - quota;
-    diff
-}
 
-windows_x86_64 machine evaluate() -> u64 {
-    let outer: Outer = Outer {
-        inner: Inner { quota: 30, tag: 7 },
-        header: 10,
-    };
-    let view: &Outer = &outer;
-    let quota: u64 = view.inner.quota;
-    let diff: u64 = 72u64 - quota;
-    diff
-}
+
+
+
 
 machine main() crashes Trap {
-    let diff: u64 = evaluate();
+    let diff: u64 = SelectedEvaluate::evaluate();
     transition diff == 42 {
         true -> done()
         _ -> bad()

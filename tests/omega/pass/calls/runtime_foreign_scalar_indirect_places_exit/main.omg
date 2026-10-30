@@ -43,7 +43,14 @@ data ScalarHolder { value: u64 }
 data SnapshotHelpers {}
 machine make_holder(value: [u8; 8]) -> ByteHolder { ByteHolder { value: value } }
 machine SnapshotHelpers::read(value: [u8; 8]) -> u64 { Snapshot::copy(&value, 8) }
-linux_x86_64 machine target_read(value: [u8; 8]) -> u64 { Snapshot::copy(&value, 8) }
+boundary trait SelectedTargetRead {
+    machine target_read(value: [u8; 8]) -> u64 reaches
+;
+}
+CheckedTargetRead satisfies SelectedTargetRead {
+    machine target_read(value: [u8; 8]) -> u64
+{ Snapshot::copy(&value, 8) }
+}
 machine main() crashes Trap {
     let first: ByteHolder = make_holder([21, 205, 91, 7, 0, 0, 0, 0]);
     let copied: ScalarHolder = ScalarHolder { value: SnapshotHelpers::read(first.value) };
@@ -55,7 +62,7 @@ machine main() crashes Trap {
             true -> [177, 104, 222, 58, 0, 0, 0, 0],
             false -> [0, 0, 0, 0, 0, 0, 0, 0]
         };
-        let target_value: u64 = target_read(joined);
+        let target_value: u64 = SelectedTargetRead::target_read(joined);
         transition copied.value == 123456789 && other == 987654321 && target_value == 987654321 {
             true -> done()
             _ -> bad()

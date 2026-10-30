@@ -7,11 +7,18 @@ machine establish() -> u64 in Small {
     value = 6;
     value
 }
-linux_x86_64 machine consume(value: u64 in Small) -> u64 { 5u64 - value }
-linux_arm64 machine consume(value: u64 in Small) -> u64 { 5u64 - value }
-macos_arm64 machine consume(value: u64 in Small) -> u64 { 5u64 - value }
-windows_x86_64 machine consume(value: u64 in Small) -> u64 { 5u64 - value }
-machine probe() -> u64 { consume(establish()) }
+boundary trait SelectedConsume {
+    machine consume(value: u64 in Small) -> u64 reaches
+;
+}
+CheckedConsume satisfies SelectedConsume {
+    machine consume(value: u64 in Small) -> u64
+{ 5u64 - value }
+}
+
+
+
+machine probe() -> u64 { SelectedConsume::consume(establish()) }
 machine main() crashes Trap {
     transition probe() == 2 { true -> done() _ -> bad() }
     machine done() {}

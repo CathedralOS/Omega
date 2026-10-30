@@ -1,6 +1,12 @@
 // An AArch64 ldr destination, place reads the typed place, and the following Omega use reads that recorded value.
 // Expected exit: 0.
-linux_arm64 machine read_place(source: u32) crashes Trap {
+boundary trait SelectedReadPlace {
+    machine read_place(source: u32) reaches
+crashes Trap;
+}
+LinuxArm64ReadPlace satisfies SelectedReadPlace {
+    machine read_place(source: u32) crashes Trap
+{
     let mut loaded: u32 = 0;
     asm {
         ldr loaded, [source]
@@ -12,21 +18,13 @@ linux_arm64 machine read_place(source: u32) crashes Trap {
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }
-
-macos_arm64 machine read_place(source: u32) crashes Trap {
-    let mut loaded: u32 = 0;
-    asm {
-        ldr loaded, [source]
-    }
-    transition loaded == 37 {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() crashes Trap { crash Trap; }
 }
 
-windows_x86_64 machine read_place(source: u32) crashes Trap {
+
+
+WindowsX8664ReadPlace satisfies SelectedReadPlace {
+    machine read_place(source: u32) crashes Trap
+{
     let mut loaded: u32 = 0;
     asm {
         mov loaded, [source]
@@ -38,19 +36,9 @@ windows_x86_64 machine read_place(source: u32) crashes Trap {
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }
-
-linux_x86_64 machine read_place(source: u32) crashes Trap {
-    let mut loaded: u32 = 0;
-    asm {
-        mov loaded, [source]
-    }
-    transition loaded == 37 {
-        true -> done()
-        false -> bad()
-    }
-    machine done() {}
-    machine bad() crashes Trap { crash Trap; }
 }
+
+
 machine main() crashes Trap {
-    read_place(37);
+    SelectedReadPlace::read_place(37);
 }

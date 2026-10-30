@@ -10,36 +10,27 @@ machine verify_wide(wide: i64) -> i32
     (diff - 10) as i32
 }
 
-linux_x86_64 machine compute_target_body(narrow: i8) -> i32
+boundary trait SelectedComputeTargetBody {
+    machine compute_target_body(narrow: i8) -> i32 reaches
+requires narrow >= 30 && narrow <= 101;
+}
+CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
+    machine compute_target_body(narrow: i8) -> i32
     requires narrow >= 30 && narrow <= 101
 {
     let wide: i64 = narrow as i64;
     verify_wide(wide)
+}
 }
 
-linux_arm64 machine compute_target_body(narrow: i8) -> i32
-    requires narrow >= 30 && narrow <= 101
-{
-    let wide: i64 = narrow as i64;
-    verify_wide(wide)
-}
 
-macos_arm64 machine compute_target_body(narrow: i8) -> i32
-    requires narrow >= 30 && narrow <= 101
-{
-    let wide: i64 = narrow as i64;
-    verify_wide(wide)
-}
 
-windows_x86_64 machine compute_target_body(narrow: i8) -> i32
-    requires narrow >= 30 && narrow <= 101
-{
-    let wide: i64 = narrow as i64;
-    verify_wide(wide)
-}
+
+
+
 
 machine evaluate() -> i32 {
-    compute_target_body(60)
+    SelectedComputeTargetBody::compute_target_body(60)
 }
 
 machine main() crashes Trap {

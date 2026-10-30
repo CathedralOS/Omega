@@ -15,21 +15,21 @@ requires F32::meaning(value) == FloatSemantics::minimum(F32::meaning(1.0), F32::
 ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
 { value }
 
-linux_x86_64 machine transport() -> f32
+boundary trait SelectedTransport {
+    machine transport() -> f32 reaches
+ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0));
+}
+CheckedTransport satisfies SelectedTransport {
+    machine transport() -> f32
 ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
 { forward(1.0, 2.0) }
-linux_arm64 machine transport() -> f32
-ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
-{ forward(1.0, 2.0) }
-windows_x86_64 machine transport() -> f32
-ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
-{ forward(1.0, 2.0) }
-macos_arm64 machine transport() -> f32
-ensures F32::meaning(result) == FloatSemantics::minimum(F32::meaning(1.0), F32::meaning(2.0))
-{ forward(1.0, 2.0) }
+}
+
+
+
 
 machine main() crashes Trap {
-    let result: f32 = require_min(transport());
+    let result: f32 = require_min(SelectedTransport::transport());
     transition result == 1.0 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

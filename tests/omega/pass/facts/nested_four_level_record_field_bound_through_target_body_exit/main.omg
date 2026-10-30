@@ -27,7 +27,13 @@ requires r.outer.mid.inner.val >= 40u64 && r.outer.mid.inner.val <= 80u64
     0i32
 }
 
-linux_x86_64 machine verify_target() -> i32 {
+boundary trait SelectedVerifyTarget {
+    machine verify_target() -> i32 reaches
+;
+}
+CheckedVerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+{
     let r: RootRec = RootRec {
         outer: Outer {
             mid: Middle {
@@ -38,49 +44,17 @@ linux_x86_64 machine verify_target() -> i32 {
         },
     };
     verify_rec(r)
+}
 }
 
-linux_arm64 machine verify_target() -> i32 {
-    let r: RootRec = RootRec {
-        outer: Outer {
-            mid: Middle {
-                inner: Inner {
-                    val: 60u64,
-                },
-            },
-        },
-    };
-    verify_rec(r)
-}
 
-macos_arm64 machine verify_target() -> i32 {
-    let r: RootRec = RootRec {
-        outer: Outer {
-            mid: Middle {
-                inner: Inner {
-                    val: 60u64,
-                },
-            },
-        },
-    };
-    verify_rec(r)
-}
 
-windows_x86_64 machine verify_target() -> i32 {
-    let r: RootRec = RootRec {
-        outer: Outer {
-            mid: Middle {
-                inner: Inner {
-                    val: 60u64,
-                },
-            },
-        },
-    };
-    verify_rec(r)
-}
+
+
+
 
 machine probe() -> i32 {
-    verify_target()
+    SelectedVerifyTarget::verify_target()
 }
 
 machine main() crashes Trap {

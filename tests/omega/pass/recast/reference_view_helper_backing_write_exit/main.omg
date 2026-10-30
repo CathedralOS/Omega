@@ -11,13 +11,18 @@ ensures counter.count <= 7u64, counter.count <= 3u64
 { counter.count = 3u64; }
 
 data TargetProviders {}
-macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+boundary trait SelectedTargetProvidersProviderDefaults {
+    machine provider_defaults(defaults: &mut TargetProviders) reaches
+;
+}
+CheckedTargetProvidersProviderDefaults satisfies SelectedTargetProvidersProviderDefaults {
+    machine provider_defaults(defaults: &mut TargetProviders)
+{
     TargetProviders::select_provider<Child, Good>(defaults);
+}
 }
 
-linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
-    TargetProviders::select_provider<Child, Good>(defaults);
-}
+
 machine set(counter: &mut Counter) { counter.count = 5u64; }
 machine relay(counter: &mut Counter) {
     let borrowed: &mut Counter = &mut counter;

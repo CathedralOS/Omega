@@ -9,7 +9,12 @@ machine verify_prod(value: i8) -> i8
     head + tail
 }
 
-linux_x86_64 machine compute_target_body(lhs: i8, rhs: i8) -> i8
+boundary trait SelectedComputeTargetBody {
+    machine compute_target_body(lhs: i8, rhs: i8) -> i8 reaches
+requires lhs >= 8 && lhs <= 13 && rhs >= 5 && rhs <= 8;
+}
+CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
+    machine compute_target_body(lhs: i8, rhs: i8) -> i8
     requires lhs >= 8 && lhs <= 13 && rhs >= 5 && rhs <= 8
 {
     let a: i8 in Wrapping = lhs as i8 in Wrapping;
@@ -17,40 +22,17 @@ linux_x86_64 machine compute_target_body(lhs: i8, rhs: i8) -> i8
     let wrapped: i8 in Wrapping = a * b;
     let prod: i8 = wrapped as i8;
     verify_prod(prod)
+}
 }
 
-linux_arm64 machine compute_target_body(lhs: i8, rhs: i8) -> i8
-    requires lhs >= 8 && lhs <= 13 && rhs >= 5 && rhs <= 8
-{
-    let a: i8 in Wrapping = lhs as i8 in Wrapping;
-    let b: i8 in Wrapping = rhs as i8 in Wrapping;
-    let wrapped: i8 in Wrapping = a * b;
-    let prod: i8 = wrapped as i8;
-    verify_prod(prod)
-}
 
-macos_arm64 machine compute_target_body(lhs: i8, rhs: i8) -> i8
-    requires lhs >= 8 && lhs <= 13 && rhs >= 5 && rhs <= 8
-{
-    let a: i8 in Wrapping = lhs as i8 in Wrapping;
-    let b: i8 in Wrapping = rhs as i8 in Wrapping;
-    let wrapped: i8 in Wrapping = a * b;
-    let prod: i8 = wrapped as i8;
-    verify_prod(prod)
-}
 
-windows_x86_64 machine compute_target_body(lhs: i8, rhs: i8) -> i8
-    requires lhs >= 8 && lhs <= 13 && rhs >= 5 && rhs <= 8
-{
-    let a: i8 in Wrapping = lhs as i8 in Wrapping;
-    let b: i8 in Wrapping = rhs as i8 in Wrapping;
-    let wrapped: i8 in Wrapping = a * b;
-    let prod: i8 = wrapped as i8;
-    verify_prod(prod)
-}
+
+
+
 
 machine evaluate() -> i8 {
-    compute_target_body(10, 7)
+    SelectedComputeTargetBody::compute_target_body(10, 7)
 }
 
 machine main() crashes Trap {

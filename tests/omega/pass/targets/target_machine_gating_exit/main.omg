@@ -8,37 +8,39 @@ use omega_language_std::console;
 
 data Helper { seed: i32; }
 
-windows_x86_64 machine Helper::pick(helper: &Helper) -> i32 {
+boundary trait SelectedHelperPick {
+    machine pick(helper: &Helper) -> i32 reaches
+;
+}
+CheckedHelperPick satisfies SelectedHelperPick {
+    machine pick(helper: &Helper) -> i32
+{
     transition { _ -> 63 }
 }
-macos_arm64 machine Helper::pick(helper: &Helper) -> i32 {
-    transition { _ -> 63 }
-}
-linux_x86_64 machine Helper::pick(helper: &Helper) -> i32 {
-    transition { _ -> 63 }
-}
-linux_arm64 machine Helper::pick(helper: &Helper) -> i32 {
-    transition { _ -> 63 }
 }
 
-windows_x86_64 machine Helper::delta(helper: &Helper) -> i32 {
+
+
+
+boundary trait SelectedHelperDelta {
+    machine delta(helper: &Helper) -> i32 reaches
+;
+}
+CheckedHelperDelta satisfies SelectedHelperDelta {
+    machine delta(helper: &Helper) -> i32
+{
     transition { _ -> 7 }
 }
-macos_arm64 machine Helper::delta(helper: &Helper) -> i32 {
-    transition { _ -> 7 }
 }
-linux_x86_64 machine Helper::delta(helper: &Helper) -> i32 {
-    transition { _ -> 7 }
-}
-linux_arm64 machine Helper::delta(helper: &Helper) -> i32 {
-    transition { _ -> 7 }
-}
+
+
+
 
 data Main { helper: Helper; }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let a: i32 = Helper::pick(&main.helper);
-    let b: i32 = Helper::delta(&main.helper);
+    let a: i32 = SelectedHelperPick::pick(&main.helper);
+    let b: i32 = SelectedHelperDelta::delta(&main.helper);
     transition a == 63 { true -> check_delta(main, b) _ -> bad(main, 71) }
     machine check_delta(main: &mut Main, b2: i32) {
         transition b2 == 7 { true -> good(main) _ -> bad(main, 72) }

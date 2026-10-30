@@ -2,15 +2,25 @@
 // requested target neither selects nor calls the incompatible member.
 data Helper { seed: u32; }
 
-linux_x86_64 machine Helper::value(helper: &Helper) -> u32 {
+boundary trait SelectedHelperValue {
+    machine value(helper: &Helper) -> u32 reaches
+;
+}
+LinuxX8664HelperValue satisfies SelectedHelperValue {
+    machine value(helper: &Helper) -> u32
+{
     transition { _ -> 63 }
 }
-
-macos_arm64 machine Helper::value(helper: &Helper) -> u32 {
-    transition { _ -> 7 }
 }
 
-uefi_x86_64 machine Helper::value(helper: &Helper) -> bool {
+MacosArm64HelperValue satisfies SelectedHelperValue {
+    machine value(helper: &Helper) -> u32
+{
+    transition { _ -> 7 }
+}
+}
+
+uefi_x86_64 machine value(helper: &Helper) -> bool {
     transition { _ -> true }
 }
 

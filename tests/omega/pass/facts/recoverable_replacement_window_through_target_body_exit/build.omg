@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedRepair, CheckedRepair>(builder, linux_x86_64);
+    Build::select_provider<SelectedRepair, CheckedRepair>(builder, linux_arm64);
+    Build::select_provider<SelectedRepair, CheckedRepair>(builder, macos_arm64);
+    Build::select_provider<SelectedRepair, CheckedRepair>(builder, windows_x86_64);
+
     Build::application(builder, "recoverable_replacement_window");
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

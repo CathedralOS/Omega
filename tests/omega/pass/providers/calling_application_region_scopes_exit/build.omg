@@ -1,4 +1,7 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedProvidersProviderDefaults, CheckedProvidersProviderDefaults>(builder, macos_arm64);
+    Build::select_provider<SelectedProvidersProviderDefaults, CheckedProvidersProviderDefaults>(builder, linux_x86_64);
+
     Build::application(builder, "calling_application_region_scopes_exit");
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

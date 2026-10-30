@@ -8,7 +8,12 @@ machine verify_prod(value: u16) -> u16 requires value >= 50u16 && value <= 200u1
     headroom + margin
 }
 
-linux_x86_64 machine sat_target(lhs: u16, rhs: u16) -> u16
+boundary trait SelectedSatTarget {
+    machine sat_target(lhs: u16, rhs: u16) -> u16 reaches
+requires lhs >= 10 && lhs <= 20 && rhs >= 5 && rhs <= 10;
+}
+CheckedSatTarget satisfies SelectedSatTarget {
+    machine sat_target(lhs: u16, rhs: u16) -> u16
 requires lhs >= 10 && lhs <= 20 && rhs >= 5 && rhs <= 10
 {
     let a: u16 in Saturating = lhs as u16 in Saturating;
@@ -16,40 +21,17 @@ requires lhs >= 10 && lhs <= 20 && rhs >= 5 && rhs <= 10
     let sat_prod: u16 in Saturating = a * b;
     let prod: u16 = sat_prod as u16;
     verify_prod(prod)
+}
 }
 
-linux_arm64 machine sat_target(lhs: u16, rhs: u16) -> u16
-requires lhs >= 10 && lhs <= 20 && rhs >= 5 && rhs <= 10
-{
-    let a: u16 in Saturating = lhs as u16 in Saturating;
-    let b: u16 in Saturating = rhs as u16 in Saturating;
-    let sat_prod: u16 in Saturating = a * b;
-    let prod: u16 = sat_prod as u16;
-    verify_prod(prod)
-}
 
-macos_arm64 machine sat_target(lhs: u16, rhs: u16) -> u16
-requires lhs >= 10 && lhs <= 20 && rhs >= 5 && rhs <= 10
-{
-    let a: u16 in Saturating = lhs as u16 in Saturating;
-    let b: u16 in Saturating = rhs as u16 in Saturating;
-    let sat_prod: u16 in Saturating = a * b;
-    let prod: u16 = sat_prod as u16;
-    verify_prod(prod)
-}
 
-windows_x86_64 machine sat_target(lhs: u16, rhs: u16) -> u16
-requires lhs >= 10 && lhs <= 20 && rhs >= 5 && rhs <= 10
-{
-    let a: u16 in Saturating = lhs as u16 in Saturating;
-    let b: u16 in Saturating = rhs as u16 in Saturating;
-    let sat_prod: u16 in Saturating = a * b;
-    let prod: u16 = sat_prod as u16;
-    verify_prod(prod)
-}
+
+
+
 
 machine probe() -> u16 {
-    sat_target(15u16, 8u16)
+    SelectedSatTarget::sat_target(15u16, 8u16)
 }
 
 machine main() crashes Trap {

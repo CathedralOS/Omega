@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedReadMark, CheckedReadMark>(builder, linux_x86_64);
+    Build::select_provider<SelectedReadMark, CheckedReadMark>(builder, linux_arm64);
+    Build::select_provider<SelectedReadMark, CheckedReadMark>(builder, macos_arm64);
+    Build::select_provider<SelectedReadMark, CheckedReadMark>(builder, windows_x86_64);
+
     Build::application(builder, "unannotated_imported_boundary_call_through_target_body");
     Build::depend_as(builder, "support", Source::Path { location: "support" });
     Build::select_provider<support::Mark, MarkerMark>(builder, linux_arm64);

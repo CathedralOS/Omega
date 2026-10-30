@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedRelayRead, WindowsX8664RelayRead>(builder, windows_x86_64);
+    Build::select_provider<SelectedRelayRead, WindowsX8664RelayRead>(builder, linux_x86_64);
+    Build::select_provider<SelectedRelayRead, WindowsX8664RelayRead>(builder, linux_arm64);
+    Build::select_provider<SelectedRelayRead, MacosArm64RelayRead>(builder, macos_arm64);
+
     Build::application(builder, "selected_family_member_missing_call_rejected");
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);

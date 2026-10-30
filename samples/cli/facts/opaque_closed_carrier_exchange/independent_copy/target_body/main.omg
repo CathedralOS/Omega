@@ -12,7 +12,12 @@ machine consume(first: InternetAddress, second: InternetAddress) -> bool reaches
     let replacement_host: u32 = AddressBridge::host(pair.first);
     old_host == 66051 && sibling_host == 513 && replacement_host == 1027
 }
-linux_x86_64 machine observe() -> bool reaches AddressParts, AddressBridge {
+boundary trait SelectedObserve {
+    machine observe() -> bool reaches AddressParts, AddressBridge;
+}
+CheckedObserve satisfies SelectedObserve {
+    machine observe() -> bool reaches AddressParts, AddressBridge
+{
  let first: InternetAddress = AddressBridge::make(10, 66051);
 
  let copied: InternetAddress = first;
@@ -20,33 +25,13 @@ linux_x86_64 machine observe() -> bool reaches AddressParts, AddressBridge {
  let retained_host: u32 = AddressBridge::host(first);
  consumed_copy && retained_host == 66051
 }
-linux_arm64 machine observe() -> bool reaches AddressParts, AddressBridge {
- let first: InternetAddress = AddressBridge::make(10, 66051);
-
- let copied: InternetAddress = first;
- let consumed_copy: bool = consume(copied, AddressBridge::make(44048, 513));
- let retained_host: u32 = AddressBridge::host(first);
- consumed_copy && retained_host == 66051
 }
-windows_x86_64 machine observe() -> bool reaches AddressParts, AddressBridge {
- let first: InternetAddress = AddressBridge::make(10, 66051);
 
- let copied: InternetAddress = first;
- let consumed_copy: bool = consume(copied, AddressBridge::make(44048, 513));
- let retained_host: u32 = AddressBridge::host(first);
- consumed_copy && retained_host == 66051
-}
-macos_arm64 machine observe() -> bool reaches AddressParts, AddressBridge {
- let first: InternetAddress = AddressBridge::make(10, 66051);
 
- let copied: InternetAddress = first;
- let consumed_copy: bool = consume(copied, AddressBridge::make(44048, 513));
- let retained_host: u32 = AddressBridge::host(first);
- consumed_copy && retained_host == 66051
-}
+
 
 machine main() reaches AddressParts, AddressBridge crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition SelectedObserve::observe() { true -> done() _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }
 }

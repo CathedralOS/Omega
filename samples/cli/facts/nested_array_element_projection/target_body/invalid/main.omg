@@ -6,42 +6,30 @@ data Row [copy] {
     cells: [u64; 4];
 }
 
-linux_x86_64 machine read_and_sub(row: Row, idx: u64) -> u64
+boundary trait SelectedReadAndSub {
+    machine read_and_sub(row: Row, idx: u64) -> u64 reaches
+requires idx < 4 && row.cells[idx] <= 81;
+}
+CheckedReadAndSub satisfies SelectedReadAndSub {
+    machine read_and_sub(row: Row, idx: u64) -> u64
 requires idx < 4 && row.cells[idx] <= 81
 {
     let elem: u64 = row.cells[idx];
     let spare: u64 = 80u64 - elem;
     spare
+}
 }
 
-linux_arm64 machine read_and_sub(row: Row, idx: u64) -> u64
-requires idx < 4 && row.cells[idx] <= 81
-{
-    let elem: u64 = row.cells[idx];
-    let spare: u64 = 80u64 - elem;
-    spare
-}
 
-macos_arm64 machine read_and_sub(row: Row, idx: u64) -> u64
-requires idx < 4 && row.cells[idx] <= 81
-{
-    let elem: u64 = row.cells[idx];
-    let spare: u64 = 80u64 - elem;
-    spare
-}
 
-windows_x86_64 machine read_and_sub(row: Row, idx: u64) -> u64
-requires idx < 4 && row.cells[idx] <= 81
-{
-    let elem: u64 = row.cells[idx];
-    let spare: u64 = 80u64 - elem;
-    spare
-}
+
+
+
 
 machine probe(row: Row, idx: u64) -> u64
 requires idx < 4 && row.cells[idx] <= 81
 {
-    read_and_sub(row, idx)
+    SelectedReadAndSub::read_and_sub(row, idx)
 }
 
 machine main() crashes Trap {

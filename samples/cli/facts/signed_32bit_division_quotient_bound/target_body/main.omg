@@ -8,36 +8,28 @@ requires quotient >= 40i32 && quotient <= 40i32
     quotient - 40i32
 }
 
-linux_x86_64 machine verify_target() -> i32 {
+boundary trait SelectedVerifyTarget {
+    machine verify_target() -> i32 reaches
+;
+}
+CheckedVerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+{
     let dividend: i32 = 200i32;
     let divisor: i32 = 5i32;
     let quotient: i32 = dividend / divisor;
     verify_quotient(quotient)
+}
 }
 
-linux_arm64 machine verify_target() -> i32 {
-    let dividend: i32 = 200i32;
-    let divisor: i32 = 5i32;
-    let quotient: i32 = dividend / divisor;
-    verify_quotient(quotient)
-}
 
-macos_arm64 machine verify_target() -> i32 {
-    let dividend: i32 = 200i32;
-    let divisor: i32 = 5i32;
-    let quotient: i32 = dividend / divisor;
-    verify_quotient(quotient)
-}
 
-windows_x86_64 machine verify_target() -> i32 {
-    let dividend: i32 = 200i32;
-    let divisor: i32 = 5i32;
-    let quotient: i32 = dividend / divisor;
-    verify_quotient(quotient)
-}
+
+
+
 
 machine probe() -> i32 {
-    verify_target()
+    SelectedVerifyTarget::verify_target()
 }
 
 machine main() crashes Trap {

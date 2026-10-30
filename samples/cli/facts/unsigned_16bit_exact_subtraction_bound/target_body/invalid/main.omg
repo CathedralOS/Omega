@@ -2,44 +2,30 @@
 // Invalid: target bodies compute 501 - 50 = 451, causing 450u16 - diff to underflow. Place: target_body.
 // Expected diagnostic: may overflow `u16`
 
-linux_x86_64 machine verify_target() -> i32 {
+boundary trait SelectedVerifyTarget {
+    machine verify_target() -> i32 reaches
+;
+}
+CheckedVerifyTarget satisfies SelectedVerifyTarget {
+    machine verify_target() -> i32
+{
     let lhs: u16 = 501u16;
     let rhs: u16 = 50u16;
     let diff: u16 = lhs - rhs;
     let headroom: u16 = 450u16 - diff;
     let margin: u16 = diff - 200u16;
     0i32
+}
 }
 
-linux_arm64 machine verify_target() -> i32 {
-    let lhs: u16 = 501u16;
-    let rhs: u16 = 50u16;
-    let diff: u16 = lhs - rhs;
-    let headroom: u16 = 450u16 - diff;
-    let margin: u16 = diff - 200u16;
-    0i32
-}
 
-macos_arm64 machine verify_target() -> i32 {
-    let lhs: u16 = 501u16;
-    let rhs: u16 = 50u16;
-    let diff: u16 = lhs - rhs;
-    let headroom: u16 = 450u16 - diff;
-    let margin: u16 = diff - 200u16;
-    0i32
-}
 
-windows_x86_64 machine verify_target() -> i32 {
-    let lhs: u16 = 501u16;
-    let rhs: u16 = 50u16;
-    let diff: u16 = lhs - rhs;
-    let headroom: u16 = 450u16 - diff;
-    let margin: u16 = diff - 200u16;
-    0i32
-}
+
+
+
 
 machine probe() -> i32 {
-    verify_target()
+    SelectedVerifyTarget::verify_target()
 }
 
 machine main() crashes Trap {

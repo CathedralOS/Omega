@@ -3,35 +3,29 @@
 // Expected exit: 0
 data Bundle<'storage> { windows: [&'storage mut [u8]; 1]; }
 data Wrapper<'bundle, 'storage> { bundle: &'bundle Bundle<'storage>; }
-windows_x86_64 machine observe(wrapper: &Wrapper) -> bool
+boundary trait SelectedObserve {
+    machine observe(wrapper: &Wrapper) -> bool reaches
+requires wrapper.bundle.windows[0].len == 1;
+}
+CheckedObserve satisfies SelectedObserve {
+    machine observe(wrapper: &Wrapper) -> bool
 requires wrapper.bundle.windows[0].len == 1
 {
     wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19
+}
 }
 
-linux_x86_64 machine observe(wrapper: &Wrapper) -> bool
-requires wrapper.bundle.windows[0].len == 1
-{
-    wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19
-}
 
-macos_arm64 machine observe(wrapper: &Wrapper) -> bool
-requires wrapper.bundle.windows[0].len == 1
-{
-    wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19
-}
 
-linux_arm64 machine observe(wrapper: &Wrapper) -> bool
-requires wrapper.bundle.windows[0].len == 1
-{
-    wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19
-}
+
+
+
 
 machine main() crashes Trap {
     let mut backing: [u8; 1] = [19];
     let bundle: Bundle = Bundle { windows: [&mut backing[..]] };
     let wrapper: Wrapper = Wrapper { bundle: &bundle };
-    let observed: bool = observe(&wrapper);
+    let observed: bool = SelectedObserve::observe(&wrapper);
     transition observed { true -> done() false -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }

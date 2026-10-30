@@ -1,5 +1,7 @@
 use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedObservedProcess, CheckedObservedProcess>(builder, windows_x86_64);
+
     Build::application(builder, "direct_foreign_forwarding");
     Build::select_provider<ProcessProbe, ProcessProvider>(builder, linux_arm64);
     Build::select_provider<ProcessProbe, ProcessProvider>(builder, linux_x86_64);

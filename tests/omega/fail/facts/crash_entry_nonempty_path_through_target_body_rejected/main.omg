@@ -8,31 +8,25 @@ crashes Trap value == 0
 public data Leaf { bits: u64; marker: u64; }
 public data Packet { leaf: Leaf; tag: u64; }
 
-windows_x86_64 machine forward(value: u64) -> u64
+boundary trait SelectedForward {
+    machine forward(value: u64) -> u64 reaches
+crashes Trap value == 0;
+}
+CheckedForward satisfies SelectedForward {
+    machine forward(value: u64) -> u64
 crashes Trap value == 0
 {
     maybe_zero(value)
 }
-linux_x86_64 machine forward(value: u64) -> u64
-crashes Trap value == 0
-{
-    maybe_zero(value)
 }
-macos_arm64 machine forward(value: u64) -> u64
-crashes Trap value == 0
-{
-    maybe_zero(value)
-}
-linux_arm64 machine forward(value: u64) -> u64
-crashes Trap value == 0
-{
-    maybe_zero(value)
-}
+
+
+
 
 public machine read_bits(packet: &Packet) -> u64
 {
     let observed: u64 = packet.leaf.bits;
-    forward(observed)
+    SelectedForward::forward(observed)
 }
 machine main() crashes Trap {
     let packet: Packet = Packet { leaf: Leaf { bits: 7, marker: 3 }, tag: 11 };

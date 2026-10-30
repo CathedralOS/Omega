@@ -2,36 +2,28 @@
 // Place: another target body. Dedicated target-scoped machine bodies evaluate the literal subslice on each hosted target.
 // Expected exit: 0
 
-linux_x86_64 machine evaluate_window() -> u64 {
+boundary trait SelectedEvaluateWindow {
+    machine evaluate_window() -> u64 reaches
+;
+}
+CheckedEvaluateWindow satisfies SelectedEvaluateWindow {
+    machine evaluate_window() -> u64
+{
     let bytes: &[u8] = "0123456789ABCD";
     let window: &[u8] = bytes[2u64..12u64];
     let total: u64 = window.len * 10u64;
     total - 100u64
+}
 }
 
-linux_arm64 machine evaluate_window() -> u64 {
-    let bytes: &[u8] = "0123456789ABCD";
-    let window: &[u8] = bytes[2u64..12u64];
-    let total: u64 = window.len * 10u64;
-    total - 100u64
-}
 
-macos_arm64 machine evaluate_window() -> u64 {
-    let bytes: &[u8] = "0123456789ABCD";
-    let window: &[u8] = bytes[2u64..12u64];
-    let total: u64 = window.len * 10u64;
-    total - 100u64
-}
 
-windows_x86_64 machine evaluate_window() -> u64 {
-    let bytes: &[u8] = "0123456789ABCD";
-    let window: &[u8] = bytes[2u64..12u64];
-    let total: u64 = window.len * 10u64;
-    total - 100u64
-}
+
+
+
 
 machine probe() -> u64 {
-    evaluate_window()
+    SelectedEvaluateWindow::evaluate_window()
 }
 
 machine main() crashes Trap {

@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedLabel, CheckedLabel>(builder, macos_arm64);
+    Build::select_provider<SelectedLabel, CheckedLabel>(builder, linux_arm64);
+    Build::select_provider<SelectedLabel, CheckedLabel>(builder, linux_x86_64);
+    Build::select_provider<SelectedLabel, CheckedLabel>(builder, windows_x86_64);
+
     Build::application(builder, "linear_qualification");
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

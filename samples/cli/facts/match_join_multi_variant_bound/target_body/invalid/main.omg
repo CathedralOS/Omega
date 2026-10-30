@@ -15,37 +15,29 @@ machine evaluate(mode: Mode) -> u64 {
     }
 }
 
-linux_x86_64 machine exercise(m: Mode) -> u64 {
+boundary trait SelectedExercise {
+    machine exercise(m: Mode) -> u64 reaches
+;
+}
+CheckedExercise satisfies SelectedExercise {
+    machine exercise(m: Mode) -> u64
+{
     let joined: u64 = evaluate(m);
     let diff1: u64 = 60u64 - joined;
     let diff2: u64 = joined - 20u64;
     diff1 + diff2
+}
 }
 
-windows_x86_64 machine exercise(m: Mode) -> u64 {
-    let joined: u64 = evaluate(m);
-    let diff1: u64 = 60u64 - joined;
-    let diff2: u64 = joined - 20u64;
-    diff1 + diff2
-}
 
-linux_arm64 machine exercise(m: Mode) -> u64 {
-    let joined: u64 = evaluate(m);
-    let diff1: u64 = 60u64 - joined;
-    let diff2: u64 = joined - 20u64;
-    diff1 + diff2
-}
 
-macos_arm64 machine exercise(m: Mode) -> u64 {
-    let joined: u64 = evaluate(m);
-    let diff1: u64 = 60u64 - joined;
-    let diff2: u64 = joined - 20u64;
-    diff1 + diff2
-}
+
+
+
 
 machine main() crashes Trap {
     let m: Mode = Mode::Mid { val: 40 };
-    let sum: u64 = exercise(m);
+    let sum: u64 = SelectedExercise::exercise(m);
     transition sum == 40 {
         true -> done()
         _ -> bad()

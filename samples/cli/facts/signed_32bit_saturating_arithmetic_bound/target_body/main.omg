@@ -10,7 +10,12 @@ machine verify_sum(sum: i32) -> i32 requires sum >= 50i32 && sum <= 100i32 {
     check
 }
 
-linux_x86_64 machine sat_target(lhs: i32, rhs: i32) -> i32
+boundary trait SelectedSatTarget {
+    machine sat_target(lhs: i32, rhs: i32) -> i32 reaches
+requires lhs >= 40 && lhs <= 80 && rhs >= 10 && rhs <= 20;
+}
+CheckedSatTarget satisfies SelectedSatTarget {
+    machine sat_target(lhs: i32, rhs: i32) -> i32
 requires lhs >= 40 && lhs <= 80 && rhs >= 10 && rhs <= 20
 {
     let a: i32 in Saturating = lhs as i32 in Saturating;
@@ -18,40 +23,17 @@ requires lhs >= 40 && lhs <= 80 && rhs >= 10 && rhs <= 20
     let sat_sum: i32 in Saturating = a + b;
     let sum: i32 = sat_sum as i32;
     verify_sum(sum)
+}
 }
 
-linux_arm64 machine sat_target(lhs: i32, rhs: i32) -> i32
-requires lhs >= 40 && lhs <= 80 && rhs >= 10 && rhs <= 20
-{
-    let a: i32 in Saturating = lhs as i32 in Saturating;
-    let b: i32 in Saturating = rhs as i32 in Saturating;
-    let sat_sum: i32 in Saturating = a + b;
-    let sum: i32 = sat_sum as i32;
-    verify_sum(sum)
-}
 
-macos_arm64 machine sat_target(lhs: i32, rhs: i32) -> i32
-requires lhs >= 40 && lhs <= 80 && rhs >= 10 && rhs <= 20
-{
-    let a: i32 in Saturating = lhs as i32 in Saturating;
-    let b: i32 in Saturating = rhs as i32 in Saturating;
-    let sat_sum: i32 in Saturating = a + b;
-    let sum: i32 = sat_sum as i32;
-    verify_sum(sum)
-}
 
-windows_x86_64 machine sat_target(lhs: i32, rhs: i32) -> i32
-requires lhs >= 40 && lhs <= 80 && rhs >= 10 && rhs <= 20
-{
-    let a: i32 in Saturating = lhs as i32 in Saturating;
-    let b: i32 in Saturating = rhs as i32 in Saturating;
-    let sat_sum: i32 in Saturating = a + b;
-    let sum: i32 = sat_sum as i32;
-    verify_sum(sum)
-}
+
+
+
 
 machine probe() -> i32 {
-    sat_target(60i32, 15i32)
+    SelectedSatTarget::sat_target(60i32, 15i32)
 }
 
 machine main() crashes Trap {

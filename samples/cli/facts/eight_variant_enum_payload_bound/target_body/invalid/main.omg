@@ -32,28 +32,26 @@ machine extract(packet: Packet) -> u64 {
     }
 }
 
-linux_x86_64 machine target_probe(packet: Packet) -> u64 {
+boundary trait SelectedTargetProbe {
+    machine target_probe(packet: Packet) -> u64 reaches
+;
+}
+CheckedTargetProbe satisfies SelectedTargetProbe {
+    machine target_probe(packet: Packet) -> u64
+{
     let res: u64 = extract(packet);
     verify_payload(res)
+}
 }
 
-linux_arm64 machine target_probe(packet: Packet) -> u64 {
-    let res: u64 = extract(packet);
-    verify_payload(res)
-}
 
-macos_arm64 machine target_probe(packet: Packet) -> u64 {
-    let res: u64 = extract(packet);
-    verify_payload(res)
-}
 
-windows_x86_64 machine target_probe(packet: Packet) -> u64 {
-    let res: u64 = extract(packet);
-    verify_payload(res)
-}
+
+
+
 
 machine probe(packet: Packet) -> u64 {
-    target_probe(packet)
+    SelectedTargetProbe::target_probe(packet)
 }
 
 machine main() crashes Trap {

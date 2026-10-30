@@ -11,8 +11,15 @@ ensures counter.count <= 7u64, counter.count <= 3u64
 { counter.count = 3u64; }
 
 data TargetProviders {}
-macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+boundary trait SelectedTargetProvidersProviderDefaults {
+    machine provider_defaults(defaults: &mut TargetProviders) reaches
+;
+}
+CheckedTargetProvidersProviderDefaults satisfies SelectedTargetProvidersProviderDefaults {
+    machine provider_defaults(defaults: &mut TargetProviders)
+{
     TargetProviders::select_provider<Child, Good>(defaults);
+}
 }
 data Main { counter: Counter; values: [i32; 4]; }
 machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {

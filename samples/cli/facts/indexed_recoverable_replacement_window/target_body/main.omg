@@ -24,7 +24,13 @@ machine recover(outcome: Outcome) -> Token {
     }
 }
 machine observe(sibling: &mut u64) -> u64 { sibling = 19; sibling }
-linux_x86_64 machine repair(holder: &mut Holder, succeed: bool) {
+boundary trait SelectedRepair {
+    machine repair(holder: &mut Holder, succeed: bool) reaches
+;
+}
+CheckedRepair satisfies SelectedRepair {
+    machine repair(holder: &mut Holder, succeed: bool)
+{
     let alias: &mut Token = &mut holder.tokens[first_slot()];
     let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
     alias = recover(first);
@@ -32,34 +38,14 @@ linux_x86_64 machine repair(holder: &mut Holder, succeed: bool) {
     let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
     holder.tokens[first_slot()] = recover(second);
 }
-linux_arm64 machine repair(holder: &mut Holder, succeed: bool) {
-    let alias: &mut Token = &mut holder.tokens[first_slot()];
-    let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
-    alias = recover(first);
-    let detached: Token = alias;
-    let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
-    holder.tokens[first_slot()] = recover(second);
 }
-macos_arm64 machine repair(holder: &mut Holder, succeed: bool) {
-    let alias: &mut Token = &mut holder.tokens[first_slot()];
-    let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
-    alias = recover(first);
-    let detached: Token = alias;
-    let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
-    holder.tokens[first_slot()] = recover(second);
-}
-windows_x86_64 machine repair(holder: &mut Holder, succeed: bool) {
-    let alias: &mut Token = &mut holder.tokens[first_slot()];
-    let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
-    alias = recover(first);
-    let detached: Token = alias;
-    let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
-    holder.tokens[first_slot()] = recover(second);
-}
+
+
+
 machine main() crashes Trap {
     let mut holder: Holder = Holder { tokens: [Token { value: 42 }, Token { value: 7 }], sibling: 7 };
-    repair(&mut holder, false);
-    repair(&mut holder, true);
+    SelectedRepair::repair(&mut holder, false);
+    SelectedRepair::repair(&mut holder, true);
     let correct: bool = holder.tokens[first_slot()].value == 44 && holder.sibling == 19 && holder.tokens[1].value == 7;
     drop(holder.tokens[first_slot()]);
     drop(holder.tokens[1]);

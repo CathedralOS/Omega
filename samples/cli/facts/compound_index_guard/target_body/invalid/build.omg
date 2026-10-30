@@ -1,3 +1,8 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedMainMain, CheckedMainMain>(builder, linux_x86_64);
+    Build::select_provider<SelectedMainMain, CheckedMainMain>(builder, linux_arm64);
+    Build::select_provider<SelectedMainMain, CheckedMainMain>(builder, macos_arm64);
+    Build::select_provider<SelectedMainMain, CheckedMainMain>(builder, windows_x86_64);
+
     Build::application(builder, "compound_index_guard_target_body_invalid");
 }

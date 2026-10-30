@@ -11,14 +11,21 @@ machine another_state() -> addr {
 }
 data Other {}
 machine Other::value() -> addr { 0 as addr }
-linux_x86_64 machine selected() -> addr { 0 as addr }
-macos_arm64 machine selected() -> addr { 0 as addr }
+boundary trait SelectedSelected {
+    machine selected() -> addr reaches
+;
+}
+CheckedSelected satisfies SelectedSelected {
+    machine selected() -> addr
+{ 0 as addr }
+}
+
 machine main() crashes Trap {
     let local: addr = 0 as addr;
     let holder: Holder = Holder { value: 0 as addr };
     transition (0 as addr) == 0 && local == 0 && holder.value == 0 &&
         argument(0 as addr) == 0 && returned() == 0 && joined(true) == 0 &&
-        another_state() == 0 && Other::value() == 0 && selected() == 0 {
+        another_state() == 0 && Other::value() == 0 && SelectedSelected::selected() == 0 {
         true -> done()
         _ -> bad()
     }

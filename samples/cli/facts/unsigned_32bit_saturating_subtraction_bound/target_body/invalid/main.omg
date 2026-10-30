@@ -8,7 +8,12 @@ machine verify_diff(value: u32) -> u32 requires value >= 40u32 && value <= 100u3
     headroom + margin
 }
 
-linux_x86_64 machine sat_target(lhs: u32, rhs: u32) -> u32
+boundary trait SelectedSatTarget {
+    machine sat_target(lhs: u32, rhs: u32) -> u32 reaches
+requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40;
+}
+CheckedSatTarget satisfies SelectedSatTarget {
+    machine sat_target(lhs: u32, rhs: u32) -> u32
 requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
 {
     let a: u32 in Saturating = lhs as u32 in Saturating;
@@ -16,40 +21,17 @@ requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
     let sat_diff: u32 in Saturating = a - b;
     let diff: u32 = sat_diff as u32;
     verify_diff(diff)
+}
 }
 
-linux_arm64 machine sat_target(lhs: u32, rhs: u32) -> u32
-requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let a: u32 in Saturating = lhs as u32 in Saturating;
-    let b: u32 in Saturating = rhs as u32 in Saturating;
-    let sat_diff: u32 in Saturating = a - b;
-    let diff: u32 = sat_diff as u32;
-    verify_diff(diff)
-}
 
-macos_arm64 machine sat_target(lhs: u32, rhs: u32) -> u32
-requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let a: u32 in Saturating = lhs as u32 in Saturating;
-    let b: u32 in Saturating = rhs as u32 in Saturating;
-    let sat_diff: u32 in Saturating = a - b;
-    let diff: u32 = sat_diff as u32;
-    verify_diff(diff)
-}
 
-windows_x86_64 machine sat_target(lhs: u32, rhs: u32) -> u32
-requires lhs >= 80 && lhs <= 125 && rhs >= 20 && rhs <= 40
-{
-    let a: u32 in Saturating = lhs as u32 in Saturating;
-    let b: u32 in Saturating = rhs as u32 in Saturating;
-    let sat_diff: u32 in Saturating = a - b;
-    let diff: u32 = sat_diff as u32;
-    verify_diff(diff)
-}
+
+
+
 
 machine probe() -> u32 {
-    sat_target(100u32, 30u32)
+    SelectedSatTarget::sat_target(100u32, 30u32)
 }
 
 machine main() crashes Trap {

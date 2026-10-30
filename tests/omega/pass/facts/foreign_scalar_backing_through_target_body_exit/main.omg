@@ -23,25 +23,24 @@ machine demand(result: bool) crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-macos_arm64 machine across() crashes Trap {
+boundary trait SelectedAcross {
+    machine across() reaches
+crashes Trap;
+}
+MacosArm64Across satisfies SelectedAcross {
+    machine across() crashes Trap
+{
     let mut backing: Cell = Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 };
     let selected: &u32 = &backing.word;
     let written: i64 = Words::write(1, selected, 4);
     demand(written == 4 && backing.prefix == 1650614882 && backing.word == WORD && backing.suffix == 1684300900);
 }
-linux_x86_64 machine across() crashes Trap {
-    let mut backing: Cell = Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 };
-    let selected: &u32 = &backing.word;
-    let written: i64 = Words::write(1, selected, 4);
-    demand(written == 4 && backing.prefix == 1650614882 && backing.word == WORD && backing.suffix == 1684300900);
 }
-linux_arm64 machine across() crashes Trap {
-    let mut backing: Cell = Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 };
-    let selected: &u32 = &backing.word;
-    let written: i64 = Words::write(1, selected, 4);
-    demand(written == 4 && backing.prefix == 1650614882 && backing.word == WORD && backing.suffix == 1684300900);
-}
-windows_x86_64 machine across() crashes Trap {
+
+
+WindowsX8664Across satisfies SelectedAcross {
+    machine across() crashes Trap
+{
     let previous_mode: i32 = WindowsDescriptorMode::set_mode(1, 32768);
     demand(previous_mode != -1);
     let mut backing: Cell = Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 };
@@ -49,4 +48,5 @@ windows_x86_64 machine across() crashes Trap {
     let written: i32 = WindowsWords::write(1, selected, 4);
     demand(written == 4 && backing.prefix == 1650614882 && backing.word == WORD && backing.suffix == 1684300900);
 }
-machine main() crashes Trap { across(); }
+}
+machine main() crashes Trap { SelectedAcross::across(); }

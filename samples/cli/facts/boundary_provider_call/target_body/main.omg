@@ -10,24 +10,24 @@ Actual satisfies Provider {
     }
 }
 
-linux_x86_64 machine compute() -> u64 reaches Provider {
+boundary trait SelectedCompute {
+    machine compute() -> u64 reaches Provider;
+}
+CheckedCompute satisfies SelectedCompute {
+    machine compute() -> u64 reaches Provider
+{
     Provider::get() - 100u64
+}
 }
 
-linux_arm64 machine compute() -> u64 reaches Provider {
-    Provider::get() - 100u64
-}
 
-windows_x86_64 machine compute() -> u64 reaches Provider {
-    Provider::get() - 100u64
-}
 
-macos_arm64 machine compute() -> u64 reaches Provider {
-    Provider::get() - 100u64
-}
+
+
+
 
 machine main() reaches Provider crashes Trap {
-    let diff: u64 = compute();
+    let diff: u64 = SelectedCompute::compute();
     transition diff == 0u64 {
         true -> done()
         false -> bad()

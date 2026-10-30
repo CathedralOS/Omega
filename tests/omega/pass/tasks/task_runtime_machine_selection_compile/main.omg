@@ -27,15 +27,18 @@ CanaryTaskRuntimeProvider satisfies TaskRuntime {
 }
 
 data TargetProviders {}
-linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+boundary trait SelectedTargetProvidersProviderDefaults {
+    machine provider_defaults(defaults: &mut TargetProviders) reaches
+;
+}
+CheckedTargetProvidersProviderDefaults satisfies SelectedTargetProvidersProviderDefaults {
+    machine provider_defaults(defaults: &mut TargetProviders)
+{
     TargetProviders::select_provider<TaskRuntime, CanaryTaskRuntimeProvider>(defaults);
 }
-macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
-    TargetProviders::select_provider<TaskRuntime, CanaryTaskRuntimeProvider>(defaults);
 }
-windows_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
-    TargetProviders::select_provider<TaskRuntime, CanaryTaskRuntimeProvider>(defaults);
-}
+
+
 
 public boundary data Sleeper;
 boundary machine Sleeper::park(token: u64) suspends;

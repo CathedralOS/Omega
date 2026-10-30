@@ -2,36 +2,27 @@
 // Invalid: divisor upper bound widened to 10u16 so quotient can be 40u16, underflowing subtraction by 50u16.
 // Expected exit: 0
 
-linux_x86_64 machine div_target(dividend: u16, divisor: u16) -> u16
+boundary trait SelectedDivTarget {
+    machine div_target(dividend: u16, divisor: u16) -> u16 reaches
+requires dividend >= 400 && dividend <= 400 && divisor >= 8 && divisor <= 10;
+}
+CheckedDivTarget satisfies SelectedDivTarget {
+    machine div_target(dividend: u16, divisor: u16) -> u16
 requires dividend >= 400 && dividend <= 400 && divisor >= 8 && divisor <= 10
 {
     let quotient: u16 = dividend / divisor;
     quotient - 50u16
+}
 }
 
-linux_arm64 machine div_target(dividend: u16, divisor: u16) -> u16
-requires dividend >= 400 && dividend <= 400 && divisor >= 8 && divisor <= 10
-{
-    let quotient: u16 = dividend / divisor;
-    quotient - 50u16
-}
 
-macos_arm64 machine div_target(dividend: u16, divisor: u16) -> u16
-requires dividend >= 400 && dividend <= 400 && divisor >= 8 && divisor <= 10
-{
-    let quotient: u16 = dividend / divisor;
-    quotient - 50u16
-}
 
-windows_x86_64 machine div_target(dividend: u16, divisor: u16) -> u16
-requires dividend >= 400 && dividend <= 400 && divisor >= 8 && divisor <= 10
-{
-    let quotient: u16 = dividend / divisor;
-    quotient - 50u16
-}
+
+
+
 
 machine probe() -> u16 {
-    div_target(400u16, 8u16)
+    SelectedDivTarget::div_target(400u16, 8u16)
 }
 
 machine main() crashes Trap {

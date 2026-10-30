@@ -6,7 +6,7 @@
 // named `VtableField(field)` — target-scoped to
 // macos_arm64, checked every compile.
 //
-//   * `satisfies Mixed::via_import via import_binding()`
+//   * `satisfies Mixed::via_import via SelectedImportBinding::import_binding()`
 //     — a machine call as the via-target (evaluated
 //     binding, not a literal).
 //   * `data NativeTable { reserved0: addr; ...;
@@ -24,13 +24,20 @@ boundary trait Mixed {
 }
 
 
-macos_arm64 machine import_binding() -> ForeignBinding<17, 5, 0> {
+boundary trait SelectedImportBinding {
+    machine import_binding() -> ForeignBinding<17, 5, 0> reaches
+;
+}
+CheckedImportBinding satisfies SelectedImportBinding {
+    machine import_binding() -> ForeignBinding<17, 5, 0>
+{
     ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",
             symbol: "_exit",
         },
     }
+}
 }
 
 

@@ -1,4 +1,8 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedFill, CheckedFill>(builder, linux_x86_64);
+    Build::select_provider<SelectedFill, CheckedFill>(builder, windows_x86_64);
+    Build::select_provider<SelectedFill, CheckedFill>(builder, macos_x86_64);
+
     Build::application(builder, "checked_asm_view_move_target_body_invalid");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);

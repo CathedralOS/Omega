@@ -74,7 +74,13 @@ ensures
     (prefix - 465u64) + a31
 }
 
-linux_x86_64 machine evaluate31() -> i32 crashes Trap
+boundary trait SelectedEvaluate31 {
+    machine evaluate31() -> i32 reaches
+crashes Trap
+ensures result == 0i32;
+}
+CheckedEvaluate31 satisfies SelectedEvaluate31 {
+    machine evaluate31() -> i32 crashes Trap
 ensures result == 0i32
 {
     let res: u64 = pick31(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 81);
@@ -91,69 +97,19 @@ ensures result == 0i32
     machine bad() -> i32 {
         crash Trap;
     }
+}
 }
 
-linux_arm64 machine evaluate31() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let res: u64 = pick31(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 81);
-    let headroom: u64 = 80u64 - res;
-    let margin: u64 = res - 40u64;
-    let diff: u64 = (headroom + margin) - 40u64;
-    transition diff == 0u64 && headroom == 20u64 && margin == 20u64 {
-        true -> ok()
-        _ -> bad()
-    }
-    machine ok() -> i32 {
-        0i32
-    }
-    machine bad() -> i32 {
-        crash Trap;
-    }
-}
 
-macos_arm64 machine evaluate31() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let res: u64 = pick31(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 81);
-    let headroom: u64 = 80u64 - res;
-    let margin: u64 = res - 40u64;
-    let diff: u64 = (headroom + margin) - 40u64;
-    transition diff == 0u64 && headroom == 20u64 && margin == 20u64 {
-        true -> ok()
-        _ -> bad()
-    }
-    machine ok() -> i32 {
-        0i32
-    }
-    machine bad() -> i32 {
-        crash Trap;
-    }
-}
 
-windows_x86_64 machine evaluate31() -> i32 crashes Trap
-ensures result == 0i32
-{
-    let res: u64 = pick31(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 81);
-    let headroom: u64 = 80u64 - res;
-    let margin: u64 = res - 40u64;
-    let diff: u64 = (headroom + margin) - 40u64;
-    transition diff == 0u64 && headroom == 20u64 && margin == 20u64 {
-        true -> ok()
-        _ -> bad()
-    }
-    machine ok() -> i32 {
-        0i32
-    }
-    machine bad() -> i32 {
-        crash Trap;
-    }
-}
+
+
+
 
 machine probe() -> i32 crashes Trap
 ensures result == 0i32
 {
-    evaluate31()
+    SelectedEvaluate31::evaluate31()
 }
 
 machine main() crashes Trap {

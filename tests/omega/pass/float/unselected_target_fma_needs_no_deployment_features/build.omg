@@ -1,4 +1,7 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedSelectedValue, LinuxX8664SelectedValue>(builder, linux_x86_64);
+    Build::select_provider<SelectedSelectedValue, WindowsX8664SelectedValue>(builder, windows_x86_64);
+
     Build::application(builder, "unselected_target_fma_needs_no_deployment_features");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }

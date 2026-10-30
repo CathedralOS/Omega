@@ -13,20 +13,21 @@ machine call_mark<machine Read>() -> u64
 where machine Read satisfies ReadContract::read;
 { Read() }
 
-linux_x86_64 machine read_mark() -> u64 {
+boundary trait SelectedReadMark {
+    machine read_mark() -> u64 reaches
+;
+}
+CheckedReadMark satisfies SelectedReadMark {
+    machine read_mark() -> u64
+{
     call_mark<read_service>()
 }
-linux_arm64 machine read_mark() -> u64 {
-    call_mark<read_service>()
 }
-macos_arm64 machine read_mark() -> u64 {
-    call_mark<read_service>()
-}
-windows_x86_64 machine read_mark() -> u64 {
-    call_mark<read_service>()
-}
+
+
+
 machine main() crashes Trap {
-    transition read_mark() == 7 { true -> done() _ -> bad() }
+    transition SelectedReadMark::read_mark() == 7 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

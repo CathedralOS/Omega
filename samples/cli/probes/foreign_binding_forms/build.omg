@@ -1,5 +1,7 @@
 use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedImportBinding, CheckedImportBinding>(builder, macos_arm64);
+
     Build::application(builder, "foreign_binding_forms");
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

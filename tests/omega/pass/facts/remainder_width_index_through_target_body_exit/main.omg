@@ -10,37 +10,28 @@ ensures result == buckets.len as u64
     buckets.len as u64
 }
 
-linux_x86_64 machine read_at(value: u64, buckets: &[u8]) -> u8
+boundary trait SelectedReadAt {
+    machine read_at(value: u64, buckets: &[u8]) -> u8 reaches
+requires buckets.len > 0;
+}
+CheckedReadAt satisfies SelectedReadAt {
+    machine read_at(value: u64, buckets: &[u8]) -> u8
 requires buckets.len > 0
 {
     let width: u64 = measure(buckets);
     buckets[value % width]
+}
 }
 
-linux_arm64 machine read_at(value: u64, buckets: &[u8]) -> u8
-requires buckets.len > 0
-{
-    let width: u64 = measure(buckets);
-    buckets[value % width]
-}
 
-macos_arm64 machine read_at(value: u64, buckets: &[u8]) -> u8
-requires buckets.len > 0
-{
-    let width: u64 = measure(buckets);
-    buckets[value % width]
-}
 
-windows_x86_64 machine read_at(value: u64, buckets: &[u8]) -> u8
-requires buckets.len > 0
-{
-    let width: u64 = measure(buckets);
-    buckets[value % width]
-}
+
+
+
 
 machine main() crashes Trap {
     let buckets: [u8; 4] = [7, 8, 9, 6];
-    transition read_at(10, &buckets[..]) == 9 && read_at(15, &buckets[..]) == 6 {
+    transition SelectedReadAt::read_at(10, &buckets[..]) == 9 && SelectedReadAt::read_at(15, &buckets[..]) == 6 {
         true -> done()
         _ -> bad()
     }

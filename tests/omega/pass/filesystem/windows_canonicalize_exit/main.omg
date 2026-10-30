@@ -58,7 +58,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + Fi
     machine spelled(main: &mut Main) {
         // Native: '\\' (92, the \\?\ prefix). Hermetic: 'o' (111, the key
         // verbatim). Anything else = the resolve never wrote the buffer.
-        transition canonical_prefix_is_valid(main.canon[0]) { true -> make_dir(main) _ -> bad(main, 73) }
+        transition SelectedCanonicalPrefixIsValid::canonical_prefix_is_valid(main.canon[0]) { true -> make_dir(main) _ -> bad(main, 73) }
     }
     machine make_dir(main: &mut Main) {
         main.unit_result = block Filesystem::create_dir(&mut main.fs, "omega_wcanon_dir");
@@ -69,7 +69,7 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + Fi
         transition main.unit_result { UnitResult::Ok -> spelled_dir(main) _ -> bad(main, 77) }
     }
     machine spelled_dir(main: &mut Main) {
-        transition canonical_prefix_is_valid(main.canon[0]) { true -> missing(main) _ -> bad(main, 78) }
+        transition SelectedCanonicalPrefixIsValid::canonical_prefix_is_valid(main.canon[0]) { true -> missing(main) _ -> bad(main, 78) }
     }
     machine missing(main: &mut Main) {
         let outcome: UnitResult = block Filesystem::canonicalize(&mut main.fs, "omega_wcanon_missing.txt", &mut main.canon);
@@ -93,11 +93,21 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + Fi
 
 // A hosted native canonical path is absolute in its selected OS spelling.
 // The Windows model's independently authored relative-key oracle is retained.
-linux_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
-linux_arm64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
-macos_arm64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
-macos_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
-windows_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 92 || byte == 111 }
+boundary trait SelectedCanonicalPrefixIsValid {
+    machine canonical_prefix_is_valid(byte: u8) -> bool reaches
+;
+}
+LinuxX8664CanonicalPrefixIsValid satisfies SelectedCanonicalPrefixIsValid {
+    machine canonical_prefix_is_valid(byte: u8) -> bool
+{ byte == 47 }
+}
+
+
+
+WindowsX8664CanonicalPrefixIsValid satisfies SelectedCanonicalPrefixIsValid {
+    machine canonical_prefix_is_valid(byte: u8) -> bool
+{ byte == 92 || byte == 111 }
+}
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {

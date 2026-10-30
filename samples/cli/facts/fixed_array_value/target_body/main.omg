@@ -1,34 +1,28 @@
 // A fixed-extent array [u64; 2] preserves its in-bounds index contract index < 2 and independent element values across all nine places.
 // Place: another target body. Each of four target bodies reads the array element using the bounded index.
 // Expected exit: 0
-linux_x86_64 machine read_element(values: [u64; 2], index: u64) -> u64
+boundary trait SelectedReadElement {
+    machine read_element(values: [u64; 2], index: u64) -> u64 reaches
+requires index < 2;
+}
+CheckedReadElement satisfies SelectedReadElement {
+    machine read_element(values: [u64; 2], index: u64) -> u64
 requires index < 2
 {
     values[index]
+}
 }
 
-linux_arm64 machine read_element(values: [u64; 2], index: u64) -> u64
-requires index < 2
-{
-    values[index]
-}
 
-macos_arm64 machine read_element(values: [u64; 2], index: u64) -> u64
-requires index < 2
-{
-    values[index]
-}
 
-windows_x86_64 machine read_element(values: [u64; 2], index: u64) -> u64
-requires index < 2
-{
-    values[index]
-}
+
+
+
 
 machine probe(values: [u64; 2], index: u64) -> u64
 requires index < 2
 {
-    read_element(values, index)
+    SelectedReadElement::read_element(values, index)
 }
 
 machine main() crashes Trap {

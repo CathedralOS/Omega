@@ -9,15 +9,22 @@ use omega_language_std::console;
 
 data Helper { seed: i32; }
 
-macos_x86_64 machine Helper::firmware_only(helper: &Helper) -> i32 {
+boundary trait SelectedHelperFirmwareOnly {
+    machine firmware_only(helper: &Helper) -> i32 reaches
+;
+}
+CheckedHelperFirmwareOnly satisfies SelectedHelperFirmwareOnly {
+    machine firmware_only(helper: &Helper) -> i32
+{
     transition { _ -> 63 }
 }
-uefi_x86_64 machine Helper::firmware_only(helper: &Helper) -> i32 {
+}
+uefi_x86_64 machine firmware_only(helper: &Helper) -> i32 {
     transition { _ -> 63 }
 }
 
 machine Helper::relay(helper: &Helper) -> i32 {
-    transition { _ -> (Helper::firmware_only(helper)) }
+    transition { _ -> (SelectedHelperFirmwareOnly::firmware_only(helper)) }
 }
 
 data Main { helper: Helper; }

@@ -35,32 +35,27 @@ requires direct == true
 }
 
 
-linux_x86_64 machine observe() -> bool {
+boundary trait SelectedObserve {
+    machine observe() -> bool reaches
+;
+}
+CheckedObserve satisfies SelectedObserve {
+    machine observe() -> bool
+{
     let kept: bool = true;
     let direct: bool = project<NoKept>(kept);
     hold(direct)
+}
 }
 
-linux_arm64 machine observe() -> bool {
-    let kept: bool = true;
-    let direct: bool = project<NoKept>(kept);
-    hold(direct)
-}
 
-macos_arm64 machine observe() -> bool {
-    let kept: bool = true;
-    let direct: bool = project<NoKept>(kept);
-    hold(direct)
-}
 
-windows_x86_64 machine observe() -> bool {
-    let kept: bool = true;
-    let direct: bool = project<NoKept>(kept);
-    hold(direct)
-}
+
+
+
 
 machine main() crashes Trap {
-    transition observe() {
+    transition SelectedObserve::observe() {
         true -> done()
         _ -> bad()
     }

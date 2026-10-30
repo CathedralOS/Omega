@@ -4,12 +4,19 @@ machine identity<T>(value: T) -> T {
     keep(value)
     machine keep(item: T) -> T { item }
 }
-windows_x86_64 machine compute() -> u64 { identity<u64>(42) }
-linux_x86_64 machine compute() -> u64 { identity<u64>(42) }
-linux_arm64 machine compute() -> u64 { identity<u64>(42) }
-macos_arm64 machine compute() -> u64 { identity<u64>(42) }
+boundary trait SelectedCompute {
+    machine compute() -> u64 reaches
+;
+}
+CheckedCompute satisfies SelectedCompute {
+    machine compute() -> u64
+{ identity<u64>(42) }
+}
+
+
+
 machine main() crashes Trap {
-    let result: u64 = compute();
+    let result: u64 = SelectedCompute::compute();
     transition result == 42 { true -> done() _ -> failed() }
     machine done() {}
     machine failed() crashes Trap { crash Trap; }

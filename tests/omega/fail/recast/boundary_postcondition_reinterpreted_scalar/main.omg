@@ -11,8 +11,15 @@ ensures counter.count <= 7i16
 { counter.count = -1i16; }
 
 data TargetProviders {}
-macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+boundary trait SelectedTargetProvidersProviderDefaults {
+    machine provider_defaults(defaults: &mut TargetProviders) reaches
+;
+}
+CheckedTargetProvidersProviderDefaults satisfies SelectedTargetProvidersProviderDefaults {
+    machine provider_defaults(defaults: &mut TargetProviders)
+{
     TargetProviders::select_provider<Child, Good>(defaults);
+}
 }
 data Main { source: Source; values: [i32; 8]; }
 machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {

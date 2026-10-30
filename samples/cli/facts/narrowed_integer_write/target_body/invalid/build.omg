@@ -1,4 +1,10 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedPerform, CheckedPerform>(builder, windows_x86_64);
+    Build::select_provider<SelectedPerform, CheckedPerform>(builder, linux_x86_64);
+    Build::select_provider<SelectedPerform, CheckedPerform>(builder, macos_arm64);
+    Build::select_provider<SelectedPerform, CheckedPerform>(builder, macos_x86_64);
+    Build::select_provider<SelectedPerform, CheckedPerform>(builder, linux_arm64);
+
     Build::application(builder, "narrowed_integer_write_target_body_invalid");
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

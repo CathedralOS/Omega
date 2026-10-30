@@ -17,33 +17,25 @@ machine observe<Observed:u32>(value:u32)->u32
 requires value < Observed
 { create<Observed>(value).value }
 
-windows_x86_64 machine probe(limit:u32)->Observation requires limit>=9 && limit<=10 {
+boundary trait SelectedProbe {
+    machine probe(limit:u32)->Observation reaches
+requires limit>=9 && limit<=10;
+}
+CheckedProbe satisfies SelectedProbe {
+    machine probe(limit:u32)->Observation requires limit>=9 && limit<=10
+{
  let supplied:u32=limit;
  let mut indexed:Index<limit> = forward<supplied>(8);
  preserve(limit,&mut indexed);
  Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit}
 }
-linux_x86_64 machine probe(limit:u32)->Observation requires limit>=9 && limit<=10 {
- let supplied:u32=limit;
- let mut indexed:Index<limit> = forward<supplied>(8);
- preserve(limit,&mut indexed);
- Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit}
 }
-macos_arm64 machine probe(limit:u32)->Observation requires limit>=9 && limit<=10 {
- let supplied:u32=limit;
- let mut indexed:Index<limit> = forward<supplied>(8);
- preserve(limit,&mut indexed);
- Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit}
-}
-linux_arm64 machine probe(limit:u32)->Observation requires limit>=9 && limit<=10 {
- let supplied:u32=limit;
- let mut indexed:Index<limit> = forward<supplied>(8);
- preserve(limit,&mut indexed);
- Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit}
-}
+
+
+
 machine main() crashes Trap {
- let first:Observation=probe(9);
- let second:Observation=probe(10);
+ let first:Observation=SelectedProbe::probe(9);
+ let second:Observation=SelectedProbe::probe(10);
  transition first.payload==8 && first.limit==9 && second.payload==8 && second.limit==10 { true->done() _->bad() }
  machine done(){}
  machine bad(){crash Trap;}

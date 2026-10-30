@@ -21,12 +21,18 @@ machine consume(first: Packet, copied: Packet) -> bool reaches ZeroLeafProvider 
  && size_of<Packet>() == 16
 }
 machine receive(value: Packet) -> bool reaches ZeroLeafProvider { consume(value, value) }
-macos_arm64 machine observe() -> bool reaches ZeroLeafProvider { receive(ZeroLeafProvider::make()) }
-linux_x86_64 machine observe() -> bool reaches ZeroLeafProvider { receive(ZeroLeafProvider::make()) }
-linux_arm64 machine observe() -> bool reaches ZeroLeafProvider { receive(ZeroLeafProvider::make()) }
-windows_x86_64 machine observe() -> bool reaches ZeroLeafProvider { receive(ZeroLeafProvider::make()) }
+boundary trait SelectedObserve {
+    machine observe() -> bool reaches ZeroLeafProvider;
+}
+CheckedObserve satisfies SelectedObserve {
+    machine observe() -> bool reaches ZeroLeafProvider
+{ receive(ZeroLeafProvider::make()) }
+}
+
+
+
 machine main() reaches ZeroLeafProvider crashes Trap {
- transition observe() { true -> done() _ -> bad() }
+ transition SelectedObserve::observe() { true -> done() _ -> bad() }
  machine done() {}
  machine bad() crashes Trap { crash Trap; }
 }

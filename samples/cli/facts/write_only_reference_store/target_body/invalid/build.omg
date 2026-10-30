@@ -1,4 +1,10 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedLend, CheckedLend>(builder, linux_x86_64);
+    Build::select_provider<SelectedLend, CheckedLend>(builder, linux_arm64);
+    Build::select_provider<SelectedLend, CheckedLend>(builder, macos_x86_64);
+    Build::select_provider<SelectedLend, CheckedLend>(builder, macos_arm64);
+    Build::select_provider<SelectedLend, CheckedLend>(builder, windows_x86_64);
+
     Build::application(builder, "write_only_reference_store_target_body_invalid");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

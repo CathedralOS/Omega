@@ -8,36 +8,27 @@ machine verify_rem(rem: i8) -> i32
     (headroom - 4) as i32
 }
 
-linux_x86_64 machine compute_target_body(dividend: i8, divisor: i8) -> i32
+boundary trait SelectedComputeTargetBody {
+    machine compute_target_body(dividend: i8, divisor: i8) -> i32 reaches
+requires dividend >= 0 && dividend <= 100 && divisor >= 16 && divisor <= 17;
+}
+CheckedComputeTargetBody satisfies SelectedComputeTargetBody {
+    machine compute_target_body(dividend: i8, divisor: i8) -> i32
     requires dividend >= 0 && dividend <= 100 && divisor >= 16 && divisor <= 17
 {
     let rem: i8 = dividend % divisor;
     verify_rem(rem)
+}
 }
 
-linux_arm64 machine compute_target_body(dividend: i8, divisor: i8) -> i32
-    requires dividend >= 0 && dividend <= 100 && divisor >= 16 && divisor <= 17
-{
-    let rem: i8 = dividend % divisor;
-    verify_rem(rem)
-}
 
-macos_arm64 machine compute_target_body(dividend: i8, divisor: i8) -> i32
-    requires dividend >= 0 && dividend <= 100 && divisor >= 16 && divisor <= 17
-{
-    let rem: i8 = dividend % divisor;
-    verify_rem(rem)
-}
 
-windows_x86_64 machine compute_target_body(dividend: i8, divisor: i8) -> i32
-    requires dividend >= 0 && dividend <= 100 && divisor >= 16 && divisor <= 17
-{
-    let rem: i8 = dividend % divisor;
-    verify_rem(rem)
-}
+
+
+
 
 machine evaluate() -> i32 {
-    compute_target_body(43, 16)
+    SelectedComputeTargetBody::compute_target_body(43, 16)
 }
 
 machine main() crashes Trap {

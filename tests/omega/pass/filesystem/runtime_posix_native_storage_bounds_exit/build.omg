@@ -1,4 +1,11 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedNativeRecordEnd, LinuxArm64NativeRecordEnd>(builder, linux_arm64);
+    Build::select_provider<SelectedNativeRecordEnd, LinuxX8664NativeRecordEnd>(builder, linux_x86_64);
+    Build::select_provider<SelectedNativeRecordEnd, LinuxX8664NativeRecordEnd>(builder, macos_arm64);
+    Build::select_provider<SelectedNativeTimesMatch, LinuxArm64NativeTimesMatch>(builder, linux_arm64);
+    Build::select_provider<SelectedNativeTimesMatch, LinuxArm64NativeTimesMatch>(builder, linux_x86_64);
+    Build::select_provider<SelectedNativeTimesMatch, MacosArm64NativeTimesMatch>(builder, macos_arm64);
+
     Build::application(builder, "runtime_posix_native_storage_bounds_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

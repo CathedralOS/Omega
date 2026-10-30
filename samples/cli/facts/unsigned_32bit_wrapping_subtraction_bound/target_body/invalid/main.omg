@@ -30,38 +30,30 @@ ensures result == 0u32
     }
 }
 
-linux_x86_64 machine evaluate_diff() -> u32 crashes Trap
+boundary trait SelectedEvaluateDiff {
+    machine evaluate_diff() -> u32 reaches
+crashes Trap
+ensures result == 0u32;
+}
+CheckedEvaluateDiff satisfies SelectedEvaluateDiff {
+    machine evaluate_diff() -> u32 crashes Trap
 ensures result == 0u32
 {
     let diff: u32 = compute_diff(121u32, 20u32);
     verify_diff(diff)
+}
 }
 
-linux_arm64 machine evaluate_diff() -> u32 crashes Trap
-ensures result == 0u32
-{
-    let diff: u32 = compute_diff(121u32, 20u32);
-    verify_diff(diff)
-}
 
-macos_arm64 machine evaluate_diff() -> u32 crashes Trap
-ensures result == 0u32
-{
-    let diff: u32 = compute_diff(121u32, 20u32);
-    verify_diff(diff)
-}
 
-windows_x86_64 machine evaluate_diff() -> u32 crashes Trap
-ensures result == 0u32
-{
-    let diff: u32 = compute_diff(121u32, 20u32);
-    verify_diff(diff)
-}
+
+
+
 
 machine probe() -> u32 crashes Trap
 ensures result == 0u32
 {
-    evaluate_diff()
+    SelectedEvaluateDiff::evaluate_diff()
 }
 
 machine main() crashes Trap {

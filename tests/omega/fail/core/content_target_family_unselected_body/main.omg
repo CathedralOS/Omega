@@ -31,21 +31,25 @@ ensures
     Parts { left: Region { base: base, length: requested },
         right: Region { base: base + requested, length: length - requested } }
 }
-macos_arm64 machine exercise(select: bool) -> Parts {
+boundary trait SelectedExercise {
+    machine exercise(select: bool) -> Parts reaches
+;
+}
+MacosArm64Exercise satisfies SelectedExercise {
+    machine exercise(select: bool) -> Parts
+{
     let whole: Region in First & Second = issue();
     partition(whole, 16)
 }
-linux_x86_64 machine exercise(select: bool) -> Parts {
-    let whole: Region in First & Second = issue();
-    partition(whole, 16)
 }
-linux_arm64 machine exercise(select: bool) -> Parts {
-    let whole: Region in First & Second = issue();
-    partition(whole, 16)
-}
-windows_x86_64 machine exercise(select: bool) -> Parts {
+
+
+WindowsX8664Exercise satisfies SelectedExercise {
+    machine exercise(select: bool) -> Parts
+{
     let whole: Region in First & Second = issue();
     partition(whole, 17)
+}
 }
 
 machine inspect(parts: Parts) -> bool {
@@ -57,8 +61,8 @@ machine inspect(parts: Parts) -> bool {
     correct
 }
 machine main() crashes Trap {
-    let first: bool = inspect(exercise(true));
-    let second: bool = inspect(exercise(false));
+    let first: bool = inspect(SelectedExercise::exercise(true));
+    let second: bool = inspect(SelectedExercise::exercise(false));
     transition first && second { true -> done() _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }

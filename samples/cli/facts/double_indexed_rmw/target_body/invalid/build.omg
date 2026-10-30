@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedRmw, CheckedRmw>(builder, linux_x86_64);
+    Build::select_provider<SelectedRmw, CheckedRmw>(builder, linux_arm64);
+    Build::select_provider<SelectedRmw, CheckedRmw>(builder, macos_arm64);
+    Build::select_provider<SelectedRmw, CheckedRmw>(builder, windows_x86_64);
+
     Build::application(builder, "double_indexed_rmw_through_target_body_invalid");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

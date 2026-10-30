@@ -3,11 +3,18 @@
 machine count(index: u64) -> u64
 requires index <= 4
 { index }
-linux_x86_64 machine deliver(index: u64) -> u64 requires index < 4 { count(index) }
-linux_arm64 machine deliver(index: u64) -> u64 requires index < 4 { count(index) }
-macos_arm64 machine deliver(index: u64) -> u64 requires index < 4 { count(index) }
-windows_x86_64 machine deliver(index: u64) -> u64 requires index < 4 { count(index) }
-machine probe(input: u64) -> u64 requires input < 4 { deliver(input) }
+boundary trait SelectedDeliver {
+    machine deliver(index: u64) -> u64 reaches
+requires index < 4;
+}
+CheckedDeliver satisfies SelectedDeliver {
+    machine deliver(index: u64) -> u64 requires index < 4
+{ count(index) }
+}
+
+
+
+machine probe(input: u64) -> u64 requires input < 4 { SelectedDeliver::deliver(input) }
 machine main() crashes Trap {
     let observed: u64 = probe(3);
     let zero: u64 = probe(0);

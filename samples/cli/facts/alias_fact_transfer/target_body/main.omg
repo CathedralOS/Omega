@@ -21,40 +21,32 @@ requires
     player.health
 }
 
-linux_x86_64 machine inspect_target(player: Player) -> i32
+boundary trait SelectedInspectTarget {
+    machine inspect_target(player: Player) -> i32 reaches
+requires
+    player in Player::Alive;
+}
+CheckedInspectTarget satisfies SelectedInspectTarget {
+    machine inspect_target(player: Player) -> i32
 requires
     player in Player::Alive
 {
     Main::inspect(player)
+}
 }
 
-linux_arm64 machine inspect_target(player: Player) -> i32
-requires
-    player in Player::Alive
-{
-    Main::inspect(player)
-}
 
-macos_arm64 machine inspect_target(player: Player) -> i32
-requires
-    player in Player::Alive
-{
-    Main::inspect(player)
-}
 
-windows_x86_64 machine inspect_target(player: Player) -> i32
-requires
-    player in Player::Alive
-{
-    Main::inspect(player)
-}
+
+
+
 
 machine Main::main(main: &mut Main)
 requires
     main.player in Player::Alive
 {
     let mut copy: Player = main.player;
-    main.observed = inspect_target(copy);
+    main.observed = SelectedInspectTarget::inspect_target(copy);
 }
 
 machine entry() crashes Trap {

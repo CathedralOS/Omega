@@ -9,14 +9,21 @@ trait Fraction {
 Quarter satisfies Fraction {
     machine get() -> f64 ensures result >= 0.75 && result <= 0.75 { 0.75 }
 }
-windows_x86_64 machine invoke(selected: dyn Fraction) -> f64 ensures public_interval(result, 0.0, 0.5) { Fraction::get(selected) }
-linux_x86_64 machine invoke(selected: dyn Fraction) -> f64 ensures public_interval(result, 0.0, 0.5) { Fraction::get(selected) }
-macos_arm64 machine invoke(selected: dyn Fraction) -> f64 ensures public_interval(result, 0.0, 0.5) { Fraction::get(selected) }
-linux_arm64 machine invoke(selected: dyn Fraction) -> f64 ensures public_interval(result, 0.0, 0.5) { Fraction::get(selected) }
+boundary trait SelectedInvoke {
+    machine invoke(selected: dyn Fraction) -> f64 reaches
+ensures public_interval(result, 0.0, 0.5);
+}
+CheckedInvoke satisfies SelectedInvoke {
+    machine invoke(selected: dyn Fraction) -> f64 ensures public_interval(result, 0.0, 0.5)
+{ Fraction::get(selected) }
+}
+
+
+
 machine accept(value: f64) requires public_interval(value, 0.0, 0.5) {}
 machine main() crashes Trap {
     let selected: dyn Fraction = Quarter as dyn Fraction;
-    let observed: f64 = invoke(selected);
+    let observed: f64 = SelectedInvoke::invoke(selected);
     accept(observed);
     transition observed == 0.25 {
         true -> done()

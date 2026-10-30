@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedAllocate, CheckedAllocate>(builder, macos_arm64);
+    Build::select_provider<SelectedAllocate, CheckedAllocate>(builder, linux_x86_64);
+    Build::select_provider<SelectedAllocate, CheckedAllocate>(builder, linux_arm64);
+    Build::select_provider<SelectedAllocate, CheckedAllocate>(builder, windows_x86_64);
+
     Build::application(builder, "qualified_field_capacity");
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

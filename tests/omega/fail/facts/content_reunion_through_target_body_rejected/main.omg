@@ -77,7 +77,15 @@ ensures
         right: Region { base: base + requested, length: length - requested } }
 }
 
-linux_x86_64 machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
+boundary trait SelectedRejoin {
+    machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned reaches
+requires whole.base == 10 && whole.length == 48 && requested <= whole.length
+ensures result in Owned,
+    result.base == whole.base, result.length == whole.length,
+    Owned::content(old(&whole)) == Owned::content(&result);
+}
+CheckedRejoin satisfies SelectedRejoin {
+    machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
 ensures result in Owned,
     result.base == whole.base, result.length == whole.length,
@@ -92,63 +100,19 @@ ensures result in Owned,
     let { base, length } = finished;
     let reunited: Region = Region { base: base, length: length };
     reunited
+}
 }
 
-linux_arm64 machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
-requires whole.base == 10 && whole.length == 48 && requested <= whole.length
-ensures result in Owned,
-    result.base == whole.base, result.length == whole.length,
-    Owned::content(old(&whole)) == Owned::content(&result)
-{
-    let parts: Parts = partition(issue(), requested);
-    drop(whole);
-    let left: Region in Owned = parts.left;
-    let right: Region in Owned = parts.right;
-    let joined: Region in Owned = merge(left, right);
-    let finished: Region in Owned = finish_reunion(joined);
-    let { base, length } = finished;
-    let reunited: Region = Region { base: base, length: length };
-    reunited
-}
 
-macos_arm64 machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
-requires whole.base == 10 && whole.length == 48 && requested <= whole.length
-ensures result in Owned,
-    result.base == whole.base, result.length == whole.length,
-    Owned::content(old(&whole)) == Owned::content(&result)
-{
-    let parts: Parts = partition(issue(), requested);
-    drop(whole);
-    let left: Region in Owned = parts.left;
-    let right: Region in Owned = parts.right;
-    let joined: Region in Owned = merge(left, right);
-    let finished: Region in Owned = finish_reunion(joined);
-    let { base, length } = finished;
-    let reunited: Region = Region { base: base, length: length };
-    reunited
-}
 
-windows_x86_64 machine rejoin(whole: Region in Owned, requested: u64) -> Region in Owned
-requires whole.base == 10 && whole.length == 48 && requested <= whole.length
-ensures result in Owned,
-    result.base == whole.base, result.length == whole.length,
-    Owned::content(old(&whole)) == Owned::content(&result)
-{
-    let parts: Parts = partition(issue(), requested);
-    drop(whole);
-    let left: Region in Owned = parts.left;
-    let right: Region in Owned = parts.right;
-    let joined: Region in Owned = merge(left, right);
-    let finished: Region in Owned = finish_reunion(joined);
-    let { base, length } = finished;
-    let reunited: Region = Region { base: base, length: length };
-    reunited
-}
+
+
+
 
 machine exercise(requested: u64) -> bool
 requires requested <= 48
 {
-    let reunited: Region in Owned = rejoin(issue(), requested);
+    let reunited: Region in Owned = SelectedRejoin::rejoin(issue(), requested);
     let correct: bool = reunited.base == 10 && reunited.length == 48;
     drop(reunited);
     correct

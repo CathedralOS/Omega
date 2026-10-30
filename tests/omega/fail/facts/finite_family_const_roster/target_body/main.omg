@@ -12,12 +12,19 @@ Other satisfies Family {
 }
 machine selected_width(selection: dyn Family) -> u32 { Family::row<64>(selection) }
 
-linux_x86_64 machine forward(selected: dyn Family) -> u32 { selected_width(selected) }
-linux_arm64 machine forward(selected: dyn Family) -> u32 { selected_width(selected) }
-macos_arm64 machine forward(selected: dyn Family) -> u32 { selected_width(selected) }
-windows_x86_64 machine forward(selected: dyn Family) -> u32 { selected_width(selected) }
+boundary trait SelectedForward {
+    machine forward(selected: dyn Family) -> u32 reaches
+;
+}
+CheckedForward satisfies SelectedForward {
+    machine forward(selected: dyn Family) -> u32
+{ selected_width(selected) }
+}
+
+
+
 machine main() crashes Trap {
-    let observed: u32 = forward(Selected as dyn Family);
+    let observed: u32 = SelectedForward::forward(Selected as dyn Family);
     transition observed == 16 { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
