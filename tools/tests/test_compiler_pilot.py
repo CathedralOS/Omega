@@ -16,6 +16,19 @@ import compiler_retained_foreign as retained
 
 
 class CompilerPilotTests(unittest.TestCase):
+    def test_producer_drift_refuses_with_the_actual_source_change_before_binary_checks(self):
+        producer = pilot.CompilerProducer("a" * 40, "tree", "linux_x86_64", "rustc",
+                                         Path("cli"), Path("runner"), {}, {})
+        for revision, status, detail in [
+                ("b" * 40, "", "b" * 40),
+                ("a" * 40, " M Cargo.lock", "Cargo.lock")]:
+            with self.subTest(revision=revision, status=status), \
+                    patch.object(pilot, "command", side_effect=[revision, status]), \
+                    patch.object(pilot.corpus_gate, "require_optimized") as profile:
+                with self.assertRaisesRegex(ValueError, detail):
+                    producer.verify()
+                profile.assert_not_called()
+
     def fixture_root(self, root, *fixtures):
         for fixture in fixtures:
             directory = root / "tests" / "omega" / fixture

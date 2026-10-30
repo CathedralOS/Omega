@@ -144,8 +144,14 @@ class CompilerProducer:
     runner_profile: dict
 
     def verify(self):
-        if command(["git", "rev-parse", "HEAD"]) != self.revision or command(["git", "status", "--porcelain"]):
-            raise ValueError("producer source revision or working inputs changed")
+        revision = command(["git", "rev-parse", "HEAD"])
+        status = command(["git", "status", "--porcelain", "--untracked-files=all"])
+        if revision != self.revision or status:
+            raise ValueError("producer source revision or working inputs changed: " + json.dumps({
+                "expected_revision": self.revision,
+                "actual_revision": revision,
+                "working_changes": status.splitlines(),
+            }, sort_keys=True))
         for binary, expected in ((self.cli, self.cli_profile), (self.runner, self.runner_profile)):
             if corpus_gate.require_optimized(binary) != expected:
                 raise ValueError(f"retained producer identity/profile changed: {binary}")
