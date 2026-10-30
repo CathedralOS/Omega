@@ -403,6 +403,25 @@ mod tests {
         }
     }
 
+    /// The supplying sources one policy operand resolves to against these calls.
+    fn sources_for(
+        program: &TypedTrees,
+        calls: &[Invocation],
+        policy: TypeReferenceHandle,
+    ) -> Vec<source::SourceSpan> {
+        let mut sources = Vec::new();
+        policy_sources(
+            program,
+            calls,
+            policy,
+            location(0),
+            &mut Vec::new(),
+            &mut sources,
+        )
+        .unwrap();
+        sources
+    }
+
     #[test]
     fn shared_body_retains_every_supplying_requester() {
         let mut program = TypedTrees::default();
@@ -420,17 +439,10 @@ mod tests {
             invocation(&mut program, instance, parameter, closed, location(1)),
             invocation(&mut program, instance, parameter, closed, location(2)),
         ];
-        let mut sources = Vec::new();
-        policy_sources(
-            &program,
-            &calls,
-            policy,
-            location(0),
-            &mut Vec::new(),
-            &mut sources,
-        )
-        .unwrap();
-        assert_eq!(sources, vec![location(1), location(2)]);
+        assert_eq!(
+            sources_for(&program, &calls, policy),
+            vec![location(1), location(2)]
+        );
     }
 
     #[test]
@@ -443,17 +455,7 @@ mod tests {
             invocation(&mut program, instance, parameter, policy, location(1)),
             invocation(&mut program, instance, parameter, policy, location(2)),
         ];
-        let mut sources = Vec::new();
-        policy_sources(
-            &program,
-            &calls,
-            policy,
-            location(0),
-            &mut Vec::new(),
-            &mut sources,
-        )
-        .unwrap();
-        assert_eq!(sources, vec![location(0)]);
+        assert_eq!(sources_for(&program, &calls, policy), vec![location(0)]);
     }
 
     #[test]
@@ -483,17 +485,10 @@ mod tests {
             invocation(&mut program, inner, inner_parameter, forwarded, location(2)),
             invocation(&mut program, inner, inner_parameter, closed, location(3)),
         ];
-        let mut sources = Vec::new();
-        policy_sources(
-            &program,
-            &calls,
-            policy,
-            location(0),
-            &mut Vec::new(),
-            &mut sources,
-        )
-        .unwrap();
-        assert_eq!(sources, vec![location(1), location(3)]);
+        assert_eq!(
+            sources_for(&program, &calls, policy),
+            vec![location(1), location(3)]
+        );
     }
 
     #[test]
