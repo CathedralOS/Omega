@@ -275,16 +275,22 @@ pub(crate) fn expression_display_name(
     proof_plan.program.expression_table.display_name(expression)
 }
 
+/// `receiver.target` when the call names a receiver, else the bare target --
+/// the callee spelling all three call-argument refusals print.
+fn call_argument_target(obligation: &BoundedCallArgumentObligation) -> String {
+    obligation
+        .receiver
+        .as_ref()
+        .map(|receiver| format!("{receiver}.{}", obligation.target))
+        .unwrap_or_else(|| obligation.target.to_string())
+}
+
 pub(crate) fn cannot_prove_bounded_call_integer(
     proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
     target_range: IntegerRange,
 ) -> Diagnostic {
-    let target = obligation
-        .receiver
-        .as_ref()
-        .map(|receiver| format!("{receiver}.{}", obligation.target))
-        .unwrap_or_else(|| obligation.target.to_string());
+    let target = call_argument_target(obligation);
 
     Diagnostic::error(format!(
         "cannot prove call argument `{}` satisfies bounded parameter `{}` for `{}` in `{}.{}`; expected {}..={}",
@@ -303,11 +309,7 @@ pub(crate) fn cannot_prove_bounded_call_float(
     obligation: &BoundedCallArgumentObligation,
     target_range: FloatRange,
 ) -> Diagnostic {
-    let target = obligation
-        .receiver
-        .as_ref()
-        .map(|receiver| format!("{receiver}.{}", obligation.target))
-        .unwrap_or_else(|| obligation.target.to_string());
+    let target = call_argument_target(obligation);
 
     Diagnostic::error(format!(
         "cannot prove call argument `{}` satisfies bounded parameter `{}` for `{}` in `{}.{}`; {}",
@@ -325,11 +327,7 @@ pub(crate) fn cannot_prove_call_named_constraint(
     obligation: &BoundedCallArgumentObligation,
     constraint: &str,
 ) -> Diagnostic {
-    let target = obligation
-        .receiver
-        .as_ref()
-        .map(|receiver| format!("{receiver}.{}", obligation.target))
-        .unwrap_or_else(|| obligation.target.to_string());
+    let target = call_argument_target(obligation);
 
     Diagnostic::error(format!(
         "cannot prove call argument `{}` satisfies `{}` for bounded parameter `{}` for `{}` in `{}.{}`",
