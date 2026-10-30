@@ -29,7 +29,10 @@ pub struct ProviderBindingRequest<'a> {
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
     pub external_declarations: &'a std::sync::OnceLock<
-        Result<Arc<psi_terminal_production::PreparedNumericRealizationDeclarations>, Vec<Diagnostic>>,
+        Result<
+            Arc<psi_terminal_production::PreparedNumericRealizationDeclarations>,
+            Vec<Diagnostic>,
+        >,
     >,
 }
 

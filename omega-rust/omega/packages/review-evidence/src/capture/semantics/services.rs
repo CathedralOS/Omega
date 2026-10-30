@@ -1,5 +1,7 @@
 //! Complete service meaning shared by provider and permission policy.
 
+mod application;
+use application::ApplicationSource;
 mod authority;
 mod calling;
 mod signature;
@@ -31,11 +33,78 @@ pub(crate) fn project(
         projection,
         service_schema,
         schema,
-        provider_type,
+        ApplicationSource::Provider(provider_type),
         requirement,
         method,
         identities,
         false,
+    )
+}
+
+/// Project an exact admitted native requirement application without a
+/// conformance. The receipt is joined before any source view is projected.
+pub(crate) fn project_native(
+    projection: &mut SignatureProjection<'_>,
+    service_schema: &ServiceSchema,
+    schema: ProviderSchemaDeclaration,
+    requirement: SymbolHandle,
+    method: &ServiceMethod,
+    identities: &ProviderIdentityTable,
+    native: &provider_planning::native_bindings::NativeBuildRowOrigin,
+) -> Result<PackagePolicyServiceMethod, Vec<Diagnostic>> {
+    let input = projection.input();
+    let application = &native.selection.application;
+    if application.requirement != requirement || native.requirement != requirement {
+        return Err(rejected(
+            "native application substituted its source requirement",
+        ));
+    }
+    let actual = application
+        .identity(input.checking_input.typed_program())
+        .map_err(|reason| rejected(&reason))?;
+    let original = application
+        .identity(input.custody_checking_input.typed_program())
+        .map_err(|reason| rejected(&reason))?;
+    if actual != original {
+        return Err(rejected(
+            "native application differs from immutable checked source custody",
+        ));
+    }
+    let receipt = native.origin.primary.evaluated.receipt().identity_digest();
+    let retained = input
+        .custody
+        .providers()
+        .native_build_plans
+        .iter()
+        .flat_map(|candidate| &candidate.provenance.row_realizations)
+        .filter_map(|origin| origin.native())
+        .any(|origin| {
+            origin
+                .selection
+                .application
+                .identity(input.custody_checking_input.typed_program())
+                .ok()
+                .as_ref()
+                == Some(&original)
+                && std::iter::once(&origin.origin.primary)
+                    .chain(&origin.origin.equivalents)
+                    .any(|production| production.evaluated.receipt().identity_digest() == receipt)
+        });
+    if !retained {
+        return Err(rejected(
+            "native application has no original admitted source and evaluation row",
+        ));
+    }
+    let universal = application.trait_scope.is_none() && application.closed_requirement.is_none();
+    project_inner(
+        projection,
+        service_schema,
+        schema,
+        ApplicationSource::Requirement(application),
+        requirement,
+        method,
+        identities,
+        universal,
     )
 }
 
@@ -53,7 +122,7 @@ pub(crate) fn project_declaration(
         projection,
         service_schema,
         ProviderSchemaDeclaration::BoundaryTrait(schema),
-        None,
+        ApplicationSource::Provider(None),
         requirement,
         method,
         identities,
@@ -65,7 +134,7 @@ fn project_inner(
     projection: &mut SignatureProjection<'_>,
     service_schema: &ServiceSchema,
     schema: ProviderSchemaDeclaration,
-    provider_type: Option<SymbolHandle>,
+    application: ApplicationSource<'_>,
     requirement: SymbolHandle,
     method: &ServiceMethod,
     identities: &ProviderIdentityTable,
@@ -75,9 +144,22 @@ fn project_inner(
     let compilation = &input;
     let declaration = provider_requirement_schema(compilation, schema, requirement)?;
     let checked_identity = provider_requirement_identity(compilation, declaration, requirement)?;
-    if checked_identity.path() != service_schema.identity_text(method.requirement_identity) {
+    let checked_callable = match application {
+        ApplicationSource::Requirement(source) if source.closed_requirement.is_some() => {
+            let closed = compilation
+                .closed_requirement_application(source.closed_requirement.expect("matched above"))
+                .filter(|closed| closed.template == requirement)
+                .ok_or_else(|| rejected("native service lost its exact closed requirement"))?;
+            let owner = compilation
+                .trait_definition_by_symbol(closed.declaring_trait)
+                .ok_or_else(|| rejected("native service lost its declaring trait"))?;
+            compilation.trait_requirement_callable_identity_text(owner, closed.signature)
+        }
+        _ => checked_identity.path().to_owned(),
+    };
+    if checked_callable != service_schema.identity_text(method.requirement_identity) {
         return Err(rejected(
-            "service method changes its exact requirement overload",
+            "service method changes its exact requirement overload or application",
         ));
     }
     let identity = policy_provider_requirement_identity(compilation, declaration, requirement)?;
@@ -114,7 +196,7 @@ fn project_inner(
         }
         None
     } else {
-        calling::project(compilation, schema, provider_type, requirement, method)?
+        calling::project(compilation, schema, application, requirement, method)?
     };
     let signature = if declaration_mode {
         signature::project_declaration(
@@ -128,7 +210,7 @@ fn project_inner(
         signature::project(
             projection,
             schema,
-            provider_type,
+            application,
             requirement,
             &identity,
             calling.as_ref(),

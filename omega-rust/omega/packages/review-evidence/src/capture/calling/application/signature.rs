@@ -108,7 +108,7 @@ pub(crate) fn project_requirement_application(
     projection: &mut SignatureProjection<'_>,
     boundary_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
-    source: &provider_planning::ResolvedNativeApplication,
+    source: &build_time_evaluation::native_bindings::NativeRequirementApplication,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     let compilation = projection.input();
     let root = compilation

@@ -7,6 +7,7 @@ version.workspace = true
 
 
 [dependencies]
+build-time-evaluation = { path = "../../../psi/compilation/compile-time" }
 optimization-core = { path = "../../foundation/optimization-core" }
 compilation-products = { path = "../../compilation/products" }
 package-compilation = { path = "../compilation-inputs" }

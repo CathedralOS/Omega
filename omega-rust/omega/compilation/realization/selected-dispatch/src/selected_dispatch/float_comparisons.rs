@@ -66,7 +66,7 @@ pub(crate) fn selected_executions(
             || provider.provider.row_requirements.as_slice() != [requirement]
             || provider.provider.row_realizations.len() != 1
             || !provider.provider.row_realizations[0]
-                .machine()
+                .authored()
                 .is_some_and(|machine| context.contains(machine))
         {
             return Err(fail(

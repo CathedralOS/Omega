@@ -18,16 +18,24 @@ pub struct NativeRequirementApplication {
     pub closed_requirement: Option<SymbolHandle>,
     pub trait_scope: Option<RetainedTraitScope>,
 }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeLocalApplicationIdentity {
+    pub arguments: Vec<String>,
+    pub lifetimes: Vec<String>,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeApplicationIdentity {
+    pub declaration: String,
+    pub outer: Option<String>,
+    pub local: Option<NativeLocalApplicationIdentity>,
+}
+
 impl NativeRequirementApplication {
     pub fn callable(self) -> SymbolHandle {
         self.closed_requirement.unwrap_or(self.requirement)
     }
-
-    fn coordinates(
-        self,
-        typed: &TypedTrees,
-    ) -> Result<(String, Option<String>, Option<String>), String> {
-        let declared =
+    pub fn coordinates(self, typed: &TypedTrees) -> Result<NativeApplicationIdentity, String> {
+        let declaration =
             if let Some((owner, signature)) = typed.trait_machine_signature(self.requirement) {
                 typed.trait_requirement_callable_identity_text(owner, signature)
             } else {
@@ -36,18 +44,24 @@ impl NativeRequirementApplication {
                     .and_then(|machine| typed.machine_callable_identity_text(machine))
                     .ok_or("native requirement lost its callable declaration identity")?
             };
+        let text = |identity| {
+            typed
+                .type_identity_text(identity)
+                .ok_or_else(|| "native application lost a complete portable identity".to_owned())
+        };
         let outer = self
             .trait_scope
             .map(|retained| {
                 retained
                     .scope(typed)
                     .and_then(|scope| scope.portable_application_identity(typed))
-                    .and_then(|identity| typed.type_identity_text(identity))
-                    .ok_or_else(|| {
-                        "native requirement lost its complete outer application identity".to_owned()
+                    .ok_or("native requirement lost its exact outer application")
+                    .and_then(|identity| {
+                        text(identity).map_err(|_| "native outer identity is not portable")
                     })
             })
-            .transpose()?;
+            .transpose()
+            .map_err(str::to_owned)?;
         let local = self
             .closed_requirement
             .map(|closed| {
@@ -55,35 +69,65 @@ impl NativeRequirementApplication {
                     .closed_requirement_application(closed)
                     .filter(|application| application.template == self.requirement)
                     .ok_or("native requirement lost its exact closed member application")?;
-                let (owner, _) = typed
-                    .trait_machine_signature(self.requirement)
-                    .ok_or("closed native member lost its declaring trait")?;
-                Ok::<_, String>(
-                    typed.trait_requirement_callable_identity_text(owner, application.signature),
-                )
+                let source = typed
+                    .expression_table
+                    .static_machine_application(application.application);
+                let arguments = application
+                    .portable_local_arguments
+                    .iter()
+                    .map(|identity| text(*identity))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let lifetimes = typed
+                    .expression_table
+                    .static_machine_application_lifetimes(application.application)
+                    .iter()
+                    .map(|binding| {
+                        typed_trees::type_identity::portable_applied_lifetime_identity(
+                            typed,
+                            binding.argument.as_str(),
+                            source.lexical_owner,
+                            &[],
+                        )
+                        .ok_or_else(|| {
+                            "native local lifetime lost its exact portable binder identity"
+                                .to_owned()
+                        })
+                        .and_then(&text)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok::<_, String>(NativeLocalApplicationIdentity {
+                    arguments,
+                    lifetimes,
+                })
             })
             .transpose()?;
-        Ok((declared, outer, local))
+        Ok(NativeApplicationIdentity {
+            declaration,
+            outer,
+            local,
+        })
     }
-
     pub fn identity(self, typed: &TypedTrees) -> Result<String, String> {
-        let (declaration, outer, local) = self.coordinates(typed)?;
+        let NativeApplicationIdentity {
+            declaration,
+            outer,
+            local,
+        } = self.coordinates(typed)?;
         Ok(format!("{declaration:?};outer={outer:?};member={local:?}"))
     }
-
     fn overlaps(self, other: Self, typed: &TypedTrees) -> Result<bool, String> {
         let left = self.coordinates(typed)?;
         let right = other.coordinates(typed)?;
-        Ok(left.0 == right.0
+        Ok(left.declaration == right.declaration
             && left
-                .1
+                .outer
                 .as_ref()
-                .zip(right.1.as_ref())
+                .zip(right.outer.as_ref())
                 .is_none_or(|(left, right)| left == right)
             && left
-                .2
+                .local
                 .as_ref()
-                .zip(right.2.as_ref())
+                .zip(right.local.as_ref())
                 .is_none_or(|(left, right)| left == right))
     }
 }
