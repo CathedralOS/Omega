@@ -440,12 +440,7 @@ pub fn validate_static_type_argument<'program>(
             owner: caller,
             generic_depth: 0,
         },
-        TypeParameterScope {
-            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-            lexical_owner,
-            type_parameters: &type_parameters,
-            lifetime_parameters: &lifetime_parameters,
-        },
+        TypeParameterScope::authored(lexical_owner, &type_parameters, &lifetime_parameters),
         formation_obligations,
     );
 }
@@ -577,12 +572,7 @@ pub(crate) fn validate_generic_instance_argument_bounds(
         *base_symbol,
         base_name.as_str(),
         *arguments,
-        TypeParameterScope {
-            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-            lexical_owner: instance.symbol,
-            type_parameters: &[],
-            lifetime_parameters: &instance.lifetime_parameters,
-        },
+        TypeParameterScope::authored(instance.symbol, &[], &instance.lifetime_parameters),
         diagnostics,
     );
 }
@@ -986,6 +976,21 @@ pub(crate) struct TypeParameterScope<'program> {
 }
 
 impl<'program> TypeParameterScope<'program> {
+    /// The authored telescope of `lexical_owner`: no retained operand supplies
+    /// its lifetimes, so the declaration's own parameters are the whole scope.
+    pub(crate) fn authored(
+        lexical_owner: symbols::SymbolHandle,
+        type_parameters: &'program [TypeParameter],
+        lifetime_parameters: &'program [typed_trees::name::Identifier],
+    ) -> Self {
+        Self {
+            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
+            lexical_owner,
+            type_parameters,
+            lifetime_parameters,
+        }
+    }
+
     fn contains(self, name: &str) -> bool {
         self.type_parameters
             .iter()
