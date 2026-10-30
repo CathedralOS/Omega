@@ -242,12 +242,7 @@ impl<'f, 'c> OperationFrame<'f, 'c> {
             type_ids: self.type_ids,
             service_ids: self.service_ids,
             primitive_locals: self.primitive_locals,
-            results: match &mut self.results {
-                StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
-                StructuralResults::StateGraph { state, places } => {
-                    StructuralResults::StateGraph { state, places }
-                }
-            },
+            results: self.results.reborrow(),
             private_places: self.private_places,
             windows: self.windows,
             evaluation: self.evaluation,
@@ -396,12 +391,7 @@ impl OperationEnvironment<'_> {
             type_ids: self.type_ids,
             service_ids: self.service_ids,
             primitive_locals: self.primitive_locals,
-            results: match &mut self.results {
-                StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
-                StructuralResults::StateGraph { state, places } => {
-                    StructuralResults::StateGraph { state, places }
-                }
-            },
+            results: self.results.reborrow(),
             private_places: self.private_places,
             windows: self.windows,
             next_place: self.next_place,
@@ -443,12 +433,7 @@ impl OperationEnvironment<'_> {
             type_ids: self.type_ids,
             service_ids: self.service_ids,
             primitive_locals: self.primitive_locals,
-            results: match &mut self.results {
-                StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
-                StructuralResults::StateGraph { state, places } => {
-                    StructuralResults::StateGraph { state, places }
-                }
-            },
+            results: self.results.reborrow(),
             private_places: self.private_places,
             windows: self.windows,
             evaluation,
@@ -498,12 +483,7 @@ impl OperationEnvironment<'_> {
             type_ids: self.type_ids,
             service_ids: self.service_ids,
             primitive_locals: self.primitive_locals,
-            results: match &mut self.results {
-                StructuralResults::Dense(roster) => StructuralResults::Dense(roster),
-                StructuralResults::StateGraph { state, places } => {
-                    StructuralResults::StateGraph { state, places }
-                }
-            },
+            results: self.results.reborrow(),
             private_places: self.private_places,
             windows: self.windows,
             evaluation,

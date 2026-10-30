@@ -41,6 +41,7 @@ use symbols::SymbolHandle;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::points::state_point;
+use crate::facts::{checked_validation_evidence, propagated_evidence};
 
 use validation::field_domains::{
     FieldDomainRow, WHOLE_ELEMENT_EXTENT, readable_fixed_array_elements,
@@ -413,15 +414,6 @@ fn state_parameter_domain_is_resource_claim(
             })
 }
 
-/// Evidence for a row the state's own declaration already establishes: the
-/// caller inherited the claim, it did not validate it here.
-fn propagated_evidence(state_symbol: SymbolHandle) -> QualificationEvidence {
-    QualificationEvidence::from_origin(
-        language_semantics::QualificationEvidenceOrigin::Propagated,
-        state_symbol,
-    )
-}
-
 /// A domain-membership row keyed at a symbol place. No authored expression
 /// produced it and no expression span narrows its domain: the row claims the
 /// place's declared domain, so both expression fields stay empty.
@@ -614,10 +606,7 @@ pub(super) fn append_local_zii_field_domain_facts(
                 }
                 let point = state_point(machine.symbol, state.symbol);
                 let origin = FactOrigin::StatementTransfer;
-                let evidence = QualificationEvidence::from_origin(
-                    language_semantics::QualificationEvidenceOrigin::CheckedValidation,
-                    state.symbol,
-                );
+                let evidence = checked_validation_evidence(state.symbol);
 
                 // A genuinely zero-formed owned sum has a selected first case,
                 // including inside root arrays. This is a discriminator fact,

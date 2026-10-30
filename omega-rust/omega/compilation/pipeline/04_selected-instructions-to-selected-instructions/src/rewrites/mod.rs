@@ -193,6 +193,32 @@ macro_rules! declared_kind_matchers {
     };
 }
 
+/// The one row of a family's declared-pair table that names a given
+/// (producer, consumer) kind combination: several matching rows is a catalog
+/// defect and refuses rather than preferring table order. One row per family
+/// expands its own lookup over its own table.
+macro_rules! declared_pair_lookup {
+    ($lookup:ident, $table:ident, $rule:ty) => {
+        /// The declared pair for one (producer, consumer) kind combination, or
+        /// none when the family declares no such relationship — several rules
+        /// matching one combination is a catalog defect and refuses rather
+        /// than preferring table order.
+        pub(super) fn $lookup(
+            producer: MachineSemanticKind,
+            consumer: MachineSemanticKind,
+        ) -> Option<&'static $rule> {
+            let mut matches = $table
+                .iter()
+                .filter(|rule| rule.producer() == producer && rule.consumer() == consumer);
+            let rule = matches.next()?;
+            if matches.next().is_some() {
+                return None;
+            }
+            Some(rule)
+        }
+    };
+}
+
 mod address_fold;
 mod allocation_recovery;
 mod block_edges;

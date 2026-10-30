@@ -161,10 +161,9 @@ pub(crate) fn require_unborrowed_completion(
         };
         for parent in parents {
             let owned = CapturedPlace {
-                incoming_reference: Default::default(),
-                incoming_owner_path: Default::default(),
                 root: parent.root,
                 segments: parent.segments.clone(),
+                ..Default::default()
             };
             if !super::overlap::captured_place_compatibility(
                 program,
@@ -255,19 +254,17 @@ pub(crate) fn require_unborrowed_completion(
                 operand.statement_index,
                 active.iter().copied(),
                 CapturedPlace {
-                    incoming_reference: Default::default(),
-                    incoming_owner_path: Default::default(),
                     root: access.root,
                     segments: facts.borrow.access_segments(access).to_vec(),
+                    ..Default::default()
                 },
             )
             .ok_or("staged input loan has no exact backing")?;
             for parent in parents {
                 let owned = CapturedPlace {
-                    incoming_reference: Default::default(),
-                    incoming_owner_path: Default::default(),
                     root: parent.root,
                     segments: parent.segments.clone(),
+                    ..Default::default()
                 };
                 if backings.iter().any(|backing| {
                     !super::overlap::captured_place_compatibility(

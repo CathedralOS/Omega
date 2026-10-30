@@ -21,6 +21,18 @@ pub(crate) fn domain_definition(
     program.domain_definition(domain_symbol)
 }
 
+/// Evidence for a row the state's own declaration already establishes: the
+/// caller inherited the claim, it did not validate it here.
+pub(crate) fn propagated_evidence(state_symbol: SymbolHandle) -> QualificationEvidence {
+    QualificationEvidence::from_origin(QualificationEvidenceOrigin::Propagated, state_symbol)
+}
+
+/// Evidence for a row checked validation itself established at this point, not
+/// one the caller inherited.
+pub(crate) fn checked_validation_evidence(state_symbol: SymbolHandle) -> QualificationEvidence {
+    QualificationEvidence::from_origin(QualificationEvidenceOrigin::CheckedValidation, state_symbol)
+}
+
 /// Project authorized contract issuers once, before flow forks the fact plan.
 /// The shared baseline gives repeated calls and independent workers the same
 /// evidence identity. Unused declarations are inventory, not grant obligations:
@@ -153,10 +165,7 @@ pub(crate) fn call_contract_evidence(
             admitted_evidence(facts, authorization)
         }
         ::validation::CallQualificationSource::Propagated => {
-            Some(QualificationEvidence::from_origin(
-                QualificationEvidenceOrigin::Propagated,
-                target_symbol,
-            ))
+            Some(propagated_evidence(target_symbol))
         }
     }
 }
@@ -249,10 +258,7 @@ fn call_carry_permission_evidence(
             admitted_evidence(facts, authorization)
         }
         ::validation::CallQualificationSource::Propagated => {
-            Some(QualificationEvidence::from_origin(
-                QualificationEvidenceOrigin::Propagated,
-                target_symbol,
-            ))
+            Some(propagated_evidence(target_symbol))
         }
     }
 }

@@ -3,6 +3,7 @@
 //! substitutes its formal side once; supplied operands keep caller scope.
 
 use super::peel_declared_constraints;
+use crate::value_custody::type_references::substituted_identity;
 use symbols::SymbolHandle;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -173,10 +174,7 @@ fn compare(
             let identity = |reference, substitutions| match substitutions {
                 Substitutions::Exact => program.normalized_type_identity(reference),
                 Substitutions::DeclarationEquations(bindings) => {
-                    program.type_identity(typed_trees::type_identity::TypeIdentityRequest {
-                        substitutions: bindings,
-                        ..typed_trees::type_identity::TypeIdentityRequest::ordinary(reference)
-                    })
+                    substituted_identity(program, reference, bindings)
                 }
                 Substitutions::Application(bindings) => program
                     .type_identity_with_simultaneous_substitutions(

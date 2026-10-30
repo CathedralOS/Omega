@@ -1228,6 +1228,19 @@ pub(super) struct ProjectionSource {
 }
 
 impl Emission<'_, '_, '_> {
+    /// A completed aggregate whose place is an operation result retires the
+    /// operands that produced it. Any other declaration retires nothing.
+    pub(super) fn retire_completed_operands(
+        &mut self,
+        declaration: &StructuralPlaceDeclaration,
+    ) -> Result<(), LoweringError> {
+        let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
+            return Ok(());
+        };
+        self.evaluation
+            .retire_structural_operation_operands(producer, self.operations)
+    }
+
     fn bind_completion_claims(
         operations: &mut OperationBuffer,
         place: PlaceId,

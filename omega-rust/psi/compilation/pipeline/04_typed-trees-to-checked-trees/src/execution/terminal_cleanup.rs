@@ -19,6 +19,7 @@ use typed_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
+use crate::execution::permission_events;
 use crate::flow::FlowOwnershipEventSource;
 
 /// Retain the first source-handle-free structural control-edge cleanup slice.
@@ -183,18 +184,13 @@ fn build_state_plan(
                 return None;
             }
             for source in operand_moves {
-                let mut transfers = facts
-                    .flow
-                    .ownership
-                    .permissions
-                    .iter()
-                    .filter(|(_, event)| {
-                        event.machine_symbol == machine.symbol
-                            && event.state_symbol == state.symbol
-                            && event.root == facts::PlaceRoot::Symbol(*symbol)
-                            && event.kind == PermissionEventKind::Transfer
-                            && event.source == source
-                    });
+                let mut transfers = permission_events(facts).filter(|(_, event)| {
+                    event.machine_symbol == machine.symbol
+                        && event.state_symbol == state.symbol
+                        && event.root == facts::PlaceRoot::Symbol(*symbol)
+                        && event.kind == PermissionEventKind::Transfer
+                        && event.source == source
+                });
                 let (_, transfer) = transfers.next()?;
                 if transfers.next().is_some()
                     || transfer.access != PermissionAccess::Owned
@@ -358,11 +354,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
     result_locals: &[symbols::SymbolHandle],
 ) -> Option<Vec<(symbols::SymbolHandle, u32)>> {
     let parameters = program.state_parameters(state);
-    let entry_claim_roots = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
+    let entry_claim_roots = permission_events(facts)
         .filter_map(|(_, event)| {
             (event.machine_symbol == machine
                 && event.state_symbol == state.symbol
@@ -433,11 +425,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
             _ => false,
         }
     };
-    let moved_roots = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
+    let moved_roots = permission_events(facts)
         .filter_map(|(_, event)| {
             (event.machine_symbol == machine
                 && event.state_symbol == state.symbol
@@ -539,61 +527,60 @@ pub(super) fn state_exit_result_locals(
         .ownership
         .state_exit_cleanup_roots(machine.symbol, state.symbol)?
         .into_iter()
-        .chain(
-            facts
-                .flow
-                .ownership
-                .permissions
-                .iter()
-                .filter_map(|(_, event)| {
-                    // A selected linear region has an exact consumed claim
-                    // and contextual disposition. An initialized child can
-                    // be the entire live complement of a reserved container;
-                    // its receipt also identifies that containing home.
-                    (event.machine_symbol == machine.symbol
-                        && event.state_symbol == state.symbol
-                        && event.source == PermissionEventSource::StateExit
-                        && event.kind == PermissionEventKind::Consume
-                        && event.multiplicity == Multiplicity::Linear
-                        && event.access == PermissionAccess::Owned
-                        && event.claim_identity != PermissionClaimIdentity::Unknown
-                        && event.provenance != PermissionProvenance::Unknown
-                        && !event.obligation_live
-                        && facts
-                            .contextual_cleanup
-                            .dispositions
-                            .iter()
-                            .any(|(_, disposition)| {
-                                let evaluation = match disposition.exit.kind {
-                                    checked_trees::FlowClaimJoinExitKind::TransitionTarget
-                                    | checked_trees::FlowClaimJoinExitKind::TransitionContinuation => {
-                                        let Some(StatementNode::Transition(transition)) =
-                                            statements.get(disposition.exit.statement_index)
-                                        else {
-                                            return false;
-                                        };
-                                        checked_trees::FlowPermissionEvaluation::TransitionTarget(
-                                            if disposition.exit.kind == checked_trees::FlowClaimJoinExitKind::TransitionTarget {
-                                                transition.target
-                                            } else {
-                                                transition.continuation
-                                            },
-                                        )
-                                    }
-                                    _ => checked_trees::FlowPermissionEvaluation::Statement,
+        .chain(permission_events(facts).filter_map(|(_, event)| {
+            // A selected linear region has an exact consumed claim
+            // and contextual disposition. An initialized child can
+            // be the entire live complement of a reserved container;
+            // its receipt also identifies that containing home.
+            (event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.source == PermissionEventSource::StateExit
+                && event.kind == PermissionEventKind::Consume
+                && event.multiplicity == Multiplicity::Linear
+                && event.access == PermissionAccess::Owned
+                && event.claim_identity != PermissionClaimIdentity::Unknown
+                && event.provenance != PermissionProvenance::Unknown
+                && !event.obligation_live
+                && facts
+                    .contextual_cleanup
+                    .dispositions
+                    .iter()
+                    .any(|(_, disposition)| {
+                        let evaluation = match disposition.exit.kind {
+                            checked_trees::FlowClaimJoinExitKind::TransitionTarget
+                            | checked_trees::FlowClaimJoinExitKind::TransitionContinuation => {
+                                let Some(StatementNode::Transition(transition)) =
+                                    statements.get(disposition.exit.statement_index)
+                                else {
+                                    return false;
                                 };
-                                disposition.machine == machine.symbol
-                                    && disposition.state == state.symbol
-                                    && disposition.exit.state_symbol == state.symbol
-                                    && disposition.source == PermissionEventSource::StateExit
-                                    && event.evaluation == evaluation
-                                    && disposition.root == event.root
-                                    && facts.flow.ownership.segments.span_or_empty(disposition.path)
-                                        == facts.flow.ownership.segments.span_or_empty(event.segments)
-                            }))
-                    .then_some(event)
-                }),
-        )
+                                checked_trees::FlowPermissionEvaluation::TransitionTarget(
+                                    if disposition.exit.kind
+                                        == checked_trees::FlowClaimJoinExitKind::TransitionTarget
+                                    {
+                                        transition.target
+                                    } else {
+                                        transition.continuation
+                                    },
+                                )
+                            }
+                            _ => checked_trees::FlowPermissionEvaluation::Statement,
+                        };
+                        disposition.machine == machine.symbol
+                            && disposition.state == state.symbol
+                            && disposition.exit.state_symbol == state.symbol
+                            && disposition.source == PermissionEventSource::StateExit
+                            && event.evaluation == evaluation
+                            && disposition.root == event.root
+                            && facts
+                                .flow
+                                .ownership
+                                .segments
+                                .span_or_empty(disposition.path)
+                                == facts.flow.ownership.segments.span_or_empty(event.segments)
+                    }))
+            .then_some(event)
+        }))
         .chain(
             facts
                 .flow

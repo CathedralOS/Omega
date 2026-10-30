@@ -582,11 +582,7 @@ pub(super) fn expression_custody(
     let mut operators = Vec::new();
     let mut pending = vec![root];
     let mut visited = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
+    while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
         for occurrence in program
             .expression_table
             .authored_selection_occurrences(expression)

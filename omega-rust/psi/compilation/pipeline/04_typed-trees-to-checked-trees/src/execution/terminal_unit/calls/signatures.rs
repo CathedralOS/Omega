@@ -1,6 +1,7 @@
 //! The structural and scalar signatures a call is checked against, and the
 //! claims a unit holds on entry.
 
+use crate::execution::permission_events;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, fold_parameter_entry_domains, parameter_qualifications,
@@ -456,11 +457,7 @@ pub(crate) fn entry_claims(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     source_parameters: &[StateParameter],
 ) -> Option<Vec<CheckedUnitEntryClaimPlan>> {
-    let events = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
+    let events = permission_events(facts)
         .filter(|(_, event)| {
             event.machine_symbol == machine
                 && event.state_symbol == state

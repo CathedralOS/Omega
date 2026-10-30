@@ -4,6 +4,7 @@
 
 use crate::declarations::traits::conformance::trait_applications::validate_trait_application_obligations;
 use crate::declarations::traits::trait_definition_by_symbol;
+use crate::value_custody::type_references::TypeParameterScope;
 use diagnostics::Diagnostic;
 use typed_trees::machine::Machine;
 use typed_trees::trait_definition::TraitDefinition;
@@ -37,12 +38,11 @@ pub(crate) fn validate_generic_conformance_bounds(
         machine.name.as_str(),
         &machine.conformance_bounds,
         symbols,
-        crate::value_custody::type_references::TypeParameterScope {
-            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-            lexical_owner: machine.symbol,
-            type_parameters: program.machine_type_parameters(machine),
-            lifetime_parameters: &machine.lifetime_parameters,
-        },
+        TypeParameterScope::authored(
+            machine.symbol,
+            program.machine_type_parameters(machine),
+            &machine.lifetime_parameters,
+        ),
         diagnostics,
         formation_obligations,
     );
@@ -61,12 +61,11 @@ pub(crate) fn validate_trait_conformance_bounds(
         trait_definition.name.as_str(),
         &trait_definition.conformance_bounds,
         symbols,
-        crate::value_custody::type_references::TypeParameterScope {
-            operand_lifetime_owner: symbols::SymbolHandle::invalid(),
-            lexical_owner: trait_definition.symbol,
-            type_parameters: program.trait_type_parameters(trait_definition),
-            lifetime_parameters: &trait_definition.lifetime_parameters,
-        },
+        TypeParameterScope::authored(
+            trait_definition.symbol,
+            program.trait_type_parameters(trait_definition),
+            &trait_definition.lifetime_parameters,
+        ),
         diagnostics,
         formation_obligations,
     );
