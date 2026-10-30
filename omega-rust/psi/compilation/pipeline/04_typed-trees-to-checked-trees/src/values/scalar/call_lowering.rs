@@ -51,7 +51,11 @@ pub(crate) fn call_is_boundary(
 ) -> bool {
     let requirement_symbol = program
         .machine_parameter_signature(target_symbol)
-        .map_or(target_symbol, |(_, signature)| signature.symbol);
+        .map(|(_, signature)| signature.symbol)
+        .unwrap_or(target_symbol);
+    let requirement_symbol = program
+        .closed_requirement_application(requirement_symbol)
+        .map_or(requirement_symbol, |application| application.template);
     program.machines().iter().any(|machine| {
         machine.has_bodyless_signature()
             && program
