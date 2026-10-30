@@ -195,11 +195,10 @@ impl<'program> StructuralJudge<'program> {
         depth: usize,
         compute: impl FnOnce(&Self, StructuralTerm) -> StructuralQueryAnswer,
     ) -> StructuralQueryAnswer {
-        // Field inference must retain every transitive dependency observation.
-        if self.has_resolution_dependency_collector() {
-            self.invalidate_resolution_observations();
-            return compute(self, term);
-        }
+        // Reuse inside one accumulating field trace preserves its observations.
+        // Crossing to another trace cannot authorize an enclosing cache entry:
+        // replaying that entry would skip the other trace's dependency recording.
+        self.invalidate_changed_field_observers();
         let Some(cache) = &self.completed_resolutions else {
             return compute(self, term);
         };
@@ -302,10 +301,12 @@ impl<'program> StructuralJudge<'program> {
         false
     }
 
-    pub(super) fn invalidate_resolution_observations(&self) {
+    fn invalidate_changed_field_observers(&self) {
         let mut observation = self.resolution_observations.as_deref();
         while let Some(current) = observation {
-            if let Ok(mut reads) = current.reads.lock() {
+            if !current.context.same_returned_field_trace(self)
+                && let Ok(mut reads) = current.reads.lock()
+            {
                 *reads = None;
             }
             observation = current.previous.as_deref();
@@ -428,8 +429,28 @@ impl<'program> StructuralJudge<'program> {
         false
     }
 
+    pub(super) fn invalidate_resolution_observations(&self) {
+        let mut observation = self.resolution_observations.as_deref();
+        while let Some(current) = observation {
+            if let Ok(mut reads) = current.reads.lock() {
+                *reads = None;
+            }
+            observation = current.previous.as_deref();
+        }
+    }
+
     fn same_resolution_context(&self, other: &Self) -> bool {
-        self.specification_terms == other.specification_terms && self.same_resolution_inputs(other)
+        self.specification_terms == other.specification_terms
+            && self.same_returned_field_trace(other)
+            && self.same_resolution_inputs(other)
+    }
+
+    fn same_returned_field_trace(&self, other: &Self) -> bool {
+        match (&self.returned_field_trace, &other.returned_field_trace) {
+            (None, None) => true,
+            (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+            _ => false,
+        }
     }
 
     fn same_resolution_inputs(&self, other: &Self) -> bool {
@@ -735,7 +756,7 @@ mod tests {
     }
 
     #[test]
-    fn field_dependency_recording_keeps_every_query_observation() {
+    fn field_dependency_recording_reuses_only_the_same_accumulating_trace() {
         let program = typed_trees::TypedTrees::default();
         let mut judge = StructuralJudge::from_declaration_requires(
             &program,
@@ -748,17 +769,95 @@ mod tests {
             super::super::returned_fields::ReturnedFieldTrace::default(),
         )));
         let calls = Cell::new(0);
-        for _ in 0..2 {
-            judge.completed_resolution(
-                StructuralTerm::Variable("value".to_owned()),
-                0,
-                |_, term| {
-                    calls.set(calls.get() + 1);
-                    term
-                },
-            );
-        }
+        let dependency = symbols::SymbolHandle::invalid();
+        let compute = |judge: &StructuralJudge<'_>, term| {
+            calls.set(calls.get() + 1);
+            if let Some(trace) = &judge.returned_field_trace {
+                let mut trace = trace.lock().unwrap();
+                trace.visited_callees.push(dependency);
+                trace.min_cycle_owner_index = 0;
+            }
+            term
+        };
+        let query = |judge: &StructuralJudge<'_>| {
+            judge.completed_resolution(StructuralTerm::Variable("value".to_owned()), 0, compute)
+        };
+        query(&judge);
+        query(&judge);
+        assert_eq!(calls.get(), 1);
+        let trace = judge.returned_field_trace.as_ref().unwrap().lock().unwrap();
+        assert_eq!(trace.visited_callees, vec![dependency]);
+        assert_eq!(trace.min_cycle_owner_index, 0);
+        drop(trace);
+
+        let mut other = judge.clone();
+        other.returned_field_trace = Some(Arc::new(Mutex::new(
+            super::super::returned_fields::ReturnedFieldTrace::default(),
+        )));
+        query(&other);
+        query(&other);
         assert_eq!(calls.get(), 2);
+        assert_eq!(
+            other
+                .returned_field_trace
+                .as_ref()
+                .unwrap()
+                .lock()
+                .unwrap()
+                .visited_callees,
+            vec![dependency]
+        );
+        other.returned_field_trace = None;
+        query(&other);
+        query(&other);
+        assert_eq!(calls.get(), 3);
+        other.returned_field_trace = judge.returned_field_trace.clone();
+        Arc::make_mut(&mut other.returned_field_owners).push(dependency);
+        query(&other);
+        assert_eq!(
+            calls.get(),
+            4,
+            "a changed recursion owner chain must recompute"
+        );
+    }
+
+    #[test]
+    fn changing_field_observers_invalidates_enclosing_queries_not_recurrence() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let trace = Arc::new(Mutex::new(
+            super::super::returned_fields::ReturnedFieldTrace::default(),
+        ));
+        let calls = Cell::new(0);
+        let term = StructuralTerm::Variable("outer".to_owned());
+        for _ in 0..2 {
+            judge.completed_resolution(term.clone(), 0, |judge, term| {
+                calls.set(calls.get() + 1);
+                let mut changed = judge.resolving_application(&term, 0).unwrap();
+                changed.returned_field_trace = Some(Arc::clone(&trace));
+                assert!(
+                    changed.resolving_application(&term, 0).is_none(),
+                    "a dependency recorder is not a different recurrence context"
+                );
+                changed.completed_resolution(
+                    StructuralTerm::Variable("inner".to_owned()),
+                    0,
+                    |_, term| term,
+                );
+                term
+            });
+        }
+        assert_eq!(
+            calls.get(),
+            2,
+            "the outer query cannot skip another recorder"
+        );
     }
 }
 

@@ -234,6 +234,18 @@ impl<'program> PreparedIntegerPremises<'program> {
 }
 
 impl<'program> IntegerObservations<'program> {
+    fn empty(program: &'program dyn crate::CheckingInput) -> Self {
+        Self {
+            engine: Engine::for_explicit_bindings(program),
+            atoms: Vec::new(),
+            operations: Vec::new(),
+            carrier_bounds: Vec::new(),
+            installed_carrier_bounds: 0,
+            next_operation_id: 0,
+            operand_resolutions: None,
+        }
+    }
+
     fn operation_placeholder(&mut self) -> Option<Polynomial> {
         let identity = self.next_operation_id;
         self.next_operation_id = identity.checked_add(1)?;
@@ -453,15 +465,7 @@ impl<'program> StructuralJudge<'program> {
         if let Some(prepared) = self.cached_prepared_integer_premises() {
             return prepared.is_contradictory();
         }
-        let observations = IntegerObservations {
-            engine: Engine::for_explicit_bindings(self.program),
-            atoms: Vec::new(),
-            operations: Vec::new(),
-            carrier_bounds: Vec::new(),
-            installed_carrier_bounds: 0,
-            next_operation_id: 0,
-            operand_resolutions: None,
-        };
+        let observations = IntegerObservations::empty(self.program);
         self.independent_integer_premises(observations).is_some()
     }
 
@@ -619,15 +623,7 @@ impl<'program> StructuralJudge<'program> {
         if !self.runtime_body_values || self.case_facts_only {
             return CarrierFit::Unknown;
         }
-        let mut observations = IntegerObservations {
-            engine: Engine::for_explicit_bindings(self.program),
-            atoms: Vec::new(),
-            operations: Vec::new(),
-            carrier_bounds: Vec::new(),
-            installed_carrier_bounds: 0,
-            next_operation_id: 0,
-            operand_resolutions: None,
-        };
+        let mut observations = IntegerObservations::empty(self.program);
         let Some(value) = self.mathematical_value(&value, &mut observations, 0) else {
             return CarrierFit::Unknown;
         };
@@ -745,15 +741,7 @@ impl<'program> StructuralJudge<'program> {
         if !self.runtime_body_values || self.case_facts_only || depth >= 32 {
             return None;
         }
-        let mut observations = IntegerObservations {
-            engine: Engine::for_explicit_bindings(self.program),
-            atoms: Vec::new(),
-            operations: Vec::new(),
-            carrier_bounds: Vec::new(),
-            installed_carrier_bounds: 0,
-            next_operation_id: 0,
-            operand_resolutions: None,
-        };
+        let mut observations = IntegerObservations::empty(self.program);
         let mut remaining = 64usize;
         let alternatives =
             self.integer_boolean_alternatives(predicate, false, &mut observations, &mut remaining)?;
@@ -1475,19 +1463,8 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn prepare_integer_premises(&self) -> Option<PreparedIntegerPremises<'program>> {
-        let mut observations = IntegerObservations {
-            engine: Engine::for_explicit_bindings(self.program),
-            atoms: Vec::new(),
-            operations: Vec::new(),
-            carrier_bounds: Vec::new(),
-            installed_carrier_bounds: 0,
-            next_operation_id: 0,
-            operand_resolutions: Some(Vec::new()),
-        };
+        let mut observations = IntegerObservations::empty(self.program);
         let mut premises = self.project_observed_integer_premises(&mut observations);
-        // Resolved payloads belong only to this immutable judge's preparation.
-        // Published premises and later goal batches never inherit these answers.
-        observations.operand_resolutions = None;
         if !premises.complete {
             return None;
         }
@@ -1543,15 +1520,7 @@ impl<'program> StructuralJudge<'program> {
         if self.case_facts_only {
             return None;
         }
-        let mut observations = IntegerObservations {
-            engine: Engine::for_explicit_bindings(self.program),
-            atoms: Vec::new(),
-            operations: Vec::new(),
-            carrier_bounds: Vec::new(),
-            installed_carrier_bounds: 0,
-            next_operation_id: 0,
-            operand_resolutions: Some(Vec::new()),
-        };
+        let mut observations = IntegerObservations::empty(self.program);
         let comparison = self.integer_comparison(predicate, &mut observations)?;
         let goal_operations = 0..observations.operations.len();
         let mut comparisons = self.observed_integer_premises(&mut observations);
@@ -1571,8 +1540,6 @@ impl<'program> StructuralJudge<'program> {
             })
             .map(|(comparison, _)| comparison)
             .collect();
-        // Completed normalization answers belong only to this immutable query.
-        observations.operand_resolutions = None;
         Some((observations, comparison, admitted))
     }
 
@@ -1726,15 +1693,7 @@ impl<'program> StructuralJudge<'program> {
         let Some(application) = view.application(expression) else {
             return StructuralJudgment::Unknown;
         };
-        let mut observations = IntegerObservations {
-            engine: Engine::for_explicit_bindings(self.program),
-            atoms: Vec::new(),
-            operations: Vec::new(),
-            carrier_bounds: Vec::new(),
-            installed_carrier_bounds: 0,
-            next_operation_id: 0,
-            operand_resolutions: None,
-        };
+        let mut observations = IntegerObservations::empty(self.program);
         for capture in view
             .applications
             .captures
@@ -2171,15 +2130,7 @@ mod carrier_bound_tests {
     fn observed_integer_atoms_supply_exactly_their_carrier_bounds() {
         let program = typed_trees::TypedTrees::default();
         for primitive in [PrimitiveType::I32, PrimitiveType::U64] {
-            let mut observations = IntegerObservations {
-                engine: Engine::for_explicit_bindings(&program),
-                atoms: Vec::new(),
-                operations: Vec::new(),
-                carrier_bounds: Vec::new(),
-                installed_carrier_bounds: 0,
-                next_operation_id: 0,
-                operand_resolutions: None,
-            };
+            let mut observations = IntegerObservations::empty(&program);
             let value = observations
                 .observed_atom(StructuralTerm::Variable("observed".to_owned()), primitive)
                 .unwrap();
