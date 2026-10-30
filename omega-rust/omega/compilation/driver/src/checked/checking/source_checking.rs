@@ -29,21 +29,6 @@ pub(crate) fn check_product_source(
         .validate_charges()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let build = &computed_build_config.config;
-    let representations = representation_planning::rederive_opaque_representation_selections(
-        &typed,
-        computed_build_config.selected_build_machine_symbol,
-        &computed_build_config.declared_product_selections,
-        &computed_build_config.product_selection_requests,
-        &build.opaque_representation_selections,
-    )?;
-    let opaque_properties = representations
-        .iter()
-        .filter(|selection| {
-            selection.copy_disposition()
-                == representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
-        })
-        .map(|selection| validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
-        .collect::<Vec<_>>();
     let symbol_sources = typed.symbols.source_map();
     let source_admission = psi_compiler::SourceAdmission {
         completion: match package_inputs.and_then(|inputs| {
@@ -64,8 +49,12 @@ pub(crate) fn check_product_source(
             }
             None => validation::source_completion::SourceCompletionAdmission::None,
         },
-        opaque_properties: &opaque_properties,
-        opaque_representations: &representations,
+        representations: psi_compiler::ProductRepresentationInput {
+            activation: computed_build_config.selected_build_machine_symbol,
+            declared: &computed_build_config.declared_product_selections,
+            executed: &computed_build_config.product_selection_requests,
+            retained: &build.opaque_representation_selections,
+        },
         asm_authority: Some(
             validation::AsmAuthorityAdmission::from_freestanding(build.settings.freestanding)
                 .with_grants(

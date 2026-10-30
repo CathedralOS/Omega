@@ -300,6 +300,22 @@ impl CurrentScalarValues<'_> {
         );
     }
 
+    pub(super) fn assume_aggregate_call_ensures(
+        &mut self,
+        expression: ExpressionHandle,
+        actuals: &[ScopedArithmeticBinding],
+        statement_index: usize,
+    ) {
+        if let Some(call) = self.program.expression_table.call_node(expression) {
+            self.assume_completed_guarantees(
+                CallSite::Expression { expression, call },
+                actuals,
+                None,
+                statement_index,
+            );
+        }
+    }
+
     pub(super) fn assume_statement_ensures(
         &mut self,
         call: &typed_trees::statement::TableCall,
@@ -339,6 +355,17 @@ impl CurrentScalarValues<'_> {
             }
             Vec::new()
         };
+        let result_observations = match site {
+            CallSite::Expression { expression, .. } if result.is_none() => {
+                validation::scoped_call_result_observations(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    expression,
+                )
+            }
+            _ => Vec::new(),
+        };
         for hypothesis in validation::scoped_completed_call_guarantees(
             self.program,
             self.machine,
@@ -349,6 +376,7 @@ impl CurrentScalarValues<'_> {
                 actuals,
                 machine_values: &machine_values,
                 result,
+                result_observations: &result_observations,
             },
         ) {
             crate::collections::push_unique(&mut self.hypotheses, hypothesis);

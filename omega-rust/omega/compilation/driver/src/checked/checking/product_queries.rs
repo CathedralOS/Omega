@@ -109,7 +109,7 @@ impl ProductQueries {
                         .slot
                         .as_deref()
                         .ok_or_else(|| refuse("Product entry query has no slot"))?,
-                    &provider_planning::program_entry::ProductEntryQueryCompatibility,
+                    &target::ProgramEntrySlots,
                 )
                 .map(BuildProductDescription::Entry)
                 .map_err(refuse),

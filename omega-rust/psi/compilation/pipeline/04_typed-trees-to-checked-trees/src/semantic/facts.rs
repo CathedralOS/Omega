@@ -36,8 +36,9 @@ pub(crate) fn build_semantic_facts(
     program: &dyn ::validation::CheckingInput,
     proof: &ProofFacts,
     operators: &checked_trees::CheckedOperatorFacts,
-) -> FactPlan {
+) -> Result<FactPlan, diagnostics::Diagnostic> {
     let mut facts = validation::build_definition_fact_plan(program);
+    crate::facts::qualification_evidence::prepare_issuers(program, proof, &mut facts)?;
     append_proof_obligation_semantic_facts(proof, &mut facts);
     append_contract_semantic_facts(program, proof, operators, &mut facts);
     // Receivers and named inputs have the same caller-enforced declared domains.
@@ -49,7 +50,7 @@ pub(crate) fn build_semantic_facts(
     // from the binding onward.
     append_local_zii_field_domain_facts(program, &mut facts);
 
-    facts
+    Ok(facts)
 }
 
 fn append_proof_obligation_semantic_facts(proof: &ProofFacts, facts: &mut FactPlan) {

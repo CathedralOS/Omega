@@ -1,0 +1,25 @@
+// Rejected: a plain field cannot supply a bounded borrow merely because its width agrees.
+// A copied record field keeps its checked type when a narrower equal-width
+// scalar also participates in the same call graph.
+data Frame [copy] { value: u64; sibling: u64; }
+data Limits { value: u64; }
+data Reply { case Empty; case Ready(frame: Frame); }
+machine bounded(value: &u64 [0..=5]) -> u64 { value }
+machine read(reply: &Reply, limits: &Limits) -> u64 {
+    transition reply {
+        Reply::Ready { frame } -> selected(frame.value, frame.sibling, limits)
+        Reply::Empty -> 0u64
+    }
+    machine selected(value: u64, sibling: u64, limits: &Limits) -> u64 {
+        let observed: u64 = bounded(&limits.value);
+        transition sibling == 99u64 && observed == 5u64 { true -> (value) _ -> (0u64) }
+    }
+}
+machine main() crashes Trap {
+    let reply: Reply = Reply::Ready { frame: Frame { value: 42u64, sibling: 99u64 } };
+    let limits: Limits = Limits { value: 5u64 };
+    let value: u64 = read(&reply, &limits);
+    transition value == 42u64 { true -> done() _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

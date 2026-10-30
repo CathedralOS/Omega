@@ -117,7 +117,8 @@ impl LocalWriteSource {
             view_primitive,
             preserves_scalar_value,
         };
-        coordinate.label(program)?;
+        // Presentation labels serve legacy bound/write consumers. Typed readers
+        // keep case selectors and freeze runtime indices themselves.
         Some(coordinate)
     }
 }

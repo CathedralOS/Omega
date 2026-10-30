@@ -59,11 +59,8 @@ impl<'program> StructuralJudge<'program> {
                 let subject = subjects
                     .iter()
                     .find(|subject| subject.parameter == parameter.symbol);
-                let value = self
-                    .entry_argument_value(parameter, value, subject, environment, scope)
-                    .unwrap_or_else(|| {
-                        StructuralTerm::Opaque("unobserved invocation argument".to_owned())
-                    });
+                let value =
+                    self.entry_argument_value(parameter, value, subject, environment, scope);
                 (parameter.symbol, value)
             })
             .collect::<Vec<_>>();
@@ -81,7 +78,14 @@ impl<'program> StructuralJudge<'program> {
         let incoming = parameters
             .iter()
             .zip(bindings)
-            .map(|(parameter, (_, value))| (parameter.name.to_string(), value))
+            .map(|(parameter, (_, value))| {
+                (
+                    parameter.name.to_string(),
+                    value.unwrap_or_else(|| {
+                        StructuralTerm::Opaque("unobserved invocation argument".to_owned())
+                    }),
+                )
+            })
             .collect();
         Some((incoming, self))
     }

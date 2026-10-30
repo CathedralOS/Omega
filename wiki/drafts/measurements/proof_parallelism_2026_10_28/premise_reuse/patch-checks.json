@@ -1,0 +1,4 @@
+{
+  "source": "8cc68112f4f3a1de48a320e8a13f60688b6d0d76",
+  "probe.patch": "git apply --cached --check passed against isolated scratch index"
+}

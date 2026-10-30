@@ -111,23 +111,12 @@ struct Candidate {
 pub(crate) fn serialize_elf_dynamic_table(
     plan: ValidatedElfDynamicTagPlan,
 ) -> Result<ValidatedElfDynamicTablePayload, Box<ElfDynamicTableSerializationError>> {
-    checked::plan_candidate(
-        plan,
-        encode_contents,
-        |plan, contents| non_authoritative_payload_compatibility_fingerprint(&plan, &contents),
-        |plan, contents, fingerprint| Candidate {
-            plan: plan,
-            contents: contents,
-            non_authoritative_payload_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.plan,
-        |plan, diagnostic| {
-            Box::new(ElfDynamicTableSerializationError {
-                plan: plan,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: plan,
+        derive: encode_contents,
+        contents: contents,
+        fingerprint: non_authoritative_payload_compatibility_fingerprint,
+        error: ElfDynamicTableSerializationError,
     )
 }
 

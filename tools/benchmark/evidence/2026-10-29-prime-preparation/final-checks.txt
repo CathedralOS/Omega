@@ -1,0 +1,29 @@
+['C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe', '-m', 'unittest', 'discover', '-s', 'tools/tests', '-p', 'test_benchmark.py']
+....................omega.lock missing; settling package review via omega update (records project acceptance, not an audit)
+..............................
+----------------------------------------------------------------------
+Ran 50 tests in 0.340s
+
+OK
+['C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe', '-m', 'unittest', 'discover', '-s', 'tools/tests', '-p', 'test_dashboard_performance.py']
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 13.286s
+
+OK
+['C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe', '-m', 'unittest', 'discover', '-s', 'tools/tests', '-p', 'test_compiler_dashboard.py']
+.................
+----------------------------------------------------------------------
+Ran 17 tests in 0.057s
+
+OK
+['node', 'tools/tests/test_dashboard_charts.cjs']
+Chart checks passed: shared hosts, values, end-label separation, target/empty states, mobile labels.
+Cohort checks passed: fixed denominator, new-program separation, mobile geometry and unavailable states.
+View checks passed: one panel, selected tab, focus and unknown-view fallback.
+Overview checks passed: all three charts visible, no chart-switching dropdown.
+Facts/Work checks passed: visible result counts, source coverage, notes/scope/owner/expiry, exact metadata, lease filters and unknown registry.
+Performance checks passed: real timings, project scope, pairing limits, unknown size/memory, missing oracle and empty states.
+['rustfmt', '--edition', '2024', '--check', 'omega-rust/psi/compilation/checking/src/machine_calls/effect_inference/invocations.rs']
+['git', 'diff', '--check']
+warning: in the working copy of 'wiki/drafts/measurements/benchmarks.md', CRLF will be replaced by LF the next time Git touches it

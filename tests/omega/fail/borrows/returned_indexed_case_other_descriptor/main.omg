@@ -1,0 +1,21 @@
+// Equal possible backing sets do not identify two selected descriptors.
+data Node { case Number(value: u64); case Empty; }
+data Nodes { items: [Node; 2]; }
+machine get(nodes: &Nodes, position: u64) -> &Node
+requires position < 2;
+{ &nodes.items[position] }
+machine evaluate(nodes: &Nodes, position: u64, other_position: u64) -> u64
+requires position < 2;
+requires other_position < 2;
+{
+    let node: &Node = get(nodes, position);
+    let other: &Node = get(nodes, other_position);
+    match node {
+        Node::Number { value } -> other.value
+        Node::Empty -> 0u64
+    }
+}
+machine entry() -> u64 {
+    let nodes: Nodes = Nodes { items: [Node::Number { value: 42u64 }, Node::Empty] };
+    evaluate(&nodes, 0u64, 1u64)
+}

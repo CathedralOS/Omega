@@ -125,23 +125,12 @@ struct Candidate {
 pub(crate) fn serialize_elf_section_header_table(
     roster: ValidatedElfDynamicSectionRoster,
 ) -> Result<ValidatedElfSectionHeaderTableTemplate, Box<ElfSectionHeaderTableSerializationError>> {
-    checked::plan_candidate(
-        roster,
-        encode_contents,
-        |roster, contents| non_authoritative_template_compatibility_fingerprint(&roster, &contents),
-        |roster, contents, fingerprint| Candidate {
-            roster: roster,
-            contents: contents,
-            non_authoritative_template_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.roster,
-        |roster, diagnostic| {
-            Box::new(ElfSectionHeaderTableSerializationError {
-                roster: roster,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: roster,
+        derive: encode_contents,
+        contents: contents,
+        fingerprint: non_authoritative_template_compatibility_fingerprint,
+        error: ElfSectionHeaderTableSerializationError,
     )
 }
 

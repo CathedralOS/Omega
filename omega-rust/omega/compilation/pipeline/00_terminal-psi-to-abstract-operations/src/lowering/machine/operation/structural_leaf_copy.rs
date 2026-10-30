@@ -79,6 +79,7 @@ pub(super) fn lower(
             structural_types.iter(),
             signature.structural_type,
             path,
+            Some(result.structural_type),
         ),
         StructuralCopyPath::Case(path) => terminal_semantics::canonical_case_leaf_type(
             structural_types.iter(),
@@ -143,9 +144,12 @@ fn byte_carrier_leaf_copy(
     let Some((StructuralPathSegment::FixedIndex(index), prefix)) = path.split_last() else {
         return false;
     };
-    let Some(parent) =
-        terminal_semantics::runtime_structural_copy_type(structural_types.iter(), root, prefix)
-    else {
+    let Some(parent) = terminal_semantics::runtime_structural_copy_type(
+        structural_types.iter(),
+        root,
+        prefix,
+        None,
+    ) else {
         return false;
     };
     let Some(declaration) = terminal_psi::find_structural_type(structural_types, parent) else {

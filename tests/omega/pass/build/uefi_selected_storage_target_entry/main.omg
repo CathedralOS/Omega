@@ -36,11 +36,15 @@ reaches PortIo
         true -> report(image, storage)
         _ -> wrong(image, storage)
     }
-    machine report(image: Extent in Granted, storage: Extent in Granted) {
+    machine report(image: Extent in Granted, storage: Extent in Granted)
+    reaches PortIo
+    {
         asm { out 233, 65 }
         transition { _ -> retain(image, storage) }
     }
-    machine wrong(image: Extent in Granted, storage: Extent in Granted) {
+    machine wrong(image: Extent in Granted, storage: Extent in Granted)
+    reaches PortIo
+    {
         asm { out 233, 88 }
         transition { _ -> retain(image, storage) }
     }

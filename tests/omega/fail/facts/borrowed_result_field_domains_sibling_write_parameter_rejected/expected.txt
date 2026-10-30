@@ -1,0 +1,2 @@
+cannot prove default-domain field requirement for call inspect
+parameter cell.storage requires [u8; N]::Ascii

@@ -1,0 +1,27 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\sbg-warm-4-lazy\\native\\omega-program.exe"
+  ],
+  "wall_seconds": 0.12644040000304813,
+  "cpu_seconds": 0.09375,
+  "exit_code": 0,
+  "kernel_seconds": 0.09375,
+  "user_seconds": 0.0,
+  "io": {
+    "read_operations": 5,
+    "write_operations": 463,
+    "other_operations": 73,
+    "read_bytes": 672,
+    "write_bytes": 463,
+    "other_bytes": 2000
+  },
+  "peak_working_set_bytes": 5922816,
+  "peak_commit_bytes": 1290240,
+  "page_faults_observed": 1525,
+  "memory_final_available": true,
+  "system_cpu_capacity_seconds": 3.96875,
+  "system_busy_seconds": 2.140625,
+  "external_busy_seconds": 2.046875,
+  "external_busy_capacity_percent": 51.574803149606296,
+  "sampling_seconds": 0.00098230000003241
+}

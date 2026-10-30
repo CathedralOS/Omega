@@ -1,0 +1,27 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\cold-noise-4-0-original\\native\\omega-program.exe"
+  ],
+  "wall_seconds": 0.10852390000218293,
+  "cpu_seconds": 0.09375,
+  "exit_code": 0,
+  "kernel_seconds": 0.03125,
+  "user_seconds": 0.0625,
+  "io": {
+    "read_operations": 5,
+    "write_operations": 463,
+    "other_operations": 73,
+    "read_bytes": 672,
+    "write_bytes": 463,
+    "other_bytes": 2000
+  },
+  "peak_working_set_bytes": 5918720,
+  "peak_commit_bytes": 1290240,
+  "page_faults_observed": 1524,
+  "memory_final_available": true,
+  "system_cpu_capacity_seconds": 3.453125,
+  "system_busy_seconds": 2.265625,
+  "external_busy_seconds": 2.171875,
+  "external_busy_capacity_percent": 62.89592760180995,
+  "sampling_seconds": 0.0009178000036627054
+}

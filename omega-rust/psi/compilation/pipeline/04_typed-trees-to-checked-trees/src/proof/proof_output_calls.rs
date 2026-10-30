@@ -681,6 +681,7 @@ fn checked_static_requirement_dispatch<'program>(
     let applications = program.selected_conformance_applications(
         caller_machine,
         dispatch.selection_application,
+        dispatch.evidence_parameter,
         dispatch.requirement,
         dispatch.application_report_fingerprint,
         dispatch.application_commitment,
@@ -802,6 +803,7 @@ fn checked_static_requirement_dispatch<'program>(
     Ok(Some((
         checked_trees::StaticRequirementDispatchFact {
             selection_application: dispatch.selection_application,
+            evidence_parameter: dispatch.evidence_parameter,
             application_report_fingerprint: dispatch.application_report_fingerprint,
             application_commitment: dispatch.application_commitment,
             declaring_trait: dispatch.declaring_trait,

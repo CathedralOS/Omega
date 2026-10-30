@@ -46,6 +46,7 @@ impl CurrentScalarValues<'_> {
         Some(CapturedScalarField {
             path: Vec::new(),
             carrier,
+            sources: Vec::new(),
             read_dependencies: self
                 .fields
                 .iter()

@@ -13,8 +13,8 @@ use bounds::{
     seed_less_than_len_fact, seed_non_negative_fact, seed_successor_at_most_len_fact,
 };
 
-/// The decomposed-meaning check plus boolean-alias peel both guard seeders
-/// share: a guard with no builtin decomposed meaning is the caller's to
+/// The decomposed-meaning check and boolean-alias peel shared by guard seeders:
+/// a guard with no builtin decomposed meaning is the caller's to
 /// skip, and a name-headed guard stands for its comparison, so re-seed from
 /// the alias guard. Returns true when the guard is handled and the caller
 /// must stop. False leaves an ordinary builtin expression for the caller to
@@ -569,9 +569,17 @@ pub(super) fn seed_negated_guard_facts(
     facts: &mut RangeFacts<'_>,
     guard: ExpressionHandle,
 ) {
-    // Test the actual selected operation, not the complement used below to
-    // represent its false branch.
-    if !validation::has_builtin_decomposed_guard_meaning(program, machine, Some(state), guard) {
+    // Refutation follows the same retained alias as affirmation. Test the
+    // selected operation before deriving its complement; never replay an
+    // initializer whose alias was retired by a write.
+    if peel_boolean_alias_guard(
+        program,
+        machine,
+        state,
+        facts,
+        guard,
+        seed_negated_guard_facts,
+    ) {
         return;
     }
     // Refuting `!guard` establishes `guard`.

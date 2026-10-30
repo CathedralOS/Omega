@@ -123,8 +123,17 @@ pub(super) fn checked_case_classifier(
             binary,
         )
     } else {
-        validation::has_exact_parameter_case_membership_meaning(
+        let owner = match context.owner {
+            ContractProofFactOwner::StateSignature { state_symbol, .. } => state_symbol,
+            ContractProofFactOwner::OperatorDeclaration { operator_symbol }
+            | ContractProofFactOwner::OperatorUse {
+                operator_symbol, ..
+            } => operator_symbol,
+            _ => symbols::SymbolHandle::invalid(),
+        };
+        validation::has_exact_declaration_case_membership_meaning(
             compilation.checking_input,
+            owner,
             context.parameters,
             expression,
             binary,

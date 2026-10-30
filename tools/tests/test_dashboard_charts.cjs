@@ -126,3 +126,39 @@ workData.claims.available=false;workData.claims.error='Registry unavailable';vm.
 assert.equal((workNodes['work-stats'].innerHTML.match(/>—</g)||[]).length,2);
 assert.match(workNodes['claim-list'].innerHTML,/Registry unavailable/);
 console.log('Facts/Work checks passed: visible result counts, source coverage, notes/scope/owner/expiry, exact metadata, lease filters and unknown registry.');
+
+const performanceRenderer=html.slice(html.indexOf('function renderPerformance()'),html.indexOf('function renderCohort()'));
+function performanceView(records){
+  const nodes=plainNodes(['performance-host','performance-age','performance-quality','performance-stats','performance-cost','performance-scaling','performance-runtime','performance-pairs','performance-footprint','performance-evidence','performance-readout']);
+  const context=vm.createContext({data:{performance:{records,errors:[]},source_base:'https://github.com/test/repo/blob/head/'},$:id=>nodes[id],hosts:{windows_x86_64:['Windows','x86_64']},readableName:value=>value.replaceAll('_',' '),escapeHTML:String,number:String,matchMedia:()=>({matches:true})});
+  vm.runInContext(performanceRenderer+';renderPerformance();',context);
+  return nodes;
+}
+const performanceRecord={id:'record1',path:'tools/benchmark/records/probe.json',record_revision:'commit',recorded:'2026-01-01T00:00:00Z',context_id:'host1',context:{target:'windows_x86_64',cpu:'CPU',omega_profile:'release'},subject:{name:'probe',root:'probe/main.omg',source_revision:'source'},selection:{enabled:[],disabled:[]},host:{},project:{sloc:100,files:[{}],sha256:'digest'},compile:{median:25,min:20,max:30,samples:[20,30]},compile_ms_kloc:250,runtime:{median:10,min:9,max:11,samples:[9,11]},runtime_oracle:true,runtime_status:'measured',compile_memory:null,run_memory:1024,code_bytes:1024,code_stable:true,notes:[],measurement:null,baseline_ratio:null,baseline_id:null};
+const historical=performanceView([performanceRecord]);
+const setup=performanceView([{...performanceRecord,preparation:{median:5000}}]);
+assert.match(setup['performance-footprint'].innerHTML,/Preparation s/);
+assert.match(setup['performance-footprint'].innerHTML,/>5<\/td>/);
+const latestCompile=performanceView([performanceRecord,{...performanceRecord,id:'fresh',recorded:'2026-10-29T00:00:00Z',context_id:'host2',runtime:null,runtime_oracle:false,observation_warnings:['Prime preparation timed out (20 min)']}]);
+assert.equal(latestCompile['performance-host'].value,'host2');
+assert.match(latestCompile['performance-age'].textContent,/Measured/);
+assert.match(latestCompile['performance-quality'].textContent,/Prime preparation timed out/);
+const refreshed=performanceView([{...performanceRecord,observation_warnings:['Old timeout']},{...performanceRecord,id:'new',recorded:'2026-10-30T00:00:00Z'}]);
+assert.ok(!refreshed['performance-quality'].textContent.includes('Old timeout'));
+assert.match(historical['performance-runtime'].innerHTML,/10 <small>ms/);
+assert.match(historical['performance-runtime'].innerHTML,/Unpaired/);
+assert.match(historical['performance-pairs'].textContent,/no matched baseline/);
+assert.match(historical['performance-cost'].innerHTML,/250 ms per project KLOC/);
+assert.match(historical['performance-footprint'].innerHTML,/>—<\/td>/);
+assert.ok(!historical['performance-footprint'].innerHTML.includes('NaN'));
+const paired=performanceView([{...performanceRecord,baseline_ratio:2,baseline_id:'baseline'}]);
+assert.match(paired['performance-runtime'].innerHTML,/2× observed/);
+const noOracle=performanceView([{...performanceRecord,runtime_oracle:false}]);
+assert.match(noOracle['performance-runtime'].innerHTML,/No exit-verified/);
+assert.match(noOracle['performance-footprint'].innerHTML,/Unverified exit/);
+const missingSize=performanceView([{...performanceRecord,project:{sloc:null,error:'Missing source'},compile_ms_kloc:null}]);
+assert.match(missingSize['performance-cost'].innerHTML,/No source-bound/);
+assert.match(missingSize['performance-footprint'].innerHTML,/>0.025<\/td>/);
+assert.equal(performanceView([])['performance-host'].disabled,true);
+assert.ok(!performanceView([{...performanceRecord,compile_ms_kloc:.00001}])['performance-cost'].innerHTML.includes('NaN'));
+console.log('Performance checks passed: real timings, project scope, pairing limits, unknown size/memory, missing oracle and empty states.');

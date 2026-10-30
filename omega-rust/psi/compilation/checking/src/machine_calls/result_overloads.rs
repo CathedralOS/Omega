@@ -851,11 +851,15 @@ fn named_call_path<'name>(
 }
 
 /// The named-callable admission shared by statement and expression calls:
-/// a targetless unnamed call resolves through the machine overload family;
-/// a provisional target naming a non-operator callable resolves directly.
-/// `receiver_missing` is each call shape's own empty-receiver test; the
-/// admitted branch's own verdict rides the inner `Option` so a declining
-/// family lookup still ends the caller early.
+/// an unnamed call whose path names machine declarations resolves through the
+/// machine overload family; a provisional target naming a non-operator
+/// callable resolves directly. A path is not evidence of a machine namespace
+/// by itself: `I32::from_f64` has a static receiver but names a boundary
+/// operator family, which declares no machines at all. The machine family
+/// therefore answers only for a path that actually names one, so every other
+/// call falls through to the operator path. The admitted branch's own verdict
+/// rides the inner `Option` so a declining family lookup still ends the caller
+/// early.
 fn named_callable_resolution(
     program: &dyn crate::CheckingInput,
     machine_overloads: &MachineOverloadIndex,
@@ -868,6 +872,10 @@ fn named_callable_resolution(
 ) -> Option<Option<SymbolHandle>> {
     if !target_symbol.is_valid()
         && let Some(path) = path
+        && !program
+            .symbols
+            .top_level_candidates_from_source(path, &[SymbolKind::Machine], source_span)
+            .is_empty()
     {
         return Some(named_machine_overload_family_symbol(
             program,

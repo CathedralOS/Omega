@@ -15,6 +15,9 @@ use activation::SourceContext;
 
 mod authored_completion;
 use authored_completion::AuthoredCompletions;
+mod product_policy;
+mod provider_requests;
+pub use product_policy::{AdmittedProductPolicy, ProductPolicyRequest};
 mod storage;
 
 /// Parsed, source-scoped input after package admission and Build-helper selection.
@@ -78,6 +81,18 @@ pub struct SourceExtensionRequest {
 pub struct PreparedSource {
     pub accounting: build_time_evaluation::SourceCompletionAccounting,
     pub typed: typed_trees::TypedTrees,
+}
+
+impl PreparedSource {
+    /// Rejoin executed Build root choices against the completed Product source.
+    /// The result retains exact lexical declarations; it does not choose a
+    /// realized target or settle physical entry calling plans.
+    pub fn admit_root_bindings(
+        &self,
+        executed: &[language_semantics::declaration_selection::ExecutedRootBinding],
+    ) -> Result<Vec<validation::product_entries::RootBinding>, Vec<Diagnostic>> {
+        validation::product_entries::collect_root_bindings(&self.typed, executed)
+    }
 }
 
 impl SourceCompilationRequest {
@@ -289,15 +304,9 @@ impl SourceContinuation {
         occurrence: source::SourceSpan,
         path: &[u8],
         slot: &[u8],
-        compatibility: &dyn typed_trees::product_operand::ProductEntryCompatibility,
+        slots: &dyn semantic_vocabulary::ProgramEntrySourceCatalog,
     ) -> Result<language_semantics::declaration_selection::DescribedProductEntry, String> {
-        validation::product_queries::describe_entry(
-            self.typed(),
-            occurrence,
-            path,
-            slot,
-            compatibility,
-        )
+        validation::product_queries::describe_entry(self.typed(), occurrence, path, slot, slots)
     }
 
     /// Whether two admitted Build continuations have exactly the same remaining
@@ -349,31 +358,6 @@ impl SourceContinuation {
             operand,
             author,
             static_environment,
-        )
-    }
-
-    /// Prepare an inert nominal application in the same ordinary typing owner.
-    /// The demand records reached selection separately from source formation.
-    pub fn prepare_product_operand_application(
-        &mut self,
-        operand: &language_semantics::declaration_selection::ProductDeclarationOperand,
-        role: language_semantics::declaration_selection::ProductOperandRole,
-        author: symbols::SymbolHandle,
-        static_environment: Option<
-            &language_semantics::declaration_selection::product_operands::ProductStaticEnvironment,
-        >,
-        demand: typed_trees::product_operand::ProductApplicationDemand,
-    ) -> Result<
-        Option<arena::Handle<typed_trees::product_operand::ProductOperandApplication>>,
-        Vec<Diagnostic>,
-    > {
-        typed_trees_to_typed_trees::prepare_product_operand_application(
-            Arc::make_mut(&mut self.input).typing.typed_mut(),
-            operand,
-            role,
-            author,
-            static_environment,
-            demand,
         )
     }
 

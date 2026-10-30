@@ -370,6 +370,45 @@ mod tests {
     }
 
     #[test]
+    fn applied_provider_and_receiver_remain_in_the_complete_commitment() {
+        let mut plan = selected_plan();
+        plan.provider_application = plan.identities.intern("Provider<u64>");
+        let application = plan.schema.identities.intern("Boundary<u64>");
+        plan.schema
+            .receiver_applications
+            .push(super::super::ServiceReceiverApplication {
+                application,
+                trait_name: plan.schema.trait_name,
+                trait_package_identity: None,
+                argument_identities: vec![plan.schema.identities.intern("u64")],
+                lifetime_argument_identities: vec![],
+                requirement_identities: vec![plan.schema.methods[0].requirement_identity],
+            });
+        assert!(plan.validate_against_schema().is_empty());
+        let bytes = plan.identity_preimage();
+        let digest = Sha256::digest(&bytes).into();
+        assert!(ProviderPlanInput::read(&bytes, &digest).is_ok());
+        for spelling in [b"Provider<u64>".as_slice(), b"Boundary<u64>".as_slice()] {
+            let mut changed = bytes.clone();
+            let offset = changed
+                .windows(spelling.len())
+                .position(|part| part == spelling)
+                .unwrap();
+            changed[offset] ^= 1;
+            assert!(ProviderPlanInput::read(&changed, &digest).is_err());
+        }
+        for end in 0..bytes.len() {
+            assert!(
+                read(&bytes[..end]).is_err(),
+                "truncated application prefix {end}"
+            );
+        }
+        let mut old_schema = bytes;
+        old_schema[PROVIDER_PLAN_DOMAIN.len() - 2] = b'4';
+        assert!(read(&old_schema).is_err());
+    }
+
+    #[test]
     fn retained_plan_rejects_changed_commitment_and_malformed_complete_inputs() {
         let plan = selected_plan();
         let bytes = plan.identity_preimage();

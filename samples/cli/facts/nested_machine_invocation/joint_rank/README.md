@@ -188,3 +188,14 @@ its readable fixed-array backing through all nine places. Both selectors and
 the seven/empty paths are observable, with untouched-neighbor canaries.
 [Entry formation, snapshot identity, read lowering and controls](local/indexed_value/README.md)
 separate admitted index bounds from source syntax and declaration geometry.
+
+## Case payload coordinates
+
+Each place's `case_value/` carries the same private-cycle fact through an
+independently classified Pending payload. The [requirement mapping and controls](local/case_value/README.md)
+cover declaration-owned case formation, public result guarantees, nested payload
+fields and computed construction, with strict-descent twins in every place.
+
+[Stored-reference case ranks](local/case_value/stored_reference/README.md)
+carry the same counter fact through a loaded descriptor, with aggregate/scalar
+aliases, ordered descriptor replacement and snapshot controls.

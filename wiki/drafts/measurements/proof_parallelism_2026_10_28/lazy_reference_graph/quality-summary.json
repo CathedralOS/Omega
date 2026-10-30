@@ -1,0 +1,223 @@
+{
+  "positive_oracles": 4,
+  "negative_rejects": 3,
+  "baseline_candidate_equal": true,
+  "golden_recorded": false,
+  "legs": {
+    "positive": {
+      "candidate_exit": 1,
+      "baseline_exit": 1,
+      "observations": [
+        {
+          "fixture": "pass/borrows/completed_reference_result_preserves_input_holds_exit",
+          "tier": "pass",
+          "status": "built",
+          "expected_satisfied": null,
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          },
+          "diagnostics": []
+        },
+        {
+          "fixture": "pass/borrows/returned_reference_source_guarantee_exit",
+          "tier": "pass",
+          "status": "built",
+          "expected_satisfied": null,
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          },
+          "diagnostics": []
+        },
+        {
+          "fixture": "pass/borrows/runtime_selected_shared_reference_cohort_exit",
+          "tier": "pass",
+          "status": "built",
+          "expected_satisfied": null,
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          },
+          "diagnostics": []
+        },
+        {
+          "fixture": "pass/calls/runtime_cyclic_state_reference_result_exit",
+          "tier": "pass",
+          "status": "built",
+          "expected_satisfied": null,
+          "facts": {
+            "exit": "0",
+            "interpreter-exit": "0",
+            "interpreter": "agrees"
+          },
+          "diagnostics": []
+        }
+      ],
+      "candidate_golden_moves": [
+        {
+          "fixture": "pass/borrows/completed_reference_result_preserves_input_holds_exit",
+          "verdict": "new",
+          "reasons": [
+            "fixture added"
+          ],
+          "before": null,
+          "after": {
+            "fixture": "pass/borrows/completed_reference_result_preserves_input_holds_exit",
+            "tier": "pass",
+            "status": "built",
+            "millis": 2562,
+            "expected_satisfied": null,
+            "facts": {
+              "exit": "0",
+              "interpreter-exit": "0",
+              "interpreter": "agrees"
+            },
+            "diagnostics": [],
+            "regressed_from": null,
+            "recorded_at": null
+          }
+        }
+      ],
+      "baseline_golden_moves": [
+        {
+          "fixture": "pass/borrows/completed_reference_result_preserves_input_holds_exit",
+          "verdict": "new",
+          "reasons": [
+            "fixture added"
+          ],
+          "before": null,
+          "after": {
+            "fixture": "pass/borrows/completed_reference_result_preserves_input_holds_exit",
+            "tier": "pass",
+            "status": "built",
+            "millis": 1629,
+            "expected_satisfied": null,
+            "facts": {
+              "exit": "0",
+              "interpreter-exit": "0",
+              "interpreter": "agrees"
+            },
+            "diagnostics": [],
+            "regressed_from": null,
+            "recorded_at": null
+          }
+        }
+      ]
+    },
+    "negative": {
+      "candidate_exit": 1,
+      "baseline_exit": 1,
+      "observations": [
+        {
+          "fixture": "fail/borrows/dropped_reference_qualification_mixed_origins",
+          "tier": "fail",
+          "status": "rejected",
+          "expected_satisfied": true,
+          "facts": {},
+          "diagnostics": [
+            "cannot prove ensures contract for exit from corrupt_one at statement 1: left in Ticket::Issued",
+            "cannot prove ensures contract for exit from corrupt_one at statement 2: right in Ticket::Issued"
+          ]
+        },
+        {
+          "fixture": "fail/borrows/returned_reference_invalidated_membership",
+          "tier": "fail",
+          "status": "rejected",
+          "expected_satisfied": true,
+          "facts": {},
+          "diagnostics": [
+            "cannot prove default-domain field requirement for return from borrow_invalidated, state entry, at statement 1: resource requires Resource::Open"
+          ]
+        },
+        {
+          "fixture": "fail/borrows/returned_reference_missing_membership",
+          "tier": "fail",
+          "status": "rejected",
+          "expected_satisfied": true,
+          "facts": {},
+          "diagnostics": [
+            "machine `borrow_missing` state `entry` terminal expression expects `&mut Resource[in Open]`, got `named value`"
+          ]
+        }
+      ],
+      "candidate_golden_moves": [
+        {
+          "fixture": "fail/borrows/dropped_reference_qualification_mixed_origins",
+          "verdict": "moved",
+          "reasons": [
+            "diagnostics moved"
+          ],
+          "before": {
+            "fixture": "fail/borrows/dropped_reference_qualification_mixed_origins",
+            "tier": "fail",
+            "status": "rejected",
+            "millis": 1446,
+            "expected_satisfied": true,
+            "facts": {},
+            "diagnostics": [
+              "cannot prove ensures contract for exit from corrupt_one at statement 0: invocation referent left in Ticket::Issued",
+              "cannot prove ensures contract for exit from corrupt_one at statement 0: invocation referent right in Ticket::Issued"
+            ],
+            "regressed_from": null,
+            "recorded_at": "a92f16431042"
+          },
+          "after": {
+            "fixture": "fail/borrows/dropped_reference_qualification_mixed_origins",
+            "tier": "fail",
+            "status": "rejected",
+            "millis": 1013,
+            "expected_satisfied": true,
+            "facts": {},
+            "diagnostics": [
+              "cannot prove ensures contract for exit from corrupt_one at statement 1: left in Ticket::Issued",
+              "cannot prove ensures contract for exit from corrupt_one at statement 2: right in Ticket::Issued"
+            ],
+            "regressed_from": null,
+            "recorded_at": null
+          }
+        }
+      ],
+      "baseline_golden_moves": [
+        {
+          "fixture": "fail/borrows/dropped_reference_qualification_mixed_origins",
+          "verdict": "moved",
+          "reasons": [
+            "diagnostics moved"
+          ],
+          "before": {
+            "fixture": "fail/borrows/dropped_reference_qualification_mixed_origins",
+            "tier": "fail",
+            "status": "rejected",
+            "millis": 1446,
+            "expected_satisfied": true,
+            "facts": {},
+            "diagnostics": [
+              "cannot prove ensures contract for exit from corrupt_one at statement 0: invocation referent left in Ticket::Issued",
+              "cannot prove ensures contract for exit from corrupt_one at statement 0: invocation referent right in Ticket::Issued"
+            ],
+            "regressed_from": null,
+            "recorded_at": "a92f16431042"
+          },
+          "after": {
+            "fixture": "fail/borrows/dropped_reference_qualification_mixed_origins",
+            "tier": "fail",
+            "status": "rejected",
+            "millis": 851,
+            "expected_satisfied": true,
+            "facts": {},
+            "diagnostics": [
+              "cannot prove ensures contract for exit from corrupt_one at statement 1: left in Ticket::Issued",
+              "cannot prove ensures contract for exit from corrupt_one at statement 2: right in Ticket::Issued"
+            ],
+            "regressed_from": null,
+            "recorded_at": null
+          }
+        }
+      ]
+    }
+  }
+}

@@ -9,10 +9,12 @@ use typed_trees::signature::StateParameter;
 pub enum ScalarCoordinateProjection {
     Storage(checked_trees::CheckedUnitStructuralPathSegment),
     Element {
-        selector: ExpressionHandle,
+        selector: checked_trees::CheckedEntryIndexSelector,
+        collection_path: Vec<facts::PlaceSegment>,
+        source_step: usize,
         collection_type: TypeReferenceHandle,
         element_type: TypeReferenceHandle,
-        extent: usize,
+        extent: Option<usize>,
     },
 }
 
@@ -81,12 +83,20 @@ pub fn structural_scalar_coordinate(
     if inputs.next().is_some() {
         return None;
     }
-    read_coordinate(program, parameter, input.type_reference, coordinate)
+    structural_scalar_coordinate_in_type(
+        program,
+        facts::PlaceRoot::Symbol(parameter),
+        input.type_reference,
+        coordinate,
+    )
 }
 
-fn read_coordinate(
+/// Typed geometry under an already selected producer declaration. The root
+/// keeps observation identity; the query grants neither backing availability,
+/// reference-load custody nor scalar bounds from the declared carrier.
+pub fn structural_scalar_coordinate_in_type(
     program: &dyn crate::CheckingInput,
-    parameter: SymbolHandle,
+    root: facts::PlaceRoot,
     source_type: TypeReferenceHandle,
     coordinate: &[facts::PlaceSegment],
 ) -> Option<StructuralScalarCoordinate> {
@@ -105,7 +115,7 @@ fn read_coordinate(
     let mut selected_case = SymbolHandle::invalid();
     let mut endpoint = Endpoint::Root;
     let mut stored_crossing = false;
-    for segment in coordinate {
+    for (source_step, segment) in coordinate.iter().enumerate() {
         let mut crossings = Vec::new();
         carrier = readable_projection_carrier(program, carrier, &mut crossings)?;
         stored_crossing |= !crossings.is_empty();
@@ -193,42 +203,59 @@ fn read_coordinate(
                 carrier = field.type_reference;
                 selected_case = SymbolHandle::invalid();
             }
-            facts::PlaceSegment::FixedIndex { index } if !selected_case.is_valid() => {
-                let (element, extent) =
-                    crate::value_custody::field_domains::readable_fixed_array_elements(
-                        program, carrier,
-                    )?;
-                if *index >= extent {
-                    return None;
-                }
-                endpoint = Endpoint::Element {
-                    carrier,
-                    position: projections.len() + 1,
-                };
-                projections.push(ScalarCoordinateProjection::Storage(
-                    checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
-                        u64::try_from(*index).ok()?,
-                    ),
-                ));
-                carrier = element;
-            }
-            facts::PlaceSegment::Index { expression }
-                if !selected_case.is_valid() && expression.is_valid() =>
+            facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. }
+                if !selected_case.is_valid() =>
             {
-                let (element, extent) =
+                let (element, extent) = if let Some((element, extent)) =
                     crate::value_custody::field_domains::readable_fixed_array_elements(
                         program, carrier,
-                    )?;
+                    ) {
+                    (element, Some(extent))
+                } else {
+                    (
+                        crate::value_custody::field_domains::readable_slice_element(
+                            program, carrier,
+                        )?,
+                        None,
+                    )
+                };
                 endpoint = Endpoint::Element {
                     carrier,
                     position: projections.len() + 1,
                 };
-                projections.push(ScalarCoordinateProjection::Element {
-                    selector: *expression,
-                    collection_type: carrier,
-                    element_type: element,
-                    extent,
-                });
+                match segment {
+                    facts::PlaceSegment::FixedIndex { index } if extent.is_some() => {
+                        if *index >= extent? {
+                            return None;
+                        }
+                        projections.push(ScalarCoordinateProjection::Storage(
+                            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                                u64::try_from(*index).ok()?,
+                            ),
+                        ));
+                    }
+                    _ => {
+                        let selector = match segment {
+                            facts::PlaceSegment::FixedIndex { index } => {
+                                checked_trees::CheckedEntryIndexSelector::Constant(
+                                    u64::try_from(*index).ok()?,
+                                )
+                            }
+                            facts::PlaceSegment::Index { expression } if expression.is_valid() => {
+                                checked_trees::CheckedEntryIndexSelector::Expression(*expression)
+                            }
+                            _ => return None,
+                        };
+                        projections.push(ScalarCoordinateProjection::Element {
+                            selector,
+                            collection_path: coordinate[..source_step].to_vec(),
+                            source_step,
+                            collection_type: carrier,
+                            element_type: element,
+                            extent,
+                        });
+                    }
+                }
                 carrier = element;
             }
             _ => return None,
@@ -246,9 +273,14 @@ fn read_coordinate(
     let prefix = if stored_crossing {
         coordinate
     } else {
-        let end = coordinate
+        // Typed element observations include literal slice coordinates. Both
+        // selector spellings depend on the containing descriptor binding.
+        let end = projections
             .iter()
-            .position(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+            .find_map(|step| match step {
+                ScalarCoordinateProjection::Element { source_step, .. } => Some(*source_step),
+                _ => None,
+            })
             .unwrap_or(coordinate.len());
         &coordinate[..end]
     };
@@ -259,7 +291,7 @@ fn read_coordinate(
             .map(ScalarCoordinateProjection::Storage),
     );
     Some(StructuralScalarCoordinate {
-        root: facts::PlaceRoot::Symbol(parameter),
+        root,
         type_reference: source_type,
         result_type_reference,
         primitive_type,
@@ -335,7 +367,12 @@ pub fn structural_scalar_field_at_element_coordinate(
                 .find(|local| local.symbol == parameter)
                 .map(|local| local.type_reference)
         })?;
-    let selected = read_coordinate(program, parameter, reference, coordinate)?;
+    let selected = structural_scalar_coordinate_in_type(
+        program,
+        facts::PlaceRoot::Symbol(parameter),
+        reference,
+        coordinate,
+    )?;
     let Endpoint::Element { carrier, position } = selected.endpoint else {
         return None;
     };

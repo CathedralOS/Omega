@@ -1,0 +1,20 @@
+[
+  {
+    "producer": "terminal-breakdown",
+    "compiler_sha256": "20518efd27fcb0afce5d940f050a2f576883d98d5c073f3983932c463fbb410f",
+    "accepted_lock_sha256": "5e914b7fcfe33d9ddd035cb7fd19f7a1c2d57431b22789ff6a88537d4bbb46a5",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  {
+    "producer": "lazy-reference-probe",
+    "compiler_sha256": "50b4b357abca8500b823ae0b552aee47d7b4b9c821fcf3949e6678f6e9464d5f",
+    "accepted_lock_sha256": "80be2e812533de86226cf13c0b1177c8fd759f40453b7984f400979629d9f483",
+    "build_profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+]

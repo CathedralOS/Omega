@@ -107,3 +107,20 @@ qualification tool requires. Its capture overhead is not a compiler timing.
 This is native qualification only; the eight actual host/Terminal observations
 remain the separately linked records above. Documentation added after this
 checkpoint does not alter the exercised compiler, fixtures or validator.
+
+## Publication integration
+
+After #822 landed, retargeting #849 exposed documentation conflicts against
+fixed main `c62c604a325b6afa85c8ba81f615d6a24ba03166`. Preserve its convergence
+publication note and this experiment's ledger entry. The automatic merge also
+reintroduced an older redundant per-insertion sort; retain main's complete
+invocation-inference file instead. A separate Git index verified that the merged
+integer-predicate file is byte-identical to applying the original #849 compiler
+patch to that fixed main file. Main's declaration-scope observation change is
+preserved; batch reuse remains behind its unchanged runtime-only gate.
+
+Validation here is source equivalence and scoped whitespace checking. The
+original focused runtime/refusal observations remain historical, with the
+identities above; no new native replay or performance result is claimed for the
+integration. GitHub admission checks the submitted integration and merge-group
+candidate; post-merge smoke is observed separately.
