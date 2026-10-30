@@ -484,8 +484,7 @@ mod tests {
             .symbol;
         assert!(program.symbols.symbol_source_span(entry).is_none());
         assert_eq!(
-            crate::constant::initializer_dependencies::call_declaration_source(&program, entry)
-                .unwrap(),
+            crate::selection::call_identity::call_declaration_source(&program, entry).unwrap(),
             program.symbols.symbol_source_span(machine_symbol).unwrap()
         );
         let extra = program.symbols.append_children(
@@ -499,7 +498,7 @@ mod tests {
             .next()
             .unwrap();
         assert!(
-            crate::constant::initializer_dependencies::call_declaration_source(&program, extra)
+            crate::selection::call_identity::call_declaration_source(&program, extra)
                 .unwrap_err()
                 .contains("not its exact owning entry")
         );

@@ -36,7 +36,7 @@ pub(crate) struct TerminalProductionView<'a> {
     provenance: &'a [provider_planning::SelectedProviderReviewProvenance],
     plan_facts: &'a effects::SelectedProviderPlanFacts,
     native_sources: &'a Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
-    callbacks: &'a [provider_planning::calling_policy_plans::SelectedCallbackPlacement],
+    callbacks: &'a [symbols::SymbolHandle],
     timings: &'a mut CompileTimings,
     native_components:
         Option<&'a Result<Vec<compilation_products::SelectedIndependentComponent>, String>>,
@@ -61,7 +61,7 @@ impl<'a> TerminalProductionView<'a> {
             provenance: &selection.execution.selected_provider_provenance,
             plan_facts: &selection.execution.selected_provider_plan_facts,
             native_sources: &selection.execution.native_provider_sources,
-            callbacks: &selection.execution.callback_placements,
+            callbacks: &selection.execution.callback_roots,
             timings: &mut selection.timings,
             native_components,
         }
@@ -83,7 +83,7 @@ impl<'a> TerminalProductionView<'a> {
             provenance: &checked.execution().selected_provider_provenance,
             plan_facts: &checked.execution().selected_provider_plan_facts,
             native_sources: &checked.execution().native_provider_sources,
-            callbacks: &checked.execution().callback_placements,
+            callbacks: &checked.execution().callback_roots,
             timings,
             native_components: None,
         }
@@ -201,7 +201,7 @@ impl<'a> AdmittedTerminalProduct<'a> {
         let admission_roots = view
             .callbacks
             .iter()
-            .map(|placement| placement.selected_machine)
+            .copied()
             .chain(entry.physical_adapter())
             .collect();
         let provider_publication = prepare_target_provider_publication(view);
@@ -588,6 +588,7 @@ fn prepare_target_provider_publication(
         exact_toolchain_sources: source.sources.exact_toolchain_sources(),
         overrides: &source.build.config.provider_selections,
         assumed_bindings: source.plan_facts.assumed_bindings(),
+        independent_components: &source.provider_settlement.verified_independent_components,
         targets: &targets,
     }
     .prepare()

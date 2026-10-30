@@ -1,0 +1,26 @@
+No accepted lock baseline: reviewing the complete candidate graph.
+windows_x86_64: checked 1 source packages.
+New package source: runtime_reference_call_scalar_snapshot_exit [c8ec0fd90510]: no prior revision to compare.
+Standalone candidate source: runtime_reference_call_scalar_snapshot_exit [c8ec0fd90510]: 2 changed entries.
+Source-code output (separate from editable capability review): \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\preparation-convergence\cases\candidate-runtime_reference_call_scalar_snapshot_exit\input\build\package-manager\source-diff.txt
+
+Published build.omg and omega.lock for 1 packages across 1 targets.
+review: \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\preparation-convergence\cases\candidate-runtime_reference_call_scalar_snapshot_exit\input\build\package-manager\review-windows_x86_64.txt
+omega_review_timings note=review_pass discovery occurrences=1 compiled=1 carried=0 frontier_reused=0 preliminary_checks=0 preliminary_micros=0 settled_checks=1 settled_micros=1066526
+omega_review_timings stage=package runtime_reference_call_scalar_snapshot_exit purpose=Product micros=1253440
+omega_review_timings stage=review_pass discovery root=runtime_reference_call_scalar_snapshot_exit micros=1253517
+omega_review_timings stage=candidate_compilation micros=1253522
+omega_review_timings run_micros=1253522
+omega_review_timings stage=policy_change_comparison micros=68
+omega_review_timings run_micros=68
+omega_review_timings stage=review_document_rendering micros=13
+omega_review_timings run_micros=13
+omega_review_timings stage=policy_decision_resolution micros=1
+omega_review_timings stage=review_document_recovery micros=23
+omega_review_timings run_micros=23
+omega_review_timings stage=source_patch_rendering micros=56
+omega_review_timings run_micros=56
+omega_review_timings stage=policy_change_comparison micros=42
+omega_review_timings run_micros=42
+omega_review_timings stage=source_custody_verification micros=5
+omega_review_timings run_micros=5

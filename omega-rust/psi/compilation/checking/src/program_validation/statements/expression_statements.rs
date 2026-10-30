@@ -165,29 +165,9 @@ pub(super) fn validate(
                 diagnostics,
             );
         }
-        // Nominal guard: `-> Foo { self.bar }` returns a `Bar` as a `Foo`.
-        expression_types::report_data_type_conflict(
-            program,
-            machine,
-            Some(state),
-            *expression,
-            state.return_type,
-            &slot_context,
-            "return value",
-            diagnostics,
-        );
-        // Shape guard: `-> i32 { self.xs }` returns an array as a scalar.
-        expression_types::report_array_scalar_shape_mismatch(
-            program,
-            machine,
-            Some(state),
-            *expression,
-            state.return_type,
-            &slot_context,
-            "return value",
-            diagnostics,
-        );
-        expression_types::report_scalar_data_shape_mismatch(
+        // Nominal guard (`-> Foo { self.bar }`), the array/scalar shape guard
+        // (`-> i32 { self.xs }`) and the scalar/data one, in that order.
+        expression_types::report_place_value_mismatches(
             program,
             machine,
             Some(state),

@@ -211,6 +211,7 @@ fn call_capture(
     let applications = program.selected_conformance_applications(
         owner,
         dispatch.selection_application,
+        dispatch.evidence_parameter,
         dispatch.requirement,
         dispatch.application_report_fingerprint,
         dispatch.application_commitment,

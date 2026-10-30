@@ -1,0 +1,20 @@
+{
+  "command": [
+    "C:/Program Files/WindowsApps/Microsoft.WinDbg_1.2606.22001.0_x64__8wekyb3d8bbwe/amd64/cdb.exe",
+    "-pv",
+    "-p",
+    "906196",
+    "-y",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\pass-ablation\\build\\pass-producer\\debug",
+    "-c",
+    "~* k 15; q"
+  ],
+  "process": {
+    "ProcessId": 906196,
+    "CommandLine": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\contract-query-publication\\producer\\omega.exe update --project C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\contract-query-publication\\build\\contract-query-publication\\cases\\retry-runtime_numeric_operand_order_exit\\input --target windows_x86_64"
+  },
+  "exit": 0,
+  "seconds": 23.564519200001087,
+  "pdb_sha256": "4a2b16921cd7ab2646a3845cff74951a32aa14d3818937f2feefccac4c3f1aee",
+  "note": "Noninvasive stack sample during retry; sampled run is diagnostic, not clean timing"
+}

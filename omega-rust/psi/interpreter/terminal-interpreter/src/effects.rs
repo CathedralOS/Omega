@@ -73,6 +73,14 @@ pub enum TerminalEffect {
     },
 }
 
+/// Storage presentation selected once for an invocation's frozen scalar actuals.
+/// Selection requests observation/residence; it grants no additional access.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TerminalCallStorageRequirements<'handler> {
+    pub arguments: &'handler [usize],
+    pub original: bool,
+}
+
 /// Injected semantic effect sink used by the oracle and tests. Native provider
 /// selection and hardware realization remain outside the Psi interpreter.
 pub trait TerminalEffectHandler {
@@ -102,10 +110,15 @@ pub trait TerminalEffectHandler {
         Ok(true)
     }
 
-    /// Whether borrowed storage must lend its actual original homes to this
-    /// host binding. Ordinary semantic buffer adapters keep staged restoration.
-    fn requires_original_storage(&self, _boundary: BoundaryMachineId) -> bool {
-        false
+    /// Select the complete presentation once, before capture. A hybrid import
+    /// can retain modeled streams for standard descriptors while selecting
+    /// original native storage for explicitly supplied filesystem descriptors.
+    fn storage_requirements(
+        &self,
+        _boundary: BoundaryMachineId,
+        _scalar_arguments: &[TerminalScalarValue],
+    ) -> TerminalCallStorageRequirements<'_> {
+        TerminalCallStorageRequirements::default()
     }
     /// Realize the already checked invocation's original allocations. The
     /// returned rows match requests and their scalar cells exactly. Preparing
@@ -120,14 +133,6 @@ pub trait TerminalEffectHandler {
         Err(TerminalEffectRejection::new(
             "handler does not supply original storage homes",
         ))
-    }
-
-    /// Request captured semantic storage of these structural arguments before
-    /// host dispatch. Owned arguments supply immutable payload snapshots;
-    /// reading borrows retain their existing restoration protocol. This selects
-    /// observations, never access or authority.
-    fn storage_arguments(&self, _boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
-        &[]
     }
 
     fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection>;

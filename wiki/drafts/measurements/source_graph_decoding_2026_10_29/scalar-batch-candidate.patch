@@ -1,0 +1,190 @@
+diff --git a/omega-rust/psi/foundation/compiler-storage/src/buffer.rs b/omega-rust/psi/foundation/compiler-storage/src/buffer.rs
+index 9369abbd636..63559607598 100644
+--- a/omega-rust/psi/foundation/compiler-storage/src/buffer.rs
++++ b/omega-rust/psi/foundation/compiler-storage/src/buffer.rs
+@@ -139,6 +139,7 @@ impl<'bytes, Context> RecordReader<'bytes, Context> {
+         })
+     }
+ 
++    #[inline]
+     pub fn take(&mut self, length: usize) -> Result<&'bytes [u8], RecordError> {
+         let end = self
+             .position
+diff --git a/omega-rust/psi/foundation/compiler-storage/src/lib.rs b/omega-rust/psi/foundation/compiler-storage/src/lib.rs
+index e9d6a198c61..3d77e45c8b6 100644
+--- a/omega-rust/psi/foundation/compiler-storage/src/lib.rs
++++ b/omega-rust/psi/foundation/compiler-storage/src/lib.rs
+@@ -11,6 +11,28 @@ pub use compiler_storage_derive::Record;
+ pub trait Record: Sized {
+     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError>;
+     fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError>;
++
++    /// Collection owners have already charged the element/allocation budgets.
++    /// Fixed-width scalars can consume one bounded byte span; other records
++    /// retain their per-element decoding and validation.
++    fn read_sequence<Context>(
++        input: &mut RecordReader<'_, Context>,
++        length: usize,
++    ) -> Result<Vec<Self>, RecordError> {
++        let mut values = Vec::with_capacity(length);
++        for _ in 0..length {
++            values.push(Self::read(input)?);
++        }
++        Ok(values)
++    }
++
++    fn read_array<Context, const N: usize>(
++        input: &mut RecordReader<'_, Context>,
++    ) -> Result<[Self; N], RecordError> {
++        Self::read_sequence(input, N)?
++            .try_into()
++            .map_err(|_| input.error("fixed array construction failed"))
++    }
+ }
+ 
+ pub fn encode<T: Record>(value: &T, limits: RecordLimits) -> Result<Vec<u8>, RecordError> {
+diff --git a/omega-rust/psi/foundation/compiler-storage/src/tests.rs b/omega-rust/psi/foundation/compiler-storage/src/tests.rs
+index 11cdfb83096..41a5eecc290 100644
+--- a/omega-rust/psi/foundation/compiler-storage/src/tests.rs
++++ b/omega-rust/psi/foundation/compiler-storage/src/tests.rs
+@@ -79,3 +79,82 @@ fn bounds_both_encoding_and_decoding_depth() {
+     let bytes = encode(&value, RecordLimits::default()).unwrap();
+     assert!(decode::<Link>(&bytes, limits).is_err());
+ }
++
++#[test]
++fn fixed_width_sequences_keep_little_endian_bits_and_shared_array_identity() {
++    let values = [0_u32, 1, u32::MAX, 0x10203040];
++    let mut bytes = 4_u64.to_le_bytes().to_vec();
++    for value in values {
++        bytes.extend_from_slice(&value.to_le_bytes());
++    }
++    assert_eq!(
++        decode::<Vec<u32>>(&bytes, RecordLimits::default()).unwrap(),
++        values
++    );
++    assert_eq!(
++        decode::<[u32; 4]>(&bytes, RecordLimits::default()).unwrap(),
++        values
++    );
++    assert_eq!(encode(&values, RecordLimits::default()).unwrap(), bytes);
++    let shared = Arc::new([0_u8, 7, 128, 255]);
++    let original = (shared.clone(), shared);
++    let restored: (Arc<[u8; 4]>, Arc<[u8; 4]>) = decode(
++        &encode(&original, RecordLimits::default()).unwrap(),
++        RecordLimits::default(),
++    )
++    .unwrap();
++    assert_eq!(*restored.0, [0, 7, 128, 255]);
++    assert!(Arc::ptr_eq(&restored.0, &restored.1));
++    let bits = [
++        0x7ff8000000000001_u64,
++        0x8000000000000000,
++        0xfff0000000000000,
++    ];
++    let floats = bits.map(f64::from_bits);
++    let restored: [f64; 3] = decode(
++        &encode(&floats, RecordLimits::default()).unwrap(),
++        RecordLimits::default(),
++    )
++    .unwrap();
++    assert_eq!(restored.map(f64::to_bits), bits);
++    let signed = [i16::MIN, -1, 0, i16::MAX];
++    assert_eq!(
++        decode::<[i16; 4]>(
++            &encode(&signed, RecordLimits::default()).unwrap(),
++            RecordLimits::default()
++        )
++        .unwrap(),
++        signed
++    );
++}
++
++#[test]
++fn fixed_width_sequences_keep_size_budget_and_value_refusals() {
++    let bytes = encode(&[1_u32, 2, 3], RecordLimits::default()).unwrap();
++    for length in 0..bytes.len() {
++        assert!(decode::<[u32; 3]>(&bytes[..length], RecordLimits::default()).is_err());
++        assert!(decode::<Vec<u32>>(&bytes[..length], RecordLimits::default()).is_err());
++    }
++    assert!(decode::<[u32; 2]>(&bytes, RecordLimits::default()).is_err());
++    for limits in [
++        RecordLimits {
++            allocation: 11,
++            ..RecordLimits::default()
++        },
++        RecordLimits {
++            elements: 2,
++            ..RecordLimits::default()
++        },
++    ] {
++        assert!(decode::<[u32; 3]>(&bytes, limits).is_err());
++        assert!(decode::<Vec<u32>>(&bytes, limits).is_err());
++    }
++    let mut invalid_bool = 2_u64.to_le_bytes().to_vec();
++    invalid_bool.extend_from_slice(&[0, 2]);
++    assert!(decode::<Vec<bool>>(&invalid_bool, RecordLimits::default()).is_err());
++    assert!(decode::<[bool; 2]>(&invalid_bool, RecordLimits::default()).is_err());
++    assert_eq!(
++        decode::<[u32; 0]>(&0_u64.to_le_bytes(), RecordLimits::default()).unwrap(),
++        []
++    );
++}
+diff --git a/omega-rust/psi/foundation/compiler-storage/src/values.rs b/omega-rust/psi/foundation/compiler-storage/src/values.rs
+index 9c3dddf09b3..c7ec178c04f 100644
+--- a/omega-rust/psi/foundation/compiler-storage/src/values.rs
++++ b/omega-rust/psi/foundation/compiler-storage/src/values.rs
+@@ -11,11 +11,25 @@ macro_rules! integer {
+     ($($kind:ty),*) => {$ (
+         impl Record for $kind {
+             fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> { output.extend(&self.to_le_bytes()) }
++            #[inline]
+             fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
+                 let mut bytes = [0u8; std::mem::size_of::<Self>()];
+                 bytes.copy_from_slice(input.take(std::mem::size_of::<Self>())?);
+                 Ok(Self::from_le_bytes(bytes))
+             }
++            fn read_sequence<Context>(input: &mut RecordReader<'_, Context>, length: usize) -> Result<Vec<Self>, RecordError> {
++                let byte_count = length.checked_mul(std::mem::size_of::<Self>())
++                    .ok_or_else(|| input.error("scalar sequence byte length overflow"))?;
++                let bytes = input.take(byte_count)?;
++                Ok(bytes.as_chunks::<{std::mem::size_of::<$kind>()}>().0.iter().copied().map(Self::from_le_bytes).collect())
++            }
++            fn read_array<Context, const N: usize>(input: &mut RecordReader<'_, Context>) -> Result<[Self; N], RecordError> {
++                let byte_count = N.checked_mul(std::mem::size_of::<Self>())
++                    .ok_or_else(|| input.error("scalar array byte length overflow"))?;
++                let bytes = input.take(byte_count)?;
++                let (elements, _) = bytes.as_chunks::<{std::mem::size_of::<$kind>()}>();
++                Ok(std::array::from_fn(|element_index| Self::from_le_bytes(elements[element_index])))
++            }
+         }
+     )*};
+ }
+@@ -129,11 +143,7 @@ impl<T: Record> Record for Vec<T> {
+     fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
+         input.record(|input| {
+             let length = input.sequence::<T>()?;
+-            let mut values = Vec::with_capacity(length);
+-            for _ in 0..length {
+-                values.push(T::read(input)?);
+-            }
+-            Ok(values)
++            T::read_sequence(input, length)
+         })
+     }
+ }
+@@ -150,13 +160,7 @@ impl<T: Record, const N: usize> Record for [T; N] {
+         if length != N {
+             return Err(input.error("fixed array has another length"));
+         }
+-        let mut values = Vec::with_capacity(N);
+-        for _ in 0..N {
+-            values.push(T::read(input)?);
+-        }
+-        values
+-            .try_into()
+-            .map_err(|_| input.error("fixed array construction failed"))
++        T::read_array(input)
+     }
+ }
+ impl Record for String {

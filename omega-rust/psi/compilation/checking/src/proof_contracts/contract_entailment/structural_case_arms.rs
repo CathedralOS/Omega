@@ -757,6 +757,9 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                                 callable: SymbolHandle::invalid(),
                                 occurrence: rejoined.capture_sequence,
                                 result_type: local.type_reference,
+                                integer_range: StructuralTerm::joined_integer_ranges(
+                                    outcomes.iter().map(|(value, _)| value.as_ref()),
+                                ),
                             };
                             outcomes = vec![(Some(captured), rejoined)];
                         }
@@ -1416,6 +1419,9 @@ fn recognize_structural_state_leaves_from<'a>(
                                 callable: SymbolHandle::invalid(),
                                 occurrence: rejoined.capture_sequence,
                                 result_type: local.type_reference,
+                                integer_range: StructuralTerm::joined_integer_ranges(
+                                    outcomes.iter().map(|(value, _)| value.as_ref()),
+                                ),
                             };
                             outcomes = vec![(Some(captured), rejoined)];
                         }

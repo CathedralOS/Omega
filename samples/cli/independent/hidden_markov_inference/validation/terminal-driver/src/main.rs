@@ -6,6 +6,7 @@ use sample_runner::{Evidence, Sample};
 const SAMPLE: Sample = Sample {
     package: "hmm-terminal-validation",
     review: true,
+    caps: None,
     evidence: Evidence::Terminal {
         sources: &[
             "main.omg",
@@ -15,6 +16,7 @@ const SAMPLE: Sample = Sample {
             "io/trace.omg",
         ],
     },
+    frozen: None,
 };
 
 fn main() {

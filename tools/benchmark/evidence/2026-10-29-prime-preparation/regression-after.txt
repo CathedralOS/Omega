@@ -1,0 +1,11 @@
+   Compiling validation v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\compiler-dashboard\omega-rust\psi\compilation\checking)
+mbx[warning]: result was not stored: compiler input was modified during compilation: C:\SoftwareDevelopmentKits\Omega\.agents\worktree\compiler-dashboard\omega-rust\psi\compilation\checking\src\machine_calls\effect_inference\invocations.rs
+    Finished `release` profile [optimized] target(s) in 55.81s
+────────────
+ Nextest run ID d29e2c65-c2dc-4ab5-8d8a-eba5cba6cf81 with nextest profile: default
+    Starting 1 test across 1 binary (29 tests skipped)
+        PASS [   0.065s] (1/1) validation machine_calls::effect_inference::invocations::tests::realized_invocation_cycle_converges_without_losing_targets
+────────────
+     Summary [   0.066s] 1 test run: 1 passed, 29 skipped
+mbx[cache]: 0 hits, 1 misses, 1 incremental; 0 B downloaded, 0 B uploaded, 0 B stored locally
+mbx[savings]: 1d 17h of compiler time avoided across 6112 builds

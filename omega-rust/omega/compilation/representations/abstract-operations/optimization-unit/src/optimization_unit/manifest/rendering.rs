@@ -137,28 +137,17 @@ impl PrePhysicalOptimizationManifest {
             self.optimized_statistics.nodes,
         )
         .unwrap();
-        let realized = self
+        let (realized, proven_unreachable, proven_unreachable_sources) = self
             .transformation_ledger
             .records()
             .iter()
             .flat_map(|record| &record.provenance)
-            .filter(|rewrite| rewrite.disposition.is_realized())
-            .count();
-        let proven_unreachable = self
-            .transformation_ledger
-            .records()
-            .iter()
-            .flat_map(|record| &record.provenance)
-            .filter(|rewrite| !rewrite.disposition.is_realized())
-            .count();
-        let proven_unreachable_sources = self
-            .transformation_ledger
-            .records()
-            .iter()
-            .flat_map(|record| &record.provenance)
-            .filter(|rewrite| !rewrite.disposition.is_realized())
-            .map(|rewrite| rewrite.sources.len())
-            .sum::<usize>();
+            .fold((0, 0, 0), |counts, rewrite| match rewrite.disposition {
+                ProvenanceDisposition::RealizedAt(_) => (counts.0 + 1, counts.1, counts.2),
+                ProvenanceDisposition::ProvenUnreachableAt(_) => {
+                    (counts.0, counts.1 + 1, counts.2 + rewrite.sources.len())
+                }
+            });
         writeln!(
             output,
             "provenance/fuel records: transformations={}, realized={}, proven-unreachable={}, proven-unreachable-sources={}",

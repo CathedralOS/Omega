@@ -334,6 +334,8 @@ pub struct RetainedProvider {
     /// Complete canonical v5 commitment input, never executable authority.
     pub plan_input: Vec<u8>,
     /// Exact requirement identities this provider seals for the component.
+    /// A canonical subset of the complete plan: called requirements and checked
+    /// exports only. Unused sibling methods stay committed in `plan_input`.
     pub requirement_identities: Vec<String>,
 }
 
@@ -533,9 +535,7 @@ pub(crate) fn identity_text(module: &TerminalModule, identity: TerminalIdentityI
 /// contract is a requirement contract — so its digest lives in its own
 /// domain and cannot collide with any [`requirement_contract_identity`]
 /// output.
-pub(crate) fn canonical_entry_contract_identity(
-    entry: terminal_psi::TerminalCallable,
-) -> [u8; 32] {
+pub(crate) fn canonical_entry_contract_identity(entry: terminal_psi::TerminalCallable) -> [u8; 32] {
     let mut digest =
         crate::digest_encoder::DomainDigestEncoder::new(CANONICAL_ENTRY_CONTRACT_DOMAIN);
     match entry {
@@ -946,27 +946,41 @@ pub struct StackDemandFacts {
 // Selection can include native defaults that have no consumer in this retained
 // component. Publish complete plans only when a module call or checked export
 // references them. Never trim rows or rewrite their committed plan identity;
-// the consumer still independently checks every row of each retained plan.
+// the consumer authenticates the complete plan and independently checks every
+// claimed component row. Unused siblings in a whole provider are not claims.
 fn component_references_plan(
     module: &TerminalModule,
     inventory: &DerivedInventory,
     plan: &effects::provider_plan::ProviderPlan,
 ) -> bool {
     plan.rows.iter().any(|row| {
-        let requirement = plan.identities.text(row.requirement_identity);
-        inventory
-            .called_requirement_identities
-            .iter()
-            .any(|called| called == requirement)
-            || module.provider_candidates.iter().any(|candidate| {
-                module
-                    .identities
-                    .text(candidate.source_requirement_identity)
-                    == Some(requirement)
-                    && module.identities.text(candidate.provider_identity)
-                        == Some(plan.provider_type.as_str())
-            })
+        component_references_requirement(
+            module,
+            inventory,
+            plan,
+            plan.identities.text(row.requirement_identity),
+        )
     })
+}
+
+fn component_references_requirement(
+    module: &TerminalModule,
+    inventory: &DerivedInventory,
+    plan: &effects::provider_plan::ProviderPlan,
+    requirement: &str,
+) -> bool {
+    inventory
+        .called_requirement_identities
+        .iter()
+        .any(|called| called == requirement)
+        || module.provider_candidates.iter().any(|candidate| {
+            module
+                .identities
+                .text(candidate.source_requirement_identity)
+                == Some(requirement)
+                && module.identities.text(candidate.provider_identity)
+                    == Some(plan.provider_type.as_str())
+        })
 }
 
 /// The exact publication facts a component description is built from.
@@ -1006,6 +1020,9 @@ pub(crate) fn describe_decoded_component_facts(
                 .rows
                 .iter()
                 .map(|row| plan.identities.text(row.requirement_identity).to_owned())
+                .filter(|requirement| {
+                    component_references_requirement(module, &inventory, plan, requirement)
+                })
                 .collect();
             requirement_identities.sort();
             requirement_identities.dedup();

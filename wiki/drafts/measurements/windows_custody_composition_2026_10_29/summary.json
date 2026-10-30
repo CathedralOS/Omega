@@ -1,0 +1,480 @@
+{
+  "fixed_local_base": "3b3cbfed2aa3de2d33691d258297bafa3b202687",
+  "three_directly_measured_producers": true,
+  "screen_decision": {
+    "medians": {
+      "length": {
+        "baseline": 642.4035500022001,
+        "sibling": 571.2938500073506,
+        "candidate": 450.45679999748245
+      },
+      "dispatch": {
+        "baseline": 632.5635999965016,
+        "sibling": 592.8356500007794,
+        "candidate": 455.54429999901913
+      },
+      "stack32": {
+        "baseline": 1108.7170000027982,
+        "sibling": 1002.1145500068087,
+        "candidate": 869.6051500010071
+      }
+    },
+    "reductions": {
+      "length": 0.298794659531474,
+      "dispatch": 0.27984427178304516,
+      "stack32": 0.21566535915043028
+    },
+    "promising": true,
+    "protocol": "Both small-program screen medians >=15% lower trigger quality and independent confirmation; this is not the substantial-win acceptance itself."
+  },
+  "setup_attribution": "wiki/drafts/measurements/invocation_setup_2026_10_29/diagnostic-summary.json",
+  "cohorts": {
+    "comparison": {
+      "subjects": {
+        "length": {
+          "baseline": {
+            "n": 8,
+            "median_wall_ms": 642.4035500022001,
+            "range_wall_ms": [
+              606.1649000039324,
+              762.3230000026524
+            ],
+            "median_kernel_ms": 406.25,
+            "median_user_ms": 195.3125,
+            "median_cpu_ms": 601.5625,
+            "median_private_commit_bytes": 212244480.0
+          },
+          "sibling": {
+            "n": 8,
+            "median_wall_ms": 571.2938500073506,
+            "range_wall_ms": [
+              487.96220000076573,
+              597.431999995024
+            ],
+            "median_kernel_ms": 351.5625,
+            "median_user_ms": 171.875,
+            "median_cpu_ms": 539.0625,
+            "median_private_commit_bytes": 212226048.0
+          },
+          "candidate": {
+            "n": 8,
+            "median_wall_ms": 450.45679999748245,
+            "range_wall_ms": [
+              436.5152999962447,
+              553.8884999987204
+            ],
+            "median_kernel_ms": 250.0,
+            "median_user_ms": 179.6875,
+            "median_cpu_ms": 429.6875,
+            "median_private_commit_bytes": 220614656.0
+          },
+          "sibling_to_combined_reduction": 0.21151470475012701,
+          "median_reduction": 0.298794659531474,
+          "block_reductions": [
+            0.320858749082652,
+            0.2802475842572796,
+            0.2477373749605989,
+            0.3100833257324507
+          ]
+        },
+        "dispatch": {
+          "baseline": {
+            "n": 8,
+            "median_wall_ms": 632.5635999965016,
+            "range_wall_ms": [
+              599.8483000003034,
+              662.973200000124
+            ],
+            "median_kernel_ms": 437.5,
+            "median_user_ms": 171.875,
+            "median_cpu_ms": 609.375,
+            "median_private_commit_bytes": 212176896.0
+          },
+          "sibling": {
+            "n": 8,
+            "median_wall_ms": 592.8356500007794,
+            "range_wall_ms": [
+              549.2439999943599,
+              724.6172999875853
+            ],
+            "median_kernel_ms": 390.625,
+            "median_user_ms": 187.5,
+            "median_cpu_ms": 562.5,
+            "median_private_commit_bytes": 212178944.0
+          },
+          "candidate": {
+            "n": 8,
+            "median_wall_ms": 455.54429999901913,
+            "range_wall_ms": [
+              445.1427000021795,
+              472.3725999938324
+            ],
+            "median_kernel_ms": 250.0,
+            "median_user_ms": 171.875,
+            "median_cpu_ms": 429.6875,
+            "median_private_commit_bytes": 212203520.0
+          },
+          "sibling_to_combined_reduction": 0.231584166710588,
+          "median_reduction": 0.27984427178304516,
+          "block_reductions": [
+            0.2811717262985576,
+            0.2911943082191244,
+            0.23929726360523862,
+            0.28228895262295983
+          ]
+        },
+        "stack32": {
+          "baseline": {
+            "n": 8,
+            "median_wall_ms": 1108.7170000027982,
+            "range_wall_ms": [
+              1039.2717999930028,
+              1241.5454999863869
+            ],
+            "median_kernel_ms": 500.0,
+            "median_user_ms": 570.3125,
+            "median_cpu_ms": 1023.4375,
+            "median_private_commit_bytes": 254095360.0
+          },
+          "sibling": {
+            "n": 8,
+            "median_wall_ms": 1002.1145500068087,
+            "range_wall_ms": [
+              922.9087999992771,
+              1205.5643000057898
+            ],
+            "median_kernel_ms": 414.0625,
+            "median_user_ms": 554.6875,
+            "median_cpu_ms": 976.5625,
+            "median_private_commit_bytes": 254152704.0
+          },
+          "candidate": {
+            "n": 8,
+            "median_wall_ms": 869.6051500010071,
+            "range_wall_ms": [
+              815.9999999916181,
+              987.8304999874672
+            ],
+            "median_kernel_ms": 257.8125,
+            "median_user_ms": 578.125,
+            "median_cpu_ms": 835.9375,
+            "median_private_commit_bytes": 256923648.0
+          },
+          "sibling_to_combined_reduction": 0.13222979349506625,
+          "median_reduction": 0.21566535915043028,
+          "block_reductions": [
+            0.21126696644542386,
+            0.21205319568660197,
+            0.2260891333868449,
+            0.1867330817194972
+          ]
+        }
+      },
+      "exclusions": [],
+      "compiles": 90,
+      "image_checks": 90
+    },
+    "confirmation": {
+      "subjects": {
+        "length": {
+          "baseline": {
+            "n": 8,
+            "median_wall_ms": 715.3857999946922,
+            "range_wall_ms": [
+              525.8794999972451,
+              1205.9785000019474
+            ],
+            "median_kernel_ms": 437.5,
+            "median_user_ms": 226.5625,
+            "median_cpu_ms": 656.25,
+            "median_private_commit_bytes": 212236288.0
+          },
+          "sibling": {
+            "n": 8,
+            "median_wall_ms": 622.4024500043015,
+            "range_wall_ms": [
+              510.7875999965472,
+              731.3677000056487
+            ],
+            "median_kernel_ms": 375.0,
+            "median_user_ms": 179.6875,
+            "median_cpu_ms": 562.5,
+            "median_private_commit_bytes": 212215808.0
+          },
+          "candidate": {
+            "n": 8,
+            "median_wall_ms": 467.1142000006512,
+            "range_wall_ms": [
+              420.98450000048615,
+              656.8524000031175
+            ],
+            "median_kernel_ms": 250.0,
+            "median_user_ms": 179.6875,
+            "median_cpu_ms": 429.6875,
+            "median_private_commit_bytes": 220573696.0
+          },
+          "sibling_to_combined_reduction": 0.24949813420974987,
+          "median_reduction": 0.34704574789698517,
+          "block_reductions": [
+            0.24898446404414643,
+            0.39102640845489456,
+            0.4389487769989926,
+            0.18251627477796628
+          ]
+        },
+        "dispatch": {
+          "baseline": {
+            "n": 8,
+            "median_wall_ms": 721.6312500022468,
+            "range_wall_ms": [
+              560.9106999909272,
+              1026.0391999909189
+            ],
+            "median_kernel_ms": 468.75,
+            "median_user_ms": 164.0625,
+            "median_cpu_ms": 648.4375,
+            "median_private_commit_bytes": 212744192.0
+          },
+          "sibling": {
+            "n": 8,
+            "median_wall_ms": 605.2389499964193,
+            "range_wall_ms": [
+              527.2729999996955,
+              978.4210000070743
+            ],
+            "median_kernel_ms": 437.5,
+            "median_user_ms": 195.3125,
+            "median_cpu_ms": 593.75,
+            "median_private_commit_bytes": 212746240.0
+          },
+          "candidate": {
+            "n": 8,
+            "median_wall_ms": 443.46704999770736,
+            "range_wall_ms": [
+              382.24560000526253,
+              515.398899995489
+            ],
+            "median_kernel_ms": 242.1875,
+            "median_user_ms": 156.25,
+            "median_cpu_ms": 429.6875,
+            "median_private_commit_bytes": 212733952.0
+          },
+          "sibling_to_combined_reduction": 0.2672860033209511,
+          "median_reduction": 0.3854658456152964,
+          "block_reductions": [
+            0.3540260894980608,
+            0.24125155867438752,
+            0.49763878537364514,
+            0.4342988494843212
+          ]
+        },
+        "stack32": {
+          "baseline": {
+            "n": 8,
+            "median_wall_ms": 1024.7468999950797,
+            "range_wall_ms": [
+              915.9492999897338,
+              1186.5956999972695
+            ],
+            "median_kernel_ms": 453.125,
+            "median_user_ms": 531.25,
+            "median_cpu_ms": 968.75,
+            "median_private_commit_bytes": 254111744.0
+          },
+          "sibling": {
+            "n": 8,
+            "median_wall_ms": 923.6952499923063,
+            "range_wall_ms": [
+              859.1476000001421,
+              1203.9179999992484
+            ],
+            "median_kernel_ms": 375.0,
+            "median_user_ms": 515.625,
+            "median_cpu_ms": 875.0,
+            "median_private_commit_bytes": 254103552.0
+          },
+          "candidate": {
+            "n": 8,
+            "median_wall_ms": 822.9669500069576,
+            "range_wall_ms": [
+              748.376499992446,
+              1164.984999995795
+            ],
+            "median_kernel_ms": 226.5625,
+            "median_user_ms": 546.875,
+            "median_cpu_ms": 781.25,
+            "median_private_commit_bytes": 256888832.0
+          },
+          "sibling_to_combined_reduction": 0.10904927787188223,
+          "median_reduction": 0.19690710944243006,
+          "block_reductions": [
+            0.1678888713430119,
+            0.26226266213059457,
+            0.11473200499583902,
+            0.10486603048059984
+          ]
+        }
+      },
+      "exclusions": [],
+      "compiles": 90,
+      "image_checks": 90
+    }
+  },
+  "qualification": {
+    "id": "56dfa3a4e4bf4dbba0d9d4e1923be129",
+    "check": "custody-composition-experiment",
+    "revision": "3cd59926410ee48793ccf652a46e181fa6e2c6e2",
+    "exit": 0,
+    "invalidations": [],
+    "receipt": {
+      "path": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.records\\56dfa3a4e4bf4dbba0d9d4e1923be129.json",
+      "sha256": "81ba58e71fad4b7d7d44518524cc0d64db2c3fc1638302a48f4b0d12fe7f2990"
+    }
+  },
+  "bound_output_files": 658,
+  "build_test_chain": [
+    {
+      "step": "build",
+      "command": [
+        "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\wiki\\drafts\\measurements\\windows_custody_composition_2026_10_29\\build.py",
+        "candidate"
+      ],
+      "exit": 0
+    },
+    {
+      "step": "custody-tests",
+      "command": [
+        "mbx",
+        "nextest",
+        "run",
+        "--release",
+        "--locked",
+        "-p",
+        "package-source",
+        "--lib",
+        "--target-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\parallelism-target",
+        "-E",
+        "test(sibling_walk) | test(custody::tests::windows_ancestry::)"
+      ],
+      "exit": 0
+    },
+    {
+      "step": "clippy",
+      "command": [
+        "mbx",
+        "clippy",
+        "--release",
+        "--locked",
+        "-p",
+        "package-source",
+        "--lib",
+        "--target-dir",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\parallelism-sweep\\build\\parallelism-target"
+      ],
+      "exit": 0
+    },
+    {
+      "step": "qualification-amend",
+      "command": [
+        "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+        "tools/qualification.py",
+        "amend",
+        "--base",
+        "3b3cbfed2aa3de2d33691d258297bafa3b202687",
+        "--config",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\windows-custody-composition\\qualification-config.json",
+        "--reason",
+        "Neither standalone traversal established a stable large latency win. New original/sibling/combined comparison with fresh caches and direct controls, no additive percentage inference. Preserve all earlier source-bound receipts.",
+        "--state",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.json",
+        "--revision",
+        "15"
+      ],
+      "exit": 0
+    },
+    {
+      "step": "qualification-assess",
+      "command": [
+        "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+        "tools/qualification.py",
+        "assess",
+        "--base",
+        "3b3cbfed2aa3de2d33691d258297bafa3b202687",
+        "--state",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.json",
+        "--revision",
+        "16"
+      ],
+      "exit": 0
+    },
+    {
+      "step": "qualification-run",
+      "command": [
+        "C:\\Users\\User\\AppData\\Roaming\\uv\\python\\cpython-3.15-windows-x86_64-none\\python.exe",
+        "tools/qualification.py",
+        "run",
+        "--check",
+        "custody-composition-experiment",
+        "--state",
+        "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\qualification-state.json",
+        "--revision",
+        "17"
+      ],
+      "exit": 0
+    }
+  ],
+  "no_new_publication_authorized": true,
+  "no_full_corpus_or_foreign_host_runtime": true,
+  "producers": {
+    "baseline": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\native-queue-landing\\candidate\\producer\\omega.exe",
+      "sha256": "808ee3ff1725341e2612c5279e9072741a53c2c2201208f695772ee61c46b4e8",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "3"
+      },
+      "source_revision": "19554817237e17c4a003286d916842aaa23a24b4"
+    },
+    "sibling": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\windows-sibling-custody\\candidate\\producer\\omega.exe",
+      "sha256": "32c4253867e6448e601f9691476bc5258a8e0baa34256bc5d0ee61ae0d1fdefe",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "3"
+      },
+      "source_revision": "0e5382e807d02b5cbf1ccecf5015441e8768bdab"
+    },
+    "candidate": {
+      "binary": "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\native-queue-landing\\build\\windows-custody-composition\\candidate\\producer\\omega.exe",
+      "sha256": "e6012e35728b6c892dfa1211b44d87bc520bbaab023098ebabde9fedd5db9aa8",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "3"
+      },
+      "source_revision": "3cd59926410ee48793ccf652a46e181fa6e2c6e2"
+    }
+  },
+  "quality": {
+    "qualification": {
+      "validation_observations": 18,
+      "controls": 6
+    },
+    "lookup-controls": {
+      "validation_observations": 0,
+      "controls": 5
+    },
+    "junction-controls": {
+      "validation_observations": 0,
+      "controls": 4
+    }
+  },
+  "focused_windows_custody_tests": 8,
+  "predeclared_large_win_acceptance": {
+    "comparison": true,
+    "confirmation": true
+  },
+  "large_win_demonstrated": true,
+  "decision": "Retained locally as a scoped substantial Windows warm whole-compile win; direct three-producer comparison and independent confirmation satisfy the predeclared gate, with fresh combined-producer quality checks. No additive percentages, latest-main requalification, foreign-host qualification or publication is inferred."
+}

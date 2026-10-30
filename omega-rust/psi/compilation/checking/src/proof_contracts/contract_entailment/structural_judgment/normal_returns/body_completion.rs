@@ -141,8 +141,8 @@ impl<'program> StructuralJudge<'program> {
                 if let Some(result) = &result {
                     judge.assume_normal_equation(result.clone(), arm.value.clone());
                 }
-                for (coordinate, value) in post_storage.iter().flatten() {
-                    judge.retain_storage_value(coordinate.clone(), value.clone(), false);
+                for storage in post_storage.iter().flatten() {
+                    judge.install_post_call_storage(scope.1, storage.clone());
                 }
                 std::sync::Arc::make_mut(&mut judge.normal_results)
                     .push((expression, arm.value.clone()));

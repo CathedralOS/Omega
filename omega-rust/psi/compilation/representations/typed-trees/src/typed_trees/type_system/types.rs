@@ -8,6 +8,7 @@ use crate::name::Identifier;
 use crate::typed_trees::remapped;
 
 mod copies;
+pub use copies::TypeExpressionCopy;
 mod display;
 mod substitution;
 

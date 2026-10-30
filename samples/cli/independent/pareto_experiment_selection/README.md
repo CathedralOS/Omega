@@ -96,7 +96,7 @@ Build and run it from the repository root:
 
 ```sh
 mbx build --release --manifest-path samples/cli/independent/pareto_experiment_selection/validation/Cargo.toml --target-dir samples/cli/independent/pareto_experiment_selection/build/rust-validation
-samples/cli/independent/pareto_experiment_selection/build/rust-validation/release/ind11-terminal-validation "$PWD/samples/cli/independent/pareto_experiment_selection"
+samples/cli/independent/pareto_experiment_selection/build/rust-validation/release/ind11-terminal-validation --evidence "$PWD/samples/cli/independent/pareto_experiment_selection"
 ```
 
 Use `cargo` if `mbx` is unavailable. Run one Rust build and one Omega execution

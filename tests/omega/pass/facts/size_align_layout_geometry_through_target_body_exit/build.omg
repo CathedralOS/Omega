@@ -1,13 +1,12 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedComputeGeometry, CheckedComputeGeometry>(builder, linux_x86_64);
+    Build::select_provider<SelectedComputeGeometry, CheckedComputeGeometry>(builder, linux_arm64);
+    Build::select_provider<SelectedComputeGeometry, CheckedComputeGeometry>(builder, macos_arm64);
+    Build::select_provider<SelectedComputeGeometry, CheckedComputeGeometry>(builder, windows_x86_64);
+
     Build::application(builder, "size_align_layout_geometry_target_body");
-    Build::select_provider<Geometry, OtherGeometry>(builder, windows_x86_64);
-    Build::select_provider<Geometry, OtherGeometry>(builder, linux_x86_64);
-    Build::select_provider<Geometry, OtherGeometry>(builder, linux_arm64);
-    Build::select_provider<Geometry, ArmGeometry>(builder, macos_arm64);
-    Build::select_provider<Geometry, OtherGeometry>(builder, macos_x86_64);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_x86_64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
 }

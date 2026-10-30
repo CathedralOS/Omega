@@ -134,6 +134,7 @@ impl TypedTrees {
             let applications = self.selected_conformance_applications(
                 lexical_owner,
                 dispatch.selection_application,
+                dispatch.evidence_parameter,
                 dispatch.requirement,
                 dispatch.application_report_fingerprint,
                 dispatch.application_commitment,

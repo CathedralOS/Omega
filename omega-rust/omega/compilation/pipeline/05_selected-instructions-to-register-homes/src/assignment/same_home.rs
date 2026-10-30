@@ -72,37 +72,34 @@ impl SameHomeComponents {
         }
     }
 
+    /// The member-table row a register roots, when it roots one. Every reader
+    /// of the table needs exactly this lookup, so the missing/absent lead is
+    /// resolved once here instead of once per reader.
     #[inline]
-    pub(super) fn leader(&self, register: VirtualRegisterId) -> VirtualRegisterId {
+    fn row(&self, register: VirtualRegisterId) -> Option<usize> {
         self.root_by_id
             .get(register.0 as usize)
-            .copied()
-            .filter(|&r| r != u32::MAX)
-            .map_or(register, |r| self.registers[r as usize])
+            .filter(|&&r| r != u32::MAX)
+            .map(|&r| r as usize)
+    }
+
+    #[inline]
+    pub(super) fn leader(&self, register: VirtualRegisterId) -> VirtualRegisterId {
+        self.row(register).map_or(register, |r| self.registers[r])
     }
 
     #[inline]
     pub(super) fn has_multiple_members(&self, register: VirtualRegisterId) -> bool {
-        let Some(&r) = self
-            .root_by_id
-            .get(register.0 as usize)
-            .filter(|&&r| r != u32::MAX)
-        else {
+        let Some(r) = self.row(register) else {
             return false;
         };
-        let r = r as usize;
         self.member_offsets[r + 1] - self.member_offsets[r] > 1
     }
 
     pub(super) fn members(&self, register: VirtualRegisterId) -> Vec<VirtualRegisterId> {
-        let Some(&r) = self
-            .root_by_id
-            .get(register.0 as usize)
-            .filter(|&&r| r != u32::MAX)
-        else {
+        let Some(r) = self.row(register) else {
             return vec![register];
         };
-        let r = r as usize;
         let start = self.member_offsets[r] as usize;
         let end = self.member_offsets[r + 1] as usize;
         self.member_targets[start..end].to_vec()
@@ -114,15 +111,10 @@ impl SameHomeComponents {
         register: VirtualRegisterId,
         mut f: impl FnMut(VirtualRegisterId),
     ) {
-        let Some(&r) = self
-            .root_by_id
-            .get(register.0 as usize)
-            .filter(|&&r| r != u32::MAX)
-        else {
+        let Some(r) = self.row(register) else {
             f(register);
             return;
         };
-        let r = r as usize;
         let start = self.member_offsets[r] as usize;
         let end = self.member_offsets[r + 1] as usize;
         for &member in &self.member_targets[start..end] {

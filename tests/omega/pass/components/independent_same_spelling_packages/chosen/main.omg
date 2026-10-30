@@ -1,0 +1,10 @@
+module main;
+use api::main::Value;
+use other::main::touch;
+public Provider satisfies Value {
+    machine get() -> u64 {
+        let value: u64 = touch();
+        ((41u64 as u64 in Wrapping) + (value as u64 in Wrapping)) as u64
+    }
+}
+public machine component_entry() reaches Value invokes Value; { let value: u64 = Value::get(); }

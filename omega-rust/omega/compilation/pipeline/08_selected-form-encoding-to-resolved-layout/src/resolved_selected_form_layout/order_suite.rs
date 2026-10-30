@@ -66,7 +66,22 @@ fn returned(source: u32) -> SelectedTerminator {
         psi_return_edge: EdgeId::new(u64::from(source) + 1).unwrap(),
     }
 }
-fn function(terminators: Vec<SelectedTerminator>) -> SelectedFunction {
+pub(crate) fn block_with(
+    id: u32,
+    instructions: Vec<SelectedInstruction>,
+    terminator: SelectedTerminator,
+) -> SelectedBlock {
+    SelectedBlock {
+        id: SelectedBlockId(id),
+        origin: selected_instructions::SelectedBlockOrigin::Source(
+            BlockId::new(u64::from(id) + 1).unwrap(),
+        ),
+        instructions,
+        terminator,
+    }
+}
+
+pub(crate) fn function_from_blocks(blocks: Vec<SelectedBlock>) -> SelectedFunction {
     SelectedFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
@@ -81,19 +96,18 @@ fn function(terminators: Vec<SelectedTerminator>) -> SelectedFunction {
         boundary_settlements: Vec::new(),
         entry_block: SelectedBlockId(0),
         virtual_registers: Vec::new(),
-        blocks: terminators
+        blocks: blocks.into(),
+    }
+}
+
+fn function(terminators: Vec<SelectedTerminator>) -> SelectedFunction {
+    function_from_blocks(
+        terminators
             .into_iter()
             .enumerate()
-            .map(|(position, terminator)| SelectedBlock {
-                id: SelectedBlockId(position as u32),
-                origin: selected_instructions::SelectedBlockOrigin::Source(
-                    BlockId::new(position as u64 + 1).unwrap(),
-                ),
-                instructions: Vec::new(),
-                terminator,
-            })
+            .map(|(position, terminator)| block_with(position as u32, Vec::new(), terminator))
             .collect(),
-    }
+    )
 }
 fn order(derive: Derive, function: &SelectedFunction) -> Vec<u32> {
     derive(

@@ -9,6 +9,7 @@
 //! their original identity or reject; host bytes cannot manufacture permissions.
 
 mod borrowed_completion;
+mod byte_views;
 pub(crate) mod contents;
 mod original_residence;
 mod reference_outputs;
@@ -21,6 +22,7 @@ use crate::values::TerminalStructuralValue;
 use std::sync::Arc;
 use terminal_psi::{StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration};
 
+pub use byte_views::TerminalBoundaryByteViewBuffer;
 pub use contents::{
     TerminalBoundaryReferenceSelection, TerminalBoundaryStorageValue,
     TerminalBoundaryStructuralBuffer, TerminalStorageContents,
@@ -32,6 +34,7 @@ pub use contents::{
 pub enum TerminalBoundaryStorageBuffer {
     Scalar(TerminalBoundaryScalarBuffer),
     Structural(TerminalBoundaryStructuralBuffer),
+    ByteView(TerminalBoundaryByteViewBuffer),
 }
 
 impl TerminalBoundaryStorageBuffer {
@@ -44,6 +47,11 @@ impl TerminalBoundaryStorageBuffer {
         access: terminal_psi::StructuralAccess,
     ) -> Result<TerminalBoundaryReferenceSelection, crate::effects::TerminalEffectRejection> {
         let (identity, argument_index, available) = match self {
+            Self::ByteView(_) => {
+                return Err(crate::effects::TerminalEffectRejection::new(
+                    "byte-view input cannot select an untyped reference output",
+                ));
+            }
             Self::Scalar(buffer) => (
                 buffer.capture_identity(),
                 buffer.argument_index(),
@@ -84,6 +92,7 @@ struct StructuralLoanBinding {
     source_path: Vec<terminal_psi::StructuralPathSegment>,
     access: terminal_psi::StructuralAccess,
     referent: TerminalStructuralValue,
+    aggregate: Option<crate::reference::AggregateBacking>,
     /// Preservation promised for this exact formal, captured before dispatch.
     /// It can retain an existing membership, never introduce one from C bytes.
     normal_qualifications: Vec<crate::effects::normal_qualifications::CapturedNormalQualification>,
@@ -116,6 +125,7 @@ pub(crate) struct BoundaryStorageInputs {
     structural: Vec<StructuralLoanBinding>,
     owned: Vec<OwnedPayloadSnapshot>,
     reference_inputs: Vec<CapturedReferenceInput>,
+    byte_views: Vec<byte_views::BoundaryByteViewBinding>,
 }
 
 /// Every storage capture publishes the same private reference-selection
@@ -135,6 +145,7 @@ impl BoundaryStorageInputs {
             && self.structural.is_empty()
             && self.owned.is_empty()
             && self.reference_inputs.is_empty()
+            && self.byte_views.is_empty()
     }
 
     pub(crate) fn capture_scalar(
@@ -165,6 +176,7 @@ impl BoundaryStorageInputs {
         argument: &StructuralArgument,
         referent: &TerminalStructuralValue,
         array_loan: Option<&crate::element_views::ElementView>,
+        aggregate: Option<&crate::reference::AggregateBacking>,
         argument_index: usize,
         normal_guarantees: &[terminal_psi::StructuralDomainRequirement],
     ) -> Result<(), TerminalInterpretError> {
@@ -180,6 +192,7 @@ impl BoundaryStorageInputs {
                 argument.place,
                 referent,
                 array_loan,
+                aggregate,
                 parameter.access,
                 &leaves,
                 &[],
@@ -246,6 +259,7 @@ impl BoundaryStorageInputs {
             argument.place,
             referent,
             array_loan,
+            aggregate,
             parameter.access,
             &leaves,
             &normal_qualifications,
@@ -270,6 +284,7 @@ impl BoundaryStorageInputs {
             source_path: argument.path.clone(),
             access: parameter.access,
             referent: referent.clone(),
+            aggregate: aggregate.cloned(),
             normal_qualifications,
             original,
             leaves,
@@ -303,6 +318,11 @@ impl BoundaryStorageInputs {
         }
         for buffer in &self.buffers {
             let (identity, argument_index, access) = match buffer {
+                TerminalBoundaryStorageBuffer::ByteView(_) => {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "byte-view reference outputs require an exact descriptor lifetime contract",
+                    ));
+                }
                 TerminalBoundaryStorageBuffer::Scalar(buffer) => (
                     buffer.capture_identity(),
                     buffer.argument_index(),
@@ -347,6 +367,7 @@ impl BoundaryStorageInputs {
         declaration: &terminal_psi::BoundaryMachineDeclaration,
         identity_cursor: &mut Option<u64>,
     ) -> Result<(), TerminalInterpretError> {
+        self.validate_byte_views(execution)?;
         let scalar_buffers: Vec<_> = self
             .buffers
             .iter()
@@ -415,14 +436,16 @@ impl BoundaryStorageInputs {
     }
 
     pub(crate) fn commit(
-        self,
+        mut self,
         execution: &mut TerminalExecution,
     ) -> Result<(), TerminalInterpretError> {
+        self.commit_byte_views(execution)?;
         let mut scalars = Vec::new();
         for buffer in self.buffers {
             match buffer {
                 TerminalBoundaryStorageBuffer::Scalar(buffer) => scalars.push(buffer),
-                TerminalBoundaryStorageBuffer::Structural(_) => {}
+                TerminalBoundaryStorageBuffer::Structural(_)
+                | TerminalBoundaryStorageBuffer::ByteView(_) => {}
             }
         }
         self.scalars.commit(execution, scalars)?;

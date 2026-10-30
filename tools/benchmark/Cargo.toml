@@ -1,0 +1,34 @@
+[package]
+name = "omega-bench"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+default-run = "omega-bench"
+
+[features]
+fixtures = []
+allocation-observation = ["dep:allocation-observation"]
+
+[[bin]]
+name = "omega-bench-workload"
+path = "src/workloads.rs"
+
+[[bin]]
+name = "benchmark-probe"
+path = "tests/fixtures/probe.rs"
+required-features = ["fixtures"]
+test = false
+
+[[test]]
+name = "runner"
+required-features = ["fixtures"]
+
+[dependencies]
+allocation-observation = { path = "allocation-observation", optional = true }
+bounded-process = { path = "../../omega-rust/omega/foundation/bounded-process" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
+sha2 = "0.10"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

@@ -7,6 +7,7 @@ use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
 use terminal_psi::{NominalDeclarationIdentity, NumericRealization, TerminalIdentityTable};
 
+mod boundary_review;
 mod prepared;
 pub use prepared::PreparedNumericRealizationDeclarations;
 
@@ -18,6 +19,11 @@ pub struct NumericRealizationDeclarations {
 }
 
 impl NumericRealizationDeclarations {
+    /// Exact source-to-nominal correspondence owned by this prepared catalogue.
+    pub fn correspondence(&self) -> &[(SymbolHandle, NominalDeclarationIdentity)] {
+        &self.declarations
+    }
+
     /// Exact retained numeric schema; absence grants no alternative execution.
     pub fn has_requirement_schema(&self, symbol: SymbolHandle) -> bool {
         let Some(nominal) = self.nominal(symbol) else {

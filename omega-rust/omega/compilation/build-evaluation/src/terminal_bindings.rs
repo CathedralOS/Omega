@@ -349,16 +349,23 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         Ok(false)
     }
 
-    fn storage_arguments(&self, boundary: semantic_vocabulary::BoundaryMachineId) -> &[usize] {
-        if self
-            .host
-            .native_schemas
-            .iter()
-            .any(|(_, selected, _)| *selected == boundary)
-        {
-            &[0]
-        } else {
-            &[]
+    fn storage_requirements(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        _arguments: &[terminal_interpreter::TerminalScalarValue],
+    ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
+        terminal_interpreter::TerminalCallStorageRequirements {
+            original: false,
+            arguments: if self
+                .host
+                .native_schemas
+                .iter()
+                .any(|(_, selected, _)| *selected == boundary)
+            {
+                &[0]
+            } else {
+                &[]
+            },
         }
     }
 

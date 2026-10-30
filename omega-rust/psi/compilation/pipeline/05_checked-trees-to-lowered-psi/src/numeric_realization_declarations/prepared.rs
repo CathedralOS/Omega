@@ -42,6 +42,13 @@ impl std::ops::Deref for PreparedNumericRealizationDeclarations {
 }
 
 impl PreparedNumericRealizationDeclarations {
+    /// Borrow complete checked eligibility independently from selected demand.
+    pub fn boundary_provider_review(
+        &self,
+    ) -> language_semantics::boundary_provider_review::BoundaryProviderReview<'_> {
+        super::boundary_review::prepare(&self.checked.facts, &self.declarations)
+    }
+
     /// Prepare source declarations without selecting a target or granting execution.
     pub fn prepare(
         checked: Arc<CheckedTrees>,

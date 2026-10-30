@@ -1,0 +1,35 @@
+{
+  "fixed_base": "e91e31365edf6e760f6199a04d444e727c902cc0",
+  "baseline_revision": "3e0d10796805c66c16ca0a2499c65d399de89522",
+  "candidate_revision": "9faf48f97ab27e2be5dce33d3901826be50c066c",
+  "order": [
+    "baseline",
+    "candidate",
+    "candidate",
+    "baseline"
+  ],
+  "seconds": {
+    "baseline": [
+      93.69704769999953,
+      85.80366599999252
+    ],
+    "candidate": [
+      50.88560199999483,
+      53.954011199995875
+    ]
+  },
+  "median_seconds": {
+    "baseline": 89.75035684999602,
+    "candidate": 52.419806599995354
+  },
+  "reduction_percent": 41.59376247650243,
+  "unchanged_products": {
+    "omega-program.exe": "6cbcee843debabdf0b79d4eb3d8ef6003cbe25960d3109e5f6f54a5c269dd3f5",
+    "program.oterm": "85c7ffa43024836a465f40f9e5f92f8920be4fae557290b538999c86a2178fce"
+  },
+  "unchanged_lock_without_compiler_identity_sha256": "882a877bea71189a94f4e53a8607fe3a68041655fd1448813d6e40869ef87390",
+  "quality_cases": 56,
+  "fresh_engine_pairs": 26,
+  "intended_refusals": 30,
+  "compiler_input_classification": "Invocation-local evidence indexing; no language or package policy change."
+}

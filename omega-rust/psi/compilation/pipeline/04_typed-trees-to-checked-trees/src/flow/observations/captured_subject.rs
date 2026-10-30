@@ -254,6 +254,7 @@ fn completed_case_subject(
         capture,
         reference,
         projection,
+        ..
     } = super::super::stored_values::at_snapshot(
         program,
         control,
@@ -542,6 +543,7 @@ fn trace_captured_subject_refusal(
                     capture,
                     reference,
                     projection,
+                    ..
                 }) = super::super::stored_values::at_snapshot(
                     program,
                     control,

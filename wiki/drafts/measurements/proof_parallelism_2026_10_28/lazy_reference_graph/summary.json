@@ -1,0 +1,129 @@
+{
+  "cold": {
+    "pairs": [
+      {
+        "round": 0,
+        "original_wall": 17.240166800002044,
+        "candidate_wall": 18.058628099999623,
+        "wall_gain_percent": -4.74740940440021,
+        "original_cpu": 22.515625,
+        "candidate_cpu": 23.515625,
+        "cpu_gain_percent": -4.441360166551006
+      },
+      {
+        "round": 1,
+        "original_wall": 31.818689300002006,
+        "candidate_wall": 30.69701680000435,
+        "wall_gain_percent": 3.525200203634997,
+        "original_cpu": 40.703125,
+        "candidate_cpu": 36.859375,
+        "cpu_gain_percent": 9.443378119001919
+      },
+      {
+        "round": 2,
+        "original_wall": 23.050460600003134,
+        "candidate_wall": 27.576826500000607,
+        "wall_gain_percent": -19.63676986132267,
+        "original_cpu": 30.765625,
+        "candidate_cpu": 35.21875,
+        "cpu_gain_percent": -14.47435246317928
+      },
+      {
+        "round": 3,
+        "original_wall": 22.58158849999745,
+        "candidate_wall": 18.830574100000376,
+        "wall_gain_percent": 16.610941254188113,
+        "original_cpu": 29.0,
+        "candidate_cpu": 25.828125,
+        "cpu_gain_percent": 10.9375
+      },
+      {
+        "round": 4,
+        "original_wall": 25.239682299994456,
+        "candidate_wall": 18.338491999995313,
+        "wall_gain_percent": 27.34261952259462,
+        "original_cpu": 31.234375,
+        "candidate_cpu": 24.140625,
+        "cpu_gain_percent": 22.71135567783892
+      },
+      {
+        "round": 5,
+        "original_wall": 16.712474200001452,
+        "candidate_wall": 16.080939999999828,
+        "wall_gain_percent": 3.7788192965561587,
+        "original_cpu": 23.34375,
+        "candidate_cpu": 20.984375,
+        "cpu_gain_percent": 10.107095046854083
+      }
+    ],
+    "wall_wins": 4,
+    "cpu_wins": 4,
+    "median_wall_gain_percent": 3.652009750095578,
+    "median_cpu_gain_percent": 9.775236582928,
+    "supported": false
+  },
+  "warm": {
+    "pairs": [
+      {
+        "round": 0,
+        "original_wall": 9.928095100003702,
+        "candidate_wall": 7.4413776000001235,
+        "wall_gain_percent": 25.047277196233257,
+        "original_cpu": 9.5,
+        "candidate_cpu": 7.390625,
+        "cpu_gain_percent": 22.20394736842105
+      },
+      {
+        "round": 1,
+        "original_wall": 13.719673599996895,
+        "candidate_wall": 11.966935500000545,
+        "wall_gain_percent": 12.775362964879474,
+        "original_cpu": 13.609375,
+        "candidate_cpu": 11.53125,
+        "cpu_gain_percent": 15.269804822043628
+      },
+      {
+        "round": 2,
+        "original_wall": 12.458770000004733,
+        "candidate_wall": 11.48274500000116,
+        "wall_gain_percent": 7.834039796891693,
+        "original_cpu": 12.390625,
+        "candidate_cpu": 11.421875,
+        "cpu_gain_percent": 7.818411097099622
+      },
+      {
+        "round": 3,
+        "original_wall": 12.039320599993516,
+        "candidate_wall": 10.497587300000305,
+        "wall_gain_percent": 12.805816467700359,
+        "original_cpu": 11.984375,
+        "candidate_cpu": 10.34375,
+        "cpu_gain_percent": 13.689700130378096
+      },
+      {
+        "round": 4,
+        "original_wall": 7.6517233999984455,
+        "candidate_wall": 6.803240299996105,
+        "wall_gain_percent": 11.088784260059803,
+        "original_cpu": 7.703125,
+        "candidate_cpu": 6.84375,
+        "cpu_gain_percent": 11.156186612576064
+      },
+      {
+        "round": 5,
+        "original_wall": 7.168098800000735,
+        "candidate_wall": 6.534813599995687,
+        "wall_gain_percent": 8.834772199358957,
+        "original_cpu": 7.125,
+        "candidate_cpu": 6.484375,
+        "cpu_gain_percent": 8.991228070175438
+      }
+    ],
+    "wall_wins": 6,
+    "cpu_wins": 6,
+    "median_wall_gain_percent": 11.932073612469638,
+    "median_cpu_gain_percent": 12.42294337147708,
+    "supported": true
+  },
+  "promotion_supported": false
+}

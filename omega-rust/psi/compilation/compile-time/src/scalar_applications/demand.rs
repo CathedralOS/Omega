@@ -70,13 +70,17 @@ pub(super) fn discover(
                     let requirements = program
                         .execution_requirements(Some(&installation))
                         .map_err(|error| format!("scalar evaluation dependencies: {error:?}"))?;
-                    if !requirements.imports.is_empty()
-                        || !requirements.missing_providers.is_empty()
-                        || !requirements.external_completions.is_empty()
+                    if !requirements.missing_providers.is_empty()
+                        || !requirements.imports.is_empty()
                     {
+                        return Err(format!(
+                            "scalar evaluation requires exact authored selection before evaluation; missing providers: {:?}, external imports unavailable to constant execution: {:?}",
+                            requirements.missing_providers, requirements.imports,
+                        ));
+                    }
+                    if !requirements.external_completions.is_empty() {
                         return Err(
-                            "scalar evaluation needs an unavailable provider or external effect"
-                                .into(),
+                            "scalar evaluation needs an unavailable external completion".into()
                         );
                     }
                     extend_demand(&mut demanded, requirements.scalar_entry_conditions);

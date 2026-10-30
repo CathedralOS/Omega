@@ -1,0 +1,3 @@
+cannot compile admitted project: checked compilation failed for package `specification_result_without_guarantees` with 1 diagnostic(s)
+  error: cannot prove requires contract for specification call `restricted` in machine `checked` ensures contract: establish its selected precondition in an independently formed prior requires fact
+    in package `specification_result_without_guarantees`, \\?\C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\build\remaining-first-checking\cases\formation-replay-A-fail\input\main.omg:9:9

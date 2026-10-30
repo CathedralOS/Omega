@@ -1,0 +1,21 @@
+// Replacing a stored pointer does not preserve its old payload bound.
+// Expected rejection: cannot prove requires contract for call small
+data Payload { guard: u64; case Pending(count: u64); case Empty; }
+data Holder<'storage> { child: &'storage mut Payload; }
+machine small(payload: &mut Payload)
+requires payload in Payload::Pending, payload.count <= 7;
+{}
+machine replace<'storage>(holder: &mut Holder<'storage>, incoming: &'storage mut Payload)
+requires holder.child in Payload::Pending, holder.child.count <= 7;
+requires incoming in Payload::Pending;
+{
+    let saved: u64 = holder.child.count;
+    holder.child = incoming;
+    small(holder.child);
+}
+machine main() {
+    let mut before: Payload = Payload::Pending { guard: 827, count: 7 };
+    let mut after: Payload = Payload::Pending { guard: 827, count: 8 };
+    let mut holder: Holder = Holder { child: &mut before };
+    replace(&mut holder, &mut after);
+}

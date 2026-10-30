@@ -236,6 +236,10 @@ pub(super) fn transferred_paths(
     )
 }
 
+/// One statement's retirement view. Every query over the same statement
+/// shares these fields; a `Copy` value lets a caller rebind only the prefix,
+/// pending set, exit flag and returned holder it distinguishes.
+#[derive(Clone, Copy)]
 pub(super) struct Retirement<'a> {
     pub(super) program: &'a dyn ::validation::CheckingInput,
     pub(super) facts: &'a CheckFacts,
@@ -1212,6 +1216,16 @@ impl Retirement<'_> {
                             .is_none_or(|expression| captured.formation_expression == expression)
                         && captured.root == loan.root
                         && captured.incoming_reference == loan.incoming_reference
+                        && self
+                            .facts
+                            .borrow
+                            .access_segments
+                            .span(captured.incoming_owner_path)
+                            == self
+                                .facts
+                                .borrow
+                                .access_segments
+                                .span(loan.incoming_owner_path)
                         && captured.kind == loan.kind
                         && self.facts.borrow.access_segments.span(captured.segments)
                             == Some(segments)

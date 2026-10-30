@@ -64,33 +64,7 @@ pub fn prepare_selected_execution(
             &settlement.selected_provider_plan_facts,
         )?;
     }
-    let binding = provider_planning::bind_selected_provider_plan_facts(
-        &program,
-        &program.facts,
-        &provider_plans,
-        settlement.selected_provider_plan_facts,
-        &settlement.selected_provider_provenance,
-        settlement.root_grants,
-        settlement.authored_root_grants,
-    )?;
-    let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
-    let callback_placements =
-        provider_planning::calling_policy_plans::validate_nominal_callback_placement_bindings(
-            &program.typed,
-            &selected_provider_plan_facts,
-            &program.facts,
-            settlement.boundary_calling_plan_realizations,
-        )?;
-    let service_declarations = Arc::new(
-        provider_planning::service_declarations::ServiceDeclarations::prepare(
-            provider_planning::ProviderPlanningContext::new(
-                &program.typed,
-                source::DependencyScope::Product,
-            ),
-            settlement.boundary_calling_plan_realizations,
-            settlement.exact_toolchain_sources,
-        ),
-    );
+    // Prepare immutable checked declaration evidence before source-free binding.
     let numeric_realizations = settlement
         .external_declarations
         .get_or_init(|| {
@@ -113,6 +87,41 @@ pub fn prepare_selected_execution(
                 "external provider declarations: {error:?}"
             ))]
         })?;
+    let declarations = provider_planning::prepare_selected_plan_declarations(
+        &program,
+        &settlement.selected_provider_plan_facts,
+        &settlement.selected_provider_provenance,
+    );
+    let binding = provider_selection::bind_selected_provider_plan_facts(
+        provider_selection::BoundaryProviderAdmission {
+            review: &numeric_realizations.boundary_provider_review(),
+            identities: &numeric_realizations.identities,
+            numeric_realizations: &numeric_realizations.conformances,
+        },
+        program.facts.semantic.admitted_qualification_issuers(),
+        &provider_plans,
+        settlement.selected_provider_plan_facts,
+        declarations,
+        settlement.root_grants,
+        settlement.authored_root_grants,
+    )?;
+    let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
+    let callback_roots = provider_planning::calling_policy_plans::select_nominal_callback_roots(
+        &program.typed,
+        &selected_provider_plan_facts,
+        &program.facts,
+        settlement.boundary_calling_plan_realizations,
+    )?;
+    let service_declarations = Arc::new(
+        provider_planning::service_declarations::ServiceDeclarations::prepare(
+            provider_planning::ProviderPlanningContext::new(
+                &program.typed,
+                source::DependencyScope::Product,
+            ),
+            settlement.boundary_calling_plan_realizations,
+            settlement.exact_toolchain_sources,
+        ),
+    );
     let native_provider_sources = provider_planning::prepare_native_provider_sources(
         provider_planning::ProviderPlanningContext::new(
             &program.typed,
@@ -178,7 +187,7 @@ pub fn prepare_selected_execution(
         x86_scalar_fma_provider: settlement.x86_scalar_fma_provider,
         selected_provider_plan_facts,
         selected_provider_grants,
-        callback_placements,
+        callback_roots,
         accepted_template_classifications,
         selected_provider_provenance: settlement.selected_provider_provenance,
         resolved_semantic_bindings,

@@ -116,7 +116,7 @@ pub(crate) fn substitute_const_index_expression_parameters(
             program,
             binding.expect("complete const specialization"),
             &[],
-        );
+        )?;
         let carrier = if let Some((index, _)) = candidate
             .template
             .type_parameters
@@ -131,9 +131,9 @@ pub(crate) fn substitute_const_index_expression_parameters(
                 program,
                 candidate.type_bindings[index].expect("complete type specialization"),
                 &[],
-            )
+            )?
         } else {
-            crate::monomorphization::copy_type_reference(source, program, *carrier, &[])
+            crate::monomorphization::copy_type_reference(source, program, *carrier, &[])?
         };
         replacements.push((*parameter, binding, carrier));
     }

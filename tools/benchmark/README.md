@@ -1,5 +1,17 @@
 # Benchmark harness
 
+For new paired compiler and runtime experiments, use the Rust
+[`omega-bench` tooling](comparison.md). It runs paired comparisons and explicit
+suites, validates retained evidence, checks regression budgets, compares compatible
+histories, and captures separate phase, allocation, WPR or Linux perf profiles.
+It retains warmups, alternates baseline/candidate order, checks authored results,
+and records uncertainty, CPU, memory and every observation. Build it with
+`mbx build -p omega-bench`.
+
+The Python workflow below retains the existing optimizer-selection records and
+host matrix. Its record schema is separate from the Rust comparison journal;
+historical measurements are not silently converted into paired experiments.
+
 `benchmark.py` measures the reference compiler on a chosen subject and
 writes one versioned JSON record per (subject, target, exact rule
 selection) row under `records/`. It exists so optimizer work can cite
@@ -59,6 +71,13 @@ record. A failed runtime observation is not benchmark evidence, and
 `exit_code_match: false`.
 
 ## Package-review preparation
+
+`measure` records `metrics.package_preparation_ms` separately from compile time
+when the project lacks `omega.lock`. It includes update, review acceptance and
+resume. An already accepted lock records this leg as skipped; historical rows
+without it remain unknown. The dashboard keeps preparation seconds visible in
+the measurements table. This is one setup observation with uncontrolled file
+caches, not a cold-cache throughput measurement.
 
 Compiling a project that `depend()`s on packages requires the
 package-review gate to be settled first, otherwise every compile exits

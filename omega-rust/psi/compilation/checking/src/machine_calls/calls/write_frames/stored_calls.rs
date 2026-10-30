@@ -32,6 +32,8 @@ use instantiation::{aggregate_argument_sources, destination_source, instantiate}
 mod transfers;
 pub(super) use transfers::{apply, apply_transfer, public_effects};
 mod captured_inputs;
+mod result_reads;
+pub(super) use result_reads::completed_result_read_backing;
 mod case_generations;
 pub(super) use case_generations::CaseStorageEffect;
 mod expression_effects;

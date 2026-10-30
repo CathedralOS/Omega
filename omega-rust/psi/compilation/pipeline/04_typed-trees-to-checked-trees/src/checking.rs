@@ -539,6 +539,7 @@ fn check_program(
             validation::validate_boundary_calls(&checked)?;
             crate::operators::retain_boundary_body_candidates(&mut checked)
                 .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+            crate::operators::retain_provider_requirements(&mut checked);
             Ok(())
         },
     )?;

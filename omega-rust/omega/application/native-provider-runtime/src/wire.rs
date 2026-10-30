@@ -112,19 +112,29 @@ impl<'a> Cursor<'a> {
 }
 
 #[derive(Clone, Copy)]
+pub(crate) enum BorrowGeometry {
+    Fixed { extent: usize, alignment: usize },
+    ByteView,
+}
+
+#[derive(Clone, Copy)]
 pub(crate) struct Geometry {
     pub(crate) extent: usize,
     pub(crate) alignment: usize,
-    pub(crate) referent: Option<(usize, usize)>,
+    pub(crate) referent: Option<BorrowGeometry>,
 }
 impl Geometry {
     pub(crate) fn write(self, packet: &mut Packet) {
         packet.number(self.extent as u64);
         packet.number(self.alignment as u64);
-        packet.byte(u8::from(self.referent.is_some()));
-        if let Some((extent, alignment)) = self.referent {
-            packet.number(extent as u64);
-            packet.number(alignment as u64);
+        match self.referent {
+            None => packet.byte(0),
+            Some(BorrowGeometry::Fixed { extent, alignment }) => {
+                packet.byte(1);
+                packet.number(extent as u64);
+                packet.number(alignment as u64);
+            }
+            Some(BorrowGeometry::ByteView) => packet.byte(2),
         }
     }
     pub(crate) fn read(cursor: &mut Cursor<'_>) -> io::Result<Self> {
@@ -132,8 +142,12 @@ impl Geometry {
         let alignment = cursor.usize()?;
         let referent = match cursor.byte()? {
             0 => None,
-            1 => Some((cursor.usize()?, cursor.usize()?)),
-            _ => return Err(invalid("worker borrowed marker is not Boolean")),
+            1 => Some(BorrowGeometry::Fixed {
+                extent: cursor.usize()?,
+                alignment: cursor.usize()?,
+            }),
+            2 => Some(BorrowGeometry::ByteView),
+            _ => return Err(invalid("worker borrowed materialization is unknown")),
         };
         if extent > MAXIMUM_PACKET_BYTES
             || !alignment.is_power_of_two()
@@ -143,7 +157,11 @@ impl Geometry {
                 "worker value geometry exceeds the sponsor's native allocation budget",
             ));
         }
-        if let Some((size, align)) = referent {
+        if let Some(BorrowGeometry::Fixed {
+            extent: size,
+            alignment: align,
+        }) = referent
+        {
             if extent != 8
                 || alignment != 8
                 || size > MAXIMUM_PACKET_BYTES
@@ -154,6 +172,11 @@ impl Geometry {
                     "worker borrow geometry is outside the native pointer/home budget",
                 ));
             }
+        }
+        if matches!(referent, Some(BorrowGeometry::ByteView)) && (extent != 16 || alignment != 8) {
+            return Err(invalid(
+                "worker byte view is not an exact pointer/length pair",
+            ));
         }
         Ok(Self {
             extent,

@@ -229,7 +229,7 @@ impl TerminalExecution<'_> {
                     || values
                         .insert(
                             parameter.place,
-                            ByteSequenceBinding::Immutable(snapshot.detached_descriptor()),
+                            ByteSequenceBinding::Immutable(snapshot.owned_snapshot()),
                         )?
                         .is_some()
                 {

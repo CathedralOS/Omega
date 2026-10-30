@@ -83,6 +83,7 @@ pub(super) fn reference_local_borrow_loans(
             owner_path: Vec::new(),
             place: accesses::BorrowAccessPlace {
                 incoming_reference: Default::default(),
+                incoming_owner_path: Default::default(),
                 root: facts::PlaceRoot::Expression(local_data.initial_value),
                 segments: Vec::new(),
             },

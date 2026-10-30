@@ -1,0 +1,9 @@
+{
+  "schema": "omega-performance-suite/1",
+  "plans": [
+    "runtime/compute.windows.json",
+    "runtime/memory.windows.json",
+    "runtime/calls.windows.json",
+    "runtime/allocations.windows.json"
+  ]
+}

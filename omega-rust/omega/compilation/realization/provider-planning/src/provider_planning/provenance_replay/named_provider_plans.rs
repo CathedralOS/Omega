@@ -18,7 +18,7 @@ use effects::provider_plan::ProviderIdentityTable;
 struct NamedApplication<'program> {
     declaration: &'program Conformance,
     scope: AppliedTraitScope<'program>,
-    application: Option<&'program CapturedMachineApplication>,
+    capture: arena::Handle<CapturedMachineApplication>,
     identity: Option<String>,
 }
 
@@ -32,14 +32,14 @@ fn applications(context: ProviderPlanningContext<'_>) -> Vec<NamedApplication<'_
             applications.push(NamedApplication {
                 declaration,
                 scope,
-                application: None,
+                capture: arena::Handle::default(),
                 identity: None,
             });
         }
     }
     // Capture receipts arise from actual checked conformance applications.
     // Unexecuted Product recipes never seed captures or executable candidates.
-    for (_, capture) in program.captured_machine_applications.iter() {
+    for (capture_handle, capture) in program.captured_machine_applications.iter() {
         let Some(declaration) = program
             .conformance_by_symbol(capture.conformance_application.declaration)
             .filter(|declaration| context.contains(declaration.symbol))
@@ -67,7 +67,7 @@ fn applications(context: ProviderPlanningContext<'_>) -> Vec<NamedApplication<'_
         applications.push(NamedApplication {
             declaration,
             scope,
-            application: Some(capture),
+            capture: capture_handle,
             identity: Some(identity),
         });
     }
@@ -157,6 +157,12 @@ pub(super) fn derive(
             let mut provenance = ProviderPlanProvenance {
                 schema: ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
                 provider_type: Some(implementation.symbol),
+                named_application: Some(
+                    checked_trees::provider_declarations::NamedProviderApplication {
+                        declaration: implementation.symbol,
+                        capture: application.capture,
+                    },
+                ),
                 row_requirements: Vec::new(),
                 row_realizations: Vec::new(),
                 row_target_machine_origins: Vec::new(),
@@ -169,7 +175,7 @@ pub(super) fn derive(
                 if typed.machine_states(named).first()?.symbol != row.realization_state {
                     return None;
                 }
-                let realization = if application.application.is_some() {
+                let realization = if application.capture.is_valid() {
                     captured_row(typed, &application, row.realization_machine)?
                 } else {
                     row.realization_machine

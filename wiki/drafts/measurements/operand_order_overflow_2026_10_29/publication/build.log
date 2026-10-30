@@ -1,0 +1,335 @@
+   Compiling phase-profile v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\phase-profile)
+   Compiling encoded-scalar-plan v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\instruction-set-architectures\encoded-scalar-plan)
+   Compiling x86-encoding v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\instruction-set-architectures\x86-encoding)
+   Compiling package-compilation v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\packages\compilation-inputs)
+   Compiling artifacts v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\foundation\artifacts)
+   Compiling bounded-process v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\foundation\bounded-process)
+   Compiling omega v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\application\cli)
+   Compiling compiler-storage-derive v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\compiler-storage\derive)
+   Compiling syntax-trees-derive v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\representations\syntax-trees\derive)
+   Compiling optimization v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\optimization-selections)
+   Compiling platform-custody v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\foundation\platform-custody)
+   Compiling optimization-core v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\foundation\optimization-core)
+warning: use of deprecated method `std::sync::atomic::Atomic::<u64>::fetch_update`: renamed to `try_update` for consistency
+  --> omega-rust\omega\foundation\bounded-process\src\private_observation\windows.rs:60:10
+   |
+60 |         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |          ^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+help: replace the use of the deprecated method
+   |
+60 -         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+60 +         .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+   |
+
+   Compiling resolver-execution v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\packages\resolver-execution)
+   Compiling compiler-storage v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\compiler-storage)
+warning: `bounded-process` (lib) generated 1 warning (run `cargo fix --lib -p bounded-process` to apply 1 suggestion)
+   Compiling compiler v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\driver)
+   Compiling arena v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\arena)
+   Compiling numerics v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\numerics)
+   Compiling extents v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\extents)
+   Compiling filesystem-authority v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\filesystem-authority)
+   Compiling semantic-vocabulary v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\semantic-vocabulary)
+   Compiling language-core v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\language-core)
+   Compiling build-time-values v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\build-time-values)
+   Compiling source v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\source)
+   Compiling layout-plans v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\layout-plans)
+   Compiling evaluation-accounting v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\evaluation-accounting)
+   Compiling symbols v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\symbols)
+   Compiling diagnostics v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\diagnostics)
+   Compiling tokens v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\representations\tokens)
+   Compiling package-source v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\packages\source-acquisition)
+   Compiling target v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\target)
+   Compiling syntax-trees v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\representations\syntax-trees)
+   Compiling build-output v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\packages\build-output)
+   Compiling source-files-to-tokens v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\pipeline\00_source-files-to-tokens)
+   Compiling access-plans v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\access-plans)
+   Compiling post-handoff-writer-plan v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\plans\post-handoff-writer-plan)
+warning: unused import: `verify_macos_cache_ancestor_acl_custody`
+ --> omega-rust\omega\packages\source-acquisition\src\custody\tree.rs:8:50
+  |
+8 |     verify_capability_cache_node_owner_and_mode, verify_macos_cache_ancestor_acl_custody,
+  |                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling runtime-abi v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\runtime\runtime-abi)
+   Compiling register-model v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\register-model)
+   Compiling language-semantics v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\language-semantics)
+warning: function `retained_symlink_target` is never used
+   --> omega-rust\omega\packages\build-output\src\materialization\mod.rs:220:4
+    |
+220 | fn retained_symlink_target(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `verify_macos_cache_ancestor_acl_custody` is never used
+   --> omega-rust\omega\packages\source-acquisition\src\custody\platform.rs:358:15
+    |
+358 | pub(crate) fn verify_macos_cache_ancestor_acl_custody(
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `build-output` (lib) generated 1 warning
+   Compiling terminal-psi v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\representations\terminal-psi)
+   Compiling flow-effects v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\foundation\flow-effects)
+   Compiling symbol-resolved-trees v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\representations\symbol-resolved-trees)
+warning: `package-source` (lib) generated 2 warnings (run `cargo fix --lib -p package-source` to apply 1 suggestion)
+   Compiling typed-trees v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\representations\typed-trees)
+   Compiling tokens-to-syntax-trees v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\pipeline\01_tokens-to-syntax-trees)
+   Compiling syntax-trees-to-symbol-resolved-trees v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\pipeline\02_syntax-trees-to-symbol-resolved-trees)
+   Compiling proof-admission v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\proof\admission)
+   Compiling calling-conventions v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\calling-conventions)
+   Compiling function-identity v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\foundation\function-identity)
+   Compiling installation-evidence v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\runtime\installation-evidence)
+   Compiling terminal-fuel v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\representations\terminal-psi\fuel)
+mbx[progress]: 15s elapsed; 2 hits, 37 misses, 0 bypassed, 8 not looked up; ~363.4ms compiler work saved
+   Compiling terminal-semantics v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\representations\terminal-psi\semantics)
+   Compiling facts v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\representations\checked-trees\facts)
+   Compiling representation-selections v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\checking\representation-planning\selections)
+   Compiling layout v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\layout)
+   Compiling checked-trees v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\representations\checked-trees)
+   Compiling terminal-codec v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\representations\terminal-psi\codec)
+mbx[progress]: 30s elapsed; 2 hits, 40 misses, 0 bypassed, 14 not looked up; ~363.4ms compiler work saved
+   Compiling terminal-installation v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\checking\terminal-installation)
+   Compiling abstract-operations v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\representations\abstract-operations)
+   Compiling validation v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\checking)
+   Compiling lowered-psi v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\representations\lowered-psi)
+   Compiling effects v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\plans\provider-evidence)
+   Compiling terminal-interpreter v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\interpreter\terminal-interpreter)
+   Compiling optimization-unit v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\representations\abstract-operations\optimization-unit)
+   Compiling lowered-psi-to-lowered-psi v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\pipeline\06_lowered-psi-to-lowered-psi)
+   Compiling task-plans v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\runtime\task-plans)
+   Compiling component-description v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\artifacts\component-description)
+   Compiling target-operations v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\representations\target-operations)
+   Compiling backend-plan v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\plans\backend-plan)
+   Compiling legalized-operations v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\representations\target-operations\legalized-operations)
+   Compiling boundary-applications v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\artifacts\boundary-applications)
+   Compiling optimization-unit-semantics v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\representations\abstract-operations\optimization-unit\semantics)
+   Compiling trust-model v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\realization\trust-model)
+mbx[progress]: 45s elapsed; 2 hits, 41 misses, 0 bypassed, 30 not looked up; ~363.4ms compiler work saved
+   Compiling selected-instructions v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\representations\selected-instructions)
+   Compiling normalized-foreign-call-plan v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\instruction-set-architectures\normalized-foreign-call-plan)
+   Compiling register-homes v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\representations\register-homes)
+   Compiling isa-x86_64 v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\instruction-set-architectures\isa-x86_64)
+   Compiling isa-aarch64 v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\instruction-set-architectures\isa-aarch64)
+   Compiling physical-instructions v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\representations\post-allocation-machine)
+   Compiling machine-code v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\representations\machine-code)
+   Compiling program-entry-plan v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\plans\program-entry-plan)
+   Compiling register-environment v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\register-environment)
+   Compiling terminal-psi-to-abstract-operations v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\pipeline\00_terminal-psi-to-abstract-operations)
+mbx[progress]: 1m elapsed; 2 hits, 41 misses, 0 bypassed, 40 not looked up; ~363.4ms compiler work saved
+   Compiling abstract-operations-to-abstract-operations v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\pipeline\01_abstract-operations-to-abstract-operations)
+   Compiling abstract-operations-to-target-operations v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\pipeline\02_abstract-operations-to-target-operations)
+   Compiling target-operations-to-selected-instructions v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\pipeline\03_target-operations-to-selected-instructions)
+mbx[progress]: 1m 15s elapsed; 2 hits, 41 misses, 0 bypassed, 43 not looked up; ~363.4ms compiler work saved
+   Compiling selected-instructions-to-selected-instructions v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\pipeline\04_selected-instructions-to-selected-instructions)
+   Compiling selected-instructions-to-register-homes v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\pipeline\05_selected-instructions-to-register-homes)
+mbx[progress]: 1m 30s elapsed; 2 hits, 41 misses, 0 bypassed, 45 not looked up; ~363.4ms compiler work saved
+   Compiling register-homes-to-post-allocation-machine v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\pipeline\06_register-homes-to-post-allocation-machine)
+   Compiling post-allocation-machine-to-selected-form-encoding v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\pipeline\07_post-allocation-machine-to-selected-form-encoding)
+   Compiling selected-form-encoding-to-resolved-layout v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\pipeline\08_selected-form-encoding-to-resolved-layout)
+   Compiling resolved-layout-to-resolved-layout v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\pipeline\09_resolved-layout-to-resolved-layout)
+   Compiling machine-emission v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\machine-emission)
+   Compiling proof v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\proof)
+   Compiling lowered-psi-to-terminal-psi v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\pipeline\07_lowered-psi-to-terminal-psi)
+   Compiling checked-trees-to-lowered-psi v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\pipeline\05_checked-trees-to-lowered-psi)
+   Compiling symbol-resolved-trees-to-typed-trees v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\pipeline\03_symbol-resolved-trees-to-typed-trees)
+   Compiling checked-interpreter v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\interpreter\checked-interpreter)
+   Compiling representation-planning v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\checking\representation-planning)
+   Compiling object-file v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\object\object-file)
+   Compiling image v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\images\image)
+   Compiling image-pe v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\images\image-pe)
+   Compiling image-macho v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\images\image-macho)
+   Compiling image-elf v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\images\image-elf)
+   Compiling typed-trees-to-typed-trees v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\pipeline\03b_typed-trees-to-typed-trees)
+   Compiling image-emission v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\images\image-emission)
+mbx[progress]: 1m 45s elapsed; 2 hits, 41 misses, 0 bypassed, 63 not looked up; ~363.4ms compiler work saved
+   Compiling typed-trees-to-checked-trees v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\pipeline\04_typed-trees-to-checked-trees)
+   Compiling native-artifact v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\backend\artifacts\native-artifact)
+warning: unused import: `installation_evidence::ObjectEvidence`
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\native_artifact\dynamic_elf.rs:11:5
+   |
+11 | use installation_evidence::ObjectEvidence;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `installation_evidence::ObjectEvidence`
+ --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\native_artifact.rs:9:5
+  |
+9 | use installation_evidence::ObjectEvidence;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `installation_evidence::ObjectEvidence`
+ --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\fragment_publication.rs:6:5
+  |
+6 | use installation_evidence::ObjectEvidence;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `from_validated_fragment_publication` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\native_artifact.rs:611:19
+    |
+606 | impl NativePhysicalEvidenceScope {
+    | -------------------------------- associated function in this implementation
+...
+611 |     pub(crate) fn from_validated_fragment_publication(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `validated_optimized_native_physical_evidence_scope` is never used
+    --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\mod.rs:1114:4
+     |
+1114 | fn validated_optimized_native_physical_evidence_scope(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validated_fragment_native_physical_evidence_scope` is never used
+    --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\mod.rs:1131:4
+     |
+1131 | fn validated_fragment_native_physical_evidence_scope(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `identity` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\fragment_publication.rs:45:25
+   |
+35 | impl FragmentPublicationBinding {
+   | ------------------------------- method in this implementation
+...
+45 |     pub(super) const fn identity(&self) -> &[u8; 32] {
+   |                         ^^^^^^^^
+
+warning: function `derive_scope` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\fragment_publication.rs:67:15
+   |
+67 | pub(crate) fn derive_scope(
+   |               ^^^^^^^^^^^^
+
+warning: function `validate_final_plan` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\fragment_publication.rs:145:4
+    |
+145 | fn validate_final_plan(
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: constant `OPTIMIZED_SCOPE_IDENTITY_DOMAIN` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:19:7
+   |
+19 | const OPTIMIZED_SCOPE_IDENTITY_DOMAIN: &[u8] =
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `ValidatedProjectionCoordinates` is never constructed
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:23:8
+   |
+23 | struct ValidatedProjectionCoordinates {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `D29ReferenceCoordinate` is never constructed
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:30:8
+   |
+30 | struct D29ReferenceCoordinate {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `derive_validated_optimization_scope` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:35:15
+   |
+35 | pub(crate) fn derive_validated_optimization_scope(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `derive_optimized_scope` is never used
+  --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:66:4
+   |
+66 | fn derive_optimized_scope(
+   |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_projection_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:193:4
+    |
+193 | fn optimized_projection_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_scope_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:214:4
+    |
+214 | fn optimized_scope_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_operator_occurrence_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:227:4
+    |
+227 | fn optimized_operator_occurrence_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `optimized_boundary_occurrence_identity` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:243:4
+    |
+243 | fn optimized_boundary_occurrence_identity(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validated_authority_bytes` is never used
+   --> omega-rust\omega\compilation\backend\artifacts\native-artifact\src\physical\projection.rs:261:4
+    |
+261 | fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u8> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+   Compiling native-production v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\native-production)
+   Compiling native-provider-runtime v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\application\native-provider-runtime)
+warning: variable does not need to be mutable
+   --> omega-rust\omega\application\native-provider-runtime\src\native_provider_runtime.rs:109:13
+    |
+109 |         let mut builder = std::fs::DirBuilder::new();
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling terminal-runtime v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\application\terminal-runtime)
+warning: method `call` is never used
+   --> omega-rust\omega\compilation\native-production\src\realization\component_calls.rs:152:18
+    |
+ 39 | impl<'input> ComponentNativeCall<'input> {
+    | ---------------------------------------- method in this implementation
+...
+152 |     pub const fn call(&self) -> &AdmittedNativeComponentCall<'input> {
+    |                  ^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `native-provider-runtime` (lib) generated 1 warning (run `cargo fix --lib -p native-provider-runtime` to apply 1 suggestion)
+warning: `native-artifact` (lib) generated 19 warnings
+warning: `native-production` (lib) generated 1 warning
+mbx[progress]: 2m elapsed; 2 hits, 41 misses, 0 bypassed, 68 not looked up; ~363.4ms compiler work saved
+   Compiling psi-terminal-production v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\driver\terminal-production)
+   Compiling build-time-evaluation v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\compile-time)
+   Compiling psi-compiler v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\psi\compilation\driver)
+   Compiling build-declarations v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\packages\build-declarations)
+warning: constant `CANONICAL_FILE_MODE` is never used
+  --> omega-rust\omega\packages\compilation-inputs\src\canonical_fs.rs:31:18
+   |
+31 | pub(crate) const CANONICAL_FILE_MODE: u32 = 0o444;
+   |                  ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `CANONICAL_EXECUTABLE_FILE_MODE` is never used
+  --> omega-rust\omega\packages\compilation-inputs\src\canonical_fs.rs:32:18
+   |
+32 | pub(crate) const CANONICAL_EXECUTABLE_FILE_MODE: u32 = 0o555;
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+   Compiling provider-planning v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\realization\provider-planning)
+   Compiling selected-dispatch v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\realization\selected-dispatch)
+warning: `package-compilation` (lib) generated 2 warnings
+   Compiling compilation-products v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\products)
+   Compiling package-evidence v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\packages\review-evidence)
+   Compiling build-evaluation v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\compilation\build-evaluation)
+mbx[progress]: 3m elapsed; 2 hits, 41 misses, 0 bypassed, 78 not looked up; ~363.4ms compiler work saved
+   Compiling package-manager v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\packages\package-manager)
+   Compiling omega-build v0.1.0 (C:\SoftwareDevelopmentKits\Omega\.agents\worktree\contract-query-publication\omega-rust\omega\application\build)
+mbx[progress]: 4m elapsed; 2 hits, 41 misses, 0 bypassed, 82 not looked up; ~363.4ms compiler work saved
+    Finished `dev` profile [optimized] target(s) in 4m 28s
+mbx[cache]: 2 hits, 41 misses, 83 not looked up; 0 B downloaded, 0 B uploaded, 1.2 GiB stored locally

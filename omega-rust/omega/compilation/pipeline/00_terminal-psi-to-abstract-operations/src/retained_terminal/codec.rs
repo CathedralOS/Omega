@@ -19,8 +19,9 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-// Combined native catalogue custody differs from both predecessor records.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI09";
+// Combined prepared source evidence and Build-owned native catalogue custody.
+// Reject both predecessor private companion interpretations.
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI10";
 
 #[cfg(test)]
 mod tests {
@@ -77,7 +78,6 @@ fn capture(
         behavior_exclusions,
         package_terminal_authority_permissions,
         package_terminal_authority_permission_identities,
-        callback_placements,
         x86_scalar_fma_provider,
     } = request;
     let mut output = RecordWriter::new(RecordLimits::default());
@@ -137,7 +137,6 @@ fn capture(
     write_values(behavior_exclusions, &mut output)?;
     package_terminal_authority_permissions.write(&mut output)?;
     package_terminal_authority_permission_identities.write(&mut output)?;
-    callback_placements.write(&mut output)?;
     x86_scalar_fma_provider.write(&mut output)?;
     write_values(accepted_package_permissions.rows(), &mut output)?;
     accepted_package_permissions
@@ -178,7 +177,6 @@ struct DerivationInputs {
     exclusions: Vec<effects::AuthoredBehaviorExclusion>,
     permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     permission_identities: terminal_psi::TerminalIdentityTable,
-    callbacks: Vec<backend_plan::NativeCallbackPlacement>,
     fma: Option<target::AdmittedX86ScalarFmaProvider>,
     accepted_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     accepted_identities: terminal_psi::TerminalIdentityTable,
@@ -214,7 +212,6 @@ impl DerivationInputs {
             exclusions: RecordValue::read(input)?,
             permissions: RecordValue::read(input)?,
             permission_identities: RecordValue::read(input)?,
-            callbacks: RecordValue::read(input)?,
             fma: RecordValue::read(input)?,
             accepted_permissions: RecordValue::read(input)?,
             accepted_identities: RecordValue::read(input)?,
@@ -255,7 +252,6 @@ pub fn recover_native_derivation_inputs(
         exclusions,
         permissions,
         permission_identities,
-        callbacks,
         fma,
         accepted_permissions,
         accepted_identities,
@@ -302,7 +298,6 @@ pub fn recover_native_derivation_inputs(
         behavior_exclusions: &exclusions,
         package_terminal_authority_permissions: permissions,
         package_terminal_authority_permission_identities: permission_identities,
-        callback_placements: callbacks,
         x86_scalar_fma_provider: fma,
     };
     let mut proposal =

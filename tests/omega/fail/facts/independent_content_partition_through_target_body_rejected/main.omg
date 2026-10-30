@@ -30,17 +30,52 @@ ensures
     Parts { left: Region { base: base, length: requested },
         right: Region { base: base + requested, length: length - requested } }
 }
-boundary trait SelectedExercise {
-    machine exercise(select: bool) -> Parts reaches
-;
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-CheckedExercise satisfies SelectedExercise {
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedProbe {
     machine exercise(select: bool) -> Parts
-{
-    let whole: Region in First & Second = issue();
-    partition(whole, 16)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap;
 }
+
+X86Probe satisfies SelectedProbe {
+    machine exercise(select: bool) -> Parts
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let whole: Region in First & Second = issue();
+        partition(whole, 16)
+    }
 }
+
+ArmProbe satisfies SelectedProbe {
+    machine exercise(select: bool) -> Parts
+        reaches SelectedBodyCheck invokes SelectedBodyCheck; crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let whole: Region in First & Second = issue();
+        partition(whole, 16)
+    }
+}
+
+
 
 
 
@@ -53,10 +88,23 @@ machine inspect(parts: Parts) -> bool {
     drop(right);
     correct
 }
-machine main() crashes Trap {
-    let first: bool = inspect(SelectedExercise::exercise(true));
-    let second: bool = inspect(SelectedExercise::exercise(false));
+machine main()
+    reaches SelectedProbe, SelectedBodyCheck
+    invokes SelectedProbe; invokes SelectedBodyCheck;
+    crashes Trap
+{
+    let first: bool = inspect(SelectedProbe::exercise(true));
+    let second: bool = inspect(SelectedProbe::exercise(false));
     transition first && second { true -> done() _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
+}
+
+machine x86_entry() reaches SelectedProbe, SelectedBodyCheck invokes SelectedProbe; invokes SelectedBodyCheck; crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches SelectedProbe, SelectedBodyCheck invokes SelectedProbe; invokes SelectedBodyCheck; crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

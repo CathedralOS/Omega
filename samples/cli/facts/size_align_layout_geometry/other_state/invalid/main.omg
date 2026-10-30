@@ -1,5 +1,5 @@
 // Fact: querying size_of and align_of on a two-field u64 structural record (Pair { lo: u64, hi: u64 }) establishes its exact layout geometry (size == 16u64 and align == 8u64), discharging exact subtraction size - (align * 2u64) across all nine places.
-// Invalid: Pair has a single field lo: u64 (size == 8u64, align == 8u64), so its captured size/align arguments cannot establish the unchanged 16/8 arrival contract for the subtraction.
+// Place: another state. A successor state receives the size and alignment queries before subtracting.
 // Expected exit: 0
 
 data Pair {
@@ -13,11 +13,9 @@ machine main() crashes Trap {
         true -> compute(s, a)
         _ -> bad()
     }
-    machine compute(size: u64, align: u64)
-    requires size == 16u64 && align == 8u64;
-    {
+    machine compute(size: u64, align: u64) {
         let diff: u64 = size - (align * 2u64);
-        transition diff == 0 {
+        transition diff == 0 && size == 16u64 && align == 8u64 {
             true -> done()
             _ -> bad()
         }

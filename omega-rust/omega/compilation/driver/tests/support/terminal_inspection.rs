@@ -10,6 +10,8 @@ use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError, 
 
 use crate::fixture_package_inputs;
 
+#[path = "boundary_provider_controls.rs"]
+mod boundary_provider_controls;
 #[path = "closed_reach_controls.rs"]
 mod closed_reach_controls;
 #[path = "dynamic_image_controls.rs"]
@@ -41,6 +43,7 @@ enum InspectionControls {
     TaskActivations,
     SynchronousProviders,
     ProviderChoices,
+    BoundaryProviders,
 }
 
 #[derive(Clone, Copy)]
@@ -125,6 +128,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "provider-choice-controls"] => {
                 (*machine, false, Some(InspectionControls::ProviderChoices))
             }
+            [machine, "boundary-provider-controls"] => {
+                (*machine, false, Some(InspectionControls::BoundaryProviders))
+            }
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
             }
@@ -145,7 +151,11 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
         );
         let provider_controls = matches!(
             conformance_controls,
-            Some(InspectionControls::SynchronousProviders | InspectionControls::ProviderChoices)
+            Some(
+                InspectionControls::SynchronousProviders
+                    | InspectionControls::ProviderChoices
+                    | InspectionControls::BoundaryProviders
+            )
         );
         let product = if provider_controls {
             compiler::CompilationProduct::Terminal(Default::default())
@@ -211,6 +221,12 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             if let Some(choices) = provider_choices {
                 provider_choice_controls::inspect(choices, &retained, profile.target_name())?;
                 observations.push("provider-choice-controls:match".into());
+            } else if matches!(
+                conformance_controls,
+                Some(InspectionControls::BoundaryProviders)
+            ) {
+                boundary_provider_controls::inspect(&retained)?;
+                observations.push("boundary-provider-controls:match".into());
             } else {
                 synchronous_provider_controls::inspect(&retained, profile.target_name())?;
                 observations.push("synchronous-provider-controls:match".into());
@@ -303,6 +319,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 InspectionControls::TaskActivations
                 | InspectionControls::SynchronousProviders
                 | InspectionControls::ProviderChoices
+                | InspectionControls::BoundaryProviders
                 | InspectionControls::IndexedFamily
                 | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")

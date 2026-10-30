@@ -5,6 +5,7 @@
 //! that specialization may execute. Retain both without treating an abstract
 //! binder as an ordinary body or granting execution from source readiness.
 
+use crate::selection::call_identity::call_declaration_source;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     ResolvedAuthoredCallBinding,
@@ -558,43 +559,6 @@ fn recorded_call_selection(
         }
     }
     selected
-}
-
-/// Source-less parser entries inherit exactly their owning machine's authored
-/// declaration. No other state or parent relation supplies that call identity.
-pub(crate) fn call_declaration_source(
-    program: &SymbolResolvedTrees,
-    target: SymbolHandle,
-) -> Result<SourceSpan, String> {
-    if let Some(source) = program.symbols.symbol_source_span(target) {
-        return Ok(source);
-    }
-    let symbol = program.symbols.get(target);
-    if symbol.kind != SymbolKind::State
-        || program.symbols.get(symbol.parent).kind != SymbolKind::Machine
-    {
-        return Err("source-less constant target is not its exact owning entry".to_owned());
-    }
-    let mut owners = program
-        .machines
-        .iter()
-        .filter(|owner| owner.symbol == symbol.parent);
-    let owner = owners
-        .next()
-        .ok_or("implicit constant entry lost its owner")?;
-    let states = program.machine_state_handles(owner.states);
-    if owners.next().is_some()
-        || states.len() != owner.states.len()
-        || !states
-            .first()
-            .is_some_and(|state| program.machine_state(*state).symbol == target)
-    {
-        return Err("source-less constant target is not its exact owning entry".to_owned());
-    }
-    program
-        .symbols
-        .symbol_source_span(owner.symbol)
-        .ok_or_else(|| "implicit constant entry lost its authored machine declaration".to_owned())
 }
 
 fn collect_expression_handles(

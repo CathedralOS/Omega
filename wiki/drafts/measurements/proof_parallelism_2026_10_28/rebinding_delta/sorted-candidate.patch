@@ -1,0 +1,121 @@
+--- a/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
++++ b/omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/payload_history.rs
+@@ -1029,17 +1029,15 @@
+                         .get(&current)
+                         .and_then(|edges| edges.get(ordinal))
+                     {
+-                        let rebound = super::scalar_contracts::arrival_requirements(
++                        let mut rebound = super::scalar_contracts::arrival_requirements(
+                             &incoming_requirements,
+                             bindings,
+                             parameters,
+                         );
+-                        // Rebinding can return the complete incoming theory
+-                        // unchanged. Appending it would detach and deep-clone
+-                        // a snapshot only to deduplicate it immediately below.
+-                        // Still compute every substitution: even an empty map
+-                        // can normalize a proposition into a genuinely new row.
+-                        if !contains_rebound_premises(&arrival.scalar_requirements, &rebound) {
++                        // Keep all substitutions and normalization, but allocate
++                        // only rows absent from this exact retained theory.
++                        retain_new_rebound_premises(&arrival.scalar_requirements, &mut rebound);
++                        if !rebound.is_empty() {
+                             Arc::make_mut(&mut arrival.scalar_requirements)
+                                 .extend(rebound.into_iter().map(Arc::new));
+                         }
+@@ -1137,33 +1135,28 @@
+     result.ok_or(failure)
+ }
+ 
+-/// Rebinding usually preserves the incoming roster's order. Check that order
+-/// before testing its complete theory by a single ordered scan. Normalization
+-/// can reorder IEEE/math propositions, so unordered results retain the exact
+-/// binary-search path. Equal duplicates reuse one retained row; no input moves.
+-fn contains_rebound_premises(
++/// Drop already retained rows before allocating their Arc wrappers or sorting
++/// them again. Stable filtering preserves the original append/sort/dedup union.
++/// Normalize rebound ordering once instead of binary-searching every reordered row.
++fn retain_new_rebound_premises(
+     retained: &[Arc<semantic_vocabulary::Proposition>],
+-    rebound: &[semantic_vocabulary::Proposition],
+-) -> bool {
++    rebound: &mut Vec<semantic_vocabulary::Proposition>,
++) {
+     if rebound.windows(2).any(|pair| pair[0] > pair[1]) {
+-        return rebound.iter().all(|premise| {
+-            retained
+-                .binary_search_by(|stored| stored.as_ref().cmp(premise))
+-                .is_ok()
+-        });
++        rebound.sort();
+     }
+     let mut remaining = retained.iter().map(Arc::as_ref).peekable();
+-    rebound.iter().all(|premise| {
++    rebound.retain(|premise| {
+         while remaining
+             .peek()
+             .is_some_and(|candidate| *candidate < premise)
+         {
+             remaining.next();
+         }
+-        remaining
++        !remaining
+             .peek()
+             .is_some_and(|candidate| *candidate == premise)
+-    })
++    });
+ }
+ 
+ /// Union two sorted, unique premise rosters without cloning and then discarding
+@@ -1500,6 +1493,51 @@
+             ScalarTerm::Boolean(true),
+             ScalarTerm::value(ValueId::new(value).unwrap(), ScalarType::Boolean),
+         )
++    }
++
++    #[test]
++    fn payload_rebound_delta_preserves_the_complete_canonical_union() {
++        for mask in 0..16 {
++            let mut retained = (1..=4)
++                .filter(|identity| mask & (1 << (identity - 1)) != 0)
++                .map(|identity| Arc::new(condition(identity)))
++                .collect::<Vec<_>>();
++            retained.sort();
++            let retained = Arc::new(retained);
++            for first in 1..=4 {
++                for second in 1..=4 {
++                    for third in 1..=4 {
++                        let mut rebound =
++                            vec![condition(first), condition(second), condition(third)];
++                        let mut expected = retained.as_ref().clone();
++                        expected.extend(rebound.iter().cloned().map(Arc::new));
++                        expected.sort();
++                        expected.dedup();
++
++                        retain_new_rebound_premises(&retained, &mut rebound);
++                        let mut actual = retained.clone();
++                        if rebound.is_empty() {
++                            canonicalize_snapshot(&mut actual);
++                            assert!(Arc::ptr_eq(&actual, &retained));
++                        } else {
++                            Arc::make_mut(&mut actual).extend(rebound.into_iter().map(Arc::new));
++                            canonicalize_snapshot(&mut actual);
++                        }
++                        assert_eq!(actual.as_ref(), &expected);
++                        for original in retained.iter() {
++                            let found = actual
++                                .iter()
++                                .find(|row| row.as_ref() == original.as_ref())
++                                .unwrap();
++                            assert!(Arc::ptr_eq(original, found));
++                        }
++                    }
++                }
++            }
++            let mut empty = Vec::new();
++            retain_new_rebound_premises(&retained, &mut empty);
++            assert!(empty.is_empty());
++        }
+     }
+ 
+     fn forked_history(branches: &[u64]) -> (DescriptorMachine, PayloadMembershipContract) {

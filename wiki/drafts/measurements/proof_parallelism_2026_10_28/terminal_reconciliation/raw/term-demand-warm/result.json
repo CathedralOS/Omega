@@ -1,0 +1,218 @@
+{
+  "command": [
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\producers\\terminal-demand\\omega.exe",
+    "--timings",
+    "--target",
+    "windows_x86_64",
+    "--build-dir",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\build\\proof-profile\\term-demand-warm\\native",
+    "C:\\SoftwareDevelopmentKits\\Omega\\.agents\\worktree\\proof-profile-20261028\\samples\\cli\\games\\dungeon_crawler_cli\\main.omg"
+  ],
+  "wall_seconds": 6.97063640000124,
+  "exit_code": 0,
+  "cpu_seconds": 6.921875,
+  "peak_working_set_bytes": 1019392000,
+  "peak_commit_bytes": 1022586880,
+  "image_sha256": "3b29e826721e2740316df29272f36a9265afb23756d40baa6d0630a7f60f20b8",
+  "runtime_wall_seconds": 0.09442680000211112,
+  "producer": "terminal-demand",
+  "compiler_sha256": "76fa5c6e6df8b2128fda5d7b5691d3f2471609b9a32334018ebffe760bcc214c",
+  "mode": "off",
+  "workers": 0,
+  "phase_profile": false,
+  "program_sha256": "b98c24db839027800ada039e525f355e80f4cccaf22079bfb68d8a6b48105077",
+  "accepted_lock_sha256": "99670982354bc534a83b071e7e9995c848e331d9f6c104c94712ca7f318c0f3c",
+  "cache_mode": "warm reuse of own private cache",
+  "reconciliation_mode": "counts",
+  "entry_detail": false,
+  "attribution": {
+    "rows": [
+      {
+        "operation": "places",
+        "machines": 7,
+        "wall_ns": 14900,
+        "metrics": {
+          "declarations_added": 0,
+          "leaf_copy_results": 26,
+          "operations_scanned": 55
+        }
+      },
+      {
+        "operation": "residences",
+        "machines": 7,
+        "wall_ns": 9400,
+        "metrics": {}
+      },
+      {
+        "operation": "memberships",
+        "machines": 7,
+        "wall_ns": 1000,
+        "metrics": {}
+      },
+      {
+        "operation": "places",
+        "machines": 2,
+        "wall_ns": 3500,
+        "metrics": {
+          "declarations_added": 0,
+          "leaf_copy_results": 2,
+          "operations_scanned": 5
+        }
+      },
+      {
+        "operation": "residences",
+        "machines": 2,
+        "wall_ns": 3000,
+        "metrics": {}
+      },
+      {
+        "operation": "memberships",
+        "machines": 2,
+        "wall_ns": 300,
+        "metrics": {}
+      },
+      {
+        "operation": "places",
+        "machines": 202,
+        "wall_ns": 223700,
+        "metrics": {
+          "declarations_added": 0,
+          "leaf_copy_results": 281,
+          "operations_scanned": 2702
+        }
+      },
+      {
+        "operation": "residences",
+        "machines": 202,
+        "wall_ns": 41800,
+        "metrics": {}
+      },
+      {
+        "operation": "memberships",
+        "machines": 202,
+        "wall_ns": 2122199800,
+        "metrics": {
+          "analysis_constructions": 1,
+          "analysis_drop_ns": 1832200,
+          "candidate_machines": 109,
+          "changing_rounds": 18,
+          "discovery_ns": 60700,
+          "eligible_operations": 418,
+          "fixed_point_rounds": 127,
+          "graph_drop_ns": 1519000,
+          "graph_preparation_ns": 142840400,
+          "history_creation_ns": 29100,
+          "history_drop_ns": 14228000,
+          "leaf_query_formation_ns": 42700,
+          "leaf_root_lookup_ns": 187200,
+          "merge_ns": 1421000,
+          "operand_queries_ns": 31372200,
+          "operations_scanned": 3313,
+          "payload_contract_queries_ns": 4930600,
+          "payload_target_queries": 173,
+          "payload_target_queries_ns": 3806600,
+          "proposed_updates": 439,
+          "reachability_drop_ns": 200,
+          "reference_context_constructions": 127,
+          "reference_context_drop_ns": 5135800,
+          "reference_queries": 418,
+          "reference_queries_ns": 479098200,
+          "source_contract_queries_ns": 1414256900,
+          "types_drop_ns": 8900,
+          "view_queries_ns": 5752000
+        }
+      }
+    ],
+    "totals_ns": {
+      "places": 242100,
+      "residences": 54200,
+      "memberships": 2122201100
+    },
+    "membership_parts": {
+      "analysis_constructions": 1,
+      "analysis_drop_ns": 1832200,
+      "candidate_machines": 109,
+      "changing_rounds": 18,
+      "discovery_ns": 60700,
+      "eligible_operations": 418,
+      "fixed_point_rounds": 127,
+      "graph_drop_ns": 1519000,
+      "graph_preparation_ns": 142840400,
+      "history_creation_ns": 29100,
+      "history_drop_ns": 14228000,
+      "leaf_query_formation_ns": 42700,
+      "leaf_root_lookup_ns": 187200,
+      "merge_ns": 1421000,
+      "operand_queries_ns": 31372200,
+      "operations_scanned": 3313,
+      "payload_contract_queries_ns": 4930600,
+      "payload_target_queries": 173,
+      "payload_target_queries_ns": 3806600,
+      "proposed_updates": 439,
+      "reachability_drop_ns": 200,
+      "reference_context_constructions": 127,
+      "reference_context_drop_ns": 5135800,
+      "reference_queries": 418,
+      "reference_queries_ns": 479098200,
+      "source_contract_queries_ns": 1414256900,
+      "types_drop_ns": 8900,
+      "view_queries_ns": 5752000,
+      "residual_ns": 15679400,
+      "reference_graph_ns": 478628800,
+      "reference_other_ns": 469400
+    },
+    "windows": {
+      "REFERENCE": 418
+    },
+    "graphs": [
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 135847400
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 133230700
+      },
+      {
+        "scope": "REFERENCE",
+        "module_machines": 202,
+        "graph_machines": 202,
+        "ns": 209550700
+      }
+    ],
+    "cache": {
+      "loaded": 1,
+      "prepared_hit": 2
+    },
+    "replay_details": {
+      "SOURCE": {},
+      "REFERENCE": {},
+      "unscoped": {}
+    },
+    "demands": [
+      {
+        "scope": "REFERENCE",
+        "mappings": 1,
+        "shared_leaves": 0,
+        "projected_candidates": 0
+      },
+      {
+        "scope": "REFERENCE",
+        "mappings": 1,
+        "shared_leaves": 0,
+        "projected_candidates": 0
+      },
+      {
+        "scope": "REFERENCE",
+        "mappings": 1,
+        "shared_leaves": 0,
+        "projected_candidates": 0
+      }
+    ]
+  },
+  "warm_cache_from": "term-demand-cold"
+}

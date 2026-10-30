@@ -186,6 +186,9 @@ impl OperationFrame<'_, '_> {
                 "mutable scalar value refinements require invariant-window custody",
             );
         }
+        // Fused helpers retain their source namespace above, but their blocks
+        // and arrival obligations belong to the actual emitted machine.
+        let machine = self.calls.terminal_machine;
         self.values.push(value);
         self.evaluation.require_value_refinements(
             identities,

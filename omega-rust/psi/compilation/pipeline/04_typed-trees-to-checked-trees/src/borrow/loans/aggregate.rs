@@ -114,10 +114,13 @@ pub(super) fn borrowed_initializers(
             let Some(definition) = program.data_definition_by_symbol(*base_symbol) else {
                 return Vec::new();
             };
-            if let Some(application) = program.data_application_definition(type_reference) {
+            if program
+                .data_application_definition(type_reference)
+                .is_some()
+            {
                 return borrowed_data_literal_initializers(
                     program,
-                    application,
+                    type_reference,
                     expression,
                     &[],
                     owner_path,
@@ -136,7 +139,7 @@ pub(super) fn borrowed_initializers(
             );
             borrowed_data_literal_initializers(
                 program,
-                definition,
+                type_reference,
                 expression,
                 &nested_substitutions,
                 owner_path,
@@ -165,12 +168,9 @@ pub(super) fn borrowed_initializers(
             ) {
                 return vec![initializer];
             }
-            let Some(definition) = program.data_definition_by_symbol(*symbol) else {
-                return Vec::new();
-            };
             borrowed_data_literal_initializers(
                 program,
-                definition,
+                type_reference,
                 expression,
                 substitutions,
                 owner_path,
@@ -216,7 +216,7 @@ fn aggregate_value_initializer(
 
 fn borrowed_data_literal_initializers(
     program: &dyn ::validation::CheckingInput,
-    definition: &typed_trees::data::DataDefinition,
+    receiving: typed_trees::types::TypeReferenceHandle,
     expression: ExpressionHandle,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     owner_path: &[BorrowOwnerSegment],
@@ -224,58 +224,57 @@ fn borrowed_data_literal_initializers(
     let Some(literal) = program.expression_table.struct_literal_node(expression) else {
         return Vec::new();
     };
-    let literal_fields = program.expression_table.struct_fields(literal.fields);
+    // Missing preparation is independently rejected by constructor formation;
+    // it is never evidence that this aggregate has no reference leaves. Join
+    // the caller's exact receiving application, including open field views,
+    // instead of requiring its storage symbol to equal an authored owner.
+    if program
+        .data_constructor_definition(receiving, literal.type_symbol)
+        .is_none()
+    {
+        return Vec::new();
+    }
+    let selected_case = literal.case_symbol.and_then(|selected| {
+        program.data_constructor_case(receiving, literal.type_symbol, selected)
+    });
+    if literal.case_symbol.is_some() != selected_case.is_some()
+        || literal.case_name.is_some() != selected_case.is_some()
+    {
+        return Vec::new();
+    }
 
-    let fields: Vec<&typed_trees::data::DataField> = if let Some(case_name) = &literal.case_name {
-        program
-            .data_members(definition)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Variant(variant)
-                    if variant.name.as_str() == case_name.as_str() =>
-                {
-                    Some(program.data_payload_fields(variant).iter().collect())
-                }
-                _ => None,
-            })
-            .unwrap_or_default()
-    } else {
-        program
-            .data_members(definition)
-            .iter()
-            .filter_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) => Some(field),
-                typed_trees::data::DataMember::Variant(_) => None,
-            })
-            .collect()
-    };
-
-    fields
-        .into_iter()
-        .flat_map(|field| {
-            let Some(literal_field) = literal_fields
-                .iter()
-                .find(|literal_field| literal_field.name.as_str() == field.name.as_str())
-            else {
+    let mut fields = Vec::new();
+    let mut initializers = Vec::new();
+    // Construction holds every authored leaf at once, including common fields
+    // of a case value. The shared typed selector retains applied field types;
+    // declaration membership, not the literal's selected case, owns each path.
+    for literal_field in program.expression_table.struct_fields(literal.fields) {
+        let Some(field) = program.data_constructor_field(
+            receiving,
+            literal.type_symbol,
+            literal_field.field_symbol,
+        ) else {
+            return Vec::new();
+        };
+        if fields.contains(&field.symbol) {
+            return Vec::new();
+        }
+        fields.push(field.symbol);
+        let mut field_path = owner_path.to_vec();
+        if let Some(variant) = facts::payload_variant_for_field(program, field.symbol) {
+            if selected_case.map(|case| case.symbol) != Some(variant) {
                 return Vec::new();
-            };
-            let mut field_path = owner_path.to_vec();
-            if let Some(case_name) = &literal.case_name
-                && let Some(variant) = program.data_members(definition).iter().find_map(|member| {
-                    let variant = member.as_variant()?;
-                    (variant.name.as_str() == case_name.as_str()).then_some(variant)
-                })
-            {
-                field_path.push(BorrowOwnerSegment::Case(variant.symbol));
             }
-            field_path.push(BorrowOwnerSegment::Field(field.symbol));
-            borrowed_initializers(
-                program,
-                field.type_reference,
-                literal_field.value,
-                substitutions,
-                &field_path,
-            )
-        })
-        .collect()
+            field_path.push(BorrowOwnerSegment::Case(variant));
+        }
+        field_path.push(BorrowOwnerSegment::Field(field.symbol));
+        initializers.extend(borrowed_initializers(
+            program,
+            field.type_reference,
+            literal_field.value,
+            substitutions,
+            &field_path,
+        ));
+    }
+    initializers
 }

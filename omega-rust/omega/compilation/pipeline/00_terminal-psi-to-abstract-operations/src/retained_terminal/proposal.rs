@@ -31,7 +31,6 @@ pub struct TerminalNativeProposalRequest<'input> {
     pub behavior_exclusions: &'input [effects::AuthoredBehaviorExclusion],
     pub package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     pub package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
-    pub callback_placements: Vec<backend_plan::NativeCallbackPlacement>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 
@@ -171,16 +170,18 @@ fn project_terminal_native_body(
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .unzip();
-    let callback_occurrences = project_callback_occurrences(
-        &request.callback_placements,
-        artifact,
+    let callback_placements = crate::callback_settlement::place_callbacks(
+        terminal_module,
         &selected,
-        &checked_adapters,
-    )?;
-    // Close source placements while their producer still owns them. Re-entry
-    // borrows these native rows; it never retains the checked-source records.
+        &request.boundaries.calling_applications,
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let callback_occurrences =
+        project_callback_occurrences(&callback_placements, artifact, &selected, &checked_adapters)?;
+    // Native placement is derived from canonical applications and target plans.
+    // The same route handles newly produced and reloaded Terminal artifacts.
     let callback_arguments = crate::provider_admission::project_native_callback_arguments(
-        &request.callback_placements,
+        &callback_placements,
         &callback_occurrences,
     )?;
     backend_plan::validate_callback_thunk_joins(artifact.view(), &callback_occurrences)
@@ -194,7 +195,7 @@ fn project_terminal_native_body(
     let external_binding_rows = crate::settle_callback_registrar_imports(
         terminal_module,
         &selected,
-        &request.callback_placements,
+        &callback_placements,
         callback_occurrences
             .iter()
             .map(|occurrence| crate::CallbackRegistrarOccurrence {
@@ -354,13 +355,14 @@ fn project_callback_occurrences(
                     "callback registrar has no exact boundary identity",
                 )]
             })?;
-        let (plan, row) = selected
-            .selected_requirement_row(requirement)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "callback registrar has no exact selected provider row",
-                )]
-            })?;
+        let Some((plan, row)) = selected.selected_requirement_row(requirement) else {
+            if last != first {
+                return Err(vec![Diagnostic::error(
+                    "unselected callback registrar retained a native placement",
+                )]);
+            }
+            continue;
+        };
         if let effects::provider_plan::ProviderBinding::CheckedAdapter {
             machine_identity, ..
         } = &row.binding

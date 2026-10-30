@@ -393,6 +393,7 @@ fn named_operator_use_fact(
     Some(CheckedNamedOperatorUseFact {
         expression,
         origin,
+        is_generic_template: use_is_generic_template(program, origin),
         selected_operator_symbol: operator.symbol,
         policy_adapter,
     })
@@ -469,7 +470,17 @@ fn domain_or_unique_operator_status(
     }
 }
 
+fn use_is_generic_template(program: &dyn crate::CheckingInput, origin: CheckedValueOrigin) -> bool {
+    let CheckedValueOrigin::StateStatement { machine_symbol, .. } = origin else {
+        return false;
+    };
+    program
+        .machine(machine_symbol)
+        .is_some_and(|machine| !program.machine_type_parameters(machine).is_empty())
+}
+
 fn operator_use_record(
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
     spelling: OperatorSpelling,
@@ -481,6 +492,7 @@ fn operator_use_record(
     CheckedOperatorUseFact {
         expression,
         origin,
+        is_generic_template: use_is_generic_template(program, origin),
         occurrence: Default::default(),
         spelling,
         policy_adapter: CheckedArithmeticPolicyAdapter::None,
@@ -523,6 +535,7 @@ fn binary_operator_use_fact(
     Some(CheckedOperatorUseFact {
         expression,
         origin,
+        is_generic_template: use_is_generic_template(program, origin),
         occurrence: Default::default(),
         spelling,
         policy_adapter: arithmetic_policy_adapter(program, spelling, operand_types),
@@ -722,6 +735,7 @@ fn operator_use_fact(
         };
 
     operator_use_record(
+        program,
         expression,
         origin,
         spelling,
@@ -792,6 +806,7 @@ fn trait_operator_use_fact(
     };
 
     operator_use_record(
+        program,
         expression,
         origin,
         spelling,

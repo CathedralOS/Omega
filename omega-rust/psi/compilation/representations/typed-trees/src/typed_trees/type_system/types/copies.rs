@@ -1,5 +1,13 @@
 use super::*;
 
+/// Occurrence correspondence produced while copying expression-bearing types.
+/// This is invocation-local construction data, not stored semantic authority.
+pub struct TypeExpressionCopy {
+    pub source: TypeReferenceHandle,
+    pub destination: TypeReferenceHandle,
+    pub expression: crate::expression::ExpressionCopy,
+}
+
 impl TypeReferenceTable {
     pub fn copy_from(
         &mut self,
@@ -8,14 +16,38 @@ impl TypeReferenceTable {
         target_expressions: &mut crate::expression::ExpressionTable,
         type_reference: TypeReferenceHandle,
     ) -> TypeReferenceHandle {
+        self.copy_with_expressions(
+            source,
+            source_expressions,
+            target_expressions,
+            type_reference,
+            &mut Vec::new(),
+        )
+    }
+
+    /// Copy the type graph and return the exact expression occurrences copied
+    /// with it, so the caller can transfer their lexical metadata once.
+    pub fn copy_with_expressions(
+        &mut self,
+        source: &TypeReferenceTable,
+        source_expressions: &crate::expression::ExpressionTable,
+        target_expressions: &mut crate::expression::ExpressionTable,
+        type_reference: TypeReferenceHandle,
+        expressions: &mut Vec<TypeExpressionCopy>,
+    ) -> TypeReferenceHandle {
         let copied = match source.type_reference(type_reference) {
             TypeReferenceNode::Reference {
                 referee,
                 access,
                 lifetime,
             } => {
-                let referee =
-                    self.copy_from(source, source_expressions, target_expressions, *referee);
+                let referee = self.copy_with_expressions(
+                    source,
+                    source_expressions,
+                    target_expressions,
+                    *referee,
+                    expressions,
+                );
                 self.insert(TypeReferenceNode::Reference {
                     referee,
                     access: *access,
@@ -26,13 +58,19 @@ impl TypeReferenceTable {
                 base_type,
                 constraints,
             } => {
-                let base_type =
-                    self.copy_from(source, source_expressions, target_expressions, *base_type);
+                let base_type = self.copy_with_expressions(
+                    source,
+                    source_expressions,
+                    target_expressions,
+                    *base_type,
+                    expressions,
+                );
                 let constraints = self.copy_constraints_from(
                     source,
                     source_expressions,
                     target_expressions,
                     *constraints,
+                    expressions,
                 );
                 self.insert(TypeReferenceNode::Constrained {
                     base_type,
@@ -43,23 +81,37 @@ impl TypeReferenceTable {
                 element_type,
                 length,
             } => {
-                let element_type = self.copy_from(
+                let element_type = self.copy_with_expressions(
                     source,
                     source_expressions,
                     target_expressions,
                     *element_type,
+                    expressions,
                 );
+                let length = match length {
+                    FixedArrayLength::Expression(argument) => {
+                        FixedArrayLength::Expression(self.copy_with_expressions(
+                            source,
+                            source_expressions,
+                            target_expressions,
+                            *argument,
+                            expressions,
+                        ))
+                    }
+                    other => other.clone(),
+                };
                 self.insert(TypeReferenceNode::FixedArray {
                     element_type,
-                    length: length.clone(),
+                    length,
                 })
             }
             TypeReferenceNode::Slice { element_type } => {
-                let element_type = self.copy_from(
+                let element_type = self.copy_with_expressions(
                     source,
                     source_expressions,
                     target_expressions,
                     *element_type,
+                    expressions,
                 );
                 self.insert(TypeReferenceNode::Slice { element_type })
             }
@@ -74,6 +126,7 @@ impl TypeReferenceTable {
                     source_expressions,
                     target_expressions,
                     *arguments,
+                    expressions,
                 );
                 self.insert(TypeReferenceNode::Generic {
                     base_symbol: *base_symbol,
@@ -83,8 +136,15 @@ impl TypeReferenceTable {
                 })
             }
             TypeReferenceNode::ConstExpression(expression) => {
-                let expression = target_expressions.copy_from(source_expressions, *expression);
-                self.insert(TypeReferenceNode::ConstExpression(expression))
+                let expression =
+                    target_expressions.copy_graph(Some(source_expressions), *expression);
+                let destination = self.insert(TypeReferenceNode::ConstExpression(expression.root));
+                expressions.push(TypeExpressionCopy {
+                    source: type_reference,
+                    destination,
+                    expression,
+                });
+                destination
             }
             TypeReferenceNode::DynamicTrait {
                 symbol,
@@ -96,6 +156,7 @@ impl TypeReferenceTable {
                     source_expressions,
                     target_expressions,
                     *arguments,
+                    expressions,
                 );
                 self.insert(TypeReferenceNode::DynamicTrait {
                     symbol: *symbol,
@@ -182,6 +243,9 @@ impl TypeReferenceTable {
                 length,
             } => {
                 self.remap_symbols_in(element_type, expressions, symbols);
+                if let FixedArrayLength::Expression(argument) = length {
+                    self.remap_symbols_in(argument, expressions, symbols);
+                }
                 if let FixedArrayLength::ConstParameter { symbol, .. } = length
                     && let TypeReferenceNode::FixedArray { length, .. } =
                         self.type_references.get_mut(type_reference)
@@ -254,6 +318,7 @@ impl TypeReferenceTable {
         source_expressions: &crate::expression::ExpressionTable,
         target_expressions: &mut crate::expression::ExpressionTable,
         type_references: HandleSpan<TypeReferenceHandle>,
+        expressions: &mut Vec<TypeExpressionCopy>,
     ) -> HandleSpan<TypeReferenceHandle> {
         let source_type_references = source.type_reference_handles(type_references);
         let copied = self.reserve_type_reference_handles(
@@ -264,11 +329,12 @@ impl TypeReferenceTable {
         );
 
         for (offset, type_reference) in source_type_references.iter().enumerate() {
-            let type_reference = self.copy_from(
+            let type_reference = self.copy_with_expressions(
                 source,
                 source_expressions,
                 target_expressions,
                 *type_reference,
+                expressions,
             );
             self.set_type_reference_handle_at_offset(
                 copied,
@@ -288,6 +354,7 @@ impl TypeReferenceTable {
         source_expressions: &crate::expression::ExpressionTable,
         target_expressions: &mut crate::expression::ExpressionTable,
         constraints: HandleSpan<TypeConstraintNode>,
+        expressions: &mut Vec<TypeExpressionCopy>,
     ) -> HandleSpan<TypeConstraintNode> {
         let source_constraints = source.constraints(constraints);
         let copied = self.reserve_constraints(
@@ -305,11 +372,12 @@ impl TypeReferenceTable {
                         .arguments
                         .iter()
                         .map(|argument| {
-                            self.copy_from(
+                            self.copy_with_expressions(
                                 source,
                                 source_expressions,
                                 target_expressions,
                                 *argument,
+                                expressions,
                             )
                         })
                         .collect();

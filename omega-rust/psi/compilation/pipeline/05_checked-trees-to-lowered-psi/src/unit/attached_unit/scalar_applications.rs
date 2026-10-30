@@ -81,10 +81,11 @@ impl SourceScalarApplications {
             if !retained {
                 continue;
             }
-            if matches!(
-                declaration.position,
-                RetainedConstantPosition::ContractExpression(_)
-            ) {
+            // Preparation publishes entries only for closed, live contexts.
+            // Open expression inputs retain descriptions, not executable entries.
+            // A concrete type/contract still requires its exact application
+            // when that consumer lowers; this does not supply a fallback.
+            if !declaration.contexts.is_empty() {
                 for context in checked
                     .typed
                     .constant_expression_contexts
@@ -358,9 +359,34 @@ impl SourceScalarApplications {
                 )?,
             )
         } else {
-            return Err(LoweringError::Unsupported(
-                "pending constant expression has no retained complete evaluation entry",
-            ));
+            let contexts = checked
+                .typed
+                .constant_recipes
+                .iter()
+                .filter(|(_, recipe)| recipe.position.expression() == expression)
+                .flat_map(|(_, recipe)| {
+                    checked
+                        .typed
+                        .constant_expression_contexts
+                        .span_or_empty(recipe.contexts)
+                })
+                .map(|context| {
+                    format!(
+                        "{} (entry {:?})",
+                        checked.typed.symbols.name(context.owner),
+                        context.evaluation_entry
+                    )
+                })
+                .collect::<Vec<_>>();
+            return Err(LoweringError::UnpublishedScalarCondition {
+                owner,
+                expression,
+                reason: format!(
+                    "pending constant expression has no retained complete evaluation entry in `{}`; retained contexts: {}",
+                    checked.typed.symbols.name(owner),
+                    contexts.join(", "),
+                ),
+            });
         };
         let application = self.insert(definition, scalar_type)?;
         self.expressions.push((expression, owner, application));

@@ -1,0 +1,26 @@
+// Expected exit: 0.
+// A selected payload retains the default-domain bound of the borrowed input.
+data Text
+    requires (self in Text::Empty)
+        || ((self in Text::Present) && self.length <= 4u64)
+{
+    case Empty;
+    case Present(bytes: [u8; 4], length: u64);
+}
+machine length(text: &Text) -> u64 {
+    transition text {
+        Text::Present { bytes, length } -> read(&bytes[0..length])
+        Text::Empty -> 0u64
+    }
+    machine read(bytes: &[u8]) -> u64 { bytes.len }
+}
+machine main() crashes Trap {
+    let bytes: [u8; 4];
+    let text: Text = Text::Present { bytes: bytes, length: 5u64 };
+    transition length(&text) == 3u64 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

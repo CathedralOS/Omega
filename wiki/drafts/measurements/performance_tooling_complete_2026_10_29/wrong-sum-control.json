@@ -1,0 +1,5 @@
+{
+  "sample": "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\wrong-sum-control",
+  "state": "oracle-failed",
+  "detail": "exit 3221225501 != 0"
+}

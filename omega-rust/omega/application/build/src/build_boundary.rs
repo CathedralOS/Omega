@@ -264,7 +264,7 @@ fn application_completes_native_products_without_source_continuations() {
         include_str!("source_compilation.rs"),
         include_str!("package_compilation.rs"),
     ] {
-        assert!(source.contains("crate::complete_product"));
+        assert!(source.contains("crate::native_completion::complete_products"));
     }
 }
 

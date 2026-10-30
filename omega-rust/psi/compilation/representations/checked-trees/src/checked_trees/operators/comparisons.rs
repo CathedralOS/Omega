@@ -65,21 +65,7 @@ impl CheckedOperatorFacts {
         {
             return None;
         }
-        match selected.occurrence {
-            CheckedOperatorOccurrence::Expression => {
-                let typed_trees::expression::ExpressionNode::Binary(binary) =
-                    program.expression_table.expression(selected.expression)
-                else {
-                    return None;
-                };
-                if binary.operator != operation {
-                    return None;
-                }
-            }
-            CheckedOperatorOccurrence::MatchEquality { .. }
-                if operation == BinaryOperator::Equal => {}
-            _ => return None,
-        }
+        occurrence_carries_operation(program, selected, operation)?;
         let comparison = match operation {
             BinaryOperator::Equal => Comparison::Equal,
             BinaryOperator::NotEqual => Comparison::NotEqual,
@@ -125,21 +111,7 @@ impl CheckedOperatorFacts {
             OperatorSpelling::GreaterEqual => BinaryOperator::GreaterOrEqual,
             _ => return None,
         };
-        match selected.occurrence {
-            CheckedOperatorOccurrence::Expression => {
-                let typed_trees::expression::ExpressionNode::Binary(binary) =
-                    program.expression_table.expression(selected.expression)
-                else {
-                    return None;
-                };
-                if binary.operator != operation {
-                    return None;
-                }
-            }
-            CheckedOperatorOccurrence::MatchEquality { .. }
-                if operation == BinaryOperator::Equal => {}
-            _ => return None,
-        }
+        occurrence_carries_operation(program, selected, operation)?;
         let [left, right] = program.operator_parameters(operator) else {
             return None;
         };
@@ -154,5 +126,31 @@ impl CheckedOperatorFacts {
             return None;
         }
         Some((operation, primitive))
+    }
+}
+
+/// The selected occurrence must carry `operation`: an expression occurrence
+/// carries the binary expression with that exact operator, and a match-equality
+/// occurrence carries only `==`. Both comparison classifiers read that one rule.
+fn occurrence_carries_operation(
+    program: &typed_trees::TypedTrees,
+    selected: &CheckedOperatorUseFact,
+    operation: typed_trees::expression::BinaryOperator,
+) -> Option<()> {
+    match selected.occurrence {
+        CheckedOperatorOccurrence::Expression => {
+            let typed_trees::expression::ExpressionNode::Binary(binary) =
+                program.expression_table.expression(selected.expression)
+            else {
+                return None;
+            };
+            (binary.operator == operation).then_some(())
+        }
+        CheckedOperatorOccurrence::MatchEquality { .. }
+            if operation == typed_trees::expression::BinaryOperator::Equal =>
+        {
+            Some(())
+        }
+        _ => None,
     }
 }

@@ -379,3 +379,44 @@ latency by 19–30% and six-root warm median latency by 34–56%. All native ima
 matched the baseline bytes; focused native/Terminal, reject, corruption, source
 change, foreign-root and pruning controls passed. This next substantial latency
 win is committed locally, with raw evidence and limitations in its record.
+
+The [bounded native queue integration](../measurements/target_native_queue_landing_2026_10_29/README.md)
+uses application Build's newer source-free product boundary. A fresh fixed-base
+comparison measured the heavy four-target compile at 2682.9→1749.2 ms (34.8%
+lower), with all four balanced blocks improving. Exact target images, actual
+native/Terminal agreement, rejects, cache custody and ordered failure controls
+passed. Peak private commit increased 107 MiB and root CPU rose 5%; small and
+single-target programs showed no general speedup. The initial baseline-native
+launch timeout and incomplete cohort remain separate from the complete replay;
+its cause is unresolved after 32 successful bounded replays. Source-bound pinned
+qualification passed. Publication is tracked with the experiment rather than
+inferred from the local commit.
+
+The [post-queue Windows ancestry screen](../measurements/windows_ancestry_postqueue_2026_10_29/README.md)
+missed its declared two-subject gate: length improved 27.5%, dispatch 12.0%,
+stack32 13.6%, including one losing dispatch block. All 60 image/native checks
+passed; full conditional qualification and confirmation did not run. Its
+unpublished production patch was parked. The next
+[invocation setup attribution](../measurements/invocation_setup_2026_10_29/README.md)
+measures startup and remaining serial setup before choosing another candidate.
+
+The [Windows sibling-custody experiment](../measurements/windows_sibling_custody_2026_10_29/README.md)
+passed correctness checks but weakened from 16.8–17.7% small-program screen
+gains to 5.9–9.6% in independent confirmation, with a 3.3% stack32 regression.
+It is not a standalone substantial win. Preserve its frozen producer as a
+control for a separately measured composition with linear ancestry, without
+adding percentages or promoting either inconclusive standalone result.
+
+The separately declared [three-producer custody composition](../measurements/windows_custody_composition_2026_10_29/README.md)
+then compared original, sibling-only and combined producers directly. The
+combined ordinary-O3 producer lowered warm Windows-only small-program medians
+28–30% in screening and 35–39% in independent confirmation; stack32 improved
+20–22%. Every block improved, all 180 images matched and executed, and focused
+native/Terminal, reject, corruption, source and junction controls passed.
+Median private commit rose about 8 MiB for length and 2.7 MiB for stack32.
+The source-bound result is retained locally as the next scoped substantial win;
+it does not imply a new multi-target, foreign-host or latest-main result.
+
+[Post-PR864 spill construction attribution](../measurements/spill_cost_2026_10_29/README.md) found slot assignment dominated spill admission but occupied only 8% of its complete instrumented stack32 process. Temporary timers were removed; no speedup was inferred. Whole-plan recovery receipt composition also prevents a naive per-function fork/merge. The next measured hypothesis is avoiding a redundant scalar edge-capture layer when the owner emits no intervening work.
+
+The [existing CopyPropagation configured-path experiment](../measurements/copy_propagation_2026_10_29/README.md) met the next scoped substantial-win target without another Rust change: stack32 improved 37.4% in balanced comparison and 43.3% in fresh-cache reverse-order confirmation. A separate ordinary-empty/off/on control directly measured 796.3 to 457.2 ms (42.6%) versus the unchanged Build; rollback-off was 0.53% above default. Bounded spills fell 2159 to 131; ten native/Terminal agreements and nine authored rejects passed. Length regressed about 6%, so retain this as an existing opt-in recipe for the pressured workload, not a default or parallelism gain. Original witnesses/defaults stay unchanged; all valid losing blocks and both harness failures remain archived.

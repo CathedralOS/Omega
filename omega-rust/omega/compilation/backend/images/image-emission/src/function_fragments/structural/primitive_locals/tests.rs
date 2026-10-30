@@ -1,5 +1,6 @@
 use super::establishment::establishment;
 use super::frame_location::frame_location;
+use crate::object_artifact::test_support::structural_declaration;
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractResult,
 };
@@ -91,17 +92,11 @@ fn fixture() -> (AbstractFunction, SelectedFunction) {
         provenance: Default::default(),
         structural: Some(legalized_operations::LegalizedStructuralContract {
             result: None,
-            structural_types: vec![terminal_psi::StructuralTypeDeclaration {
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                copyable: false,
-                descriptor_cleanup: false,
-                scalar_restriction: None,
-                id: structural_type,
-                identity: terminal_psi::TerminalIdentityIndex(1),
-                shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
-            }]
+            structural_types: vec![structural_declaration(
+                structural_type,
+                terminal_psi::TerminalIdentityIndex(1),
+                StructuralTypeShape::PrimitiveScalar(scalar_type),
+            )]
             .into(),
             parameters: vec![],
             structural_places: vec![terminal_psi::StructuralPlaceDeclaration {
@@ -308,7 +303,7 @@ fn local_frame_identity_cannot_be_replaced_by_matching_geometry() {
 fn primitive_reference_publication_preserves_original_home_and_total_view() {
     use super::frame_location::argument_matches_source;
     use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
-    use terminal_psi::{StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration};
+    use terminal_psi::{StructuralAccess, StructuralPathSegment};
     let source_type = StructuralTypeId::new(1).unwrap();
     let view_type = StructuralTypeId::new(2).unwrap();
     let source_scalar = ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32);
@@ -322,16 +317,12 @@ fn primitive_reference_publication_preserves_original_home_and_total_view() {
     ]
     .into_iter()
     .enumerate()
-    .map(|(index, scalar)| StructuralTypeDeclaration {
-        quotient_carrier: None,
-        owns_linear_claim: false,
-        no_code_affine_cleanup: false,
-        copyable: false,
-        descriptor_cleanup: false,
-        scalar_restriction: None,
-        id: StructuralTypeId::new(index as u64 + 1).unwrap(),
-        identity: terminal_psi::TerminalIdentityIndex(index as u32 + 1),
-        shape: StructuralTypeShape::PrimitiveScalar(scalar),
+    .map(|(index, scalar)| {
+        structural_declaration(
+            StructuralTypeId::new(index as u64 + 1).unwrap(),
+            terminal_psi::TerminalIdentityIndex(index as u32 + 1),
+            StructuralTypeShape::PrimitiveScalar(scalar),
+        )
     })
     .collect::<Vec<_>>();
     let shape = ValueShape::borrowed_reference(4, 4);

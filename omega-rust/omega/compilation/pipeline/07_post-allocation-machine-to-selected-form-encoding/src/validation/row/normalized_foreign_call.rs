@@ -15,7 +15,10 @@ use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
 use target::{Architecture, NativeTarget};
 
-use super::{admit_decoded_footprint, decoded_effects_footprint, decoded_footprint, operand_views};
+use super::{
+    admit_decoded_footprint, decoded_effects_footprint, decoded_footprint, decoded_row_footprint,
+    operand_accesses, operand_views,
+};
 use crate::OptimizedSelectedFormEncodingError;
 use crate::row_encoding::normalized_foreign_call_record;
 use machine_code::{
@@ -51,24 +54,16 @@ pub(super) fn validate(
         let (bytes, retained) = encoded
             .encoded(row)
             .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-        let accesses = machine
-            .operands
-            .iter()
-            .map(|operand| operand.access)
-            .collect::<Vec<_>>();
-        let validated = isa_x86_64::validate_x86_64_selected_table_call_form(
-            record,
-            machine.alternative.key,
-            &operand_views(machine),
-            &accesses,
-            bytes,
-        )
-        .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-        let footprint = validated.footprint();
-        let decoded = decoded_footprint(
-            &footprint.register_reads,
-            &footprint.register_writes,
-            &footprint.encoded,
+        let accesses = operand_accesses(machine);
+        let decoded = decoded_row_footprint!(
+            isa_x86_64::validate_x86_64_selected_table_call_form(
+                record,
+                machine.alternative.key,
+                &operand_views(machine),
+                &accesses,
+                bytes,
+            ),
+            |_| OptimizedSelectedFormEncodingError::ArtifactMismatch
         );
         admit_decoded_footprint(instruction, machine, bytes.len(), retained, &decoded)?;
         return Ok(());
@@ -84,14 +79,10 @@ pub(super) fn validate(
             return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
         }
         let views = operand_views(machine);
-        let accesses = machine
-            .operands
-            .iter()
-            .map(|operand| operand.access)
-            .collect::<Vec<_>>();
+        let accesses = operand_accesses(machine);
         let decoded = match target.architecture {
-            Architecture::X86_64 => {
-                let validated = isa_x86_64::validate_x86_64_selected_system_call_form(
+            Architecture::X86_64 => decoded_row_footprint!(
+                isa_x86_64::validate_x86_64_selected_system_call_form(
                     target,
                     physical,
                     kind,
@@ -100,17 +91,11 @@ pub(super) fn validate(
                     &accesses,
                     binding.number,
                     bytes,
-                )
-                .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-                let footprint = validated.footprint();
-                decoded_footprint(
-                    &footprint.register_reads,
-                    &footprint.register_writes,
-                    &footprint.encoded,
-                )
-            }
-            Architecture::Aarch64 => {
-                let validated = isa_aarch64::validate_aarch64_selected_system_call_form(
+                ),
+                |_| OptimizedSelectedFormEncodingError::ArtifactMismatch
+            ),
+            Architecture::Aarch64 => decoded_row_footprint!(
+                isa_aarch64::validate_aarch64_selected_system_call_form(
                     target,
                     physical,
                     kind,
@@ -119,15 +104,9 @@ pub(super) fn validate(
                     &accesses,
                     binding.number,
                     bytes,
-                )
-                .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-                let footprint = validated.footprint();
-                decoded_footprint(
-                    &footprint.register_reads,
-                    &footprint.register_writes,
-                    &footprint.encoded,
-                )
-            }
+                ),
+                |_| OptimizedSelectedFormEncodingError::ArtifactMismatch
+            ),
         };
         admit_decoded_footprint(instruction, machine, bytes.len(), footprint, &decoded)?;
         return Ok(());
@@ -151,11 +130,7 @@ pub(super) fn validate(
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     let views = operand_views(machine);
-    let accesses = machine
-        .operands
-        .iter()
-        .map(|operand| operand.access)
-        .collect::<Vec<_>>();
+    let accesses = operand_accesses(machine);
     let decoded = match target.architecture {
         Architecture::X86_64 => {
             let target_kind = match fixup.kind {

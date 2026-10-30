@@ -1,0 +1,5 @@
+* -text
+input-manifest.json whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+raw/** -whitespace
+*.patch -whitespace
+*.gz -diff

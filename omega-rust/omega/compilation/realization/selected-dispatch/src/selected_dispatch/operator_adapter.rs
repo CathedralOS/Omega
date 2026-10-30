@@ -61,14 +61,9 @@ pub(super) fn resolve_checked_adapter_for_operator(
         )));
     }
 
-    let ProviderBinding::CheckedAdapter {
-        machine_identity,
-        machine_package_identity,
-    } = &row.binding
-    else {
+    let ProviderBinding::CheckedAdapter { .. } = &row.binding else {
         return Ok(None);
     };
-    let machine_identity = plan.identity_text(*machine_identity);
 
     if plan.provider_type.is_empty() {
         return Err(Diagnostic::error(format!(
@@ -102,93 +97,22 @@ pub(super) fn resolve_checked_adapter_for_operator(
             )));
         }
     };
-    let direct_provider = provider_planning::exact_checked_adapter(
-        provider_planning::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
-        plan,
-        row,
-    );
-    let specialized = provider_planning::specialized_provider_machines(
-        checked,
-        machine_identity,
-        *machine_package_identity,
-        operator.symbol,
-        |realization| {
-            application.is_some_and(|application| {
-                specialized_application_realization::applications_match(
-                    checked,
-                    application,
-                    realization,
-                )
-            })
-        },
-    );
-    let requires_specialization =
-        application.is_some_and(|application| !application.arguments.is_empty());
-    let provider = if requires_specialization {
-        let [provider] = specialized.as_slice() else {
-            return Err(Diagnostic::error(format!(
-                "selected checked-operator adapter `{machine_identity}` resolves to {} exact specializations for one application",
-                specialized.len(),
-            )));
-        };
-        *provider
-    } else {
-        match direct_provider {
-            Ok(provider) => provider,
-            Err(direct_error) => {
-                let [provider] = specialized.as_slice() else {
-                    return Err(direct_error);
-                };
-                *provider
-            }
-        }
-    };
-    let entry = crate::exact_checked_body_entry(
-        checked,
-        plan,
-        row,
-        provider,
-        &format!("selected checked-operator adapter `{machine_identity}`"),
-    )?;
-
-    let [namespace, requirement] = checked.operator_path_members(operator.name) else {
-        return Err(Diagnostic::error(format!(
-            "selected checked operator overload `{overload_identity}` has no exact namespace and requirement path",
-        )));
-    };
-    let conformances = checked
+    let application = application.ok_or_else(|| {
+        Diagnostic::error(format!(
+            "selected checked operator at expression {expression:?} has no retained application",
+        ))
+    })?;
+    let body =
+        provider_planning::selected_checked_operator_body(&checked.facts, application, plan)?;
+    let provider = checked
         .typed
-        .machine_trait_conformances(provider)
-        .iter()
-        .filter(|conformance| {
-            conformance.name.as_str() == namespace.as_str()
-                && conformance.requirement.as_ref().map(|name| name.as_str())
-                    == Some(requirement.as_str())
-                && (typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
-                    checked,
-                    provider,
-                    conformance,
-                )
-                .is_some_and(|resolved| resolved.symbol == operator.symbol)
-                    || typed_trees::operator::resolve_specialized_checked_operator_application(
-                        checked,
-                        provider,
-                        namespace.as_str(),
-                        requirement.as_str(),
-                    )
-                    .is_some_and(|(resolved, _)| resolved.symbol == operator.symbol))
-        })
-        .count();
-    if conformances != 1 {
-        return Err(Diagnostic::error(format!(
-            "selected checked-operator adapter `{machine_identity}` binds exact overload `{overload_identity}` through {conformances} checked conformances",
-        )));
-    }
+        .machine(body.machine)
+        .ok_or_else(|| Diagnostic::error("selected checked operator lost its retained machine"))?;
 
     Ok(Some((
         provider.symbol,
         provider.name.as_str().to_owned(),
-        entry.symbol,
+        body.entry,
     )))
 }
 

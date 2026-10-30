@@ -1,0 +1,20 @@
+// Expected exit: 0.
+data View<'storage> { bytes: &'storage [u8]; }
+machine key(long: bool) -> &[u8] {
+    transition long { true -> ("longer") false -> ("key") }
+}
+machine evaluate(long: bool) -> u64 {
+    let view: View = View { bytes: key(long) };
+    length(view.bytes)
+    machine length(bytes: &[u8]) -> u64 { bytes.len }
+}
+machine main() crashes Trap {
+    let first: u64 = evaluate(false);
+    let second: u64 = evaluate(true);
+    transition first == 3u64 && second == 6u64 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

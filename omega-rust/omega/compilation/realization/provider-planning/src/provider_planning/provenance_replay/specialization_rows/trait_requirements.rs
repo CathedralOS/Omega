@@ -19,7 +19,7 @@ pub(super) fn append(
     let selecting_map = crate::provider_identity::named_provider(context, plan);
     for row in &plan.rows {
         // Imports retain their complete declaration, outer application and
-        // strong plan digest through external_requirements::derive instead.
+        // strong plan digest through selected binding's Import attachment instead.
         // Keep one authority coordinate for each closed Import application.
         if matches!(
             row.binding,
@@ -139,13 +139,8 @@ pub(super) fn append(
     }
 }
 
-/// A compiler intrinsic or system call has
-/// no provider instance per static tuple: the one physical leaf realizes every
-/// closed application of its template, and method-level selections such as a
-/// native callback's machine are materialized at each call. Each closed
-/// application therefore rebinds to the template row itself, and the row
-/// names the template as its own realization.
-pub(super) fn append_leaf_rows(
+/// Reference-only instance projection uses the same Psi-owned closed roster.
+fn append_leaf_rows(
     typed: &checked_trees::typed_trees::TypedTrees,
     plan: &ProviderPlan,
     row: &crate::provider_planning::ProviderPlanRow,
@@ -154,34 +149,19 @@ pub(super) fn append_leaf_rows(
     diagnostics: &mut Vec<diagnostics::Diagnostic>,
 ) {
     let template = plan.identities.text(row.requirement_identity);
-    for application in typed
-        .closed_requirement_applications()
-        .filter(|application| {
-            typed
-                .trait_machine_signature(application.template)
-                .is_some_and(|(owner, signature)| {
-                    typed.trait_requirement_callable_identity_text(owner, signature) == template
-                })
-        })
-    {
-        let Some(owner) = typed.trait_definition_by_symbol(application.declaring_trait) else {
-            diagnostics.push(diagnostics::Diagnostic::error(
-                "closed requirement application lost its declaring trait",
-            ));
-            continue;
-        };
-        let requirement_identity =
-            typed.trait_requirement_callable_identity_text(owner, application.signature);
-        if requirement_identity.is_empty() || requirement_identity == template {
-            continue;
+    match checked_trees::provider_declarations::closed_provider_leaf_applications(typed, template) {
+        Ok(applications) => {
+            for application in applications {
+                let template = identities.intern(template);
+                rows.push(effects::SelectedRequirementSpecialization {
+                    provider_plan_report_identity: plan.report_fingerprint(),
+                    selected_requirement_identity: template,
+                    selected_machine_identity: template,
+                    requirement_identity: identities.intern(&application),
+                    machine_identity: template,
+                });
+            }
         }
-        let template = identities.intern(template);
-        rows.push(effects::SelectedRequirementSpecialization {
-            provider_plan_report_identity: plan.report_fingerprint(),
-            selected_requirement_identity: template,
-            selected_machine_identity: template,
-            requirement_identity: identities.intern(&requirement_identity),
-            machine_identity: template,
-        });
+        Err(errors) => diagnostics.extend(errors.into_iter().map(diagnostics::Diagnostic::error)),
     }
 }

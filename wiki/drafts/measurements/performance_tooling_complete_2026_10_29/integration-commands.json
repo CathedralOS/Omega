@@ -1,0 +1,164 @@
+[
+  {
+    "label": "runtime-suite",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "suite",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\runtime-suite.json",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\runtime-suite"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "compiler-aa",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "compare",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\compiler-plan.json",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\compiler-aa"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "validate-runtime-0",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "validate",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\runtime-suite\\case-00"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "validate-runtime-1",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "validate",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\runtime-suite\\case-01"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "validate-runtime-2",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "validate",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\runtime-suite\\case-02"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "validate-runtime-3",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "validate",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\runtime-suite\\case-03"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "validate-compiler",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "validate",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\compiler-aa"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "show-compiler",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "show",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\compiler-aa"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "compiler-budget",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "check",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\compiler-aa",
+      "5"
+    ],
+    "exit_code": 2
+  },
+  {
+    "label": "phase-profile",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\compiler-plan.json",
+      "candidate",
+      "phase",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\phase-profile"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "allocation-profile",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\allocation-plan.json",
+      "candidate",
+      "allocations",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\allocation-profile"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "wpr-profile",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\compiler-plan.json",
+      "candidate",
+      "wpr",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\wpr-profile"
+    ],
+    "exit_code": 2
+  },
+  {
+    "label": "perf-unavailable",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "profile",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\compiler-plan.json",
+      "candidate",
+      "perf-stat",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\perf-unavailable"
+    ],
+    "exit_code": 2
+  },
+  {
+    "label": "history-repeat",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "compare",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\compute-plan.json",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\runtime-repeat"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "history",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "history",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\runtime-suite\\case-00",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\runtime-repeat"
+    ],
+    "exit_code": 0
+  },
+  {
+    "label": "wrong-sum-refusal",
+    "command": [
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\omega-bench.exe",
+      "compare",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\control-plan.json",
+      "C:\\Users\\User\\.codex\\worktrees\\performance-tooling\\Omega\\build\\performance\\complete\\wrong-sum-refusal"
+    ],
+    "exit_code": 1
+  }
+]

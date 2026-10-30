@@ -182,6 +182,7 @@ pub fn selected_call_arguments<'program>(
     let applications = program.selected_conformance_applications(
         caller,
         dispatch.selection_application,
+        dispatch.evidence_parameter,
         dispatch.requirement,
         dispatch.application_report_fingerprint,
         dispatch.application_commitment,

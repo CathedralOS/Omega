@@ -16,6 +16,9 @@ package-evidence = { path = "../../../../omega-rust/omega/packages/review-eviden
 optimization-core = { path = "../../../../omega-rust/omega/foundation/optimization-core" }
 build-declarations = { path = "../../../../omega-rust/omega/packages/build-declarations" }
 package-compilation = { path = "../../../../omega-rust/omega/packages/compilation-inputs", features = ["test-support"] }
+package-manager = { path = "../../../../omega-rust/omega/packages/package-manager" }
+build-time-evaluation = { path = "../../../../omega-rust/psi/compilation/compile-time" }
+provider-planning = { path = "../../../../omega-rust/omega/compilation/realization/provider-planning" }
 semantic-vocabulary = { path = "../../../../omega-rust/psi/foundation/semantic-vocabulary" }
 source-files-to-tokens = { path = "../../../../omega-rust/psi/compilation/pipeline/00_source-files-to-tokens" }
 syntax-trees = { path = "../../../../omega-rust/psi/compilation/representations/syntax-trees" }

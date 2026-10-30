@@ -395,7 +395,12 @@ fn lower_machine_contents(
         );
     }
 
-    for bound in &machine.conformance_bounds {
+    // Lift the complete static environment, not only its type parameters.
+    // Bound identities and their arguments stay exact; call lowering forwards
+    // those same evidence operands before the machine's authored operands.
+    for bound in crate::signatures::lexical_context::enclosing_bounds(lowerer.source_trees, machine)
+        .chain(&machine.conformance_bounds)
+    {
         let mut arguments = Vec::new();
         for argument in lowerer.source_trees.child_type_references(bound.arguments) {
             arguments.push(lower_type_reference_into_table(lowerer, argument)?);

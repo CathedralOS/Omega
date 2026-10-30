@@ -93,14 +93,16 @@ pub use effects::original_storage::{
 pub use effects::results::{TerminalByteSequenceValue, TerminalEffectResult};
 pub use effects::scalar_loans::TerminalBoundaryScalarBuffer;
 pub use effects::storage_inputs::{
-    TerminalBoundaryReferenceSelection, TerminalBoundaryStorageBuffer,
-    TerminalBoundaryStorageValue, TerminalBoundaryStructuralBuffer, TerminalStorageContents,
+    TerminalBoundaryByteViewBuffer, TerminalBoundaryReferenceSelection,
+    TerminalBoundaryStorageBuffer, TerminalBoundaryStorageValue, TerminalBoundaryStructuralBuffer,
+    TerminalStorageContents,
 };
 pub use effects::{
     AdmittedAssumedBinding, AdmittedTargetLayouts, AssumedBindingSelection,
-    ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
-    TerminalRuntimeSupplies, TerminalRuntimeSupplyRequest, TerminalTargetContext,
-    TerminalX86FlagsEnvironment, admit_target_layouts, target_context,
+    ProviderInstallationSelection, TerminalCallStorageRequirements, TerminalEffect,
+    TerminalEffectHandler, TerminalEffectRejection, TerminalRuntimeSupplies,
+    TerminalRuntimeSupplyRequest, TerminalTargetContext, TerminalX86FlagsEnvironment,
+    admit_target_layouts, target_context,
 };
 pub use errors::{
     AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,

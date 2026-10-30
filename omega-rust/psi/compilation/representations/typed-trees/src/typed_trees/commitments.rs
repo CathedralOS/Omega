@@ -294,6 +294,10 @@ pub struct StaticRequirementDispatch {
     /// Direct selections retain their exact authored occurrence. Evidence-bound
     /// dispatch keeps its independent invocation-specialization source.
     pub selection_application: crate::static_applications::StaticMachineApplicationHandle,
+    /// Original evidence binder selected by this call. Repeated equal
+    /// implementations in one telescope remain distinct substitutions.
+    /// Zero for direct selections and operator-algebra selection.
+    pub evidence_parameter: symbols::SymbolHandle,
     /// Non-authoritative compatibility coordinate for the selected
     /// application. `application_commitment` is the authoritative join.
     pub application_report_fingerprint: u64,

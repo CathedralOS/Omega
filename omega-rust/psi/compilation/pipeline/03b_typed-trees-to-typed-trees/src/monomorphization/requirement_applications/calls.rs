@@ -466,14 +466,18 @@ pub(super) fn invocation_tuples<'p>(
             let applications = program.selected_conformance_applications(
                 owner,
                 dispatch.selection_application,
+                dispatch.evidence_parameter,
                 dispatch.requirement,
                 dispatch.application_report_fingerprint,
                 dispatch.application_commitment,
             );
             if applications.len() != 1 {
-                return Err(vec![Diagnostic::error(
-                    "static method occurrence has no unique selected conformance",
-                )]);
+                return Err(vec![Diagnostic::error(format!(
+                    "static method occurrence in `{}` has {} selected conformance applications for `{}`; exactly one is required",
+                    program.symbols.display_path(owner, "::"),
+                    applications.len(),
+                    program.symbols.display_path(dispatch.requirement, "::"),
+                ))]);
             }
             let template = program
                 .closed_requirement_application(dispatch.requirement)
@@ -577,6 +581,7 @@ fn dispatch_instance(
     let applications = program.selected_conformance_applications(
         owner,
         dispatch.selection_application,
+        dispatch.evidence_parameter,
         dispatch.requirement,
         dispatch.application_report_fingerprint,
         dispatch.application_commitment,
@@ -844,6 +849,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             let applications = program.selected_conformance_applications(
                 owner,
                 dispatch.selection_application,
+                dispatch.evidence_parameter,
                 dispatch.requirement,
                 dispatch.application_report_fingerprint,
                 dispatch.application_commitment,

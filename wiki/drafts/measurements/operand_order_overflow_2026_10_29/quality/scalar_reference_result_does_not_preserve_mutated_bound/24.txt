@@ -1,0 +1,1 @@
+error: cannot prove index `change(&mut position)` is within length 2 in test::entry

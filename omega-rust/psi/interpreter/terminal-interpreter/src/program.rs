@@ -947,7 +947,7 @@ mod private_entry_target_tests {
         let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
             .expect("independent canonical admission");
         let program = TerminalProgram::borrow(artifact.view());
-        let terminal_psi::TerminalCallable::Machine(entry) = artifact.semantic_module().entry
+        let Some(terminal_psi::TerminalCallable::Machine(entry)) = artifact.semantic_module().entry
         else {
             panic!("ordinary direct entry required")
         };

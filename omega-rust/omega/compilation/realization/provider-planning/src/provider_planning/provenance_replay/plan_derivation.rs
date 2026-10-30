@@ -22,6 +22,9 @@ use crate::provider_planning::provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
     SelectedTargetMachineOrigin, satisfies_plan_name,
 };
+use crate::provider_planning::source_provider_selections::{
+    provider_type_package_identity, provider_type_symbol,
+};
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use effects::provider_plan::{ProviderIdentityId, ProviderIdentityTable};
 
@@ -552,6 +555,7 @@ fn derived_plan_position(
                 provenance: ProviderPlanProvenance {
                     schema: schema_declaration,
                     provider_type: provider_type_symbol,
+                    named_application: None,
                     row_requirements: Vec::new(),
                     row_realizations: Vec::new(),
                     row_target_machine_origins: Vec::new(),

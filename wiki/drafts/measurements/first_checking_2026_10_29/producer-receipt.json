@@ -1,0 +1,8 @@
+{
+  "built_from_base": "2a087aa3ec325cfab27afae8f51b2f358b3bfc1d",
+  "patch_sha256": "46d6b2613c3acafa9216d64a2d3a149a838bbf15c7bf0ec180bf03c9070dc4e8",
+  "source_equivalent_commit": "308d50d1b7c08a575c57deffda5662cd50f3aebf",
+  "source_equivalence": "git diff fixed-base HEAD -- omega-rust exactly equals patch preserved before build and after validation; intervening publication changes only measurement documents",
+  "producer_sha256": "1c7645a93c087116c69bb5951cc940709cdadecfeae847d38f9de957d3ad4d60",
+  "build_log_sha256": "8e86558a9bfa96d1c461b7eb4db74b823ea405c38288a69140f6adc555861297"
+}

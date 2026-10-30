@@ -110,11 +110,6 @@ impl CheckedCompilation {
             behavior_exclusions: self.build().config.behavior_exclusions.as_slice(),
             package_terminal_authority_permissions,
             package_terminal_authority_permission_identities,
-            callback_placements: execution
-                .callback_placements
-                .iter()
-                .map(|placement| placement.native.clone())
-                .collect(),
             x86_scalar_fma_provider: execution.x86_scalar_fma_provider,
         })
     }

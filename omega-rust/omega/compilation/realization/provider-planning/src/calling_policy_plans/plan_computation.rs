@@ -358,15 +358,6 @@ pub fn compute_boundary_calling_plans(
             boundary_entry_plan: validated.plan().clone(),
             validated_boundary_entry_plan: validated,
             callback_binders: signature.callback_binders.clone(),
-            synchronous_callback_binders: super::callback_bindings::synchronous_callback_binders(
-                typed,
-                boundary_trait,
-                requirement_machine,
-                &signature.callback_binders,
-            )
-            .map_err(|reason| {
-                vec![Diagnostic::error(reason).with_source_span(relationship_span)]
-            })?,
             callback_demands: signature.callback_demands.clone(),
             callback_context_closed: false,
             native_parameters: signature.native_parameters.clone(),

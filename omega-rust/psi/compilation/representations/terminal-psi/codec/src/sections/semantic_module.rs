@@ -133,10 +133,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Task frames retain alternative state and crossing storage, not a flat sum.
 // Normal structural guarantees also retain their exact formal-relative path;
 // this combined layout is distinct from either independent wire format.
-// Union of numeric schema/ISA, application-owned FixedLayout geometry,
-// portable scalar roots, proof applications and optional default entries.
-// Neither independent marker217 nor212 has this combined interpretation.
-pub(crate) const FORMAT_MARKER: u16 = 219;
+// Target-family-free Terminal with mandatory numeric schema and current
+// callback/condition semantics; reject both predecessor grammar interpretations.
+pub(crate) const FORMAT_MARKER: u16 = 222;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

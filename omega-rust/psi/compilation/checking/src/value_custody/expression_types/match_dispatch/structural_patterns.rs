@@ -167,21 +167,30 @@ pub(super) fn validate(
     }
     let fields = program.expression_table.match_fields(pattern.fields);
     let total = structural_match_pattern_is_total(program, MatchPattern::Destructure(pattern));
+    let selected_field_symbol = |field_symbol: SymbolHandle| {
+        if declared
+            .iter()
+            .any(|declared| declared.symbol == field_symbol)
+        {
+            return Some(field_symbol);
+        }
+        program
+            .data_constructor_field(reference, data.symbol, field_symbol)
+            .map(|selected| selected.symbol)
+    };
     for (ordinal, field) in fields.iter().enumerate() {
-        let selected = program.data_constructor_field(reference, data.symbol, field.field_symbol);
+        let selected = selected_field_symbol(field.field_symbol);
         let exact = selected.and_then(|selected| {
             declared.iter().find(|declared| {
-                declared.symbol == selected.symbol
-                    && declared.name.as_str() == field.member.as_str()
+                declared.symbol == selected && declared.name.as_str() == field.member.as_str()
             })
         });
         if exact.is_none()
             || fields[..ordinal].iter().any(|prior| {
-                let prior =
-                    program.data_constructor_field(reference, data.symbol, prior.field_symbol);
+                let prior = selected_field_symbol(prior.field_symbol);
                 prior
                     .zip(selected)
-                    .is_some_and(|(prior, selected)| prior.symbol == selected.symbol)
+                    .is_some_and(|(prior, selected)| prior == selected)
             })
         {
             diagnostics.push(
@@ -219,11 +228,9 @@ pub(super) fn validate(
     }
     if !pattern.has_rest
         && declared.iter().any(|declared| {
-            !fields.iter().any(|field| {
-                program
-                    .data_constructor_field(reference, data.symbol, field.field_symbol)
-                    .is_some_and(|selected| selected.symbol == declared.symbol)
-            })
+            !fields
+                .iter()
+                .any(|field| selected_field_symbol(field.field_symbol) == Some(declared.symbol))
         })
     {
         diagnostics.push(
@@ -273,5 +280,30 @@ pub fn structural_match_cases_are_covered(
     if variants.peek().is_none() {
         return cases.contains(&SymbolHandle::invalid());
     }
-    variants.all(|variant| cases.contains(&variant.symbol))
+    variants
+        .filter(|variant| !variant_is_impossible(program, variant))
+        .all(|variant| cases.contains(&variant.symbol))
+}
+
+/// A variant carrying a literal-false `where` fact -- the `0`/`false` witness
+/// generic synthesis leaves when an instance's `T == name` refutes, or an
+/// authored `where false` -- can never be established, so it is not an
+/// obligation the match must cover. Facts needing evaluation are not
+/// contradictions and stay counted.
+fn variant_is_impossible(
+    program: &dyn crate::CheckingInput,
+    variant: &typed_trees::data::DataVariant,
+) -> bool {
+    program
+        .proof_facts
+        .span_or_empty(variant.where_facts)
+        .iter()
+        .any(|fact| match fact.as_expression() {
+            Some(expression) => match program.expression_table.expression(*expression) {
+                ExpressionNode::Integer(literal) => literal.decimal_value_i128() == Some(0),
+                ExpressionNode::Boolean(value) => !*value,
+                _ => false,
+            },
+            None => false,
+        })
 }

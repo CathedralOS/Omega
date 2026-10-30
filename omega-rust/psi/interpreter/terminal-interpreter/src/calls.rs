@@ -542,19 +542,25 @@ impl<'artifact> TerminalExecution<'artifact> {
         )? {
             return Ok(OperationFlow::Advance);
         }
-        let mut boundary_arguments = self.resolve_boundary_arguments(
-            &boundary_declaration.structural_parameters,
-            structural_arguments,
-            handler.storage_arguments(boundary),
-            &boundary_declaration.normal_qualifications,
-        )?;
+        let requirements = handler.storage_requirements(boundary, &scalar_arguments);
+        let original_storage = requirements.original;
+        let mut boundary_arguments = self
+            .resolve_boundary_arguments(
+                &boundary_declaration.structural_parameters,
+                structural_arguments,
+                requirements.arguments,
+                &boundary_declaration.normal_qualifications,
+                original_storage,
+            )
+            .map_err(|error| error.in_argument_preparation("resolve host argument tuple"))?;
         bind_active_structural_arguments(
             &boundary_declaration.structural_parameters,
             &boundary_arguments.values,
             &self.program.structural_types(),
             self.structural_cases.as_map(),
             self.account.as_ref(),
-        )?;
+        )
+        .map_err(|error| error.in_argument_preparation("bind host argument declarations"))?;
         validate_boundary_requirements(boundary_declaration, |index| {
             boundary_arguments.values.get(index)
         })?;
@@ -571,8 +577,8 @@ impl<'artifact> TerminalExecution<'artifact> {
         )?;
         boundary_arguments.capture_reference_inputs(boundary_declaration, structural_arguments)?;
         boundary_arguments
-            .storage_inputs
-            .prepare_original_storage(self, handler, boundary)?;
+            .prepare_original_storage(self, handler, boundary, original_storage)
+            .map_err(|error| error.in_argument_preparation("realize original host storage"))?;
         // Complete ordinary storage/custody checking above before presenting
         // exact admitted abstract payloads to the host. Borrowed arguments keep
         // their original storage/descriptor route; an atom grants no loan.
@@ -615,6 +621,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             Ok(OperationFlow::Yield(status))
         } else {
             self.complete_boundary_effect(operation, handler, pending)
+                .map_err(|error| error.in_argument_preparation("execute captured host call"))
         }
     }
 
@@ -699,12 +706,15 @@ impl<'artifact> TerminalExecution<'artifact> {
                 crash,
             )));
         }
-        boundary_arguments.validate_writeback(self, boundary_declaration)?;
+        boundary_arguments
+            .validate_writeback(self, boundary_declaration)
+            .map_err(|error| error.in_argument_preparation("restore captured host storage"))?;
         if let TerminalEffectResult::Structural(value) = &returned {
             boundary_arguments.reserve_host_result(&mut self.local_structural_identities, value)?;
         }
         boundary_arguments.commit_identity_cursor(self);
-        self.commit_boundary_result(&operation.result, &boundary_declaration.result, returned)?;
+        self.commit_boundary_result(&operation.result, &boundary_declaration.result, returned)
+            .map_err(|error| error.in_argument_preparation("commit host result"))?;
         for (argument, parameter) in structural_arguments
             .iter()
             .zip(&boundary_declaration.structural_parameters)
@@ -737,7 +747,9 @@ impl<'artifact> TerminalExecution<'artifact> {
                 )?;
             }
         }
-        boundary_arguments.commit(self)?;
+        boundary_arguments
+            .commit(self)
+            .map_err(|error| error.in_argument_preparation("commit captured host storage"))?;
         let loan_completions = self.loan_completions_for_operation(operation.id)?;
         self.complete_loan_custody(&loan_completions)?;
         self.effects.push(effect);

@@ -222,6 +222,7 @@ fn lower_static_requirement_dispatch(
     let checked_applications = checked.typed.selected_conformance_applications(
         invocation.caller_machine_symbol,
         dispatch.selection_application,
+        dispatch.evidence_parameter,
         dispatch.requirement,
         dispatch.application_report_fingerprint,
         dispatch.application_commitment,

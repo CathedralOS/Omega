@@ -1,0 +1,17 @@
+    49.737 ms  prepare: project -> prepared sources
+ 20600.959 ms  compile: sources -> requested product
+   174.253 ms  publish: retained product -> published product
+    19.400 ms  Source ingress: SourceFiles -> SyntaxTrees
+     3.369 ms  Step: assemble: PreparedSources -> AssembledSyntax
+   176.565 ms  Stage 03: SyntaxTrees -> SymbolResolvedTrees
+   289.611 ms  Stage 04: SymbolResolvedTrees -> TypedTrees
+  1006.224 ms  Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)
+  6920.003 ms  Stage 05: TypedTrees -> CheckedTrees
+   322.721 ms  Step: settle: CheckedTrees -> SelectedExecution
+  5145.229 ms  terminal-production: CheckedTrees -> CanonicalTerminalArtifact
+  5074.833 ms  terminal-production/lowering: CheckedTrees -> LoweredPsi
+     0.035 ms  terminal-production/machine-selection: CheckedTrees -> TerminalMachine
+    27.659 ms  terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi
+     9.147 ms  terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt
+    33.230 ms  terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact
+ 21557.385 ms  total elapsed
