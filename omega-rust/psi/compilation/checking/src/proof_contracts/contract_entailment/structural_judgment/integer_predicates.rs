@@ -1572,7 +1572,7 @@ impl<'program> StructuralJudge<'program> {
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
             next_operation_id: 0,
-            operand_resolutions: None,
+            operand_resolutions: Some(Vec::new()),
         };
         let comparison = self.integer_comparison(predicate, &mut observations)?;
         let goal_operations = 0..observations.operations.len();
@@ -1593,6 +1593,8 @@ impl<'program> StructuralJudge<'program> {
             })
             .map(|(comparison, _)| comparison)
             .collect();
+        // Completed normalization answers belong only to this immutable query.
+        observations.operand_resolutions = None;
         Some((observations, comparison, admitted))
     }
 
