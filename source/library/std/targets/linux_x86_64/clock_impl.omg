@@ -11,11 +11,13 @@ use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 use clock;
 
-data LinuxClockWait { }
-
-boundary requirement LinuxClockWait::poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32)
-reaches
-    Clock;
+// The raw poll wait is its own boundary trait. Selecting `Clock` does not
+// grant this seam; the requirement names `Clock` as its explicit reach.
+boundary trait LinuxClockWait {
+    machine poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32)
+    reaches
+        Clock;
+}
 
 data LinuxClockPoll { }
 
@@ -52,5 +54,5 @@ reaches
 
 linux_x86_64 machine ClockNativeProvider::provider_defaults(defaults: &mut ClockNativeProvider) {
     ClockNativeProvider::select_provider<Clock, NativeClock>(defaults);
-    ClockNativeProvider::select_provider<LinuxClockWait::poll, LinuxClockPoll>(defaults);
+    ClockNativeProvider::select_provider<LinuxClockWait, LinuxClockPoll>(defaults);
 }

@@ -21,13 +21,16 @@
 //   requirement's, as the leaf itself.
 // * `macos_arm64` has no kernel millisecond sleep with the requirement's
 //   shape. Its `ClockNativeProvider::sleep` is an ordinary checked adapter
-//   over a std-private `poll` requirement that reaches `Clock`, realized by
-//   the libSystem `poll` import (see its `clock_impl.omg`).
-// * `linux_x86_64` uses a checked adapter over the integer-only kernel poll
-//   wait, preserving the full u32 duration by splitting signed-safe waits.
+//   over the one-member `DarwinClockWait` trait, whose `poll` requirement
+//   reaches `Clock` and is realized by the libSystem `poll` import (see its
+//   `clock_impl.omg`).
+// * `linux_x86_64` uses a checked adapter over the `LinuxClockWait` trait's
+//   integer-only kernel poll, preserving the full u32 duration by splitting
+//   signed-safe waits. That requirement reaches `Clock`.
 // * `linux_arm64` constructs a checked seconds/nanoseconds request and lends
-//   its storage to kernel nanosleep, rather than passing milliseconds as an
-//   address. Both Linux adapters build through native artifact admission;
+//   its storage to the `LinuxArmClockWait` trait's kernel nanosleep, rather
+//   than passing milliseconds as an address. That requirement reaches
+//   `Clock`. Both Linux adapters build through native artifact admission;
 //   waiting behavior still requires validation on a Linux runner.
 //
 // `macos_x86_64` is bundled but unadmitted (console's family has no
@@ -41,8 +44,14 @@ use targets::macos_arm64::clock_impl;
 use targets::windows_x86_64::clock_impl;
 
 public boundary trait Clock {
-    // Block the caller for `milliseconds`.
-    machine sleep(milliseconds: u32) reaches Clock;
+    // Block the caller for `milliseconds`. Each hosted adapter may enter its
+    // one-member raw wait trait; Windows enters none of them. The trait names
+    // are synchronous invocation edges, not extra reach members.
+    machine sleep(milliseconds: u32)
+    reaches Clock
+    invokes LinuxClockWait;
+    invokes LinuxArmClockWait;
+    invokes DarwinClockWait;
 }
 
 // Nominal owner of the selected Clock provider closure. Realization leaves
@@ -53,7 +62,12 @@ public data ClockNativeProvider { }
 // Select the explicit whole-trait map. The inline member preserves the exact
 // target body's checked wait and raw-provider closure.
 public NativeClock satisfies Clock {
-    machine sleep(milliseconds: u32) reaches Clock {
+    machine sleep(milliseconds: u32)
+    reaches Clock
+    invokes LinuxClockWait;
+    invokes LinuxArmClockWait;
+    invokes DarwinClockWait;
+    {
         ClockNativeProvider::sleep(milliseconds);
     }
 }

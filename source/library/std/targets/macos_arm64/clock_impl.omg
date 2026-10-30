@@ -1,22 +1,24 @@
 // Complete macos_arm64 `Clock` provider closure. Darwin's kernel ABI has no
 // millisecond sleep with the requirement's shape; its timed wait is POSIX
 // `poll(fds, nfds, timeout)`, which waits out the timeout when it is given no
-// descriptors. The leaf states poll's own parameters through a std-private
-// requirement, and `ClockNativeProvider::sleep` is an ordinary checked
-// adapter over it.
+// descriptors. The leaf states poll's own parameters through the one-member
+// `DarwinClockWait` trait, and `ClockNativeProvider::sleep` is an ordinary
+// checked adapter over it.
 use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 use clock;
 
-// The darwin timed wait. It is the `Clock` service's own wait, so it reaches
-// `Clock` and the adapter calling it stays inside `Clock::sleep`'s ceiling.
-// A top-level requirement takes no target prefix; only this target satisfies
-// or reaches it. The readiness count is not published: with no descriptors
-// poll reports only a completed or an interrupted wait, which `sleep` has no
+// The darwin timed wait. It is the `Clock` service's own wait, so the
+// one-member `DarwinClockWait` trait reaches `Clock` and the adapter calling
+// it stays inside `Clock::sleep`'s ceiling. Only this target satisfies the
+// trait. The readiness count is not published: with no descriptors poll
+// reports only a completed or an interrupted wait, which `sleep` has no
 // result to carry, and the calling plan still clobbers the result register.
-boundary requirement ClockNativeProvider::poll(descriptors: u64, descriptor_count: u64, timeout_milliseconds: i32)
-reaches
-    Clock;
+boundary trait DarwinClockWait {
+    machine poll(descriptors: u64, descriptor_count: u64, timeout_milliseconds: i32)
+    reaches
+        Clock;
+}
 
 data ClockPollImport { }
 
@@ -30,7 +32,7 @@ macos_arm64 machine clock_poll_binding() -> ForeignBinding<26, 5, 0> {
 }
 
 macos_arm64 machine ClockPollImport::poll(descriptors: u64, descriptor_count: u64, timeout_milliseconds: i32)
-    satisfies ClockNativeProvider::poll
+    satisfies DarwinClockWait::poll
     via clock_poll_binding();
 
 // Each wait is one poll with no descriptors, a bounded wait of its timeout.
@@ -48,19 +50,19 @@ reaches
     }
 
     machine at_once(milliseconds: u32) {
-        ClockNativeProvider::poll(0, 0, narrow_u32_to_i32_wrapping(milliseconds));
+        DarwinClockWait::poll(0, 0, narrow_u32_to_i32_wrapping(milliseconds));
     }
 
     machine in_parts(milliseconds: u32) {
         let third: i32 = narrow_u32_to_i32_wrapping(milliseconds / 3);
-        ClockNativeProvider::poll(0, 0, third);
-        ClockNativeProvider::poll(0, 0, third);
-        ClockNativeProvider::poll(0, 0, third);
-        ClockNativeProvider::poll(0, 0, narrow_u32_to_i32_wrapping(milliseconds % 3));
+        DarwinClockWait::poll(0, 0, third);
+        DarwinClockWait::poll(0, 0, third);
+        DarwinClockWait::poll(0, 0, third);
+        DarwinClockWait::poll(0, 0, narrow_u32_to_i32_wrapping(milliseconds % 3));
     }
 }
 
 macos_arm64 machine ClockNativeProvider::provider_defaults(defaults: &mut ClockNativeProvider) {
     ClockNativeProvider::select_provider<Clock, NativeClock>(defaults);
-    ClockNativeProvider::select_provider<ClockNativeProvider::poll, ClockPollImport>(defaults);
+    ClockNativeProvider::select_provider<DarwinClockWait, ClockPollImport>(defaults);
 }
