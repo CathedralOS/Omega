@@ -112,6 +112,52 @@ impl<'input> DescriptorIoImport<'input> {
             value,
         }))
     }
+
+    /// Reuse the descriptor owner's captured-byte authorization before a native
+    /// transfer. This is a bounds/codec observation; the C call still receives
+    /// its original home, with no substitute pointee or later copyback.
+    pub(super) fn validate_native_transfer(
+        &self,
+        arguments: &[TerminalScalarValue],
+        buffers: &[TerminalBoundaryStorageBuffer],
+    ) -> Result<(), TerminalEffectRejection> {
+        let layout = match &self.contract.buffer {
+            DescriptorBuffer::Scalar(_) => None,
+            DescriptorBuffer::Aggregate(layout) => Some(layout),
+            // The paired ABI carries the sealed view length itself. Its
+            // original-home join validates that exact range before dispatch.
+            DescriptorBuffer::Bytes => return Ok(()),
+        };
+        let [
+            _,
+            TerminalScalarValue::Integer {
+                scalar_type,
+                value: IntegerValue::Unsigned(count),
+            },
+        ] = arguments
+        else {
+            return Err(invalid_operands());
+        };
+        if *scalar_type != self.contract.count_type {
+            return Err(invalid_operands());
+        }
+        let count = usize::try_from(*count).map_err(|_| invalid_operands())?;
+        validate_transfer_count(self.contract.abi, count)?;
+        let [formal] = self.contract.signature.structural_parameters.as_slice() else {
+            return Err(invalid_operands());
+        };
+        CapturedStorage::capture(
+            buffers,
+            formal.access,
+            layout,
+            count,
+            match self.contract.operation {
+                DescriptorOperation::Read => StorageTransfer::ReplacePrefix,
+                DescriptorOperation::Write => StorageTransfer::Observe,
+            },
+        )?;
+        Ok(())
+    }
 }
 fn validate_transfer_count(
     abi: DescriptorAbi,

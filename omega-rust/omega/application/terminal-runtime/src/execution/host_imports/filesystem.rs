@@ -18,7 +18,14 @@ use crate::execution::TerminalFilesystemDelegation;
 #[derive(Clone)]
 pub(super) struct FilesystemContext {
     supplied: bool,
-    descriptors: Rc<RefCell<BTreeMap<i32, i32>>>,
+    descriptors: Rc<RefCell<BTreeMap<i32, NativeDescriptor>>>,
+}
+
+enum NativeDescriptor {
+    Open(i32),
+    // A failed close may already have retired the OS number. Never let its
+    // later reuse for worker protocol/storage files revive a guest handle.
+    Uncertain,
 }
 
 #[derive(Clone, Copy)]
@@ -84,7 +91,7 @@ impl FilesystemContext {
             (b"open", &[path, Signed(32)], Signed(32), Acquire),
             (
                 b"__open",
-                &[path, Signed(32), Signed(32)],
+                &[path, Signed(32), Unsigned(16)],
                 Signed(32),
                 Acquire,
             ),
@@ -468,12 +475,11 @@ impl FilesystemCall {
         *guest = i128::from(if current_directory && guest_descriptor == -2 {
             -2
         } else {
-            self.context
-                .descriptors
-                .borrow()
-                .get(&guest_descriptor)
-                .copied()
-                .unwrap_or(-1)
+            match self.context.descriptors.borrow().get(&guest_descriptor) {
+                Some(NativeDescriptor::Open(native)) => *native,
+                Some(NativeDescriptor::Uncertain) => return Err(rejection("filesystem descriptor state is uncertain after a failed close")),
+                None => -1,
+            }
         });
         Ok(actual)
     }
@@ -492,9 +498,15 @@ impl FilesystemCall {
                 "filesystem completion is not its signed OS result",
             ));
         };
-        if *value < 0 {
+        if matches!(self.descriptor, DescriptorEffect::Close) {
+            let Some(TerminalScalarValue::Integer { value: IntegerValue::Signed(guest), .. }) = arguments.first() else { return Err(rejection("closed descriptor lost its guest identity")); };
+            let guest = i32::try_from(*guest).map_err(|_| rejection("closed descriptor exceeds its carrier"))?;
+            let mut descriptors = self.context.descriptors.borrow_mut();
+            if *value == 0 { descriptors.remove(&guest); }
+            else if let Some(state) = descriptors.get_mut(&guest) { *state = NativeDescriptor::Uncertain; }
             return Ok(result);
         }
+        if *value < 0 { return Ok(result); }
         match self.descriptor {
             DescriptorEffect::Acquire | DescriptorEffect::OpenAt | DescriptorEffect::Duplicate => {
                 let native = i32::try_from(*value)
@@ -505,20 +517,8 @@ impl FilesystemCall {
                     .ok_or_else(|| {
                         rejection("guest filesystem descriptor namespace is exhausted")
                     })?;
-                descriptors.insert(guest, native);
+                descriptors.insert(guest, NativeDescriptor::Open(native));
                 *value = i128::from(guest);
-            }
-            DescriptorEffect::Close if *value == 0 => {
-                let Some(TerminalScalarValue::Integer {
-                    value: IntegerValue::Signed(guest),
-                    ..
-                }) = arguments.first()
-                else {
-                    return Err(rejection("closed descriptor lost its guest identity"));
-                };
-                let guest = i32::try_from(*guest)
-                    .map_err(|_| rejection("closed descriptor exceeds its carrier"))?;
-                self.context.descriptors.borrow_mut().remove(&guest);
             }
             _ => {}
         }

@@ -506,6 +506,9 @@ impl TerminalEffectHandler for NativeImport<'_> {
             Loan(native_provider_runtime::NativeHomeId, usize),
             ByteView(native_provider_runtime::NativeHomeId, usize, usize),
         }
+        if let Some(descriptor) = &self.modeled_descriptor {
+            descriptor.validate_native_transfer(arguments, buffers)?;
+        }
         let mut inputs = Vec::with_capacity(self.parameters.len());
         let supplied_arguments = self
             .filesystem
@@ -589,11 +592,26 @@ impl TerminalEffectHandler for NativeImport<'_> {
         };
         self.references.complete(&self.native, buffers)?;
         for parameter in &self.parameters {
-            let Parameter::ByteView { index, access: StructuralAccess::MutableBorrow } = parameter else { continue; };
-            let buffer = buffers.iter_mut().find_map(|buffer| match buffer {
-                TerminalBoundaryStorageBuffer::ByteView(buffer) if buffer.argument_index() == *index => Some(buffer),
-                _ => None,
-            }).ok_or_else(|| rejection("native mutable byte completion lost its original window"))?;
+            let Parameter::ByteView {
+                index,
+                access: StructuralAccess::MutableBorrow,
+            } = parameter
+            else {
+                continue;
+            };
+            let buffer = buffers
+                .iter_mut()
+                .find_map(|buffer| match buffer {
+                    TerminalBoundaryStorageBuffer::ByteView(buffer)
+                        if buffer.argument_index() == *index =>
+                    {
+                        Some(buffer)
+                    }
+                    _ => None,
+                })
+                .ok_or_else(|| {
+                    rejection("native mutable byte completion lost its original window")
+                })?;
             buffer.acknowledge_original_write()?;
         }
         // Mutable captures are completion observations of the same mapped

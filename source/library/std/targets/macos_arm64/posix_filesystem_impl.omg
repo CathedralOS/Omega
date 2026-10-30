@@ -380,7 +380,7 @@ macos_arm64 machine posix_darwin_memcpy_binding() -> ForeignBinding<26, 7, 0> {
 
 boundary requirement PosixFilesystemDarwin::c_open(path: &[u8; 4096], flags: i32) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
-boundary requirement PosixFilesystemDarwin::c_open_create(path: &[u8; 4096], flags: i32, mode: i32) -> i32
+boundary requirement PosixFilesystemDarwin::c_open_create(path: &[u8; 4096], flags: i32, mode: u16) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
 boundary requirement PosixFilesystemDarwin::c_create(path: &[u8; 4096], mode: u16) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
@@ -446,7 +446,7 @@ data PosixFilesystemDarwinImports { }
 
 macos_arm64 machine PosixFilesystemDarwinImports::c_open(path: &[u8; 4096], flags: i32) -> i32
     satisfies PosixFilesystemDarwin::c_open via posix_darwin_open_binding();
-macos_arm64 machine PosixFilesystemDarwinImports::c_open_create(path: &[u8; 4096], flags: i32, mode: i32) -> i32
+macos_arm64 machine PosixFilesystemDarwinImports::c_open_create(path: &[u8; 4096], flags: i32, mode: u16) -> i32
     satisfies PosixFilesystemDarwin::c_open_create via posix_darwin_open_private_binding();
 macos_arm64 machine PosixFilesystemDarwinImports::c_create(path: &[u8; 4096], mode: u16) -> i32
     satisfies PosixFilesystemDarwin::c_create via posix_darwin_creat_binding();
@@ -576,7 +576,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemDarwin::c_open_create(&terminated, flags, mode);
+    let outcome: i32 = PosixFilesystemDarwin::c_open_create(&terminated, flags, narrow_i32_to_u16_wrapping(mode));
     transition fits {
         true -> settle(outcome)
         _ -> (PosixFilesystemDarwin::name_too_long_i32())

@@ -97,11 +97,12 @@ pub(in super::super) struct NativeContext {
 }
 struct OriginalHome {
     root: TerminalOriginalStorageRoot,
-    structural_type: StructuralTypeId,
+    // Raw byte allocations have byte geometry, not the type of the first
+    // descriptor that happened to expose them. Typed roots retain their type.
+    structural_type: Option<StructuralTypeId>,
     home: NativeHomeId,
     extent: usize,
     alignment: usize,
-    byte_backing: bool,
     cells: BTreeMap<Vec<Path>, Rc<Resident>>,
     references: BTreeMap<Vec<Path>, (usize, Option<NativePointerTarget>)>,
 }
@@ -187,6 +188,7 @@ impl NativeContext {
                     ));
                 }
             };
+            let structural_type = layout.map(|_| request.structural_type());
             let root = request.root();
             let key = (root.namespace(), root.allocation());
             if let std::collections::btree_map::Entry::Vacant(entry) = homes.entry(key) {
@@ -198,21 +200,19 @@ impl NativeContext {
                 })?;
                 entry.insert(OriginalHome {
                     root,
-                    structural_type: request.structural_type(),
+                    structural_type,
                     home,
                     extent,
                     alignment,
-                    byte_backing: request.byte_extent().is_some(),
                     cells: BTreeMap::new(),
                     references: BTreeMap::new(),
                 });
             }
             let original = homes.get_mut(&key).unwrap();
             if original.root != root
-                || original.structural_type != request.structural_type()
+                || original.structural_type != structural_type
                 || original.extent != extent
                 || original.alignment != alignment
-                || original.byte_backing != request.byte_extent().is_some()
             {
                 return Err(rejection(
                     "original native root changed artifact, type or geometry",
@@ -508,7 +508,7 @@ impl NativeContext {
         }
         let base = match base {
             Some(base) => base,
-            None if original.byte_backing => captured_offset,
+            None if original.structural_type.is_none() => captured_offset,
             None => {
                 return Err(rejection(
                     "empty typed byte view requires its retained target anchor",
