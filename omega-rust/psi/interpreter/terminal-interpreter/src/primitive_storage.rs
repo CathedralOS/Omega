@@ -1007,17 +1007,7 @@ impl TerminalExecution<'_> {
         writing: bool,
         path: &[StructuralPathSegment],
     ) -> Result<(StructuralTypeId, bool), TerminalInterpretError> {
-        let machine_id = if home.depth == self.call_stack.len() {
-            self.current_machine
-        } else {
-            self.call_stack
-                .get(home.depth)
-                .ok_or_else(malformed)?
-                .current_machine
-        };
-        if machine_id != home.machine {
-            return Err(malformed());
-        }
+        let machine_id = self.owned_array_home(&home)?;
         let machine = self
             .program
             .machines()
