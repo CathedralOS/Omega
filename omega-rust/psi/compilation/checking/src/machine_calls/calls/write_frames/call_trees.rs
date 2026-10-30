@@ -10,7 +10,9 @@ use super::{
     known_call_written_paths_for_parts, receiver_member_chain,
 };
 use crate::machine_calls::calls::write_frames::FrameInference;
-use crate::machine_calls::calls::write_frames::parameter_relative_origins::parameter_relative_place_origin;
+use crate::machine_calls::calls::write_frames::parameter_relative_origins::{
+    ParameterRelativeQuery, parameter_relative_place_origin,
+};
 
 enum ExpressionAdmission {
     Reject,
@@ -118,6 +120,7 @@ pub(super) fn parameter_relative_expression_preserves_transparent_result(
     parameters: &[StateParameter],
     aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
 ) -> bool {
+    let query = ParameterRelativeQuery::of(program, current_machine, parameters, aliases, symbols);
     complete_expression_tree(
         program,
         current_machine,
@@ -138,17 +141,7 @@ pub(super) fn parameter_relative_expression_preserves_transparent_result(
                 // Indexing needs its own origin proof at any call-tree position.
                 // That proof checks the smaller index expressions and keeps the
                 // first collection-coarse projection absorbing.
-                if parameter_relative_place_origin(
-                    program,
-                    current_machine,
-                    expression,
-                    parameters,
-                    aliases,
-                    symbols,
-                    inference,
-                )
-                .is_some()
-                {
+                if parameter_relative_place_origin(query, expression, inference).is_some() {
                     ExpressionAdmission::Leaf
                 } else if matches!(
                     program.expression_table.expression(expression),
