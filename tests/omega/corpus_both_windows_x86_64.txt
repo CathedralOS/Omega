@@ -39,6 +39,7 @@ pass/arithmetic/integer_multiple_remainder_exit built 2765ms exit:0 interpreter-
 pass/arithmetic/mixed_len_compare checked 2135ms @5f668826adf3+wt
 pass/arithmetic/narrowing_flow_and_widen_permitted built 8033ms exit:5 interpreter-exit:5 interpreter:agrees @5f668826adf3+wt
 pass/arithmetic/negative_div_remainder checked 2002ms @5f668826adf3+wt
+pass/arithmetic/nested_clamp_resolution_exit built 1627ms exit:0 interpreter-exit:0 interpreter:agrees @7a0b63d1ff98+wt
 pass/arithmetic/offset_integer_at rejected 2004ms @5f668826adf3+wt
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
