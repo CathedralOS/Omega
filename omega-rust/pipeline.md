@@ -182,6 +182,13 @@ publication entrance. Terminal cohorts retain each admitted application beside
 its exact entry, callback roots and exclusion policy. Source-sharing comparisons
 use those requests directly; only caller order is restored after cohort work,
 without parallel entry tables or empty outcome slots.
+Composition admission runs once per application, before optimization. Psi lends
+an ordered, lazily projected stream of canonical entry, callback and physical
+adapter roots; Omega prepares the exclusion/provider context once and judges
+each root separately. Root-specific attribution and first-refusal precedence
+survive, including missing-body checks when no authored service exclusion
+resolves. This does not remove source-side callback selection or replace its
+complete dormant-declaration checks with emitted-call reachability.
 Before shared production, each application prepares the exact target-provider
 candidates, nominal owners and authored family declarations for its Build rows.
 After production, provider publication consumes that owned preparation and the

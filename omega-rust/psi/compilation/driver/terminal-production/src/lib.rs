@@ -38,7 +38,7 @@ pub use checked_trees_to_lowered_psi::{
     project_external_provider_declarations,
 };
 pub use checked_trees_to_lowered_psi::{TerminalMachineSelection, TerminalProgramRoots};
-pub use composition_admission::TerminalCompositionAdmission;
+pub use composition_admission::{TerminalAdmissionRoot, TerminalCompositionAdmission};
 pub use custody::{
     PortableTerminalProgram, ProducedTerminalProgram, TerminalApplicationCustody,
     TerminalProductionCustody,
