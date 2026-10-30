@@ -843,6 +843,30 @@ pub(super) fn normalized_source(
                 resolved.access = source.access;
                 let actual = storage_projection(function, live, types, &resolved);
                 if !actual.is_some_and(|actual| actual.matches(types.values().copied(), expected)) {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        let snapshot = live
+                            .stored_reference_effects
+                            .observations
+                            .get(&function.machine)
+                            .and_then(|rows| rows.get(&live.reference_position));
+                        eprintln!(
+                            "CHECKSITE borrowed-source-projection machine={:?} position={:?} source={source:?} resolved={resolved:?} residents={:?} snapshot={:?}",
+                            function.machine,
+                            live.reference_position,
+                            live.references
+                                .iter()
+                                .filter(|((place, _), _)| *place == source.place
+                                    || *place == resolved.place)
+                                .take(16)
+                                .collect::<Vec<_>>(),
+                            snapshot.map(|rows| rows
+                                .iter()
+                                .filter(|(place, _)| place.root == source.place
+                                    || place.root == resolved.place)
+                                .take(16)
+                                .collect::<Vec<_>>())
+                        );
+                    }
                     return Err(LoweringError::BorrowedSourceProjectionMismatch {
                         machine: function.machine,
                         source: source.clone(),
