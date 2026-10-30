@@ -58,38 +58,14 @@ pub(super) fn call_expressions(
     roots: &[ExpressionHandle],
 ) -> Result<Vec<ExpressionHandle>, String> {
     let mut calls = Vec::new();
-    let mut pending = roots
-        .iter()
-        .rev()
-        .map(|root| (*root, false))
-        .collect::<Vec<_>>();
-    let mut active = Vec::new();
-    let mut complete = Vec::new();
-    while let Some((expression, finish)) = pending.pop() {
-        if finish {
-            if active.pop() != Some(expression) {
-                return Err("constant initializer has invalid expression traversal".into());
-            }
-            complete.push(expression);
-            continue;
-        }
-        if active.contains(&expression) {
-            return Err("constant initializer contains a cyclic expression".into());
-        }
-        if complete.contains(&expression) {
-            continue;
-        }
-        let children = expression_children(program, expression)?;
+    for_each_initializer_expression(program, roots, |expression| {
         if matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Call(_)
         ) {
             calls.push(expression);
         }
-        active.push(expression);
-        pending.push((expression, true));
-        pending.extend(children.into_iter().rev().map(|child| (child, false)));
-    }
+    })?;
     Ok(calls)
 }
 
