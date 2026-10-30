@@ -48,6 +48,13 @@ fn measure() {
     .expect("batch workspace");
     let mut session = BuildSession::create(workspace.path()).expect("batch resources");
     let mut completed = Vec::new();
+    if std::env::args_os().nth(1).as_deref()
+        == Some(std::ffi::OsStr::new("--representation-custody"))
+    {
+        measure_representation_custody(&mut session, &mut completed, &root);
+        session.close().expect("close representation resources");
+        return;
+    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--service-audits")) {
         let (mut requests, custody) = discover(
             &mut session,
@@ -202,6 +209,134 @@ fn measure() {
     );
     drop((first_custody, second_custody));
     session.close().expect("close batch resources");
+}
+
+/// Use an actual completed Build and Product continuation. No stage replay or
+/// hand-built typed program supplies the checked-copy premise.
+fn measure_representation_custody(
+    session: &mut BuildSession,
+    completed: &mut Vec<CompletedBuild>,
+    root: &Path,
+) {
+    let (mut requests, custody) = discover(
+        session,
+        completed,
+        &root.join("tests/omega/pass/data/opaque_copy_selected/main.omg"),
+        &[TargetProfile::host_if_supported().expect("Build host")],
+        CompilationProduct::Check,
+    );
+    let build = omega_build::prepare_package(
+        session.compiler(),
+        requests.remove(0).occurrences,
+        completed,
+    )
+    .unwrap_or_else(|error| panic!("{:?}", error.failure.into_diagnostics()));
+    let (_, _, inputs, _, prepared) = build.into_continuation();
+    assert!(
+        prepared
+            .built
+            .computed_build_config
+            .generated_sources
+            .is_empty(),
+        "this fixture needs authored completion only"
+    );
+    let source = prepared
+        .built
+        .source
+        .complete_authored(&mut psi_compiler::UnmeasuredProduction)
+        .expect("complete actual Product source")
+        .finish();
+    source
+        .accounting
+        .validate_charges()
+        .expect("accounted source completion");
+    let build = prepared.built.computed_build_config;
+    let selections = &build.config.opaque_representation_selections;
+    assert_eq!(selections.len(), 1, "one executed representation");
+    assert_eq!(
+        selections[0].copy_disposition(),
+        representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
+    );
+    let unchanged = || psi_compiler::ProductRepresentationInput {
+        activation: build.selected_build_machine_symbol,
+        declared: &build.declared_product_selections,
+        executed: &build.product_selection_requests,
+        retained: selections,
+    };
+    let check = |representations, previous| {
+        psi_compiler::CheckRequest {
+            program: source.typed.clone(),
+            admission: psi_compiler::SourceAdmission {
+                representations,
+                declarations: Some(&inputs),
+                ..Default::default()
+            },
+            previous,
+            retain: true,
+        }
+        .check()
+    };
+    let first = check(unchanged(), &[]).expect("fresh checked-copy admission");
+    assert!(!first.reused);
+    let prior = first.retained.as_ref().expect("retain language judgment");
+    let priors = [prior];
+    let repeated = check(unchanged(), &priors).expect("unchanged representation reclosure");
+    assert!(
+        repeated.reused,
+        "equal final graph and custody reuse language checking"
+    );
+
+    let reject = |result: Result<psi_compiler::CheckedSource, Vec<diagnostics::Diagnostic>>,
+                  reason: &str| {
+        let errors = match result {
+            Err(errors) => errors,
+            Ok(_) => panic!("changed representation custody reached a cached judgment"),
+        };
+        assert!(
+            errors.iter().any(|error| error.message.contains(reason)),
+            "{errors:?}"
+        );
+    };
+    let mut changed_activation = unchanged();
+    changed_activation.activation = None;
+    reject(
+        check(changed_activation, &priors),
+        "stale activation or application custody",
+    );
+    let mut missing_execution = unchanged();
+    missing_execution.executed = &[];
+    reject(
+        check(missing_execution, &priors),
+        "disagrees with executed Build custody",
+    );
+    let selected = &selections[0];
+    let changed_copy_disposition = [
+        representation_planning::OpaqueRepresentationSelection::from_validated_application(
+            selected.opaque(),
+            selected.carrier(),
+            selected.carrier_type(),
+            selected.application().clone(),
+            selected.lifecycle(),
+            representation_planning::OpaqueRepresentationCopyDisposition::PlacementOnly,
+            selected.origin(),
+            selected.selecting_machine(),
+            selected.source_span(),
+        ),
+    ];
+    let mut changed_retained = unchanged();
+    changed_retained.retained = &changed_copy_disposition;
+    reject(
+        check(changed_retained, &priors),
+        "disagrees with executed Build custody",
+    );
+    reject(
+        check(Default::default(), &priors),
+        "without an admitted property receipt",
+    );
+    println!(
+        "representation_custody=fresh_and_reused stale_activation=refused missing_execution=refused changed_copy_disposition=refused unselected_copy=refused"
+    );
+    drop(custody);
 }
 
 fn discover(

@@ -343,6 +343,14 @@ restriction establishes no behavioral absence. Omega still resolves service
 identities against Terminal catalogs, resolves grants against selected plans,
 classifies physical mechanisms and checks the selected executable closure.
 
+Final representation admission belongs to Psi checking, not the Product
+coordinator. Build's selected applications carry their activation, source-issued
+requests and executed roster into `CheckRequest`; Psi recloses them against the
+completed authored/generated graph before source-completion preparation or
+retained-check matching. Only that admission derives semantic-copy property
+receipts. A caller cannot supply copy facts or bypass final application custody
+through a cached language judgment.
+
 Both interpreter and native realization consume a common Terminal view: borrow
 same-session storage, or admit external bytes once and borrow that owned storage.
 Keep suspended activation storage alive while separately compiling helpers.
