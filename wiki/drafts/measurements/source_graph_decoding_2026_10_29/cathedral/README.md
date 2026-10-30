@@ -1,5 +1,10 @@
 # Cathedral UI before/after comparison: setup blocked
 
+> Follow-up: the [UI preparation repair and qualified comparison](ui/README.md)
+> now completes this prerequisite and executes both UI consumers. Its warm
+> end-to-end decoder comparison is inconclusive. The record below preserves the
+> earlier unsuccessful setup attempts.
+
 The subsequent [Matrix component comparison](matrix/README.md) has a qualified
 warm compilation result. This page preserves the unsuccessful **UI** attempts.
 

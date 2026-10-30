@@ -53,7 +53,10 @@ The later [Cathedral Matrix comparison](cathedral/matrix/README.md) measures
 the production policy component separately: 9.8% paired saving in 32 initial
 pairs and 8.3% in 16 confirmation pairs, with identical publication bytes and
 passing component ABI checks. Its linked standalone wrapper still crashes in
-both versions. The [UI attempts](cathedral/README.md) remain unqualified.
+both versions. The later [Cathedral UI comparison](cathedral/ui/README.md)
+repairs preparation, validates both UI exports and retains two inconclusive
+end-to-end timing batches. The [initial UI attempts](cathedral/README.md) remain
+as historical setup evidence.
 
 ## What changed and why
 

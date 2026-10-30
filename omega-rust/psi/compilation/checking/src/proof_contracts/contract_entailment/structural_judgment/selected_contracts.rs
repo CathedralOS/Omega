@@ -425,6 +425,16 @@ impl StructuralJudge<'_> {
         let SelectedApplicationCarrier {
             owner, parameters, ..
         } = self.selected_application_carrier(application, depth)?;
+        // An empty equation query must not re-prove entry requirements.
+        // Portable families may supply equations through their selected bodies.
+        if !matches!(&owner, SelectedCallContract::Concrete(machine, _) if machine.target_family_interface)
+            && !owner_contracts(self.program, &owner)
+                .any(|contract| contract.kind == SignatureContractKind::Ensures)
+            && self.recorded_body_boolean(&owner, depth + 1).is_none()
+        {
+            phase_profile::count("05.selected.empty_result_equations", 1);
+            return None;
+        }
         let StructuralTerm::Application { arguments, .. } = application else {
             return None;
         };
@@ -433,7 +443,12 @@ impl StructuralJudge<'_> {
             .zip(arguments)
             .map(|(parameter, value)| (parameter.symbol, value.clone()))
             .collect::<Vec<_>>();
-        self.selected_guarantees(&owner, &bindings, &bindings, &[], Some(application), depth)
+        // Requirement projection may re-enter this exact application before
+        // body unfolding. Keep that whole question on the recurrence stack.
+        let mut normalizing = self.resolving_application(application, depth)?;
+        normalizing.specification_terms = self.specification_terms;
+        normalizing
+            .selected_guarantees(&owner, &bindings, &bindings, &[], Some(application), depth)
             .map(|guarantees| guarantees.equations)
     }
 
