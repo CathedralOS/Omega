@@ -21,7 +21,9 @@ pub(super) fn predicates(
     conditions: &mut SelectionConditions,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<ConditionalPredicate> {
-    let mut transported: Vec<ConditionalPredicate> = Vec::new();
+    let mut transported = super::case_evidence::predicates(
+        program, facts, state, required, captures, selections, conditions,
+    );
     for (capture, &selection) in captures.iter().zip(selections) {
         for alias in &capture.aliases {
             let contexts = facts

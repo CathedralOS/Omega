@@ -88,3 +88,86 @@ pub(super) fn current_case(
     });
     Some(operand)
 }
+
+/// Preserve the carrier observations actually used by an owned payload read.
+/// They are proof dependencies even when the callee consumes only its scalar.
+/// The shared completed-storage owner authenticates this receiver/projection;
+/// equal scalar contents or a printed place prefix cannot create the relation.
+pub(super) fn retain_owned_cases<'facts>(
+    program: &dyn validation::CheckingInput,
+    facts: &'facts CheckFacts,
+    state: &FlowStateFact,
+    operand: crate::flow::CapturedOperand<'facts>,
+    predicate: &mut crate::facts::boolean_predicates::BoundPredicate,
+    epochs: &mut Vec<&'facts checked_trees::FlowOperandFact>,
+    captures: &mut Vec<super::captured_predicates::CapturedBinding<'facts>>,
+) -> Option<()> {
+    let Some((receiver, path)) = validation::completed_storage::owned_observation_projection(
+        program,
+        &facts.flow.control,
+        operand.row(),
+        None,
+    )?
+    else {
+        return Some(());
+    };
+    let receiver = crate::flow::CapturedOperand::recorded(&facts.flow.control, receiver)?;
+    for (position, segment) in path.iter().enumerate() {
+        if !matches!(segment, facts::PlaceSegment::Case { .. }) {
+            continue;
+        }
+        let prefix = &path[..position];
+        let reference =
+            validation::owned_projection_type_reference(program, receiver.type_reference, prefix)?;
+        if validation::reference_shell(program, reference).is_some() {
+            return None;
+        }
+        let values = crate::flow::captured_operand_values(
+            program,
+            &facts.flow,
+            &facts.semantic,
+            state,
+            receiver,
+            receiver.type_reference,
+            prefix,
+        )?;
+        let first = values.first()?;
+        if values.iter().any(|value| {
+            value.observation.recorded_in(&facts.flow.control)
+                != first.observation.recorded_in(&facts.flow.control)
+                || value.observation_type != first.observation_type
+                || value.observation_projection.remaining != first.observation_projection.remaining
+        }) {
+            return None;
+        }
+        let start = predicate.bindings.len();
+        current_case(program, facts, first, &mut predicate.bindings)?;
+        let binding = &predicate.bindings[start];
+        for (previous, previous_epoch) in predicate.bindings[..start].iter().zip(epochs.iter()) {
+            if previous.place == binding.place
+                && !crate::flow::operand_observations_agree(
+                    program,
+                    &facts.flow,
+                    previous_epoch,
+                    first.observation.row(),
+                    &binding.place,
+                )
+            {
+                return None;
+            }
+        }
+        for value in &values {
+            super::captured_predicates::retain_bindings(
+                program,
+                facts,
+                value,
+                first.observation.row(),
+                &predicate.bindings[start..],
+                start,
+                captures,
+            );
+        }
+        epochs.push(first.observation.row());
+    }
+    Some(())
+}

@@ -71,6 +71,11 @@ fn append_occurrences(
                 append_occurrences(program, arm.value, state, occurrences);
             }
         }
+        // A resolved case selector names its declaration, not caller storage.
+        // Payload operands, when present, are ordinary constructing children.
+        ExpressionNode::Name(path)
+            if path.symbol.is_valid()
+                && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Variant => {}
         ExpressionNode::Name(_) => occurrences.push(expression),
         ExpressionNode::Member(member) => {
             // A completed private descriptor observes its captured extent,

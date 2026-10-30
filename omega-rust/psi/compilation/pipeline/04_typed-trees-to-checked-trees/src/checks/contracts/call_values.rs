@@ -926,6 +926,7 @@ fn proves_bound_predicate_mode<'program>(
     let mut selected_contexts: Option<Vec<FactContextHandle>> = None;
     let mut binding_epochs: Vec<&checked_trees::FlowOperandFact> = Vec::new();
     let mut captures = Vec::new();
+    let mut observed_operands = Vec::new();
     let trace = std::env::var("OMEGA_COMPILER_PREDICATE_SITES")
         .ok()
         .is_some_and(|filter| {
@@ -983,6 +984,16 @@ fn proves_bound_predicate_mode<'program>(
         {
             *operand = literal.into();
             return Some(());
+        }
+        if let Some(operand) = captured_operand(program, facts, state, call, &actual)
+            && !observed_operands
+                .iter()
+                .any(|known: &crate::flow::CapturedOperand<'_>| {
+                    known.recorded_in(&facts.flow.control)
+                        == operand.recorded_in(&facts.flow.control)
+                })
+        {
+            observed_operands.push(operand);
         }
         let values = predicate_subjects::values(program, facts, state, call, &actual)?;
         if trace {
@@ -1094,6 +1105,21 @@ fn proves_bound_predicate_mode<'program>(
     .is_none()
     {
         return false;
+    }
+    for operand in observed_operands {
+        if predicate_subjects::retain_owned_cases(
+            program,
+            facts,
+            state,
+            operand,
+            &mut current,
+            &mut binding_epochs,
+            &mut captures,
+        )
+        .is_none()
+        {
+            return false;
+        }
     }
     if trace {
         eprintln!("PRED current={current:?} captures={}", captures.len());
