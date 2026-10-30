@@ -1,17 +1,24 @@
 // Both closed carriers retain independent portable interfaces and every body.
 data Cell<Value [copy]> [copy] { value: Value; code: u64; }
 
-linux_x86_64 machine Cell::read<Value [copy]>(cell: &Cell<Value>) -> u64 { cell.code }
-windows_x86_64 machine Cell::read<Value [copy]>(cell: &Cell<Value>) -> u64 { cell.code }
-linux_arm64 machine Cell::read<Value [copy]>(cell: &Cell<Value>) -> u64 { cell.code }
-macos_arm64 machine Cell::read<Value [copy]>(cell: &Cell<Value>) -> u64 { cell.code }
+boundary trait SelectedCellRead {
+    machine read<Value [copy]>(cell: &Cell<Value>) -> u64 reaches
+;
+}
+CheckedCellRead satisfies SelectedCellRead {
+    machine read<Value [copy]>(cell: &Cell<Value>) -> u64
+{ cell.code }
+}
+
+
+
 
 data Main { narrow: Cell<u32>; wide: Cell<u64>; }
 machine Main::main(main: &mut Main) crashes Trap {
     main.narrow.code = 42;
     main.wide.code = 7;
-    let narrow: u64 = Cell::read(&main.narrow);
-    let wide: u64 = Cell::read(&main.wide);
+    let narrow: u64 = SelectedCellRead::read(&main.narrow);
+    let wide: u64 = SelectedCellRead::read(&main.wide);
     transition narrow == 42 && wide == 7 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

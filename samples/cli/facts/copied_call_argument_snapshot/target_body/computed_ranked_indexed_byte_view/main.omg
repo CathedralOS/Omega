@@ -31,25 +31,25 @@ Direct satisfies Counting {
 }
 machine overwrite<'storage>(slot: &mut View<'storage>) -> u64 { slot.bytes = "123456789"; 0 }
 machine seven(value: u64) -> u64 requires value == 7 ensures result == 7 { value }
-windows_x86_64 machine receive<'storage>(selected: Counted<'storage, 7>, ignored: u64) -> u64
+boundary trait SelectedReceive {
+    machine receive<'storage>(selected: Counted<'storage, 7>, ignored: u64) -> u64 reaches
+ensures result == 7;
+}
+CheckedReceive satisfies SelectedReceive {
+    machine receive<'storage>(selected: Counted<'storage, 7>, ignored: u64) -> u64
 ensures result == 7
 { let saved: Counted<'storage, 7> = selected; seven(saved.view.bytes.len) }
+}
 
-linux_x86_64 machine receive<'storage>(selected: Counted<'storage, 7>, ignored: u64) -> u64
-ensures result == 7
-{ let saved: Counted<'storage, 7> = selected; seven(saved.view.bytes.len) }
 
-macos_arm64 machine receive<'storage>(selected: Counted<'storage, 7>, ignored: u64) -> u64
-ensures result == 7
-{ let saved: Counted<'storage, 7> = selected; seven(saved.view.bytes.len) }
 
-linux_arm64 machine receive<'storage>(selected: Counted<'storage, 7>, ignored: u64) -> u64
-ensures result == 7
-{ let saved: Counted<'storage, 7> = selected; seven(saved.view.bytes.len) }
+
+
+
 machine receive_inferred<'storage, Count: u64>(selected: Counted<'storage, Count>, ignored: u64) -> u64
 requires Count == 7
 ensures result == 7
-{ receive(selected, ignored) }
+{ SelectedReceive::receive(selected, ignored) }
 machine main() crashes Trap {
     let storage: [u8; 7] = [49, 50, 51, 52, 53, 54, 55];
     let mut direct_counter: Counter = Counter { value: false };

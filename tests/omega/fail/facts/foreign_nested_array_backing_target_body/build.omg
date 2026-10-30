@@ -1,5 +1,10 @@
 use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedForward, CheckedForward>(builder, linux_x86_64);
+    Build::select_provider<SelectedForward, CheckedForward>(builder, linux_arm64);
+    Build::select_provider<SelectedForward, CheckedForward>(builder, macos_arm64);
+    Build::select_provider<SelectedForward, CheckedForward>(builder, windows_x86_64);
+
  Build::package(builder, "native_bindings_foreign_nested_array_backing_target_body");
 
  Build::bind<Writer::acquire>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {

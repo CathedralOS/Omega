@@ -2,7 +2,14 @@
 // Expected exit: 0
 public machine tick() -> bool blocks; terminates; { true }
 
-windows_x86_64 machine countdown(remaining: u64, value: u64) -> u64
+boundary trait SelectedCountdown {
+    machine countdown(remaining: u64, value: u64) -> u64 reaches
+requires remaining <= 4 && value <= 60;
+ensures result <= 60;
+terminates;
+}
+CheckedCountdown satisfies SelectedCountdown {
+    machine countdown(remaining: u64, value: u64) -> u64
 requires remaining <= 4 && value <= 60;
 ensures result <= 60;
 terminates by remaining;
@@ -12,62 +19,21 @@ terminates by remaining;
     requires remaining > 0 && remaining <= 4 && value <= 60 {
         let ready: bool = block tick();
         transition ready {
-            true -> block countdown(remaining - 1, value)
+            true -> block CheckedCountdown::countdown(remaining - 1, value)
             false -> (value)
         }
     }
+}
 }
 
-linux_x86_64 machine countdown(remaining: u64, value: u64) -> u64
-requires remaining <= 4 && value <= 60;
-ensures result <= 60;
-terminates by remaining;
-{
-    transition remaining > 0 { true -> step(remaining, value) false -> (value) }
-    machine step(remaining: u64, value: u64) -> u64
-    requires remaining > 0 && remaining <= 4 && value <= 60 {
-        let ready: bool = block tick();
-        transition ready {
-            true -> block countdown(remaining - 1, value)
-            false -> (value)
-        }
-    }
-}
 
-macos_arm64 machine countdown(remaining: u64, value: u64) -> u64
-requires remaining <= 4 && value <= 60;
-ensures result <= 60;
-terminates by remaining;
-{
-    transition remaining > 0 { true -> step(remaining, value) false -> (value) }
-    machine step(remaining: u64, value: u64) -> u64
-    requires remaining > 0 && remaining <= 4 && value <= 60 {
-        let ready: bool = block tick();
-        transition ready {
-            true -> block countdown(remaining - 1, value)
-            false -> (value)
-        }
-    }
-}
 
-linux_arm64 machine countdown(remaining: u64, value: u64) -> u64
-requires remaining <= 4 && value <= 60;
-ensures result <= 60;
-terminates by remaining;
-{
-    transition remaining > 0 { true -> step(remaining, value) false -> (value) }
-    machine step(remaining: u64, value: u64) -> u64
-    requires remaining > 0 && remaining <= 4 && value <= 60 {
-        let ready: bool = block tick();
-        transition ready {
-            true -> block countdown(remaining - 1, value)
-            false -> (value)
-        }
-    }
-}
+
+
+
 
 machine choose(flag: bool) -> u64 ensures result <= 60 {
-    match flag { true -> block countdown(4, 60), false -> block countdown(4, 60), }
+    match flag { true -> block SelectedCountdown::countdown(4, 60), false -> block SelectedCountdown::countdown(4, 60), }
 }
 machine main() crashes Trap {
     let first: u64 = 60u64 - block choose(true);

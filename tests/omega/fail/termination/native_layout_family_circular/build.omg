@@ -1,1 +1,6 @@
-machine build(builder: &mut Build) { Build::application(builder, "family_progress"); Build::bind(builder, linux_x86_64::ProgramEntry, main); }
+machine build(builder: &mut Build) {
+    Build::select_provider<SelectedSelectedFamily, CheckedSelectedFamily>(builder, linux_x86_64);
+    Build::select_provider<SelectedSelectedFamily, CheckedSelectedFamily>(builder, linux_arm64);
+    Build::select_provider<SelectedSelectedFamily, CheckedSelectedFamily>(builder, macos_arm64);
+    Build::select_provider<SelectedSelectedFamily, CheckedSelectedFamily>(builder, windows_x86_64);
+ Build::application(builder, "family_progress"); Build::bind(builder, linux_x86_64::ProgramEntry, main); }

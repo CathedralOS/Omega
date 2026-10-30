@@ -19,11 +19,18 @@ machine check(item: Indexed<16>) crashes Trap {
     transition item.value == 7 { true -> done() false -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }
-linux_x86_64 machine relay(selected: dyn Family, width: u32) -> Indexed<16> requires width == 16 || width == 32; { create(selected, width) }
-linux_arm64 machine relay(selected: dyn Family, width: u32) -> Indexed<16> requires width == 16 || width == 32; { create(selected, width) }
-macos_arm64 machine relay(selected: dyn Family, width: u32) -> Indexed<16> requires width == 16 || width == 32; { create(selected, width) }
-windows_x86_64 machine relay(selected: dyn Family, width: u32) -> Indexed<16> requires width == 16 || width == 32; { create(selected, width) }
+boundary trait SelectedRelay {
+    machine relay(selected: dyn Family, width: u32) -> Indexed<16> reaches
+requires width == 16 || width == 32;
+}
+CheckedRelay satisfies SelectedRelay {
+    machine relay(selected: dyn Family, width: u32) -> Indexed<16> requires width == 16 || width == 32;
+{ create(selected, width) }
+}
+
+
+
 machine transport(selected: dyn Family, width: u32) crashes Trap
 requires width == 16 || width == 32;
-{ check(relay(selected, width)); }
+{ check(SelectedRelay::relay(selected, width)); }
 machine main() crashes Trap { transport(Selected as dyn Family, 16); transport(Other as dyn Family, 32); }

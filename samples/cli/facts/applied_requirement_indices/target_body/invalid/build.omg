@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedForward, LinuxX8664Forward>(builder, linux_x86_64);
+    Build::select_provider<SelectedForward, LinuxX8664Forward>(builder, linux_arm64);
+    Build::select_provider<SelectedForward, LinuxX8664Forward>(builder, macos_arm64);
+    Build::select_provider<SelectedForward, WindowsX8664Forward>(builder, windows_x86_64);
+
     Build::application(builder, "applied_type_index_forwarding");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

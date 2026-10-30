@@ -6,40 +6,32 @@
 // Place: another target body.
 // Expected exit: 0
 
-linux_x86_64 machine deduct(remaining: u64) -> u64
+boundary trait SelectedDeduct {
+    machine deduct(remaining: u64) -> u64 reaches
+requires
+    remaining <= 5 && remaining >= 2;
+}
+CheckedDeduct satisfies SelectedDeduct {
+    machine deduct(remaining: u64) -> u64
 requires
     remaining <= 5 && remaining >= 2;
 {
     remaining - 2
+}
 }
 
-linux_arm64 machine deduct(remaining: u64) -> u64
-requires
-    remaining <= 5 && remaining >= 2;
-{
-    remaining - 2
-}
 
-macos_arm64 machine deduct(remaining: u64) -> u64
-requires
-    remaining <= 5 && remaining >= 2;
-{
-    remaining - 2
-}
 
-windows_x86_64 machine deduct(remaining: u64) -> u64
-requires
-    remaining <= 5 && remaining >= 2;
-{
-    remaining - 2
-}
+
+
+
 
 machine walk(remaining: u64) -> u64
 requires
     remaining <= 5;
 {
     transition remaining >= 2 {
-        true -> deduct(remaining)
+        true -> SelectedDeduct::deduct(remaining)
         false -> remaining
     }
 }

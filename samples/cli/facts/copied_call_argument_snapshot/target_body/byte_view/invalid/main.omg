@@ -10,39 +10,31 @@ machine seven(value: u64) -> u64
 requires value == 7
 ensures result == 7
 { value }
-windows_x86_64 machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
+boundary trait SelectedReceive {
+    machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64 reaches
+requires selected.bytes.len == 7
+ensures result == 7;
+}
+CheckedReceive satisfies SelectedReceive {
+    machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
 requires selected.bytes.len == 7
 ensures result == 7
 {
     seven(selected.bytes.len)
+}
 }
 
-linux_x86_64 machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
-requires selected.bytes.len == 7
-ensures result == 7
-{
-    seven(selected.bytes.len)
-}
 
-macos_arm64 machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
-requires selected.bytes.len == 7
-ensures result == 7
-{
-    seven(selected.bytes.len)
-}
 
-linux_arm64 machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
-requires selected.bytes.len == 7
-ensures result == 7
-{
-    seven(selected.bytes.len)
-}
+
+
+
 
 machine main() crashes Trap {
     let first: &[u8] = "123456789";
     let second: &[u8] = "123456789";
     let mut original: View = View { bytes: first };
-    let observed: u64 = receive(original, overwrite(&mut original, second));
+    let observed: u64 = SelectedReceive::receive(original, overwrite(&mut original, second));
     let difference: u64 = observed - 7;
     transition difference == 0 && original.bytes.len == 9 {
         true -> done() false -> wrong()

@@ -37,14 +37,18 @@ public boundary trait Writer {
 }
 
 
-linux_x86_64 machine forward<'a>(pending: Pending<'a> in Pending::Retained) -> Pending<'a> in Pending::Retained
-ensures result in Pending::Retained { pending }
-linux_arm64 machine forward<'a>(pending: Pending<'a> in Pending::Retained) -> Pending<'a> in Pending::Retained
-ensures result in Pending::Retained { pending }
-macos_arm64 machine forward<'a>(pending: Pending<'a> in Pending::Retained) -> Pending<'a> in Pending::Retained
-ensures result in Pending::Retained { pending }
-windows_x86_64 machine forward<'a>(pending: Pending<'a> in Pending::Retained) -> Pending<'a> in Pending::Retained
-ensures result in Pending::Retained { pending }
+boundary trait SelectedForward {
+    machine forward<'a>(pending: Pending<'a> in Pending::Retained) -> Pending<'a> in Pending::Retained reaches
+ensures result in Pending::Retained;
+}
+CheckedForward satisfies SelectedForward {
+    machine forward<'a>(pending: Pending<'a> in Pending::Retained) -> Pending<'a> in Pending::Retained
+ensures result in Pending::Retained
+{ pending }
+}
+
+
+
 data Main {}
 machine observed_gap(value: u64 in ResidentValue) -> u64 { 2147483647 - value }
 machine run_main(main: &mut Main) reaches Writer crashes Trap {
@@ -53,7 +57,7 @@ machine run_main(main: &mut Main) reaches Writer crashes Trap {
     let original: u64 = cells[1].value;
     let mut buffer: Buffer in Buffer::Owned = Buffer { marker: 91, cells: &mut cells };
     let pending: Pending = Writer::register(capacity, &mut buffer);
-    let routed: Pending in Pending::Retained = forward(pending);
+    let routed: Pending in Pending::Retained = SelectedForward::forward(pending);
     let forbidden: u64 = buffer.cells[1].value;
     let mut observed: u64 = 0;
     let returned: Capacity in Capacity::Available = Writer::complete(routed, &mut observed);

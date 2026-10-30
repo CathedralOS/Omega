@@ -1,4 +1,9 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedMoveSelected, CheckedMoveSelected>(builder, linux_x86_64);
+    Build::select_provider<SelectedMoveSelected, CheckedMoveSelected>(builder, windows_x86_64);
+    Build::select_provider<SelectedMoveSelected, CheckedMoveSelected>(builder, linux_arm64);
+    Build::select_provider<SelectedMoveSelected, CheckedMoveSelected>(builder, macos_arm64);
+
     Build::application(builder, "checked_asm_nominal_predicate_value_indexed_target_body_rejected");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

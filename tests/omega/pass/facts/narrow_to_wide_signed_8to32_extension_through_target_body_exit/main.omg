@@ -2,7 +2,12 @@
 // Place: another target body. Target-scoped implementations across all four platforms verify the bounds.
 // Expected exit: 0
 
-linux_x86_64 machine extend_target(narrow: i8) -> i32
+boundary trait SelectedExtendTarget {
+    machine extend_target(narrow: i8) -> i32 reaches
+requires narrow >= 30i8 && narrow <= 100i8;
+}
+CheckedExtendTarget satisfies SelectedExtendTarget {
+    machine extend_target(narrow: i8) -> i32
     requires narrow >= 30i8 && narrow <= 100i8;
 {
     let wide: i32 = narrow as i32;
@@ -16,58 +21,17 @@ linux_x86_64 machine extend_target(narrow: i8) -> i32
     }
     machine pass() -> i32 { 0 }
     machine fail() -> i32 { 1 }
+}
 }
 
-linux_arm64 machine extend_target(narrow: i8) -> i32
-    requires narrow >= 30i8 && narrow <= 100i8;
-{
-    let wide: i32 = narrow as i32;
-    let headroom: i32 = 100i32 - wide;
-    let margin: i32 = wide - 30i32;
-    let check_h: u32 = headroom as u32;
-    let check_m: u32 = margin as u32;
-    transition wide == 60i32 && headroom + margin == 70i32 && check_h + check_m == 70u32 {
-        true -> pass()
-        _ -> fail()
-    }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
-}
 
-macos_arm64 machine extend_target(narrow: i8) -> i32
-    requires narrow >= 30i8 && narrow <= 100i8;
-{
-    let wide: i32 = narrow as i32;
-    let headroom: i32 = 100i32 - wide;
-    let margin: i32 = wide - 30i32;
-    let check_h: u32 = headroom as u32;
-    let check_m: u32 = margin as u32;
-    transition wide == 60i32 && headroom + margin == 70i32 && check_h + check_m == 70u32 {
-        true -> pass()
-        _ -> fail()
-    }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
-}
 
-windows_x86_64 machine extend_target(narrow: i8) -> i32
-    requires narrow >= 30i8 && narrow <= 100i8;
-{
-    let wide: i32 = narrow as i32;
-    let headroom: i32 = 100i32 - wide;
-    let margin: i32 = wide - 30i32;
-    let check_h: u32 = headroom as u32;
-    let check_m: u32 = margin as u32;
-    transition wide == 60i32 && headroom + margin == 70i32 && check_h + check_m == 70u32 {
-        true -> pass()
-        _ -> fail()
-    }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
-}
+
+
+
 
 machine main() crashes Trap {
-    let res: i32 = extend_target(60i8);
+    let res: i32 = SelectedExtendTarget::extend_target(60i8);
     transition res == 0 {
         true -> done()
         _ -> bad()

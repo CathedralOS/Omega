@@ -1,4 +1,17 @@
 machine build(builder: &mut Build) {
+    Build::select_provider<SelectedProduce, CheckedProduce>(builder, linux_x86_64);
+    Build::select_provider<SelectedProduce, CheckedProduce>(builder, windows_x86_64);
+    Build::select_provider<SelectedProduce, CheckedProduce>(builder, linux_arm64);
+    Build::select_provider<SelectedProduce, CheckedProduce>(builder, macos_arm64);
+    Build::select_provider<SelectedPack, CheckedPack>(builder, linux_x86_64);
+    Build::select_provider<SelectedPack, CheckedPack>(builder, windows_x86_64);
+    Build::select_provider<SelectedPack, CheckedPack>(builder, linux_arm64);
+    Build::select_provider<SelectedPack, CheckedPack>(builder, macos_arm64);
+    Build::select_provider<SelectedPair, CheckedPair>(builder, linux_x86_64);
+    Build::select_provider<SelectedPair, CheckedPair>(builder, windows_x86_64);
+    Build::select_provider<SelectedPair, CheckedPair>(builder, linux_arm64);
+    Build::select_provider<SelectedPair, CheckedPair>(builder, macos_arm64);
+
     Build::application(builder, "runtime_family_composed_owned_results_exit");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
