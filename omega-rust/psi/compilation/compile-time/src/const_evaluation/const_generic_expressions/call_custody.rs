@@ -5,6 +5,7 @@
 //! this invocation's exact substitution; a matching signature or result value
 //! cannot replace the authored selection.
 
+use crate::unique::push_unique;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
     ResolvedAuthoredCallBinding,
@@ -283,9 +284,7 @@ pub(crate) fn retain_current_initializer_calls(
             return Err("pending initializer changed its original selection kind".into());
         }
         let target = (selection.source_span(), target);
-        if !targets.contains(&target) {
-            targets.push(target);
-        }
+        push_unique(&mut targets, target);
     }
     if targets.len() != custody.call_targets.len()
         || custody
@@ -361,9 +360,7 @@ fn validate(
             return Err("constant call receipt has no exact selected target".into());
         };
         let target = (selection.source_span(), selected.selected_symbol());
-        if !expected.contains(&target) {
-            expected.push(target);
-        }
+        push_unique(&mut expected, target);
     }
     let actual = collect_internal(
         program,
@@ -706,9 +703,7 @@ impl<'program> Collector<'program> {
         }
         let occurrence = selection.occurrence_id();
         self.selected_call(&site, context, authored, reference)?;
-        if !self.custody.call_occurrences.contains(&occurrence) {
-            self.custody.call_occurrences.push(occurrence);
-        }
+        push_unique(&mut self.custody.call_occurrences, occurrence);
         Ok(())
     }
 
@@ -774,12 +769,8 @@ impl<'program> Collector<'program> {
             })
             .ok_or("constant call lost its exact selected declaration source")?;
         let selection = (reference, declaration);
-        if !self.custody.calls.contains(&selection) {
-            self.custody.calls.push(selection);
-        }
-        if !self.custody.call_targets.contains(&(reference, target)) {
-            self.custody.call_targets.push((reference, target));
-        }
+        push_unique(&mut self.custody.calls, selection);
+        push_unique(&mut self.custody.call_targets, (reference, target));
         let executable_symbol = self.program.symbols.get(executable);
         let executable_machine = match executable_symbol.kind {
             SymbolKind::Machine => Some(executable),
@@ -843,9 +834,7 @@ impl<'program> Collector<'program> {
             // without inventing a canonical value; only the private observation
             // owner consumes this inventory and cannot validate it for execution.
             let pending = (reference, source);
-            if !self.custody.pending_constants.contains(&pending) {
-                self.custody.pending_constants.push(pending);
-            }
+            push_unique(&mut self.custody.pending_constants, pending);
             return Ok(());
         }
         // Read the current concrete declaration, never copy a caller's expected
@@ -859,9 +848,7 @@ impl<'program> Collector<'program> {
                 .clone()
                 .ok_or("selected constant has no ready canonical value")?,
         };
-        if !self.custody.origins.contains(&origin) {
-            self.custody.origins.push(origin);
-        }
+        push_unique(&mut self.custody.origins, origin);
         // Preparation may still contain provisional declaration values. Only
         // the receiving traversal asks replay to validate materialized subjects.
         if self.syntax.is_none() {
@@ -876,9 +863,7 @@ impl<'program> Collector<'program> {
                 declaration: symbol,
                 expression: materialized,
             };
-            if !self.custody.dependency_values.contains(&subject) {
-                self.custody.dependency_values.push(subject);
-            }
+            push_unique(&mut self.custody.dependency_values, subject);
             // A larger computed root inherits dependency occurrences, but its
             // value is not the dependency's value. Exact token equality selects
             // only the original use which was replaced by that constant.
@@ -887,9 +872,7 @@ impl<'program> Collector<'program> {
                     declaration: symbol,
                     expression,
                 };
-                if !self.custody.dependency_values.contains(&subject) {
-                    self.custody.dependency_values.push(subject);
-                }
+                push_unique(&mut self.custody.dependency_values, subject);
             }
         }
         if self.expanded_constants.contains(&symbol) {
@@ -942,9 +925,7 @@ impl<'program> Collector<'program> {
                     },
                     reference,
                 )?;
-                if !self.custody.call_occurrences.contains(&occurrence) {
-                    self.custody.call_occurrences.push(occurrence);
-                }
+                push_unique(&mut self.custody.call_occurrences, occurrence);
             }
             self.expressions.push((
                 materialized,
@@ -1031,9 +1012,7 @@ impl<'program> Collector<'program> {
                 // This inventory and the published custody both name the
                 // original ledger declaration, independently of executable routing.
                 let target = (selection.source_span(), selected.selected_symbol());
-                if !self.retained_call_targets.contains(&target) {
-                    self.retained_call_targets.push(target);
-                }
+                push_unique(&mut self.retained_call_targets, target);
             } else if selection.kind() == Kind::Operator {
                 // Helper operators remain ordinary checked body evidence, not
                 // initializer builtin-operator receipts.
@@ -1156,9 +1135,7 @@ impl<'program> Collector<'program> {
                         owned_entry
                     };
                     let selected = (target, selection.source_span(), entry, occurrence);
-                    if !selections.contains(&selected) {
-                        selections.push(selected);
-                    }
+                    push_unique(&mut selections, selected);
                 }
                 let [(authored, reference, entry, occurrence)] = selections.as_slice() else {
                     return Err(format!(
@@ -1208,9 +1185,7 @@ impl<'program> Collector<'program> {
                 } else {
                     self.selected_call(&site, context, *authored, *reference)?;
                 }
-                if !self.custody.call_occurrences.contains(occurrence) {
-                    self.custody.call_occurrences.push(*occurrence);
-                }
+                push_unique(&mut self.custody.call_occurrences, *occurrence);
             }
             ExpressionNode::Name(name)
                 if program.symbols.get(name.symbol).kind == SymbolKind::Const =>

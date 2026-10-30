@@ -20,7 +20,7 @@
 //! Scalar probes keep their exact evaluator rather than acquiring runtime
 //! return-range obligations.
 
-use crate::unique::extend_unique;
+use crate::unique::{extend_unique, push_unique};
 use std::sync::Arc;
 
 use diagnostics::Diagnostic;
@@ -461,9 +461,7 @@ impl ConstantCalls for Invocation<'_> {
                 carrier,
                 Some(self),
             )? {
-                if !warnings.contains(&warning) {
-                    warnings.push(warning);
-                }
+                push_unique(&mut warnings, warning);
             }
         }
         Ok((destination, warnings))

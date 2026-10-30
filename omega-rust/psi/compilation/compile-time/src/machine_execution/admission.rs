@@ -13,6 +13,7 @@
 //! program rather than replaying checking. Escaping mutation is excluded by
 //! the evaluator's fresh-value/snapshot boundary.
 
+use crate::unique::push_unique;
 use checked_interpreter::{BuildMachineEvaluationRequest, BuildTimeOperationEvaluation};
 use checked_trees::CheckedTrees;
 use std::collections::VecDeque;
@@ -403,9 +404,7 @@ impl BuildTimeAdmissionPlan {
                 .filter(|edge| edge.source_machine_symbol == machine)
             {
                 if let Some(target) = edge.target_machine(program) {
-                    if !execution.contains(&target) {
-                        execution.push(target);
-                    }
+                    push_unique(execution, target);
                 }
             }
         }
@@ -585,13 +584,9 @@ impl BuildTimeAdmissionPlan {
                     .iter()
                     .any(|member| member.machine == machine_symbol)
             {
-                if !roots.contains(&family.canonical) {
-                    roots.push(family.canonical);
-                }
+                push_unique(&mut roots, family.canonical);
                 for member in &family.members {
-                    if !roots.contains(&member.machine) {
-                        roots.push(member.machine);
-                    }
+                    push_unique(&mut roots, member.machine);
                 }
             }
         }

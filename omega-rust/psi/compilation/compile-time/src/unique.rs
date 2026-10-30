@@ -6,8 +6,13 @@ pub(crate) fn extend_unique<T: PartialEq>(
     additions: impl IntoIterator<Item = T>,
 ) {
     for addition in additions {
-        if !target.contains(&addition) {
-            target.push(addition);
-        }
+        push_unique(target, addition);
+    }
+}
+
+/// Append `addition` unless `target` already holds it.
+pub(crate) fn push_unique<T: PartialEq>(target: &mut Vec<T>, addition: T) {
+    if !target.contains(&addition) {
+        target.push(addition);
     }
 }

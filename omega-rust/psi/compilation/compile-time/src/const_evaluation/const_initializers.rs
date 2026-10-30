@@ -48,7 +48,7 @@
 //! orders that extent's evaluation; neither a probe stand-in nor a provisional
 //! layout may provide the encoded value.
 
-use crate::unique::extend_unique;
+use crate::unique::{extend_unique, push_unique};
 use std::collections::HashMap;
 
 use diagnostics::Diagnostic;
@@ -367,9 +367,7 @@ pub(crate) fn evaluate(
         for (reference, declaration) in selected.constants {
             let dependency = dependency(&declarations, &preparation, declaration, reference)?;
             let selected = (reference, dependency);
-            if !declarations[ordinal].dependencies.contains(&selected) {
-                declarations[ordinal].dependencies.push(selected);
-            }
+            push_unique(&mut declarations[ordinal].dependencies, selected);
         }
         if declarations[ordinal].leaves.is_empty() {
             continue;
@@ -563,9 +561,7 @@ pub(crate) fn evaluate(
                 )
                 .map_err(|reason| failure(reference, reason))?;
                 for choice in observation.calls() {
-                    if !choices.contains(choice) {
-                        choices.push(*choice);
-                    }
+                    push_unique(&mut choices, *choice);
                 }
                 observations.push((leaf.expression, observation));
             }
@@ -790,9 +786,7 @@ pub(crate) fn evaluate(
                         .evaluate_leaf(reference, authored, &syntax)
                         .map_err(|reason| failure(reference, reason))?;
                     for selection in &evaluation.calls {
-                        if !call_selections.contains(selection) {
-                            call_selections.push(*selection);
-                        }
+                        push_unique(&mut call_selections, *selection);
                     }
                     extend_unique(&mut selections, evaluation.origins);
                     extend_unique(&mut builtin_operators, evaluation.operators);
@@ -838,9 +832,7 @@ pub(crate) fn evaluate(
                 }
                 .map_err(|reason| failure(reference, reason))?;
                 for selection in &result.call_selections {
-                    if !call_selections.contains(selection) {
-                        call_selections.push(*selection);
-                    }
+                    push_unique(&mut call_selections, *selection);
                 }
                 extend_unique(&mut selections, result.origins);
                 // Several fields may depend on the same computed declaration.
@@ -930,9 +922,7 @@ pub(crate) fn evaluate(
             // dependency receipts can contribute transitive operator meaning.
             for (reference, dependency) in &declarations[ordinal].authored_dependencies {
                 let origin = dependency.origin(*reference, &syntax, &declarations)?;
-                if !selections.contains(&origin) {
-                    selections.push(origin);
-                }
+                push_unique(&mut selections, origin);
                 let custody = dependency.custody(
                     &declarations,
                     &preparation,
@@ -1077,9 +1067,7 @@ fn dependency_origins(
     let mut origins = Vec::new();
     for (reference, dependency) in dependencies {
         let origin = dependency.origin(*reference, syntax, declarations)?;
-        if !origins.contains(&origin) {
-            origins.push(origin);
-        }
+        push_unique(&mut origins, origin);
         let custody = dependency.custody(declarations, preparation, purpose)?;
         extend_unique(&mut origins, custody.selections);
     }

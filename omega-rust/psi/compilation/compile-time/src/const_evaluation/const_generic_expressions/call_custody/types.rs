@@ -2,6 +2,7 @@
 //! into types. This walk never infers invocation edges or re-resolves names.
 
 use super::{Collector, Context};
+use crate::unique::push_unique;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::{
     TypedTrees,
@@ -183,9 +184,7 @@ impl TypedReferences for TypeDependencies<'_> {
         {
             Ok(origins) => {
                 for origin in origins {
-                    if !self.origins.contains(origin) {
-                        self.origins.push(*origin);
-                    }
+                    push_unique(&mut self.origins, *origin);
                 }
                 true
             }

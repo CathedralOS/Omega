@@ -1,7 +1,7 @@
 //! Source-owned policy demand across ordinary specialization. An interned
 //! callable tuple describes a signature, not an invocation or its requester.
 
-use crate::unique::extend_unique;
+use crate::unique::{extend_unique, push_unique};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -291,9 +291,7 @@ fn policy_sources(
         if source.span.start >= source.span.end {
             return Err("policy operand has no authored invocation source");
         }
-        if !sources.contains(&source) {
-            sources.push(source);
-        }
+        push_unique(sources, source);
         return Ok(());
     }
     if visiting.contains(&origin) {

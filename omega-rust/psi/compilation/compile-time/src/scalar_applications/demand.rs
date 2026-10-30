@@ -1,7 +1,7 @@
 //! Discover the whole demand closure before freezing each entry's captures.
 //! Only executable reads and geometry extents constrain execution order.
 
-use crate::unique::extend_unique;
+use crate::unique::{extend_unique, push_unique};
 use semantic_vocabulary::{MachineId, ScalarApplicationId, ScalarType, ValueId};
 use terminal_installation::{ScalarApplicationObservations, ScalarConditionSelection};
 use terminal_interpreter::{
@@ -172,9 +172,7 @@ pub(super) fn retain_entry_results(
         if observations.value(*application)?.is_some() {
             observations.entry_result(*application, *machine, *result, *scalar_type)?;
         }
-        if !job.results.contains(&(*result, *scalar_type)) {
-            job.results.push((*result, *scalar_type));
-        }
+        push_unique(&mut job.results, (*result, *scalar_type));
     }
     Ok(())
 }

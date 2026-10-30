@@ -22,6 +22,7 @@
 //! route; the synthesized placed record contains opaque accessor fields and is
 //! linear.
 
+use crate::unique::push_unique;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -376,9 +377,7 @@ fn prepare_placement_probe(
                     .with_source_span(source),
             ]);
         };
-        if !declarations.contains(&declaration.symbol) {
-            declarations.push(declaration.symbol);
-        }
+        push_unique(&mut declarations, declaration.symbol);
     }
     let mut selected = Vec::new();
     loop {
@@ -419,15 +418,11 @@ fn prepare_placement_probe(
                     "plan-laid probe lost its policy source",
                 )]);
             };
-            if !machines.contains(&policy_source) {
-                machines.push(policy_source);
-            }
+            push_unique(&mut machines, policy_source);
             // A normalized schema can be generated and have no authored span.
             // These records were synthesized before the retained frontier was
             // indexed, so their exact declaration symbols are stable roots.
-            if !declarations.contains(&schema.symbol) {
-                declarations.push(schema.symbol);
-            }
+            push_unique(&mut declarations, schema.symbol);
             selected.push(record.clone());
         }
         if selected.len() == previous_count {
@@ -881,9 +876,7 @@ fn discover_applications(
             .iter_mut()
             .find(|application: &&mut Application| application.key == key)
         {
-            if !application.invocation_sources.contains(&policy_source) {
-                application.invocation_sources.push(policy_source);
-            }
+            push_unique(&mut application.invocation_sources, policy_source);
         } else {
             applications.push(Application {
                 key,
