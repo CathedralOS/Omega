@@ -897,6 +897,7 @@ name = "ind19-spectrum-validation"
 version = "0.1.0"
 dependencies = [
  "build-declarations",
+ "build-time-evaluation",
  "compilation-products",
  "compiler",
  "diagnostics",
@@ -907,6 +908,8 @@ dependencies = [
  "optimization-core",
  "package-compilation",
  "package-evidence",
+ "package-manager",
+ "provider-planning",
  "semantic-vocabulary",
  "source-files-to-tokens",
  "symbols",
@@ -1371,7 +1374,6 @@ version = "0.1.0"
 dependencies = [
  "compiler",
  "omega-build",
- "package-manager",
  "target",
  "terminal-interpreter",
  "terminal-runtime",
