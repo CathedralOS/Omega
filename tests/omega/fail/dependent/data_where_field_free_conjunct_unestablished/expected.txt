@@ -1,0 +1,1 @@
+reading `pending.<whole value>` crosses an open default-domain invariant window before data `Guarded` is established
