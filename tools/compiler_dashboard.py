@@ -26,6 +26,17 @@ ROOT = Path(__file__).resolve().parents[1]
 PLACES = ("local", "field", "parameter", "call_result", "match_join",
           "const_name", "other_state", "other_machine", "target_body")
 TARGETS = ("windows_x86_64", "linux_x86_64", "macos_arm64", "linux_arm64")
+# Same pairs as corpus_gate.HOST_TARGETS. The filename is the product target;
+# a context line names the machine that recorded the run. Emulation makes
+# those differ, and only the recorder is host evidence.
+RECORDING_HOSTS = {
+    ("windows", "amd64"): "windows_x86_64",
+    ("windows", "x86_64"): "windows_x86_64",
+    ("linux", "x86_64"): "linux_x86_64",
+    ("linux", "aarch64"): "linux_arm64",
+    ("darwin", "arm64"): "macos_arm64",
+    ("darwin", "x86_64"): "macos_x86_64",
+}
 # Same host-specific September 30 goldens used by the original Claude dashboard.
 COHORT_BASELINES = {"windows_x86_64": "5f73e2167f", "linux_x86_64": "03e852fb38",
                     "macos_arm64": "031f4d0ef6"}
@@ -122,6 +133,67 @@ def collect_facts(repository, records):
     return facts
 
 
+def execution_target(path):
+    match = re.fullmatch(r"corpus_(?:native|both)_([a-z0-9_]+)\.txt", Path(path).name)
+    if match is None or match.group(1) not in TARGETS:
+        return None
+    return match.group(1)
+
+
+def recorded_hosts(text):
+    """Hosts named by `# context:` lines, or None when this golden has none.
+
+    An unreadable or unrecognized context is an empty set: the line is
+    present, and it does not name one of the catalogued hosts.
+    """
+    hosts = set()
+    saw = False
+    for line in text.splitlines():
+        if not line.startswith(corpus_records.CONTEXT_PREFIX):
+            continue
+        saw = True
+        try:
+            context = json.loads(line[len(corpus_records.CONTEXT_PREFIX):])
+        except ValueError:
+            return set()
+        if not isinstance(context, dict):
+            return set()
+        host = RECORDING_HOSTS.get((str(context.get("platform") or "").lower(),
+                                    str(context.get("machine") or "").lower()))
+        if host is None:
+            return set()
+        hosts.add(host)
+    return hosts if saw else None
+
+
+def evidence_kind(path, text):
+    """How `text` counts for the host named by `path`: host, emulated, or None.
+
+    A golden with no context line predates host stamping and stays host
+    evidence. A `linux_arm64` product recorded on Linux x86_64 is the
+    qemu-aarch64 run of that product. Any other recorder mismatch is not
+    evidence for the filename host.
+    """
+    target = execution_target(path)
+    if target is None:
+        return "host"
+    hosts = recorded_hosts(text)
+    if hosts is None or hosts == {target}:
+        return "host"
+    if target == "linux_arm64" and hosts == {"linux_x86_64"}:
+        return "emulated"
+    return None
+
+
+def choose_execution_sources(classified):
+    """Prefer a matching-host golden. Emulated rows remain when they are the only evidence."""
+    host_sources = [(path, records) for kind, path, records in classified if kind == "host"]
+    if host_sources:
+        return host_sources, False
+    emulated = [(path, records) for kind, path, records in classified if kind == "emulated"]
+    return emulated, bool(emulated)
+
+
 def execution_revision_dates(repository):
     return {revision: instant(date) for revision, date in
             (line.split(" ", 1) for line in git(repository, "log", "--exclude=refs/coordination/*", "--all", "--format=%H %cI").splitlines())}
@@ -152,18 +224,37 @@ def collect_native(repository, warnings):
         relative = f"tests/omega/corpus_native_{target}.txt"
         paths = [f"tests/omega/corpus_{mode}_{target}.txt" for mode in ("native", "both")
                  if (repository / f"tests/omega/corpus_{mode}_{target}.txt").is_file()]
-        host = {"target": target, "path": relative, "available": bool(paths), "golden_paths": paths}
+        host = {"target": target, "path": relative, "available": bool(paths),
+                "golden_paths": paths, "emulated": False}
         if host["available"]:
             try:
-                sources = [(path, corpus_records.read(repository / path)) for path in paths]
+                classified = []
+                for path in paths:
+                    text = (repository / path).read_text(encoding="utf-8")
+                    kind = evidence_kind(path, text)
+                    if kind is None:
+                        recorded = recorded_hosts(text)
+                        where = ", ".join(sorted(recorded)) if recorded else "an unrecognized host"
+                        warnings.append(
+                            f"Skipped {path}: recorded on {where}, so it is not {target} host evidence")
+                        continue
+                    classified.append((kind, path, corpus_records.parse(text)))
+                sources, emulated = choose_execution_sources(classified)
+                if not sources:
+                    host.update(available=False, golden_paths=[])
+                    hosts.append(host)
+                    continue
+                host["emulated"] = emulated
                 records = [row for row in merge_execution_records(repository, sources, dates)
                            if row["tier"] in ("pass", "run")]
-                golden = repository / paths[0]
-                host["path"] = paths[0]
+                golden = repository / sources[0][0]
+                host["path"] = sources[0][0]
+                host["golden_paths"] = [path for path, _ in sources]
                 host["counts"] = native_scoreboard(records, oracle_lookup(repository, golden, None, target))
                 host["stamps"] = dict(Counter(row.get("recorded_at") or "unstamped" for row in records))
                 host["source_counts"] = dict(Counter(row["golden_path"] for row in records))
-                host["golden_updated"] = git(repository, "log", "-1", "--format=%cI", "--", *paths)
+                host["golden_updated"] = git(repository, "log", "-1", "--format=%cI", "--",
+                                             *host["golden_paths"])
                 host["cohort"] = collect_cohort(repository, target, records)
                 if target in COHORT_BASELINES and not host["cohort"]["available"]:
                     warnings.append(f"Cohort baseline unavailable for {target}: {host['cohort']['error']}")
@@ -239,20 +330,31 @@ def native_history(repository, relative, warnings=None):
         malformed = False
         for path in paths:
             try:
-                sources.append((path, corpus_records.parse(git(repository, "show", f"{revision}:{path}"))))
+                text = git(repository, "show", f"{revision}:{path}")
             except (OSError, ValueError) as error:
                 if "does not exist in" in str(error) or "exists on disk, but not in" in str(error):
                     continue
                 malformed = True
                 if warnings is not None:
                     warnings.append(f"Skipped historical golden {path} at {revision[:11]}: {error}")
-        if malformed or not sources:
+                continue
+            kind = evidence_kind(path, text)
+            if kind is None:
+                continue
+            try:
+                sources.append((kind, path, corpus_records.parse(text)))
+            except (OSError, ValueError) as error:
+                malformed = True
+                if warnings is not None:
+                    warnings.append(f"Skipped historical golden {path} at {revision[:11]}: {error}")
+        chosen, emulated = choose_execution_sources(sources)
+        if malformed or not chosen:
             continue
-        records = merge_execution_records(repository, sources, dates)
+        records = merge_execution_records(repository, chosen, dates)
         valid = [row for row in records if row["tier"] in ("pass", "run")]
         counts = native_scoreboard(valid)
-        history.append({"revision": revision, "date": committed, "paths": [path for path, _ in sources],
-                        "executed": counts["executed"], "fixtures": counts["fixtures"]})
+        history.append({"revision": revision, "date": committed, "paths": [path for path, _ in chosen],
+                        "emulated": emulated, "executed": counts["executed"], "fixtures": counts["fixtures"]})
     return history
 
 

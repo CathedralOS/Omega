@@ -11,6 +11,7 @@ use crate::capture::calling::application::signature::parameters;
 use crate::capture::calling::application::signature::project_with_binders;
 use crate::capture::calling::rejected;
 use crate::capture::semantics::signatures::SignatureProjection;
+use crate::capture::semantics::signatures::parameters::identity_lifetime_substitutions;
 use crate::capture::semantics::signatures::policy::project_type_parameters;
 use crate::record::PackagePolicyTypeParameter;
 use diagnostics::Diagnostic;
@@ -44,12 +45,7 @@ pub(crate) fn declaration_parameters(
     let owner = root(compilation, symbol)?;
     let projected = projection.trees();
     let mut parameters = compilation.trait_type_parameters(owner).to_vec();
-    let lifetimes = owner
-        .lifetime_parameters
-        .iter()
-        .cloned()
-        .map(|name| (name.clone(), name))
-        .collect::<Vec<_>>();
+    let lifetimes = identity_lifetime_substitutions(&owner.lifetime_parameters);
     let mut scopes = Vec::new();
     parameters::instantiate(
         projected,

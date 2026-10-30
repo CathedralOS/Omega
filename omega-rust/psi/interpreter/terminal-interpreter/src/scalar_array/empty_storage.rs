@@ -3,6 +3,7 @@
 //! partial retirement: an ancestor's initialization cannot revive a removed
 //! child. Constructor staging and retirement fund every new row before commit.
 
+use crate::custody::fixed_index_step;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::program::ProgramDeclarations;
 use crate::runtime_rows::RuntimeRows;
@@ -266,19 +267,7 @@ fn select(
     path: &[StructuralPathSegment],
 ) -> Result<StructuralTypeId, TerminalInterpretError> {
     for segment in path {
-        let StructuralPathSegment::FixedIndex(index) = segment else {
-            return Err(malformed());
-        };
-        let StructuralTypeShape::FixedArray {
-            element,
-            length: terminal_psi::ArrayExtent::Literal(length),
-        } = types.get(&structural_type).ok_or_else(malformed)?.shape
-        else {
-            return Err(malformed());
-        };
-        if *index >= length {
-            return Err(malformed());
-        }
+        let (element, _, _) = fixed_index_step(types, structural_type, segment)?;
         structural_type = element;
     }
     if terminal_semantics::scalar_array_leaf_shape(types.values(), structural_type)

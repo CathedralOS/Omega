@@ -4,9 +4,7 @@ use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::contracts::propositions::application::project_contract_proposition;
 use crate::capture::contracts::propositions::endpoint::project_proposition_signature;
 use crate::capture::contracts::propositions::evidence::project_evidence_interface;
-use crate::capture::semantics::declarations::{
-    is_product_scope_instance, nominal_identity, reviewed_package_owns,
-};
+use crate::capture::semantics::declarations::owned_identity;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
     PackageReviewContractFact, PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
@@ -30,13 +28,9 @@ pub(crate) fn project_public_propositions<'a>(
         .iter()
         .filter(|declaration| declaration.is_public)
     {
-        if !is_product_scope_instance(compilation, declaration.symbol)? {
+        let Some(identity) = owned_identity(compilation, package, declaration.symbol)? else {
             continue;
-        }
-        let identity = nominal_identity(compilation, declaration.symbol)?;
-        if !reviewed_package_owns(&identity, package)? {
-            continue;
-        }
+        };
         let (binders, parameter_types) = project_proposition_signature(compilation, declaration)?;
         let body = match &declaration.body {
             PropositionBody::Primitive | PropositionBody::Witness { .. } => {

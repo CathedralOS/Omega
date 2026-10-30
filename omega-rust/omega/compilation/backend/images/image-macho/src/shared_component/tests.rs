@@ -1,5 +1,4 @@
 use super::{MachoComponentExport, emit_macho_shared_component};
-use arena::Handle;
 use image::{
     FinalImage, FinalImageMemory, FinalImageRelocation, FinalImageSection, FinalImageSymbol,
 };
@@ -26,7 +25,7 @@ fn image(target: target::NativeTarget) -> (FinalImage, Vec<MachoComponentExport>
     } else {
         vec![0xc3, 0, 0, 0]
     };
-    let mut image = FinalImage::with_capacity(
+    let mut image = crate::test_support::image(
         target,
         FinalImageMemory {
             text,
@@ -34,10 +33,6 @@ fn image(target: target::NativeTarget) -> (FinalImage, Vec<MachoComponentExport>
             bss_size: 24,
             bss_alignment: 16,
         },
-        Handle::invalid(),
-        2,
-        0,
-        1,
     );
     let entry = image.symbol_table.symbols.insert(FinalImageSymbol {
         name: "selected component entry".into(),

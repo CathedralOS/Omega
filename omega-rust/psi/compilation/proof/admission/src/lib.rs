@@ -114,6 +114,64 @@ pub(crate) fn forge_term_and_assert_rejected(denoted: &mut BoundedDenotation) ->
     evidence
 }
 
+/// One correlated affine branch step: the cited definition and the optional
+/// earlier equality landing a non-closed right sibling.
+#[cfg(test)]
+pub(crate) fn correlated_step(
+    definition_axiom: usize,
+    literal_axiom: Option<usize>,
+) -> CorrelatedAffineStepWitness {
+    CorrelatedAffineStepWitness {
+        definition_axiom,
+        literal_axiom,
+    }
+}
+
+/// The `1..=values` context whose value ids all carry `scalar` — the fixture
+/// preamble the denotation, affine and order suites each stated by hand.
+#[cfg(test)]
+pub(crate) fn value_context(
+    scalar: semantic_vocabulary::ScalarType,
+    values: u64,
+) -> semantic_vocabulary::PropositionContext {
+    semantic_vocabulary::PropositionContext::from_value_types(
+        (1..=values).map(|id| (semantic_vocabulary::ValueId::new(id).unwrap(), scalar)),
+    )
+    .unwrap()
+}
+
+/// One affine witness record over the root and target terms: the cited
+/// definition and literal-axiom indices in witness order.
+#[cfg(test)]
+pub(crate) fn affine_witness(
+    root: semantic_vocabulary::ScalarTerm,
+    target: semantic_vocabulary::ScalarTerm,
+    definition_axioms: Vec<usize>,
+    literal_axioms: Vec<Option<usize>>,
+) -> IntegerAffineWitness {
+    IntegerAffineWitness {
+        root,
+        target,
+        definition_axioms,
+        literal_axioms,
+    }
+}
+
+/// A checked proof node over its conclusion and rule, in the `=>` form the
+/// other test constructors use: a plain call would let rustfmt re-emit the
+/// vertical argument list this macro removes.
+#[cfg(test)]
+macro_rules! proof_node {
+    ($conclusion:expr => $rule:expr) => {
+        ProofNode {
+            conclusion: $conclusion,
+            rule: $rule,
+        }
+    };
+}
+#[cfg(test)]
+pub(crate) use proof_node;
+
 macro_rules! debug_display {
     ($type:ty) => {
         impl std::fmt::Display for $type {

@@ -24,6 +24,7 @@ use terminal_psi::{
 use crate::direct_calls::direct_call_parts;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
+use crate::terminal_identities::hex_text;
 
 /// Checked substitution scopes, retaining capture and invocation separately.
 struct ReachApplicationView<'a> {
@@ -242,12 +243,7 @@ fn closed_evidence_bindings(
                 );
             }
             let declaration = declaration_identity(checked, selected.symbol);
-            let commitment = selected_application
-                .commitment
-                .as_bytes()
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>();
+            let commitment = hex_text(&selected_application.commitment.as_bytes());
             Ok((
                 bound.binder,
                 format!(
@@ -891,11 +887,7 @@ fn declaration_identity(checked: &CheckedTrees, symbol: SymbolHandle) -> String 
     let path = checked.symbols.display_path(symbol, "::");
     match checked.symbols.symbol_package_identity(symbol) {
         Some(package) => {
-            let owner = package
-                .digest()
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>();
+            let owner = hex_text(&package.digest());
             format!("package:{owner}::{path}")
         }
         None => format!("unmanaged::{path}"),

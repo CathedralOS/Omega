@@ -20,6 +20,7 @@ mod same_operand;
 mod unit_divisor;
 
 pub(crate) use candidate_validation::validate_proof_certified_scalar_identity_candidate;
+pub(crate) use literal_operand::materialized_integer_constant;
 
 use integer_constant_law::validate_integer_constant_law_candidate;
 use rule_catalog::ProofCheckValidationRoute;

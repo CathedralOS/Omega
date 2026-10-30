@@ -1244,6 +1244,39 @@ pub(crate) fn split_affine_frontier_at_projection(
     )
 }
 
+/// The element type and literal extent of a fixed-array declaration.
+pub(crate) fn literal_fixed_array(
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+) -> Result<(StructuralTypeId, u64), TerminalInterpretError> {
+    let StructuralTypeShape::FixedArray {
+        element,
+        length: terminal_psi::ArrayExtent::Literal(length),
+    } = types.get(&structural_type).ok_or_else(malformed)?.shape
+    else {
+        return Err(malformed());
+    };
+    Ok((element, length))
+}
+
+/// One `FixedIndex` step into a literal fixed array: the element type, the
+/// selected index and the declared extent. Every consumer bounds the index
+/// before it multiplies a span or an offset by the element count.
+pub(crate) fn fixed_index_step(
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+    segment: &StructuralPathSegment,
+) -> Result<(StructuralTypeId, u64, u64), TerminalInterpretError> {
+    let StructuralPathSegment::FixedIndex(index) = segment else {
+        return Err(malformed());
+    };
+    let (element, length) = literal_fixed_array(types, structural_type)?;
+    if *index >= length {
+        return Err(malformed());
+    }
+    Ok((element, *index, length))
+}
+
 pub(crate) fn resolve_structural_path_type(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: StructuralTypeId,

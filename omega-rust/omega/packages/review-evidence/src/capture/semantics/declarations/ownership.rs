@@ -1,3 +1,4 @@
+use super::identity::nominal_identity;
 use crate::capture::PackageReviewInput;
 use crate::record::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewToolchainSourceIdentity,
@@ -18,6 +19,21 @@ pub(crate) fn reviewed_package_owns(
             identity.path
         ))]),
     }
+}
+
+/// The reviewed identity of one public product-scope instance the reviewed
+/// package owns, or `None` for an instance review must not publish: a nested
+/// declaration or one whose owner is another package.
+pub(crate) fn owned_identity(
+    compilation: &PackageReviewInput<'_>,
+    package: PackageKeyIdentity,
+    symbol: SymbolHandle,
+) -> Result<Option<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
+    if !is_product_scope_instance(compilation, symbol)? {
+        return Ok(None);
+    }
+    let identity = nominal_identity(compilation, symbol)?;
+    Ok(reviewed_package_owns(&identity, package)?.then_some(identity))
 }
 
 pub(crate) fn nominal_owner(

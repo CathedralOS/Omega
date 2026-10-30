@@ -19,6 +19,7 @@
 #[cfg(test)]
 mod tests;
 
+use crate::custody::literal_fixed_array;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution, operation_kind};
 use crate::runtime_rows::RuntimeRows;
@@ -234,16 +235,7 @@ impl ElementView {
             // not as an unsized view. Only its exact complete collection can be
             // replaced whole; a slice descriptor never owns its backing array.
             let home = self.descriptor_home.as_ref().ok_or_else(malformed)?;
-            let StructuralTypeShape::FixedArray {
-                length: terminal_psi::ArrayExtent::Literal(length),
-                ..
-            } = types
-                .get(&collection.structural_type)
-                .ok_or_else(malformed)?
-                .shape
-            else {
-                return Err(malformed());
-            };
+            let (_, length) = literal_fixed_array(types, collection.structural_type)?;
             if home.structural_type != collection.structural_type
                 || self.window.start != 0
                 || u64::try_from(self.window.end).ok() != Some(length)
@@ -490,16 +482,7 @@ impl ElementView {
             let ElementViewBacking::Structural { collection } = &self.backing else {
                 return Err(malformed());
             };
-            let StructuralTypeShape::FixedArray {
-                length: terminal_psi::ArrayExtent::Literal(length),
-                ..
-            } = types
-                .get(&collection.structural_type)
-                .ok_or_else(malformed)?
-                .shape
-            else {
-                return Err(malformed());
-            };
+            let (_, length) = literal_fixed_array(&types, collection.structural_type)?;
             if self.window.start != 0 || u64::try_from(self.window.end).ok() != Some(length) {
                 return Err(malformed());
             }

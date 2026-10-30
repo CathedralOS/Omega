@@ -20,6 +20,7 @@ use super::StateGraphEmission;
 use crate::emission::boolean_control::LoweredBooleanDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StorageObservations};
+use crate::emission::value_successor;
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
 use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_structural_crash_predicates};
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
@@ -876,15 +877,10 @@ impl StateGraphEmission<'_, '_> {
                                 cleanup_actions: Vec::new(),
                             },
                         ));
-                        Ok(Some(SuccessorEdge {
-                            edge: edge_id(allocate_dense(&mut next_edge)?),
-                            target: staged,
-                            arguments: Vec::new(),
-                            erased_arguments: Vec::new(),
-                            erased_proof_arguments: Vec::new(),
-                            structural_arguments: Vec::new(),
-                            cleanup_actions: Vec::new(),
-                        }))
+                        Ok(Some(value_successor(
+                            edge_id(allocate_dense(&mut next_edge)?),
+                            staged,
+                        )))
                     }
                     checked_trees::CheckedClosedSumCaseOutcomePlan::Return(return_arm) => {
                         let payload_parameters = case
