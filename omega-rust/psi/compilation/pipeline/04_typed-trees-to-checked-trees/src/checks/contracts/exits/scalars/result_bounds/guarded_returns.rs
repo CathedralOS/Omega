@@ -4,6 +4,7 @@
 //! Captured predicates retain their earlier selected producers; complete write
 //! frames preserve the collection and selector through the taken-arm return.
 
+use super::super::is_scalar_roster_local;
 use super::{
     BigInt, ExitScalars, ExpressionHandle, exact_integer_carrier, exit_return_expression,
     interval_comparison, is_result_reference,
@@ -128,13 +129,7 @@ impl ExitScalars<'_, '_> {
             .enumerate()
             .filter_map(|(statement, node)| {
                 let local = node.as_local_data()?;
-                (!local.is_mutable
-                    && local.initial_value.is_valid()
-                    && self
-                        .program
-                        .primitive_type_reference(local.type_reference)
-                        .is_some())
-                .then_some((statement, local))
+                is_scalar_roster_local(self.program, local).then_some((statement, local))
             })
             .enumerate()
             .filter(|(_, (_, local))| local.symbol == symbol);

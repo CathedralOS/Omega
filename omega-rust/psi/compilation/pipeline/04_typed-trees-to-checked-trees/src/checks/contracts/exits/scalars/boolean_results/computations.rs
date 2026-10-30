@@ -7,6 +7,7 @@
 //! operation and its proof obligations, including effects simplified out of this
 //! result equation. Graph and captured-local expansion share one bounded budget.
 
+use super::super::is_scalar_roster_local;
 use super::{
     BooleanSubject, CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
     CheckedScalarExpressionRole, ExitScalars, ExpressionHandle, PrimitiveType, SymbolHandle,
@@ -84,13 +85,7 @@ impl ExitScalars<'_, '_> {
                 .iter()
                 .filter_map(|statement| {
                     let local = statement.as_local_data()?;
-                    (!local.is_mutable
-                        && local.initial_value.is_valid()
-                        && self
-                            .program
-                            .primitive_type_reference(local.type_reference)
-                            .is_some())
-                    .then_some(local.symbol)
+                    is_scalar_roster_local(self.program, local).then_some(local.symbol)
                 }),
         );
         self.bind_boolean_computation(

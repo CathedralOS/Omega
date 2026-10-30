@@ -20,7 +20,10 @@ use validation::CanonicalPlace;
 
 mod descriptor_lengths;
 
-use super::{ExitScalars, ExpressionHandle, ScalarValue, exit_return_expression, stable_segments};
+use super::{
+    ExitScalars, ExpressionHandle, ScalarValue, exit_return_expression, is_scalar_roster_local,
+    stable_segments,
+};
 use crate::flow::{self};
 use checked_trees::CheckedScalarExpression;
 use facts::PlaceRoot;
@@ -875,13 +878,7 @@ impl ExitScalars<'_, '_> {
                         .iter()
                         .filter_map(|node| {
                             let local = node.as_local_data()?;
-                            (!local.is_mutable
-                                && local.initial_value.is_valid()
-                                && self
-                                    .program
-                                    .primitive_type_reference(local.type_reference)
-                                    .is_some())
-                            .then_some(local)
+                            is_scalar_roster_local(self.program, local).then_some(local)
                         })
                         .nth(ordinal)?;
                     (
