@@ -73,6 +73,22 @@ pub(super) fn with_builder(
     test(&mut builder, &row);
 }
 
+/// A structural type declaration whose only varying coordinates are its id and
+/// shape; the identity index and cleanup flags stay at their default rows.
+fn declaration(id: StructuralTypeId, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
+    StructuralTypeDeclaration {
+        quotient_carrier: None,
+        id,
+        identity: terminal_psi::TerminalIdentityIndex(0),
+        owns_linear_claim: false,
+        no_code_affine_cleanup: false,
+        copyable: false,
+        descriptor_cleanup: false,
+        scalar_restriction: None,
+        shape,
+    }
+}
+
 pub(super) fn execute(
     instructions: &[SelectedInstruction],
     registers: &mut [u64],
@@ -700,17 +716,6 @@ fn resident_array_transfer_keeps_source_and_destination_strides_independent() {
     use terminal_psi::{BindingRelevance, StructuralFieldType, TerminalIdentityIndex};
     let scalar = StructuralTypeId::new(1).unwrap();
     let array = StructuralTypeId::new(2).unwrap();
-    let declaration = |id, shape| StructuralTypeDeclaration {
-        quotient_carrier: None,
-        id,
-        identity: TerminalIdentityIndex(0),
-        owns_linear_claim: false,
-        no_code_affine_cleanup: false,
-        copyable: false,
-        descriptor_cleanup: false,
-        scalar_restriction: None,
-        shape,
-    };
     let types = vec![
         declaration(
             scalar,
@@ -821,17 +826,6 @@ fn image_fixture() -> (
         relevance: BindingRelevance::Relevant,
         field_type,
         storage: None,
-    };
-    let declaration = |id, shape| StructuralTypeDeclaration {
-        quotient_carrier: None,
-        id,
-        identity: TerminalIdentityIndex(0),
-        owns_linear_claim: false,
-        no_code_affine_cleanup: false,
-        copyable: false,
-        descriptor_cleanup: false,
-        scalar_restriction: None,
-        shape,
     };
     let types = vec![
         declaration(

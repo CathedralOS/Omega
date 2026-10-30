@@ -4,6 +4,7 @@
 //! reconstructing backing, current extent location and placement, not demand
 //! that the owner and descriptor have the same type or predicate roster.
 use crate::LegalizationError;
+use crate::legalization::scalar_graph_input::structural_case;
 use abstract_operations::AbstractOperationPlan;
 use calling_conventions::{CallPlan, ValueShape};
 use optimization_unit::PsiOptimizationFunction;
@@ -103,14 +104,7 @@ pub(super) fn argument(
             || (block == after.0 && position >= after.1)
             || (block != after.0
                 && !super::super::target::control_flow::sources::dominates(caller, block, after.0))
-            || !caller.structural_places.iter().any(|place| {
-                place.id == result.place
-                    && place.kind
-                        == StructuralPlaceKind::OperationResult {
-                            producer,
-                            structural_type: result.structural_type,
-                        }
-            })
+            || !structural_case::records_operation_result(caller, producer, result)
         {
             return Err(LegalizationError::custody());
         }
