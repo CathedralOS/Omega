@@ -1,1 +1,1 @@
-native binding operand `private_magnitude::magnitude::RawMagnitude::absolute` does not resolve to one visible Product boundary requirement
+native binding must name one exact visible package-owned requirement

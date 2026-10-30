@@ -1,0 +1,11 @@
+// Expected exit: 0
+use private_magnitude::magnitude::Magnitude;
+use private_magnitude::magnitude::NativeMagnitude;
+machine main() crashes Trap reaches Magnitude, RootRaw {
+ let actual: i32 = Magnitude::read();
+ let root_actual: i32 = RootRaw::absolute(-91);
+ transition actual == 73 && root_actual == 91 { true -> done() false -> bad() }
+ machine done() {} machine bad() crashes Trap { crash Trap; }
+}
+
+boundary trait RootRaw { machine absolute(value: i32) -> i32 reaches; }

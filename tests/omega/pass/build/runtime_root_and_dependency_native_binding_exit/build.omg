@@ -1,0 +1,17 @@
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+ Build::application(builder, "private_native_probe");
+ Build::depend(builder, Source::Path { location: "library" });
+ Build::select_provider<private_magnitude::magnitude::Magnitude, private_magnitude::magnitude::NativeMagnitude>(builder, windows_x86_64);
+ Build::select_provider<private_magnitude::magnitude::Magnitude, private_magnitude::magnitude::NativeMagnitude>(builder, linux_x86_64);
+ Build::select_provider<private_magnitude::magnitude::Magnitude, private_magnitude::magnitude::NativeMagnitude>(builder, macos_arm64);
+ Build::select_provider<private_magnitude::magnitude::Magnitude, private_magnitude::magnitude::NativeMagnitude>(builder, linux_arm64);
+ Build::bind<RootRaw::absolute>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "msvcrt.dll", export: "abs" } });
+ Build::bind<RootRaw::absolute>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "abs", version: "GLIBC_2.2.5" } });
+ Build::bind<RootRaw::absolute>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "abs", version: "GLIBC_2.17" } });
+ Build::bind<RootRaw::absolute>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs" } });
+ Build::bind(builder, windows_x86_64::ProgramEntry, main);
+ Build::bind(builder, linux_x86_64::ProgramEntry, main);
+ Build::bind(builder, macos_arm64::ProgramEntry, main);
+ Build::bind(builder, linux_arm64::ProgramEntry, main);
+}
