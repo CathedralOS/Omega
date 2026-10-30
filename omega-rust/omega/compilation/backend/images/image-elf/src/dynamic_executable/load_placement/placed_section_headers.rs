@@ -106,25 +106,12 @@ struct Candidate {
 pub(crate) fn apply_elf_section_header_placements(
     load_layout: ValidatedElfDynamicLoadLayout,
 ) -> Result<ValidatedElfPlacedSectionHeaderTable, Box<ElfSectionHeaderPlacementApplicationError>> {
-    checked::plan_candidate(
-        load_layout,
-        derive_contents,
-        |load_layout, contents| {
-            non_authoritative_placed_compatibility_fingerprint(&load_layout, &contents)
-        },
-        |load_layout, contents, fingerprint| Candidate {
-            load_layout: load_layout,
-            contents: contents,
-            non_authoritative_placed_compatibility_fingerprint: fingerprint,
-        },
-        validate_candidate,
-        |candidate| candidate.load_layout,
-        |load_layout, diagnostic| {
-            Box::new(ElfSectionHeaderPlacementApplicationError {
-                load_layout: load_layout,
-                diagnostic,
-            })
-        },
+    checked::plan_stage!(
+        plan: load_layout,
+        derive: derive_contents,
+        contents: contents,
+        fingerprint: non_authoritative_placed_compatibility_fingerprint,
+        error: ElfSectionHeaderPlacementApplicationError,
     )
 }
 

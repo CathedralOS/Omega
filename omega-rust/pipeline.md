@@ -846,6 +846,12 @@ Checked qualification evidence names its source declaration and exact boundary
 requirement, not a selected provider's receipt number. Provider grant binding
 borrows that evidence and returns selected plans and grants separately; it never
 rewrites or clones checked Psi to stamp target-specific authority into facts.
+Psi prepares each authorized contract issuer's export identity once before
+sharing the checking baseline with flow workers. Admitted fact occurrences carry
+that stable issuer handle; the inventory alone creates no obligation. Omega's
+source-free grant policy consumes those occurrences, including uncalled bodies at
+the Check stop, and preserves declaring-owner preference and ambiguous-grant
+refusal without rescanning typed traits or signatures.
 
 `omega/compilation/driver/` owns only compilation orchestration.
 [`omega/compilation/native-production/`](omega/compilation/native-production/README.md)

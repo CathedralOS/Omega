@@ -6,8 +6,20 @@
 //! computation. The caller chooses its term mode before entering the question;
 //! guarding contract equations must not change the surrounding proof meaning.
 
-use super::{StructuralJudge, StructuralTerm};
+use super::{ResolutionPurpose, StructuralJudge, StructuralTerm};
 use std::sync::Arc;
+
+#[derive(Default)]
+pub(super) struct ResolutionResults<'program> {
+    completed: std::sync::Mutex<Vec<CompletedResolution<'program>>>,
+}
+
+struct CompletedResolution<'program> {
+    input: StructuralTerm,
+    depth: usize,
+    context: StructuralJudge<'program>,
+    output: StructuralTerm,
+}
 
 pub(super) struct ApplicationResolution<'program> {
     application: StructuralTerm,
@@ -16,11 +28,71 @@ pub(super) struct ApplicationResolution<'program> {
 }
 
 impl<'program> StructuralJudge<'program> {
+    pub(super) fn resolve_at(&self, term: StructuralTerm, depth: usize) -> StructuralTerm {
+        self.resolve_with_at(term, depth, ResolutionPurpose::General)
+    }
+
+    pub(super) fn resolve_with_at(
+        &self,
+        term: StructuralTerm,
+        depth: usize,
+        purpose: ResolutionPurpose,
+    ) -> StructuralTerm {
+        // Completed general answers cannot replace numeric leaf retention or
+        // omit the effects of an active dependency collector.
+        if purpose != ResolutionPurpose::General || self.has_resolution_dependency_collector() {
+            return self.resolve_uncached(term, depth, purpose);
+        }
+        let Some(results) = &self.resolution_results else {
+            let mut resolver = self.clone();
+            resolver.resolution_results = Some(Arc::default());
+            return resolver.resolve_at(term, depth);
+        };
+        if !matches!(
+            term,
+            StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. }
+        ) {
+            return self.resolve_uncached(term, depth, purpose);
+        }
+        if let Ok(completed) = results.completed.lock()
+            && let Some(previous) = completed.iter().find(|previous| {
+                previous.depth == depth
+                    && match (
+                        &previous.context.active_application,
+                        &self.active_application,
+                    ) {
+                        (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+                        (None, None) => true,
+                        _ => false,
+                    }
+                    && previous.context.same_resolution_context(self)
+                    && previous.input.same_resolution_payload(&term)
+            })
+        {
+            phase_profile::count("05.resolution.hit", 1);
+            return previous.output.clone();
+        }
+        phase_profile::count("05.resolution.miss", 1);
+        let output = self.resolve_uncached(term.clone(), depth, purpose);
+        let mut context = self.clone();
+        context.resolution_results = None;
+        if let Ok(mut completed) = results.completed.lock() {
+            completed.push(CompletedResolution {
+                input: term,
+                depth,
+                context,
+                output: output.clone(),
+            });
+        }
+        output
+    }
+
     pub(super) fn resolving_application(mut self, application: &StructuralTerm) -> Option<Self> {
         let mut context = self.clone();
         // The context holds its semantic owners, not the active query chain.
         // The separate predecessor edge below keeps this an acyclic history.
         context.active_application = None;
+        context.resolution_results = None;
         let mut previous = self.active_application.as_deref();
         while let Some(active) = previous {
             if active.application.same_resolution_payload(application)

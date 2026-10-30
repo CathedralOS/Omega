@@ -459,25 +459,16 @@ fn exact_trait_requirement<'a>(
     declaring_trait: symbols::SymbolHandle,
     requirement: symbols::SymbolHandle,
 ) -> Result<ExactTraitRequirement<'a>, LoweringError> {
-    let mut matches = checked
+    // The typed owner retains closed requirement applications as well as
+    // authored signatures. Scanning only declaration rosters loses the exact
+    // applied signature when a generic provider row reaches evidence lowering.
+    let (definition, signature) = checked
         .typed
-        .traits()
-        .iter()
-        .filter(|definition| definition.symbol == declaring_trait)
-        .flat_map(|definition| {
-            checked
-                .typed
-                .trait_machine_signatures(definition)
-                .iter()
-                .filter(move |signature| signature.symbol == requirement)
-                .map(move |signature| (definition, signature))
-        });
-    let (definition, signature) = matches.next().ok_or(LoweringError::Unsupported(
-        "evidence producer row has no exact trait requirement",
-    ))?;
-    if matches.next().is_some() {
-        return unsupported("evidence producer row has an ambiguous trait requirement");
-    }
+        .trait_machine_signature(requirement)
+        .filter(|(definition, _)| definition.symbol == declaring_trait)
+        .ok_or(LoweringError::Unsupported(
+            "evidence producer row has no exact trait requirement",
+        ))?;
     let overload_identity = checked
         .typed
         .trait_requirement_callable_identity(definition, signature);

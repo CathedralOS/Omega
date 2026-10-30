@@ -18,7 +18,7 @@ macro_rules! fact_plan_root_roster {
             $($argument,)* places, place_segments, facts, scalar_values, boolean_predicates,
             boolean_predicate_bindings, integer_ranges, qualification_correspondences,
             domain_definition_facts, data_definition_facts, instantiated_expressions, refs,
-            symbol_sets,
+            symbol_sets, qualification_issuers,
         );
     };
 }
@@ -47,6 +47,7 @@ pub type QualificationCorrespondenceHandle = Handle<QualificationCorrespondence>
 
 #[derive(Debug, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FactPlan {
+    pub qualification_issuers: Arena<crate::BoundaryQualificationIssuerRecord>,
     pub places: Arena<Place>,
     pub place_segments: Arena<PlaceSegment>,
     pub facts: evidence::FactTable,
@@ -138,6 +139,29 @@ macro_rules! fact_plan_root_impls {
 fact_plan_root_roster!(fact_plan_root_impls);
 
 impl FactPlan {
+    /// Actual admitted occurrences, including facts outside emitted roots.
+    /// The declaration inventory alone does not create a grant obligation.
+    pub fn admitted_qualification_issuers(
+        &self,
+    ) -> Result<Vec<&language_semantics::BoundaryQualificationIssuer>, &'static str> {
+        let mut issuers = Vec::new();
+        for (_, fact) in self.facts.iter().filter(|(_, fact)| {
+            fact.evidence.origin == language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
+        }) {
+            if !self.qualification_issuers.is_valid(fact.evidence.issuer) {
+                return Err("admitted qualification evidence has no retained issuer");
+            }
+            let record = self.qualification_issuers.get(fact.evidence.issuer);
+            if record.source_symbol != fact.evidence.source_symbol
+                || record.requirement_symbol != fact.evidence.requirement_symbol
+            {
+                return Err("admitted qualification evidence does not name its retained issuer");
+            }
+            issuers.push(&record.issuer);
+        }
+        Ok(issuers)
+    }
+
     pub fn append_fact(&mut self, fact: Fact) -> FactHandle {
         self.facts.append(fact)
     }

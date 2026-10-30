@@ -84,6 +84,7 @@ pub(crate) use recursion::{
 };
 use result_use::validate_result_use;
 pub use write_frames::CallFrameTables;
+pub(crate) use write_frames::CapturedStorageReadBacking;
 use write_frames::boundary_trait_call_signature;
 pub(crate) use write_frames::machine_state_by_symbol;
 pub use write_frames::{

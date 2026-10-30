@@ -101,6 +101,25 @@ pub struct AssignmentStorageOrigins {
     pub references: Option<Vec<LocalWriteOrigin>>,
 }
 
+/// Current standalone slot rows supersede the older alias-entry inventory.
+/// An unknown current row still shadows its old initializer; omitting it would
+/// silently restore the retired pointer. Nested slots keep their own selectors.
+pub(super) fn current_reference_aliases(
+    program: &dyn crate::CheckingInput,
+    current: &[LocalWriteOrigin],
+    aliases: &[(String, FramePlaceOrigin)],
+) -> Vec<(String, FramePlaceOrigin)> {
+    aliases
+        .iter()
+        .filter(|(name, _)| {
+            !current.iter().any(|row| {
+                row.local_segments.is_empty() && program.symbols.name(row.local_symbol) == name
+            })
+        })
+        .cloned()
+        .collect()
+}
+
 /// Storage captured by one exact invocation. Each operand keeps all possible
 /// origins; `None` is unknown and `Some([])` means no caller storage. These
 /// coordinates do not grant permission to access the referents.

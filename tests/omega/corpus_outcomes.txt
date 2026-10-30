@@ -1664,6 +1664,20 @@ fail/borrows/returned_case_reference_live_source_write rejected 564ms expected @
 fail/borrows/returned_computed_record_parent_stays_borrowed rejected 8512ms expected @a92f16431042
 	state `write_pair` receives `view` while local borrow `leading` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	state `write_pair` receives `view` while local borrow `leading` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/borrows/returned_image_borrowed_alternative rejected 1281ms expected @7d1421067c5a
+	state `mutate` receives `bytes` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+	statement 2 borrows `bytes` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+	statement 2 mutates `bytes[0]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/returned_image_replaced_backing rejected 1295ms expected @7d1421067c5a
+	state `mutate` receives `bytes` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+	statement 3 borrows `bytes` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+	statement 3 mutates `bytes[0]` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
+fail/borrows/returned_indexed_case_other_backing rejected 1273ms expected @efcd7fe73ad0
+	machine `evaluate` state `entry` statement 1: cannot prove selected case for payload access `nodes.items[1].value`: captured source `nodes.items[1]::Number.value` has no live case evidence
+fail/borrows/returned_indexed_case_other_descriptor rejected 1258ms expected @efcd7fe73ad0
+	machine `evaluate` state `entry` statement 2: cannot prove selected case for payload access `other.value`: captured source `nodes.items[0]::Number.value` has no live case evidence
+fail/borrows/returned_indexed_case_out_of_bounds rejected 603ms expected @efcd7fe73ad0
+	machine `entry` state `entry` value call to `evaluate` violates required fact `position < 2`: the instantiated fact is structurally false (`2 < 2`)
 fail/borrows/returned_operand_parent_cannot_bypass_child rejected 4226ms expected @a92f16431042
 	statement 3 mutates `whole.second.value` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/returned_reference_exposed_integer_local rejected 511ms expected @5c5c178f82c7
@@ -12491,6 +12505,24 @@ fail/facts/nested_machine_joint_rank_ranged_value_parameter_rejected rejected 74
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_ranged_value_target_body_rejected rejected 751ms expected @15a66acf6a30
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_stored_case_call_result_rejected rejected 741ms expected @05d0ed3ff2df
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_stored_case_const_name_rejected rejected 769ms expected @05d0ed3ff2df
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_stored_case_field_rejected rejected 739ms expected @05d0ed3ff2df
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_stored_case_local_rejected rejected 757ms expected @05d0ed3ff2df
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_stored_case_match_join_rejected rejected 767ms expected @05d0ed3ff2df
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_stored_case_other_machine_rejected rejected 981ms expected @05d0ed3ff2df
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_stored_case_other_state_rejected rejected 985ms expected @05d0ed3ff2df
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_stored_case_parameter_rejected rejected 790ms expected @05d0ed3ff2df
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_stored_case_target_body_rejected rejected 778ms expected @05d0ed3ff2df
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_stored_reference_alias_carrier_rejected rejected 733ms expected @aa3ac0fde33a
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_stored_reference_alias_child_rejected rejected 729ms expected @aa3ac0fde33a
@@ -12778,6 +12810,22 @@ fail/facts/nested_machine_statement_completion_target_body_rejected rejected 125
 	cannot prove ensures contract for exit from HostedProbeBody::apply at statement 0: result != -1
 fail/facts/nested_machine_statement_completion_wrong_tag_rejected rejected 3078ms expected @b0d06a168a00+wt
 	cannot prove requires contract for call probe from main: choice == constructor:80:package:0ababaff7be122379295755579dfe2fa5efa40c446ce2a4d4011f916f57fb1af::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_stored_case_alias_reset_rejected rejected 756ms expected @05d0ed3ff2df
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_stored_case_missing_case_rejected rejected 370ms expected @05d0ed3ff2df
+	cannot form specification payload projection `count` in machine `count` requires contract: establish its exact active case before projecting the payload
+fail/facts/nested_machine_stored_case_ordered_slot_overlap_rejected rejected 743ms expected @05d0ed3ff2df
+	cannot prove requires contract for call require_positive from main: cursor.child.value > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_stored_case_reseated_bound_rejected rejected 750ms expected @05d0ed3ff2df
+	cannot prove requires contract for call small from replace: holder.child.count <= 7 (needs fact `payload.count <= 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_stored_case_reset_count_rejected rejected 745ms expected @05d0ed3ff2df
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_stored_case_scalar_alias_overlap_rejected rejected 372ms expected @05d0ed3ff2df
+	exact arithmetic in machine `forward` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_stored_case_unformed_subtract_rejected rejected 347ms expected @05d0ed3ff2df
+	exact arithmetic in machine `count` state `entry` local `unjustified` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_stored_case_wrong_case_rejected rejected 337ms expected @05d0ed3ff2df
+	cannot form specification payload projection `count` in machine `count` requires contract: establish its exact active case before projecting the payload
 fail/facts/nested_machine_unit_output_slot_call_result_rejected rejected 3630ms expected @1e18830ea024+wt
 	statement 4 mutates `old.value` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 5)
 	statement 5 reads `old.canary` while local borrow `view` is still active (borrowed at statement 2; its last use is at statement 5)
@@ -29287,6 +29335,15 @@ pass/facts/nested_machine_joint_rank_ranged_value_other_machine_exit checked 101
 pass/facts/nested_machine_joint_rank_ranged_value_other_state_exit checked 1009ms check-target:macos_arm64 @15a66acf6a30
 pass/facts/nested_machine_joint_rank_ranged_value_parameter_exit checked 953ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/nested_machine_joint_rank_ranged_value_target_body_exit checked 960ms check-target:macos_arm64 @15a66acf6a30
+pass/facts/nested_machine_joint_rank_stored_case_call_result_exit checked 1234ms check-target:macos_arm64 @05d0ed3ff2df
+pass/facts/nested_machine_joint_rank_stored_case_const_name_exit checked 1234ms check-target:macos_arm64 @05d0ed3ff2df
+pass/facts/nested_machine_joint_rank_stored_case_field_exit checked 1105ms check-target:macos_arm64 @05d0ed3ff2df
+pass/facts/nested_machine_joint_rank_stored_case_local_exit checked 1162ms check-target:macos_arm64 @05d0ed3ff2df
+pass/facts/nested_machine_joint_rank_stored_case_match_join_exit checked 1259ms check-target:macos_arm64 @05d0ed3ff2df
+pass/facts/nested_machine_joint_rank_stored_case_other_machine_exit checked 1112ms check-target:macos_arm64 @05d0ed3ff2df
+pass/facts/nested_machine_joint_rank_stored_case_other_state_exit checked 1247ms check-target:macos_arm64 @05d0ed3ff2df
+pass/facts/nested_machine_joint_rank_stored_case_parameter_exit checked 1284ms check-target:macos_arm64 @05d0ed3ff2df
+pass/facts/nested_machine_joint_rank_stored_case_target_body_exit checked 1075ms check-target:macos_arm64 @05d0ed3ff2df
 pass/facts/nested_machine_joint_rank_stored_reference_alias_carrier_exit checked 995ms check-target:macos_arm64 @aa3ac0fde33a
 pass/facts/nested_machine_joint_rank_stored_reference_alias_child_exit checked 992ms check-target:macos_arm64 @aa3ac0fde33a
 pass/facts/nested_machine_joint_rank_stored_reference_call_result_exit checked 972ms check-target:macos_arm64 @5c5c178f82c7
@@ -29395,6 +29452,10 @@ pass/facts/nested_machine_statement_completion_other_machine_exit checked 19975m
 pass/facts/nested_machine_statement_completion_other_state_exit checked 19572ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_parameter_exit checked 20251ms check-target:macos_arm64 @b0d06a168a00+wt
 pass/facts/nested_machine_statement_completion_target_body_exit checked 20912ms check-target:macos_arm64 @b0d06a168a00+wt
+pass/facts/nested_machine_stored_case_alias_child_exit checked 1261ms check-target:macos_arm64 @05d0ed3ff2df
+pass/facts/nested_machine_stored_case_copied_descriptor_exit checked 1201ms check-target:macos_arm64 @05d0ed3ff2df
+pass/facts/nested_machine_stored_case_ordered_slot_read_exit checked 1017ms check-target:macos_arm64 @05d0ed3ff2df
+pass/facts/nested_machine_stored_case_scalar_alias_exit checked 1018ms check-target:macos_arm64 @05d0ed3ff2df
 pass/facts/nested_machine_unit_output_slot_call_result_exit checked 4162ms check-target:macos_arm64 @1e18830ea024+wt
 pass/facts/nested_machine_unit_output_slot_const_name_exit checked 4162ms check-target:macos_arm64 @1e18830ea024+wt
 pass/facts/nested_machine_unit_output_slot_field_exit checked 4427ms check-target:macos_arm64 @1e18830ea024+wt
@@ -34741,6 +34802,10 @@ run/borrows/recast_mut_borrow checked 5752ms check-target:macos_arm64 @a92f16431
 run/borrows/reference_local_binding_routes checked 5429ms check-target:macos_arm64 @a92f16431042
 run/borrows/reference_result_call_binding checked 5404ms check-target:macos_arm64 @a92f16431042
 run/borrows/returned_element_from_offset_view checked 1711ms check-target:macos_arm64 @a92f16431042
+run/borrows/returned_image_nested_arrival checked 1990ms check-target:macos_arm64 @7d1421067c5a
+run/borrows/returned_image_nested_field checked 1986ms check-target:macos_arm64 @7d1421067c5a
+run/borrows/returned_indexed_case checked 2094ms check-target:macos_arm64 @efcd7fe73ad0
+run/borrows/returned_indexed_case_descriptor_field checked 2097ms check-target:macos_arm64 @efcd7fe73ad0
 run/borrows/runtime_index_bounded_borrow checked 5284ms check-target:macos_arm64 @a92f16431042
 run/borrows/runtime_index_scalar_write_descriptor_result checked 2331ms check-target:macos_arm64 @a92f16431042
 run/borrows/shared_field_borrow checked 5378ms check-target:macos_arm64 @a92f16431042

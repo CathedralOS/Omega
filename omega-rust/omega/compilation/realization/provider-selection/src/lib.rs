@@ -11,6 +11,7 @@ mod independent_components;
 mod installation_reach;
 mod provider_selection;
 mod publication;
+mod qualification_grants;
 mod selection;
 
 pub use publication::{
@@ -26,3 +27,4 @@ pub use declarations::{
 pub use installation_reach::{InstallationReachRow, resolve_installation_reach};
 pub use language_semantics::declaration_selection::CompositionMode;
 pub use provider_selection::{admit, choose};
+pub use qualification_grants::validate_qualification_grants;
