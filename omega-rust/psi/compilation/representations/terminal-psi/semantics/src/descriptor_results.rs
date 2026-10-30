@@ -864,18 +864,10 @@ fn terminal_definition(
 ) -> Option<DescriptorDefinition> {
     match kind {
         StructuralPlaceKind::Parameter { position } => {
-            let mut matching =
-                machine
-                    .structural_parameters
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, parameter)| {
-                        parameter.place == place && parameter.position == position
-                    });
-            let (position, parameter) = matching.next()?;
-            if matching.next().is_some() {
-                return None;
-            }
+            let (position, parameter) = exactly_one(
+                machine.structural_parameters.iter().enumerate(),
+                |(_, parameter)| parameter.place == place && parameter.position == position,
+            )?;
             Some(DescriptorDefinition::Parameter {
                 position,
                 access: parameter.access,

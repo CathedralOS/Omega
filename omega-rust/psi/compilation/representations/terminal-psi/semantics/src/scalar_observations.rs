@@ -5,6 +5,7 @@
 #[cfg(test)]
 mod tests;
 
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Static, IntegerSign, IntegerType, ScalarReadProjection,
     ScalarType, StructuralTypeId,
@@ -107,11 +108,7 @@ pub fn structural_read_scalar_type<'a>(
                 else {
                     return None;
                 };
-                let mut matches = cases.iter().filter(|case| case.id == *identity);
-                case_fields = Some(&matches.next()?.fields);
-                if matches.next().is_some() {
-                    return None;
-                }
+                case_fields = Some(&exactly_one(cases.iter(), |case| case.id == *identity)?.fields);
             }
             ScalarReadProjection::Static(Static::Field(identity)) => {
                 let Target::Declaration(root) = target else {

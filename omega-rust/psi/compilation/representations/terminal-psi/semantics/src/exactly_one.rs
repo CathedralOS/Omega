@@ -10,12 +10,12 @@
 //! This is selection, not validation: it reports that the roster is not
 //! single-valued but never says what a duplicated entry would mean.
 
-/// The one entry of `rows` that `keep` accepts, or `None` when it accepts none
-/// or several.
-pub(crate) fn exactly_one<'row, Row>(
-    rows: impl Iterator<Item = &'row Row>,
+/// The one entry `rows` yields that `keep` accepts, or `None` when it accepts
+/// none or several.
+pub(crate) fn exactly_one<Row>(
+    rows: impl Iterator<Item = Row>,
     keep: impl Fn(&Row) -> bool,
-) -> Option<&'row Row> {
+) -> Option<Row> {
     let mut matching = rows.filter(|row| keep(row));
     let row = matching.next()?;
     matching.next().is_none().then_some(row)

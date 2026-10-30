@@ -58,11 +58,8 @@ pub fn descriptor_location(
             }
             StructuralPathSegment::Case(id) if case_fields.is_none() => {
                 let cases = declaration.shape.sum_cases()?;
-                let mut matching = cases.iter().filter(|case| case.id == *id);
-                case_fields = Some(matching.next()?.fields.as_slice());
-                if matching.next().is_some() {
-                    return None;
-                }
+                let case = exactly_one(cases.iter(), |case| case.id == *id)?;
+                case_fields = Some(case.fields.as_slice());
                 DescriptorPathSegment::Case(*id)
             }
             StructuralPathSegment::Field(name) => {
@@ -222,11 +219,8 @@ fn resolved_path(
             }
             DescriptorPathSegment::Case(id) if case_fields.is_none() => {
                 let cases = declaration.shape.sum_cases()?;
-                let mut matching = cases.iter().filter(|case| case.id == *id);
-                case_fields = Some(matching.next()?.fields.as_slice());
-                if matching.next().is_some() {
-                    return None;
-                }
+                let case = exactly_one(cases.iter(), |case| case.id == *id)?;
+                case_fields = Some(case.fields.as_slice());
                 StructuralPathSegment::Case(*id)
             }
             DescriptorPathSegment::Field(id) => {

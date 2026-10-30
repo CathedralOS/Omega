@@ -323,11 +323,7 @@ fn canonical_projection_type<'a>(
                 else {
                     return None;
                 };
-                let mut matching = cases.iter().filter(|case| case.id == *identity);
-                case_fields = Some(&matching.next()?.fields);
-                if matching.next().is_some() {
-                    return None;
-                }
+                case_fields = Some(&exactly_one(cases.iter(), |case| case.id == *identity)?.fields);
                 if let Some(storage) = storage.as_mut() {
                     storage.push(StructuralPathSegment::Case(*identity));
                 }
