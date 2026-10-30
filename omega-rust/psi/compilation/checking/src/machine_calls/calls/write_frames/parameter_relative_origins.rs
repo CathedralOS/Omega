@@ -63,7 +63,9 @@ pub(crate) fn parameter_relative_place_origin(
     expression: ExpressionHandle,
     inference: &mut FrameInference,
 ) -> Option<ParameterRelativeFrameOrigin> {
-    single_parameter_relative_origin(parameter_relative_place_origins(query, expression, inference)?)
+    single_parameter_relative_origin(parameter_relative_place_origins(
+        query, expression, inference,
+    )?)
 }
 
 /// Every proven route a place expression may name, in the callee's
@@ -178,14 +180,12 @@ fn parameter_relative_place_origins_in(
             // fresh result storage, never the call's own place: `helper(..).slot`
             // lends the leaf's proven referents, re-rooted on this machine's
             // parameters.
-            None => {
-                parameter_relative_aggregate_leaf_origins(
-                    query,
-                    expression,
-                    inference,
-                    admit_carrier_roots,
-                )?
-            }
+            None => parameter_relative_aggregate_leaf_origins(
+                query,
+                expression,
+                inference,
+                admit_carrier_roots,
+            )?,
         },
         // An authored literal names image storage directly: the backing is
         // caller-independent, so the route needs no parameter root to be
@@ -323,10 +323,7 @@ fn parameter_relative_aggregate_leaf_origins(
                 .find(|parameter| {
                     (origin.source.root == parameter.symbol)
                         && (admit_carrier_roots
-                            || type_reference_is_reference(
-                                query.program,
-                                parameter.type_reference,
-                            ))
+                            || type_reference_is_reference(query.program, parameter.type_reference))
                 })
                 .map(|parameter| ParameterRelativeFrameOrigin {
                     place: origin,
