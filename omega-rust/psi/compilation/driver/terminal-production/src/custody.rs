@@ -53,6 +53,7 @@ impl compiler_storage::Record for ProducedTerminalProgram {
             companion!(self.build_bindings.calls_for(view));
             companion!(self.build_bindings.declarations_for(view));
             companion!(self.build_bindings.queries_for(view));
+            companion!(self.build_bindings.native_formations_for(view));
             companion!(self.build_requests.calls_for(view));
             companion!(self.build_filesystem.calls_for(view));
             self.applications.write(output)
@@ -74,6 +75,9 @@ impl compiler_storage::Record for ProducedTerminalProgram {
                 >],
             > = Record::read(input)?;
             let queries: std::sync::Arc<[crate::TerminalBuildQueryCall]> = Record::read(input)?;
+            let native_formations: std::sync::Arc<
+                [language_semantics::declaration_selection::NativeBindingFormation],
+            > = Record::read(input)?;
             let requests: std::sync::Arc<[crate::TerminalBuildRequestCall]> = Record::read(input)?;
             let filesystem: std::sync::Arc<[crate::TerminalBuildFilesystemCall]> =
                 Record::read(input)?;
@@ -88,8 +92,13 @@ impl compiler_storage::Record for ProducedTerminalProgram {
             }
             let view = artifact.view().into();
             // Reuse the producer constructors with the recovered companion storage.
-            let build_bindings =
-                crate::TerminalBuildBindings::new(view, calls, declarations, queries);
+            let build_bindings = crate::TerminalBuildBindings::new(
+                view,
+                calls,
+                declarations,
+                queries,
+                native_formations,
+            );
             let build_requests = crate::TerminalBuildRequests::new(view, requests);
             let build_filesystem = crate::TerminalBuildFilesystem::new(view, filesystem);
             Ok(Self {

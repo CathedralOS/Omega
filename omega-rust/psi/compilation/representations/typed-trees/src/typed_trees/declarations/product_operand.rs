@@ -417,3 +417,63 @@ pub fn resolve_native_table_field(
     Some((owner.symbol, field))
 }
 
+/// Capture exact authored provenance before source erasure. The Terminal
+/// producer separately proves this machine owns the issued request.
+pub fn native_binding_formation(
+    typed: &TypedTrees,
+    author: SymbolHandle,
+    root: Option<SymbolHandle>,
+    request: std::sync::Arc<language_semantics::declaration_selection::ProductDeclarationRequest>,
+) -> Result<language_semantics::declaration_selection::NativeBindingFormation, String> {
+    use sha2::{Digest, Sha256};
+    let machine = typed
+        .machine_by_symbol(author)
+        .ok_or("native source author has no exact checked machine")?;
+    let span = typed
+        .symbols
+        .symbol_provenance_source_span(author)
+        .ok_or("native source author lost its source")?;
+    let source = typed
+        .symbols
+        .source_file(span)
+        .ok_or("native declaration has no retained source file")?;
+    let callable_identity = typed
+        .machine_callable_identity_text(machine)
+        .ok_or("native declaration has no checked callable identity")?;
+    let [operand] = request.operands.as_ref() else {
+        return Err("native formation lost its exact requirement".into());
+    };
+    let relative = source
+        .path
+        .strip_prefix(&source.package_root)
+        .map_err(|_| "native source is outside its checked package")?
+        .to_string_lossy();
+    let mut digest = Sha256::new();
+    digest.update(b"omega.native-source-occurrence.v1\0");
+    for bytes in [
+        relative.as_bytes(),
+        source.source.as_bytes(),
+        callable_identity.as_bytes(),
+        operand.path.as_bytes(),
+    ] {
+        digest.update((bytes.len() as u64).to_le_bytes());
+        digest.update(bytes);
+    }
+    digest.update((request.source_span.span.start as u64).to_le_bytes());
+    digest.update((request.source_span.span.end as u64).to_le_bytes());
+    let root_scope = root
+        .and_then(|root| typed.symbols.symbol_provenance_source_span(root))
+        .is_some_and(|root| typed.symbols.same_source_package(span, root));
+    Ok(
+        language_semantics::declaration_selection::NativeBindingFormation {
+            request,
+            author: span,
+            author_package: typed.symbols.symbol_package_identity(author),
+            root_scope,
+            declaration_path: typed.symbols.display_path(author, "::"),
+            callable_identity,
+            source_occurrence_digest: digest.finalize().into(),
+            resolution_stratum: source.resolution_stratum,
+        },
+    )
+}

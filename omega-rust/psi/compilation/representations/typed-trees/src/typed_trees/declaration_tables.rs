@@ -293,12 +293,20 @@ impl TypedTrees {
         }
         for handle in self.live_product_operand_applications() {
             let selected = self.product_operand_applications.get(handle);
-            let Some(application) = selected.implementation.as_ref() else { continue; };
-            let source = self.expression_table.static_machine_application(selected.supplying_application);
-            if !includes_owner(source.lexical_owner) { continue; }
+            let Some(application) = selected.implementation.as_ref() else {
+                continue;
+            };
+            let source = self
+                .expression_table
+                .static_machine_application(selected.supplying_application);
+            if !includes_owner(source.lexical_owner) {
+                continue;
+            }
             sites.push((
                 super::ClosedConformanceApplicationSite::ProductOperand(handle),
-                source.lexical_owner, selected.supplying_application, application,
+                source.lexical_owner,
+                selected.supplying_application,
+                application,
             ));
         }
         sites
@@ -310,10 +318,16 @@ impl TypedTrees {
     ) -> Option<&mut super::ClosedConformanceApplication> {
         match site {
             super::ClosedConformanceApplicationSite::DataArgument(handle) => Some(
-                &mut self.data_implementation_applications.get_mut(handle).application,
+                &mut self
+                    .data_implementation_applications
+                    .get_mut(handle)
+                    .application,
             ),
             super::ClosedConformanceApplicationSite::ProductOperand(handle) => self
-                .product_operand_applications.get_mut(handle).implementation.as_mut(),
+                .product_operand_applications
+                .get_mut(handle)
+                .implementation
+                .as_mut(),
             super::ClosedConformanceApplicationSite::TraitArgument(handle) => Some(
                 &mut self
                     .trait_implementation_applications

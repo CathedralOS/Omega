@@ -64,6 +64,12 @@ impl<'a> TerminalProductionRequest<'a> {
         let TerminalProductionCustody { applications } = custody;
         let checked = self.checked;
         let declaration_requests = crate::build_bindings::capture_declarations(checked);
+        let native_formations = crate::build_bindings::capture_native_formations(
+            checked,
+            self.root,
+            &declaration_requests,
+        )
+        .map_err(TerminalArtifactProductionError::BuildContext)?;
         let lowered = observer
             .record_result(PsiCompilationStage::Lowering, || {
                 lower_machine(
@@ -181,6 +187,7 @@ impl<'a> TerminalProductionRequest<'a> {
             binding_calls,
             declaration_requests,
             query_calls,
+            native_formations,
         );
         let build_requests = crate::TerminalBuildRequests::new(program.view(), request_calls);
         let build_filesystem =
