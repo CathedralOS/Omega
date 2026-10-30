@@ -39,9 +39,11 @@ use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::{
     ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow,
 };
+use language_semantics::direct_calls::DirectCallDeclarations;
 use package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
 };
+use symbols::SymbolHandle;
 
 /// Resolve the exact Product boundary and normalized schema for the canonical
 /// filesystem host binding.
@@ -408,6 +410,7 @@ fn demanded_provider_plans(
 pub fn settle_checked_providers(
     checked: &checked_trees::CheckedTrees,
     provider_uses: &std::collections::HashSet<symbols::SymbolHandle>,
+    body_declarations: &DirectCallDeclarations<SymbolHandle>,
     settled_target_machines: SettledTargetMachineDeclarations,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
@@ -440,6 +443,7 @@ pub fn settle_checked_providers(
     let authored_providers =
         std::sync::Arc::new(crate::target_machines::AuthoredTargetProviders::derive(
             context,
+            body_declarations,
             &boundary_calling_plan_realizations,
             &evaluated_via_bindings,
             planning_target,

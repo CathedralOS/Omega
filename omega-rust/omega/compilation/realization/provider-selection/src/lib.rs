@@ -11,6 +11,7 @@ mod boundary_review;
 mod callback_roots;
 mod provider_demands;
 mod provider_instances;
+mod target_bodies;
 pub use callback_roots::{
     CallbackProviderDeclarations, SelectedCallbackRow, select_callback_declarations,
 };
@@ -19,6 +20,7 @@ pub use provider_instances::{
     GenericProviderInstanceDeclarations, ProviderInstanceDeclarations,
     ProviderInstanceRowDeclarations, ProviderPlanInstanceDeclarations, project_provider_instances,
 };
+pub use target_bodies::{DirectTargetBodyAbsences, reject_reached_inert_calls};
 mod selected_binding;
 pub use boundary_review::BoundaryProviderAdmission;
 pub use selected_binding::{

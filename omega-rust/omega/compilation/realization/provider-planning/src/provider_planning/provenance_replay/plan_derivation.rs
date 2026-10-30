@@ -25,9 +25,12 @@ use crate::provider_planning::source_provider_selections::{
 };
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use effects::provider_plan::{ProviderIdentityId, ProviderIdentityTable};
+use language_semantics::direct_calls::DirectCallDeclarations;
+use symbols::SymbolHandle;
 
 pub(crate) fn derive_provider_plans(
     context: ProviderPlanningContext<'_>,
+    body_declarations: &DirectCallDeclarations<SymbolHandle>,
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
@@ -192,14 +195,19 @@ pub(crate) fn derive_provider_plans(
     // but exclude a whole map when one of its rows reaches a known absent
     // target body. Completion, provider dependencies and admission remain
     // separate obligations on the candidates that selection actually chooses.
-    let absent = crate::target_machines::DirectTargetBodyAbsences::derive(context, selected_target);
+    let absent = provider_selection::DirectTargetBodyAbsences::derive(
+        body_declarations,
+        selected_target
+            .filter(|target| !target.is_empty())
+            .unwrap_or_else(|| target::TargetProfile::host().target_name()),
+    );
     plans.retain(|candidate| {
         !candidate
             .provenance
             .row_realizations
             .iter()
             .filter_map(ProviderRowRealization::authored)
-            .any(|machine| absent.contains(typed, machine))
+            .any(|machine| absent.contains(&machine))
     });
     Ok(plans)
 }
