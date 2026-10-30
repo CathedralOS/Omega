@@ -1,0 +1,24 @@
+data Record { flag: bool; }
+machine first(record: Record, written: u64, remaining: u64) -> u64
+    ensures result <= 256u64
+{
+    transition remaining > 0u64 {
+        true -> second(record, written, remaining - 1u64)
+        false -> finish(record, written)
+    }
+    machine finish(record: Record, written: u64) -> u64 {
+        transition record.flag && written > 256u64 {
+            true -> (0u64)
+            false -> (written)
+        }
+    }
+}
+machine second(record: Record, written: u64, remaining: u64) -> u64
+    ensures result <= 256u64
+{
+    transition remaining > 0u64 {
+        true -> first(record, written, remaining - 1u64)
+        false -> first(record, written, 0u64)
+    }
+}
+machine main() { let value: u64 = first(Record { flag: false }, 257u64, 2u64); }
