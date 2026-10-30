@@ -87,11 +87,7 @@ pub(super) fn check_statement_borrows<'p>(
                     continue;
                 }
                 let establishing = facts.borrow.calls.get(loan.established_by_call);
-                let mut actual = facts
-                    .flow
-                    .control
-                    .calls
-                    .span_or_empty(state_flow.calls)
+                let mut actual = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
                     .iter()
                     .filter(|call| {
                         call.statement_index == statement.statement_index

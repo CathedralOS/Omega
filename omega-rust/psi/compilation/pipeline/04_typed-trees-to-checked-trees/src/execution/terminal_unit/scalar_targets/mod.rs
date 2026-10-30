@@ -303,11 +303,7 @@ pub(super) fn available_target(
         return None;
     }
     let flow = state_flow(facts, caller.machine, caller.state)?;
-    let mut calls = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(flow.calls)
+    let mut calls = crate::flow::call_flows(&facts.flow.control, flow.calls)
         .iter()
         .filter(|call| {
             u32::try_from(call.statement_index).ok() == Some(coordinate.statement_index)

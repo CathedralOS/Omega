@@ -1031,6 +1031,14 @@ pub(crate) fn active_context_handles(
         .collect::<Vec<_>>()
 }
 
+/// The call flow facts a state's call span names, in span order.
+pub(crate) fn call_flows(
+    control: &checked_trees::FlowControlFacts,
+    calls: arena::HandleSpan<checked_trees::FlowCallFact>,
+) -> &[checked_trees::FlowCallFact] {
+    control.calls.span_or_empty(calls)
+}
+
 /// Every fact payload the active contexts carry, in span order.
 pub(super) fn active_context_facts(
     contexts: &FlowBuildContext<'_>,

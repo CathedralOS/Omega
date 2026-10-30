@@ -358,13 +358,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
         let mut arrivals = Vec::new();
         for caller in self.program.machine_states(self.machine) {
             let caller_flow = Self::state_flow(self.facts, self.machine, caller)?;
-            for call in self
-                .facts
-                .flow
-                .control
-                .calls
-                .span_or_empty(caller_flow.calls)
-            {
+            for call in crate::flow::call_flows(&self.facts.flow.control, caller_flow.calls) {
                 let Some(site) = validation::find_call_site(
                     self.program,
                     self.machine.symbol,

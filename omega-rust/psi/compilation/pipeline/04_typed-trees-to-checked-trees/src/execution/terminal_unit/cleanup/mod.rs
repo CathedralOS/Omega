@@ -161,12 +161,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         .for_machine(machine.symbol)
         .is_some_and(|fact| !fact.body_committed.is_empty())
         || machine_has_content_evidence(facts, machine.symbol, state.symbol)
-        || !facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(state_flow.calls)
-            .is_empty()
+        || !crate::flow::call_flows(&facts.flow.control, state_flow.calls).is_empty()
         || !source_parameters
             .iter()
             .enumerate()

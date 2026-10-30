@@ -495,11 +495,7 @@ fn isolated_proof_values(
         .machine_states(machine.symbol)
         .into_iter()
         .all(|state| {
-            facts
-                .flow
-                .control
-                .calls
-                .span_or_empty(state.calls)
+            crate::flow::call_flows(&facts.flow.control, state.calls)
                 .iter()
                 .all(|call| {
                     program

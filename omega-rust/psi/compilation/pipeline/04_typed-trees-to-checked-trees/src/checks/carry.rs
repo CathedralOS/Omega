@@ -298,11 +298,7 @@ pub(super) fn check_suspension_carry(
         };
 
         for call in facts.borrow.calls.span_or_empty(state_borrows.calls) {
-            let Some(call_flow) = facts
-                .flow
-                .control
-                .calls
-                .span_or_empty(state_flow.calls)
+            let Some(call_flow) = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
                 .iter()
                 .find(|flow| {
                     flow.statement_index == call.statement_index

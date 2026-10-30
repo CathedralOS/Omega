@@ -573,11 +573,7 @@ impl ConstructionWalk<'_, '_> {
                 for argument in program.expression_table.expression_handles(call.arguments) {
                     self.scan(*argument, contexts);
                 }
-                let mut calls = facts
-                    .flow
-                    .control
-                    .calls
-                    .span_or_empty(state_flow.calls)
+                let mut calls = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
                     .iter()
                     .filter(|call| {
                         call.statement_index == statement_index

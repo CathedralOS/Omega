@@ -332,10 +332,7 @@ pub(super) fn completed_operand(
         {
             continue;
         }
-        let Some(call) = flow
-            .control
-            .calls
-            .span_or_empty(caller.calls)
+        let Some(call) = crate::flow::call_flows(&flow.control, caller.calls)
             .iter()
             .find(|call| {
                 call.statement_index == statement_index && call.call_ordinal == call_ordinal

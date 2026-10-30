@@ -868,11 +868,7 @@ fn completed_call_claims(
     else {
         return Err("completed result has no state flow");
     };
-    let mut calls = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state_flow.calls)
+    let mut calls = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
         .iter()
         .filter(|call| {
             call.statement_index == operand.statement_index

@@ -131,11 +131,7 @@ pub(crate) fn replay_memberships(
     let Some(state_flow) = facts.flow.control.state(machine_symbol, state_symbol) else {
         return Vec::new();
     };
-    let Some(call) = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state_flow.calls)
+    let Some(call) = crate::flow::call_flows(&facts.flow.control, state_flow.calls)
         .iter()
         .find(|call| {
             call.statement_index == statement_index

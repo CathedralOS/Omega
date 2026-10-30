@@ -130,18 +130,14 @@ impl ExitScalars<'_, '_> {
                         .and_then(|reference| self.program.primitive_type_reference(reference))
                             == Some(primitive)
                     {
-                        let mut calls = self
-                            .facts
-                            .flow
-                            .control
-                            .calls
-                            .span_or_empty(caller.calls)
-                            .iter()
-                            .filter(|call| {
-                                call.statement_index == self.exit.statement_index
-                                    && call.authored_expression == selected
-                                    && call.authored_source_custody_valid
-                            });
+                        let mut calls =
+                            crate::flow::call_flows(&self.facts.flow.control, caller.calls)
+                                .iter()
+                                .filter(|call| {
+                                    call.statement_index == self.exit.statement_index
+                                        && call.authored_expression == selected
+                                        && call.authored_source_custody_valid
+                                });
                         if calls.next().is_some() && calls.next().is_none() {
                             return Some(arithmetic::atom(
                                 CanonicalPlace {

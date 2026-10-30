@@ -74,11 +74,7 @@ fn value_semantic_contexts(
             Ok(None) => {}
         }
     }
-    let contexts = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state.calls)
+    let contexts = crate::flow::call_flows(&facts.flow.control, state.calls)
         .iter()
         .rfind(|call| call.statement_index == statement_index)
         .map(|call| call.exit_semantic_contexts)
@@ -530,11 +526,7 @@ fn completed_owned_call_carries_domain(
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     if !value.is_valid()
-        || !facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(state_flow.calls)
+        || !crate::flow::call_flows(&facts.flow.control, state_flow.calls)
             .iter()
             .any(|call| {
                 call.statement_index == statement_index && call.authored_expression == value

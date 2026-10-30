@@ -632,11 +632,7 @@ fn bound_sources_at_call(
         program,
         validation::call_target_symbol(program, call),
     );
-    let mut matching = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(flow.calls)
+    let mut matching = crate::flow::call_flows(&facts.flow.control, flow.calls)
         .iter()
         .filter(|row| {
             row.statement_index == statement

@@ -234,11 +234,7 @@ fn evidence_inner(
             {
                 continue;
             }
-            let Some(call) = facts
-                .flow
-                .control
-                .calls
-                .span_or_empty(flow.calls)
+            let Some(call) = crate::flow::call_flows(&facts.flow.control, flow.calls)
                 .iter()
                 .find(|call| {
                     call.statement_index == statement_index && call.call_ordinal == call_ordinal
