@@ -1,0 +1,45 @@
+{
+  "incoming_main": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585",
+  "policy": "Resolve actual content conflict by rebasing onto incoming main and preserving its two exact golden rows. Runtime evidence stays bound to febc01cd5500; required CI checks final integration.",
+  "new_rows": {
+    "fail/borrows/terminal_case_retained_observation": {
+      "fixture": "fail/borrows/terminal_case_retained_observation",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1079,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "state `finish` receives `pool` as both mutable and read-only",
+        "state `finish` receives `pool` as both mutable and read-only",
+        "state `finish` receives `pool` while local borrow `__transition_subject#11` is still active (borrowed at statement 1; its last use is at statement 3)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "49e92b4199eb"
+    },
+    "run/borrows/terminal_case_completed_observation": {
+      "fixture": "run/borrows/terminal_case_completed_observation",
+      "tier": "run",
+      "status": "checked",
+      "millis": 1837,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "49e92b4199eb"
+    }
+  },
+  "rows": 21447,
+  "sha256": "5bf461664ab971a4653fda4adb9a20e67939746e307b178422bade614e3a5579",
+  "upstream_changed_paths_from_qualified_source": [
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/calls/conflicts.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/calls/staging.rs",
+    "tests/omega/corpus_outcomes.txt",
+    "tests/omega/fail/borrows/terminal_case_retained_observation/expected.txt",
+    "tests/omega/fail/borrows/terminal_case_retained_observation/main.omg",
+    "tests/omega/run/borrows/terminal_case_completed_observation/build.omg",
+    "tests/omega/run/borrows/terminal_case_completed_observation/main.omg"
+  ]
+}
