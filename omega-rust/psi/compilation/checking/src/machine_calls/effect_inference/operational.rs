@@ -30,7 +30,6 @@ use flow_effects::{CallOperational, MachineOperational, OperationalPlan, StateOp
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct MachineWork {
     symbol: SymbolHandle,
-    family_members: Vec<SymbolHandle>,
     uses_published_contract: bool,
     published_may_suspend: bool,
     published_may_block: bool,
@@ -105,13 +104,8 @@ fn build_machine_work(
     let mut machines = Vec::with_capacity(program.machines().len());
 
     for machine in program.machines() {
-        let family_members = super::family_interface_members(program, machine)
-            .iter()
-            .map(|member| member.machine)
-            .collect::<Vec<_>>();
-        let uses_published_contract = family_members.is_empty()
-            && (machine.is_public
-                || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody);
+        let uses_published_contract = machine.is_public
+            || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody;
         let states = program
             .machine_states(machine)
             .iter()
@@ -128,7 +122,6 @@ fn build_machine_work(
         let published = machine_operational(program, machine);
         machines.push(MachineWork {
             symbol: machine.symbol,
-            family_members,
             uses_published_contract,
             published_may_suspend: published.may_suspend,
             published_may_block: published.may_block,
@@ -521,17 +514,6 @@ fn propagate_operational_may(
                     body_may_block |= target.transitive_may_block;
                 }
             }
-            // A family has no body to validate. Its callable envelope joins
-            // member summaries inside this same fixed point, including cycles
-            // from members through portable calls back into other families.
-            let mut family_may_suspend = false;
-            let mut family_may_block = false;
-            for member in &machines[machine_index].family_members {
-                if let Some(target) = machines.iter().find(|machine| machine.symbol == *member) {
-                    family_may_suspend |= target.transitive_may_suspend;
-                    family_may_block |= target.transitive_may_block;
-                }
-            }
             machines[machine_index].body_may_suspend = body_may_suspend;
             machines[machine_index].body_may_block = body_may_block;
             if machines[machine_index].uses_published_contract {
@@ -540,9 +522,8 @@ fn propagate_operational_may(
                 machines[machine_index].transitive_may_block =
                     machines[machine_index].published_may_block;
             } else {
-                machines[machine_index].transitive_may_suspend =
-                    body_may_suspend || family_may_suspend;
-                machines[machine_index].transitive_may_block = body_may_block || family_may_block;
+                machines[machine_index].transitive_may_suspend = body_may_suspend;
+                machines[machine_index].transitive_may_block = body_may_block;
             }
         }
 

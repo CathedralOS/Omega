@@ -66,7 +66,6 @@ use typed_trees::TypedTrees;
 pub(crate) mod name;
 pub(crate) mod progress;
 pub(crate) mod seeded_continuation;
-mod target_machine_families;
 
 /// These judgments require authored membership and case nodes, which typing
 /// erases. Every producer of new resolved bodies must run them before lowering,
@@ -405,11 +404,6 @@ pub(crate) fn close_typed_cohort(
     }
     crate::declarations::provider_defaults::finalize_provider_default_calls(
         &mut lowerer.typed_trees,
-    )?;
-    target_machine_families::append(
-        lowerer.source_trees,
-        &mut lowerer.typed_trees,
-        cohort.machines,
     )?;
     validation::normalize_terminal_transition_calls(
         &mut lowerer.typed_trees,

@@ -4,11 +4,9 @@
 //! machine must be concrete, match the authored callable shape, stay within
 //! the required service and operational ceilings, and conservatively refine
 //! conjunctive requires/ensures facts. This pass never invents a callback
-//! contract. Portable family calls share one specialization, but admit its
-//! selections against every retained member's demands before effects settle.
+//! contract. Each ordinary callable retains its own selection demands.
 
 mod callable_shape;
-mod family_demands;
 mod selected_dependencies;
 pub(crate) use selected_dependencies::{
     call_selection_dependency_symbols, machine_selection_dependency_symbols,
@@ -443,7 +441,6 @@ fn validate_call_selection(
     };
     let mut occurrence = FormedStaticMachineSelections::default();
     form_call_selection(program, index, call, &[], diagnostics, &mut occurrence);
-    family_demands::form(program, index, call, diagnostics, &mut occurrence);
     selections
         .rows
         .nominal_uses
@@ -457,8 +454,7 @@ fn validate_call_selection(
         .extend(occurrence.pending_effects);
 }
 
-/// The authored occurrence has one identity even when its family contributes
-/// several independently checked generic-demand telescopes.
+/// The authored occurrence retains its exact specialization identity.
 #[derive(Clone, Copy)]
 struct CallSelection<'call> {
     site: ValidatedNominalMachineUseSite,

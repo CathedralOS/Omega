@@ -27,7 +27,6 @@ use crate::proof_contracts::default_domains::call_summaries::{
 #[derive(Debug, Clone)]
 struct MachineWork {
     symbol: SymbolHandle,
-    family_members: Vec<SymbolHandle>,
     published: Vec<InvocationTarget>,
     uses_published: bool,
     direct: Vec<InvocationTarget>,
@@ -53,7 +52,6 @@ struct InvocationReceiver {
 
 /// Prepare immutable target coordinates once; inference changes only target sets.
 struct MachineInvocationLinks {
-    family_targets: Vec<usize>,
     call_targets: Vec<Option<usize>>,
 }
 
@@ -101,11 +99,6 @@ fn infer_synchronous_invocations_uncached(
     let links = work
         .iter()
         .map(|machine| MachineInvocationLinks {
-            family_targets: machine
-                .family_members
-                .iter()
-                .filter_map(|member| machine_indices.get(member).copied())
-                .collect(),
             call_targets: machine
                 .calls
                 .iter()
@@ -122,18 +115,6 @@ fn infer_synchronous_invocations_uncached(
         for index in 0..work.len() {
             let mut transitive = work[index].direct.clone();
             let mut realized = work[index].realized_direct.clone();
-            for &member in &links[index].family_targets {
-                let callee = &work[member];
-                let effective = if callee.uses_published {
-                    &callee.published
-                } else {
-                    &callee.transitive
-                };
-                // Invocation parameters are positional, so the family
-                // signature already supplies their shared identity.
-                extend_targets(&mut transitive, effective);
-                extend_realized(&mut realized, &callee.realized);
-            }
             for (call, callee) in work[index].calls.iter().zip(&links[index].call_targets) {
                 extend_targets(&mut transitive, &call.declared);
                 let Some(callee) = callee.map(|callee| &work[callee]) else {
@@ -179,15 +160,6 @@ fn infer_synchronous_invocations_uncached(
             })
         {
             break;
-        }
-    }
-
-    // Publish virtual interfaces only after the shared fixed point completes.
-    // Member contracts remain unchanged, and membership adds no call edges.
-    for machine in &mut work {
-        if !machine.family_members.is_empty() {
-            machine.published = machine.transitive.clone();
-            machine.uses_published = true;
         }
     }
 
@@ -309,15 +281,7 @@ fn build_machine_work(
     machine: &Machine,
     state_to_machine: &StateToMachine,
 ) -> MachineWork {
-    let family_members = super::family_interface_members(program, machine)
-        .iter()
-        .map(|member| member.machine)
-        .collect::<Vec<_>>();
-    let published = if family_members.is_empty() {
-        declared_machine_invocations(program, machine)
-    } else {
-        Vec::new()
-    };
+    let published = declared_machine_invocations(program, machine);
     let mut direct = Vec::new();
     let mut realized_direct =
         if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
@@ -344,11 +308,9 @@ fn build_machine_work(
     }
     MachineWork {
         symbol: machine.symbol,
-        uses_published: family_members.is_empty()
-            && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-                || machine.is_public
-                || !program.machine_invokes(machine).is_empty()),
-        family_members,
+        uses_published: machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+            || machine.is_public
+            || !program.machine_invokes(machine).is_empty(),
         published: published.clone(),
         direct: direct.clone(),
         transitive: direct,
