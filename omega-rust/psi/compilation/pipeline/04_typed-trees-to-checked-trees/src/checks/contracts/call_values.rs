@@ -926,6 +926,19 @@ fn proves_bound_predicate_mode<'program>(
     let mut selected_contexts: Option<Vec<FactContextHandle>> = None;
     let mut binding_epochs: Vec<&checked_trees::FlowOperandFact> = Vec::new();
     let mut captures = Vec::new();
+    let trace = std::env::var("OMEGA_COMPILER_PREDICATE_SITES")
+        .ok()
+        .is_some_and(|filter| {
+            program
+                .machine_by_symbol(state.machine_symbol)
+                .is_some_and(|machine| filter.split(',').any(|name| machine.name.as_str() == name))
+        });
+    if trace {
+        eprintln!(
+            "PRED begin state={:?} call={:?} required={predicate:?}",
+            state.state_symbol, call.target_symbol
+        );
+    }
     let mut current = predicate.clone();
     current.bindings.clear();
     if crate::facts::boolean_predicates::map_observations(&mut current.expression, &mut |operand| {
@@ -972,6 +985,24 @@ fn proves_bound_predicate_mode<'program>(
             return Some(());
         }
         let values = predicate_subjects::values(program, facts, state, call, &actual)?;
+        if trace {
+            eprintln!(
+                "PRED values operand={operand:?} path={:?} values={:?}",
+                actual.path,
+                values
+                    .iter()
+                    .map(|value| (
+                        value.observation.row().expression,
+                        value.observation_type,
+                        &value.observation_projection.remaining,
+                        value.operand.row().expression,
+                        value.type_reference,
+                        &value.projection.remaining,
+                        &value.choices
+                    ))
+                    .collect::<Vec<_>>()
+            );
+        }
         let captured = values.first()?;
         let observation = captured.observation.recorded_in(&facts.flow.control)?;
         if !values.iter().all(|value| {
@@ -1064,6 +1095,25 @@ fn proves_bound_predicate_mode<'program>(
     {
         return false;
     }
+    if trace {
+        eprintln!("PRED current={current:?} captures={}", captures.len());
+        for capture in &captures {
+            eprintln!(
+                "PRED capture position={} choices={:?} aliases={:?}",
+                capture.position,
+                capture.choices,
+                capture
+                    .aliases
+                    .iter()
+                    .map(|alias| (
+                        &alias.place,
+                        alias.epoch.expression,
+                        alias.epoch.statement_index
+                    ))
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
     let selected_contexts = selected_contexts.unwrap_or_else(|| contexts.to_vec());
     let mut retained = crate::facts::boolean_predicates::retained(
         program,
@@ -1098,6 +1148,12 @@ fn proves_bound_predicate_mode<'program>(
         &retained,
         frames,
     );
+    if trace {
+        eprintln!(
+            "PRED retained={retained:?} transported={:?}",
+            transported.predicates
+        );
+    }
     if fold_observed_values && transported.proves_required {
         return true;
     }

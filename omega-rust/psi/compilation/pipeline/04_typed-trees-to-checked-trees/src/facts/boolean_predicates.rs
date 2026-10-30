@@ -6,7 +6,9 @@ use validation::CanonicalPlace;
 
 mod availability;
 mod bindings;
+mod case_subjects;
 pub(crate) use availability::CasePremiseAvailability;
+pub(crate) use case_subjects::fold_cases;
 mod normalization;
 mod paths;
 mod retention;

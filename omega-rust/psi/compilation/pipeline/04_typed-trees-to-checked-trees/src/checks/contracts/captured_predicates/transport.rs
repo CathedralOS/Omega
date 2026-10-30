@@ -57,7 +57,20 @@ pub(super) fn predicates(
                     frames,
                 ));
             }
+            let cases = crate::flow::CaseEvidence::prepare(
+                program,
+                &facts.semantic,
+                &contexts,
+                state.machine_symbol,
+                alias.epoch.state_symbol,
+                alias.epoch.statement_index,
+            );
             while let Some(mut predicate) = predicates.pop() {
+                crate::facts::boolean_predicates::fold_cases(&mut predicate, |binding, case| {
+                    cases
+                        .as_ref()?
+                        .case_truth(&binding.place, binding.type_reference, case)
+                });
                 if let checked_trees::CheckedBooleanExpression::And { left, right } =
                     &predicate.expression
                 {
