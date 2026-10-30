@@ -1,0 +1,15 @@
+// The initial guard cannot establish a later unguarded arrival's bound.
+machine scan(text: &[u8], position: u64) -> u8 {
+    transition position < text.len { true -> read(text, position) false -> (0) }
+    machine next(text: &[u8], next_position: u64) -> u8 {
+        read(text, next_position)
+    }
+    machine read(text: &[u8], position: u64) -> u8 {
+        let byte: u8 = text[position];
+        transition byte == 0 {
+            true -> next(text, ((position as u64 in Wrapping) + (1 as u64 in Wrapping)) as u64)
+            false -> (byte)
+        }
+    }
+}
+machine main() { let bytes: [u8; 2] = [0, 0]; let result: u8 = scan(&bytes, 0); }

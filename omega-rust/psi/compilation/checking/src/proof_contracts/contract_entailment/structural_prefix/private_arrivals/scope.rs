@@ -485,6 +485,14 @@ fn compute_closed_arrivals(
             .into_iter()
             .map(|index| members[index].symbol)
             .collect();
+    // A caller frontier is already an arbitrary-input cut. Only actual open
+    // entries must join every such cut; DFS backedge targets are traversal
+    // choices for the fallback, not additional externally callable entries.
+    // Adding them here discards guards on all the actual incoming calls.
+    let open_boundaries: Vec<_> = open_entries
+        .iter()
+        .map(|&index| members[index].symbol)
+        .collect();
     let mut caller_frontiers = progressive_caller_frontiers(
         program,
         root,
@@ -494,7 +502,7 @@ fn compute_closed_arrivals(
             .map(Vec::as_slice)
             .unwrap_or(&[]),
         caller_machine_indices.clone(),
-        &entry_boundaries,
+        &open_boundaries,
     );
     if contracted_entry_boundaries != entry_boundaries {
         let sites = index
