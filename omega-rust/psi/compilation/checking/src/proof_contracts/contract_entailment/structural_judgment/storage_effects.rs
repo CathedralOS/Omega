@@ -1179,15 +1179,6 @@ impl StructuralJudge<'_> {
             .complete_paths()
             .and_then(|written| self.exact_store_coordinate(machine, state, statement, written));
         if coordinate.is_none() && !self.requires_value_preservation() {
-            if super::super::struct_trace() {
-                eprintln!(
-                    "STRUCT captured-store missing coordinate machine={} target={} frame={frame:?}",
-                    machine.name,
-                    self.program
-                        .expression_table
-                        .display_name(statement.as_assignment()?.target)
-                );
-            }
             return None;
         }
         Some(CapturedStoreDestination {

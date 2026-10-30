@@ -632,26 +632,6 @@ fn validate_specification_payload_projection(
     if matches!(cases.as_slice(), [case] if case.symbol == parent) {
         return;
     }
-    if super::struct_trace() {
-        eprintln!(
-            "STRUCT specification-payload owner={owner} receiver={:?} subject={:?}",
-            member.receiver,
-            caller.term(program, member.receiver)
-        );
-        for fact in premises.asserted {
-            let node = program.expression_table.expression(*fact);
-            let subject = program
-                .expression_table
-                .binary_node(*fact)
-                .and_then(|binary| caller.term(program, binary.left));
-            let eligible = structurally_substitutable_fact(program, *fact, &|expression| {
-                caller.term(program, expression)
-            });
-            eprintln!(
-                "STRUCT specification-premise node={node:?} subject={subject:?} eligible={eligible}"
-            );
-        }
-    }
     let proven = caller
         .term(program, member.receiver)
         .is_some_and(|subject| {
