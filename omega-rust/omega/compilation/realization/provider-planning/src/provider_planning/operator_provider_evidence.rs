@@ -9,6 +9,7 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan};
 pub(crate) fn validate_selected_operator_provider_evidence(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
+    numeric_providers: crate::CheckedNumericProviders<'_>,
     candidates: &[&ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
@@ -31,6 +32,7 @@ pub(crate) fn validate_selected_operator_provider_evidence(
         if let Err(diagnostic) = selected_operator_provider_evidence(
             typed,
             check_facts,
+            numeric_providers,
             candidates,
             selected,
             operator.symbol,
@@ -70,6 +72,7 @@ pub(crate) fn validate_selected_operator_provider_evidence(
         if let Err(diagnostic) = selected_operator_provider_evidence(
             typed,
             check_facts,
+            numeric_providers,
             candidates,
             selected,
             symbol,
@@ -82,6 +85,7 @@ pub(crate) fn validate_selected_operator_provider_evidence(
         if let Err(diagnostic) = selected_operator_provider_evidence(
             typed,
             check_facts,
+            numeric_providers,
             candidates,
             selected,
             symbol,
@@ -116,6 +120,7 @@ pub(crate) fn validate_selected_operator_provider_evidence(
 pub(crate) fn validate_selected_requirement_provider_evidence(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
+    numeric_providers: crate::CheckedNumericProviders<'_>,
     candidates: &[&ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
@@ -123,6 +128,7 @@ pub(crate) fn validate_selected_requirement_provider_evidence(
     for (_, requirement_use) in check_facts.operators.named_requirement_uses.iter() {
         if let Err(diagnostic) = selected_requirement_provider_evidence(
             typed,
+            numeric_providers,
             candidates,
             selected,
             requirement_use.requirement_symbol,
@@ -139,6 +145,7 @@ pub(crate) fn validate_selected_requirement_provider_evidence(
 
 fn selected_requirement_provider_evidence(
     typed: &checked_trees::typed_trees::TypedTrees,
+    numeric_providers: crate::CheckedNumericProviders<'_>,
     candidates: &[&ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
     requirement_symbol: symbols::SymbolHandle,
@@ -180,21 +187,8 @@ fn selected_requirement_provider_evidence(
     };
     match &row.binding {
         ProviderBinding::CheckedAdapter { .. } => {}
-        ProviderBinding::CompilerIntrinsic { machine, .. } => {
-            requirement
-                .execution_identity(typed)
-                .ok_or_else(|| {
-                    diagnostics::Diagnostic::error(format!(
-                        "selected boundary-requirement ProviderPlan `{}` targets `{slot}`, which has no compiler-known migrated intrinsic",
-                        plan.name,
-                    ))
-                })?;
-            if !requirement.intrinsic_realization_matches(typed, machine) {
-                return Err(diagnostics::Diagnostic::error(format!(
-                    "selected boundary-requirement ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact slot `{slot}` as an external leaf",
-                    plan.name,
-                )));
-            }
+        ProviderBinding::CompilerIntrinsic { .. } => {
+            numeric_providers.require_selected(requirement.symbol, plan, row)?;
         }
         ProviderBinding::Import { .. } | ProviderBinding::Syscall { .. } => {}
         binding => {
@@ -210,6 +204,7 @@ fn selected_requirement_provider_evidence(
 fn selected_operator_provider_evidence(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
+    numeric_providers: crate::CheckedNumericProviders<'_>,
     candidates: &[&ProviderPlan],
     selected: &effects::SelectedProviderPlanFacts,
     operator_symbol: symbols::SymbolHandle,
@@ -322,26 +317,13 @@ fn selected_operator_provider_evidence(
         }
         return Ok(());
     }
-    let ProviderBinding::CompilerIntrinsic { machine, .. } = &row.binding else {
+    let ProviderBinding::CompilerIntrinsic { .. } = &row.binding else {
         return Err(diagnostics::Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` uses unsupported binding `{:?}`; boundary operators require a checked adapter or compiler intrinsic",
             plan.name, row.binding,
         )));
     };
-    let requirement = crate::IntrinsicRequirement::from_operator(typed, operator)
-        .filter(|requirement| requirement.execution_identity(typed).is_some())
-        .ok_or_else(|| {
-            diagnostics::Diagnostic::error(format!(
-                "selected boundary-operator ProviderPlan `{}` targets `{slot}`, which has no compiler-known migrated intrinsic",
-                plan.name,
-            ))
-        })?;
-    if !requirement.intrinsic_realization_matches(typed, machine) {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "selected boundary-operator ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact slot `{slot}` as an external leaf",
-            plan.name,
-        )));
-    }
+    numeric_providers.require_selected(operator.symbol, plan, row)?;
     Ok(())
 }
 

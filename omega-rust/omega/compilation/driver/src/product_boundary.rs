@@ -1039,6 +1039,24 @@ fn selected_execution_does_not_copy_checked_programs() {
 }
 
 #[test]
+fn selected_numeric_admission_consumes_retained_declarations() {
+    let evidence = include_str!(
+        "../../realization/provider-planning/src/provider_planning/operator_provider_evidence.rs"
+    );
+    assert!(evidence.contains("numeric_providers.require_selected("));
+    assert!(!evidence.contains(".execution_identity(typed)"));
+    assert!(!evidence.contains(".intrinsic_realization_matches(typed,"));
+    let preparation = include_str!("../../realization/selected-dispatch/src/provider_binding.rs");
+    assert!(preparation.contains("correspondence: external_providers.correspondence()"));
+    assert!(
+        preparation.find(".require_owner(").unwrap()
+            < preparation
+                .find("bind_selected_provider_plan_facts(")
+                .unwrap()
+    );
+}
+
+#[test]
 fn terminal_consumers_call_psi_without_a_product_wrapper() {
     let manifest = include_str!("../Cargo.toml");
     assert!(!manifest.contains("terminal-production ="));

@@ -13,8 +13,8 @@
 //! into the shared source-free `provider-selection` owner for whole-map choice
 //! and independent-component admission;
 //! Grant association consumes prepared issuer evidence through provider selection.
-//! Intrinsic execution identities and labels are queries on
-//! `crate::IntrinsicRequirement`.
+//! Product numeric satisfaction consumes Psi's checked declaration catalog.
+//! Early Build's source-only requirement queries remain separate.
 
 pub(crate) mod external_binding_rows;
 mod external_requirements;
@@ -65,6 +65,7 @@ use installation_reach::derive_selected_installation_reach_resolutions;
 pub fn bind_selected_provider_plan_facts(
     typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
+    numeric_providers: crate::CheckedNumericProviders<'_>,
     candidates: &[&ProviderPlan],
     facts: effects::SelectedProviderPlanFacts,
     provenance: &[SelectedProviderReviewProvenance],
@@ -91,12 +92,14 @@ pub fn bind_selected_provider_plan_facts(
     operator_provider_evidence::validate_selected_operator_provider_evidence(
         typed,
         check_facts,
+        numeric_providers,
         candidates,
         &facts,
     )?;
     operator_provider_evidence::validate_selected_requirement_provider_evidence(
         typed,
         check_facts,
+        numeric_providers,
         candidates,
         &facts,
     )?;

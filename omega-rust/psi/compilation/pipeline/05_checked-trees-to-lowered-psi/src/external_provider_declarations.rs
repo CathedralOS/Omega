@@ -20,6 +20,13 @@ pub struct ExternalProviderDeclarations {
 }
 
 impl ExternalProviderDeclarations {
+    /// Borrow this producer's exact source-to-nominal correspondence. Source
+    /// consumers may join it to the canonical catalog without reopening typed
+    /// declarations or inventing identities from normalized signatures.
+    pub fn correspondence(&self) -> &[(SymbolHandle, NominalDeclarationIdentity)] {
+        &self.declarations
+    }
+
     /// Eligible shape is retained independently of supported numeric meaning.
     /// Missing candidate facts cannot change the dispatch category selected by
     /// immutable custody.
