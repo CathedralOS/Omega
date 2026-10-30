@@ -150,11 +150,10 @@ impl StructuralJudge<'_> {
             visited_callees: Vec::new(),
         }));
         let store_template = |template: Vec<(Vec<PlaceSegment>, StructuralTerm)>| {
-            let (min_cycle, visited) = trace.lock().map_or((0, Vec::new()), |mut guard| {
-                (
-                    guard.min_cycle_owner_index,
-                    std::mem::take(&mut guard.visited_callees),
-                )
+            // Completed symbolic queries may retain this trace. Its dependency
+            // observations must remain accumulated for that entire lifetime.
+            let (min_cycle, visited) = trace.lock().map_or((0, Vec::new()), |guard| {
+                (guard.min_cycle_owner_index, guard.visited_callees.clone())
             });
             if let Some(parent_trace) = &self.returned_field_trace
                 && let Ok(mut parent_guard) = parent_trace.lock()
