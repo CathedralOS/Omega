@@ -26,6 +26,17 @@ ROOT = Path(__file__).resolve().parents[1]
 PLACES = ("local", "field", "parameter", "call_result", "match_join",
           "const_name", "other_state", "other_machine", "target_body")
 TARGETS = ("windows_x86_64", "linux_x86_64", "macos_arm64", "linux_arm64")
+# Same pairs as corpus_gate.HOST_TARGETS. The filename is the product target;
+# a context line names the machine that recorded the run. Emulation makes
+# those differ, and only the recorder is host evidence.
+RECORDING_HOSTS = {
+    ("windows", "amd64"): "windows_x86_64",
+    ("windows", "x86_64"): "windows_x86_64",
+    ("linux", "x86_64"): "linux_x86_64",
+    ("linux", "aarch64"): "linux_arm64",
+    ("darwin", "arm64"): "macos_arm64",
+    ("darwin", "x86_64"): "macos_x86_64",
+}
 # Same host-specific September 30 goldens used by the original Claude dashboard.
 COHORT_BASELINES = {"windows_x86_64": "5f73e2167f", "linux_x86_64": "03e852fb38",
                     "macos_arm64": "031f4d0ef6"}
@@ -122,6 +133,52 @@ def collect_facts(repository, records):
     return facts
 
 
+def execution_target(path):
+    match = re.fullmatch(r"corpus_(?:native|both)_([a-z0-9_]+)\.txt", Path(path).name)
+    if match is None or match.group(1) not in TARGETS:
+        return None
+    return match.group(1)
+
+
+def recorded_hosts(text):
+    """Hosts named by `# context:` lines, or None when this golden has none.
+
+    An unreadable or unrecognized context is an empty set: the line is
+    present, and it does not name one of the catalogued hosts.
+    """
+    hosts = set()
+    saw = False
+    for line in text.splitlines():
+        if not line.startswith(corpus_records.CONTEXT_PREFIX):
+            continue
+        saw = True
+        try:
+            context = json.loads(line[len(corpus_records.CONTEXT_PREFIX):])
+        except ValueError:
+            return set()
+        if not isinstance(context, dict):
+            return set()
+        host = RECORDING_HOSTS.get((str(context.get("platform") or "").lower(),
+                                    str(context.get("machine") or "").lower()))
+        if host is None:
+            return set()
+        hosts.add(host)
+    return hosts if saw else None
+
+
+def is_host_evidence(path, text):
+    """Whether `text` may count as execution evidence for the host in `path`.
+
+    A golden with no context line predates host stamping and stays eligible.
+    A named host golden counts only when every context line names that host.
+    """
+    target = execution_target(path)
+    if target is None:
+        return True
+    hosts = recorded_hosts(text)
+    return hosts is None or hosts == {target}
+
+
 def execution_revision_dates(repository):
     return {revision: instant(date) for revision, date in
             (line.split(" ", 1) for line in git(repository, "log", "--exclude=refs/coordination/*", "--all", "--format=%H %cI").splitlines())}
@@ -155,15 +212,30 @@ def collect_native(repository, warnings):
         host = {"target": target, "path": relative, "available": bool(paths), "golden_paths": paths}
         if host["available"]:
             try:
-                sources = [(path, corpus_records.read(repository / path)) for path in paths]
+                sources = []
+                for path in paths:
+                    text = (repository / path).read_text(encoding="utf-8")
+                    if is_host_evidence(path, text):
+                        sources.append((path, corpus_records.parse(text)))
+                        continue
+                    recorded = recorded_hosts(text)
+                    where = ", ".join(sorted(recorded)) if recorded else "an unrecognized host"
+                    warnings.append(
+                        f"Skipped {path}: recorded on {where}, so it is not {target} host evidence")
+                if not sources:
+                    host.update(available=False, golden_paths=[])
+                    hosts.append(host)
+                    continue
                 records = [row for row in merge_execution_records(repository, sources, dates)
                            if row["tier"] in ("pass", "run")]
-                golden = repository / paths[0]
-                host["path"] = paths[0]
+                golden = repository / sources[0][0]
+                host["path"] = sources[0][0]
+                host["golden_paths"] = [path for path, _ in sources]
                 host["counts"] = native_scoreboard(records, oracle_lookup(repository, golden, None, target))
                 host["stamps"] = dict(Counter(row.get("recorded_at") or "unstamped" for row in records))
                 host["source_counts"] = dict(Counter(row["golden_path"] for row in records))
-                host["golden_updated"] = git(repository, "log", "-1", "--format=%cI", "--", *paths)
+                host["golden_updated"] = git(repository, "log", "-1", "--format=%cI", "--",
+                                             *host["golden_paths"])
                 host["cohort"] = collect_cohort(repository, target, records)
                 if target in COHORT_BASELINES and not host["cohort"]["available"]:
                     warnings.append(f"Cohort baseline unavailable for {target}: {host['cohort']['error']}")
@@ -239,10 +311,19 @@ def native_history(repository, relative, warnings=None):
         malformed = False
         for path in paths:
             try:
-                sources.append((path, corpus_records.parse(git(repository, "show", f"{revision}:{path}"))))
+                text = git(repository, "show", f"{revision}:{path}")
             except (OSError, ValueError) as error:
                 if "does not exist in" in str(error) or "exists on disk, but not in" in str(error):
                     continue
+                malformed = True
+                if warnings is not None:
+                    warnings.append(f"Skipped historical golden {path} at {revision[:11]}: {error}")
+                continue
+            if not is_host_evidence(path, text):
+                continue
+            try:
+                sources.append((path, corpus_records.parse(text)))
+            except (OSError, ValueError) as error:
                 malformed = True
                 if warnings is not None:
                     warnings.append(f"Skipped historical golden {path} at {revision[:11]}: {error}")

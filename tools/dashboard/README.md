@@ -88,6 +88,11 @@ The owner-private hosted snapshot is registered in `hosting.json`. To update it:
   reconciliation reads both files as they existed at that point's commit; chart
   points link to that commit, and receipts link to both source files. No fixture
   is counted twice. Exit facts do not automatically establish engine agreement.
+  A golden counts for the host in its filename only when every `# context:`
+  line names that same host. A golden with no context line predates that
+  stamp and stays eligible. A `linux_arm64` product recorded on Linux x86_64,
+  including `qemu-aarch64` user-mode runs, is not Linux arm64 host evidence
+  and stays out of that column, its counts, and its history.
 - **Fact observation chart:** categorical bars aggregate the grid's selected
   target into recorded pass, historical/qualified pass, recorded failure and
   unmeasured places. All four counts are directly labeled in a full-width chart
