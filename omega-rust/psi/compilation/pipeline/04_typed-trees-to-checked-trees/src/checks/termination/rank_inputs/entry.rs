@@ -3,6 +3,7 @@
 
 use super::EntryInputs;
 use typed_trees::{expression::ExpressionHandle, machine::Machine};
+use validation::BigIntInterval;
 use validation::{RankingRangeMeasure, ScopedArithmeticValue};
 
 pub(in crate::checks::termination) fn prove(
@@ -94,8 +95,10 @@ pub(in crate::checks::termination) fn prove_with_formation(
                     let (minimum, maximum) = coordinate.primitive.integer_bounds()?;
                     Some(ScopedArithmeticValue::BoundedInteger {
                         value: Box::new(coordinate.entry_value.clone()),
-                        minimum: Some(numerics::bignum::BigInt::from_i128(minimum)),
-                        maximum: Some(numerics::bignum::BigInt::from_i128(maximum)),
+                        interval: BigIntInterval {
+                            low: Some(numerics::bignum::BigInt::from_i128(minimum)),
+                            high: Some(numerics::bignum::BigInt::from_i128(maximum)),
+                        },
                     })
                 })
                 .collect();

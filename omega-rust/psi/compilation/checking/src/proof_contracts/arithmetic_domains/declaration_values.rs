@@ -4,6 +4,7 @@
 
 use super::{ArithmeticDomain, Diagnostic, ExpressionHandle, PrimitiveType, ValueEnvironment};
 use crate::frozen_program::expression_table;
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
 
@@ -191,8 +192,10 @@ pub(super) fn binary_result_fits(
                         identity: format!("\0declaration-value:{:?}", parameter.symbol),
                         unsigned: !primitive.is_signed_integer(),
                     }),
-                    minimum: Some(numerics::bignum::BigInt::from_i128(minimum)),
-                    maximum: Some(numerics::bignum::BigInt::from_i128(maximum)),
+                    interval: BigIntInterval {
+                        low: Some(numerics::bignum::BigInt::from_i128(minimum)),
+                        high: Some(numerics::bignum::BigInt::from_i128(maximum)),
+                    },
                 },
             })
         })

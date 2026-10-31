@@ -11,6 +11,7 @@ use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableMatchExpression,
 };
 use typed_trees::types::TypeReferenceHandle;
+use validation::BigIntInterval;
 use validation::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticValue,
@@ -834,8 +835,10 @@ impl CurrentScalarValues<'_> {
                                 ),
                                 unsigned: true,
                             }),
-                            minimum: Some(minimum),
-                            maximum: None,
+                            interval: BigIntInterval {
+                                low: Some(minimum),
+                                high: None,
+                            },
                         }
                     } else {
                         value
@@ -959,15 +962,12 @@ fn substitute_matched_subject(
             left: Box::new(substitute_matched_subject(left, subject, replacement)),
             right: Box::new(substitute_matched_subject(right, subject, replacement)),
         },
-        ScopedArithmeticValue::BoundedInteger {
-            value,
-            minimum,
-            maximum,
-        } => ScopedArithmeticValue::BoundedInteger {
-            value: Box::new(substitute_matched_subject(value, subject, replacement)),
-            minimum: minimum.clone(),
-            maximum: maximum.clone(),
-        },
+        ScopedArithmeticValue::BoundedInteger { value, interval } => {
+            ScopedArithmeticValue::BoundedInteger {
+                value: Box::new(substitute_matched_subject(value, subject, replacement)),
+                interval: interval.clone(),
+            }
+        }
         other => other.clone(),
     }
 }

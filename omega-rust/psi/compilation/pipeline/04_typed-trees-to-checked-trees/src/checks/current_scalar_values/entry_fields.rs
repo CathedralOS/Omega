@@ -5,6 +5,7 @@
 use super::CurrentScalarValues;
 use super::scalar_fields::{ScalarProjection, capture_path};
 use crate::flow::indexed_statements;
+use validation::BigIntInterval;
 use validation::ScopedArithmeticValue;
 
 /// Paths are declaration identities, shared across a call component so a private
@@ -335,7 +336,9 @@ pub(super) fn entry_value(
     }
     ScopedArithmeticValue::BoundedInteger {
         value: Box::new(value),
-        minimum: minimum.map(numerics::bignum::BigInt::from_i64),
-        maximum: maximum.map(numerics::bignum::BigInt::from_i64),
+        interval: BigIntInterval {
+            low: minimum.map(numerics::bignum::BigInt::from_i64),
+            high: maximum.map(numerics::bignum::BigInt::from_i64),
+        },
     }
 }

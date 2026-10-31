@@ -437,8 +437,7 @@ pub(crate) struct FieldLiteralBound {
 pub(crate) enum FieldRepresentationBound {
     Integer {
         field: symbols::SymbolHandle,
-        minimum: Option<i64>,
-        maximum: Option<i64>,
+        interval: Interval,
     },
     FloatLiteral(FieldLiteralBound),
 }
@@ -506,11 +505,7 @@ pub(crate) fn data_where_field_representation_bounds(
             {
                 return None;
             }
-            normalized.push(FieldRepresentationBound::Integer {
-                field,
-                minimum: interval.low,
-                maximum: interval.high,
-            });
+            normalized.push(FieldRepresentationBound::Integer { field, interval });
         }
     }
     Some(normalized)

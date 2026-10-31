@@ -4,7 +4,7 @@
 use super::super::{
     BigInt, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, SymbolHandle,
 };
-use super::{Engine, OpaqueTerm, Polynomial};
+use super::{Engine, Interval, OpaqueTerm, Polynomial};
 use crate::frozen_program::expression_table;
 use crate::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
@@ -87,8 +87,7 @@ impl<'program> Engine<'program> {
             && value.to_u64().is_some()
         {
             return CarrierFit::Pending {
-                low: value.clone(),
-                high: value,
+                interval: Interval::constant(value),
             };
         }
         CarrierFit::Unknown
@@ -235,16 +234,12 @@ impl<'program> Engine<'program> {
                 self.declare_atom(identity, *unsigned);
                 Polynomial::atom(identity.clone())
             }
-            ScopedArithmeticValue::BoundedInteger {
-                value,
-                minimum,
-                maximum,
-            } => {
+            ScopedArithmeticValue::BoundedInteger { value, interval } => {
                 let polynomial = self.normalize_scoped_value(value)?;
-                if let Some(minimum) = minimum {
+                if let Some(minimum) = &interval.low {
                     self.bounds.push((polynomial.clone(), minimum.clone()));
                 }
-                if let Some(maximum) = maximum {
+                if let Some(maximum) = &interval.high {
                     self.bounds.push((polynomial.neg(), maximum.negate()));
                 }
                 polynomial

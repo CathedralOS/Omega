@@ -24,6 +24,7 @@
 
 use super::TrackedPlace;
 use super::symbolic_values::{SymbolicValue, applied_const_argument, applied_const_integer};
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 use crate::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
@@ -124,8 +125,10 @@ pub(super) fn post_store_predicate_holds(
                             .primitive_type_reference(field.type_reference)
                             .is_some_and(|primitive| !primitive.is_signed_integer()),
                     }),
-                    minimum: Some(BigInt::from_i128(i128::from(minimum))),
-                    maximum: Some(BigInt::from_i128(i128::from(maximum))),
+                    interval: BigIntInterval {
+                        low: Some(BigInt::from_i128(i128::from(minimum))),
+                        high: Some(BigInt::from_i128(i128::from(maximum))),
+                    },
                 },
                 None => value,
             })

@@ -41,6 +41,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetHandle};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{machine::Machine, state::State};
+use validation::BigIntInterval;
 use validation::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
@@ -878,8 +879,10 @@ impl<'program> CurrentScalarValues<'program> {
                     identity: format!("state:{:?}:call-result:{expression:?}", state.symbol),
                     unsigned: unsigned(primitive),
                 }),
-                minimum: low.map(numerics::bignum::BigInt::from_i64),
-                maximum: high.map(numerics::bignum::BigInt::from_i64),
+                interval: BigIntInterval {
+                    low: low.map(numerics::bignum::BigInt::from_i64),
+                    high: high.map(numerics::bignum::BigInt::from_i64),
+                },
             });
         }
         if matches!(
@@ -1195,13 +1198,11 @@ fn substitute_symbol_in_value(
         }
         ScopedArithmeticValue::BoundedInteger {
             value: inner,
-            minimum,
-            maximum,
+            interval,
         } => substitute_symbol_in_value(inner, symbol, expected, replacement).map(|next| {
             ScopedArithmeticValue::BoundedInteger {
                 value: Box::new(next),
-                minimum: minimum.clone(),
-                maximum: maximum.clone(),
+                interval: interval.clone(),
             }
         }),
         ScopedArithmeticValue::IntegerOperation {
@@ -1510,8 +1511,10 @@ fn field_occurrence(
         match validation::immutable_integer_expression_bounds(program, machine, state, expression) {
             Some((minimum, maximum)) => ScopedArithmeticValue::BoundedInteger {
                 value: Box::new(value),
-                minimum: Some(numerics::bignum::BigInt::from_i64(minimum)),
-                maximum: Some(numerics::bignum::BigInt::from_i64(maximum)),
+                interval: BigIntInterval {
+                    low: Some(numerics::bignum::BigInt::from_i64(minimum)),
+                    high: Some(numerics::bignum::BigInt::from_i64(maximum)),
+                },
             },
             None => value,
         },

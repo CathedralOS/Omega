@@ -11,6 +11,8 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
+
 #[derive(Debug, Default)]
 pub struct PreparedMathematicalApplications {
     pub applications: Arena<PreparedApplication>,
@@ -119,8 +121,7 @@ pub enum PreparedConstantMeaning {
     Negation,
     IntegerEmbedding {
         primitive: PrimitiveType,
-        minimum: BigInt,
-        maximum: Option<BigInt>,
+        interval: BigIntInterval,
     },
     /// Selected carrier and policy remain source custody even when the kernel
     /// uses the same Int domain for several fixed integer carriers.
@@ -220,9 +221,10 @@ pub fn integer_embedding_meaning(
     let (_, argument) =
         crate::proof_contracts::proof_embeddings::integer_embedding_argument(program, expression)?;
     let embedding = crate::proof_contracts::proof_embeddings::integer_embedding(program, argument)?;
+    // Prepared embeddings retain the same admitted finite lower endpoint.
+    embedding.interval.low.as_ref()?;
     Some(PreparedConstantMeaning::IntegerEmbedding {
         primitive: embedding.primitive,
-        minimum: embedding.interval.low?,
-        maximum: embedding.interval.high,
+        interval: embedding.interval,
     })
 }

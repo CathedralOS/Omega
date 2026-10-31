@@ -2,6 +2,7 @@
 //! result facts established by its independent formation judgment.
 
 use crate::checks::current_scalar_values::CurrentScalarValues;
+use validation::BigIntInterval;
 use validation::{ScopedArithmeticExpression, ScopedArithmeticValue};
 
 #[derive(Clone, Copy)]
@@ -42,8 +43,10 @@ impl Application {
             formation,
             value: ScopedArithmeticValue::BoundedInteger {
                 value: Box::new(ScopedArithmeticValue::Term(expression)),
-                minimum: Some(numerics::bignum::BigInt::from_i128(minimum)),
-                maximum: Some(numerics::bignum::BigInt::from_i128(maximum)),
+                interval: BigIntInterval {
+                    low: Some(numerics::bignum::BigInt::from_i128(minimum)),
+                    high: Some(numerics::bignum::BigInt::from_i128(maximum)),
+                },
             },
         })
     }

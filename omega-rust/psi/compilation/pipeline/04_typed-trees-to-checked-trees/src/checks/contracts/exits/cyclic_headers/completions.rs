@@ -25,6 +25,7 @@ use typed_trees::{
     state::State,
     statement::{StatementNode, TransitionExit, TransitionTargetNode},
 };
+use validation::BigIntInterval;
 use validation::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticValue,
@@ -314,7 +315,9 @@ fn return_value(
             identity: format!("completion:{:?}:{returned:?}", state.symbol),
             unsigned: super::unsigned(primitive),
         }),
-        minimum: Some(bounds.minimum),
-        maximum: Some(bounds.maximum),
+        interval: BigIntInterval {
+            low: Some(bounds.minimum),
+            high: Some(bounds.maximum),
+        },
     })
 }

@@ -5,6 +5,7 @@
 //! Simultaneous substitution retains the declaration's selected arithmetic;
 //! no pre-call invariant is assumed to prove its own handback.
 use super::{Interval, ValueEnvironment};
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 use crate::value_custody::places::CanonicalPlace;
 use crate::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
@@ -103,12 +104,14 @@ pub(crate) fn referent_predicates_preserved(
                             | PrimitiveType::U64
                     ),
                 }),
-                minimum: interval
-                    .low
-                    .map(|value| BigInt::from_i128(i128::from(value))),
-                maximum: interval
-                    .high
-                    .map(|value| BigInt::from_i128(i128::from(value))),
+                interval: BigIntInterval {
+                    low: interval
+                        .low
+                        .map(|value| BigInt::from_i128(i128::from(value))),
+                    high: interval
+                        .high
+                        .map(|value| BigInt::from_i128(i128::from(value))),
+                },
             },
         });
     }

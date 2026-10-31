@@ -5,6 +5,7 @@ use crate::checks::current_scalar_values::CurrentScalarValues;
 use crate::flow::indexed_statements;
 use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
+use validation::BigIntInterval;
 use validation::ScopedArithmeticValue;
 
 pub(super) struct Edge<'program> {
@@ -146,8 +147,10 @@ pub(super) fn compare(
             // the total complement; an authored rank interval supplies none.
             let value = ScopedArithmeticValue::BoundedInteger {
                 value: Box::new(value.clone()),
-                minimum: Some(BigInt::from_i128(minimum)),
-                maximum: Some(BigInt::from_i128(maximum)),
+                interval: BigIntInterval {
+                    low: Some(BigInt::from_i128(minimum)),
+                    high: Some(BigInt::from_i128(maximum)),
+                },
             };
             Some(ScopedArithmeticValue::IntegerOperation {
                 operator: BinaryOperator::Subtract,

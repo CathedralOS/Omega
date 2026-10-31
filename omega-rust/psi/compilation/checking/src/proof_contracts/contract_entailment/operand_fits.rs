@@ -8,6 +8,7 @@
 use super::structural_judgment::StructuralTerm;
 use super::structural_judgment::normal_returns::OperationOperandDemand;
 use super::structural_prefix::{PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor};
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -21,10 +22,7 @@ pub(crate) enum CarrierFit {
     Proven,
     Refuted,
     Unknown,
-    Pending {
-        low: numerics::bignum::BigInt,
-        high: numerics::bignum::BigInt,
-    },
+    Pending { interval: BigIntInterval },
 }
 
 impl CarrierFit {
@@ -33,15 +31,8 @@ impl CarrierFit {
             (Self::Refuted, _) | (_, Self::Refuted) => Self::Refuted,
             (Self::Unknown, _) | (_, Self::Unknown) => Self::Unknown,
             (Self::Proven, other) | (other, Self::Proven) => other,
-            (
-                Self::Pending { low, high },
-                Self::Pending {
-                    low: other_low,
-                    high: other_high,
-                },
-            ) => Self::Pending {
-                low: low.min(other_low),
-                high: high.max(other_high),
+            (Self::Pending { interval }, Self::Pending { interval: other }) => Self::Pending {
+                interval: interval.union(&other),
             },
         }
     }
@@ -55,10 +46,13 @@ impl CarrierFit {
     ) -> bool {
         match self {
             Self::Proven => true,
-            Self::Pending { low, high } => {
+            Self::Pending { interval } => {
                 if !owner.is_valid() || !expression.is_valid() {
                     return false;
                 }
+                let (Some(low), Some(high)) = (interval.low, interval.high) else {
+                    return false;
+                };
                 let obligation = checked_trees::IntegerRangeObligation::retain_address_fit(
                     expression,
                     owner,
