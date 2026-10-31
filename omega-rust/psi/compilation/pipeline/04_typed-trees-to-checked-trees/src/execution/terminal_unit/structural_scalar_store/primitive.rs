@@ -407,7 +407,6 @@ fn scalar_store_value_is_exact(
 fn scalar_expression_needs_no_bindings(
     expression: &checked_trees::CheckedScalarExpression,
 ) -> bool {
-    use checked_trees::CheckedScalarExpression;
     match expression {
         ScalarExpression::Parameter { .. }
         | ScalarExpression::Local { .. }
