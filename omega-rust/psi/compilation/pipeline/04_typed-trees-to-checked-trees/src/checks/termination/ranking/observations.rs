@@ -7,7 +7,7 @@ use super::{
     resolve_machine_witness_view_arguments,
 };
 use crate::places::place_at;
-use checked_trees::{CheckedNaturalRankMeasure, CheckedStateNaturalRank};
+use checked_trees::{CheckedNaturalRankMeasure as RankMeasure, CheckedStateNaturalRank};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::PrimitiveType;
 
@@ -156,7 +156,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                 } else {
                     Default::default()
                 };
-                CheckedNaturalRankMeasure::DeclaredMeasure {
+                RankMeasure::DeclaredMeasure {
                     formation,
                     measure: *measure,
                     bindings,
@@ -173,7 +173,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                             path,
                             entry_indexes: Default::default(),
                         });
-                CheckedNaturalRankMeasure::SequenceLength { coordinate }
+                RankMeasure::SequenceLength { coordinate }
             }
             (RankingOrder::NatDescending, [_]) => {
                 let primitive_type = primitive()?;
@@ -193,7 +193,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                 };
                 let coordinate =
                     retain_observed_coordinate(admitted, destination.clone(), inputs.as_ref())?;
-                CheckedNaturalRankMeasure::IntegerValue {
+                RankMeasure::IntegerValue {
                     coordinate,
                     primitive_type,
                 }
@@ -202,29 +202,31 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
             (RankingOrder::IncreasingTo(upper), [_]) => distance_measure(primitive()?, *upper)?,
             _ => return None,
         };
+        let components = admitted.observation_components.insert_many([
+            checked_trees::CheckedIntegerRankObservation {
+                function: checked_trees::CheckedNaturalRankFunction::Identity,
+                parameter: destination.parameter,
+                parameter_position: u32::try_from(parameter_position).ok()?,
+                measure,
+                observation: Default::default(),
+            },
+        ]);
         observations.push(CheckedStateNaturalRank {
-            function: checked_trees::CheckedNaturalRankFunction::Identity,
             state: state.symbol,
-            parameter: destination.parameter,
-            parameter_position: u32::try_from(parameter_position).ok()?,
-            measure,
-            observation: Default::default(),
+            components,
         });
     }
     Some(observations)
 }
 
-fn distance_measure(
-    primitive_type: PrimitiveType,
-    upper: ExpressionHandle,
-) -> Option<CheckedNaturalRankMeasure> {
+fn distance_measure(primitive_type: PrimitiveType, upper: ExpressionHandle) -> Option<RankMeasure> {
     if !matches!(
         primitive_type,
         typed_trees::unsigned_integer_primitive_pattern!()
     ) {
         return None;
     }
-    Some(CheckedNaturalRankMeasure::BoundedDistance {
+    Some(RankMeasure::BoundedDistance {
         primitive_type,
         upper,
     })

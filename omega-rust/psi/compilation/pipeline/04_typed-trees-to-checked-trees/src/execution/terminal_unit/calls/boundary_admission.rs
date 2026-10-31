@@ -1,6 +1,9 @@
 //! Which boundary scalar targets, argument presentations and
 //! mutable byte-array views a structural call may admit.
 
+use super::argument_paths::projected_argument_path;
+use crate::checks::type_multiplicity;
+use crate::execution::terminal_unit::types::mutable_boundary_trait_symbol;
 use crate::execution::terminal_unit::{
     Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode,
 };
@@ -178,15 +181,9 @@ fn resolve_parameter_binding_receiver_sources<'program>(
                 .iter()
                 .find(|parameter| parameter.symbol == root && !parameter.relevance.is_erased())
                 .ok_or("boundary authority: origin is not a retained caller parameter")?;
-            let (reference, _) = super::argument_paths::projected_argument_path(
-                program,
-                state.symbol,
-                statement_index,
-                &place,
-                None,
-                None,
-            )
-            .ok_or("boundary authority: origin projection is not representable")?;
+            let (reference, _) =
+                projected_argument_path(program, state.symbol, statement_index, &place, None, None)
+                    .ok_or("boundary authority: origin projection is not representable")?;
             // A Binding member identifies the requirement through its own carrier.
             // Provider selection and entry establishment are realization obligations.
             let target = match call_site {
@@ -300,7 +297,7 @@ pub(crate) fn fixed_byte_array_view_is_admitted(
             program.type_reference_table.type_reference(element),
             TypeReferenceNode::Named { .. }
         ) && program.primitive_type_reference(element) == Some(PrimitiveType::U8)
-    }) && crate::checks::type_multiplicity(program, source) == Multiplicity::Unrestricted
+    }) && type_multiplicity(program, source) == Multiplicity::Unrestricted
 }
 
 /// Peels one reference layer off `source` and destructures it as a literal
@@ -444,10 +441,7 @@ fn field_type_carries_requirement(
 ) -> bool {
     typed_trees::service::service_requirement_declaration(program, type_reference)
         == Some(provider_symbol)
-        || crate::execution::terminal_unit::types::mutable_boundary_trait_symbol(
-            program,
-            type_reference,
-        ) == Some(provider_symbol)
+        || mutable_boundary_trait_symbol(program, type_reference) == Some(provider_symbol)
 }
 
 /// The ergonomic service-record spelling: `self.fs` is a `data` record that

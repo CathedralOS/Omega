@@ -19,9 +19,10 @@ pub use arrival_correspondence::{
     CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
     CheckedRankObservation, CheckedRankPremiseRegime, CheckedRankReceivingCoordinate,
-    CheckedRankValueDerivation, CheckedRuntimeNaturalState, CheckedRuntimeRankComponent,
-    CheckedRuntimeRankEdge, CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent,
-    CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
+    CheckedRankValueDerivation, CheckedRuntimeIntegerRank, CheckedRuntimeNaturalState,
+    CheckedRuntimeRankComponent, CheckedRuntimeRankEdge, CheckedRuntimeRankMember,
+    CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
+    CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]

@@ -1,0 +1,20 @@
+// Expected exit: 0
+// Rebinding the view selects right without modifying either referent.
+data Cell { before: u64; value: u64; after: u64; }
+data View<'storage> { cell: &'storage Cell; }
+machine observe(left: &Cell, right: &Cell) -> bool {
+    let mut view: View = View { cell: left };
+    view.cell = right;
+    view.cell.value == 9
+}
+machine main() crashes Trap {
+    let left: Cell = Cell { before: 11, value: 5, after: 17 };
+    let right: Cell = Cell { before: 23, value: 9, after: 29 };
+    transition observe(&left, &right) && left.value == 5 && right.value == 9
+        && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

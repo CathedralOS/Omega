@@ -5,10 +5,12 @@
 
 use super::{Query, Transfers, ValueReceiver};
 use checked_trees::{
-    CheckedByteSequenceValue, CheckedByteSequenceValuePlan, CheckedCallScalarArgument,
-    CheckedScalarComputationHandle, CheckedScalarComputationKind,
-    CheckedScalarComputationStructuralArgument, CheckedScalarStoreValue, CheckedStoreValue,
-    CheckedUnitEffectOperationPlan, CheckedUnitLocalBindingPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedByteSequenceValue as SequenceValue, CheckedByteSequenceValuePlan,
+    CheckedCallScalarArgument as ScalarArgument, CheckedScalarComputationHandle,
+    CheckedScalarComputationKind as ComputationKind,
+    CheckedScalarComputationStructuralArgument as StructuralArgument, CheckedScalarStoreValue,
+    CheckedStoreValue, CheckedUnitEffectOperationPlan as OperationPlan,
+    CheckedUnitLocalBindingPlan as BindingPlan, CheckedUnitStructuralArgumentPlan,
 };
 
 impl Query<'_> {
@@ -33,10 +35,7 @@ impl Query<'_> {
         }
         Some(output)
     }
-    pub(super) fn operation_computations(
-        &self,
-        operation: &CheckedUnitEffectOperationPlan,
-    ) -> Option<Transfers> {
+    pub(super) fn operation_computations(&self, operation: &OperationPlan) -> Option<Transfers> {
         let mut output = Transfers::default();
         if let Some(call) = operation.call() {
             for operand in call.scalar_operands() {
@@ -47,22 +46,21 @@ impl Query<'_> {
             }
         }
         match operation {
-            CheckedUnitEffectOperationPlan::EstablishLocal(binding) => match binding {
-                CheckedUnitLocalBindingPlan::Scalar { value, .. }
-                | CheckedUnitLocalBindingPlan::Primitive { value, .. } => {
+            OperationPlan::EstablishLocal(binding) => match binding {
+                BindingPlan::Scalar { value, .. } | BindingPlan::Primitive { value, .. } => {
                     output.append(self.scalar(value)?)
                 }
-                CheckedUnitLocalBindingPlan::ScalarArray { elements, .. } => {
+                BindingPlan::ScalarArray { elements, .. } => {
                     for element in elements {
                         output.append(self.scalar(element)?);
                     }
                 }
-                CheckedUnitLocalBindingPlan::ByteSequence { value, .. } => {
+                BindingPlan::ByteSequence { value, .. } => {
                     output.append(self.bytes(value, value.root)?)
                 }
                 _ => {}
             },
-            CheckedUnitEffectOperationPlan::Store(store) => match &store.value {
+            OperationPlan::Store(store) => match &store.value {
                 CheckedStoreValue::Scalar {
                     value: CheckedScalarStoreValue::Computation(root),
                     ..
@@ -75,22 +73,20 @@ impl Query<'_> {
                 CheckedStoreValue::Bytes(value) => output.append(self.bytes(value, value.root)?),
                 _ => {}
             },
-            CheckedUnitEffectOperationPlan::EstablishReference { source, .. }
-            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { source, .. }
-            | CheckedUnitEffectOperationPlan::MoveStructuralField { source, .. } => {
+            OperationPlan::EstablishReference { source, .. }
+            | OperationPlan::EstablishViewSubslice { source, .. }
+            | OperationPlan::MoveStructuralField { source, .. } => {
                 output.append(self.argument_computations(source)?);
             }
-            CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
-                destination, ..
-            } => {
+            OperationPlan::CaptureAssignmentDestination { destination, .. } => {
                 output.append(self.argument_computations(destination)?);
             }
-            CheckedUnitEffectOperationPlan::AtomicAccess(atomic) => {
+            OperationPlan::AtomicAccess(atomic) => {
                 for operand in atomic.event.operands() {
                     output.append(self.scalar(operand)?);
                 }
             }
-            CheckedUnitEffectOperationPlan::AtomicFence { argument, .. } => {
+            OperationPlan::AtomicFence { argument, .. } => {
                 output.append(self.argument_computations(argument)?);
             }
             _ => {}
@@ -98,10 +94,10 @@ impl Query<'_> {
         Some(output)
     }
 
-    fn scalar(&self, operand: &CheckedCallScalarArgument) -> Option<Transfers> {
+    fn scalar(&self, operand: &ScalarArgument) -> Option<Transfers> {
         match operand {
-            CheckedCallScalarArgument::Pure(_) => Some(Transfers::default()),
-            CheckedCallScalarArgument::Computation(root) => self.computation(*root),
+            ScalarArgument::Pure(_) => Some(Transfers::default()),
+            ScalarArgument::Computation(root) => self.computation(*root),
         }
     }
 
@@ -118,15 +114,10 @@ impl Query<'_> {
         Some(output)
     }
 
-    fn structural_operand_computations(
-        &self,
-        operand: &CheckedScalarComputationStructuralArgument,
-    ) -> Option<Transfers> {
+    fn structural_operand_computations(&self, operand: &StructuralArgument) -> Option<Transfers> {
         match operand {
-            CheckedScalarComputationStructuralArgument::Place(argument) => {
-                self.argument_computations(argument)
-            }
-            CheckedScalarComputationStructuralArgument::Case(case) => {
+            StructuralArgument::Place(argument) => self.argument_computations(argument),
+            StructuralArgument::Case(case) => {
                 let mut output = Transfers::default();
                 for field in self
                     .facts
@@ -145,13 +136,11 @@ impl Query<'_> {
     fn bytes(
         &self,
         value: &CheckedByteSequenceValuePlan,
-        root: arena::Handle<CheckedByteSequenceValue>,
+        root: arena::Handle<SequenceValue>,
     ) -> Option<Transfers> {
         match value.nodes.get(root) {
-            CheckedByteSequenceValue::Descriptor { source, .. } => {
-                self.argument_computations(source)
-            }
-            CheckedByteSequenceValue::Concatenation { left, right, .. } => {
+            SequenceValue::Descriptor { source, .. } => self.argument_computations(source),
+            SequenceValue::Concatenation { left, right, .. } => {
                 let mut output = self.bytes(value, *left)?;
                 output.append(self.bytes(value, *right)?);
                 Some(output)
@@ -170,7 +159,7 @@ impl Query<'_> {
         }
         let mut output = Transfers::default();
         match &plans.nodes.get(root).kind {
-            CheckedScalarComputationKind::Call {
+            ComputationKind::Call {
                 source_call,
                 callee,
                 arguments,
@@ -185,7 +174,7 @@ impl Query<'_> {
                 }
                 for operand in plans.structural_arguments.span(*structural_arguments)? {
                     output.append(self.structural_operand_computations(operand)?);
-                    if let CheckedScalarComputationStructuralArgument::Place(argument) = operand {
+                    if let StructuralArgument::Place(argument) = operand {
                         let call = self.facts.flow.control.calls.get(source_call.statement()?);
                         output.append(self.argument_transfers(
                             argument,
@@ -198,7 +187,7 @@ impl Query<'_> {
                     }
                 }
             }
-            CheckedScalarComputationKind::WithOperands {
+            ComputationKind::WithOperands {
                 operands, operand, ..
             } => {
                 let mut scope = self.clone();
@@ -223,13 +212,13 @@ impl Query<'_> {
                 }
                 output.append(scope.computation(*operand)?);
             }
-            CheckedScalarComputationKind::Apply { operands, .. }
-            | CheckedScalarComputationKind::StorageObservation { operands, .. } => {
+            ComputationKind::Apply { operands, .. }
+            | ComputationKind::StorageObservation { operands, .. } => {
                 for operand in plans.operands.span(*operands)? {
                     output.append(self.computation(*operand)?);
                 }
             }
-            CheckedScalarComputationKind::Select {
+            ComputationKind::Select {
                 condition,
                 when_true,
                 when_false,
@@ -241,7 +230,7 @@ impl Query<'_> {
                     self.computation(*when_false)?,
                 ]));
             }
-            CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
+            ComputationKind::Dispatch { subject, arms, .. } => {
                 output.append(self.dispatch_subject(subject)?);
                 let mut prefix = Vec::new();
                 let mut alternatives = Vec::new();
@@ -258,24 +247,23 @@ impl Query<'_> {
                 }
                 output.append(Transfers::alternatives(alternatives));
             }
-            CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
+            ComputationKind::SelectedComparison { left, right, .. } => {
                 output.append(self.computation(*left)?);
                 output.append(self.computation(*right)?);
             }
             checked_trees::cast_or_qualification_triple_pattern!(operand, ..) => {
                 output.append(self.computation(*operand)?)
             }
-            CheckedScalarComputationKind::CaseMembership { subject, .. } => {
+            ComputationKind::CaseMembership { subject, .. } => {
                 output.append(self.structural_operand_computations(subject)?)
             }
-            CheckedScalarComputationKind::StorageAddress { subject, .. }
-            | CheckedScalarComputationKind::StructuralField { subject, .. }
-            | CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. }
-            | CheckedScalarComputationKind::ByteSequencePredicate { subject, .. } => {
+            ComputationKind::StorageAddress { subject, .. }
+            | ComputationKind::StructuralField { subject, .. }
+            | ComputationKind::ByteSequenceLiteralComparison { subject, .. }
+            | ComputationKind::ByteSequencePredicate { subject, .. } => {
                 output.append(self.argument_computations(subject)?)
             }
-            CheckedScalarComputationKind::RetainedConstant { .. }
-            | CheckedScalarComputationKind::Value(_) => {}
+            ComputationKind::RetainedConstant { .. } | ComputationKind::Value(_) => {}
         }
         Some(output)
     }

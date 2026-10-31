@@ -14,6 +14,7 @@ use super::super::semantics::signatures::parameters::{
 };
 use super::super::semantics::types::lifetimes::lifetime_binder_ordinal;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
+use super::slot_metadata::project_requirement_slot_metadata;
 use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedReviewRow;
@@ -211,11 +212,8 @@ pub(crate) fn project_trait_requirement(
         ))]);
     }
     let published_crash = project_crash_routes(crash_capsule.published_buckets());
-    let slot_metadata = super::slot_metadata::project_requirement_slot_metadata(
-        compilation,
-        trait_symbol,
-        requirement.symbol,
-    )?;
+    let slot_metadata =
+        project_requirement_slot_metadata(compilation, trait_symbol, requirement.symbol)?;
     Ok(PackageReviewTraitRequirement {
         identity,
         spelling: requirement.spelling,

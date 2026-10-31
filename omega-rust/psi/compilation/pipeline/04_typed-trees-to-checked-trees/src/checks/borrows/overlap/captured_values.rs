@@ -9,20 +9,29 @@
 //! comparison serves source windows, arm joins and executable window repair.
 
 use crate::places::place_at;
-use checked_trees::FlowOperandFact;
-use facts::{PlaceRoot, PlaceSegment};
+use checked_trees::{FlowConstraintKind, FlowOperandFact, FlowStateFact};
+use facts::{PlaceRoot, PlaceSegment, ScalarValue};
 use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::ExpressionNode;
+use validation::CanonicalPlace;
+use validation::CheckingInput;
+use validation::ImmutableBoundLookup;
+use validation::find_state_in_machine;
+use validation::has_builtin_bound_expression_meaning;
+use validation::project_type_reference_from_segments;
+use validation::reference_shell;
 
 use super::StorageSelectorFacts;
 use super::indexes::{NormalizedBound, normalized_bound};
 use super::premises::StatedOrderingPremise;
 
 pub(super) fn equalities(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     captures: StorageSelectorFacts<'_>,
     left: &[PlaceSegment],
     right: &[PlaceSegment],
-    lookup: &validation::ImmutableBoundLookup<'_>,
+    lookup: &ImmutableBoundLookup<'_>,
 ) -> Vec<StatedOrderingPremise> {
     let left_symbols = bound_symbols(program, lookup, left);
     let right_symbols = bound_symbols(program, lookup, right);
@@ -63,7 +72,7 @@ pub(super) fn equalities(
                 continue;
             };
             let selectors = match program.expression_table.expression(expression) {
-                typed_trees::expression::ExpressionNode::Range(range) => {
+                ExpressionNode::Range(range) => {
                     vec![range.start, range.end]
                 }
                 _ => vec![expression],
@@ -113,10 +122,10 @@ pub(super) fn equalities(
 /// Freeze only an immutable/call value with complete captured evidence. A
 /// mutable storage query is deliberately outside this value vocabulary.
 pub(super) fn captured_storage_index(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     captures: StorageSelectorFacts<'_>,
-    lookup: &validation::ImmutableBoundLookup<'_>,
-    expression: typed_trees::expression::ExpressionHandle,
+    lookup: &ImmutableBoundLookup<'_>,
+    expression: ExpressionHandle,
 ) -> Option<usize> {
     let bound = normalized_bound(program, lookup, expression)?;
     usize::try_from(exact_bound_integer(
@@ -127,16 +136,16 @@ pub(super) fn captured_storage_index(
 
 struct StoredCallSource<'facts> {
     origin: NormalizedBound,
-    selector: typed_trees::expression::ExpressionHandle,
+    selector: ExpressionHandle,
     operand: &'facts FlowOperandFact,
     has_read_epoch: bool,
 }
 
 fn stored_call_source<'facts>(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     captures: StorageSelectorFacts<'facts>,
     symbol: SymbolHandle,
-    lookup: &validation::ImmutableBoundLookup<'_>,
+    lookup: &ImmutableBoundLookup<'_>,
 ) -> Option<StoredCallSource<'facts>> {
     let (state, operand) = stored_copy(program, captures, symbol)?;
     let values = crate::flow::captured_operand_values(
@@ -179,10 +188,10 @@ fn stored_call_source<'facts>(
 }
 
 fn exact_bound_integer(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     captures: StorageSelectorFacts<'_>,
-    lookup: &validation::ImmutableBoundLookup<'_>,
-    selector: typed_trees::expression::ExpressionHandle,
+    lookup: &ImmutableBoundLookup<'_>,
+    selector: ExpressionHandle,
     bound: &NormalizedBound,
 ) -> Option<i64> {
     match bound {
@@ -226,8 +235,8 @@ fn exact_bound_integer(
 }
 
 fn bound_symbols(
-    program: &dyn validation::CheckingInput,
-    lookup: &validation::ImmutableBoundLookup<'_>,
+    program: &dyn CheckingInput,
+    lookup: &ImmutableBoundLookup<'_>,
     path: &[PlaceSegment],
 ) -> Vec<SymbolHandle> {
     let mut symbols = Vec::new();
@@ -248,9 +257,7 @@ fn bound_symbols(
                 }
             }
         };
-        if let typed_trees::expression::ExpressionNode::Range(range) =
-            program.expression_table.expression(expression)
-        {
+        if let ExpressionNode::Range(range) = program.expression_table.expression(expression) {
             collect(range.start);
             collect(range.end);
         } else {
@@ -261,7 +268,7 @@ fn bound_symbols(
 }
 
 fn copies_agree(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     captures: StorageSelectorFacts<'_>,
     left: SymbolHandle,
     right: SymbolHandle,
@@ -325,13 +332,10 @@ fn copies_agree(
 }
 
 fn stored_copy<'facts>(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     captures: StorageSelectorFacts<'facts>,
     symbol: SymbolHandle,
-) -> Option<(
-    &'facts checked_trees::FlowStateFact,
-    crate::flow::CapturedOperand<'facts>,
-)> {
+) -> Option<(&'facts FlowStateFact, crate::flow::CapturedOperand<'facts>)> {
     let state_symbol = program.symbols.get(symbol).parent;
     let (_, state_flow) = captures
         .flow
@@ -339,8 +343,7 @@ fn stored_copy<'facts>(
         .states
         .iter()
         .find(|(_, state)| state.state_symbol == state_symbol)?;
-    let state =
-        validation::find_state_in_machine(program, state_flow.machine_symbol, state_symbol)?;
+    let state = find_state_in_machine(program, state_flow.machine_symbol, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let (statement_index, local) =
         statements
@@ -390,9 +393,9 @@ fn stored_copy<'facts>(
 /// Its typed integer observation belongs to that operand's captured epoch;
 /// borrowing its contents or consulting a later value cannot supply equality.
 fn completed_scalar(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     captures: StorageSelectorFacts<'_>,
-    selector: typed_trees::expression::ExpressionHandle,
+    selector: ExpressionHandle,
     bound: &NormalizedBound,
     operand: &FlowOperandFact,
 ) -> Option<i64> {
@@ -419,38 +422,30 @@ fn completed_scalar(
     let typed_state = program.state_by_symbol(state.state_symbol)?;
     if !control.calls.span(state.calls)?.iter().any(|call| {
         call.authored_expression == *expression && call.statement_index == operand.statement_index
-    }) || !validation::has_builtin_bound_expression_meaning(
-        program,
-        machine,
-        Some(typed_state),
-        selector,
-    ) {
+    }) || !has_builtin_bound_expression_meaning(program, machine, Some(typed_state), selector)
+    {
         return None;
     }
     // An owned scalar field is a detached value. A path crossing a reference
     // instead needs its actual read epoch, not the pointer producer's facts.
     for depth in 0..=segments.len() {
-        let prefix = validation::project_type_reference_from_segments(
+        let prefix = project_type_reference_from_segments(
             program,
             operand.type_reference,
             &segments[..depth],
         )?;
-        if validation::reference_shell(program, prefix).is_some() {
+        if reference_shell(program, prefix).is_some() {
             return None;
         }
     }
-    let selected = validation::project_type_reference_from_segments(
-        program,
-        operand.type_reference,
-        segments,
-    )?;
+    let selected = project_type_reference_from_segments(program, operand.type_reference, segments)?;
     if !program
         .primitive_type_reference(selected)?
         .is_fixed_integer()
     {
         return None;
     }
-    let facts::ScalarValue::Integer(integer) = crate::values::scalar_value_at_place(
+    let ScalarValue::Integer(integer) = crate::values::scalar_value_at_place(
         program,
         captures.semantic,
         captures
@@ -460,13 +455,12 @@ fn completed_scalar(
             .span(operand.constraints)?
             .iter()
             .filter_map(|reference| {
-                let checked_trees::FlowConstraintKind::SemanticContext { context } = reference.kind
-                else {
+                let FlowConstraintKind::SemanticContext { context } = reference.kind else {
                     return None;
                 };
                 Some(captures.semantic.contexts.get(context))
             }),
-        &validation::CanonicalPlace {
+        &CanonicalPlace {
             root: PlaceRoot::Expression(*expression),
             segments: segments.clone(),
         },

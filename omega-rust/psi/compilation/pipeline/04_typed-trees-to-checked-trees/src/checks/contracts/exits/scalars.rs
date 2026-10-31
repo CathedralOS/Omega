@@ -1,6 +1,9 @@
 //! Scalar postconditions consume exact return and live place values. Entry
 //! parameter names are substituted only through the retained exit origin map.
 
+use super::super::current_values::ExitValueCache;
+use super::super::current_values::proves_exit_expression;
+use super::cases::CaseObservation;
 use checked_trees::{CheckFacts, CheckedScalarExpressionRole, FlowExitFact};
 use facts::{FactContextHandle, FactPayload, PlaceRoot, PlaceSegment};
 use typed_trees::{expression::ExpressionHandle, machine::Machine};
@@ -35,7 +38,7 @@ pub(super) fn proves<'program>(
     contexts: &[FactContextHandle],
     requirement: &facts::Fact,
     call_frames: Option<&validation::CallFrameResolver<'program>>,
-    cached_exit_values: &mut super::super::current_values::ExitValueCache<'program>,
+    cached_exit_values: &mut ExitValueCache<'program>,
 ) -> bool {
     let FactPayload::ContractBooleanExpression {
         fact: contract,
@@ -83,14 +86,8 @@ pub(super) fn proves<'program>(
     {
         return false;
     }
-    let cases = super::cases::CaseObservation::for_requirement(
-        program,
-        facts,
-        exit,
-        contexts,
-        requirement,
-        call_frames,
-    );
+    let cases =
+        CaseObservation::for_requirement(program, facts, exit, contexts, requirement, call_frames);
     evaluate_for_atoms(
         program,
         expression,
@@ -117,7 +114,7 @@ pub(super) fn proves<'program>(
                                 || evaluator.proves_result_field_equality(atom)
                                 || evaluator.proves_result_collection_length(atom)
                                 || evaluator.write_transported_equality(atom)
-                                || super::super::current_values::proves_exit_expression(
+                                || proves_exit_expression(
                                     program,
                                     facts,
                                     exit,

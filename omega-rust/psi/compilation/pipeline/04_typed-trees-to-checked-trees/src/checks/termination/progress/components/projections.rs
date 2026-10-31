@@ -6,10 +6,14 @@ use crate::checks::termination::progress::machine_summaries::{
     call_argument_places, selected_call_summary,
 };
 use checked_trees::FlowFacts;
-use language_semantics::TerminationGuarantee;
+use facts::FactPlan;
+use language_semantics::{TerminationGuarantee, TerminationInterface};
 use symbols::SymbolHandle;
+use validation::CallFrameResolver;
+use validation::call_target_parameters;
+use validation::find_state;
 
-pub(super) fn maximum_fact_projection_length(semantic: &facts::FactPlan) -> usize {
+pub(super) fn maximum_fact_projection_length(semantic: &FactPlan) -> usize {
     semantic
         .facts
         .iter()
@@ -28,9 +32,9 @@ pub(super) struct ComponentProjectionGeometry {
 pub(super) fn prepare_component_geometry(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,
-    semantic: &facts::FactPlan,
+    semantic: &FactPlan,
     component: &[SymbolHandle],
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<ComponentProjectionGeometry> {
     let mut parameter_count = 0usize;
     let mut maximum_prefix_length = 0usize;
@@ -55,23 +59,18 @@ pub(super) fn prepare_component_geometry(
             for call in flow.control.calls.span_or_empty(state.calls) {
                 let private_component_call = program
                     .machine_by_symbol(call.target_symbol)
-                    .or_else(|| {
-                        validation::find_state(program, call.target_symbol)
-                            .map(|(machine, _)| machine)
-                    })
+                    .or_else(|| find_state(program, call.target_symbol).map(|(machine, _)| machine))
                     .is_some_and(|callee| {
                         component.contains(&callee.symbol)
                             && matches!(
                                 callee.termination_plan.interface,
-                                language_semantics::TerminationInterface::InternalDerived
+                                TerminationInterface::InternalDerived
                             )
                     });
                 if !private_component_call {
                     crate::collections::push_unique(&mut external_call_targets, call.target_symbol);
                 }
-                if let Some(parameters) =
-                    validation::call_target_parameters(program, call.target_symbol)
-                {
+                if let Some(parameters) = call_target_parameters(program, call.target_symbol) {
                     for parameter in parameters {
                         if let Some(places) = call_argument_places(
                             program,

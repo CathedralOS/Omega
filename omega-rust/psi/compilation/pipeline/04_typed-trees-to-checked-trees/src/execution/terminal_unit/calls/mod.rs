@@ -18,9 +18,7 @@ pub(super) mod argument_presentation;
 mod boundary_admission;
 mod call_operations;
 mod call_targets;
-pub(in crate::execution::terminal_unit) use call_targets::{
-    ResolvedCallTarget, resolve_call_target,
-};
+pub(super) use call_targets::{ResolvedCallTarget, resolve_call_target};
 mod computation_arguments;
 mod dynamic_call;
 mod parameter_argument_paths;
@@ -102,8 +100,8 @@ pub(crate) use boundary_admission::{
     parameter_binding_receiver_sources, provider_attachment_receiver_field,
     provider_attachment_receiver_matches,
 };
-pub(in crate::execution) use call_operations::ExpectedCallValueResult;
-pub(in crate::execution) use call_operations::build_call_operation;
+pub(in super::super) use call_operations::ExpectedCallValueResult;
+pub(in super::super) use call_operations::build_call_operation;
 pub(crate) use computation_arguments::{
     structural_computation_argument, subslice_computation_argument,
 };

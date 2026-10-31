@@ -5,8 +5,14 @@ use super::{
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
+use crate::selection::aggregate_result_input::{
+    inline_argument_fragments, parameter_home_required,
+};
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::transport_register;
+use crate::structural_inputs::structural_unit_input::{
+    accepts_graph, owned_indirect_pointer, parameter_views,
+};
 
 pub(in crate::selection) fn entry(
     function: usize,
@@ -19,32 +25,22 @@ pub(in crate::selection) fn entry(
     };
     // Legalization owns place/producer custody. Entry captures only incoming
     // ABI storage; an empty parameter list follows the same call-plan check.
-    let parameters = crate::structural_inputs::structural_unit_input::parameter_views(signature);
-    if !crate::structural_inputs::structural_unit_input::accepts_graph(
-        &source.call_plan,
-        &parameters,
-        &signature.structural_types,
-    ) {
+    let parameters = parameter_views(signature);
+    if !accepts_graph(&source.call_plan, &parameters, &signature.structural_types) {
         return Err(SelectedInstructionError::unsupported_shape(function));
     }
     for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
         let place = parameter.semantic.place;
-        let owned_pointer = crate::structural_inputs::structural_unit_input::owned_indirect_pointer(
-            &parameter.semantic,
-            &parameter.target.placement,
-        );
+        let owned_pointer =
+            owned_indirect_pointer(&parameter.semantic, &parameter.target.placement);
         if parameter.semantic.access == StructuralAccess::Owned
             && owned_pointer.is_none()
-            && !crate::selection::aggregate_result_input::inline_argument_fragments(
-                &parameter.target.placement,
-            )
+            && !inline_argument_fragments(&parameter.target.placement)
         {
             return Err(invalid());
         }
         if parameter.semantic.access == StructuralAccess::Owned
-            && crate::selection::aggregate_result_input::inline_argument_fragments(
-                &parameter.target.placement,
-            )
+            && inline_argument_fragments(&parameter.target.placement)
         {
             // Inline stack bytes are an owned ABI payload, not a borrowed
             // referent. Their ABI coordinates need not meet the semantic
@@ -235,7 +231,7 @@ fn retain_owned_home(
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let place = parameter.semantic.place;
-    if !crate::selection::aggregate_result_input::parameter_home_required(source, place) {
+    if !parameter_home_required(source, place) {
         return Ok(());
     }
     let shape = parameter.target.shape;

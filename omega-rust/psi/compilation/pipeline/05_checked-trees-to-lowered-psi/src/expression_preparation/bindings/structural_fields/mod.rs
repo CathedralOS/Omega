@@ -25,6 +25,7 @@ use super::{
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::expressions::LoweredElementPathSegment;
+use crate::emission::scalar_types::terminal_scalar_type;
 use semantic_vocabulary::StructuralCaseId;
 
 mod case_observation;
@@ -426,9 +427,7 @@ fn descriptor_observation(
     use super::structural_paths::PreparedStructuralPathSegment as Prepared;
     use crate::emission::operation_emission::expressions::LoweredElementPathSegment as Segment;
 
-    let count_type = crate::emission::scalar_types::terminal_scalar_type(
-        typed_trees::types::PrimitiveType::U64,
-    )?;
+    let count_type = terminal_scalar_type(typed_trees::types::PrimitiveType::U64)?;
     let mut path = Vec::with_capacity(prepared.len());
     let mut extent = None;
     for segment in prepared {
@@ -937,9 +936,7 @@ pub(crate) fn resolve_indexed_element(
         }
         StructuralTypeShape::ByteSequence(_) if element_path.is_empty() => (
             Vec::new(),
-            crate::emission::scalar_types::terminal_scalar_type(
-                typed_trees::types::PrimitiveType::U8,
-            )?,
+            terminal_scalar_type(typed_trees::types::PrimitiveType::U8)?,
             Some(super::view_locals::ViewCarrier::Bytes),
         ),
         _ => return unsupported("indexed observation requires a scalar collection endpoint"),
@@ -968,9 +965,7 @@ pub(crate) fn resolve_indexed_element(
                     access: home.access,
                 },
                 carrier,
-                crate::emission::scalar_types::terminal_scalar_type(
-                    typed_trees::types::PrimitiveType::U64,
-                )?,
+                terminal_scalar_type(typed_trees::types::PrimitiveType::U64)?,
             )))
         })
         .transpose()?;

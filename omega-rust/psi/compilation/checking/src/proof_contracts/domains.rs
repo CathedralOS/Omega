@@ -11,6 +11,7 @@ mod closed_instances;
 mod integer_membership;
 pub(crate) use closed_instances::closed_integer_index_bindings;
 pub use integer_membership::integer_domain_membership;
+use language_semantics::CarryPermission;
 
 mod executable_tests;
 mod runtime_predicates;
@@ -171,9 +172,7 @@ fn validate_domain_aliases(program: &dyn crate::CheckingInput, diagnostics: &mut
             let label = program
                 .domain_path_members(constituent.domain)
                 .joined_path();
-            if label == "Carry::Portable"
-                || language_semantics::CarryPermission::from_name(&label).is_some()
-            {
+            if label == "Carry::Portable" || CarryPermission::from_name(&label).is_some() {
                 // Compiler carry atoms are deliberately subject-polymorphic,
                 // and public aliases may bundle this closed public vocabulary.
                 continue;

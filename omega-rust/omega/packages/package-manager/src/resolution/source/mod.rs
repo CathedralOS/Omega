@@ -47,12 +47,9 @@ pub(crate) use local::external_local_dependency_root;
 /// Package entry selection observes acquired bytes when available. The live
 /// path is only for legacy persisted-custody consumers without an in-memory
 /// capture; application scheduling does not decide or probe source filenames.
-pub(crate) fn package_entry(
-    root: &std::path::Path,
-    captured: Option<&source::CapturedSourceTree>,
-) -> std::path::PathBuf {
+pub(crate) fn package_entry(root: &Path, captured: Option<&source::CapturedSourceTree>) -> PathBuf {
     let has_main = match captured {
-        Some(tree) => tree.is_file(std::path::Path::new("main.omg")),
+        Some(tree) => tree.is_file(Path::new("main.omg")),
         None => root.join("main.omg").is_file(),
     };
     root.join(if has_main { "main.omg" } else { "build.omg" })
@@ -78,6 +75,7 @@ pub(crate) use navigation::PackageSourceNavigation;
 pub(crate) use resolved::ResolvedPackageSource;
 pub(crate) use selection::PackageSourceSelectionEvidence;
 pub use selection::PackageSourceSelectionEvidenceError;
+use std::path::{Path, PathBuf};
 
 /// The accessor surface every resolved-package-source record shares:
 /// custody and resolved shapes carry identically-named projection fields and

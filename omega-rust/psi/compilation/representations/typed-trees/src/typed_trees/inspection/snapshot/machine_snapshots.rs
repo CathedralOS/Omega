@@ -5,20 +5,18 @@ use super::to_strings;
 use crate::TypedTrees;
 use crate::domain::ProofFact;
 use crate::machine::{Machine, OwnedData};
+use crate::signature::SignatureContractKind;
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::trait_definition::TraitDefinition;
-use crate::typed_trees::inspection::snapshot::declaration_snapshots;
-use crate::typed_trees::inspection::snapshot::statement_and_expression_snapshots::{
+use crate::typed_trees::inspection::snapshot;
+use serde::Serialize;
+use snapshot::declaration_snapshots;
+use snapshot::statement_and_expression_snapshots::{
     expression_snapshot_option, statement_snapshot,
 };
-use crate::typed_trees::inspection::snapshot::type_snapshots::{
-    type_reference_snapshot, type_reference_snapshot_option,
-};
-use crate::typed_trees::inspection::snapshot::{
-    ExpressionSnapshot, ProofFactSnapshot, StatementSnapshot, TypeReferenceSnapshot,
-};
-use serde::Serialize;
+use snapshot::type_snapshots::{type_reference_snapshot, type_reference_snapshot_option};
+use snapshot::{ExpressionSnapshot, ProofFactSnapshot, StatementSnapshot, TypeReferenceSnapshot};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ConformanceSnapshot {
@@ -552,12 +550,10 @@ fn signature_contract_snapshot(
     contract: &crate::signature::SignatureContract,
 ) -> SignatureContractSnapshot {
     let (kind, crash_cause) = match &contract.kind {
-        crate::signature::SignatureContractKind::Requires => ("requires", None),
-        crate::signature::SignatureContractKind::Ensures => ("ensures", None),
-        crate::signature::SignatureContractKind::EnsuresForResultCase { .. } => {
-            ("ensures_for_result_case", None)
-        }
-        crate::signature::SignatureContractKind::Crashes { cause } => {
+        SignatureContractKind::Requires => ("requires", None),
+        SignatureContractKind::Ensures => ("ensures", None),
+        SignatureContractKind::EnsuresForResultCase { .. } => ("ensures_for_result_case", None),
+        SignatureContractKind::Crashes { cause } => {
             return SignatureContractSnapshot {
                 kind: "crashes",
                 binding: contract.binding.as_ref().map(ToString::to_string),

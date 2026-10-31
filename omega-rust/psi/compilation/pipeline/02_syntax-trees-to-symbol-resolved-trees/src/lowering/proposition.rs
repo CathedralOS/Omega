@@ -1,6 +1,7 @@
 //! Proposition definitions: binders, parameters, and primitive, witness, or
 //! transparent bodies.
 
+use crate::lowering::expression::lower_expression_into_table;
 use crate::lowering::state::lower_state_parameters;
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
@@ -11,6 +12,8 @@ use symbol_resolved_trees::proposition::{
     PropositionBinder, PropositionBinderKind, PropositionBody, PropositionDefinition,
 };
 use symbols::SymbolHandle;
+use syntax::item::TypeParameter;
+use syntax::item::TypeParameterKind;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_proposition_definition(
@@ -27,11 +30,7 @@ pub(crate) fn lower_proposition_definition(
         },
         syntax::item::PropositionBody::Transparent { proposition } => {
             PropositionBody::Transparent {
-                proposition: crate::lowering::expression::lower_expression_into_table(
-                    lowerer,
-                    syntax_trees,
-                    proposition,
-                )?,
+                proposition: lower_expression_into_table(lowerer, syntax_trees, proposition)?,
             }
         }
     };
@@ -50,35 +49,29 @@ pub(crate) fn lower_proposition_definition(
 fn lower_proposition_binders(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    binders: HandleSpan<syntax::item::TypeParameter>,
+    binders: HandleSpan<TypeParameter>,
 ) -> Result<HandleSpan<PropositionBinder>, Diagnostic> {
     let mut lowered = Vec::new();
     for binder in syntax_trees.items.type_parameters(binders) {
         let kind = match binder.kind {
-            syntax::item::TypeParameterKind::Type => PropositionBinderKind::Type,
-            syntax::item::TypeParameterKind::Const { type_reference } => {
-                PropositionBinderKind::Const {
-                    type_reference: lower_type_reference_handle(
-                        lowerer,
-                        syntax_trees,
-                        type_reference,
-                    )?,
-                }
-            }
-            syntax::item::TypeParameterKind::Value { .. } => {
+            TypeParameterKind::Type => PropositionBinderKind::Type,
+            TypeParameterKind::Const { type_reference } => PropositionBinderKind::Const {
+                type_reference: lower_type_reference_handle(lowerer, syntax_trees, type_reference)?,
+            },
+            TypeParameterKind::Value { .. } => {
                 return Err(Diagnostic::error(format!(
                     "proposition declaration binder `{}` cannot be a runtime-capable value binder; value binders are legal only on machine signature generics",
                     binder.name.as_str(syntax_trees)
                 )));
             }
-            syntax::item::TypeParameterKind::Machine { .. } => PropositionBinderKind::Machine,
-            syntax::item::TypeParameterKind::Implementation => {
+            TypeParameterKind::Machine { .. } => PropositionBinderKind::Machine,
+            TypeParameterKind::Implementation => {
                 return Err(Diagnostic::error(format!(
                     "proposition declaration binder `{}` cannot select an implementation; implementation slots belong to trait telescopes",
                     binder.name.as_str(syntax_trees)
                 )));
             }
-            syntax::item::TypeParameterKind::Proposition { .. } => {
+            TypeParameterKind::Proposition { .. } => {
                 return Err(Diagnostic::error(format!(
                     "proposition declaration binder `{}` cannot itself be a generic proposition parameter; generic proposition signatures belong to trait abstraction surfaces",
                     binder.name.as_str(syntax_trees)

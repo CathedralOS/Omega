@@ -25,6 +25,7 @@
 //! `scalars` (scalar Boolean evaluation) are re-exported for the other
 //! contract checks, and `call_guarantees` is also used by `checks::borrows`.
 
+use crate::facts::boolean_predicates;
 use crate::places::place_at;
 use checked_trees::{FlowCallFact, FlowStateFact};
 use facts::FactPayload;
@@ -139,7 +140,7 @@ fn current_bound_boolean_is_proven(
     contexts: &[facts::FactContextHandle],
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    let Some(expression) = crate::facts::boolean_predicates::lower_current_guard(
+    let Some(expression) = boolean_predicates::lower_current_guard(
         program,
         &facts.operators,
         state.symbol,
@@ -148,13 +149,13 @@ fn current_bound_boolean_is_proven(
     ) else {
         return false;
     };
-    let Some(required) = crate::facts::boolean_predicates::bind_current_expression(
+    let Some(required) = boolean_predicates::bind_current_expression(
         program,
         state.symbol,
         expression,
         true,
         |operand| {
-            crate::facts::boolean_predicates::declared_observation(
+            boolean_predicates::declared_observation(
                 program,
                 state.symbol,
                 statement_index,
@@ -169,14 +170,9 @@ fn current_bound_boolean_is_proven(
         state_symbol: state.symbol,
         statement_index,
     };
-    let retained = crate::facts::boolean_predicates::retained(
-        program,
-        &facts.operators,
-        &facts.semantic,
-        contexts,
-        point,
-    );
-    crate::facts::boolean_predicates::proves(&retained, &required, |place| {
+    let retained =
+        boolean_predicates::retained(program, &facts.operators, &facts.semantic, contexts, point);
+    boolean_predicates::proves(&retained, &required, |place| {
         scalar_value_at_place(
             program,
             &facts.semantic,

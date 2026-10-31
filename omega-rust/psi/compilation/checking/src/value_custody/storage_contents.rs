@@ -9,8 +9,12 @@
 //! carrier proves no membership and preserves their invariant-window custody.
 //! Unknown qualifications and mutation-capable loans stay opaque.
 
+use crate::declarations::data_queries::DataDefinitionLookup;
+use access_plans::FieldAccess;
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
+use typed_trees::data::DataDefinition;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::data::{DataField, DataMember};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -179,7 +183,7 @@ pub fn has_contents(
 /// do not become arguments of the data application.
 pub fn data_has_contents(
     program: &dyn crate::CheckingInput,
-    data: &typed_trees::data::DataDefinition,
+    data: &DataDefinition,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     requirement: ContentsRequirement,
 ) -> bool {
@@ -377,11 +381,9 @@ fn resolve_parameter_argument(
         // Argument admission and captured-subject equality are separate
         // checks. Contents follow the substituted fields, so this marker
         // cannot supply a field type, extent, loan, or cleanup permission.
-        typed_trees::data::TypeParameterKind::Value { .. } => Some(ContentType::RuntimeIndex),
-        typed_trees::data::TypeParameterKind::Type => {
-            resolve(program, reference, arguments, requirement)
-        }
-        typed_trees::data::TypeParameterKind::Const { .. }
+        TypeParameterKind::Value { .. } => Some(ContentType::RuntimeIndex),
+        TypeParameterKind::Type => resolve(program, reference, arguments, requirement),
+        TypeParameterKind::Const { .. }
             if matches!(program.type_reference_table.type_reference(reference),
                 TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid()) =>
         {
@@ -415,9 +417,7 @@ fn resolve(
                     Some(atom) => atom.is_atomic(),
                     None => program
                         .access_field_plan_for_type_reference(reference)
-                        .is_some_and(|field| {
-                            matches!(field.access, access_plans::FieldAccess::Atomic { .. })
-                        }),
+                        .is_some_and(|field| matches!(field.access, FieldAccess::Atomic { .. })),
                 };
                 if atomic {
                     return Some(ContentType::Atomic(primitive));
@@ -764,17 +764,12 @@ fn is_boundary_provider(program: &dyn crate::CheckingInput, symbol: SymbolHandle
         .any(|definition| definition.symbol == symbol && definition.is_boundary)
 }
 
-fn definition(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
+fn definition(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> Option<&DataDefinition> {
     if !symbol.is_valid() {
         return None;
     }
     match crate::declarations::data_queries::memoized_data_definition_lookup(program, symbol) {
-        crate::declarations::data_queries::DataDefinitionLookup::Unique(position) => {
-            program.data_definitions().get(position as usize)
-        }
+        DataDefinitionLookup::Unique(position) => program.data_definitions().get(position as usize),
         _ => None,
     }
 }

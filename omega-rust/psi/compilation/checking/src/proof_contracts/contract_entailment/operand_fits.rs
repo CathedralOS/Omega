@@ -8,6 +8,9 @@
 use super::structural_judgment::StructuralTerm;
 use super::structural_judgment::normal_returns::OperationOperandDemand;
 use super::structural_prefix::{PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor};
+use numerics::arithmetic::ArithmeticDomain;
+use numerics::bignum::BigInt;
+use numerics::float_semantics_catalog::FloatSemanticKernel;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -21,10 +24,7 @@ pub(crate) enum CarrierFit {
     Proven,
     Refuted,
     Unknown,
-    Pending {
-        low: numerics::bignum::BigInt,
-        high: numerics::bignum::BigInt,
-    },
+    Pending { low: BigInt, high: BigInt },
 }
 
 impl CarrierFit {
@@ -121,11 +121,9 @@ pub(crate) fn float_integer_conversion_fits_at_occurrence(
     else {
         return false;
     };
-    if !matches!(
-        semantic.kernel(),
-        numerics::float_semantics_catalog::FloatSemanticKernel::ToIntegerExact
-    ) || program.arithmetic_domain_for_type_reference(operator.return_type)
-        != numerics::arithmetic::ArithmeticDomain::Exact
+    if !matches!(semantic.kernel(), FloatSemanticKernel::ToIntegerExact)
+        || program.arithmetic_domain_for_type_reference(operator.return_type)
+            != ArithmeticDomain::Exact
     {
         return false;
     }
@@ -606,14 +604,11 @@ impl StructuralPrefixVisitor for OperandFit {
                                 Some(StructuralTerm::ScalarBinary {
                                     references: [references[position]; 2],
                                     operator: BinaryOperator::NotEqual,
-                                    meaning: [(
-                                        self.request.target,
-                                        numerics::arithmetic::ArithmeticDomain::Exact,
-                                    ); 2],
+                                    meaning: [(self.request.target, ArithmeticDomain::Exact); 2],
                                     left: Box::new(value),
-                                    right: Box::new(StructuralTerm::Integer(
-                                        numerics::bignum::BigInt::from_i64(excluded),
-                                    )),
+                                    right: Box::new(StructuralTerm::Integer(BigInt::from_i64(
+                                        excluded,
+                                    ))),
                                 })
                             })
                         })
@@ -627,7 +622,7 @@ impl StructuralPrefixVisitor for OperandFit {
                             Some(StructuralTerm::ScalarBinary {
                                 references: [boolean; 2],
                                 operator: BinaryOperator::Or,
-                                meaning: [(PrimitiveType::Bool, numerics::arithmetic::ArithmeticDomain::Exact); 2],
+                                meaning: [(PrimitiveType::Bool, ArithmeticDomain::Exact); 2],
                                 left: Box::new(other), right: Box::new(first),
                             })
                         } else { Some(first) }
@@ -704,8 +699,8 @@ impl StructuralPrefixVisitor for OperandFit {
                         // Re-expanding loose operand intervals must not undo it.
                         self.request.target.integer_bounds().map(|(low, high)| {
                             checked_trees::IntegerRangeRecipe::bounds(
-                                numerics::bignum::BigInt::from_i128(low),
-                                numerics::bignum::BigInt::from_i128(high),
+                                BigInt::from_i128(low),
+                                BigInt::from_i128(high),
                             )
                         })
                     } else {

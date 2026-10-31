@@ -5,6 +5,11 @@
 //! retain their checked frontier. Both use one ordinary call whose custody is
 //! decided here and recorded in the plan (`with_structural_custody`).
 
+use crate::execution::terminal_unit::reference_results::has_borrowed_parts;
+use crate::execution::terminal_unit::reference_results::is_reference_record;
+use crate::execution::terminal_unit::reference_results::result_loans;
+use crate::execution::terminal_unit::types::borrowed_named_view;
+use crate::execution::terminal_unit::types::borrowed_slice_result;
 use checked_trees::{
     CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
     CheckedUnitCallTarget, CheckedUnitCallTransfers,
@@ -55,24 +60,14 @@ pub(super) fn build(
             program, facts, state, call, result,
         )
         .unwrap_or_default();
-    let reference_result = crate::execution::terminal_unit::reference_results::has_borrowed_parts(
-        program,
-        target_state.return_type,
-    );
+    let reference_result = has_borrowed_parts(program, target_state.return_type);
     let reference_loans = if !forwarded_reference_sources.is_empty() {
         arena::HandleSpan::empty()
     } else if reference_result {
         // Every access retains the exact call's loan, activation and release.
         // Origin reconstruction belongs to the shared reference-result owner;
         // a private view walker must not miss ordinary forwarded completions.
-        crate::execution::terminal_unit::reference_results::result_loans(
-            program,
-            facts,
-            machine.symbol,
-            state,
-            call,
-            result,
-        )?
+        result_loans(program, facts, machine.symbol, state, call, result)?
     } else {
         arena::HandleSpan::empty()
     };
@@ -101,7 +96,7 @@ pub(super) fn build(
             || represented_copy_result
             || reference_result
             || !forwarded_reference_sources.is_empty()
-            || crate::execution::terminal_unit::reference_results::is_reference_record(
+            || is_reference_record(
                 program,
                 target_state.return_type,
             )
@@ -155,10 +150,10 @@ pub(super) fn build(
                     program,
                     target_state.return_type,
                 )
-                && (crate::execution::terminal_unit::types::borrowed_slice_result(
+                && (borrowed_slice_result(
                     program,
                     target_state.return_type,
-                ) || crate::execution::terminal_unit::types::borrowed_named_view(
+                ) || borrowed_named_view(
                     program,
                     target_state.return_type,
                 ))))

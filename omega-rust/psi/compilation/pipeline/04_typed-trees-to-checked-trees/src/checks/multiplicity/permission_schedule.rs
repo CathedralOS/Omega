@@ -1,6 +1,11 @@
 //! One source evaluation schedule for permission production and replay.
 //! Custody forks after guard evaluation, and only the missed guard state
 //! continues to the next statement. No expression traversal is duplicated.
+use super::cleanup_dispositions::RemainingCustody;
+use super::linear_obligations::LinearPlace;
+use super::permission_events::case_transition_run_is_exhaustive;
+use crate::flow::CaseEvidence;
+use crate::flow::call_permission_evaluation;
 use checked_trees::{FlowClaimJoinExit, FlowClaimJoinExitKind, FlowPermissionEvaluation};
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 
@@ -107,12 +112,7 @@ pub(super) fn walk<S: Clone>(
         visit(PermissionStep::MissedGuard, &mut custody);
     }
     if !transitions.is_empty()
-        && super::permission_events::case_transition_run_is_exhaustive(
-            program,
-            state.symbol,
-            statements,
-            &transitions,
-        )
+        && case_transition_run_is_exhaustive(program, state.symbol, statements, &transitions)
     {
         return;
     }
@@ -153,13 +153,8 @@ fn evaluation_has_no_normal_completion(
         call.statement_index == statement
             && !call.authored_selected
             && call.authored_dispatch_role != checked_trees::FlowCallDispatchRole::SavedSubjectRead
-            && crate::flow::call_permission_evaluation(
-                program,
-                machine,
-                state,
-                statement,
-                call.call_ordinal,
-            ) == evaluation
+            && call_permission_evaluation(program, machine, state, statement, call.call_ordinal)
+                == evaluation
             && call_has_no_normal_completion(program, call.target_symbol)
     })
 }
@@ -201,7 +196,7 @@ fn target_has_no_normal_completion(
 /// guard receiver, selected polarity and intervening writes. Custody consumes
 /// those exact observations instead of resolving the guard's descriptor again.
 pub(super) struct SelectedCases<'program> {
-    evidence: crate::flow::CaseEvidence<'program>,
+    evidence: CaseEvidence<'program>,
 }
 
 impl<'program> SelectedCases<'program> {
@@ -290,7 +285,7 @@ impl<'program> SelectedCases<'program> {
         if contexts.is_empty() {
             return None;
         }
-        let evidence = crate::flow::CaseEvidence::prepare(
+        let evidence = CaseEvidence::prepare(
             program,
             &facts.semantic,
             &contexts,
@@ -304,14 +299,14 @@ impl<'program> SelectedCases<'program> {
         Some(Self { evidence })
     }
 
-    pub(super) fn apply_claims(self, places: &mut [super::linear_obligations::LinearPlace]) {
+    pub(super) fn apply_claims(self, places: &mut [LinearPlace]) {
         self.apply(places, None);
     }
 
     pub(super) fn apply(
         self,
-        places: &mut [super::linear_obligations::LinearPlace],
-        mut remaining: Option<&mut super::cleanup_dispositions::RemainingCustody>,
+        places: &mut [LinearPlace],
+        mut remaining: Option<&mut RemainingCustody>,
     ) {
         // No consumer exists for this pure prepared batch. Cleanup, when
         // present, must still receive every exclusion even with no claims.

@@ -2,12 +2,20 @@
 //! ABI positions, and the erased scalar and proof formals that own no slot.
 
 use super::*;
+use checked_trees::CheckedErasedProofParameterPlan;
+use checked_trees::CheckedStructuralScalarParameterPlan;
+use checked_trees::CheckedUnitParameterStoragePlan;
+use checked_trees::FlowStateFact;
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use validation::mathematical_applications::is_source_evidence_carrier;
+use validation::proof_only_classification;
 
 pub(in crate::execution::terminal_unit) fn state_flow(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-) -> Option<&checked_trees::FlowStateFact> {
+) -> Option<&FlowStateFact> {
     facts.flow.control.state(machine, state)
 }
 
@@ -30,7 +38,7 @@ pub(crate) fn parameter_is_root(parameter: &StateParameter, root: SymbolHandle) 
 
 pub(in crate::execution::terminal_unit) fn machine_binders(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
+    machine: &Machine,
 ) -> Vec<(SymbolHandle, String)> {
     program
         .machine_type_parameters(machine)
@@ -63,10 +71,10 @@ pub(crate) fn strips_erased_parameter(parameter: &StateParameter) -> Option<bool
 pub(in crate::execution::terminal_unit) fn parameter_storage_plans(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
-    state: &typed_trees::state::State,
+    state: &State,
     binders: &[(SymbolHandle, String)],
-    scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
-) -> Option<Vec<checked_trees::CheckedUnitParameterStoragePlan>> {
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+) -> Option<Vec<CheckedUnitParameterStoragePlan>> {
     let parameters = program.state_parameters(state);
     scalar_parameters
         .iter()
@@ -83,7 +91,7 @@ pub(in crate::execution::terminal_unit) fn parameter_storage_plans(
             {
                 return None;
             }
-            Some(checked_trees::CheckedUnitParameterStoragePlan {
+            Some(CheckedUnitParameterStoragePlan {
                 source_position: scalar.source_position,
                 symbol: parameter.symbol,
                 type_identity: shapes.add_type(parameter.type_reference, binders, &[])?,
@@ -99,8 +107,8 @@ pub(in crate::execution::terminal_unit) fn parameter_storage_plans(
 /// them. Erased formals with any other non-primitive type refuse the plan.
 pub(crate) fn erased_scalar_parameter_plans(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-) -> Option<Vec<checked_trees::CheckedStructuralScalarParameterPlan>> {
+    state: &State,
+) -> Option<Vec<CheckedStructuralScalarParameterPlan>> {
     // Classifying proof-only data walks every data definition; a state
     // without an erased formal selects nothing and needs no classification.
     if !program
@@ -110,7 +118,7 @@ pub(crate) fn erased_scalar_parameter_plans(
     {
         return Some(Vec::new());
     }
-    let proof_only = validation::proof_only_classification(program);
+    let proof_only = proof_only_classification(program);
     program
         .state_parameters(state)
         .iter()
@@ -118,13 +126,10 @@ pub(crate) fn erased_scalar_parameter_plans(
         .filter(|(_, parameter)| parameter.relevance.is_erased())
         .filter(|(_, parameter)| {
             !(proof_only.contract_term_carrier(program, parameter.type_reference)
-                || validation::mathematical_applications::is_source_evidence_carrier(
-                    program,
-                    parameter.type_reference,
-                ))
+                || is_source_evidence_carrier(program, parameter.type_reference))
         })
         .map(|(position, parameter)| {
-            Some(checked_trees::CheckedStructuralScalarParameterPlan {
+            Some(CheckedStructuralScalarParameterPlan {
                 source_position: u32::try_from(position).ok()?,
                 primitive_type: program.erased_scalar_observation_type(parameter.type_reference)?,
             })
@@ -138,8 +143,8 @@ pub(crate) fn erased_scalar_parameter_plans(
 /// contract term lane carries them by identity instead.
 pub(crate) fn erased_proof_parameter_plans(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-) -> Option<Vec<checked_trees::CheckedErasedProofParameterPlan>> {
+    state: &State,
+) -> Option<Vec<CheckedErasedProofParameterPlan>> {
     // Classifying proof-only data walks every data definition; a state
     // without an erased formal selects nothing and needs no classification.
     if !program
@@ -149,7 +154,7 @@ pub(crate) fn erased_proof_parameter_plans(
     {
         return Some(Vec::new());
     }
-    let proof_only = validation::proof_only_classification(program);
+    let proof_only = proof_only_classification(program);
     program
         .state_parameters(state)
         .iter()
@@ -157,22 +162,16 @@ pub(crate) fn erased_proof_parameter_plans(
         .filter(|(_, parameter)| parameter.relevance.is_erased())
         .filter(|(_, parameter)| {
             proof_only.contract_term_carrier(program, parameter.type_reference)
-                || validation::mathematical_applications::is_source_evidence_carrier(
-                    program,
-                    parameter.type_reference,
-                )
+                || is_source_evidence_carrier(program, parameter.type_reference)
         })
         .map(|(position, parameter)| {
-            Some(checked_trees::CheckedErasedProofParameterPlan {
+            Some(CheckedErasedProofParameterPlan {
                 source_position: u32::try_from(position).ok()?,
                 parameter_symbol: parameter.symbol,
                 // Storage identity may erase layout-independent Value indices
                 // to Unit. Evidence names its full semantic carrier, derived
                 // from this checked formal rather than a caller's proof bytes.
-                type_identity: if validation::mathematical_applications::is_source_evidence_carrier(
-                    program,
-                    parameter.type_reference,
-                ) {
+                type_identity: if is_source_evidence_carrier(program, parameter.type_reference) {
                     program.normalized_type_identity(parameter.type_reference)
                 } else {
                     base_type_identity(program, parameter.type_reference, &[], &[])?

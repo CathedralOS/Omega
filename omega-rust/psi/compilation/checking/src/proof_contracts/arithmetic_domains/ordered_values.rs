@@ -20,13 +20,17 @@ use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, State, ValueEnvironment, declared_place_type_raw, place_path,
 };
+use crate::CheckingInput;
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze_meaning;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     literal_interval, primitive_range,
 };
 use crate::proof_contracts::arithmetic_domains::place_paths::place_paths_overlap;
 use crate::value_custody::places::collection_length_receiver;
+use congruence::EqualityQuery;
+use numerics::literals::IntegerLanding;
 use symbols::SymbolHandle;
+use typed_trees::data::TypeParameterKind;
 
 mod captured_references;
 mod congruence;
@@ -52,10 +56,7 @@ pub(crate) enum Operand {
         name: String,
         primitive: Option<PrimitiveType>,
     },
-    Integer(
-        numerics::literals::IntegerLiteral,
-        Option<numerics::literals::IntegerLanding>,
-    ),
+    Integer(numerics::literals::IntegerLiteral, Option<IntegerLanding>),
     Call {
         target: SymbolHandle,
         /// Only admitted repeatable denotations use argument congruence.
@@ -142,11 +143,7 @@ impl Operand {
         self.survives_paths(written)
     }
 
-    pub(super) fn is_immutable_snapshot(
-        &self,
-        program: &dyn crate::CheckingInput,
-        state: &State,
-    ) -> bool {
+    pub(super) fn is_immutable_snapshot(&self, program: &dyn CheckingInput, state: &State) -> bool {
         match self {
             Self::Integer(..) => true,
             Self::Place { root, .. } => {
@@ -181,16 +178,14 @@ impl Operand {
                                 .any(|parameter| {
                                     parameter.symbol == *root
                                         && match parameter.kind {
-                                            typed_trees::data::TypeParameterKind::Value {
-                                                type_reference,
+                                            TypeParameterKind::Value { type_reference }
+                                            | TypeParameterKind::Const { type_reference } => {
+                                                program
+                                                    .primitive_type_reference(type_reference)
+                                                    .is_some_and(|primitive| {
+                                                        primitive.is_fixed_integer()
+                                                    })
                                             }
-                                            | typed_trees::data::TypeParameterKind::Const {
-                                                type_reference,
-                                            } => program
-                                                .primitive_type_reference(type_reference)
-                                                .is_some_and(|primitive| {
-                                                    primitive.is_fixed_integer()
-                                                }),
                                             _ => false,
                                         }
                                 })
@@ -218,7 +213,7 @@ impl Operand {
 
     pub(super) fn survives_storage_writes(
         &self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         state: Option<&State>,
         written: &[String],
     ) -> bool {
@@ -407,7 +402,7 @@ impl Relation {
 /// `operand` served by the resolver's once-computed whole-program call plans
 /// when a live call-frame resolver reaches this site.
 pub(crate) fn operand(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -420,7 +415,7 @@ pub(crate) fn operand(
 /// retains its captured identity. Runtime call events stay opaque; only the
 /// ordinary repeatable-value call judgment can construct a call operand here.
 pub(crate) fn observation_survives_writes(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -440,7 +435,7 @@ pub(crate) fn observation_survives_writes(
 /// Only always-full arrays have a constant extent. Bounded byte owners and
 /// slices retain their live collection observation instead of their capacity.
 pub(super) fn collection_length_operand(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     collection: ExpressionHandle,
@@ -466,7 +461,7 @@ pub(super) fn collection_length_operand(
 }
 
 fn build_operand(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -536,8 +531,7 @@ fn build_operand(
                     parameter.symbol == path.symbol
                         && matches!(
                             parameter.kind,
-                            typed_trees::data::TypeParameterKind::Value { .. }
-                                | typed_trees::data::TypeParameterKind::Const { .. }
+                            TypeParameterKind::Value { .. } | TypeParameterKind::Const { .. }
                         )
                 });
             if !local && !parameter && !value_binder {
@@ -708,7 +702,7 @@ fn build_operand(
 }
 
 fn integer_meaning(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -777,7 +771,7 @@ fn integer_meaning(
 /// public contract. Builtin windows translate the ordinal in the same operand
 /// namespace; they do not add a dimension or confer a fixed array extent.
 pub(super) fn indexed_operand(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     collection: ExpressionHandle,
@@ -846,7 +840,7 @@ pub(super) fn indexed_operand(
 }
 
 pub(super) fn record(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     environment: &mut ValueEnvironment,
@@ -986,7 +980,7 @@ pub(super) fn record(
 /// Integer order has discrete gaps; IEEE or unresolved comparisons cannot
 /// donate that rule. Anonymous literals retain their exact admitted value.
 fn has_integer_order_meaning(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
@@ -1036,7 +1030,7 @@ fn integer_carrier_ceiling(primitive: PrimitiveType) -> Option<Operand> {
 /// Two reads of the same resolved place at one subtraction have equal values.
 /// This local identity needs no entry premise or arithmetic re-analysis.
 pub(super) fn same_place(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     left: ExpressionHandle,
@@ -1061,7 +1055,7 @@ pub(super) fn same_place(
 }
 
 pub(super) fn subtract_floor(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -1085,7 +1079,7 @@ pub(super) fn subtract_floor(
 /// preservation. Match recursion may use common live-place facts only under
 /// that outer admission; it cannot erase writes between two runtime reads.
 pub(super) fn subtract_floor_limited(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -1153,9 +1147,9 @@ pub(super) fn subtract_floor_limited(
     };
     // Each operand owns its closure over this unchanged relation scan.
     let mut left_comparison =
-        congruence::EqualityQuery::new(&environment.ordered_values, &left_operand, &left_operand);
+        EqualityQuery::new(&environment.ordered_values, &left_operand, &left_operand);
     let mut right_comparison =
-        congruence::EqualityQuery::new(&environment.ordered_values, &right_operand, &right_operand);
+        EqualityQuery::new(&environment.ordered_values, &right_operand, &right_operand);
     environment
         .ordered_values
         .iter()
@@ -1171,7 +1165,7 @@ pub(super) fn subtract_floor_limited(
 /// that includes the excluded point. No source guard is replayed here: joins,
 /// edge substitution and writes already determined which relations survive.
 pub(super) fn excludes_integer_value(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -1221,7 +1215,7 @@ pub(super) fn excludes_integer_value(
 /// unbounded. Only representable interval endpoints are projected; inequality
 /// exclusions retain their nonconvex meaning with their existing query owner.
 pub(super) fn refine_place_interval(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -1236,7 +1230,7 @@ pub(super) fn refine_place_interval(
         return interval;
     };
     // Every candidate is a relation endpoint, already in this subject's closure.
-    let mut comparison: Option<congruence::EqualityQuery<'_>> = None;
+    let mut comparison: Option<EqualityQuery<'_>> = None;
     for exact_only in [true, false] {
         for relation in &environment.ordered_values {
             let RelationConstraint::MinimumDifference(distance) = relation.constraint else {
@@ -1276,11 +1270,7 @@ pub(super) fn refine_place_interval(
                     &subject != candidate
                         && comparison
                             .get_or_insert_with(|| {
-                                congruence::EqualityQuery::new(
-                                    &environment.ordered_values,
-                                    &subject,
-                                    &subject,
-                                )
+                                EqualityQuery::new(&environment.ordered_values, &subject, &subject)
                             })
                             .same_value(&subject, candidate)
                 };
@@ -1314,7 +1304,7 @@ pub(super) fn refine_place_interval(
 /// The relation's exact operand identity and ordinary write invalidation
 /// remain authoritative.
 pub(super) fn unsigned_increase_fits(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     state: Option<&State>,
     environment: &ValueEnvironment,
@@ -1348,10 +1338,7 @@ pub(super) fn unsigned_increase_fits(
 /// range; a binary operand carries its declared primitive; a collection
 /// length is usize-bounded (unbounded at i64 resolution). `None` leaves a
 /// call result's bound unknown -- its contract evidence lives elsewhere.
-fn operand_carrier_bound(
-    program: &dyn crate::CheckingInput,
-    operand: &Operand,
-) -> Option<Option<i64>> {
+fn operand_carrier_bound(program: &dyn CheckingInput, operand: &Operand) -> Option<Option<i64>> {
     match operand {
         Operand::Integer(literal, _) => Some(literal_interval(literal).high),
         Operand::Place { root, .. } => {
@@ -1378,7 +1365,7 @@ fn operand_carrier_bound(
 /// every carrier because no admitted integer carrier exceeds it; a narrower
 /// ceiling admits only an operand whose carrier bound fits inside it.
 fn operand_carrier_within_ceiling(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     _machine: &Machine,
     _state: &State,
     operand: &Operand,

@@ -5,7 +5,9 @@ use crate::flow::expressions;
 use crate::places::place_at;
 use validation::CanonicalPlace;
 
-use super::super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State};
+use super::super::{
+    EXPRESSION_WALK_DEPTH_BOUND as ND, ExpressionHandle, ExpressionNode, Machine, State,
+};
 use super::ReadWalk;
 
 use checked_trees::{
@@ -82,7 +84,7 @@ impl ReadWalk<'_, '_, '_> {
         depth: usize,
     ) -> SymbolHandle {
         let program = self.program;
-        if depth >= EXPRESSION_WALK_DEPTH_BOUND {
+        if depth >= ND {
             return SymbolHandle::invalid();
         }
         let direct = validation::effective_member_symbol(program, member.receiver, member);
@@ -117,9 +119,7 @@ impl ReadWalk<'_, '_, '_> {
         let program = self.program;
         let machine = self.machine;
         let state = self.state;
-        if depth >= EXPRESSION_WALK_DEPTH_BOUND
-            || !program.expression_table.expression_is_valid(receiver)
-        {
+        if depth >= ND || !program.expression_table.expression_is_valid(receiver) {
             return None;
         }
         match program.expression_table.expression(receiver) {
@@ -259,9 +259,7 @@ impl ReadWalk<'_, '_, '_> {
         let machine = self.machine;
         let state = self.state;
         let statement_index = self.statement_index;
-        if depth >= EXPRESSION_WALK_DEPTH_BOUND
-            || !program.expression_table.expression_is_valid(expression)
-        {
+        if depth >= ND || !program.expression_table.expression_is_valid(expression) {
             return false;
         }
         match program.expression_table.expression(expression) {
@@ -343,9 +341,7 @@ pub(super) fn member_receiver_escapes_binder(
     receiver: ExpressionHandle,
     depth: usize,
 ) -> bool {
-    if depth >= EXPRESSION_WALK_DEPTH_BOUND
-        || !program.expression_table.expression_is_valid(receiver)
-    {
+    if depth >= ND || !program.expression_table.expression_is_valid(receiver) {
         return false;
     }
     match program.expression_table.expression(receiver) {

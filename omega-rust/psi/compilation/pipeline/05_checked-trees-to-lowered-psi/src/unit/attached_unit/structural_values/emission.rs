@@ -14,13 +14,22 @@ use super::super::{
 };
 use super::{CheckedTrees, ValueOutcome};
 use crate::checked_facts::{flow_facts, value_facts};
+use crate::emission::claim_bindings::emit_establishment_claims;
 use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result_declaration};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
+use crate::emission::scalar_types::terminal_scalar_type;
+use crate::expression_preparation::bindings::StructuralLocalBinding;
+use crate::expression_preparation::bindings::structural_local_by_root;
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
+use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings};
 use crate::expression_preparation::byte_literals;
+use crate::expression_preparation::computation_graph::fields;
+use crate::reference_custody::binding_multiplicity;
+use crate::scalar_lowering::computations::cases::declarations;
+use crate::terminal_identities::lookup_machine_id;
 use crate::terminal_identities::stored_structural_identity;
 use arena::HandleSpan;
 use checked_trees::{
@@ -120,10 +129,7 @@ pub(crate) fn emit<'source>(
             structural_types,
         )?
     };
-    let result_claims = crate::emission::claim_bindings::emit_establishment_claims(
-        &prepared_claims,
-        &mut calls.claims,
-    )?;
+    let result_claims = emit_establishment_claims(&prepared_claims, &mut calls.claims)?;
     let authored_state = crate::declarations::state_declaration(checked, state)?.1;
     let captured_sources = production
         .selection
@@ -155,12 +161,10 @@ pub(crate) fn emit<'source>(
                             "selected source ordinal exceeds its checked representation",
                         )
                     })?;
-                    if let Some(local) =
-                        crate::expression_preparation::bindings::structural_local_by_root(
-                            &evaluation.structural_locals,
-                            facts::PlaceRoot::Symbol(source.symbol),
-                        )
-                    {
+                    if let Some(local) = structural_local_by_root(
+                        &evaluation.structural_locals,
+                        facts::PlaceRoot::Symbol(source.symbol),
+                    ) {
                         return Ok(argument_evaluation::CapturedSelectionSource {
                             source_ordinal,
                             storage: argument_evaluation::StructuralValueStorage {
@@ -230,11 +234,7 @@ pub(crate) fn emit<'source>(
         } if !source_value.is_valid()
             && lookup_type_id(type_ids, &source.type_identity)? == structural_type =>
         {
-            Some(
-                crate::expression_preparation::bindings::structural_paths::terminal_access(
-                    source.access,
-                ),
-            )
+            Some(terminal_access(source.access))
         }
         _ => None,
     };
@@ -909,10 +909,7 @@ fn prepare_owners(
         }
     }
     let locals = checked.facts.state_locals.locals(state);
-    for crate::expression_preparation::bindings::StructuralLocalBinding {
-        root, argument, ..
-    } in &evaluation.structural_locals
-    {
+    for StructuralLocalBinding { root, argument, .. } in &evaluation.structural_locals {
         let Some(symbol) = root.as_symbol() else {
             continue;
         };
@@ -930,7 +927,7 @@ fn prepare_owners(
                 // when a mutable parameter has an emitted structural home.
                 // Never invent a local identity or discard an affine/linear
                 // parameter here; selected owned ingress joins separately below.
-                if crate::reference_custody::binding_multiplicity(checked, parameter.type_reference)
+                if binding_multiplicity(checked, parameter.type_reference)
                     == Multiplicity::Unrestricted
                 {
                     continue;
@@ -959,9 +956,7 @@ fn prepare_owners(
             }
             continue;
         }
-        if crate::reference_custody::binding_multiplicity(checked, local.declared_type)
-            != Multiplicity::Affine
-        {
+        if binding_multiplicity(checked, local.declared_type) != Multiplicity::Affine {
             continue;
         }
         if local.statement_index >= statement
@@ -1075,8 +1070,7 @@ fn prepare_owners(
         .iter()
         .take_while(|local| local.statement_index < statement)
     {
-        if crate::reference_custody::binding_multiplicity(checked, local.declared_type)
-            == Multiplicity::Affine
+        if binding_multiplicity(checked, local.declared_type) == Multiplicity::Affine
             && available(local.symbol, local.statement_index)?
             && !owners.iter().any(|owner| owner.symbol == local.symbol)
             && !evaluation
@@ -1635,14 +1629,12 @@ impl Emission<'_, '_, '_> {
             .push((completed.id, result.claims));
         crate::expression_preparation::bindings::retain_completed_structural_homes(
             &mut self.evaluation.structural_locals,
-            &[
-                crate::expression_preparation::bindings::StructuralLocalBinding {
-                    result_binding_ordinal: None,
-                    root: facts::PlaceRoot::Expression(source_expression),
-                    argument: StructuralArgument::whole(completed.id, StructuralAccess::Owned),
-                    structural_type,
-                },
-            ],
+            &[StructuralLocalBinding {
+                result_binding_ordinal: None,
+                root: facts::PlaceRoot::Expression(source_expression),
+                argument: StructuralArgument::whole(completed.id, StructuralAccess::Owned),
+                structural_type,
+            }],
         )?;
         self.published_places.push(completed);
         Ok(ValueOutcome::Normal(completed))
@@ -1887,10 +1879,7 @@ impl Emission<'_, '_, '_> {
                         .ok_or(LoweringError::Unsupported(
                             "native layout query lost its exact selected executable entry",
                         ))?;
-                let machine = crate::terminal_identities::lookup_machine_id(
-                    self.calls.machine_ids,
-                    selected.symbol,
-                )?;
+                let machine = lookup_machine_id(self.calls.machine_ids, selected.symbol)?;
                 let place = place_id(allocate_dense(self.environment.next_place)?);
                 let operation = self.operations.allocate();
                 self.operations.push(terminal_psi::Operation::unsuspended(
@@ -2260,9 +2249,7 @@ impl Emission<'_, '_, '_> {
                 else {
                     return unsupported("zeroed scalar array element is not a literal zero");
                 };
-                let scalar_type = crate::emission::scalar_types::terminal_scalar_type(
-                    computation.primitive_type,
-                )?;
+                let scalar_type = terminal_scalar_type(computation.primitive_type)?;
                 let value = crate::emission::scalar_types::integer_value(literal, scalar_type)?;
                 let zero = emit_scalar_leaf(
                     OperationKind::IntegerConstant { value },
@@ -2493,11 +2480,7 @@ impl Emission<'_, '_, '_> {
                     self.structural_types,
                     place,
                 )?;
-                let fields = crate::expression_preparation::computation_graph::fields(
-                    self.checked,
-                    &construction,
-                )?
-                .to_vec();
+                let fields = fields(self.checked, &construction)?.to_vec();
                 let field_start = self.values.len();
                 for (ordinal, field) in fields.iter().enumerate() {
                     let field_ordinal = u32::try_from(ordinal).map_err(|_| {
@@ -2522,13 +2505,11 @@ impl Emission<'_, '_, '_> {
                     self.operations,
                     self.calls,
                 )?;
-                let declaration = crate::scalar_lowering::computations::cases::declarations(
-                    &self.operations.operations,
-                )
-                .find(|declaration| declaration.id == place)
-                .ok_or(LoweringError::Unsupported(
-                    "structural case result declaration missing",
-                ))?;
+                let declaration = declarations(&self.operations.operations)
+                    .find(|declaration| declaration.id == place)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural case result declaration missing",
+                    ))?;
                 self.environment.private_places.push(declaration);
                 self.values.truncate(field_start);
                 finish!(place)
@@ -2652,10 +2633,7 @@ impl Emission<'_, '_, '_> {
             .register_structural_materialization(place, self.state, self.statement)?;
         if self.multiplicity != StructuralMultiplicity::Unrestricted {
             self.evaluation.structural_locals.retain(
-                |crate::expression_preparation::bindings::StructuralLocalBinding {
-                     argument,
-                     ..
-                 }| {
+                |StructuralLocalBinding { argument, .. }| {
                     argument.place != source.place || !argument.path.starts_with(&source.path)
                 },
             );
@@ -3111,16 +3089,14 @@ impl Emission<'_, '_, '_> {
             .arrival_claims
             .push((continuation.place, continuation.claims.clone()));
         self.evaluation.structural_value_owners = continuation.remaining_owners.clone();
-        self.evaluation.structural_locals.retain(
-            |crate::expression_preparation::bindings::StructuralLocalBinding {
-                 argument, ..
-             }| {
+        self.evaluation
+            .structural_locals
+            .retain(|StructuralLocalBinding { argument, .. }| {
                 !self
                     .sources
                     .iter()
                     .any(|source| source.place == argument.place)
-            },
-        );
+            });
         Ok(())
     }
 }

@@ -12,6 +12,7 @@
 use super::value_environment::StoredIntegerRange;
 use super::{Interval, ValueEnvironment, ordered_values, place_path};
 use crate::value_custody::places::{CanonicalPlace, canonical_place_from_expression};
+use facts::PlaceSegment;
 use std::collections::BTreeMap;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -29,11 +30,7 @@ struct CaptureContext<'a> {
 
 #[derive(Default)]
 pub(crate) struct CopiedIntegerValue {
-    recipes: Vec<(
-        Vec<facts::PlaceSegment>,
-        String,
-        checked_trees::IntegerRangeRecipe,
-    )>,
+    recipes: Vec<(Vec<PlaceSegment>, String, checked_trees::IntegerRangeRecipe)>,
     intervals: Vec<CapturedScalarObservation<Interval>>,
     unsigned_values: Vec<CapturedScalarObservation<u64>>,
     float_intervals: Vec<CapturedScalarObservation<super::value_environment::FloatInterval>>,
@@ -49,7 +46,7 @@ pub(crate) struct CopiedIntegerValue {
 struct CapturedScalarObservation<Value> {
     // None means only a legacy text-keyed descendant was available. It may
     // survive an empty frame, but cannot establish separation from writes.
-    segments: Option<Vec<facts::PlaceSegment>>,
+    segments: Option<Vec<PlaceSegment>>,
     suffix: String,
     value: Value,
 }
@@ -501,7 +498,7 @@ impl CopiedIntegerValue {
         receiving_type: typed_trees::types::TypeReferenceHandle,
         expression: ExpressionHandle,
         suffix: &str,
-        segments: &[facts::PlaceSegment],
+        segments: &[PlaceSegment],
         later_writes: Option<&[String]>,
     ) {
         let program = context.source.program;
@@ -515,7 +512,7 @@ impl CopiedIntegerValue {
                     .following_writes(fields.iter().map(|field| field.value), later_writes);
                 for (field, following) in fields.iter().zip(&following) {
                     let mut field_segments = segments.to_vec();
-                    field_segments.push(facts::PlaceSegment::Field {
+                    field_segments.push(PlaceSegment::Field {
                         symbol: field.field_symbol,
                     });
                     self.capture_at(
@@ -535,7 +532,7 @@ impl CopiedIntegerValue {
                     .following_writes(elements.iter().copied(), later_writes);
                 for ((index, element), following) in elements.iter().enumerate().zip(&following) {
                     let mut element_segments = segments.to_vec();
-                    element_segments.push(facts::PlaceSegment::FixedIndex { index });
+                    element_segments.push(PlaceSegment::FixedIndex { index });
                     self.capture_at(
                         context,
                         receiving_type,
@@ -552,7 +549,7 @@ impl CopiedIntegerValue {
                 // recipe is no more detached from borrowed backing than an
                 // ordered relation; the receiving type decides what was copied.
                 let writes = context.source.effects(expression);
-                let survives = |path: Option<&[facts::PlaceSegment]>| {
+                let survives = |path: Option<&[PlaceSegment]>| {
                     captured_observations::scalar_path_survives(
                         program,
                         receiving_type,
@@ -751,8 +748,8 @@ impl CopiedIntegerValue {
                 let mut place = destination.clone();
                 place.extend_segments(segments);
                 if place.segments.iter().any(|segment| {
-                    !matches!(segment, facts::PlaceSegment::Field { symbol } if symbol.is_valid())
-                        && !matches!(segment, facts::PlaceSegment::FixedIndex { .. })
+                    !matches!(segment, PlaceSegment::Field { symbol } if symbol.is_valid())
+                        && !matches!(segment, PlaceSegment::FixedIndex { .. })
                 }) {
                     continue;
                 }
@@ -895,7 +892,7 @@ fn copy_retained<Value: Copy>(
     retained: &BTreeMap<String, Value>,
     source: &str,
     destination: &str,
-    segments: &[facts::PlaceSegment],
+    segments: &[PlaceSegment],
     copied: &mut Vec<CapturedScalarObservation<Value>>,
 ) {
     copied.extend(

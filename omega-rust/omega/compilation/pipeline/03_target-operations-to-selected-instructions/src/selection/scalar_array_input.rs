@@ -1,4 +1,5 @@
 //! Reconstruct exact row-major primitive leaves independently of legalized layout.
+use super::scalar_call_abi::scalar_shape;
 use calling_conventions::ValueShape;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
@@ -62,7 +63,7 @@ pub(super) fn shape(
                 current = element;
             }
             terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) if depth != 0 => {
-                let leaf = super::scalar_call_abi::scalar_shape(scalar)?;
+                let leaf = scalar_shape(scalar)?;
                 let count = if empty { 0 } else { count? };
                 let bytes = u32::try_from(count.checked_mul(u64::from(leaf.byte_size))?).ok()?;
                 return Some((
@@ -99,8 +100,5 @@ pub(super) fn elements(
     {
         return None;
     }
-    Some((
-        scalar,
-        u8::try_from(super::scalar_call_abi::scalar_shape(scalar)?.byte_size).ok()?,
-    ))
+    Some((scalar, u8::try_from(scalar_shape(scalar)?.byte_size).ok()?))
 }

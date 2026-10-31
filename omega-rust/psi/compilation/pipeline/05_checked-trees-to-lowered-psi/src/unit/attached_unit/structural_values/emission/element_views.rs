@@ -14,6 +14,8 @@ use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, emit_direct_expression,
 };
 use crate::expression_preparation::bindings::LoanAccess;
+use crate::expression_preparation::prepare_expression::exact_u64_index;
+use crate::terminal_identities::obligation_id;
 
 impl Emission<'_, '_, '_> {
     /// Establish one borrowed element view without a selection join: the op
@@ -189,12 +191,10 @@ impl Emission<'_, '_, '_> {
                     *start,
                     self.sources.len(),
                 )?;
-                let index = crate::expression_preparation::prepare_expression::exact_u64_index(
-                    LoweredDirectExpression::Parameter {
-                        position: 0,
-                        scalar_type: start.scalar_type,
-                    },
-                )?;
+                let index = exact_u64_index(LoweredDirectExpression::Parameter {
+                    position: 0,
+                    scalar_type: start.scalar_type,
+                })?;
                 let start = emit_direct_expression(
                     &index,
                     std::slice::from_ref(&start),
@@ -259,11 +259,9 @@ impl Emission<'_, '_, '_> {
             Some((start, end)) => terminal_psi::ElementViewRegion::RepresentationBytes {
                 start,
                 end,
-                obligation: crate::terminal_identities::obligation_id(
-                    id.get().checked_add(1).ok_or(LoweringError::Unsupported(
-                        "representation view obligation identity overflows",
-                    ))?,
-                ),
+                obligation: obligation_id(id.get().checked_add(1).ok_or(
+                    LoweringError::Unsupported("representation view obligation identity overflows"),
+                )?),
             },
         };
         let place = place_id(allocate_dense(self.environment.next_place)?);

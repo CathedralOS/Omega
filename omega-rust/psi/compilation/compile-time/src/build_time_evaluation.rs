@@ -275,6 +275,11 @@ pub struct BuildTimeSources<'a> {
     /// Parsed declaration context, separate from the cohort being elaborated.
     /// Lookup still selects through the receiving namespace and authority.
     pub declaration_syntax: Option<&'a syntax_trees::SyntaxTrees>,
+    /// The retained predecessor's parsed declarations when this cohort extends
+    /// an activated source. Units the predecessor parsed and this cohort only
+    /// imports (such as `core::layout`) are visible here for template lookup;
+    /// they are never added to the cohort's work roots.
+    pub retained_declaration_syntax: Option<&'a syntax_trees::SyntaxTrees>,
     pub sources: Option<Arc<source::SourceMap>>,
     pub source_scoped_top_level_bindings: &'a [symbols::SourceScopedTopLevelBinding],
     pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,

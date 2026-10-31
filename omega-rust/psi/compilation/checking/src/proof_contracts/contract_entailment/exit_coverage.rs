@@ -1,14 +1,12 @@
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, StatementNode, TransitionGuardNode,
 };
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 /// Arm-wise entailment judges listed arms. Reusing that result for every
 /// callable exit additionally requires that no implicit path was omitted.
 /// Unsupported coverage stays with the path-sensitive exit prover.
-pub(crate) fn entailment_covers_all_exits(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-) -> bool {
+pub(crate) fn entailment_covers_all_exits(program: &dyn CheckingInput, machine: &Machine) -> bool {
     program.machine_states(machine).iter().all(|state| {
         let guards: Vec<_> = program
             .statement_table
@@ -36,7 +34,7 @@ pub(crate) fn entailment_covers_all_exits(
 /// non-`when`, non-binary, or non-`==` guard contributes nothing, and
 /// `map_right` decides which right-operand shapes each caller reads.
 fn equality_comparisons<T>(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     guards: &[TransitionGuardNode],
     map_right: impl Fn(&typed_trees::expression::TableBinaryExpression) -> Option<T>,
 ) -> Vec<(ExpressionHandle, T)> {
@@ -58,7 +56,7 @@ fn equality_comparisons<T>(
 }
 
 fn complementary_boolean_guards(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     guards: &[TransitionGuardNode],
 ) -> bool {
     let comparisons = equality_comparisons(program, guards, |comparison| {
@@ -72,10 +70,7 @@ fn complementary_boolean_guards(
     })
 }
 
-fn complete_case_guards(
-    program: &dyn crate::CheckingInput,
-    guards: &[TransitionGuardNode],
-) -> bool {
+fn complete_case_guards(program: &dyn CheckingInput, guards: &[TransitionGuardNode]) -> bool {
     let comparisons = equality_comparisons(program, guards, |comparison| {
         let Some(case) = expression_table(program).name_path_node(comparison.right) else {
             return None;
@@ -103,7 +98,7 @@ fn complete_case_guards(
 }
 
 fn same_condition(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
@@ -148,7 +143,7 @@ fn same_condition(
         }
         _ => {}
     }
-    fn scalar(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
+    fn scalar(program: &dyn CheckingInput, expression: ExpressionHandle) -> bool {
         match expression_table(program).expression(expression) {
             ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => true,
             ExpressionNode::Name(path) => path.symbol.is_valid(),

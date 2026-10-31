@@ -2,16 +2,15 @@
 //! The outer declaration application owns the transaction and exact inputs;
 //! operational purity and totality are independent specification-call debts.
 
-use super::{ApplicationDecisions, Engine, Polynomial, formed_type, formed_value};
+use super::{ApplicationDecisions, Engine, Polynomial, dispatch, formed_type, formed_value};
 use crate::frozen_program::expression_table;
-use crate::proof_contracts::contract_entailment::arithmetic_judgment::Judgment;
 use crate::proof_contracts::contract_entailment::specification_calls::{
     SelectedCallContract, owner_contracts, owner_parameters, owner_return_type, owner_symbol,
     requirements_are_acyclic, selected_call_contract,
 };
 use numerics::bignum::BigInt;
 use typed_trees::domain::ProofFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::SignatureContractKind;
 
 pub(super) fn form(
@@ -39,6 +38,22 @@ pub(super) fn form(
             ))
         })
         .collect::<Option<Vec<_>>>()?;
+    // Numeric fit cannot silently change an already-typed argument's carrier
+    // or policy. Only an anonymous value lands at its receiving parameter;
+    // explicit conversions have already retained their own target type.
+    for (parameter, (argument, _)) in parameters.iter().zip(&actuals) {
+        if crate::has_anonymous_numeric_results(program, *argument) {
+            continue;
+        }
+        let actual_type = engine.source_result_type(*argument)?;
+        if program.primitive_type_reference(actual_type)
+            != program.primitive_type_reference(parameter.type_reference)
+            || program.arithmetic_domain_for_type_reference(actual_type)
+                != program.arithmetic_domain_for_type_reference(parameter.type_reference)
+        {
+            return None;
+        }
+    }
     let formals = parameters
         .iter()
         .zip(&actuals)
@@ -57,18 +72,10 @@ pub(super) fn form(
                 let ProofFact::Expression(requirement) = fact else {
                     return None;
                 };
-                if contract.binding.is_some()
-                    || !condition_forms(
-                        engine,
-                        program,
-                        *requirement,
-                        depth + 1,
-                        &mut ApplicationDecisions::default(),
-                    )
-                    || !matches!(engine.judge(*requirement), Judgment::Proven)
-                {
+                if contract.binding.is_some() {
                     return None;
                 }
+                dispatch::require_condition(engine, *requirement, depth + 1)?;
             }
         }
         Some(())
@@ -112,35 +119,4 @@ pub(super) fn form(
         decisions.calls.push(decision);
     }
     Some(value)
-}
-
-fn condition_forms(
-    engine: &mut Engine<'_>,
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    depth: usize,
-    decisions: &mut ApplicationDecisions,
-) -> bool {
-    if depth >= 128 {
-        return false;
-    }
-    match expression_table(program).expression(expression) {
-        ExpressionNode::Boolean(_) => true,
-        ExpressionNode::Atomic(atomic) => {
-            condition_forms(engine, program, atomic.value, depth + 1, decisions)
-        }
-        ExpressionNode::Binary(binary) if engine.selected_binary_meaning(expression, binary) => {
-            if binary.operator == BinaryOperator::And {
-                condition_forms(engine, program, binary.left, depth + 1, decisions)
-                    && matches!(engine.judge(binary.left), Judgment::Proven)
-                    && condition_forms(engine, program, binary.right, depth + 1, decisions)
-            } else if binary.operator.complement().is_some() {
-                formed_value(engine, program, binary.left, depth + 1, decisions).is_some()
-                    && formed_value(engine, program, binary.right, depth + 1, decisions).is_some()
-            } else {
-                false
-            }
-        }
-        _ => false,
-    }
 }

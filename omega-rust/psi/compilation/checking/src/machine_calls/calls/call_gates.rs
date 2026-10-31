@@ -7,6 +7,8 @@ use super::{
     validate_result_use,
 };
 use diagnostics::Diagnostic;
+use language_core::inline_assembly::AsmControlRegister;
+use language_core::inline_assembly::AsmSystemRegister;
 use typed_trees::expression::ExpressionHandle;
 
 /// A call whose receiver names a conformance requirement: its result use
@@ -215,16 +217,11 @@ pub(super) fn validate_asm_statement_call(
         current_state,
         ..
     } = *scope;
-    let register_write =
-        language_core::inline_assembly::AsmControlRegister::from_write_intrinsic_name(
-            call.target.as_str(),
-        )
+    let register_write = AsmControlRegister::from_write_intrinsic_name(call.target.as_str())
         .and_then(|register| register.write_mnemonic())
         .or_else(|| {
-            language_core::inline_assembly::AsmSystemRegister::from_write_intrinsic_name(
-                call.target.as_str(),
-            )
-            .and_then(|register| register.write_mnemonic())
+            AsmSystemRegister::from_write_intrinsic_name(call.target.as_str())
+                .and_then(|register| register.write_mnemonic())
         });
     let (source_mnemonic, expected_arguments) = match register_write {
         Some(mnemonic) => (mnemonic, 1),

@@ -8,8 +8,10 @@
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
+use semantic_vocabulary::PackageKeyIdentity;
 use source::SourceOrigin;
 use std::collections::HashSet;
+use symbols::FixedCoreDeclaration;
 
 /// Package-neutral authority consulted before the compiler executes an
 /// authored machine or admits checked declaration selections.
@@ -20,23 +22,18 @@ use std::collections::HashSet;
 pub trait DeclarationSelectionAuthority: Send + Sync {
     fn allows_declaration_selection(
         &self,
-        requester: semantic_vocabulary::PackageKeyIdentity,
-        owner: semantic_vocabulary::PackageKeyIdentity,
+        requester: PackageKeyIdentity,
+        owner: PackageKeyIdentity,
     ) -> bool;
 
-    fn package_label(&self, identity: semantic_vocabulary::PackageKeyIdentity) -> String;
+    fn package_label(&self, identity: PackageKeyIdentity) -> String;
 
     /// Complete allowed-owner sets for known requesters, for comparing private
     /// source checkpoints only. A custom predicate may decline persistence.
     /// This metadata never replaces the live predicate during admission.
     fn declaration_selection_scope(
         &self,
-    ) -> Option<
-        std::collections::BTreeMap<
-            semantic_vocabulary::PackageKeyIdentity,
-            Vec<semantic_vocabulary::PackageKeyIdentity>,
-        >,
-    > {
+    ) -> Option<std::collections::BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
         None
     }
 }
@@ -125,11 +122,9 @@ pub fn validate_authored_declaration_selections(
                 .builtin_function_for_symbol(selected)
                 .is_some()
             || program.symbols.builtin_type_member(selected).is_some()
-            || symbols::FixedCoreDeclaration::ALL
-                .into_iter()
-                .any(|declaration| {
-                    program.symbols.fixed_core_declaration_symbol(declaration) == Some(selected)
-                })
+            || FixedCoreDeclaration::ALL.into_iter().any(|declaration| {
+                program.symbols.fixed_core_declaration_symbol(declaration) == Some(selected)
+            })
         {
             continue;
         }
@@ -206,12 +201,7 @@ pub fn validate_authored_declaration_selections(
 #[derive(Clone, compiler_storage::Record)]
 pub enum RecordedDeclarationAuthority {
     Absent,
-    Packages(
-        std::collections::BTreeMap<
-            semantic_vocabulary::PackageKeyIdentity,
-            Vec<semantic_vocabulary::PackageKeyIdentity>,
-        >,
-    ),
+    Packages(std::collections::BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>),
 }
 impl RecordedDeclarationAuthority {
     pub fn capture(
@@ -232,11 +222,7 @@ impl RecordedDeclarationAuthority {
     pub fn has_authority(&self) -> bool {
         matches!(self, Self::Packages(_))
     }
-    pub fn allows(
-        &self,
-        requester: semantic_vocabulary::PackageKeyIdentity,
-        owner: semantic_vocabulary::PackageKeyIdentity,
-    ) -> Option<bool> {
+    pub fn allows(&self, requester: PackageKeyIdentity, owner: PackageKeyIdentity) -> Option<bool> {
         match self {
             Self::Absent => None,
             Self::Packages(scope) => scope.get(&requester).map(|owners| owners.contains(&owner)),
@@ -281,7 +267,7 @@ impl RecordedDeclarationAuthority {
     fn require_requesters(
         &self,
         authority: Option<&dyn DeclarationSelectionAuthority>,
-        requesters: impl Iterator<Item = semantic_vocabulary::PackageKeyIdentity>,
+        requesters: impl Iterator<Item = PackageKeyIdentity>,
     ) -> Result<(), &'static str> {
         match (self, Self::capture(authority)?) {
             (Self::Absent, Self::Absent) => Ok(()),

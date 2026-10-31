@@ -1,4 +1,9 @@
+use super::byte_views::{contains_readable_bytes, view_type};
 use super::{AbstractOperation, PsiOptimizationFunction, ScalarType};
+use crate::structural_inputs::structural_reference_input::{
+    ProjectedByteField, byte_field_storage, case_field_read, field_read, projected_byte_field,
+    projected_view_slot,
+};
 use optimization_unit_semantics::byte_field_root;
 use terminal_psi::find_structural_type;
 
@@ -168,7 +173,7 @@ pub(in crate::legalization) fn replacement(
                 declaration.id == structural_type
                     && declaration.shape.is_bounded_owned_byte_sequence()
             })
-            || !super::byte_views::contains_readable_bytes(function, *source, types)
+            || !contains_readable_bytes(function, *source, types)
             || function
                 .entry_claim_declarations
                 .iter()
@@ -309,15 +314,11 @@ pub(in crate::legalization) fn replacement(
             .content_entry_claims
             .iter()
             .any(|claim| claim.input.root == root || Some(claim.input.root) == source)
-        || source.is_some_and(|source| {
-            !super::byte_views::contains_readable_bytes(function, source, types)
-        })
+        || source.is_some_and(|source| !contains_readable_bytes(function, source, types))
     {
         return None;
     }
-    crate::structural_inputs::structural_reference_input::byte_field_storage(
-        root_type, &path, *field, types,
-    )?;
+    byte_field_storage(root_type, &path, *field, types)?;
     Some(terminal_psi::StructuralArgument {
         place: root,
         access,
@@ -409,7 +410,7 @@ pub(in crate::legalization) fn view_replacement(
         (root, access, path.clone())
     };
     if source == destination
-        || !super::byte_views::view_type(function, *source, types).is_some_and(|identity| {
+        || !view_type(function, *source, types).is_some_and(|identity| {
             types
                 .iter()
                 .any(|row| row.id == identity && row.shape.is_borrowed_byte_view())
@@ -425,12 +426,7 @@ pub(in crate::legalization) fn view_replacement(
     {
         return None;
     }
-    crate::structural_inputs::structural_reference_input::projected_view_slot(
-        root_type,
-        &projected_path,
-        *field,
-        types,
-    )?;
+    projected_view_slot(root_type, &projected_path, *field, types)?;
     Some(terminal_psi::StructuralArgument {
         place: *destination,
         access,
@@ -470,19 +466,12 @@ pub(in crate::legalization) fn view_slot_geometry(
     destination: &terminal_psi::StructuralArgument,
     field: Option<semantic_vocabulary::StructuralFieldId>,
     types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Option<crate::structural_inputs::structural_reference_input::ProjectedByteField> {
+) -> Option<ProjectedByteField> {
     let Some(field) = field else {
         let home =
             optimization_unit_semantics::declared_descriptor_home(function, destination.place)?;
         return (destination.access == terminal_psi::StructuralAccess::Owned)
-            .then(|| {
-                crate::structural_inputs::structural_reference_input::projected_view_slot(
-                    home.structural_type,
-                    &destination.path,
-                    None,
-                    types,
-                )
-            })
+            .then(|| projected_view_slot(home.structural_type, &destination.path, None, types))
             .flatten();
     };
     byte_geometry(function, destination, field, types)
@@ -493,17 +482,12 @@ pub(in crate::legalization) fn byte_geometry(
     source: &terminal_psi::StructuralArgument,
     field: semantic_vocabulary::StructuralFieldId,
     types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Option<crate::structural_inputs::structural_reference_input::ProjectedByteField> {
+) -> Option<ProjectedByteField> {
     let (root, access) = byte_field_root(function, source.place)?;
     if access != source.access {
         return None;
     }
-    crate::structural_inputs::structural_reference_input::projected_byte_field(
-        root,
-        &source.path,
-        field,
-        types,
-    )
+    projected_byte_field(root, &source.path, field, types)
 }
 
 /// The bounded byte field one indexed byte read observes, as the structural
@@ -550,12 +534,7 @@ pub(in crate::legalization) fn byte_read(
     ) {
         return None;
     }
-    crate::structural_inputs::structural_reference_input::projected_byte_field(
-        structural_type,
-        path,
-        *field,
-        types,
-    )?;
+    projected_byte_field(structural_type, path, *field, types)?;
     Some(terminal_psi::StructuralArgument {
         place: *source,
         access,
@@ -600,12 +579,7 @@ pub(in crate::legalization) fn read(
         {
             return None;
         }
-        crate::structural_inputs::structural_reference_input::projected_byte_field(
-            structural_type,
-            path,
-            *field,
-            types,
-        )?;
+        projected_byte_field(structural_type, path, *field, types)?;
         return Some((
             *psi_operation,
             *result,
@@ -712,14 +686,14 @@ pub(in crate::legalization) fn read(
         carrier_path,
     )?;
     match case {
-        None => crate::structural_inputs::structural_reference_input::field_read(
+        None => field_read(
             structural_type,
             &runtime_path,
             field,
             result.scalar_type,
             types,
         )?,
-        Some(case) => crate::structural_inputs::structural_reference_input::case_field_read(
+        Some(case) => case_field_read(
             structural_type,
             &runtime_path,
             case,

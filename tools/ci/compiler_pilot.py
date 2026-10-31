@@ -22,6 +22,7 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 import corpus_gate
+from sample_projects import discover as discover_samples
 
 POSITIVES = (
     "pass/control_flow/borrowed_state_argument",
@@ -35,6 +36,7 @@ NEGATIVES = (
     "fail/domains/carried_runtime_index_payload_qualification",
 )
 FIXTURE_ENVIRONMENT = "OMEGA_COMPILER_PILOT_FIXTURES"
+SAMPLE_ENVIRONMENT = "OMEGA_COMPILER_PILOT_SAMPLES"
 
 
 def select_fixtures(request):
@@ -71,6 +73,32 @@ def select_fixtures(request):
                          + ", ".join(sorted(matched - set(fixtures))))
     return (tuple(fixture for fixture in fixtures if fixture.startswith("pass/")),
             tuple(fixture for fixture in fixtures if fixture.startswith("fail/")))
+
+
+def select_samples(request):
+    """Select existing fact projects and descendants, refusing filter collisions."""
+    if not isinstance(request, str):
+        raise ValueError("samples must be a comma-separated string")
+    roots = tuple(part.strip() for part in request.split(","))
+    if not all(roots) or len(set(roots)) != len(roots):
+        raise ValueError("samples must be nonempty distinct fact-project paths")
+    facts = (ROOT / "samples/cli/facts").resolve()
+    for sample in roots:
+        path = PurePosixPath(sample)
+        if (len(path.parts) < 4 or path.parts[:3] != ("samples", "cli", "facts")
+                or path.as_posix() != sample or "\\" in sample
+                or any(part in (".", "..") for part in path.parts)
+                or not (ROOT / sample).resolve().is_relative_to(facts)
+                or not (ROOT / sample / "build.omg").is_file()):
+            raise ValueError(f"not an existing normalized fact-project path: {sample!r}")
+    projects = discover_samples(facts, ROOT, roots)
+    selected = tuple(project.directory.relative_to(ROOT.resolve()).as_posix()
+                     for project in projects if project.role != "library")
+    if (not set(roots).issubset(selected) or any(project.entry is None for project in projects)
+            or any(not any(sample == root or sample.startswith(root + "/") for root in roots)
+                   for sample in selected)):
+        raise ValueError("sample filter selects missing roots, entries, or unrequested projects")
+    return selected
 
 
 def validate_report(report, expected, *, both, revision, target):
@@ -209,8 +237,8 @@ def prepare_producer(output):
     return producer
 
 
-def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checking_only=(), producer=None):
-    if not (positives or negatives or checking_only):
+def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checking_only=(), producer=None, samples=()):
+    if not (positives or negatives or checking_only or samples):
         raise ValueError("pilot requires at least one fixture")
     revision = command(["git", "rev-parse", "HEAD"])
     if command(["git", "status", "--porcelain"]):
@@ -220,7 +248,7 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
     summary.update(candidate=revision, target=corpus_gate.host_target(),
                    toolchain=command(["rustc", "-Vv"]), stages=[],
                    fixtures=dict(positive=positives, negative=negatives,
-                                 checking_only=checking_only))
+                                 checking_only=checking_only), samples=samples)
 
     def stage(name, operation):
         started = time.monotonic()
@@ -261,24 +289,41 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         validate_report(json.loads(report_path.read_text(encoding="utf-8")), fixtures,
                         both=both, revision=revision, target=summary["target"])
 
-    stage("checking and rejection controls", lambda: corpus("checking", positives + checking_only + negatives))
+    if positives or checking_only or negatives:
+        stage("checking and rejection controls", lambda: corpus("checking", positives + checking_only + negatives))
     if positives:
         stage("native and Terminal execution", lambda: corpus("both", positives, both=True))
+    if samples:
+        def fact_samples():
+            report = output / "samples.json"
+            result = subprocess.run([sys.executable, "tools/sample_native_gate.py", "--cli", str(producer.cli),
+                                     "--facts", "--jobs", "2", "--target", producer.target, "--filter", ",".join(samples),
+                                     "--write-results", str(report)], cwd=ROOT, stdin=subprocess.DEVNULL)
+            rows = json.loads(report.read_text(encoding="utf-8"))
+            summary["sample_observations"] = rows
+            if (result.returncode != 0 or not rows or len(rows) != len(samples)
+                    or {row["sample"] for row in rows} != set(samples)
+                    or any(row.get("state") not in ("pass", "rejected") for row in rows)):
+                raise ValueError("fact samples lack complete runtime/oracle/rejection evidence")
+        stage("fact sample native and Terminal execution", fact_samples)
     producer.verify()
     if command(["git", "rev-parse", "HEAD"]) != revision or command(["git", "status", "--porcelain"]):
         raise ValueError("candidate changed during validation")
 
 
-def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fixtures=None):
+def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fixtures=None, samples=None):
     output = ROOT / "build" / name
     output.mkdir(parents=True, exist_ok=True)
     summary = dict(schema="omega-compiler-pilot-v1", passed=False)
     try:
+        selected_samples = select_samples(samples) if samples is not None else ()
+        if samples is not None and fixtures is None:
+            positives, negatives, checking_only = (), (), ()
         if fixtures is not None:
             positives, negatives = select_fixtures(fixtures)
             checking_only = ()
         execute(output, summary, positives=positives, negatives=negatives,
-                checking_only=checking_only, producer=producer)
+                checking_only=checking_only, producer=producer, samples=selected_samples)
         summary["passed"] = True
         return 0
     except (OSError, ValueError, subprocess.CalledProcessError,
@@ -293,11 +338,13 @@ def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fi
 def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixtures", help="comma-separated exact pass/... or fail/... fixture IDs")
+    parser.add_argument("--samples", help="comma-separated exact samples/cli/facts project paths (includes descendants)")
     options = parser.parse_args(arguments)
     fixtures = options.fixtures
     if fixtures is None:
         fixtures = os.environ.get(FIXTURE_ENVIRONMENT) or None
-    return run_suite("compiler-pilot", POSITIVES, NEGATIVES, fixtures=fixtures)
+    samples = options.samples if options.samples is not None else os.environ.get(SAMPLE_ENVIRONMENT) or None
+    return run_suite("compiler-pilot", POSITIVES, NEGATIVES, fixtures=fixtures, samples=samples)
 
 
 if __name__ == "__main__":

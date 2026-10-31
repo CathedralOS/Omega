@@ -30,10 +30,12 @@ use crate::machine_calls::calls::write_frames::FrameInference;
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::TableCall;
+use typed_trees::trait_definition::AppliedTraitScope;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Recognition is deliberately broader than signature selection: even an
@@ -370,15 +372,11 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         _ => None,
     };
     let receiver_scope = if has_runtime_receiver {
-        typed_trees::trait_definition::AppliedTraitScope::from_type_reference(
-            program,
-            receiver_reference,
-            current_machine.symbol,
-        )?
+        AppliedTraitScope::from_type_reference(program, receiver_reference, current_machine.symbol)?
     } else if let Some(application) = applied {
         program.applied_requirement_scope(current_machine.symbol, application)?
     } else {
-        typed_trees::trait_definition::AppliedTraitScope::abstract_scope(trait_definition)
+        AppliedTraitScope::abstract_scope(trait_definition)
     };
     let template = program
         .closed_requirement_application(target_symbol)
@@ -446,13 +444,10 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
             && match binders {
                 SignatureBinders::Monomorphic => false,
                 SignatureBinders::ArgumentPinnedTypes => {
-                    matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                    matches!(parameter.kind, TypeParameterKind::Type)
                 }
                 SignatureBinders::StaticMachines => {
-                    matches!(
-                        parameter.kind,
-                        typed_trees::data::TypeParameterKind::Machine { .. }
-                    )
+                    matches!(parameter.kind, TypeParameterKind::Machine { .. })
                 }
             }
     };
@@ -594,8 +589,7 @@ pub(super) fn requirement_signature_by_target(
         .state_signature_type_parameters(signature)
         .iter()
         .all(|parameter| {
-            parameter.symbol.is_valid()
-                && matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+            parameter.symbol.is_valid() && matches!(parameter.kind, TypeParameterKind::Type)
         })
         .then_some(signature)
 }
@@ -623,8 +617,7 @@ fn requirement_signature_in_trait<'program>(
             .state_signature_type_parameters(signature)
             .iter()
             .all(|parameter| {
-                parameter.symbol.is_valid()
-                    && matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                parameter.symbol.is_valid() && matches!(parameter.kind, TypeParameterKind::Type)
             }))
     .then_some(signature)
 }

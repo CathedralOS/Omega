@@ -9,13 +9,20 @@
 //! dependencies and subsequent write invalidation.
 
 use super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionDependencyScope};
+use crate::checks::ranges::types::is_const_binder;
+use crate::flow::canonical_place_segments_equal;
 use crate::flow::expressions;
 use crate::places::place_at;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
+use typed_trees::state::State;
 use typed_trees::type_identity::TypeIdentityRequest;
-use validation::{CanonicalPlace, CheckingInput};
+use typed_trees::types::TypeReferenceHandle;
+use validation::{
+    CanonicalPlace, CheckingInput, collection_length_receiver, expression_result_type_reference,
+    has_builtin_binary_expression_meaning, place_has_builtin_coordinates,
+};
 
 pub(super) fn transport_reads(
     program: &dyn CheckingInput,
@@ -64,16 +71,12 @@ struct StateTransport<'context, 'scope> {
 impl StateTransport<'_, '_> {
     fn same_computed_type(&self, source: ExpressionHandle, destination: ExpressionHandle) -> bool {
         let result = |state, expression| {
-            validation::expression_result_type_reference(
-                self.program,
-                self.machine,
-                state,
-                expression,
+            expression_result_type_reference(self.program, self.machine, state, expression).map(
+                |reference| {
+                    self.program
+                        .type_identity(TypeIdentityRequest::ordinary(reference))
+                },
             )
-            .map(|reference| {
-                self.program
-                    .type_identity(TypeIdentityRequest::ordinary(reference))
-            })
         };
         // Identical tokens and carried values do not equate computations under
         // different integer widths or overflow policies.
@@ -85,9 +88,7 @@ impl StateTransport<'_, '_> {
 
     fn root(&self, source: PlaceRoot) -> Option<PlaceRoot> {
         let symbol = source.as_symbol()?;
-        if symbol == self.machine.symbol
-            || crate::checks::ranges::types::is_const_binder(self.program, self.machine, symbol)
-        {
+        if symbol == self.machine.symbol || is_const_binder(self.program, self.machine, symbol) {
             return Some(source);
         }
         self.scope
@@ -113,11 +114,7 @@ impl StateTransport<'_, '_> {
                             expression: destination,
                         },
                     ) => self.expressions_correspond(*source, *destination, depth + 1),
-                    _ => crate::flow::canonical_place_segments_equal(
-                        self.program,
-                        *source,
-                        *destination,
-                    ),
+                    _ => canonical_place_segments_equal(self.program, *source, *destination),
                 },
             )
     }
@@ -144,13 +141,13 @@ impl StateTransport<'_, '_> {
             (ExpressionNode::Name(_), ExpressionNode::Name(_))
             | (ExpressionNode::Member(_), ExpressionNode::Member(_))
             | (ExpressionNode::Indexed(_), ExpressionNode::Indexed(_)) => {
-                let source_length = validation::collection_length_receiver(
+                let source_length = collection_length_receiver(
                     program,
                     self.machine,
                     Some(self.scope.evaluation),
                     source,
                 );
-                let destination_length = validation::collection_length_receiver(
+                let destination_length = collection_length_receiver(
                     program,
                     self.machine,
                     Some(self.scope.destination),
@@ -161,15 +158,10 @@ impl StateTransport<'_, '_> {
                     (None, None) => {}
                     _ => return false,
                 }
-                let place = |state: &typed_trees::state::State, expression| {
-                    validation::place_has_builtin_coordinates(
-                        program,
-                        self.machine,
-                        Some(state),
-                        expression,
-                    )
-                    .then(|| place_at(program, state.symbol, self.statement_index, expression))
-                    .flatten()
+                let place = |state: &State, expression| {
+                    place_has_builtin_coordinates(program, self.machine, Some(state), expression)
+                        .then(|| place_at(program, state.symbol, self.statement_index, expression))
+                        .flatten()
                 };
                 match (
                     place(self.scope.evaluation, source),
@@ -186,13 +178,13 @@ impl StateTransport<'_, '_> {
                     && self.same_computed_type(source, destination)
                     && children(source_node.left, destination_node.left)
                     && children(source_node.right, destination_node.right)
-                    && validation::has_builtin_binary_expression_meaning(
+                    && has_builtin_binary_expression_meaning(
                         program,
                         self.machine,
                         Some(self.scope.evaluation),
                         source,
                     )
-                    && validation::has_builtin_binary_expression_meaning(
+                    && has_builtin_binary_expression_meaning(
                         program,
                         self.machine,
                         Some(self.scope.destination),
@@ -208,14 +200,12 @@ impl StateTransport<'_, '_> {
                 source.access == destination.access && children(source.target, destination.target)
             }
             (ExpressionNode::Cast(source), ExpressionNode::Cast(destination)) => {
-                let same_type =
-                    |source: typed_trees::types::TypeReferenceHandle,
-                     destination: typed_trees::types::TypeReferenceHandle| {
-                        source.is_valid()
-                            && destination.is_valid()
-                            && program.type_identity(TypeIdentityRequest::ordinary(source))
-                                == program.type_identity(TypeIdentityRequest::ordinary(destination))
-                    };
+                let same_type = |source: TypeReferenceHandle, destination: TypeReferenceHandle| {
+                    source.is_valid()
+                        && destination.is_valid()
+                        && program.type_identity(TypeIdentityRequest::ordinary(source))
+                            == program.type_identity(TypeIdentityRequest::ordinary(destination))
+                };
                 same_type(source.target_type, destination.target_type)
                     && same_type(source.result_type, destination.result_type)
                     && source.domain == destination.domain

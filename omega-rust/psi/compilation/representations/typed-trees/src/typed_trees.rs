@@ -27,6 +27,7 @@ macro_rules! typed_tree_table {
         )*
     };
 }
+use crate::product_operand::ProductOperandApplication;
 pub(crate) use typed_tree_table;
 
 /// One declaration's retained column, projected out of the table that owns the
@@ -412,11 +413,10 @@ pub struct DesignatedStaticTypeArgument {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeTables {
     pub designated_static_type_arguments: Arena<DesignatedStaticTypeArgument>,
-    pub retained_product_application_handles:
-        Arena<Handle<crate::product_operand::ProductOperandApplication>>,
+    pub retained_product_application_handles: Arena<Handle<ProductOperandApplication>>,
     pub product_input_selections: Arena<crate::product_operand::ProductInputSelection>,
     pub product_input_argument_steps: Arena<crate::product_operand::ProductArgumentStep>,
-    pub product_operand_applications: Arena<crate::product_operand::ProductOperandApplication>,
+    pub product_operand_applications: Arena<ProductOperandApplication>,
     /// Package-agnostic authored-selection custody carried verbatim from
     /// symbol resolution. Checked facts join late selections through the
     /// opaque occurrence identities in this ledger, never source rendering.
@@ -478,8 +478,7 @@ pub struct TypedTreeTables {
 pub struct TypedTreeRoots {
     /// Closed choices admitted through dependency Build output custody.
     /// These explicit roots are independent of authored body occurrences.
-    pub retained_product_applications:
-        HandleSpan<Handle<crate::product_operand::ProductOperandApplication>>,
+    pub retained_product_applications: HandleSpan<Handle<ProductOperandApplication>>,
     pub const_declarations: HandleSpan<crate::constant::ConstDeclaration>,
     pub data_definitions: HandleSpan<data::DataDefinition>,
     pub domain_definitions: HandleSpan<domain::DomainDefinition>,

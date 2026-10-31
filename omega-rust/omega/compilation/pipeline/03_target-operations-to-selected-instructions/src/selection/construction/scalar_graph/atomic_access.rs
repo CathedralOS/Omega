@@ -2,6 +2,10 @@
 //! Read/write footprint roles name the same instruction. They describe its
 //! storage reach, not separate ordinary memory operations. Narrow observed
 //! values are normalized only after the event; no extra memory read is allowed.
+use super::structural::{
+    establish_atomic_outcome, memory_at_origin, place_pointer, transport_at_byte_offset,
+    transport_register,
+};
 use super::{Builder, SelectedInstructionKind, SelectedInstructionProvenance};
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::operation_provenance;
@@ -37,7 +41,7 @@ pub(super) fn emit(
         .keys
         .for_semantic(MachineSemanticKind::AtomicAccess(form))
         .ok_or_else(|| SelectedInstructionError::unsupported_shape(function))?;
-    let base = super::structural::place_pointer(builder, row, location.place, 0)?;
+    let base = place_pointer(builder, row, location.place, 0)?;
     let (referent, _) = super::structural::runtime_address::cross_references(
         builder,
         row,
@@ -46,9 +50,8 @@ pub(super) fn emit(
         &[],
         &geometry.pointer_slots,
     )?;
-    let address =
-        super::structural::transport_register(builder, location.place, geometry.byte_offset)?;
-    let address = super::structural::transport_at_byte_offset(
+    let address = transport_register(builder, location.place, geometry.byte_offset)?;
+    let address = transport_at_byte_offset(
         builder,
         referent,
         address,
@@ -74,11 +77,8 @@ pub(super) fn emit(
         registers.push(register);
         Some(register)
     } else if let Some((result, layout)) = outcome {
-        let register = super::structural::transport_register(
-            builder,
-            result.place,
-            layout.cases[0].fields[0].byte_offset,
-        )?;
+        let register =
+            transport_register(builder, result.place, layout.cases[0].fields[0].byte_offset)?;
         registers.push(register);
         Some(register)
     } else {
@@ -97,7 +97,7 @@ pub(super) fn emit(
         ),
     ] {
         if needed {
-            super::structural::memory_at_origin(
+            memory_at_origin(
                 builder,
                 SelectedMemoryAccessOrigin::Operation(row.operation),
                 location.place,
@@ -143,14 +143,7 @@ pub(super) fn emit(
         let (_, expected, _, _) = builder
             .resolve(values_for_outcome(event)?)
             .ok_or(SelectedInstructionError::custody())?;
-        super::structural::establish_atomic_outcome(
-            source,
-            row,
-            builder,
-            raw,
-            expected,
-            scalar_type,
-        )?;
+        establish_atomic_outcome(source, row, builder, raw, expected, scalar_type)?;
     }
     Ok(true)
 }

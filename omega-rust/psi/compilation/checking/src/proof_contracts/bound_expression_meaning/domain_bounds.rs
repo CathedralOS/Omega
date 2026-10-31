@@ -9,6 +9,7 @@ use super::definition_membership::{
 };
 use crate::frozen_program::expression_table;
 use language_core::OperatorSpelling;
+use symbols::BuiltinTypeAtom;
 use typed_trees::domain::DomainDefinition;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -138,11 +139,9 @@ fn operand_type(
         ExpressionNode::Integer(_) => {
             crate::landed_integer_literal_type_reference(program, expression)
         }
-        ExpressionNode::Boolean(_) => {
-            builtin_type_reference(program, symbols::BuiltinTypeAtom::Bool)
-        }
+        ExpressionNode::Boolean(_) => builtin_type_reference(program, BuiltinTypeAtom::Bool),
         ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-            builtin_type_reference(program, symbols::BuiltinTypeAtom::Bool)
+            builtin_type_reference(program, BuiltinTypeAtom::Bool)
         }
         ExpressionNode::Binary(binary)
             if matches!(
@@ -157,7 +156,7 @@ fn operand_type(
                     | BinaryOperator::Or
             ) =>
         {
-            builtin_type_reference(program, symbols::BuiltinTypeAtom::Bool)
+            builtin_type_reference(program, BuiltinTypeAtom::Bool)
         }
         // Unknown is a wildcard for overload lookup, never an assumed copy
         // of the other operand's type. Consumers separately admit bound leaves.

@@ -2,12 +2,14 @@
 
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::{self, ValueEnvironment};
+use arithmetic_domains::Interval;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
+use typed_trees::statement::StatementNode;
 
 /// Check both carrier width and the declared range at the resolved parameter.
 /// A wholly anonymous argument first lands here; its integrality diagnostics
@@ -152,7 +154,7 @@ pub(super) fn report_referent_handbacks(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
-    prior_statements: &[typed_trees::statement::StatementNode],
+    prior_statements: &[StatementNode],
     arguments: &[ExpressionHandle],
     parameters: &[StateParameter],
     target_name: &str,
@@ -226,9 +228,7 @@ pub(super) fn report_referent_handbacks(
         .and(frames.as_ref())
         .zip(statement)
         .and_then(|(frames, statement)| match statement {
-            typed_trees::statement::StatementNode::Call(call) => {
-                frames.may_write_paths(machine, call)
-            }
+            StatementNode::Call(call) => frames.may_write_paths(machine, call),
             _ => frames
                 .statement_value_write_frame(machine, statement)
                 .into_complete_paths(),
@@ -260,13 +260,10 @@ fn report_referent_handback(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     place: &crate::value_custody::places::CanonicalPlace,
-    returned: Option<arithmetic_domains::Interval>,
+    returned: Option<Interval>,
     target_name: &str,
     environment: &ValueEnvironment,
-    guarantees: &[(
-        crate::value_custody::places::CanonicalPlace,
-        arithmetic_domains::Interval,
-    )],
+    guarantees: &[(crate::value_custody::places::CanonicalPlace, Interval)],
     written: Option<&[String]>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -312,8 +309,8 @@ fn report_referent_handback(
                 bounds
                     .into_iter()
                     .filter(|(symbol, _, _)| *symbol == field_symbol)
-                    .map(|(_, low, high)| arithmetic_domains::Interval { low, high })
-                    .reduce(arithmetic_domains::Interval::intersect)
+                    .map(|(_, low, high)| Interval { low, high })
+                    .reduce(Interval::intersect)
             });
     let required = if has_declared_range && declared.is_none() {
         None
@@ -429,8 +426,8 @@ fn report_accessor_scalar_write_predicate(
     let Some(required) = bounds
         .into_iter()
         .filter(|(symbol, _, _)| *symbol == field.field_symbol)
-        .map(|(_, low, high)| arithmetic_domains::Interval { low, high })
-        .reduce(arithmetic_domains::Interval::intersect)
+        .map(|(_, low, high)| Interval { low, high })
+        .reduce(Interval::intersect)
     else {
         return;
     };

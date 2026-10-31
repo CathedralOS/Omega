@@ -50,6 +50,7 @@
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
+use crate::expression_preparation::integer_bit_image::integer_bit_image;
 use crate::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 
@@ -84,11 +85,7 @@ pub(crate) fn replay(
             if !observes_one_place(&operand) {
                 return unsupported("a representation re-view must observe one scalar place");
             }
-            crate::expression_preparation::integer_bit_image::integer_bit_image(
-                operand,
-                source_type,
-                view,
-            )
+            integer_bit_image(operand, source_type, view)
         }
         // Every cross-family pair the shared table admits is one Terminal
         // re-view of the place's own read. A byte's `{0, 1}` landing on
@@ -216,11 +213,7 @@ fn byte_region(
             operand: Box::new(assembled),
         });
     }
-    crate::expression_preparation::integer_bit_image::integer_bit_image(
-        assembled,
-        region_type,
-        view,
-    )
+    integer_bit_image(assembled, region_type, view)
 }
 
 fn scalar_storage_bits(scalar_type: ScalarType) -> Option<u16> {

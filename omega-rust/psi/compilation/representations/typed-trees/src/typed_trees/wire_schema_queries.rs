@@ -1,5 +1,6 @@
 //! Wire schema plans, members and the encode and decode call schemas.
 
+use crate::statement::TableCall;
 use crate::typed_trees::TypedTrees;
 use crate::{types, wire};
 use arena::HandleSpan;
@@ -59,10 +60,7 @@ impl TypedTrees {
     /// `Schema::encode(&value, &mut out, &mut written)` (chapter 20,
     /// wire stage 2a): a statement call whose receiver names a wire schema
     /// and whose target is `encode`.
-    pub fn wire_encode_call_schema(
-        &self,
-        call: &crate::statement::TableCall,
-    ) -> Option<&wire::WireSchema> {
+    pub fn wire_encode_call_schema(&self, call: &TableCall) -> Option<&wire::WireSchema> {
         if call.target.as_str() != wire::WIRE_ENCODE_MACHINE_NAME {
             return None;
         }
@@ -73,10 +71,7 @@ impl TypedTrees {
     /// `Schema::decode(&mut value, &buffer, &mut read, &mut ok)`
     /// (chapter 20, wire stage 2b): a statement call whose receiver names a
     /// wire schema and whose target is `decode`.
-    pub fn wire_decode_call_schema(
-        &self,
-        call: &crate::statement::TableCall,
-    ) -> Option<&wire::WireSchema> {
+    pub fn wire_decode_call_schema(&self, call: &TableCall) -> Option<&wire::WireSchema> {
         if call.target.as_str() != wire::WIRE_DECODE_MACHINE_NAME {
             return None;
         }
@@ -93,10 +88,7 @@ impl TypedTrees {
     /// itself. Same-named schemas in sibling modules stay distinct, and a
     /// leaf that resolves ambiguously or to unrelated storage cannot claim
     /// the call.
-    pub fn wire_call_receiver_schema(
-        &self,
-        call: &crate::statement::TableCall,
-    ) -> Option<&wire::WireSchema> {
+    pub fn wire_call_receiver_schema(&self, call: &TableCall) -> Option<&wire::WireSchema> {
         if call.receiver_symbol.is_valid() {
             let declaration_path = self.symbols.display_path(call.receiver_symbol, "::");
             return self

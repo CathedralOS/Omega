@@ -3,6 +3,7 @@
 //! post-call preservation remains the separate call-frame decision.
 
 use super::{StructuralJudge, StructuralTerm, TypeReferenceHandle};
+use language_semantics::content::ContentPlaceVersion;
 
 impl StructuralJudge<'_> {
     pub(in crate::proof_contracts::contract_entailment) fn owned_argument_observation(
@@ -81,11 +82,9 @@ impl StructuralJudge<'_> {
                     .map(|(_, value)| self.completed_value_identity(value.clone()))
             }
             RuntimeScalarSubject::Symbol(symbol) => {
-                if let Some(value) = self.captured_parameter_projection(
-                    symbol,
-                    &[],
-                    language_semantics::content::ContentPlaceVersion::Current,
-                ) {
+                if let Some(value) =
+                    self.captured_parameter_projection(symbol, &[], ContentPlaceVersion::Current)
+                {
                     return Some(value);
                 }
                 if self

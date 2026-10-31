@@ -9,7 +9,7 @@
 //! package review.
 
 use crate::capture::EvidenceOption;
-use crate::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRowLimits};
+use crate::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRowKind, PackagePolicyRowLimits};
 use compilation_products::CheckedCompilation;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -63,16 +63,8 @@ impl TerminalPermissionAcceptance {
         let mut assumed_row_count = 0usize;
         let mut rows = Vec::new();
         for row in policy_rows {
-            let assumed = matches!(
-                row.kind(),
-                crate::record::PackagePolicyRowKind::AssumedBindingContract
-            );
-            if !assumed
-                && !matches!(
-                    row.kind(),
-                    crate::record::PackagePolicyRowKind::TerminalPermission
-                )
-            {
+            let assumed = matches!(row.kind(), PackagePolicyRowKind::AssumedBindingContract);
+            if !assumed && !matches!(row.kind(), PackagePolicyRowKind::TerminalPermission) {
                 continue;
             }
             if assumed {
@@ -120,8 +112,8 @@ impl TerminalPermissionAcceptance {
             .filter(|row| {
                 matches!(
                     row.kind(),
-                    crate::record::PackagePolicyRowKind::TerminalPermission
-                        | crate::record::PackagePolicyRowKind::AssumedBindingContract
+                    PackagePolicyRowKind::TerminalPermission
+                        | PackagePolicyRowKind::AssumedBindingContract
                 )
             })
             .map(|row| {

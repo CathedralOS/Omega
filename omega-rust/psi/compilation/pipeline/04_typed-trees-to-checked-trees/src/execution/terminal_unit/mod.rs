@@ -121,9 +121,9 @@ use checked_trees::{
     CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
     CheckedUnitCallCoordinate, CheckedUnitCallResult, CheckedUnitCallRoute,
     CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedUnitEffectPlans as EffectPlans, CheckedUnitEntryClaimPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlanGapReason,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlanGapReason as GapReason,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralDomainPlan,
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
@@ -188,7 +188,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     scalar_callees: ScalarCalleeClosure,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> (
-    CheckedUnitEffectPlans,
+    EffectPlans,
     CheckedPartialAffineUnitCleanupPlans,
     structural_value_calls::PreparedCalls,
 ) {
@@ -211,10 +211,8 @@ pub(crate) fn build_checked_unit_effect_plans(
                         Ok(plan) => Some(plan),
                         Err(reason) => {
                             let reason = shapes.take_unselected_opaque().map_or(
-                                CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(
-                                    reason,
-                                )),
-                                CheckedUnitPlanGapReason::UnselectedOpaqueRepresentation,
+                                GapReason::Unsupported(std::borrow::Cow::Borrowed(reason)),
+                                GapReason::UnselectedOpaqueRepresentation,
                             );
                             boundary_gaps.push(plan_gaps::plan_gap(
                                 program,
@@ -346,7 +344,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 // selects no representation for an opaque is the program's
                 // missing selection; it displaces the phase the builder was in.
                 if let Some(opaque) = shapes.take_unselected_opaque() {
-                    gap.reason = CheckedUnitPlanGapReason::UnselectedOpaqueRepresentation(opaque);
+                    gap.reason = GapReason::UnselectedOpaqueRepresentation(opaque);
                 }
                 construction_gaps.insert(symbol_key(machine.symbol), gap);
             }
@@ -481,9 +479,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                         program,
                         plan.machine,
                         GapSite::State(state),
-                        CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(
-                            construct,
-                        )),
+                        GapReason::Unsupported(std::borrow::Cow::Borrowed(construct)),
                     )
                 });
             false
@@ -526,7 +522,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                         program,
                         plan.machine.machine,
                         GapSite::State(plan.machine.state),
-                        CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(
+                        GapReason::Unsupported(std::borrow::Cow::Borrowed(
                             "sequence cleanup actions",
                         )),
                     )
@@ -544,7 +540,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                         program,
                         plan.machine,
                         GapSite::State(plan.state),
-                        CheckedUnitPlanGapReason::Unsupported(std::borrow::Cow::Borrowed(
+                        GapReason::Unsupported(std::borrow::Cow::Borrowed(
                             "sequence cleanup actions",
                         )),
                     )
@@ -1182,7 +1178,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         machines: partial_affine_machines,
     };
     (
-        CheckedUnitEffectPlans {
+        EffectPlans {
             cleanup_control: shapes.cleanup_control,
             layout_observations,
             structural_types: shapes.types.into_values().collect(),
@@ -1308,7 +1304,7 @@ fn body_route(
 pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    unit_effects: &CheckedUnitEffectPlans,
+    unit_effects: &EffectPlans,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> (
     CheckedNominalAffineUnitCleanupPlans,

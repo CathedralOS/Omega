@@ -5,10 +5,19 @@
 //! the existing copied-payload end before access zero; paths, kinds and loans
 //! are unchanged. Nested operand invocations retain their own ordinary ends.
 
+use arena::Arena;
 use checked_trees::CheckFacts;
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use validation::CallSite;
+use validation::CheckingInput;
+use validation::DispatchExtraction;
+use validation::call_site_argument_expressions;
+use validation::find_call_site_in_state;
+use validation::transition_call_target;
 
 pub(crate) fn retain_completed_dispatch_extractions(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &mut CheckFacts,
 ) {
     let calls = facts
@@ -42,9 +51,9 @@ pub(crate) fn retain_completed_dispatch_extractions(
         ) else {
             continue;
         };
-        let arguments = validation::call_site_argument_expressions(program, &site);
-        let mut segments = arena::Arena::new();
-        let mut accesses = arena::Arena::new();
+        let arguments = call_site_argument_expressions(program, &site);
+        let mut segments = Arena::new();
+        let mut accesses = Arena::new();
         let expected = super::collect_argument_accesses(
             program,
             &mut segments,
@@ -95,25 +104,15 @@ pub(crate) fn retain_completed_dispatch_extractions(
 /// naming a different captured source; absence cannot manufacture such an alias.
 /// Both publication and independent access replay use this same authority.
 pub(super) fn transition_invocation<'program>(
-    program: &'program dyn validation::CheckingInput,
+    program: &'program dyn CheckingInput,
     facts: crate::flow::CapturedSubjectFacts<'_>,
-    machine: &'program typed_trees::machine::Machine,
-    state: &'program typed_trees::state::State,
+    machine: &'program Machine,
+    state: &'program State,
     statement_index: usize,
     call_ordinal: usize,
-) -> Option<(
-    validation::CallSite<'program>,
-    Option<validation::DispatchExtraction>,
-)> {
-    let site = validation::find_call_site_in_state(
-        program,
-        machine,
-        state,
-        statement_index,
-        call_ordinal,
-    )?;
-    let target =
-        validation::transition_call_target(program, machine, state, statement_index, call_ordinal)?;
+) -> Option<(CallSite<'program>, Option<DispatchExtraction>)> {
+    let site = find_call_site_in_state(program, machine, state, statement_index, call_ordinal)?;
+    let target = transition_call_target(program, machine, state, statement_index, call_ordinal)?;
     if !site.completes_transition(program, target) {
         return None;
     }

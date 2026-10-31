@@ -76,6 +76,7 @@ use crate::emission::borrowed_window::BorrowedWindowLedger;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
+use crate::expression_preparation::bindings::structural_paths::structural_argument;
 use crate::unit::{
     BoundaryMachineId, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
     LoweringError, Operation, OperationKind, OperationResult, PlaceId, ServiceId, ServiceReachId,
@@ -864,13 +865,11 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "primitive reference ingress lost its original home",
             ))?;
-        Ok(
-            crate::expression_preparation::bindings::structural_paths::structural_argument(
-                place,
-                Vec::new(),
-                StructuralAccess::SharedBorrow,
-            ),
-        )
+        Ok(structural_argument(
+            place,
+            Vec::new(),
+            StructuralAccess::SharedBorrow,
+        ))
     }
 
     /// End the exact current carrier through the shared storage namespace.

@@ -10,8 +10,8 @@
 use validation::CallSite;
 
 use checked_trees::{
-    CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpressionRole,
-    CheckedSubsliceSite,
+    CheckedOperatorFacts, CheckedOperatorResolutionStatus,
+    CheckedScalarExpressionRole as ExpressionRole, CheckedSubsliceSite,
 };
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::StatementNode;
@@ -26,7 +26,7 @@ pub(crate) fn subslice_endpoints<Value>(
     expression: ExpressionHandle,
     site: CheckedSubsliceSite,
     mut lower: impl FnMut(ExpressionHandle) -> Option<Value>,
-) -> Vec<(ExpressionHandle, CheckedScalarExpressionRole, Value)> {
+) -> Vec<(ExpressionHandle, ExpressionRole, Value)> {
     let Some(expression) = validation::subslice_expression(program, expression) else {
         return Vec::new();
     };
@@ -52,11 +52,8 @@ pub(crate) fn subslice_endpoints<Value>(
         return Vec::new();
     }
     [
-        (
-            range.start,
-            CheckedScalarExpressionRole::SubsliceStart { site },
-        ),
-        (range.end, CheckedScalarExpressionRole::SubsliceEnd { site }),
+        (range.start, ExpressionRole::SubsliceStart { site }),
+        (range.end, ExpressionRole::SubsliceEnd { site }),
     ]
     .into_iter()
     .filter(|(endpoint, _)| endpoint.is_valid())

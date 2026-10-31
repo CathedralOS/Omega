@@ -2,6 +2,7 @@
 //! and checking. Collect exact occurrence meanings before publishing them;
 //! copies must agree, and a checked ledger never repairs a typed table.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
@@ -10,6 +11,7 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget,
 };
 use symbols::SymbolHandle;
+use typed_trees::machine::Machine;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AuthoredSelectionResolution {
@@ -25,7 +27,7 @@ pub enum AuthoredSelectionResolutionTarget {
 }
 
 pub fn push_consistent_resolution(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     resolutions: &mut Vec<AuthoredSelectionResolution>,
     candidate: AuthoredSelectionResolution,
 ) -> Result<(), Diagnostic> {
@@ -65,7 +67,7 @@ pub fn push_consistent_resolution(
 /// instance/template edge and state position; no spelling or signature search
 /// can make two unrelated declarations one authored selection.
 fn authored_callable(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     mut selected: SymbolHandle,
 ) -> Result<SymbolHandle, Diagnostic> {
     for _ in 0..=program.machine_specializations.len() {
@@ -125,10 +127,7 @@ pub fn finalization_diagnostic(
 
 /// `machine` is a specialization instance (template rewritten to a concrete
 /// copy), not a canonical template — template-check walks skip it.
-pub(crate) fn machine_is_template_instance(
-    program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-) -> bool {
+pub(crate) fn machine_is_template_instance(program: &dyn CheckingInput, machine: &Machine) -> bool {
     program
         .machine_specializations
         .iter()
@@ -139,7 +138,7 @@ pub(crate) fn machine_is_template_instance(
 }
 
 pub fn collect_checked_transition_target_selections(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     resolutions: &mut Vec<AuthoredSelectionResolution>,
 ) -> Result<(), Diagnostic> {
     for machine in program.machines() {
@@ -235,10 +234,7 @@ pub fn collect_checked_transition_target_selections(
 /// expressions keep the instantiated field and its substituted type. Rejoin
 /// only through the exact instance's retained generic origin and member slot;
 /// same-spelled fields belonging to other declarations remain distinct.
-pub fn authored_data_member(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> SymbolHandle {
+pub fn authored_data_member(program: &dyn CheckingInput, symbol: SymbolHandle) -> SymbolHandle {
     use symbols::SymbolKind;
     use typed_trees::data::DataMember;
 
@@ -344,7 +340,7 @@ pub fn authored_data_member(
 }
 
 pub fn exact_named_operator_call<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<&'program typed_trees::operator::OperatorDefinition> {
     typed_trees::operator::resolve_named_expression_call(program, call).or_else(|| {

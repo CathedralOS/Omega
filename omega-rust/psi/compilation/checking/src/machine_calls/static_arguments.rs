@@ -6,6 +6,7 @@
 //! strings. Tuple derivation shares carrier readers so it cannot erase a named
 //! const's carrier or a literal's earlier landing.
 
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use numerics::literals::LandedIntegerType;
@@ -25,7 +26,7 @@ pub(crate) use invocation_parameters::invocation_parameters;
 /// Incomplete selections remain incomplete; this pass supplies no tuple or
 /// executable authority and never uses the called machine's ensures.
 pub fn validate_source_const_recipes(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -79,7 +80,7 @@ pub fn validate_source_const_recipes(
 }
 
 pub fn validate_authored_static_arguments(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -219,7 +220,7 @@ pub fn validate_authored_static_arguments(
 /// declaration owns a body or is a trait requirement signature. Executable
 /// instance identity cannot substitute for that source admission boundary.
 fn source_telescope<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     call: StaticArgumentCall<'_>,
 ) -> Result<Option<(&'program str, &'program [typed_trees::data::TypeParameter])>, String> {
     let target = call.registration_operation(program);
@@ -260,7 +261,7 @@ fn source_telescope<'program>(
 /// declaring bound. Admission reads the outer trait substitution only: the
 /// invocation's supplied operands must not substitute away their own checks.
 fn source_requirement<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     call: StaticArgumentCall<'_>,
 ) -> Result<
     Option<(
@@ -294,7 +295,7 @@ fn source_requirement<'program>(
 /// remaining Type/Const/Machine operands keep their authored order. A kind
 /// cursor here would admit permutations of the ordinary telescope.
 fn ordinary_arguments<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
     call: StaticArgumentCall<'program>,
 ) -> std::borrow::Cow<'program, [StaticMachineArgument]> {
     let arguments = call.arguments(program);
@@ -345,7 +346,7 @@ fn ordinary_arguments<'program>(
 }
 
 fn expression_call_states<'program>(
-    program: &'program dyn crate::CheckingInput,
+    program: &'program dyn CheckingInput,
 ) -> Vec<(typed_trees::expression::ExpressionHandle, &'program State)> {
     let mut states = Vec::new();
     let mut expressions = Vec::new();
@@ -399,7 +400,7 @@ fn call_state<'program>(
 }
 
 fn validate_call(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     call: StaticArgumentCall<'_>,
     context: Option<(&typed_trees::machine::Machine, &typed_trees::state::State)>,
     expression_states: &[(typed_trees::expression::ExpressionHandle, &State)],
@@ -507,7 +508,7 @@ fn validate_call(
 }
 
 fn validate_types(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     caller: Option<crate::StaticTypeArgumentOwner<'_>>,
     source_call: StaticArgumentCall<'_>,
     arguments: &[StaticMachineArgument],
@@ -584,15 +585,12 @@ fn validate_types(
     }
 }
 
-pub fn spelling(
-    program: &dyn crate::CheckingInput,
-    argument: &StaticMachineArgument,
-) -> Option<String> {
+pub fn spelling(program: &dyn CheckingInput, argument: &StaticMachineArgument) -> Option<String> {
     typed_trees::typed_trees::static_const_argument_spelling(program.typed_program(), argument)
 }
 
 pub fn forwarded_type(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     argument: &StaticMachineArgument,
 ) -> TypeReferenceHandle {
     if !argument.symbol.is_valid() {
@@ -618,7 +616,7 @@ pub fn forwarded_type(
 /// Its selected binder determines whether it is runtime-capable or must close
 /// statically. Names and evidence-shaped projections have separate payloads.
 pub fn is_runtime_value_expression(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     argument: &StaticMachineArgument,
 ) -> bool {
     let TypeReferenceNode::ConstExpression(expression) = program
@@ -638,7 +636,7 @@ pub fn is_runtime_value_expression(
 /// are recognized by [`is_runtime_value_expression`] and `runtime_field_subject`
 /// because the parser cannot see the binder kind.
 pub fn is_runtime_value_subject(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     argument: &StaticMachineArgument,
 ) -> bool {
     !argument.type_reference.is_valid()
@@ -657,7 +655,7 @@ pub fn is_runtime_value_subject(
 /// judgment keeps conformance and machine telescopes from interpreting an
 /// already-lowered applied Type as an absent named symbol.
 pub(crate) fn validate_structural_type_operand(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     argument: &StaticMachineArgument,
 ) -> Result<(), &'static str> {
     if !argument.type_reference.is_valid()
@@ -676,7 +674,7 @@ pub(crate) fn validate_structural_type_operand(
 }
 
 fn validate_arguments(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     name: &str,
     parameters: &[typed_trees::data::TypeParameter],
     arguments: &[StaticMachineArgument],
@@ -925,7 +923,7 @@ fn validate_arguments(
 }
 
 fn const_expression_argument(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     argument: &StaticMachineArgument,
 ) -> Option<ExpressionHandle> {
     if !argument.type_reference.is_valid() {

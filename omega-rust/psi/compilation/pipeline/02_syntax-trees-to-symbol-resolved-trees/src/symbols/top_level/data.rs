@@ -1,7 +1,14 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbols::{SymbolKind, SymbolTable};
+use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::top_level::{SignatureSymbolTables, next_child_of_kind};
+use std::collections::HashMap;
+use symbol_resolved_trees::data::DataMember;
+use symbol_resolved_trees::data::TypeParameterKind;
+use symbol_resolved_trees::name::DiagnosticName;
+use symbol_resolved_trees::types::GenericTypeReference;
+use symbol_resolved_trees::types::GenericTypeReferenceStorage;
+use symbol_resolved_trees::types::TypeReference;
 
 pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
     let (_, trait_proposition_slots, trait_machine_identity_slots) =
@@ -17,8 +24,7 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
     // because `self` inside its copied `requires` facts is the same binder
     // (see below). The stored generic origin's `base_symbol` is not yet bound
     // during this pass -- the base name is the available identity.
-    let mut template_subjects: std::collections::HashMap<String, symbols::SymbolHandle> =
-        std::collections::HashMap::new();
+    let mut template_subjects: HashMap<String, SymbolHandle> = HashMap::new();
     program
         .roots
         .data_definitions
@@ -30,12 +36,8 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
                 data_type_parameters.span_mut_or_empty(data_definition.type_parameters)
             {
                 let kind = match type_parameter.kind {
-                    symbol_resolved_trees::data::TypeParameterKind::Implementation => {
-                        SymbolKind::ConformanceParameter
-                    }
-                    symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
-                        SymbolKind::MachineParameter
-                    }
+                    TypeParameterKind::Implementation => SymbolKind::ConformanceParameter,
+                    TypeParameterKind::Machine { .. } => SymbolKind::MachineParameter,
                     _ => SymbolKind::TypeParameter,
                 };
                 type_parameter.symbol = next_child_of_kind(&mut data_children, symbols, kind);
@@ -49,12 +51,9 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
                     .iter()
                     .find(|parameter| {
                         parameter.name == bound.binder_name
-                            && parameter.kind
-                                == symbol_resolved_trees::data::TypeParameterKind::Implementation
+                            && parameter.kind == TypeParameterKind::Implementation
                     })
-                    .map_or(symbols::SymbolHandle::invalid(), |parameter| {
-                        parameter.symbol
-                    });
+                    .map_or(SymbolHandle::invalid(), |parameter| parameter.symbol);
             }
             crate::symbols::top_level::assign_conformance_bound_symbols(
                 symbols,
@@ -76,8 +75,7 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
                         &data_type_parameters.span_or_empty(data_definition.type_parameters)[index];
                     (parameter.symbol, parameter.kind.clone())
                 };
-                let symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } = kind
-                else {
+                let TypeParameterKind::Machine { mut contract } = kind else {
                     continue;
                 };
                 SignatureSymbolTables {
@@ -93,16 +91,16 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
                     &local_type_parameters,
                 );
                 data_type_parameters.span_mut_or_empty(data_definition.type_parameters)[index]
-                    .kind = symbol_resolved_trees::data::TypeParameterKind::Machine { contract };
+                    .kind = TypeParameterKind::Machine { contract };
             }
 
             for member in data_members.span_mut_or_empty(data_definition.members) {
                 match member {
-                    symbol_resolved_trees::data::DataMember::Field(field) => {
+                    DataMember::Field(field) => {
                         field.symbol =
                             next_child_of_kind(&mut data_children, symbols, SymbolKind::Field);
                     }
-                    symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                    DataMember::Variant(variant) => {
                         variant.symbol =
                             next_child_of_kind(&mut data_children, symbols, SymbolKind::Variant);
                         let mut variant_children =
@@ -118,10 +116,8 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
                 }
             }
             data_definition.predicate_subject_symbol = if data_definition.where_facts.is_empty() {
-                symbols::SymbolHandle::invalid()
-            } else if let Some(symbol_resolved_trees::types::TypeReference::Generic(origin)) =
-                &data_definition.generic_instance
-            {
+                SymbolHandle::invalid()
+            } else if let Some(TypeReference::Generic(origin)) = &data_definition.generic_instance {
                 // A synthesized closed instance's `self` is the declared
                 // template's own predicate subject: the copied `requires`
                 // facts bind that binder, and construction, matching and
@@ -146,34 +142,28 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
             }
             data_definition.predicate_subject_type =
                 if !data_definition.predicate_subject_symbol.is_valid() {
-                    symbol_resolved_trees::types::TypeReference::Unit
+                    TypeReference::Unit
                 } else if let Some(origin) = &data_definition.generic_instance {
                     origin.clone()
                 } else if local_type_parameters.is_empty()
                     && data_definition.lifetime_parameters.is_empty()
                 {
-                    symbol_resolved_trees::types::TypeReference::Named {
+                    TypeReference::Named {
                         symbol: data_symbol,
-                        name: symbol_resolved_trees::name::DiagnosticName::generated(
-                            data_definition.name.as_str(),
-                        ),
+                        name: DiagnosticName::generated(data_definition.name.as_str()),
                         supplied_operand_owner: Default::default(),
                     }
                 } else {
                     let arguments = local_type_parameters
                         .iter()
-                        .map(
-                            |parameter| symbol_resolved_trees::types::TypeReference::Named {
-                                symbol: parameter.symbol,
-                                name: symbol_resolved_trees::name::DiagnosticName::generated(
-                                    parameter.name.as_str(),
-                                ),
-                                supplied_operand_owner: Default::default(),
-                            },
-                        )
+                        .map(|parameter| TypeReference::Named {
+                            symbol: parameter.symbol,
+                            name: DiagnosticName::generated(parameter.name.as_str()),
+                            supplied_operand_owner: Default::default(),
+                        })
                         .collect::<Vec<_>>();
                     let span = match &data_definition.predicate_subject_type {
-                        symbol_resolved_trees::types::TypeReference::Generic(previous)
+                        TypeReference::Generic(previous)
                             if child_type_references.span_or_empty(previous.arguments)
                                 == arguments.as_slice() =>
                         {
@@ -181,19 +171,15 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
                         }
                         _ => child_type_references.insert_many(arguments),
                     };
-                    symbol_resolved_trees::types::TypeReference::Generic(
-                        symbol_resolved_trees::types::GenericTypeReference {
-                            storage: symbol_resolved_trees::types::GenericTypeReferenceStorage {
-                                base_symbol: data_symbol,
-                                base_name: symbol_resolved_trees::name::DiagnosticName::generated(
-                                    data_definition.name.as_str(),
-                                ),
-                                lifetime_arguments: data_definition.lifetime_parameters.clone(),
-                                arguments: span,
-                                ..Default::default()
-                            },
+                    TypeReference::Generic(GenericTypeReference {
+                        storage: GenericTypeReferenceStorage {
+                            base_symbol: data_symbol,
+                            base_name: DiagnosticName::generated(data_definition.name.as_str()),
+                            lifetime_arguments: data_definition.lifetime_parameters.clone(),
+                            arguments: span,
+                            ..Default::default()
                         },
-                    )
+                    })
                 };
         });
 }

@@ -4,12 +4,19 @@
 use super::Execution;
 use crate::places::place_at;
 use arena::Handle;
-use checked_trees::FlowOperandFact;
+use checked_trees::{FlowOperandFact, FlowStorageSnapshot};
 use facts::PlaceSegment;
+use typed_trees::types::TypeReferenceHandle;
+use validation::LocalWriteSource;
+use validation::collection_element_type_reference;
+use validation::completed_storage::reference_captures_at_path;
+use validation::project_type_reference_from_segments;
+use validation::reference_shell;
+use validation::storage_origin_types_match;
 
 pub(super) struct CallPlaceProjection {
     pub(super) addresses: Vec<super::super::CapturedReferencePlace>,
-    pub(super) type_reference: typed_trees::types::TypeReferenceHandle,
+    pub(super) type_reference: TypeReferenceHandle,
 }
 
 impl Execution<'_, '_, '_> {
@@ -19,11 +26,11 @@ impl Execution<'_, '_, '_> {
         &mut self,
         actual: &FlowOperandFact,
         path: &[PlaceSegment],
-        at: Handle<checked_trees::FlowStorageSnapshot>,
+        at: Handle<FlowStorageSnapshot>,
     ) -> Option<CallPlaceProjection> {
         let mut captured_actual = Handle::default();
         let mut reference = actual.type_reference;
-        let mut places = if let Some(shell) = validation::reference_shell(self.program, reference) {
+        let mut places = if let Some(shell) = reference_shell(self.program, reference) {
             reference = shell.referee;
             let places = self.captured_reference_places(actual.referents);
             if places.is_empty() {
@@ -43,9 +50,9 @@ impl Execution<'_, '_, '_> {
                 segment,
                 PlaceSegment::FixedRange { .. } | PlaceSegment::OpaqueRange
             ) {
-                validation::collection_element_type_reference(self.program, reference)?;
+                collection_element_type_reference(self.program, reference)?;
             } else {
-                reference = validation::project_type_reference_from_segments(
+                reference = project_type_reference_from_segments(
                     self.program,
                     reference,
                     std::slice::from_ref(segment),
@@ -56,7 +63,7 @@ impl Execution<'_, '_, '_> {
                 .map(|place| place.projected(std::slice::from_ref(segment)))
                 .collect::<Option<Vec<_>>>()?;
             if ordinal + 1 < path.len()
-                && let Some(shell) = validation::reference_shell(self.program, reference)
+                && let Some(shell) = reference_shell(self.program, reference)
             {
                 reference = shell.referee;
                 // The evaluated value owns its inline descriptor children. A
@@ -88,14 +95,14 @@ impl Execution<'_, '_, '_> {
     pub(super) fn call_backing_values(
         &mut self,
         actual: &FlowOperandFact,
-        source: &validation::LocalWriteSource,
-        destination: typed_trees::types::TypeReferenceHandle,
-        at: Handle<checked_trees::FlowStorageSnapshot>,
+        source: &LocalWriteSource,
+        destination: TypeReferenceHandle,
+        at: Handle<FlowStorageSnapshot>,
     ) -> Option<Vec<(FlowOperandFact, Vec<PlaceSegment>)>> {
-        let desired = validation::reference_shell(self.program, destination)?;
+        let desired = reference_shell(self.program, destination)?;
         if source.recasts.is_empty() && source.representation.is_none() {
             if source.segments.is_empty()
-                && validation::reference_shell(self.program, actual.type_reference).is_some()
+                && reference_shell(self.program, actual.type_reference).is_some()
             {
                 return self.call_slot_values(actual, &[], at);
             }
@@ -106,23 +113,18 @@ impl Execution<'_, '_, '_> {
                     PlaceSegment::FixedRange { .. } | PlaceSegment::OpaqueRange
                 )
             });
-            if !window
-                && validation::reference_shell(self.program, projected.type_reference).is_some()
-            {
+            if !window && reference_shell(self.program, projected.type_reference).is_some() {
                 return self.call_slot_values(actual, &source.segments, at);
             }
             let (actual_type, expected_type) = if window {
                 (
-                    validation::collection_element_type_reference(
-                        self.program,
-                        projected.type_reference,
-                    )?,
-                    validation::collection_element_type_reference(self.program, desired.referee)?,
+                    collection_element_type_reference(self.program, projected.type_reference)?,
+                    collection_element_type_reference(self.program, desired.referee)?,
                 )
             } else {
                 (projected.type_reference, desired.referee)
             };
-            if !validation::storage_origin_types_match(self.program, actual_type, expected_type) {
+            if !storage_origin_types_match(self.program, actual_type, expected_type) {
                 return None;
             }
             let referents = self.append_captured_references(&projected.addresses);
@@ -169,23 +171,15 @@ impl Execution<'_, '_, '_> {
         &mut self,
         actual: &FlowOperandFact,
         path: &[PlaceSegment],
-        at: Handle<checked_trees::FlowStorageSnapshot>,
+        at: Handle<FlowStorageSnapshot>,
     ) -> Option<Vec<(FlowOperandFact, Vec<PlaceSegment>)>> {
-        if validation::project_type_reference_from_segments(
-            self.program,
-            actual.type_reference,
-            path,
-        )
-        .is_some_and(|reference| validation::reference_shell(self.program, reference).is_some())
+        if project_type_reference_from_segments(self.program, actual.type_reference, path)
+            .is_some_and(|reference| reference_shell(self.program, reference).is_some())
         {
             let actual = self.context.control.operands.insert(*actual);
-            if let Some(stored) = validation::completed_storage::reference_captures_at_path(
-                self.program,
-                &self.context.control,
-                actual,
-                path,
-                at,
-            ) {
+            if let Some(stored) =
+                reference_captures_at_path(self.program, &self.context.control, actual, path, at)
+            {
                 return Some(
                     stored
                         .captures()?
@@ -216,7 +210,7 @@ impl Execution<'_, '_, '_> {
         if path.is_empty() {
             return Some(vec![(*actual, Vec::new())]);
         }
-        if validation::reference_shell(self.program, actual.type_reference).is_none()
+        if reference_shell(self.program, actual.type_reference).is_none()
             && let Some((selected, _)) = super::super::operand_values::captured_operand_at_path(
                 self.program,
                 &self.context.control,

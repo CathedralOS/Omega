@@ -7,6 +7,8 @@
 //! it can publish Resident or Vacant. A same-named source machine is not a leaf.
 
 use super::AccessLifecycleOperation;
+use crate::TypedTrees;
+use crate::types::TypeReferenceHandle;
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 
@@ -47,10 +49,10 @@ impl AccessExecutionDeclaration {
     /// access plan nor backing/profile authority for execution.
     pub fn source_invocation_bindings(
         &self,
-        program: &crate::TypedTrees,
+        program: &TypedTrees,
         owner: symbols::SymbolHandle,
         application: crate::static_applications::StaticMachineApplicationHandle,
-    ) -> Result<[(symbols::SymbolHandle, crate::types::TypeReferenceHandle); 3], Diagnostic> {
+    ) -> Result<[(symbols::SymbolHandle, TypeReferenceHandle); 3], Diagnostic> {
         self.invocation_application(program, owner, application)?;
         let declaration = program.machine(self.template).ok_or_else(|| {
             Diagnostic::error("placement source contract lost its exact template declaration")
@@ -64,7 +66,7 @@ impl AccessExecutionDeclaration {
 
     fn invocation_application<'program>(
         &self,
-        program: &'program crate::TypedTrees,
+        program: &'program TypedTrees,
         owner: symbols::SymbolHandle,
         application: crate::static_applications::StaticMachineApplicationHandle,
     ) -> Result<&'program crate::static_applications::StaticMachineApplication, Diagnostic> {
@@ -84,10 +86,10 @@ impl AccessExecutionDeclaration {
 
     fn invocation_bindings(
         &self,
-        program: &crate::TypedTrees,
+        program: &TypedTrees,
         application: crate::static_applications::StaticMachineApplicationHandle,
         parameters: &[crate::data::TypeParameter],
-    ) -> Result<[(symbols::SymbolHandle, crate::types::TypeReferenceHandle); 3], Diagnostic> {
+    ) -> Result<[(symbols::SymbolHandle, TypeReferenceHandle); 3], Diagnostic> {
         let [policy, schema, role] = parameters else {
             return Err(Diagnostic::error(
                 "placement execution lost its original policy/schema/supply-role binders",
@@ -129,16 +131,10 @@ impl AccessExecutionDeclaration {
     /// representative caller's policy-selection authority.
     pub fn invocation_operands(
         &self,
-        program: &crate::TypedTrees,
+        program: &TypedTrees,
         owner: symbols::SymbolHandle,
         application: crate::static_applications::StaticMachineApplicationHandle,
-    ) -> Result<
-        (
-            crate::types::TypeReferenceHandle,
-            crate::types::TypeReferenceHandle,
-        ),
-        Diagnostic,
-    > {
+    ) -> Result<(TypeReferenceHandle, TypeReferenceHandle), Diagnostic> {
         self.invocation_application(program, owner, application)?;
         let specialization = program
             .machine_specialization(self.machine)
@@ -163,10 +159,7 @@ impl AccessExecutionDeclaration {
     /// It selects a requirement application, never storage or profile authority.
     /// Keep the typed binding: neither a diagnostic type name nor a neighboring
     /// profile call can supply this operand after lowering.
-    pub fn profile_role(
-        &self,
-        program: &crate::TypedTrees,
-    ) -> Result<crate::types::TypeReferenceHandle, Diagnostic> {
+    pub fn profile_role(&self, program: &TypedTrees) -> Result<TypeReferenceHandle, Diagnostic> {
         let specialization = program
             .machine_specialization(self.machine)
             .ok_or_else(|| {
@@ -204,7 +197,7 @@ impl AccessExecutionDeclaration {
     }
 
     pub fn authenticate(
-        program: &crate::TypedTrees,
+        program: &TypedTrees,
         symbol: symbols::SymbolHandle,
     ) -> Result<Option<Self>, Diagnostic> {
         // Attached calls name the entry state; free calls name the machine.

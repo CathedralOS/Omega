@@ -3,6 +3,8 @@
 //! write, and add its `ensures` onto the caller's operands. Statement calls and
 //! expression-form named uses share these rules.
 
+use crate::labels::instantiate_operator_contract_expression_label;
+use crate::semantic::places::append_place;
 use validation::CallSite;
 use validation::CanonicalPlace;
 use validation::canonical_place_from_expression;
@@ -481,11 +483,7 @@ fn append_operator_ensures_context(
                         continue;
                     };
                     place.extend_segments(&relative.segments);
-                    let place = crate::semantic::places::append_place(
-                        semantic,
-                        place.root,
-                        &place.segments,
-                    );
+                    let place = append_place(semantic, place.root, &place.segments);
                     let payload = FactPayload::ContractDomainMembership {
                         kind: semantic_contract_fact_kind(ContractProofFactKind::Ensures),
                         fact: fact_handle,
@@ -510,7 +508,7 @@ fn append_operator_ensures_context(
                     semantic.append_ref(&mut refs, fact);
                 }
                 typed_trees::domain::ProofFact::Expression(expression) => {
-                    let label = crate::labels::instantiate_operator_contract_expression_label(
+                    let label = instantiate_operator_contract_expression_label(
                         program,
                         parameters,
                         &operand_labels,
@@ -541,11 +539,8 @@ fn append_operator_ensures_context(
                         semantic.append_ref(&mut refs, fact);
                     } else {
                         for dependency in dependencies {
-                            let place = crate::semantic::places::append_place(
-                                semantic,
-                                dependency.root,
-                                &dependency.segments,
-                            );
+                            let place =
+                                append_place(semantic, dependency.root, &dependency.segments);
                             let fact = semantic.append_fact(Fact {
                                 place: FactPlace::Place(place),
                                 point,
@@ -573,7 +568,7 @@ fn append_operator_ensures_context(
                     let argument_labels = argument_handles
                         .iter()
                         .map(|argument| {
-                            crate::labels::instantiate_operator_contract_expression_label(
+                            instantiate_operator_contract_expression_label(
                                 program,
                                 parameters,
                                 &operand_labels,

@@ -3,28 +3,30 @@
 //! ledger supplies the complete formation group and its weakening boundary.
 
 use super::{
-    BorrowLoanFact, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment, Retirement, SymbolHandle, transfers,
+    BorrowLoanFact, CheckedUnitEffectOperationPlan as OperationPlan,
+    CheckedUnitStructuralArgumentSourcePlan as SourcePlan,
+    CheckedUnitStructuralPathSegment as PathSegment, Retirement, SymbolHandle, transfers,
 };
+use crate::borrow::owner_path_from_place_segments;
+use crate::borrow::place_path_covers_owner;
+use crate::execution::terminal_unit::types::dense_structural_parameter_index;
+use crate::execution::terminal_unit::types::structural_parameter_candidate;
 
 fn storage_source(
     program: &dyn validation::CheckingInput,
     state: &typed_trees::state::State,
     owner: SymbolHandle,
-) -> Option<CheckedUnitStructuralArgumentSourcePlan> {
+) -> Option<SourcePlan> {
     let parameters = program.state_parameters(state);
     if let Some(position) = parameters
         .iter()
         .position(|parameter| parameter.symbol == owner)
     {
-        return Some(CheckedUnitStructuralArgumentSourcePlan::Parameter {
-            parameter_index:
-                crate::execution::terminal_unit::types::dense_structural_parameter_index(
-                    program, parameters, position,
-                )?,
+        return Some(SourcePlan::Parameter {
+            parameter_index: dense_structural_parameter_index(program, parameters, position)?,
         });
     }
-    Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: owner })
+    Some(SourcePlan::StructuralLocal { symbol: owner })
 }
 
 /// Resolve a current named binding, keeping authored formal positions separate
@@ -33,21 +35,15 @@ fn storage_source(
 pub(super) fn source_owner(
     program: &dyn validation::CheckingInput,
     state: &typed_trees::state::State,
-    source: &CheckedUnitStructuralArgumentSourcePlan,
+    source: &SourcePlan,
 ) -> Option<SymbolHandle> {
     match source {
-        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
-        | CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow { symbol, .. } => {
-            Some(*symbol)
-        }
-        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => program
+        SourcePlan::StructuralLocal { symbol }
+        | SourcePlan::StructuralLocalBorrow { symbol, .. } => Some(*symbol),
+        SourcePlan::Parameter { parameter_index } => program
             .state_parameters(state)
             .iter()
-            .filter(|parameter| {
-                crate::execution::terminal_unit::types::structural_parameter_candidate(
-                    program, parameter,
-                )
-            })
+            .filter(|parameter| structural_parameter_candidate(program, parameter))
             .nth(*parameter_index as usize)
             .map(|parameter| parameter.symbol),
         _ => None,
@@ -60,7 +56,7 @@ fn captured_destination(
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: u32,
-    selection: &[CheckedUnitStructuralPathSegment],
+    selection: &[PathSegment],
 ) -> Option<validation::CanonicalPlace> {
     let flow = facts.flow.control.state(machine, state.symbol)?;
     let statement = facts.flow.state_statement(flow, statement_index as usize)?;
@@ -98,12 +94,12 @@ pub(super) fn destination(
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: u32,
-    selection: &[CheckedUnitStructuralPathSegment],
-) -> Option<(SymbolHandle, Vec<CheckedUnitStructuralPathSegment>)> {
+    selection: &[PathSegment],
+) -> Option<(SymbolHandle, Vec<PathSegment>)> {
     let destination =
         captured_destination(program, facts, machine, state, statement_index, selection)?;
     let owner = destination.root.as_symbol()?;
-    let path = crate::borrow::owner_path_from_place_segments(program, &destination.segments);
+    let path = owner_path_from_place_segments(program, &destination.segments);
     let reference = validation::reference_result_custody::storage_owner_type_reference(
         program,
         state,
@@ -121,9 +117,9 @@ pub(super) fn receiver(
     facts: &checked_trees::CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Option<(SymbolHandle, u32, Vec<CheckedUnitStructuralPathSegment>)> {
-    let CheckedUnitEffectOperationPlan::Store(store) = operation else {
+    operation: &OperationPlan,
+) -> Option<(SymbolHandle, u32, Vec<PathSegment>)> {
+    let OperationPlan::Store(store) = operation else {
         return None;
     };
     store.installed_value()?;
@@ -140,7 +136,7 @@ pub(super) fn receiver(
 
 pub(super) fn loans(
     retirement: &Retirement<'_>,
-    operation: &CheckedUnitEffectOperationPlan,
+    operation: &OperationPlan,
 ) -> Option<Vec<validation::reference_result_custody::RecordLeafLoans>> {
     let (owner, formation, path) = receiver(
         retirement.program,
@@ -212,7 +208,7 @@ pub(super) fn replaces(
         )?;
         Some(
             destination.root == loan.storage_owner
-                && crate::borrow::place_path_covers_owner(
+                && place_path_covers_owner(
                     retirement.program,
                     &destination.segments,
                     retirement.facts.borrow.loan_owner_path(loan),
@@ -228,11 +224,8 @@ pub(super) fn replaces(
 pub(super) fn construction<'a>(
     retirement: &Retirement<'a>,
     child: arena::Handle<BorrowLoanFact>,
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Option<(
-    &'a CheckedUnitEffectOperationPlan,
-    Vec<CheckedUnitStructuralPathSegment>,
-)> {
+    operation: &OperationPlan,
+) -> Option<(&'a OperationPlan, Vec<PathSegment>)> {
     let (owner, formation, destination) = receiver(
         retirement.program,
         retirement.facts,
@@ -283,8 +276,8 @@ pub(super) fn construction<'a>(
 /// neither authorizes releasing a new descriptor now occupying that same slot.
 pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases(
     retirement: &Retirement<'_>,
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
+    operation: &OperationPlan,
+) -> Option<Vec<OperationPlan>> {
     if super::unique_borrow_state(
         retirement.facts,
         retirement.machine,
@@ -368,7 +361,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
         }) {
             continue;
         }
-        output.push(CheckedUnitEffectOperationPlan::ReleaseReference {
+        output.push(OperationPlan::ReleaseReference {
             statement_index: retirement.statement_index,
             source: owner_source.clone(),
             path: source.path,

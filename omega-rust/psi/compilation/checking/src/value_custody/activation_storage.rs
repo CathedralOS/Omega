@@ -6,6 +6,7 @@
 //! this join separate from executable admission: recognizing a declaration is
 //! not permission to bypass the bodyless-call fence without a realization.
 
+use crate::CheckingInput;
 use language_core::ReferenceAccess;
 use language_core::activation_storage::ACTIVATION_CORE_SOURCE;
 pub use language_core::activation_storage::ActivationStorageOperation;
@@ -27,7 +28,7 @@ pub struct ActivationStorageContract {
     pub byte_type: TypeReferenceHandle,
 }
 
-fn sealed(program: &dyn crate::CheckingInput, symbol: SymbolHandle, identity: &str) -> bool {
+fn sealed(program: &dyn CheckingInput, symbol: SymbolHandle, identity: &str) -> bool {
     program
         .symbol_toolchain_relative_path(symbol)
         .is_some_and(|path| path == std::path::Path::new(ACTIVATION_CORE_SOURCE))
@@ -39,7 +40,7 @@ fn sealed(program: &dyn crate::CheckingInput, symbol: SymbolHandle, identity: &s
 }
 
 fn plain_data<'a>(
-    program: &'a dyn crate::CheckingInput,
+    program: &'a dyn CheckingInput,
     reference: TypeReferenceHandle,
     identity: &str,
     supply: DataSupplyMode,
@@ -66,10 +67,7 @@ fn plain_data<'a>(
     .then_some(data)
 }
 
-fn claim(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> Option<SymbolHandle> {
+fn claim(program: &dyn CheckingInput, reference: TypeReferenceHandle) -> Option<SymbolHandle> {
     let data = plain_data(
         program,
         reference,
@@ -81,7 +79,7 @@ fn claim(
 }
 
 fn mutable_referee(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     match program.type_reference_table.type_reference(reference) {
@@ -98,7 +96,7 @@ fn mutable_referee(
 /// exact declaration as their template; callers separately evaluate the bound
 /// from the selected static application, not a diagnostic name or string.
 pub fn exact_toolchain_activation_storage_contract(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
 ) -> Option<ActivationStorageContract> {
     if machine.body_is_present || machine.supply_mode != MachineSupplyMode::Boundary {
@@ -229,7 +227,7 @@ pub fn exact_toolchain_activation_storage_contract(
 
 // A specialization may reuse the template's symbol. Follow exactly its retained
 // template edge once; never guess the authored declaration from a suffix.
-fn sealed_machine(program: &dyn crate::CheckingInput, machine: &Machine, identity: &str) -> bool {
+fn sealed_machine(program: &dyn CheckingInput, machine: &Machine, identity: &str) -> bool {
     let declaration = program
         .machine_specialization(machine.symbol)
         .map_or(machine.symbol, |application| application.template);
@@ -240,7 +238,7 @@ fn sealed_machine(program: &dyn crate::CheckingInput, machine: &Machine, identit
 }
 
 fn valid_header<'a>(
-    program: &'a dyn crate::CheckingInput,
+    program: &'a dyn CheckingInput,
     machine: &'a Machine,
     operation: ActivationStorageOperation,
 ) -> Option<&'a typed_trees::state::State> {
@@ -292,7 +290,7 @@ fn valid_header<'a>(
 }
 
 fn split_merge_contract(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
     operation: ActivationStorageOperation,
 ) -> Option<ActivationStorageContract> {
@@ -409,7 +407,7 @@ fn split_merge_contract(
 /// deliberately private. Visibility belongs to the authenticated authored
 /// template, while the rest of this signature belongs to the selected body.
 fn common_boundary_state<'a>(
-    program: &'a dyn crate::CheckingInput,
+    program: &'a dyn CheckingInput,
     machine: &'a Machine,
 ) -> Option<&'a typed_trees::state::State> {
     let declaration = program
@@ -454,7 +452,7 @@ fn common_boundary_state<'a>(
 /// never parses callable identity, diagnostic arguments, or rendered recipes.
 /// Failure leaves demand open and must reject before backing is provisioned.
 pub fn activation_storage_bound(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: &Machine,
 ) -> Result<u64, &'static str> {
     let contract = exact_toolchain_activation_storage_contract(program, machine)
@@ -498,7 +496,7 @@ pub fn activation_storage_bound(
 // Primitive queries intentionally peel value restrictions for other consumers.
 // A sealed runtime signature cannot lose an authored constraint that way.
 fn plain_primitive(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
     expected: PrimitiveType,
 ) -> bool {
@@ -511,7 +509,7 @@ fn plain_primitive(
 /// Compiler-owned physical carrier of the exact sealed opaque claim. Geometry
 /// alone grants nothing: only the establishment operation issues its custody.
 pub fn activation_claim_byte_carrier(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
     // Every successful contract authenticates this exact claim declaration.
@@ -531,7 +529,7 @@ pub fn activation_claim_byte_carrier(
 /// its own effects. An opaque declaration with the same spelling has no such
 /// compiler-owned effect summary.
 pub fn activation_accessor_has_empty_write_frame(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     target: SymbolHandle,
 ) -> bool {
     let Some((machine, state)) = crate::find_machine_by_entry_state(program, target) else {

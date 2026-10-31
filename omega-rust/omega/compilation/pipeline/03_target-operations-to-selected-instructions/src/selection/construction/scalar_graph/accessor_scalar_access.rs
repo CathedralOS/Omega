@@ -3,6 +3,7 @@
 use super::{Builder, SelectedInstructionKind, SelectedInstructionProvenance};
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::operation_provenance;
+use crate::structural_inputs::structural_reference_input::reference_source_geometry;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
@@ -30,12 +31,8 @@ pub(super) fn emit(
     let signature = source.structural.as_ref().ok_or_else(invalid)?;
     let root =
         crate::selection::reference_input::root_type(source, location.place).ok_or_else(invalid)?;
-    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
-        root,
-        &location.path,
-        &signature.structural_types,
-    )
-    .ok_or_else(invalid)?;
+    let geometry = reference_source_geometry(root, &location.path, &signature.structural_types)
+        .ok_or_else(invalid)?;
     if geometry.selected != demand.accessor
         || !geometry.readable
         || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)

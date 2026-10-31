@@ -10,6 +10,7 @@
 use super::StructuralTerm;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
+use typed_trees::expression::BinaryOperator;
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct RewriteTable {
@@ -28,7 +29,7 @@ impl RewriteTable {
         let index = self.entries.len() as u32;
         if let StructuralTerm::MathematicalBinary { operator, .. } = entry.0.semantic_value() {
             self.has_mathematical_binary_pattern = true;
-            if *operator == typed_trees::expression::BinaryOperator::Equal {
+            if *operator == BinaryOperator::Equal {
                 self.has_mathematical_equal_pattern = true;
             }
         }
@@ -316,11 +317,7 @@ fn predicate_may_unwrap_to_integer_comparison(predicate: &StructuralTerm, depth:
             if meaning
                 .iter()
                 .all(|(primitive, _)| *primitive == typed_trees::types::PrimitiveType::Bool)
-                && matches!(
-                    operator,
-                    typed_trees::expression::BinaryOperator::Equal
-                        | typed_trees::expression::BinaryOperator::NotEqual
-                )
+                && matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual)
             {
                 if right.boolean_value().is_some() {
                     return predicate_may_unwrap_to_integer_comparison(left, depth + 1);

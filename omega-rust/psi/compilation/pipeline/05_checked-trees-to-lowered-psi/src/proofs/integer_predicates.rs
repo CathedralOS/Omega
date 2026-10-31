@@ -1,7 +1,8 @@
 //! Integer predicate operations shared by entry requirements and crash routes.
 //! Callers own leaf namespaces; this conversion preserves carrier and policy
-//! meaning. Partial operators still need explicit safety evidence, never the
-//! requirement being translated as its own premise.
+//! meaning and consumes checking's occurrence-bound formation decisions.
+//! Generated partial terms without a decision still need explicit safety
+//! evidence, never the requirement being translated as its own premise.
 
 use super::crash_routes::structural_arithmetic::{
     safe_exact_structural_divisor, safe_exact_structural_shift, safe_policy_structural_divisor,
@@ -83,6 +84,7 @@ pub(crate) fn lower(
             primitive_type,
             left,
             right,
+            formation_decided,
             ..
         } if matches!(
             kind,
@@ -107,14 +109,16 @@ pub(crate) fn lower(
                 kind,
                 CheckedIntegerBinaryKind::ExactShiftLeft
                     | CheckedIntegerBinaryKind::ExactShiftRight
-            ) && !safe_exact_structural_shift(
-                matches!(kind, CheckedIntegerBinaryKind::ExactShiftLeft),
-                value_type,
-                count_type,
-                &value,
-                &count,
-                runtime_requirements,
-            ) {
+            ) && !*formation_decided
+                && !safe_exact_structural_shift(
+                    matches!(kind, CheckedIntegerBinaryKind::ExactShiftLeft),
+                    value_type,
+                    count_type,
+                    &value,
+                    &count,
+                    runtime_requirements,
+                )
+            {
                 return unsupported(
                     "structural crash Exact shift requires explicit terminal count and overflow safety evidence",
                 );
@@ -141,6 +145,7 @@ pub(crate) fn lower(
             primitive_type,
             left,
             right,
+            formation_decided,
             ..
         } if matches!(
             kind,
@@ -176,12 +181,9 @@ pub(crate) fn lower(
             if matches!(
                 kind,
                 CheckedIntegerBinaryKind::ExactDivide | CheckedIntegerBinaryKind::ExactRemainder
-            ) && !safe_exact_structural_divisor(
-                integer_type,
-                &left,
-                &right,
-                runtime_requirements,
-            ) {
+            ) && !*formation_decided
+                && !safe_exact_structural_divisor(integer_type, &left, &right, runtime_requirements)
+            {
                 return unsupported(
                     "structural crash exact division requires explicit terminal divisor safety evidence",
                 );
@@ -192,7 +194,8 @@ pub(crate) fn lower(
                     | CheckedIntegerBinaryKind::WrappingRemainder
                     | CheckedIntegerBinaryKind::SaturatingDivide
                     | CheckedIntegerBinaryKind::SaturatingRemainder
-            ) && !safe_policy_structural_divisor(integer_type, &right, runtime_requirements)
+            ) && !*formation_decided
+                && !safe_policy_structural_divisor(integer_type, &right, runtime_requirements)
             {
                 return unsupported(
                     "structural crash policy division requires explicit terminal nonzero-divisor evidence",

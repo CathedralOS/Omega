@@ -10,7 +10,8 @@
 //! (wiki/spec/packages/acceptance.md#restricted-build-acceptance).
 
 use package_compilation::build_execution::{
-    RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation,
+    RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
+    RestrictedBuildOperation, RestrictedBuildRequest,
 };
 use target::TargetProfile;
 
@@ -107,10 +108,8 @@ pub struct PackagePolicyRestrictedBuildRequest {
 /// capture *presence*, sponsor ceilings, declared required outputs, and the
 /// activation profiles — never host paths, live handles, or ephemeral
 /// capability state.
-impl From<&package_compilation::build_execution::RestrictedBuildRequest>
-    for PackagePolicyRestrictedBuildRequest
-{
-    fn from(request: &package_compilation::build_execution::RestrictedBuildRequest) -> Self {
+impl From<&RestrictedBuildRequest> for PackagePolicyRestrictedBuildRequest {
+    fn from(request: &RestrictedBuildRequest) -> Self {
         let bounds = request.bounds();
         Self {
             operation: match request.operation() {

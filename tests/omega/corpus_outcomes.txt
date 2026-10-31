@@ -8,12 +8,18 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
+fail/build/activation_borrowed_field_replacement_refused rejected 361ms expected @3a020eca642a
+	the compiler-owned Build activation cannot be replaced as a whole value
+fail/build/activation_owned_field_refused rejected 227ms expected @3a020eca642a
+	the compiler-owned Build activation cannot be stored in field `builder`
 fail/build/native_locator_nonzero_unused_coordinate rejected 290ms expected @b852a38544d0
 	StructuralArgumentPreparation { stage: "execute captured host call", detail: "EffectRejected { operation: OperationId(9), rejection: TerminalEffectRejection { reason: \\"PeByName VersionLength must be zero for this locator case\\" } }" } in MachineId(1)/BlockId(5) at Some(OperationId(9))
 fail/build/native_locator_wrong_owner rejected 258ms expected @b852a38544d0
 	native binding requires the exact compiler-owned `ForeignBinding` declaration
 fail/build/package_owned_callable_identity rejected 1474ms @946b56944a1b
 	build selects provider `other_clock::clock::DependencyClock` for slot `clock::Clock`, but no candidate exists in the loaded dependency closure
+fail/build/terminal_calling_policy_invalid_rejection rejected 8431ms expected @d2937c3afdf3
+	construction of `CallingPolicyRejection` field `reason` is not proven in domain `[u8]::Utf8` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
@@ -88,6 +94,24 @@ fail/facts/array_element_default_domain/writeback rejected 909ms expected @89d5d
 	data `Tallies`'s default domain is still FALSE at state exit: the invariant window opened on `tallies` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/array_element_default_domain/zero_owner rejected 1211ms expected @89d5d2d7655c
 	machine `main` state `entry` statement 1: reading `tallies.<whole value>` crosses an open default-domain invariant window before data `Tallies` is established: the zeroed representation is not yet a `Tallies` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+fail/facts/build_activation_borrow/call_result rejected 2029ms expected @3a020eca642a
+	root binding requires a compiler-issued &mut Build receiver
+fail/facts/build_activation_borrow/const_name rejected 338ms expected @3a020eca642a
+	machine `build` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/facts/build_activation_borrow/field rejected 1113ms expected @3a020eca642a
+	root binding requires a compiler-issued &mut Build receiver
+fail/facts/build_activation_borrow/local rejected 860ms expected @3a020eca642a
+	root binding requires a compiler-issued &mut Build receiver
+fail/facts/build_activation_borrow/match_join rejected 265ms expected @3a020eca642a
+	machine `join` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/facts/build_activation_borrow/other_machine rejected 666ms expected @3a020eca642a
+	root binding requires a compiler-issued &mut Build receiver
+fail/facts/build_activation_borrow/other_state rejected 648ms expected @3a020eca642a
+	root binding requires a compiler-issued &mut Build receiver
+fail/facts/build_activation_borrow/parameter rejected 648ms expected @3a020eca642a
+	root binding requires a compiler-issued &mut Build receiver
+fail/facts/build_activation_borrow/target_body rejected 548ms expected @3a020eca642a
+	root binding requires a compiler-issued &mut Build receiver
 fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
@@ -220,7 +244,7 @@ fail/facts/nested_machine_joint_rank_authored_indexed_hidden_intermediate_overfl
 	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_authored_indexed_missing_selector_bound rejected 477ms expected @be61262f3842
 	cannot form specification index in machine `count` requires contract: independent collection bounds are not established by preceding formed facts
-fail/facts/nested_machine_joint_rank_authored_indexed_reset_before_decrease rejected 5199ms expected @db757705d687
+fail/facts/nested_machine_joint_rank_authored_indexed_reset_before_decrease rejected 5142ms expected @780e75fae678+wt
 	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_authored_indexed_wrong_field_write rejected 1210ms expected @be61262f3842
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -272,7 +296,7 @@ fail/facts/nested_machine_joint_rank_complement_other_state_rejected rejected 11
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_complement_parameter_rejected rejected 1137ms expected @248d6dbf7291
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_complement_reverse_descent_rejected rejected 3573ms expected @db757705d687
+fail/facts/nested_machine_joint_rank_complement_reverse_descent_rejected rejected 3984ms expected @780e75fae678+wt
 	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_complement_target_body_rejected rejected 1108ms expected @248d6dbf7291
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -508,7 +532,7 @@ fail/facts/nested_machine_joint_rank_remainder_proof_acyclic_overflow rejected 1
 	terminating machine erased: cannot prove rank range `0..=1` for the rank produced by the selected view
 fail/facts/nested_machine_joint_rank_remainder_proof_flat rejected 738ms expected @30a668a64c1c+wt
 	`erased(..)` cannot prove the measure `remaining` structurally decreases at this self-call: the call does not prove a strict predecessor of ranking subject `remaining`. Pass a case-payload subterm (`Nat::Succ { prev } -> .. erased(prev)`) or, for an integer measure, `n - 1` in the taken value of its dominating `n > 0` arm; a slice-length measure admits `items[1..]` under its own nonempty guard
-fail/facts/nested_machine_joint_rank_remainder_rollover rejected 3158ms expected @db757705d687
+fail/facts/nested_machine_joint_rank_remainder_rollover rejected 3823ms expected @780e75fae678+wt
 	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_remainder_target_body_rejected rejected 1200ms expected @30a668a64c1c+wt
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -528,7 +552,7 @@ fail/facts/nested_machine_joint_rank_structured_local_rejected rejected 2676ms e
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_structured_match_join_rejected rejected 3668ms expected @d4217dd821a4+wt
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_structured_nonmonotone_rejected rejected 2949ms expected @db757705d687
+fail/facts/nested_machine_joint_rank_structured_nonmonotone_rejected rejected 4219ms expected @780e75fae678+wt
 	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_structured_other_machine_rejected rejected 4376ms expected @d4217dd821a4+wt
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -546,6 +570,31 @@ fail/facts/nested_machine_joint_rank_structured_target_body_rejected rejected 28
 fail/facts/nested_machine_joint_rank_structured_wrong_guard_rejected rejected 1960ms expected @d4217dd821a4+wt
 	terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view
 	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_lexicographic_rank_call_result_rejected rejected 3511ms expected @780e75fae678+wt
+	machine call cycle: `count`, `step`, `next_row` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_lexicographic_rank_const_name_rejected rejected 3397ms expected @780e75fae678+wt
+	machine call cycle: `count`, `step`, `next_row` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_lexicographic_rank_field_rejected rejected 4586ms expected @780e75fae678+wt
+	machine call cycle: `count`, `step`, `next_row` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_lexicographic_rank_local_rejected rejected 3334ms expected @780e75fae678+wt
+	machine call cycle: `count`, `step`, `next_row` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_lexicographic_rank_match_join_rejected rejected 2132ms expected @780e75fae678+wt
+	machine call cycle: `count`, `step`, `next_row` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_lexicographic_rank_negative_preserving_rejected rejected 4037ms expected @780e75fae678+wt
+	machine call cycle: `count`, `step`, `next_row` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_lexicographic_rank_other_machine_rejected rejected 3319ms expected @780e75fae678+wt
+	machine call cycle: `count`, `step`, `next_row` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_lexicographic_rank_other_state_rejected rejected 2573ms expected @780e75fae678+wt
+	machine call cycle: `count`, `step`, `next_row` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_lexicographic_rank_parameter_rejected rejected 3007ms expected @780e75fae678+wt
+	machine call cycle: `count`, `step`, `next_row` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_lexicographic_rank_reset_without_outer_decrease_rejected rejected 2833ms expected @780e75fae678+wt
+	machine call cycle: `count`, `step`, `next_row` -- captured ranks do not prove lexicographic nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_lexicographic_rank_target_body_rejected rejected 2756ms expected @780e75fae678+wt
+	machine call cycle: `count`, `step`, `next_row` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_lexicographic_rank_unsafe_suffix_rejected rejected 1511ms expected @780e75fae678+wt
+	exact arithmetic in construction of `Progress` field `inner` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `next_row` state `entry` terminal call operands may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_machine_signed_rank_call_result_rejected rejected 3345ms expected @db757705d687
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_signed_rank_const_name_rejected rejected 4490ms expected @db757705d687
@@ -561,6 +610,90 @@ fail/facts/nested_machine_signed_rank_implicit_conversion_rejected rejected 2920
 fail/facts/nested_machine_signed_rank_local_rejected rejected 2446ms expected @db757705d687
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_signed_rank_match_join_rejected rejected 2297ms expected @db757705d687
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_call_result_rejected rejected 7467ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_const_name_rejected rejected 7487ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_field_rejected rejected 6117ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_float_exclusion_requirement_rejected rejected 14266ms expected @a7e4d27bd646+wt
+	cannot prove requires contract for call need_five from perform: value >= 5.0 (needs fact `value >= 5.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_call_result_rejected rejected 8000ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_const_name_rejected rejected 11140ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_field_rejected rejected 10268ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_local_rejected rejected 9301ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_match_join_rejected rejected 9397ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_other_machine_rejected rejected 6363ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_other_state_rejected rejected 11115ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_parameter_rejected rejected 11500ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_target_body_rejected rejected 7812ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_implicit_policy_erasure_contract_rejected rejected 8189ms expected @a7e4d27bd646+wt
+	terminating machine count: cannot prove rank range `-128..=127` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_implicit_result_policy_erasure_rejected rejected 9657ms expected @a7e4d27bd646+wt
+	terminating machine count: cannot prove rank range `-128..=127` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_interior_exclusion_requirement_rejected rejected 2897ms expected @a7e4d27bd646+wt
+	exact arithmetic in machine `rank` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	partial wrapping division in machine `rank` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	exact arithmetic in machine `check_rank` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	partial wrapping division in machine `check_rank` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/facts/nested_machine_signed_rank_negated_requirement_local_rejected rejected 6106ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_match_join_rejected rejected 7414ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_missing_disjunction_rejected rejected 7198ms expected @a7e4d27bd646+wt
+	terminating machine count: cannot prove rank range `-128..=127` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_missing_negated_requirement_rejected rejected 7145ms expected @a7e4d27bd646+wt
+	terminating machine count: cannot prove rank range `-128..=127` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_other_machine_rejected rejected 7121ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_other_state_rejected rejected 7910ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_parameter_rejected rejected 5849ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_target_body_rejected rejected 7315ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_unguarded_divisor_requirement_rejected rejected 3634ms expected @a7e4d27bd646+wt
+	partial exact division in machine `rank` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+	partial exact division in machine `check_rank` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/facts/nested_machine_signed_rank_negated_requirement_unsafe_requirement_rejected rejected 4485ms expected @a7e4d27bd646+wt
+	exact arithmetic in machine `rank` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `check_rank` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_signed_rank_negated_requirement_unsafe_shift_requirement_rejected rejected 2846ms expected @a7e4d27bd646+wt
+	exact arithmetic in machine `rank` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	shift count in machine `rank` requires contract is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+	exact arithmetic in machine `check_rank` requires contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	shift count in machine `check_rank` requires contract is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_call_result_rejected rejected 7285ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_const_name_rejected rejected 6120ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_field_rejected rejected 5732ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_local_rejected rejected 7190ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_match_join_rejected rejected 8089ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_other_machine_rejected rejected 8324ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_other_state_rejected rejected 7507ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_parameter_rejected rejected 6469ms expected @a7e4d27bd646+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_target_body_rejected rejected 3648ms expected @a7e4d27bd646+wt
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_signed_rank_other_machine_rejected rejected 3472ms expected @db757705d687
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -636,6 +769,9 @@ fail/layouts/local_access_declaration_shadows_core_view rejected 648ms expected 
 	duplicate data `Access`
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
+fail/proofs/exact_widening_without_source_bound rejected 991ms expected @b80d7416b671+wt
+	data `Reading` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Reading` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/providers/applied_calling_surface_incomplete_result rejected 8128ms expected @d9073fc2214b
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/providers/boundary_guarded_array_requires_false rejected 1400ms expected @a889c2d8b84c
@@ -1409,6 +1545,7 @@ pass/boundary/nested_projected_structural_crash_formal_exit checked 3354ms check
 pass/boundary/static_foreign_scalar_result_locals_exit checked 17698ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/static_opaque_qualifier_exit checked 4171ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/acquired_generator_completed_output_set checked 15684ms check-target:macos_arm64 published:files/companion.txt,files/generated.omg @ccdb99ca2214
+pass/build/activation_borrowed_field_rebind_exit checked 19378ms check-target:macos_arm64 @3a020eca642a
 pass/build/activation_yields_without_replay checked 3967ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/artifact_only_output checked 3216ms @ccdb99ca2214
 pass/build/artifact_only_required_output_completion checked 7179ms published:files/manifest.txt @ccdb99ca2214
@@ -3621,6 +3758,15 @@ pass/facts/bounded_scalar_sums_through_other_machine_exit checked 3885ms check-t
 pass/facts/bounded_scalar_sums_through_other_state_exit checked 3459ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/bounded_scalar_sums_through_parameter_exit checked 3157ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/bounded_scalar_sums_through_target_body_exit checked 3537ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/build_activation_borrow/call_result checked 17839ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/const_name checked 19597ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/field checked 21101ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/local checked 15838ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/match_join checked 24050ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/other_machine checked 18694ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/other_state checked 25421ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/parameter checked 15952ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/target_body checked 12537ms check-target:macos_arm64 @3a020eca642a
 pass/facts/build_target_provider_through_call_result_exit checked 8454ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/build_target_provider_through_const_name_exit checked 7119ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/build_target_provider_through_field_exit checked 7948ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
@@ -7182,6 +7328,19 @@ pass/facts/nested_machine_lexical_entry_parameter_exit checked 3632ms check-targ
 pass/facts/nested_machine_lexical_entry_parenthesized_exit checked 3160ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_lexical_entry_qualified_exit checked 3090ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_lexical_entry_target_body_exit checked 4117ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_lexicographic_rank_call_result_exit checked 5169ms check-target:macos_arm64 @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_const_name_exit checked 3405ms check-target:macos_arm64 @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_field_exit checked 3968ms check-target:macos_arm64 @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_local_exit checked 4634ms check-target:macos_arm64 @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_match_join_exit checked 3397ms check-target:macos_arm64 @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_negative_prefix_exit checked 4000ms check-target:macos_arm64 @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_other_machine_exit checked 4641ms check-target:macos_arm64 @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_other_state_exit checked 4780ms check-target:macos_arm64 @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_parameter_exit checked 6791ms check-target:macos_arm64 @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_probe_exit checked 6624ms check-target:macos_arm64 @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_scalar_return_exit checked 3235ms check-target:macos_arm64 @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_self_alias_exit checked 3280ms check-target:macos_arm64 @780e75fae678+wt
+pass/facts/nested_machine_lexicographic_rank_target_body_exit checked 6762ms check-target:macos_arm64 @780e75fae678+wt
 pass/facts/nested_machine_private_arithmetic_borrowed_call_result_exit checked 2601ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_private_arithmetic_borrowed_const_name_exit checked 4079ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_private_arithmetic_borrowed_disjoint_exit checked 3877ms check-target:macos_arm64 @ccdb99ca2214
@@ -7253,6 +7412,42 @@ pass/facts/nested_machine_signed_rank_field_exit checked 3796ms check-target:mac
 pass/facts/nested_machine_signed_rank_local_exit checked 4348ms check-target:macos_arm64 @db757705d687
 pass/facts/nested_machine_signed_rank_lower_endpoint_exit checked 3638ms check-target:macos_arm64 @db757705d687
 pass/facts/nested_machine_signed_rank_match_join_exit checked 5706ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_negated_requirement_call_result_exit checked 7898ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_const_name_exit checked 9538ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_disjunctive_requirement_exit checked 7625ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_explicit_policy_erasure_exit checked 7367ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_explicit_result_policy_erasure_exit checked 7917ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_field_exit checked 7259ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_call_result_exit checked 10377ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_const_name_exit checked 8197ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_field_exit checked 7088ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_local_exit checked 8984ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_match_join_exit checked 9239ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_other_machine_exit checked 7917ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_other_state_exit checked 6903ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_parameter_exit checked 7989ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_guarded_divisor_target_body_exit checked 9727ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_local_exit checked 7476ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_match_join_exit checked 8385ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_nested_requirement_exit checked 6555ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_other_machine_exit checked 8278ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_other_state_exit checked 8523ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_parameter_exit checked 9402ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_positive_disequality_requirement_exit checked 9308ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_remainder_requirement_exit checked 7768ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_shift_requirement_exit checked 7870ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_short_circuit_requirement_exit checked 9762ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_target_body_exit checked 9364ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_call_result_exit checked 6919ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_const_name_exit checked 7503ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_field_exit checked 6132ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_local_exit checked 9594ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_match_join_exit checked 7217ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_other_machine_exit checked 7830ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_other_state_exit checked 8578ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_parameter_exit checked 9794ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_requirement_exit checked 7690ms check-target:macos_arm64 @a7e4d27bd646+wt
+pass/facts/nested_machine_signed_rank_negated_requirement_wrapping_divisor_target_body_exit checked 10273ms check-target:macos_arm64 @a7e4d27bd646+wt
 pass/facts/nested_machine_signed_rank_no_authored_range_exit checked 3914ms check-target:macos_arm64 @db757705d687
 pass/facts/nested_machine_signed_rank_other_machine_exit checked 6236ms check-target:macos_arm64 @db757705d687
 pass/facts/nested_machine_signed_rank_other_state_exit checked 3735ms check-target:macos_arm64 @db757705d687
@@ -11763,12 +11958,21 @@ pass/layouts/declaration_only_initializer_formation checked 2763ms @ccdb99ca2214
 pass/layouts/direct_encoded_assignment_preserves_descriptor_exit checked 3686ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/empty_cases_sum_layout_compile checked 3776ms @ccdb99ca2214
 pass/layouts/empty_record_layout_queries_compile checked 2905ms @ccdb99ca2214
-pass/layouts/extent_view_external_content rejected 1671ms terminal-inspections:failed regressed-from:checked+terminal-runtime.attempt:unrequested+terminal-inspections:match @ccdb99ca2214
-	provider choice must supply the declaration's complete static application
-	inspection attempt admission: [Diagnostic { severity: Error, message: "provider choice must supply the declaration's complete static application", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(2), span: Span { start: 109, end: 124 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "tests/omega/pass/layouts/extent_view_external_content/build.omg", line: 3, column: 12 }) }]
-pass/layouts/extent_view_external_write rejected 5166ms terminal-inspections:failed regressed-from:checked+terminal-runtime.attempt:unrequested+terminal-inspections:match @b43a5fa574e6
-	provider choice must supply the declaration's complete static application
-	inspection attempt admission: [Diagnostic { severity: Error, message: "provider choice must supply the declaration's complete static application", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(2), span: Span { start: 107, end: 122 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "\\\\\\\\?\\\\C:\\\\Projects\\\\Omega\\\\.agents\\\\worktree\\\\access-vocab\\\\tests\\\\omega\\\\pass\\\\layouts\\\\extent_view_external_write\\\\build.omg", line: 3, column: 12 }) }]
+pass/layouts/extent_view_external_content rejected 12924ms terminal-inspections:failed regressed-from:checked+terminal-runtime.attempt:unrequested+terminal-inspections:match @b80d7416b671+wt
+	machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#46.view`: no captured source place is available
+	machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#46.view.entries`: no captured source place is available
+	machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#46.view.entries[1]`: no captured source place is available
+	machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `&__transition_subject#46.view.entries[1]`: no captured source place is available
+	machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `forwarded.view`: no captured source place is available
+	machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `forwarded.view.entries`: no captured source place is available
+	machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `forwarded.view.entries[1]`: no captured source place is available
+	machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `&forwarded.view.entries[1]`: no captured source place is available
+	inspection attempt admission: [Diagnostic { severity: Error, message: "machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#46.view`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#46.view.entries`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#46.view.entries[1]`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `read_existing` state `entry` statement 3: cannot prove selected case for payload access `&__transition_subject#46.view.entries[1]`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `forwarded.view`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `forwarded.view.entries`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `forwarded.view.entries[1]`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `read_stored` state `entry` statement 5: cannot prove selected case for payload access `&forwarded.view.entries[1]`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/layouts/extent_view_external_write rejected 15293ms terminal-inspections:failed regressed-from:checked+terminal-runtime.attempt:unrequested+terminal-inspections:match @b80d7416b671+wt
+	machine `update_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#57.view`: no captured source place is available
+	machine `observe_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#228.view`: no captured source place is available
+	cannot prove ensures contract for exit from attempt at statement 3: result in Extent::Registered
+	inspection attempt admission: [Diagnostic { severity: Error, message: "machine `update_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#57.view`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "machine `observe_existing` state `entry` statement 3: cannot prove selected case for payload access `__transition_subject#228.view`: no captured source place is available", exceeded_provision: None, source_span: None, resolved_location: None }, Diagnostic { severity: Error, message: "cannot prove ensures contract for exit from attempt at statement 3: result in Extent::Registered", exceeded_provision: None, source_span: None, resolved_location: None }]
 pass/layouts/five_element_array_layout_compile checked 2622ms @ccdb99ca2214
 pass/layouts/fixed_layout_closed_requirement_policy_exit checked 2539ms check-target:macos_arm64 @2ba727eefb59+wt
 pass/layouts/fixed_layout_computed_const_policy_exit checked 2288ms check-target:macos_arm64 @2ba727eefb59+wt
@@ -11807,16 +12011,12 @@ pass/layouts/placed_primitive_mixed_backing_rejected rejected 4782ms expected ch
 pass/layouts/placed_primitive_returned_backing checked 4447ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_primitive_stored_backing checked 4659ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_primitive_unused_valid checked 5047ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/placed_ram_mixed_callback rejected 20382ms regressed-from:checked @b43a5fa574e6
-	machine `Ordering::compare` state `compare`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Ordering::compare` state `compare` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `Ordering::compare` state `compare`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+pass/layouts/placed_ram_mixed_callback checked 26998ms @b80d7416b671+wt
 pass/layouts/placed_reference_results/forwarded checked 4722ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_reference_results/nested checked 4971ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_reference_results/returned checked 5093ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_reference_results/two_live checked 4345ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/placed_view_call_custody rejected 18261ms terminal-inspections:failed regressed-from:checked+terminal-inspections:match @b43a5fa574e6
-	inspection unit_delegate production: [Diagnostic { severity: Error, message: "`unit_delegate` calls `observe`; `observe` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `observe::entry`", exceeded_provision: Some(ExceededProvision { resource: "coverage_state_signatures", limit: 0, requested: 1, coordinate: 2366 }), source_span: Some(SourceSpan { source_id: SourceId(24), span: Span { start: 2366, end: 2373 } }), resolved_location: None }]
+pass/layouts/placed_view_call_custody checked 11861ms terminal-inspections:match @b80d7416b671+wt
 pass/layouts/placed_view_source_access_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_data_layout_queries checked 3615ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_layout_constant_composition_exit checked 4656ms check-target:macos_arm64 @ccdb99ca2214
@@ -12429,6 +12629,7 @@ pass/proofs/embedded_address_bounds_exit rejected 12259ms check-target:macos_arm
 pass/proofs/embedded_successor_call_requirement_exit checked 3945ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/embedded_successor_transports_upper_bound_exit checked 3751ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/erased_mathematical_initializers checked 2617ms @ccdb99ca2214
+pass/proofs/exact_widening_keeps_source_carrier checked 3588ms @b80d7416b671+wt
 pass/proofs/fact_only_proof_value_citation_exit checked 2906ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/family_carrier_relation_laws checked 2732ms @ccdb99ca2214
 pass/proofs/field_view_index_contract checked 5485ms @ccdb99ca2214
@@ -15907,7 +16108,7 @@ fail/build/calling_policy_checked_helper_rejection rejected 18781ms expected @cc
 	calling policy rejected the boundary: checked helper observed
 fail/build/calling_policy_entry_premise rejected 18444ms expected @ccdb99ca2214
 	machine `LocalPolicy::plan` is not build-time admissible: machine `LocalPolicy::plan` has an authored `requires` premise along `LocalPolicy::plan`; pre-check semantic evaluation has no checked invocation proof for that premise; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
-fail/build/calling_policy_missing_target_member rejected 16712ms expected @ccdb99ca2214
+fail/build/calling_policy_missing_target_member rejected 8848ms expected @d2937c3afdf3
 	boundary trait `LocalEntry` cannot evaluate Calling<Policy>: calling policy realization `TargetPolicy::plan` has no body for target `linux_x86_64`
 fail/build/calling_policy_unproved_helper rejected 18269ms expected @ccdb99ca2214
 	cannot prove requires contract for call bounded from LocalPolicy::plan: signature.parameter_count <= 1 (needs fact `value <= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `plan`
@@ -36382,10 +36583,8 @@ fail/layouts/placed_primitive_unused_invalid rejected 2185ms expected @b43a5fa57
 	accessor read application: requires an exact compiler-issued field accessor; an ordinary or unconstrained generic type grants no operation
 fail/layouts/placed_primitive_wrong_value rejected 2443ms expected @b43a5fa574e6
 	accessor read application: value type does not match the accessor's exact value type
-fail/layouts/placed_ram_mixed_callback rejected 17726ms unexpected @b43a5fa574e6
-	machine `Ordering::compare` state `compare`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `Ordering::compare` state `compare` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `Ordering::compare` state `compare`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/layouts/placed_ram_mixed_callback rejected 28089ms expected @b80d7416b671+wt
+	placed scalar native access requires captured RAM or a checked resident formation on every entry-relative origin; a formal or host pointer is not backing authority (machine MachineId(18), operation OperationId(177), boundary BoundaryMachineId(197), arguments [StructuralArgument { place: PlaceId(84), path: [], access: SharedBorrow }])
 fail/layouts/placed_reference_results/overlapping_loans rejected 4514ms expected @ccdb99ca2214
 	state `forward_holder` receives `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
 	state `package_view` receives `first` while local borrow `first_holder` is still active (borrowed at statement 2; its last use is at statement 4)
@@ -38834,7 +39033,7 @@ fail/termination/computed_measure_non_monotone_body rejected 845ms expected @30a
 fail/termination/computed_measure_rank_range_overflow rejected 2144ms expected @ccdb99ca2214
 	terminating machine walk: cannot prove rank range `0..=400` for the rank produced by the selected view
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/computed_rank_guard_write rejected 1952ms expected @db757705d687
+fail/termination/computed_rank_guard_write rejected 2228ms expected @780e75fae678+wt
 	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 	machine call cycle: `retain_counted$specialized$a095a17ef6fb648a$0` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/computed_rank_no_decrease rejected 3000ms expected @ccdb99ca2214
@@ -39136,7 +39335,7 @@ fail/text/concatenation_into_borrowed_view_rejected rejected 14288ms expected @c
 	the concatenation stored into `out_line` in render establishes owned bytes, but `out_line` is a borrowed `&[u8]` view that cannot hold them; store the concatenation into a bounded `[u8; N]` carrier whose capacity bounds both operands
 fail/text/element_guard_other_index_unbounded rejected 672ms expected @ccdb99ca2214
 	exact arithmetic in machine `digit` state `entry` return value may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
-fail/text/inline_byte_case_requires_field_domain rejected 1568ms expected @ccdb99ca2214
+fail/text/inline_byte_case_requires_field_domain rejected 1097ms expected @d2937c3afdf3
 	construction value is not proven in domain `[u8; N]::Ascii` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	construction of `Reply` field `content` is not proven in domain `[u8; N]::Ascii` in main state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/text/later_arm_guard_read_unbounded rejected 1530ms expected @ccdb99ca2214
@@ -39780,42 +39979,10 @@ run/facts/float_comparison_route_through_target_body_traps checked 5367ms check-
 run/facts/signed_division_quotient_truncation_not_floor_traps checked 2617ms check-target:macos_arm64 @ccdb99ca2214
 run/float/folded_anonymous_operator_custody_exit checked 12880ms check-target:macos_arm64 @ccdb99ca2214
 run/generics/runtime_value_index_operands checked 3080ms check-target:macos_arm64 @ccdb99ca2214
-run/layouts/placed_ram_capture_forwarding rejected 17802ms check-target:macos_arm64 @b43a5fa574e6
-	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-run/layouts/placed_ram_capture_helper rejected 17427ms check-target:macos_arm64 @b43a5fa574e6
-	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-run/layouts/placed_ram_capture_retirement rejected 17601ms check-target:macos_arm64 @b43a5fa574e6
-	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-run/layouts/placed_ram_capture_return rejected 15978ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b43a5fa574e6
-	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `mutate` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
-	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
+run/layouts/placed_ram_capture_forwarding checked 23301ms check-target:macos_arm64 @b80d7416b671+wt
+run/layouts/placed_ram_capture_helper checked 24091ms check-target:macos_arm64 @b80d7416b671+wt
+run/layouts/placed_ram_capture_retirement checked 25544ms check-target:macos_arm64 @b80d7416b671+wt
+run/layouts/placed_ram_capture_return checked 23929ms check-target:macos_arm64 @b80d7416b671+wt
 run/layouts/placed_ram_original_backing rejected 16680ms check-target:macos_arm64 @b43a5fa574e6
 	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
@@ -39825,19 +39992,7 @@ run/layouts/placed_ram_original_backing rejected 16680ms check-target:macos_arm6
 	machine `mutate` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)
 	machine `write_only` state `entry` reads a nested member `transmit`, but data `Access` has no field `transmit` (check the spelling of the field name)
 	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-run/layouts/placed_ram_scalar_types rejected 16091ms check-target:macos_arm64 @b43a5fa574e6
-	machine `mutate` state `entry` reads a nested member `signed`, but data `Access` has no field `signed` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry` reads a nested member `flag`, but data `Access` has no field `flag` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry` reads a nested member `narrow`, but data `Access` has no field `narrow` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry` reads a nested member `wide`, but data `Access` has no field `wide` (check the spelling of the field name)
-	value-qualified machine calls are retired; use a declaration namespace and explicit arguments
-	machine `mutate` state `entry`: value call `signed.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry`: value call `flag.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry`: value call `narrow.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `mutate` state `entry`: value call `wide.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+run/layouts/placed_ram_scalar_types checked 28056ms check-target:macos_arm64 @b80d7416b671+wt
 run/layouts/placed_ram_stored_field_return rejected 14752ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b43a5fa574e6
 	machine `observe` state `entry`: value call `status.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 	machine `observe` state `entry` reads a nested member `status`, but data `Access` has no field `status` (check the spelling of the field name)

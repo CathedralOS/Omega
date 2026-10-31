@@ -7,6 +7,9 @@ use super::{
     WritableRoots, argument_matches_call_carrier, declared_place_type, declared_reference_access,
     validate_call_arguments,
 };
+use symbols::SymbolKind;
+use typed_trees::signature::StateSignature;
+use typed_trees::trait_definition::TraitDefinition;
 
 /// The public signature of a retained requirement selection. An evidence child
 /// is not itself a trait declaration: rejoin its declaring machine's bound and
@@ -15,10 +18,7 @@ use super::{
 pub fn selected_requirement_signature(
     program: &dyn crate::CheckingInput,
     target: symbols::SymbolHandle,
-) -> Option<(
-    &typed_trees::trait_definition::TraitDefinition,
-    &typed_trees::signature::StateSignature,
-)> {
+) -> Option<(&TraitDefinition, &StateSignature)> {
     if let Some(selected) = program.trait_machine_signature(target) {
         return Some(selected);
     }
@@ -26,9 +26,7 @@ pub fn selected_requirement_signature(
         return None;
     }
     let binder = program.symbols.get(target).parent;
-    if !binder.is_valid()
-        || program.symbols.get(binder).kind != symbols::SymbolKind::ConformanceParameter
-    {
+    if !binder.is_valid() || program.symbols.get(binder).kind != SymbolKind::ConformanceParameter {
         return None;
     }
     let machine = program.machine_by_symbol(program.symbols.get(binder).parent)?;
@@ -64,7 +62,7 @@ pub(crate) fn requirement_namespace_member(
 ) -> bool {
     namespace.is_valid()
         && target.is_valid()
-        && program.symbols.get(namespace).kind == symbols::SymbolKind::ConformanceParameter
+        && program.symbols.get(namespace).kind == SymbolKind::ConformanceParameter
         && program.symbols.get(target).parent == namespace
         && selected_requirement_signature(program, target).is_some()
 }
@@ -77,10 +75,7 @@ pub fn requirement_contract_signature<'program>(
     program: &'program dyn crate::CheckingInput,
     caller: symbols::SymbolHandle,
     site: &super::CallSite<'_>,
-) -> Option<(
-    &'program typed_trees::trait_definition::TraitDefinition,
-    &'program typed_trees::signature::StateSignature,
-)> {
+) -> Option<(&'program TraitDefinition, &'program StateSignature)> {
     let target = site.target_symbol(program);
     let public_target = if let Some(dispatch) = site.static_requirement_dispatch() {
         if !super::closed_requirement_dispatch_is_valid(program, caller, target, dispatch) {
@@ -195,7 +190,7 @@ pub(super) fn named_conformance_receiver(
     receiver: symbols::SymbolHandle,
 ) -> bool {
     receiver.is_valid()
-        && program.symbols.get(receiver).kind == symbols::SymbolKind::ConformanceParameter
+        && program.symbols.get(receiver).kind == SymbolKind::ConformanceParameter
         && machine
             .conformance_bounds
             .iter()

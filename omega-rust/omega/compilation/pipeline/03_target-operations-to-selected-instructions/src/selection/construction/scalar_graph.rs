@@ -3,7 +3,11 @@
 
 use crate::selection::constraints::{fixed_input_constraint, row};
 use crate::selection::construction::scalar_graph::structural::operation_provenance;
+use crate::selection::literal_compare_input::{folded_immediate, folded_zero};
 use crate::selection::model::SelectedInstructionError;
+use crate::selection::scalar_call_abi::{
+    incoming_float_transfer, integer_carrier_normalization, scalar_stack_placement,
+};
 use calling_conventions::ValueLocation;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind, SaturatingCarrier, TrappingForm,
@@ -139,8 +143,7 @@ fn select_function(
     // Entry ABI precoloring ends at a copy. The semantic parameter may remain
     // live across calls without being pinned to a caller-clobbered register.
     for (index, parameter) in source.parameters.iter().enumerate() {
-        if crate::selection::scalar_call_abi::scalar_stack_placement(&parameter.placement).is_some()
-        {
+        if scalar_stack_placement(&parameter.placement).is_some() {
             continue;
         }
         if !builder.required_values.contains(&parameter.value) {
@@ -182,10 +185,8 @@ fn select_function(
         }
         let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
         let parameter_class = if let Some((_, key)) =
-            crate::selection::scalar_call_abi::incoming_float_transfer(
-                parameter.scalar_type,
-                &constraints.keys,
-            ) {
+            incoming_float_transfer(parameter.scalar_type, &constraints.keys)
+        {
             row(catalog, key)?
                 .operands
                 .first()
@@ -215,19 +216,15 @@ fn select_function(
     for index in 0..builder.definitions.len() {
         let (value, input, site, scalar_type) = builder.definitions[index];
         let output = if let Some((kind, key)) =
-            crate::selection::scalar_call_abi::incoming_float_transfer(
-                scalar_type,
-                &constraints.keys,
-            ) {
+            incoming_float_transfer(scalar_type, &constraints.keys)
+        {
             let output = builder.register(value, site, scalar_type)?;
             builder.emit(kind, key, &[input, output], value_provenance(value))?;
             output
-        } else if crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type)
-            != SelectedInstructionKind::CopyI64
-        {
+        } else if integer_carrier_normalization(scalar_type) != SelectedInstructionKind::CopyI64 {
             let output = builder.register(value, site, scalar_type)?;
             builder.emit(
-                crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type),
+                integer_carrier_normalization(scalar_type),
                 constraints.keys.copy_i64,
                 &[input, output],
                 value_provenance(value),
@@ -289,18 +286,8 @@ fn select_function(
             {
                 continue;
             }
-            if (crate::selection::literal_compare_input::folded_zero(
-                source,
-                block,
-                operation_index + 1,
-            )
-            .is_some()
-                || crate::selection::literal_compare_input::folded_immediate(
-                    source,
-                    block,
-                    operation_index + 1,
-                )
-                .is_some())
+            if (folded_zero(source, block, operation_index + 1).is_some()
+                || folded_immediate(source, block, operation_index + 1).is_some())
                 && control::branch_suffix(source, block, operation_index + 1)
             {
                 continue;

@@ -14,6 +14,9 @@
 //! calls below still retain their operation-specific source relationships.
 //! Unsupported source constructs fail closed.
 
+use crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations;
+use crate::retention::access_lifecycles::retain;
+use crate::unit::attached_unit::target_families::runtime_families;
 mod boundary_applications;
 mod build_providers;
 mod callback_applications;
@@ -330,9 +333,7 @@ fn lower_terminal_selection(
             },
         )),
     })?;
-    if lowered.semantic_module.target_machine_families.len()
-        != crate::unit::attached_unit::target_families::runtime_families(checked)?.len()
-    {
+    if lowered.semantic_module.target_machine_families.len() != runtime_families(checked)?.len() {
         return unsupported("entry lowering did not retain the complete target-family catalog");
     }
     let source_machines = source_machine_ids
@@ -387,12 +388,7 @@ fn lower_terminal_selection(
                 exact_toolchain_sources,
                 &mut lowered.semantic_module,
             )?;
-            crate::retention::access_lifecycles::retain(
-                identities,
-                checked,
-                exact_toolchain_sources,
-                &mut lowered,
-            )?;
+            retain(identities, checked, exact_toolchain_sources, &mut lowered)?;
             retained_borrow_custody::retain_foreign_borrow_custodies(
                 identities,
                 checked,
@@ -471,9 +467,7 @@ fn lower_terminal_selection(
         "05.10_reconcile_and_residences",
         || -> Result<_, LoweringError> {
             phase_profile::scope("05.10.a_reconcile_places", || {
-                crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
-                    &mut lowered.semantic_module,
-                );
+                reconcile_leaf_copy_place_declarations(&mut lowered.semantic_module);
             });
             phase_profile::scope("05.10.b_descriptor_residences", || {
                 crate::emission::descriptor_residences::complete(&mut lowered.semantic_module)
@@ -487,6 +481,7 @@ fn lower_terminal_selection(
     phase_profile::scope("05.11_evidence_artifacts", || {
         lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)
     })?;
+    lowered.source_boundary_declarations = source_boundary_ids;
     Ok((lowered, completion))
 }
 

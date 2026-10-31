@@ -6,6 +6,7 @@
 //! incoming joins can only weaken claims, and root entry is never narrowed.
 use super::TransitionTargetNode;
 use crate::flow::FlowBuildContext;
+use crate::flow::canonical_place_from_semantic_place;
 use crate::flow::expressions;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
@@ -296,11 +297,9 @@ fn capture_place(
             let Some(place) = fact.place.as_place() else {
                 continue;
             };
-            let Some(place) = crate::flow::canonical_place_from_semantic_place(
-                program,
-                semantic,
-                semantic.places.get(place),
-            ) else {
+            let Some(place) =
+                canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
+            else {
                 continue;
             };
             if place.root != source_root || !place.segments.starts_with(source_segments) {
@@ -363,7 +362,7 @@ pub(super) fn capture_completed_argument(
                     continue;
                 };
                 let Some(candidate) = fact.place.as_place().and_then(|place| {
-                    crate::flow::canonical_place_from_semantic_place(
+                    canonical_place_from_semantic_place(
                         program,
                         semantic,
                         semantic.places.get(place),
@@ -539,11 +538,7 @@ pub(super) fn capture_invocation_referents(
                 continue;
             };
             let Some(place) = fact.place.as_place().and_then(|place| {
-                crate::flow::canonical_place_from_semantic_place(
-                    program,
-                    semantic,
-                    semantic.places.get(place),
-                )
+                canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
             }) else {
                 continue;
             };

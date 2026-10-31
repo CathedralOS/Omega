@@ -3,8 +3,9 @@
 //! Availability closes dependencies, while the receiving lowerer independently
 //! replays every retained operation and its authored source custody.
 use super::{
-    CarryPolicy, CheckFacts, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    MachineSupplyMode, SignatureContractKind, SymbolHandle,
+    CarryPolicy, CheckFacts, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan as OperationPlan, MachineSupplyMode, SignatureContractKind,
+    SymbolHandle,
 };
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
 
@@ -30,7 +31,7 @@ pub(super) enum AvailableScalarTarget {
 pub(super) struct ScalarCallSite<'a> {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
-    pub operations: Vec<&'a CheckedUnitEffectOperationPlan>,
+    pub operations: Vec<&'a OperationPlan>,
     pub structural_parameters: &'a [checked_trees::CheckedUnitStructuralParameterPlan],
 }
 
@@ -47,14 +48,14 @@ impl ScalarCallSite<'_> {
     pub(super) fn of_composed_operation<'a>(
         program: &dyn ::validation::CheckingInput,
         state: &'a checked_trees::CheckedComposedUnitControlStatePlan,
-        operation: &CheckedUnitEffectOperationPlan,
+        operation: &OperationPlan,
     ) -> Option<ScalarCallSite<'a>> {
         // Fusion changes the dispatch body, never the source owner of its
         // retained states. Call coordinates and flow facts stay indexed by
         // that authored owner, including an ordinary call after a recursive
         // backedge. Derive it here so callers cannot substitute the dispatcher.
         let machine = program.machine_holding_state(state.state)?.symbol;
-        let owns = |operations: &[&CheckedUnitEffectOperationPlan]| {
+        let owns = |operations: &[&OperationPlan]| {
             operations
                 .iter()
                 .flat_map(|operation| operation.with_value_calls())
@@ -118,7 +119,7 @@ pub(super) fn available_target(
     composed_candidates: &[checked_trees::CheckedComposedUnitControlMachinePlan],
     partial_affine_candidates: &[checked_trees::CheckedPartialAffineUnitCleanupMachinePlan],
     caller: &ScalarCallSite<'_>,
-    operation: &CheckedUnitEffectOperationPlan,
+    operation: &OperationPlan,
 ) -> Option<AvailableScalarTarget> {
     // Only an ordinary scalar call resolves a scalar target.
     let planned = operation.call().filter(|call| call.is_module())?;
@@ -256,10 +257,8 @@ pub(super) fn available_target(
                     .iter()
                     .filter(|operation| match operation {
                         // Any call with a scalar result, ordinary or boundary.
-                        CheckedUnitEffectOperationPlan::Call(call) => {
-                            call.scalar_result() == Some(completion)
-                        }
-                        CheckedUnitEffectOperationPlan::EstablishLocal(
+                        OperationPlan::Call(call) => call.scalar_result() == Some(completion),
+                        OperationPlan::EstablishLocal(
                             checked_trees::CheckedUnitLocalBindingPlan::Scalar { result, .. },
                         ) => result == completion,
                         _ => false,

@@ -1,17 +1,14 @@
 //! Exact memory coverage and independent register/effect custody for packed forms.
 use super::super::replay_battery;
-use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
-    SelectedInstructionKind, encode, validate,
-};
+use super::{Family, Kind, MachineAlternativeKey, MachineEncodedMemoryEffect, encode, validate};
 use register_model::{RegisterOperandAccess, validate_physical_register_model};
 use selected_instructions::{MachineSemanticKind, PackedByteWidth};
 
-fn kind(load: bool, width: PackedByteWidth, byte_offset: u32) -> SelectedInstructionKind {
+fn kind(load: bool, width: PackedByteWidth, byte_offset: u32) -> Kind {
     if load {
-        SelectedInstructionKind::LoadPacked { byte_offset, width }
+        Kind::LoadPacked { byte_offset, width }
     } else {
-        SelectedInstructionKind::StorePacked { byte_offset, width }
+        Kind::StorePacked { byte_offset, width }
     }
 }
 
@@ -19,13 +16,13 @@ fn alternative(load: bool, width: PackedByteWidth) -> MachineAlternativeKey {
     MachineAlternativeKey {
         family: if load {
             match width {
-                PackedByteWidth::Three => MachineAlternativeFamily::LoadPacked3,
-                PackedByteWidth::Five => MachineAlternativeFamily::LoadPacked5,
-                PackedByteWidth::Six => MachineAlternativeFamily::LoadPacked6,
-                PackedByteWidth::Seven => MachineAlternativeFamily::LoadPacked7,
+                PackedByteWidth::Three => Family::LoadPacked3,
+                PackedByteWidth::Five => Family::LoadPacked5,
+                PackedByteWidth::Six => Family::LoadPacked6,
+                PackedByteWidth::Seven => Family::LoadPacked7,
             }
         } else {
-            MachineAlternativeFamily::StorePacked
+            Family::StorePacked
         },
         variant: 0,
     }

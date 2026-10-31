@@ -9,8 +9,8 @@
 mod tests;
 
 use terminal_psi::{
-    EntryClaim, StructuralPlaceDeclaration, TerminalBlockNaturalRank, TerminalMachine,
-    TerminalMachineResult, TerminalNaturalCycle, TerminalNaturalRankComparison,
+    EntryClaim, StructuralPlaceDeclaration, TerminalBlockNaturalRank, TerminalIntegerRankValue,
+    TerminalMachine, TerminalMachineResult, TerminalNaturalCycle, TerminalNaturalRankComparison,
     TerminalNaturalRankEdge, TerminalRankedScc, ValueDeclaration,
 };
 
@@ -254,21 +254,30 @@ fn encode_ranked_scc(
     };
     match ranking {
         TerminalRankedScc::Natural(components) => {
-            writer.u8(2);
-            writer.len("natural cycle components", components.len())?;
+            // Tag 3 is the uniform typed-tuple record, including singletons.
+            // The retired tag 2 encoded a single carrier/value per row.
+            if components.is_empty() {
+                return Err(CodecError::MalformedRanking(
+                    "empty ranked component roster",
+                ));
+            }
+            writer.u8(3);
+            writer.len("integer cycle components", components.len())?;
             for component in components {
-                encode_integer_type(writer, component.rank_type);
-                writer.len("natural block ranks", component.ranks.len())?;
+                if component.ranks.is_empty() {
+                    return Err(CodecError::MalformedRanking("empty cyclic rank roster"));
+                }
+                writer.len("integer block ranks", component.ranks.len())?;
                 for rank in &component.ranks {
                     writer.id(rank.block);
-                    writer.id(rank.value);
+                    encode_rank_values(writer, component, rank.values)?;
                 }
-                writer.len("natural rank edges", component.edges.len())?;
+                writer.len("integer rank edges", component.edges.len())?;
                 for edge in &component.edges {
                     writer.id(edge.edge);
                     writer.id(edge.source);
                     writer.id(edge.target);
-                    writer.id(edge.successor_rank);
+                    encode_rank_values(writer, component, edge.successor_ranks)?;
                     writer.u8(match edge.comparison {
                         TerminalNaturalRankComparison::Preserving => 1,
                         TerminalNaturalRankComparison::Strict => 2,
@@ -283,40 +292,101 @@ fn encode_ranked_scc(
 fn decode_ranked_scc(reader: &mut Reader<'_>) -> Result<Option<TerminalRankedScc>, CodecError> {
     match reader.u8()? {
         0 => Ok(None),
-        2 => Ok(Some(TerminalRankedScc::Natural(decode_counted(
-            reader,
-            |reader| {
-                Ok(TerminalNaturalCycle {
-                    rank_type: decode_integer_type(reader)?,
-                    ranks: decode_counted(reader, |reader| {
-                        Ok(TerminalBlockNaturalRank {
-                            block: reader.id("BlockId")?,
-                            value: reader.id("ValueId")?,
-                        })
-                    })?,
-                    edges: decode_counted(reader, |reader| {
-                        Ok(TerminalNaturalRankEdge {
-                            edge: reader.id("EdgeId")?,
-                            source: reader.id("BlockId")?,
-                            target: reader.id("BlockId")?,
-                            successor_rank: reader.id("ValueId")?,
-                            comparison: match reader.u8()? {
-                                1 => TerminalNaturalRankComparison::Preserving,
-                                2 => TerminalNaturalRankComparison::Strict,
-                                tag => {
-                                    return Err(CodecError::InvalidTag(
-                                        "TerminalNaturalRankComparison",
-                                        tag,
-                                    ));
-                                }
-                            },
-                        })
-                    })?,
-                })
-            },
-        )?))),
+        3 => {
+            let components = decode_counted(reader, |reader| {
+                let mut observations = arena::Arena::new();
+                let ranks = decode_counted(reader, |reader| {
+                    let block = reader.id("BlockId")?;
+                    let values = decode_rank_values(reader, &mut observations)?;
+                    Ok(TerminalBlockNaturalRank { block, values })
+                })?;
+                let edges = decode_counted(reader, |reader| {
+                    let edge = reader.id("EdgeId")?;
+                    let source = reader.id("BlockId")?;
+                    let target = reader.id("BlockId")?;
+                    let successor_ranks = decode_rank_values(reader, &mut observations)?;
+                    let comparison = match reader.u8()? {
+                        1 => TerminalNaturalRankComparison::Preserving,
+                        2 => TerminalNaturalRankComparison::Strict,
+                        tag => {
+                            return Err(CodecError::InvalidTag(
+                                "TerminalNaturalRankComparison",
+                                tag,
+                            ));
+                        }
+                    };
+                    Ok(TerminalNaturalRankEdge {
+                        edge,
+                        source,
+                        target,
+                        successor_ranks,
+                        comparison,
+                    })
+                })?;
+                let component = TerminalNaturalCycle {
+                    observations,
+                    ranks,
+                    edges,
+                };
+                if component.ranks.is_empty()
+                    || component
+                        .ranks
+                        .iter()
+                        .any(|rank| component.rank_values(rank.values).is_none())
+                    || component
+                        .edges
+                        .iter()
+                        .any(|edge| component.rank_values(edge.successor_ranks).is_none())
+                {
+                    return Err(CodecError::MalformedRanking(
+                        "incomplete or differently typed rank tuple",
+                    ));
+                }
+                Ok(component)
+            })?;
+            if components.is_empty() {
+                return Err(CodecError::MalformedRanking(
+                    "empty ranked component roster",
+                ));
+            }
+            Ok(Some(TerminalRankedScc::Natural(components)))
+        }
         tag => Err(CodecError::InvalidTag("TerminalRankedScc", tag)),
     }
+}
+
+fn encode_rank_values(
+    writer: &mut Writer,
+    component: &TerminalNaturalCycle,
+    span: arena::HandleSpan<TerminalIntegerRankValue>,
+) -> Result<(), CodecError> {
+    let values = component
+        .rank_values(span)
+        .ok_or(CodecError::MalformedRanking(
+            "incomplete or differently typed rank tuple",
+        ))?;
+    writer.len("integer rank tuple", values.len())?;
+    for value in values {
+        encode_integer_type(writer, value.integer_type);
+        writer.id(value.value);
+    }
+    Ok(())
+}
+
+fn decode_rank_values(
+    reader: &mut Reader<'_>,
+    observations: &mut arena::Arena<TerminalIntegerRankValue>,
+) -> Result<arena::HandleSpan<TerminalIntegerRankValue>, CodecError> {
+    let values = decode_counted(reader, |reader| {
+        Ok(TerminalIntegerRankValue {
+            integer_type: decode_integer_type(reader)?,
+            value: reader.id("ValueId")?,
+        })
+    })?;
+    if values.is_empty() {
+        return Err(CodecError::MalformedRanking("empty rank tuple"));
+    }
+    Ok(observations.insert_many(values))
 }
 
 pub(crate) fn decode_declarations(

@@ -7,9 +7,14 @@
 
 use super::{RepresentativeStaticApplication, RepresentativeStaticBinding};
 use crate::frozen_program::expression_table;
+use numerics::literals::FloatFormat;
+use numerics::literals::IntegerLanding;
+use source::SourceBytes;
+use std::sync::Arc;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
+use typed_trees::expression::MatchPattern;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::type_identity::TypeIdentityRequest;
@@ -54,11 +59,7 @@ impl ProofValueSubstitution {
         }
     }
 
-    pub(super) fn integer(
-        symbol: SymbolHandle,
-        spelling: &str,
-        landing: numerics::literals::IntegerLanding,
-    ) -> Self {
+    pub(super) fn integer(symbol: SymbolHandle, spelling: &str, landing: IntegerLanding) -> Self {
         Self {
             symbol,
             rendered: spelling.to_owned(),
@@ -66,11 +67,7 @@ impl ProofValueSubstitution {
         }
     }
 
-    pub(super) fn float(
-        symbol: SymbolHandle,
-        spelling: &str,
-        landing: numerics::literals::FloatFormat,
-    ) -> Self {
+    pub(super) fn float(symbol: SymbolHandle, spelling: &str, landing: FloatFormat) -> Self {
         Self {
             symbol,
             rendered: spelling.to_owned(),
@@ -102,10 +99,7 @@ impl ProofValueSubstitution {
         }
     }
 
-    pub(super) fn nested_fixed_byte_array(
-        symbol: SymbolHandle,
-        rows: &[source::SourceBytes],
-    ) -> Self {
+    pub(super) fn nested_fixed_byte_array(symbol: SymbolHandle, rows: &[SourceBytes]) -> Self {
         Self {
             symbol,
             rendered: nested_array_rendered(rows),
@@ -117,10 +111,7 @@ impl ProofValueSubstitution {
         }
     }
 
-    pub(super) fn nested_boolean_array(
-        symbol: SymbolHandle,
-        rows: &[std::sync::Arc<[bool]>],
-    ) -> Self {
+    pub(super) fn nested_boolean_array(symbol: SymbolHandle, rows: &[Arc<[bool]>]) -> Self {
         Self {
             symbol,
             rendered: nested_array_rendered(rows),
@@ -131,10 +122,7 @@ impl ProofValueSubstitution {
         }
     }
 
-    pub(super) fn boolean_tensor3(
-        symbol: SymbolHandle,
-        planes: &[std::sync::Arc<[std::sync::Arc<[bool]>]>],
-    ) -> Self {
+    pub(super) fn boolean_tensor3(symbol: SymbolHandle, planes: &[Arc<[Arc<[bool]>]>]) -> Self {
         Self {
             symbol,
             rendered: format!(
@@ -175,14 +163,14 @@ impl ProofValueSubstitution {
 
     pub(super) fn integer_array(
         symbol: SymbolHandle,
-        elements: impl IntoIterator<Item = (String, numerics::literals::IntegerLanding)>,
+        elements: impl IntoIterator<Item = (String, IntegerLanding)>,
     ) -> Self {
         Self::flat_array(symbol, elements, integer_trace)
     }
 
     pub(super) fn nested_integer_array(
         symbol: SymbolHandle,
-        rows: &[std::sync::Arc<[super::runtime_correspondence::ClosedIntegerArrayElement]>],
+        rows: &[Arc<[super::runtime_correspondence::ClosedIntegerArrayElement]>],
     ) -> Self {
         Self::nested_array(symbol, rows, |element| {
             integer_trace(&element.spelling, element.landing)
@@ -191,7 +179,7 @@ impl ProofValueSubstitution {
 
     pub(super) fn float_array(
         symbol: SymbolHandle,
-        elements: impl IntoIterator<Item = (String, numerics::literals::FloatFormat)>,
+        elements: impl IntoIterator<Item = (String, FloatFormat)>,
     ) -> Self {
         Self::flat_array(symbol, elements, |spelling, landing| {
             float_trace(spelling, Some(landing))
@@ -200,7 +188,7 @@ impl ProofValueSubstitution {
 
     pub(super) fn nested_float_array(
         symbol: SymbolHandle,
-        rows: &[std::sync::Arc<[super::runtime_correspondence::ClosedFloatArrayElement]>],
+        rows: &[Arc<[super::runtime_correspondence::ClosedFloatArrayElement]>],
     ) -> Self {
         Self::nested_array(symbol, rows, |element| {
             float_trace(&element.spelling, Some(element.landing))
@@ -233,7 +221,7 @@ impl ProofValueSubstitution {
 
     fn nested_array<E: SpelledClosedElement>(
         symbol: SymbolHandle,
-        rows: &[std::sync::Arc<[E]>],
+        rows: &[Arc<[E]>],
         element_trace: impl Fn(&E) -> String,
     ) -> Self {
         Self {
@@ -493,16 +481,14 @@ fn expression_symbol_trace(
                 .iter()
                 .map(|arm| {
                     let pattern = match arm.pattern {
-                        typed_trees::expression::MatchPattern::Value(pattern) => {
+                        MatchPattern::Value(pattern) => {
                             format!("value:{}", trace(pattern))
                         }
-                        typed_trees::expression::MatchPattern::Wildcard => "wildcard".to_owned(),
-                        typed_trees::expression::MatchPattern::Destructure(pattern) => format!(
+                        MatchPattern::Wildcard => "wildcard".to_owned(),
+                        MatchPattern::Destructure(pattern) => format!(
                             "destructure:[{}]",
                             expression_table(program)
-                                .match_pattern_dependencies(
-                                    typed_trees::expression::MatchPattern::Destructure(pattern)
-                                )
+                                .match_pattern_dependencies(MatchPattern::Destructure(pattern))
                                 .map(trace)
                                 .collect::<Vec<_>>()
                                 .join(",")
@@ -619,7 +605,7 @@ fn boolean_trace(value: bool) -> String {
     format!("boolean:{value}")
 }
 
-fn integer_trace(spelling: &str, landing: numerics::literals::IntegerLanding) -> String {
+fn integer_trace(spelling: &str, landing: IntegerLanding) -> String {
     format!(
         "integer:{spelling}:{}:{}",
         landing.landed_type.name(),
@@ -627,7 +613,7 @@ fn integer_trace(spelling: &str, landing: numerics::literals::IntegerLanding) ->
     )
 }
 
-fn float_trace(spelling: &str, landing: Option<numerics::literals::FloatFormat>) -> String {
+fn float_trace(spelling: &str, landing: Option<FloatFormat>) -> String {
     landing.map_or_else(
         || format!("float:{spelling}:unlanded"),
         |landing| format!("float:{spelling}:{}", landing.name()),

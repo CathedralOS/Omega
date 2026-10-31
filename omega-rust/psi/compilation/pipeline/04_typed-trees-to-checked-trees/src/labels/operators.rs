@@ -1,5 +1,9 @@
 use crate::flow::expressions;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
+use language_semantics::ReferenceAccess;
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, UnaryOperator,
+    display_call_label, display_match_pattern, display_name_path,
+};
 use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::signature::StateParameter;
 
@@ -36,17 +40,13 @@ pub(crate) fn instantiate_operator_contract_expression_label(
                 .iter()
                 .map(|arm| {
                     let pattern = match arm.pattern {
-                        typed_trees::expression::MatchPattern::Value(pattern) => {
-                            instantiate(pattern)
-                        }
-                        typed_trees::expression::MatchPattern::Wildcard => "_".to_owned(),
-                        typed_trees::expression::MatchPattern::Destructure(_) => {
-                            typed_trees::expression::display_match_pattern(
-                                &program.expression_table,
-                                arm.pattern,
-                                &instantiate,
-                            )
-                        }
+                        MatchPattern::Value(pattern) => instantiate(pattern),
+                        MatchPattern::Wildcard => "_".to_owned(),
+                        MatchPattern::Destructure(_) => display_match_pattern(
+                            &program.expression_table,
+                            arm.pattern,
+                            &instantiate,
+                        ),
                     };
                     format!("{pattern} -> {}", instantiate(arm.value))
                 })
@@ -78,16 +78,14 @@ pub(crate) fn instantiate_operator_contract_expression_label(
         ExpressionNode::Cast(cast) => format!(
             "{} as {}",
             instantiate(cast.value),
-            typed_trees::expression::display_name_path(
+            display_name_path(
                 expressions(program).name_path_members(cast.target_label),
                 "::",
             )
         ),
-        ExpressionNode::Call(call) => typed_trees::expression::display_call_label(
-            &program.expression_table,
-            call,
-            instantiate,
-        ),
+        ExpressionNode::Call(call) => {
+            display_call_label(&program.expression_table, call, instantiate)
+        }
         ExpressionNode::Float(value) => value.to_string(),
         ExpressionNode::UndeterminedNaN(format) => {
             format!("<{} NaN without payload>", format.name())
@@ -111,11 +109,11 @@ pub(crate) fn instantiate_operator_contract_expression_label(
             member.member
         ),
         ExpressionNode::Borrow(inner) => match inner.access {
-            language_semantics::ReferenceAccess::Shared => instantiate(inner.target),
-            language_semantics::ReferenceAccess::Mutable => {
+            ReferenceAccess::Shared => instantiate(inner.target),
+            ReferenceAccess::Mutable => {
                 format!("mut {}", instantiate(inner.target))
             }
-            language_semantics::ReferenceAccess::WriteOnly => {
+            ReferenceAccess::WriteOnly => {
                 format!("write {}", instantiate(inner.target))
             }
         },

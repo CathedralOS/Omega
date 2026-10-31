@@ -13,8 +13,8 @@
 //! second permission partition or dispose a selected live linear obligation.
 use super::super::CheckedUnitStructuralResultBindingPlan;
 use super::{
-    CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventSource,
+    CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan as OperationPlan,
+    CheckedUnitStructuralArgumentSourcePlan as SourcePlan, Multiplicity, PermissionEventSource,
 };
 use crate::execution::terminal_unit::types::{ShapeCollector, base_type_identity};
 use crate::flow::indexed_statements;
@@ -28,8 +28,7 @@ pub(crate) fn projected_temporary_cleanup(
     owner_type: typed_trees::types::TypeReferenceHandle,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
 ) -> Option<Vec<CheckedNormalCleanupAction>> {
-    let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. } = argument.source
-    else {
+    let SourcePlan::StructuralExpression { .. } = argument.source else {
         return None;
     };
     if argument.access != CheckedStructuralAccess::Owned
@@ -68,7 +67,7 @@ pub(in crate::execution::terminal_unit) fn insert_continuation(
     coordinate: checked_trees::CheckedUnitCallCoordinate,
     insertion: usize,
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
-    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    operations: &mut Vec<OperationPlan>,
     trace: &super::super::control::LocalConstructionTrace,
 ) -> Option<()> {
     let invocation = operations
@@ -108,10 +107,10 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
-    operations: &mut [CheckedUnitEffectOperationPlan],
-    invocation: &CheckedUnitEffectOperationPlan,
+    operations: &mut [OperationPlan],
+    invocation: &OperationPlan,
     trace: &super::super::control::LocalConstructionTrace,
-) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
+) -> Option<Vec<OperationPlan>> {
     let coordinate = invocation.invocation_coordinate()?;
     let completion_phase = |phase| {
         trace.phase(phase);
@@ -145,9 +144,8 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     // release here, before backing hooks, unless that same home already ended.
     let mut selected_descriptors = Vec::new();
     for completion in completions {
-        let CheckedUnitEffectOperationPlan::ReleaseReference {
-            source:
-                source @ CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
+        let OperationPlan::ReleaseReference {
+            source: source @ SourcePlan::StructuralResult { binding_ordinal },
             ..
         } = &completion
         else {
@@ -155,9 +153,9 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         };
         if operations
             .iter()
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            .flat_map(OperationPlan::with_value_calls)
             .any(|operation| {
-                matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference {
+                matches!(operation, OperationPlan::ReleaseReference {
                 source: released, path, defer_to_exit: false, ..
             } if released == source && path.is_empty())
             })
@@ -171,8 +169,8 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         {
             let mut producers = operations
                 .iter()
-                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
+                .flat_map(OperationPlan::with_value_calls)
+                .filter_map(OperationPlan::structural_result_binding)
                 .filter(|binding| binding.binding_ordinal == *binding_ordinal);
             producers.next()?;
             if producers.next().is_some() {
@@ -306,7 +304,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
             if bindings.next().is_some() {
                 return None;
             }
-            let source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            let source = SourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
             };
             // A physical carrier release already owns this whole disposition.
@@ -314,10 +312,10 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
             // exit release can stand in for this exact completed home.
             if operations
                 .iter()
-                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .flat_map(OperationPlan::with_value_calls)
                 .chain(completions.iter())
                 .any(|operation| {
-                    matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference {
+                    matches!(operation, OperationPlan::ReleaseReference {
                         source: released, path, defer_to_exit: false, ..
                     } if *released == source && path.is_empty())
                 })
@@ -332,8 +330,8 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
                 // asking its existing ordinal owner to change the flag.
                 let mut producers = operations
                     .iter()
-                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                    .filter_map(CheckedUnitEffectOperationPlan::discardable_structural_result)
+                    .flat_map(OperationPlan::with_value_calls)
+                    .filter_map(OperationPlan::discardable_structural_result)
                     .filter(|(produced, _)| produced.binding_ordinal == result.binding_ordinal);
                 let (produced, _) = producers.next()?;
                 completion_phase("normal completion: owner producer agreement");
@@ -347,15 +345,15 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
             // Scheduling metadata is not custody. A selected contextual death
             // remains authoritative even without an automatic return discard.
             *discard_on_return = false;
-            CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            SourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
             }
         } else {
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression }
+            SourcePlan::StructuralExpression { expression }
         };
         completion_phase("normal completion: owner prior continuation");
-        if operations.iter().flat_map(CheckedUnitEffectOperationPlan::with_value_calls).any(|operation| matches!(operation,
-            CheckedUnitEffectOperationPlan::ContinuationCleanup { cleanup_actions, .. }
+        if operations.iter().flat_map(OperationPlan::with_value_calls).any(|operation| matches!(operation,
+            OperationPlan::ContinuationCleanup { cleanup_actions, .. }
                 if cleanup_actions.iter().any(|action| action.source() == &source && action.path().is_empty())))
         { return None; }
         completion_phase("normal completion: owner cleanup type");
@@ -370,7 +368,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         });
     }
     if !cleanup_actions.is_empty() {
-        completions.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+        completions.push(OperationPlan::ContinuationCleanup {
             selected_regions: Vec::new(),
             boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
             cleanup_actions,

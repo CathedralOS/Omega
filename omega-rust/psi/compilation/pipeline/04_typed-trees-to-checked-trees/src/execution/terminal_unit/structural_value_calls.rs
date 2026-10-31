@@ -12,10 +12,13 @@
 //! one catalogue and one root builder. Rejected bodies discard their schedules;
 //! final retention publishes surviving schedules without rebuilding calls.
 
+use super::calls::structural_result_owner;
+use super::control::statement_sequence::consume_retained_results;
 use super::control::{LocalConstructionTrace, structural_operands};
 use super::types::ShapeCollector;
+use super::types::state_flow;
 use super::{CheckFacts, ScalarCalleeClosure};
-use checked_trees::{CheckedStructuralValueRoot, CheckedUnitEffectOperationPlan};
+use checked_trees::{CheckedStructuralValueRoot, CheckedUnitEffectOperationPlan as OperationPlan};
 
 /// Calls prepared against one candidate body's real operation prefix. This
 /// scratch belongs to the construction attempt; only its winning body moves
@@ -36,7 +39,7 @@ struct PreparedRoot {
 }
 
 impl PreparedRoot {
-    fn operation_dependencies(&self) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
+    fn operation_dependencies(&self) -> impl Iterator<Item = &OperationPlan> {
         self.calls.iter().flat_map(|call| {
             call.operands().iter().chain(call.operation()).chain(
                 call.completions()
@@ -77,16 +80,14 @@ impl PreparedCalls {
         &self,
         owner: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
-    ) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
+    ) -> impl Iterator<Item = &OperationPlan> {
         self.rows
             .iter()
             .filter(move |row| row.owner == owner && row.state == state)
             .flat_map(PreparedRoot::operation_dependencies)
     }
 
-    pub(super) fn operation_dependencies(
-        &self,
-    ) -> impl Iterator<Item = &CheckedUnitEffectOperationPlan> {
+    pub(super) fn operation_dependencies(&self) -> impl Iterator<Item = &OperationPlan> {
         self.rows
             .iter()
             .flat_map(PreparedRoot::operation_dependencies)
@@ -122,7 +123,7 @@ impl PreparedCalls {
             symbols::SymbolHandle,
         )],
         entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
-        operations: &[CheckedUnitEffectOperationPlan],
+        operations: &[OperationPlan],
         boundary: usize,
     ) {
         let order = program
@@ -176,14 +177,12 @@ pub(super) fn dependencies(
                     .into_iter()
                     .flat_map(checked_trees::CheckedOperandSequence::iter),
             )
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            .flat_map(OperationPlan::with_value_calls)
             .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::EstablishLocal(
+                OperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { calls, .. },
                 )
-                | CheckedUnitEffectOperationPlan::EvaluateStructuralValue { calls, .. } => {
-                    Some(calls.as_slice())
-                }
+                | OperationPlan::EvaluateStructuralValue { calls, .. } => Some(calls.as_slice()),
                 _ => None,
             })
             .flatten()
@@ -216,7 +215,7 @@ pub(super) fn consume_caller_results<'a>(
     program: &dyn ::validation::CheckingInput,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-    operations: &mut [CheckedUnitEffectOperationPlan],
+    operations: &mut [OperationPlan],
     schedules: impl Iterator<Item = &'a [checked_trees::CheckedStructuralValueCall]>,
 ) -> Option<()> {
     let authored_state = program.state_by_symbol(state)?;
@@ -230,14 +229,14 @@ pub(super) fn consume_caller_results<'a>(
                 .operands()
                 .iter()
                 .chain(producer.operation())
-                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                .flat_map(OperationPlan::with_value_calls)
             {
                 let Some(call) = operation.call() else {
                     continue;
                 };
                 if operations
                     .iter()
-                    .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                    .flat_map(OperationPlan::with_value_calls)
                     .any(|existing| {
                         existing
                             .call()
@@ -318,10 +317,7 @@ pub(super) fn consume_caller_results<'a>(
                         call.coordinate.call_ordinal as usize,
                     )?;
                 }
-                super::control::statement_sequence::consume_retained_results(
-                    &mut earlier,
-                    operation,
-                )?;
+                consume_retained_results(&mut earlier, operation)?;
                 for producer in earlier {
                     let binding = producer.structural_result_binding()?;
                     let mut targets = operations.iter_mut().filter(|operation| {
@@ -345,7 +341,7 @@ pub(super) fn consume_caller_results<'a>(
 pub(super) struct StateCallInputs<'state> {
     pub parameters: &'state [checked_trees::CheckedUnitStructuralParameterPlan],
     pub entry_claims: &'state [checked_trees::CheckedUnitEntryClaimPlan],
-    pub operations: &'state [CheckedUnitEffectOperationPlan],
+    pub operations: &'state [OperationPlan],
     pub trivial_locals: &'state [checked_trees::CheckedTrivialAffineStructuralLocalPlan],
 }
 
@@ -422,7 +418,7 @@ pub(super) fn prepare_root(
         symbols::SymbolHandle,
     )],
     entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
-    operations: &[CheckedUnitEffectOperationPlan],
+    operations: &[OperationPlan],
     root: &CheckedStructuralValueRoot,
 ) -> Option<(
     u32,
@@ -435,7 +431,7 @@ pub(super) fn prepare_root(
     let mut preceding = Vec::new();
     let mut results = Vec::new();
     let mut count = 0;
-    let source_flow = super::types::state_flow(facts, machine.symbol, state.symbol)?;
+    let source_flow = state_flow(facts, machine.symbol, state.symbol)?;
     let source_calls = facts.flow.control.calls.span(source_flow.calls)?;
     for operation in operations {
         let Some(result) = operation.structural_result_binding() else {
@@ -454,13 +450,9 @@ pub(super) fn prepare_root(
             continue;
         }
         count = count.max(result.binding_ordinal as usize + 1);
-        if let Some(owner) = super::calls::structural_result_owner(
-            program,
-            facts,
-            state.symbol,
-            source_calls,
-            operation,
-        ) {
+        if let Some(owner) =
+            structural_result_owner(program, facts, state.symbol, source_calls, operation)
+        {
             results.push((result.clone(), owner));
         }
         preceding.push(operation.clone());

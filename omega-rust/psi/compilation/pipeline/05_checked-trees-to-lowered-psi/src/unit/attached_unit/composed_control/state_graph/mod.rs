@@ -78,6 +78,7 @@ Ordered value exits use guarded.rs and the ordinary structural-value emitter.
 Source-to-execution coverage belongs to tests/omega: the ownership state-graph
 fixture composes direct projections, retained local aliases, calls and backedges.
 */
+use crate::declarations::state_declaration;
 use checked_trees::{
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedStructuralControlSuccessorPlan,
@@ -129,7 +130,5 @@ pub(super) fn owner(
     checked: &super::CheckedTrees,
     state: symbols::SymbolHandle,
 ) -> Result<symbols::SymbolHandle, super::LoweringError> {
-    Ok(crate::declarations::state_declaration(checked, state)?
-        .0
-        .symbol)
+    Ok(state_declaration(checked, state)?.0.symbol)
 }

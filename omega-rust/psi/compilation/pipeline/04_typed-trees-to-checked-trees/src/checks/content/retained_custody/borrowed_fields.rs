@@ -18,6 +18,7 @@ use super::structural_sources::{
     ContentSource, ContentSourceExpansion, domain_sources, parameter_sources,
 };
 use super::{DomainApplication, domain_name};
+use crate::collections::push_unique;
 use checked_trees::{CheckFacts, RetainedBorrowCustodyFact};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -49,7 +50,7 @@ pub(super) fn check_structural_borrow_sources(
             nested: false,
             path: Vec::new(),
         };
-        crate::collections::push_unique(&mut results, source);
+        push_unique(&mut results, source);
     }
     results.retain(|result| {
         !result.borrowed
@@ -109,10 +110,7 @@ pub(super) fn check_structural_borrow_sources(
                 }
                 if source.borrowed {
                     nested_source |= source.nested;
-                    crate::collections::push_unique(
-                        &mut borrowed_parameters,
-                        parameter.name.as_str(),
-                    );
+                    push_unique(&mut borrowed_parameters, parameter.name.as_str());
                 } else {
                     owned_source = true;
                 }

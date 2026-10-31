@@ -5,6 +5,7 @@
 
 use super::PackageLockError;
 use crate::declarations::DependencyPurpose;
+use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use package_evidence::record::{
     PACKAGE_POLICY_ROW_VERSION, PackagePolicyBaseline, PackagePolicyRow, PackagePolicyRowKind,
     PackagePolicyRowLimits, PackagePolicyRowUsage,
@@ -118,10 +119,8 @@ impl PackagePolicyAcceptance {
 
     /// Pass the selected occurrence's consent into compilation. The compiler
     /// compares it with fresh checked service declarations before production.
-    pub(crate) fn terminal_permissions(
-        &self,
-    ) -> package_evidence::permission_acceptance::TerminalPermissionAcceptance {
-        package_evidence::permission_acceptance::TerminalPermissionAcceptance {
+    pub(crate) fn terminal_permissions(&self) -> TerminalPermissionAcceptance {
+        TerminalPermissionAcceptance {
             schema_version: self.schema_version,
             package: self.package,
             target: self.target,

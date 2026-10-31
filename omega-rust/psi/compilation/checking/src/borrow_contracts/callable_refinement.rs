@@ -10,6 +10,7 @@ use super::carried_lifetimes::{
 use super::{ViewReturnSource, structural_frontier_return_source};
 use checked_trees::BorrowLoanOwnerSegment;
 use symbols::SymbolHandle;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::name::Identifier;
 use typed_trees::signature::StateParameter;
 use typed_trees::type_identity::AppliedTypeIdentityScope;
@@ -106,8 +107,7 @@ fn captured_type_parameters(
             &[]
         };
         captured.extend(parameters.iter().filter_map(|parameter| {
-            matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                .then_some(parameter.symbol)
+            matches!(parameter.kind, TypeParameterKind::Type).then_some(parameter.symbol)
         }));
         owner = program.declaration_scope_parent(owner);
     }
@@ -130,8 +130,7 @@ fn prepare_callable_inputs(
         .data_type_parameters
         .iter()
         .filter_map(|(_, parameter)| {
-            matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                .then_some(parameter.symbol)
+            matches!(parameter.kind, TypeParameterKind::Type).then_some(parameter.symbol)
         })
         .collect::<Vec<_>>();
     let required_frontier = contract_frontier(

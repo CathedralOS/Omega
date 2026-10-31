@@ -7,6 +7,7 @@ use super::{ExpressionHandle, Interval, Machine, State, ordered_values};
 use crate::proof_contracts::arithmetic_domains::place_paths::{
     canonical_path_pair, place_path_pair, place_paths_overlap,
 };
+use ordered_values::Operand;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -313,10 +314,8 @@ impl ValueEnvironment {
         &self,
     ) -> impl Iterator<Item = (symbols::SymbolHandle, symbols::SymbolHandle, i64)> + '_ {
         self.ordered_values.iter().filter_map(|relation| {
-            let (
-                ordered_values::Operand::Place { root: left, .. },
-                ordered_values::Operand::Place { root: right, .. },
-            ) = (&relation.left, &relation.right)
+            let (Operand::Place { root: left, .. }, Operand::Place { root: right, .. }) =
+                (&relation.left, &relation.right)
             else {
                 return None;
             };
@@ -532,11 +531,7 @@ impl ValueEnvironment {
         });
     }
 
-    fn invalidate_storage(
-        &mut self,
-        written: &[String],
-        survives: impl Fn(&ordered_values::Operand) -> bool,
-    ) {
+    fn invalidate_storage(&mut self, written: &[String], survives: impl Fn(&Operand) -> bool) {
         let overlaps = |path: &str| {
             written
                 .iter()

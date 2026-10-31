@@ -121,9 +121,9 @@ pub use package_compilation::build_execution::{
     RestrictedBuildRequest, prepare_filesystem_scope,
 };
 pub use provider_planning::program_entry::{
-    RootBinding, SelectedCompilerProgramEntry, SelectedProgramEntry,
-    SelectedProgramEntryCallingPlans, program_entry_semantic_binding_role,
-    select_compiler_program_entry, selected_program_entry_machine,
+    PreparedCompilerProgramEntry, RootBinding, SelectedCompilerProgramEntry, SelectedProgramEntry,
+    SelectedProgramEntryCallingPlans, prepare_compiler_program_entry,
+    program_entry_semantic_binding_role, selected_program_entry_machine,
 };
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 pub use terminal_execution::{

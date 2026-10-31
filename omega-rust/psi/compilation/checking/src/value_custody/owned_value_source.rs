@@ -3,6 +3,7 @@
 //! availability and each selected transfer's residual ownership independently.
 
 use crate::frozen_program::expression_table;
+use crate::value_custody::storage_contents::ContentsRequirement;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
@@ -53,14 +54,8 @@ pub fn plain_owned_value_source(
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    whole_owned_value_source(program, expression, reference).filter(|_| {
-        crate::has_contents(
-            program,
-            reference,
-            &[],
-            crate::value_custody::storage_contents::ContentsRequirement::PlainOwned,
-        )
-    })
+    whole_owned_value_source(program, expression, reference)
+        .filter(|_| crate::has_contents(program, reference, &[], ContentsRequirement::PlainOwned))
 }
 
 /// A whole local or parameter name whose declared type is exactly `reference`.
