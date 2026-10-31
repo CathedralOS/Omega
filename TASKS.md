@@ -113,7 +113,11 @@ Update by subtraction, not accumulation. This applies to all three task boards.
   one-per-line bullets (one unfinished witness or missing mechanism gap per
   bullet), followed by the final `Acceptance:` gate. When a witness or mechanism
   gap lands, delete its bullet line outright (`Delta lines < 0`); delete the
-  entire item when its `Acceptance:` passes.
+  entire item when its `Acceptance:` passes. When one bullet mixes a landed
+  witness with work that is still open, delete only the finished clause and
+  leave the open clause. Do not rewrite the finished clause into a retaining
+  or preserving sentence. The witness stays in `samples/cli/facts/` and
+  `tests/omega/`.
 - **No milestone chronicles:** Run histories, stage-by-stage completion notes,
   and `"X now reserves / now completes Y"` narratives belong in commit messages
   and test records, never on the board. Keep a revision only when needed to
@@ -122,7 +126,9 @@ Update by subtraction, not accumulation. This applies to all three task boards.
   sub-tasks into the existing capability outcome that shares their subsystem and
   sample family as a discrete remaining bullet rather than creating stage-sliced
   or `split-of:` shards. Reconcile concurrent edits by their remaining bullets,
-  never by union-merging old and new prose.
+  never by union-merging old and new prose. A merge keeps one heading per
+  item. When that heading appears inside a conflict and again outside it,
+  replace the surviving copy with the edited text and delete the other.
 
 ## Ownership firewall
 

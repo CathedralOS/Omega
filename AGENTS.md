@@ -271,7 +271,10 @@ capability.
    passes, delete its bullet or requirement from `TASKS.md` outright so the
    board shrinks monotonically (never move a landed witness into a
    `"preserving / retaining / keeping / now passes"` clause or append milestone
-   history), and take the next required place of the same fact, or the next
+   history). When one bullet mixes a landed witness with work that is still
+   open, delete only the finished clause and leave the open clause. A merge
+   keeps one heading for each item. Then take the next required place of the
+   same fact, or the next
    uncovered fact under `samples/cli/facts`. Write a new witness when an
    uncovered requirement needs one, not to manufacture a failure or fill a slot.
    Delete the `TASKS.md` item when its full `Acceptance:` passes. Switch capabilities on

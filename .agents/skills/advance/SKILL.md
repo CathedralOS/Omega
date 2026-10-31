@@ -533,7 +533,12 @@ rerun. Update its parent item in the same change following [board update discipl
 `tests/omega/` (`corpus_results.txt`) and `samples/cli/facts/` own regression
 protection of landed witnesses, while `TASKS.md` owns only the unbuilt or
 failing gap. Delete the completed witness's bullet or requirement from
-`TASKS.md` outright so the item shrinks with every landed step; never move a
+`TASKS.md` outright so the item shrinks with every landed step. When one
+bullet mixes a landed witness with work still open, delete only the finished
+clause and leave the open one. Do not rewrite the finished clause into a
+retaining or preserving sentence. A `TASKS.md` merge keeps one heading per
+item: if that heading already exists outside the conflict, replace that copy
+and delete the extra. Never move a
 completed witness into a `"preserving / retaining / keeping / now passes"`
 regression list or append a milestone narrative, and delete the item when its
 full `Acceptance:` is met. Keep the next remaining requirement in the claim
