@@ -1,6 +1,7 @@
 //! Lowering Boolean expressions and guards, including closed evaluation and
 //! integer comparisons.
 
+use super::scalar_lowering::scalar_storage_read;
 use crate::values::scalar::case_membership;
 use crate::values::scalar::constant_array_projection;
 use crate::values::scalar::expression_facts::{
@@ -168,18 +169,16 @@ impl BooleanLowering<'_> {
         ) {
             return self.expression(leaf);
         }
-        if let Some((ScalarExpression::Boolean(field), _)) =
-            super::scalar_lowering::scalar_storage_read(
-                self.program,
-                self.operators,
-                expression,
-                self.parameters,
-                self.authored_parameters,
-                self.parameter_types,
-                self.locals,
-                self.exact_integer_casts,
-            )
-        {
+        if let Some((ScalarExpression::Boolean(field), _)) = scalar_storage_read(
+            self.program,
+            self.operators,
+            expression,
+            self.parameters,
+            self.authored_parameters,
+            self.parameter_types,
+            self.locals,
+            self.exact_integer_casts,
+        ) {
             return Some(*field);
         }
         match self.program.expression_table.expression(expression) {

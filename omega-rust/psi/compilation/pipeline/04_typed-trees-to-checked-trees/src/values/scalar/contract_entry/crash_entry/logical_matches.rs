@@ -4,6 +4,8 @@
 //! Its arm contains only the ordinary predicate algebra, so nothing can write
 //! between that observation and an alias read. Ambient producers are not replayed.
 
+use super::super::super::structural_fields::readable_entry_parameter_path;
+use super::super::super::structural_fields::structural_projection_path;
 use super::{ComparisonOperand, FieldPath, LogicalMatchBinding, Reader};
 use checked_trees::CheckedBooleanExpression;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -95,20 +97,16 @@ impl Reader<'_> {
             expression,
             &self.logical_captures,
         )?;
-        observed.path.extend(
-            super::super::super::structural_fields::structural_projection_path(
-                self.program,
-                &segments,
-            )?,
-        );
-        observed.type_reference =
-            super::super::super::structural_fields::readable_entry_parameter_path(
-                self.program,
-                self.parameters,
-                u32::try_from(observed.parameter_position).ok()?,
-                &observed.path,
-                &mut self.remaining,
-            )?;
+        observed
+            .path
+            .extend(structural_projection_path(self.program, &segments)?);
+        observed.type_reference = readable_entry_parameter_path(
+            self.program,
+            self.parameters,
+            u32::try_from(observed.parameter_position).ok()?,
+            &observed.path,
+            &mut self.remaining,
+        )?;
         Some(observed)
     }
 }

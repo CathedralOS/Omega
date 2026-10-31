@@ -3,6 +3,7 @@
 //! Root custody distinguishes parameters, owned locals and view locals. Selection
 //! does not: length, content and element observations must retain the same field
 //! path and selected type rather than rediscovering a whole-local source shape.
+use super::scalar_lowering::storage_projection;
 use crate::execution::terminal_unit::types::borrowed_slice_view_element;
 use crate::execution::terminal_unit::types::parameter_is_root;
 use crate::flow::expressions;
@@ -72,9 +73,7 @@ pub(crate) fn structural_sequence_receiver_length(
         TypeReferenceHandle,
     ) -> Option<CheckedScalarExpression>,
 ) -> Option<CheckedScalarExpression> {
-    let projection = super::scalar_lowering::storage_projection(
-        program, operators, receiver, parameters, selector,
-    )?;
+    let projection = storage_projection(program, operators, receiver, parameters, selector)?;
     let selected_type = projection.selected_type;
     // Readability and qualification are independent of the fixed extent.
     // Preserve selector evaluation even when the final length is constant.

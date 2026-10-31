@@ -5,6 +5,10 @@
 mod logical_matches;
 mod predicate_conditions;
 
+use super::boolean_lowering::comparable_byte_carrier;
+use super::case_membership::lower_result;
+use super::scalar_lowering::scalar_storage_read_with_selectors;
+use super::structural_fields;
 use crate::flow::expressions;
 use crate::values::operator_is_builtin;
 use crate::values::scalar::boolean_lowering::construct_integer_comparison;
@@ -274,10 +278,8 @@ impl ContractPredicates<'_, '_> {
                 result.type_reference,
             )?;
             let primitive_type = self.program.primitive_type_reference(reference)?;
-            let path = super::structural_fields::structural_projection_path(
-                self.program,
-                &result.segments,
-            )?;
+            let path =
+                structural_fields::structural_projection_path(self.program, &result.segments)?;
             let parameter_position = u32::try_from(self.parameters.len()).ok()?;
             let term = if primitive_type == PrimitiveType::Bool {
                 CheckedScalarExpression::Boolean(Box::new(
@@ -297,7 +299,7 @@ impl ContractPredicates<'_, '_> {
             };
             return Some((term, reference));
         }
-        let (term, _) = super::scalar_lowering::scalar_storage_read_with_selectors(
+        let (term, _) = scalar_storage_read_with_selectors(
             self.program,
             self.operators,
             expression,
@@ -611,7 +613,7 @@ impl ContractPredicates<'_, '_> {
                 // bounded byte field parameter in the same closed namespace
                 // the body's scalar lowering publishes. Its carrier is the
                 // builtin u64 exact type.
-                if let Some(term) = super::structural_fields::structural_sequence_length(
+                if let Some(term) = structural_fields::structural_sequence_length(
                     program,
                     self.operators,
                     self.parameters,
@@ -818,14 +820,11 @@ impl ContractPredicates<'_, '_> {
             )?;
             (
                 u32::try_from(self.parameters.len()).ok()?,
-                super::structural_fields::structural_projection_path(
-                    self.program,
-                    &result.segments,
-                )?,
+                structural_fields::structural_projection_path(self.program, &result.segments)?,
                 reference,
             )
         } else {
-            let (root, path, reference) = super::structural_fields::structural_storage_place(
+            let (root, path, reference) = structural_fields::structural_storage_place(
                 self.program,
                 self.parameters,
                 expression,
@@ -840,18 +839,15 @@ impl ContractPredicates<'_, '_> {
             }
             (position, path, reference)
         };
-        let segments = super::structural_fields::applied_projection_segments(
-            self.program,
-            reference,
-            projection,
-        )?;
+        let segments =
+            structural_fields::applied_projection_segments(self.program, reference, projection)?;
         let reference =
             validation::owned_projection_type_reference(self.program, reference, &segments)?;
         let primitive_type = self.program.primitive_type_reference(reference)?;
         if !is_integer(primitive_type) && primitive_type != PrimitiveType::Bool {
             return None;
         }
-        path.extend(super::structural_fields::structural_projection_path(
+        path.extend(structural_fields::structural_projection_path(
             self.program,
             &segments,
         )?);
@@ -909,7 +905,7 @@ impl ContractPredicates<'_, '_> {
         let mut predicate = CheckedBooleanExpression::Constant(true);
         for row in rows {
             let subject = if row.extent {
-                let term = super::structural_fields::structural_sequence_receiver_length(
+                let term = structural_fields::structural_sequence_receiver_length(
                     self.program,
                     self.operators,
                     self.parameters,
@@ -998,14 +994,7 @@ impl ContractPredicates<'_, '_> {
         if let Some(membership) =
             super::case_membership::lower(program, self.parameters, expression).or_else(|| {
                 self.allow_result
-                    .then(|| {
-                        super::case_membership::lower_result(
-                            program,
-                            self.owner,
-                            self.result_type,
-                            expression,
-                        )
-                    })
+                    .then(|| lower_result(program, self.owner, self.result_type, expression))
                     .flatten()
             })
         {
@@ -1045,11 +1034,7 @@ impl ContractPredicates<'_, '_> {
             ExpressionNode::Call(_) => {
                 let (predicate, operand) =
                     typed_trees::byte_predicates::byte_predicate_call(program, expression)?;
-                let (root, path, _) = super::boolean_lowering::comparable_byte_carrier(
-                    program,
-                    self.parameters,
-                    operand,
-                )?;
+                let (root, path, _) = comparable_byte_carrier(program, self.parameters, operand)?;
                 // Contracts observe the exact formal's bytes, never an equally
                 // numbered body-local descriptor. The common carrier query
                 // retains projections and authenticates the readable byte type;

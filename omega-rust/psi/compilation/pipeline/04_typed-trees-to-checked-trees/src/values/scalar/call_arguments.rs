@@ -1,5 +1,6 @@
 //! Nested call operands retain captured coordinates and source scope independently
 //! of result shape. The consuming planner owns result eligibility and custody.
+use super::call_lowering::value_call_expression;
 use crate::execution::terminal_unit::control::checked_structural_result_type;
 use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::flow::expressions;
@@ -207,12 +208,8 @@ pub(crate) fn nested_call_sites<'program>(
     // or constructor is still nested and needs its own operand metadata.
     let statement_root = match statement {
         StatementNode::Expression(expression) => Some(*expression),
-        StatementNode::LocalData(local) => {
-            super::call_lowering::value_call_expression(program, local.initial_value)
-        }
-        StatementNode::Assignment(assignment) => {
-            super::call_lowering::value_call_expression(program, assignment.value)
-        }
+        StatementNode::LocalData(local) => value_call_expression(program, local.initial_value),
+        StatementNode::Assignment(assignment) => value_call_expression(program, assignment.value),
         _ => None,
     };
     calls
