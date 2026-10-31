@@ -11,12 +11,12 @@ use crate::build_time_evaluation::{EvaluationDomain, expression_table};
 use crate::const_evaluation::const_generic_expressions::{scalar_probe_destination, value};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use typed_trees::TypedTrees;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 
     #[test]
     fn constant_entries_separate_initializer_reads_from_their_value_job() {
