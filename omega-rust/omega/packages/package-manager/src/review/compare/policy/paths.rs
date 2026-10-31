@@ -103,9 +103,7 @@ impl<'a> Paths<'a> {
         while current != self.root {
             let edge = self.edge(current, key)?;
             let mut alias = String::new();
-            alias
-                .try_reserve_exact(edge.alias().as_str().len())
-                .map_err(|_| Error::AllocationFailed)?;
+            crate::reserve!(alias, edge.alias().as_str().len(), Error);
             alias.push_str(edge.alias().as_str());
             steps.push(PackagePolicyDependencyPathStep {
                 requester: edge.requester().identity(),

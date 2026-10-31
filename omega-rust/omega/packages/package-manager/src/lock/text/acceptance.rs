@@ -49,8 +49,7 @@ pub(in crate::lock) fn read(
         return Err(Error::InvalidFraming);
     }
     let mut rows: Vec<PackageAcceptanceRow> = Vec::new();
-    rows.try_reserve_exact(count)
-        .map_err(|_| Error::AllocationFailed)?;
+    crate::reserve!(rows, count, Error);
     for _ in 0..count {
         let kind = match reader.field("row")? {
             "callable" => PackagePolicyRowKind::Callable,

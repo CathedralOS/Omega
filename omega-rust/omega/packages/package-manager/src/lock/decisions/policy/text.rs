@@ -53,8 +53,7 @@ pub(in super::super) fn encode(
         return Err(Error::ByteLimitExceeded);
     }
     let mut text = String::new();
-    text.try_reserve_exact(length)
-        .map_err(|_| Error::AllocationFailed)?;
+    crate::reserve!(text, length, Error);
     text.push_str(&prefix);
     for decision in &history.decisions {
         text.push_str("decision ");
@@ -106,9 +105,7 @@ pub(in super::super) fn recover(
     let usage =
         HistoricalPackagePolicyRecoveryUsage::for_policy_decisions(count, maximum_owned_bytes)?;
     let mut decisions = Vec::new();
-    decisions
-        .try_reserve_exact(count)
-        .map_err(|_| Error::AllocationFailed)?;
+    crate::reserve!(decisions, count, Error);
     let mut previous = None;
     for _ in 0..count {
         let mut fields = field(&mut body, "decision")?.split(' ');

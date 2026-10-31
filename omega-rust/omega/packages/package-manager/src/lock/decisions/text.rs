@@ -57,8 +57,7 @@ impl HistoricalPackagePolicyDecisions {
             return Err(Error::ByteLimitExceeded);
         }
         let mut text = String::new();
-        text.try_reserve_exact(length)
-            .map_err(|_| Error::AllocationFailed)?;
+        crate::reserve!(text, length, Error);
         text.push_str(&prefix);
         for decision in &self.decisions {
             write!(
@@ -126,9 +125,7 @@ impl HistoricalPackagePolicyDecisions {
         let usage =
             HistoricalPackagePolicyRecoveryUsage::for_decisions(count, maximum_owned_bytes)?;
         let mut decisions = Vec::new();
-        decisions
-            .try_reserve_exact(count)
-            .map_err(|_| Error::AllocationFailed)?;
+        crate::reserve!(decisions, count, Error);
         let mut lines = body.split('\n');
         for _ in 0..count {
             let line = lines.next().ok_or(Error::InvalidFraming)?;
@@ -189,9 +186,7 @@ fn validate_decisions(
     // One exact conflict has one owner even when a record tries to repeat it
     // under another valid package index.
     let mut fingerprints = Vec::new();
-    fingerprints
-        .try_reserve_exact(decisions.len())
-        .map_err(|_| Error::AllocationFailed)?;
+    crate::reserve!(fingerprints, decisions.len(), Error);
     fingerprints.extend(
         decisions
             .iter()

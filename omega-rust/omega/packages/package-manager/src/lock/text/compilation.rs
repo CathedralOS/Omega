@@ -106,9 +106,7 @@ pub(super) fn read(
     budget.elements(count)?;
     budget.entries::<AcceptedSemanticBinding>(count)?;
     let mut bindings = Vec::new();
-    bindings
-        .try_reserve_exact(count)
-        .map_err(|_| Error::AllocationFailed)?;
+    crate::reserve!(bindings, count, Error);
     for _ in 0..count {
         let role = [reader.count("role", u8::MAX as usize)? as u8];
         let role = recover_semantic_binding_role(&mut ObservationCursor::new(&role))
@@ -138,9 +136,7 @@ pub(super) fn read(
         budget.entries::<ServiceTerminalAuthorityPermission>(count)?;
         let mut permission_identities = terminal_psi::TerminalIdentityTableBuilder::default();
         let mut permissions: Vec<ServiceTerminalAuthorityPermission> = Vec::new();
-        permissions
-            .try_reserve_exact(count)
-            .map_err(|_| Error::AllocationFailed)?;
+        crate::reserve!(permissions, count, Error);
         for _ in 0..count {
             let permission_schema =
                 ServiceSchemaDigest::from_digest(digest(reader.field("schema")?)?);
@@ -154,9 +150,7 @@ pub(super) fn read(
             budget.elements(count)?;
             budget.entries::<TerminalAuthorityClass>(count)?;
             let mut classes = Vec::new();
-            classes
-                .try_reserve_exact(count)
-                .map_err(|_| Error::AllocationFailed)?;
+            crate::reserve!(classes, count, Error);
             for _ in 0..count {
                 let tag = reader.count("class", u8::MAX as usize)? as u8;
                 classes.push(
