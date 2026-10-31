@@ -101,7 +101,25 @@ CalcClockProvider satisfies Clock {
     Clock::sleep = macos_sleep;
 }
 
-data Main {
+data Main
+requires
+    self.pumped >= 0 && self.pumped <= 16 &&
+    self.frame >= 0 && self.frame <= 16384 &&
+    self.i >= 0 && self.i <= 4096 &&
+    self.pending >= 0 && self.pending <= 4 &&
+    self.cooldown >= 0 && self.cooldown <= 8 &&
+    self.last_key >= 0 && self.last_key <= 31 &&
+    self.row >= 0 && self.row <= 63 &&
+    self.col >= 0 && self.col <= 63 &&
+    self.segment >= 0 && self.segment <= 6 &&
+    self.local_x >= -4 && self.local_x <= 11 &&
+    self.local_y >= -1 && self.local_y <= 10 &&
+    self.button_row >= 0 && self.button_row <= 4 &&
+    self.button_col >= 0 && self.button_col <= 3 &&
+    self.button_code >= 0 && self.button_code <= 31 &&
+    self.button_lx >= 0 && self.button_lx <= 15 &&
+    self.button_ly >= 0 && self.button_ly <= 8
+{
 
     cls: [u8; 7];
     title: [u8; 11];
@@ -900,29 +918,37 @@ machine Main::main(main: &mut Main) reaches
 
 machine Main::accept_digit(main: &mut Main, digit: i32, key_code: i32)
 requires
-    digit >= 0 && digit <= 9;
+    digit >= 0 && digit <= 9
 requires
-    key_code >= 0 && key_code <= 31;
+    key_code >= 0 && key_code <= 31
 {
     main.last_key = key_code;
     main.cooldown = 6;
     transition main.error > 0 { true -> digit_after_error(main, digit) _ -> digit_dispatch(main, digit) }
 
-    machine digit_after_error(main: &mut Main, digit: i32) {
+    machine digit_after_error(main: &mut Main, digit: i32)
+    requires digit >= 0 && digit <= 9
+    {
         main.error = 0;
         main.pending = 0;
         main.accumulator = 0;
         main.current = digit as i32 in Saturating;
         main.typing = 1;
     }
-    machine digit_dispatch(main: &mut Main, digit: i32) {
+    machine digit_dispatch(main: &mut Main, digit: i32)
+    requires digit >= 0 && digit <= 9
+    {
         transition main.typing > 0 { true -> digit_append(main, digit) _ -> digit_start(main, digit) }
     }
-    machine digit_start(main: &mut Main, digit: i32) {
+    machine digit_start(main: &mut Main, digit: i32)
+    requires digit >= 0 && digit <= 9
+    {
         main.current = digit as i32 in Saturating;
         main.typing = 1;
     }
-    machine digit_append(main: &mut Main, digit: i32) {
+    machine digit_append(main: &mut Main, digit: i32)
+    requires digit >= 0 && digit <= 9
+    {
         // Fused Saturating mul/add in operand position lower correctly since
         // the 2026-07-09d operand-position domain lowering (the clamp happens
         // at each operation node before the modulo).
@@ -932,55 +958,79 @@ requires
 
 machine Main::accept_operator(main: &mut Main, op: i32, key_code: i32)
 requires
-    op >= 0 && op <= 4;
+    op >= 0 && op <= 4
 requires
-    key_code >= 0 && key_code <= 31;
+    key_code >= 0 && key_code <= 31
 {
     main.last_key = key_code;
     main.cooldown = 6;
     transition main.error > 0 { true -> done(main) _ -> operator_dispatch(main, op) }
 
-    machine operator_dispatch(main: &mut Main, op: i32) {
+    machine operator_dispatch(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         transition main.pending == 0 { true -> store_first(main, op) _ -> evaluate_for_operator(main, op) }
     }
-    machine store_first(main: &mut Main, op: i32) {
+    machine store_first(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         main.accumulator = main.current;
         main.current = 0;
         main.typing = 0;
         main.pending = op;
     }
-    machine evaluate_for_operator(main: &mut Main, op: i32) {
+    machine evaluate_for_operator(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         transition main.pending == 1 { true -> eval_add(main, op) _ -> eval_sub_check(main, op) }
     }
-    machine eval_sub_check(main: &mut Main, op: i32) {
+    machine eval_sub_check(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         transition main.pending == 2 { true -> eval_sub(main, op) _ -> eval_mul_check(main, op) }
     }
-    machine eval_mul_check(main: &mut Main, op: i32) {
+    machine eval_mul_check(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         transition main.pending == 3 { true -> eval_mul(main, op) _ -> eval_div_check(main, op) }
     }
-    machine eval_div_check(main: &mut Main, op: i32) {
+    machine eval_div_check(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         transition main.pending == 4 { true -> eval_div_guard(main, op) _ -> finish_operator(main, op) }
     }
-    machine eval_add(main: &mut Main, op: i32) {
+    machine eval_add(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         main.accumulator = main.accumulator + main.current;
         transition { _ -> finish_operator(main, op) }
     }
-    machine eval_sub(main: &mut Main, op: i32) {
+    machine eval_sub(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         main.accumulator = main.accumulator - main.current;
         transition { _ -> finish_operator(main, op) }
     }
-    machine eval_mul(main: &mut Main, op: i32) {
+    machine eval_mul(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         main.accumulator = main.accumulator * main.current;
         transition { _ -> finish_operator(main, op) }
     }
-    machine eval_div_guard(main: &mut Main, op: i32) {
+    machine eval_div_guard(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         transition main.current == 0 { true -> divide_error(main) _ -> eval_div(main, op) }
     }
-    machine eval_div(main: &mut Main, op: i32) {
+    machine eval_div(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         main.accumulator = main.accumulator / main.current;
         transition { _ -> finish_operator(main, op) }
     }
-    machine finish_operator(main: &mut Main, op: i32) {
+    machine finish_operator(main: &mut Main, op: i32)
+    requires op >= 0 && op <= 4
+    {
         main.current = 0;
         main.typing = 0;
         main.pending = op;
@@ -1047,7 +1097,7 @@ machine Main::accept_equals(main: &mut Main) {
 
 machine Main::clear_all(main: &mut Main, key_code: i32)
 requires
-    key_code >= 0 && key_code <= 31;
+    key_code >= 0 && key_code <= 31
 {
     main.last_key = key_code;
     main.cooldown = 6;
