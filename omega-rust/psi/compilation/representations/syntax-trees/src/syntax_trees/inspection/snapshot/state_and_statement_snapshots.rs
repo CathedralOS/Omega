@@ -198,12 +198,7 @@ macro_rules! state_signature_snapshot {
                 $syntax_trees,
                 &$signature.lifetime_parameters,
             ),
-            type_parameters: $syntax_trees
-                .items
-                .type_parameters($signature.type_parameters)
-                .iter()
-                .map(|parameter| snapshot_type_parameter($syntax_trees, parameter))
-                .collect(),
+            type_parameters: snapshot_type_parameters($syntax_trees, $signature.type_parameters),
             is_default: $signature.is_default,
             parameters: snapshot_state_parameters($syntax_trees, $signature.parameters),
             native_callback_parameters: $signature
