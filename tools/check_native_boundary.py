@@ -8,6 +8,7 @@ host's resolved features. Dev dependencies are outside the shipped boundary.
 
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -76,6 +77,45 @@ def dependency_violations(metadata, entrance_path=NATIVE_ROOT, owners=PERMITTED_
     return violations
 
 
+
+def psi_omega_dependency_violations(metadata):
+    """Psi never imports Omega, including tests and inactive configurations."""
+    root = Path(metadata["workspace_root"]).resolve()
+    psi = root / "omega-rust/psi"
+    omega = root / "omega-rust/omega"
+    violations = []
+    for package in metadata["packages"]:
+        source = Path(package["manifest_path"]).resolve().parent
+        if not source.is_relative_to(psi):
+            continue
+        for dependency in package["dependencies"]:
+            if not dependency.get("path"):
+                continue
+            destination = Path(dependency["path"]).resolve()
+            if destination.is_relative_to(omega):
+                violations.append(
+                    f"{package['name']} -> {dependency['name']}: Psi depends on Omega ({destination.relative_to(root)})"
+                )
+    return violations
+
+
+def representation_spelling_violations(root):
+    """The retired text spelling must not decide a runtime representation."""
+    patterns = (
+        re.compile(r'\.as_str\s*\([^)]*\)\s*(?:==|!=)\s*"string"'),
+        re.compile(r'matches!\s*\(.*\.as_str\s*\([^)]*\).*"string"'),
+        re.compile(r'\bname\s*==\s*"string"'),
+    )
+    violations = []
+    for owner in ("omega-rust/psi", "omega-rust/omega"):
+        for path in (root / owner).rglob("*.rs"):
+            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if any(pattern.search(line) for pattern in patterns):
+                    violations.append(
+                        f"{path.relative_to(root)}:{line_number}: runtime representation depends on retired text spelling"
+                    )
+    return violations
+
 def main():
     root = Path(__file__).resolve().parent.parent
     try:
@@ -84,7 +124,9 @@ def main():
             cwd=root, capture_output=True, text=True, encoding="utf-8", check=True,
         )
         metadata = json.loads(result.stdout)
-        violations = dependency_violations(metadata)
+        violations = representation_spelling_violations(root)
+        violations += psi_omega_dependency_violations(metadata)
+        violations += dependency_violations(metadata)
         violations += dependency_violations(metadata, PROVIDER_SELECTION_ROOT, PROVIDER_SELECTION_OWNERS)
         violations += dependency_violations(metadata, TRUST_ROOT, TRUST_OWNERS)
         violations += dependency_violations(metadata, RUNTIME_ROOT, RUNTIME_OWNERS)
@@ -93,10 +135,10 @@ def main():
         print(f"native boundary could not be checked: {error}", file=sys.stderr)
         return 2
     if violations:
-        print("native compilation or hosted execution crosses its ownership boundary:")
+        print("native/runtime architecture violations:")
         print("\n".join(violations))
         return 1
-    print("native/runtime boundaries: no production dependency reaches a source owner")
+    print("native/runtime boundaries: source-free dependencies and representation spelling checks pass")
     return 0
 
 

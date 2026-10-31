@@ -239,7 +239,10 @@ fn main() {
         let report = reports.swap_remove(host_report.expect("one successful host target"));
         joined_product_execution::execute_report(
             report,
-            &fixture_package_inputs::repo_root().join("build/shared-terminal-native"),
+            &fixture_package_inputs::repo_root().join(format!(
+                "build/shared-terminal-native-{}",
+                std::process::id()
+            )),
         );
         println!("host_native_exit=0 reloaded_terminal=Unit");
     }

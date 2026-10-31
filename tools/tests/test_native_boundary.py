@@ -2,12 +2,13 @@
 
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from check_native_boundary import NATIVE_ROOT, RUNTIME_ROOT, RUNTIME_OWNERS, NATIVE_PROVIDER_RUNTIME_ROOT, NATIVE_PROVIDER_RUNTIME_OWNERS, dependency_violations
 from check_native_boundary import PROVIDER_SELECTION_ROOT, PROVIDER_SELECTION_OWNERS
-from check_native_boundary import TRUST_ROOT, TRUST_OWNERS
+from check_native_boundary import TRUST_ROOT, TRUST_OWNERS, representation_spelling_violations, psi_omega_dependency_violations
 
 
 class NativeBoundaryTests(unittest.TestCase):
@@ -140,6 +141,39 @@ class NativeBoundaryTests(unittest.TestCase):
         self.assertEqual(len(failures), 2)
         self.assertTrue(any("trust-model -> checked-trees" in failure for failure in failures))
         self.assertTrue(any("trust-model -> native-production" in failure for failure in failures))
+
+    def test_psi_cannot_reach_omega_through_inactive_production_edges(self):
+        psi = self.package("psi-compiler", "omega-rust/psi/compilation/driver")
+        foundation = self.package("language-semantics", "omega-rust/psi/foundation/language-semantics")
+        self.edge(psi, foundation)
+        self.assertEqual(psi_omega_dependency_violations(self.metadata), [])
+        self.edge(foundation, self.native, kind="build", optional=True, target='cfg(windows)')
+        failures = psi_omega_dependency_violations(self.metadata)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("language-semantics -> native-production", failures[0])
+        self.edge(psi, self.native, kind="dev")
+        self.assertEqual(len(psi_omega_dependency_violations(self.metadata)), 2)
+
+
+class RepresentationSpellingTests(unittest.TestCase):
+    def test_named_record_cannot_be_classified_as_retired_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "omega-rust/psi/compilation/classification.rs"
+            source.parent.mkdir(parents=True)
+            for expression in (
+                'name.as_str ( ) == "string";',
+                'name.as_str(syntax) != "string";',
+                'matches!(name.as_str(syntax), "f32" | "string");',
+                'name == "string";',
+            ):
+                with self.subTest(expression=expression):
+                    source.write_text(expression + "\n", encoding="utf-8")
+                    failures = representation_spelling_violations(root)
+                    self.assertEqual(len(failures), 1)
+                    self.assertIn("classification.rs:1:", failures[0])
+            source.write_text('matches!(node, TypeReferenceNode::Slice { .. });\n', encoding="utf-8")
+            self.assertEqual(representation_spelling_violations(root), [])
 
 
 if __name__ == "__main__":

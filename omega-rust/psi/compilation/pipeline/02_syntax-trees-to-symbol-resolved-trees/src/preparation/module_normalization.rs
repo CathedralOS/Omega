@@ -203,11 +203,7 @@ pub(crate) fn module_literal_constant(
         match syntax.type_references.type_reference(type_reference) {
             TypeReferenceNode::Named(name) => {
                 return crate::constant::is_structural_scalar_carrier(name.as_str(syntax))
-                    || (!is_array && matches!(name.as_str(syntax), "f32" | "f64"))
-                    // The legacy free-constant profile includes this spelling,
-                    // but `string` is not a builtin scalar. Do not extend that
-                    // exception to newly admitted scoped nominal declarations.
-                    || (!is_array && constant.scope.as_str(syntax).is_empty() && name.as_str(syntax) == "string");
+                    || (!is_array && matches!(name.as_str(syntax), "f32" | "f64"));
             }
             TypeReferenceNode::FixedArray {
                 element_type,

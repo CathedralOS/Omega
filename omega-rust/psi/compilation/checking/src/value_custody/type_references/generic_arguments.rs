@@ -1502,7 +1502,7 @@ fn validate_typed_const_index_type(
             ) {
                 return Ok(());
             }
-            if matches!(name.as_str(), "f32" | "f64" | "string") {
+            if matches!(name.as_str(), "f32" | "f64") {
                 return Err(format!(
                     "`{name}` does not have canonical structural index identity"
                 ));

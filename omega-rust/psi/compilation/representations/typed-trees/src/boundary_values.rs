@@ -137,7 +137,6 @@ impl<'input> BoundaryValuePreparation<'input> {
                     TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => {
                         true
                     }
-                    TypeReferenceNode::Named { name, .. } => name.as_str() == "string",
                     _ => false,
                 };
                 BoundaryValueRecipe::Reference { descriptor }
