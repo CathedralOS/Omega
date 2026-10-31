@@ -6,6 +6,7 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::scalar_call_abi::load_transfer;
+use crate::selection::scalar_call_abi::{integer_carrier_normalization, scalar_shape};
 use selected_instructions::SelectedSuccessor;
 use selected_instructions::{
     FrameStorageSlotId, SelectedCasePayloadTransport, SelectedLocalStorageSlot,
@@ -58,9 +59,7 @@ pub(super) fn snapshot(
             .get(parameter.0 as usize)
             .cloned()
             .ok_or_else(invalid)?;
-        let shape =
-            crate::selection::scalar_call_abi::scalar_shape(payload.semantic.parameter.scalar_type)
-                .ok_or_else(invalid)?;
+        let shape = scalar_shape(payload.semantic.parameter.scalar_type).ok_or_else(invalid)?;
         let (load_key, byte_count) = match shape.byte_size {
             1 => (constraints.keys.load8, 1),
             2 => (constraints.keys.load16, 2),
@@ -239,9 +238,7 @@ pub(super) fn snapshot(
             });
             instructions.push(crate::selection::constraints::instruction(
                 normalization,
-                crate::selection::scalar_call_abi::integer_carrier_normalization(
-                    destination.scalar_type,
-                ),
+                integer_carrier_normalization(destination.scalar_type),
                 constraints.keys.copy_i64,
                 &[loaded, normalized],
                 provenance(),

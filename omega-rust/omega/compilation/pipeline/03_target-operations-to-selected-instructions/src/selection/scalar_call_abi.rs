@@ -1,6 +1,8 @@
 //! Join the exact CallPlan to register operands, result fragments, and pointer slots.
 
 use crate::selection::model::SelectedInstructionError;
+use crate::structural_inputs::structural_reference_input::owned_storage_shape;
+use crate::structural_inputs::structural_unit_input::{accepts_graph, parameter_views};
 use calling_conventions::{IndirectPointerLocation, ValueLocation};
 use register_model::{RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{SelectedConstraintKeys, SelectedInstructionKind};
@@ -23,10 +25,7 @@ pub(super) fn owned_value_shape(
     structural_type: semantic_vocabulary::StructuralTypeId,
 ) -> Option<ValueShape> {
     let types = &source.structural.as_ref()?.structural_types;
-    crate::structural_inputs::structural_reference_input::owned_storage_shape(
-        structural_type,
-        types,
-    )
+    owned_storage_shape(structural_type, types)
 }
 
 /// Incoming scalar slots follow the complete graph ABI; result admission is independent.
@@ -43,13 +42,8 @@ pub(super) fn accepts_stack_parameter_entry(source: &LegalizedScalarFunction) ->
                         && scalar_shape(parameter.scalar_type) == Some(placement.shape)
                 }))
         || source.structural.as_ref().is_some_and(|signature| {
-            let parameters =
-                crate::structural_inputs::structural_unit_input::parameter_views(signature);
-            crate::structural_inputs::structural_unit_input::accepts_graph(
-                &source.call_plan,
-                &parameters,
-                &signature.structural_types,
-            )
+            let parameters = parameter_views(signature);
+            accepts_graph(&source.call_plan, &parameters, &signature.structural_types)
         })
 }
 
