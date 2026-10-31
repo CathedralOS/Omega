@@ -2,6 +2,9 @@ use super::scalar_representation::{
     MutableScalarRepresentationFacts, mutable_scalar_representation_facts,
     narrow_by_field_representation_bounds, scalar_representation_facts_imply,
 };
+use crate::value_custody::scalar_storage_geometry::{
+    self, StoragePathSegment as RepresentationSegment,
+};
 use std::collections::HashSet;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
@@ -147,12 +150,6 @@ struct NormalizedArrayStep {
     extent: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum RepresentationSegment {
-    Field(symbols::SymbolHandle),
-    Element(usize),
-}
-
 /// A scalar observation's physical geometry, derived by the same normalization
 /// that checks recast compatibility. This describes storage, not loan authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -292,7 +289,7 @@ fn unique_record_field<'program>(
     carrier: TypeReferenceHandle,
     select: impl Fn(&typed_trees::data::DataField) -> bool,
 ) -> Option<&'program typed_trees::data::DataField> {
-    let owner = program.closed_data_field_definition(carrier)?;
+    let owner = program.data_field_definition(carrier)?;
     let mut fields = program
         .data_members(owner)
         .iter()
@@ -352,6 +349,7 @@ fn checked_projection_path(
                 carrier = fixed_array_element(program, carrier, *index)?;
                 checked_path.push(CheckedSegment::FixedIndex(u64::try_from(*index).ok()?));
             }
+            RepresentationSegment::RuntimeElement(_) => return None,
         }
     }
     // Replay the public path through the same owner-qualified resolver used
@@ -395,7 +393,8 @@ pub fn recast_scalar_path_geometry(
     root: TypeReferenceHandle,
     scalar_path: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<RecastScalarGeometry> {
-    recast_scalar_layout(program, root)?.scalar_path_geometry(scalar_path)
+    let path = recast_projection_path(program, root, scalar_path)?;
+    scalar_geometry(program, root, &path)
 }
 
 fn recast_projection_path(
@@ -424,6 +423,10 @@ fn recast_projection_path(
                 carrier = fixed_array_element(program, carrier, index)?;
                 path.push(RepresentationSegment::Element(index));
             }
+            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(index) => {
+                carrier = fixed_array_element(program, carrier, 0)?;
+                path.push(RepresentationSegment::RuntimeElement(index.clone()));
+            }
             _ => return None,
         }
     }
@@ -435,12 +438,39 @@ fn normalized_scalar_projection(
     root: TypeReferenceHandle,
     path: &[RepresentationSegment],
 ) -> Option<RecastScalarProjection> {
-    let representation = type_representation(program, root)?;
-    let leaf = representation
-        .leaves
-        .iter()
-        .find(|leaf| leaf.path == path)?;
-    scalar_leaf_projection(representation.size, leaf)
+    let geometry = scalar_geometry(program, root, path)?;
+    // Offset-only consumers cannot retain a runtime selector. The complete
+    // geometry API carries those coordinates and their independent bounds.
+    geometry.indices.is_empty().then_some(geometry.projection)
+}
+
+fn scalar_geometry(
+    program: &dyn crate::CheckingInput,
+    root: TypeReferenceHandle,
+    path: &[RepresentationSegment],
+) -> Option<RecastScalarGeometry> {
+    if path.len() > MAX_RECAST_REPRESENTATION_DEPTH {
+        return None;
+    }
+    scalar_storage_geometry::project_scalar(program, root, path, |root, path| {
+        // Ordinary value geometry retains the existing normalizer. Only
+        // plan-owned physical observations bypass whole-value recast eligibility.
+        let zero = path
+            .iter()
+            .map(|segment| match segment {
+                RepresentationSegment::RuntimeElement(_) => RepresentationSegment::Element(0),
+                other => other.clone(),
+            })
+            .collect::<Vec<_>>();
+        let mut checked = checked_projection_path(program, root, &zero)?;
+        for (position, segment) in path.iter().enumerate() {
+            if let RepresentationSegment::RuntimeElement(index) = segment {
+                checked[position] =
+                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(index.clone());
+            }
+        }
+        recast_scalar_layout(program, root)?.scalar_path_geometry(&checked)
+    })
 }
 
 fn scalar_leaf_projection(
@@ -558,10 +588,11 @@ pub fn recast_scalar_source_leaf(
             .path
             .iter()
             .map(|segment| match segment {
-                RepresentationSegment::Field(symbol) => RecastLeafSegment::Field(*symbol),
-                RepresentationSegment::Element(index) => RecastLeafSegment::Element(*index),
+                RepresentationSegment::Field(symbol) => Some(RecastLeafSegment::Field(*symbol)),
+                RepresentationSegment::Element(index) => Some(RecastLeafSegment::Element(*index)),
+                RepresentationSegment::RuntimeElement(_) => None,
             })
-            .collect(),
+            .collect::<Option<Vec<_>>>()?,
         primitive: source_leaf.primitive,
         view_primitive: target_leaf.primitive,
         preserves_scalar_value: source_leaf.primitive == target_leaf.primitive
@@ -715,7 +746,7 @@ fn mutable_record_representation_inner_body(
     // authored validity. Copying fields into a physical declaration must not
     // erase the schema's where facts at an alias or foreign-write boundary.
     let semantic_data = match layout {
-        Some(plan) => program.closed_data_field_definition(plan.semantic_type)?,
+        Some(plan) => program.data_field_definition(plan.semantic_type)?,
         None => data,
     };
     let Some(where_bounds) =

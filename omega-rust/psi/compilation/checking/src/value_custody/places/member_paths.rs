@@ -216,7 +216,11 @@ pub(crate) fn data_definition_for_type(
     type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let unwrapped = unwrapped_type_reference(program, type_reference)?;
-    if let Some(instance) = program.closed_data_definition(unwrapped) {
+    // Member description is independent of representation closure. An exact
+    // prepared application retains substituted fields even when another
+    // operand remains symbolic; ordinary type/formation/custody checks still
+    // consume the original full application.
+    if let Some(instance) = program.data_field_definition(unwrapped) {
         return Some(instance);
     }
     let symbol = match program.type_reference_table.type_reference(unwrapped) {

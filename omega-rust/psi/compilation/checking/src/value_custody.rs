@@ -44,6 +44,7 @@ pub(crate) mod reference_shells;
 pub(crate) mod resident_content;
 pub(crate) mod scalar_case_constructor;
 pub(crate) mod scalar_representation_range;
+pub(crate) mod scalar_storage_geometry;
 pub(crate) mod source_liveness;
 pub(crate) mod storage_contents;
 pub(crate) mod struct_literals;

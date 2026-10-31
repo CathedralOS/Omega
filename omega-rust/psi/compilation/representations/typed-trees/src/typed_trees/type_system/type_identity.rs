@@ -532,6 +532,20 @@ pub struct ExactOwnerTypeIdentityRequest<'a> {
 }
 
 impl TypedTrees {
+    /// Borrow an exact prepared field description, including symbolic actuals.
+    /// This supplies no representation closure, construction permission, or
+    /// geometry. Only qualifications are stripped; references are descriptors.
+    pub fn data_field_definition(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Option<&crate::data::DataDefinition> {
+        let reference = self
+            .type_reference_table
+            .unconstrained_type_reference(reference);
+        self.data_application_definition(reference)
+            .or_else(|| self.closed_data_definition(reference))
+    }
+
     /// Read the retained field declaration of a qualified value carrier.
     /// The caller retains the complete qualified type for identity, validity,
     /// access and custody judgments; this query supplies no establishment.
