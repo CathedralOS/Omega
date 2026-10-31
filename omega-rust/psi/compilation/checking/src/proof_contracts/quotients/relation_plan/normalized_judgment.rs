@@ -571,7 +571,7 @@ fn theorem_correspondence(
                         .ok_or_else(|| "verified theorem legality premise is absent".to_owned())?;
                     Ok(QuotientForwardPreconditionTransportFact {
                         application: expected.application,
-                        source: theorem_contract_coordinate(expected.fact)?,
+                        source: contract_coordinate(expected.fact)?,
                         actual: contract_coordinate(verified.actual)?,
                     })
                 })
@@ -706,12 +706,6 @@ fn transport_correspondence(
             .map(row)
             .collect::<Result<Vec<_>, _>>()?,
     })
-}
-
-fn theorem_contract_coordinate(
-    location: super::theorem_schema::ContractFactLocation,
-) -> Result<QuotientContractFactCoordinate, String> {
-    contract_coordinate(location)
 }
 
 pub(in crate::proof_contracts::quotients) fn relation_identity(
