@@ -12,6 +12,8 @@ fail/build/native_locator_nonzero_unused_coordinate rejected 290ms expected @b85
 	StructuralArgumentPreparation { stage: "execute captured host call", detail: "EffectRejected { operation: OperationId(9), rejection: TerminalEffectRejection { reason: \\"PeByName VersionLength must be zero for this locator case\\" } }" } in MachineId(1)/BlockId(5) at Some(OperationId(9))
 fail/build/native_locator_wrong_owner rejected 258ms expected @b852a38544d0
 	native binding requires the exact compiler-owned `ForeignBinding` declaration
+fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
+	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
 	machine `a` omits `invokes Third` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [First, Second])
 fail/contracts/case_requirement_constructed_array_wrong_tag rejected 871ms expected @00e93f641615+wt
@@ -501,8 +503,8 @@ fail/providers/boundary_guarded_array_requires_false rejected 1400ms expected @a
 	cannot prove requires contract for call bytes from main: 1 == 4 || left.bytes[1] == 0 (needs fact `count == 4 || left[count] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/providers/implicit_method_conflicting_array_counts rejected 332ms expected @a889c2d8b84c
 	public method inference has conflicting structural operands for `Count`
-fail/providers/implicit_method_unused_const_count rejected 306ms expected @a889c2d8b84c
-	static method application requires its complete invocation telescope
+fail/providers/implicit_method_unused_const_count rejected 468ms expected @33b180036351
+	static method application requires its complete invocation telescope for `UnusedCount::read` (found 0, expected 1)
 fail/providers/native_generic_binding_wrong_requirement rejected 1394ms expected @7a28fce028fa
 	no provider is selected for boundary requirement `CText::length`, which the program entry reaches on target `windows_x86_64`
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
@@ -1442,6 +1444,7 @@ pass/calls/case_payload_clone_observation_exit checked 19036ms check-target:maco
 pass/calls/case_scrutinee_param_clone_exit checked 16163ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/case_scrutinee_self_dispatch_exit checked 16595ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/completed_effectful_result_requirement_exit checked 3739ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/completed_narrowing_result_case_bounds checked 1857ms check-target:macos_arm64 @33b180036351
 pass/calls/computed_binding_argument_exit checked 3502ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/computed_case_subject_slice_operands_exit rejected 15987ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call to `local` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
