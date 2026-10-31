@@ -2,6 +2,7 @@ use crate::parser::parse_syntax_trees;
 use language_core::ReferenceAccess;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::item::TypeParameterKind;
 use syntax_trees::types::TypeReferenceNode;
 
 #[test]
@@ -620,16 +621,13 @@ fn parses_name_owned_generic_conformance_telescope() {
     let parameters = parsed.items.type_parameters(conformance.type_parameters);
     assert_eq!(parameters.len(), 3);
     assert_eq!(parameters[0].name.as_str(&parsed), "Source");
-    assert!(matches!(
-        parameters[0].kind,
-        syntax_trees::item::TypeParameterKind::Type
-    ));
+    assert!(matches!(parameters[0].kind, TypeParameterKind::Type));
     assert_eq!(parameters[1].name.as_str(&parsed), "Width");
     assert!(matches!(
         parameters[1].kind,
-        syntax_trees::item::TypeParameterKind::Const { .. }
+        TypeParameterKind::Const { .. }
     ));
-    let syntax_trees::item::TypeParameterKind::Machine {
+    let TypeParameterKind::Machine {
         contract: Some(syntax_trees::item::MachineParameterContract::Structural(contract)),
     } = &parameters[2].kind
     else {

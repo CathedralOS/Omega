@@ -1,3 +1,5 @@
+use crate::expressions::parse_expression::parse_expression_handle;
+use crate::input::token_cursor::Input;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::{ExpressionNode, MatchPattern};
 
@@ -10,16 +12,10 @@ fn value_match_retains_subject_once_ordered_duplicate_arms_and_spans() {
         let source_id = source::SourceId::default();
         let tokens = Lexer::new(&source).tokenize().expect("tokens");
         let mut trees = syntax_trees::SyntaxTrees::new(source_id);
-        let retained_source = crate::input::token_cursor::Input::retain_source(&tokens);
-        let input = crate::input::token_cursor::Input::new(
-            source_id,
-            &tokens,
-            &retained_source,
-            &mut trees,
-        );
+        let retained_source = Input::retain_source(&tokens);
+        let input = Input::new(source_id, &tokens, &retained_source, &mut trees);
         let (expression, rest) =
-            crate::expressions::parse_expression::parse_expression_handle(&mut trees, input)
-                .expect("ordered value match");
+            parse_expression_handle(&mut trees, input).expect("ordered value match");
         assert!(rest.tokens.is_empty());
         let ExpressionNode::Match(dispatch) = trees.expressions.expression(expression) else {
             panic!("match must remain dispatch, not arithmetic");
@@ -121,17 +117,16 @@ fn value_match_rejects_empty_dispatch_and_duplicate_bindings() {
     ] {
         let tokens = Lexer::new(source).tokenize().expect("tokens");
         let mut trees = syntax_trees::SyntaxTrees::new(source::SourceId::default());
-        let retained_source = crate::input::token_cursor::Input::retain_source(&tokens);
-        let input = crate::input::token_cursor::Input::new(
+        let retained_source = Input::retain_source(&tokens);
+        let input = Input::new(
             source::SourceId::default(),
             &tokens,
             &retained_source,
             &mut trees,
         );
-        let error =
-            crate::expressions::parse_expression::parse_expression_handle(&mut trees, input)
-                .err()
-                .expect("empty dispatch or duplicate bindings reject");
+        let error = parse_expression_handle(&mut trees, input)
+            .err()
+            .expect("empty dispatch or duplicate bindings reject");
         super::expect_error(
             &error,
             if source.contains("Record") {

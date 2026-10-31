@@ -1,7 +1,11 @@
 use crate::parser::parse_syntax_trees;
+use language_core::atomic::AtomicExpressionResultCustody;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::item::PropositionBody;
+use syntax_trees::statement::StatementHandle;
 use syntax_trees::statement::StatementNode;
+use syntax_trees::statement::TransitionGuardNode;
 
 #[test]
 fn name_expression_source_custody_retains_complete_authored_paths() {
@@ -182,9 +186,7 @@ fn trait_defaults_share_atomic_binding_dispatch() {
     ));
 }
 
-fn first_machine_statements(
-    parsed: &syntax_trees::SyntaxTrees,
-) -> &[syntax_trees::statement::StatementHandle] {
+fn first_machine_statements(parsed: &syntax_trees::SyntaxTrees) -> &[StatementHandle] {
     let machine = super::root_machine(&parsed, "machine");
     let state = parsed
         .items
@@ -270,7 +272,7 @@ fn opposite_boolean_subject_arms_test_the_subject_once() {
         else {
             panic!("first authored arm");
         };
-        let syntax_trees::statement::TransitionGuardNode::When(expression) = first_arm.guard else {
+        let TransitionGuardNode::When(expression) = first_arm.guard else {
             panic!("first arm tests the subject");
         };
         let ExpressionNode::Binary(comparison) = parsed.expressions.expression(expression) else {
@@ -285,10 +287,7 @@ fn opposite_boolean_subject_arms_test_the_subject_once() {
         let StatementNode::Transition(last_arm) = parsed.statements.statement(statements[1]) else {
             panic!("second authored arm");
         };
-        assert!(matches!(
-            last_arm.guard,
-            syntax_trees::statement::TransitionGuardNode::Always
-        ));
+        assert!(matches!(last_arm.guard, TransitionGuardNode::Always));
     }
 }
 
@@ -313,10 +312,7 @@ fn unrelated_or_nonpair_boolean_guards_keep_their_tests() {
                 panic!("authored transition");
             };
             assert!(
-                matches!(
-                    transition.guard,
-                    syntax_trees::statement::TransitionGuardNode::When(_)
-                ),
+                matches!(transition.guard, TransitionGuardNode::When(_)),
                 "{body}"
             );
         }
@@ -382,10 +378,7 @@ fn decisive_compare_exchange_desugar_derives_scalar_result_custody() {
         atomic.ordering,
         language_core::atomic::AtomicOrderingPlan::CompareExchange { .. }
     ));
-    assert_eq!(
-        atomic.result_custody,
-        language_core::atomic::AtomicExpressionResultCustody::Scalar
-    );
+    assert_eq!(atomic.result_custody, AtomicExpressionResultCustody::Scalar);
 }
 
 #[test]
@@ -843,10 +836,7 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
     assert_eq!(propositions.len(), 3);
     assert!(propositions[0].is_public);
     assert!(!propositions[1].is_public);
-    assert!(matches!(
-        propositions[0].body,
-        syntax_trees::item::PropositionBody::Primitive
-    ));
+    assert!(matches!(propositions[0].body, PropositionBody::Primitive));
     assert_eq!(
         parsed
             .items
@@ -863,11 +853,11 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
     );
     assert!(matches!(
         propositions[1].body,
-        syntax_trees::item::PropositionBody::Witness { .. }
+        PropositionBody::Witness { .. }
     ));
     assert!(matches!(
         propositions[2].body,
-        syntax_trees::item::PropositionBody::Transparent { proposition }
+        PropositionBody::Transparent { proposition }
             if matches!(parsed.expressions.expression(proposition), ExpressionNode::Call(_))
     ));
     assert!(propositions[0].transparent_formula_source_span.is_none());

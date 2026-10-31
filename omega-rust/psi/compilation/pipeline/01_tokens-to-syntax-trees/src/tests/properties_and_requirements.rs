@@ -1,7 +1,12 @@
 use crate::parser::parse_syntax_trees;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::item::CapabilityContractKind;
+use syntax_trees::item::CapabilityMember;
+use syntax_trees::item::CrashCause;
+use syntax_trees::item::Item;
 use syntax_trees::statement::StatementNode;
+use syntax_trees::statement::TransitionExit;
 
 #[test]
 fn retired_capability_entry_names_the_boundary_provider_migration() {
@@ -44,13 +49,11 @@ fn retired_capability_entry_names_the_boundary_provider_migration() {
         .expect("tokenize current capability surface");
     let syntax = parse_syntax_trees(&tokens)
         .expect("ordinary `entry` field and capability state must remain accepted");
-    let Some(syntax_trees::item::Item::Capability(capability)) = syntax.root_items().next() else {
+    let Some(Item::Capability(capability)) = syntax.root_items().next() else {
         panic!("expected capability");
     };
-    let [
-        syntax_trees::item::CapabilityMember::Field(field),
-        syntax_trees::item::CapabilityMember::State(_),
-    ] = syntax.items.capability_members(capability.members)
+    let [CapabilityMember::Field(field), CapabilityMember::State(_)] =
+        syntax.items.capability_members(capability.members)
     else {
         panic!("expected ordinary field followed by current state member");
     };
@@ -156,7 +159,7 @@ fn linear_property_is_first_class_on_data_and_type_parameters() {
     let data: Vec<_> = parsed
         .root_items()
         .filter_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
+            Item::Data(data) => Some(data),
             _ => None,
         })
         .collect();
@@ -184,7 +187,7 @@ fn multiplicity_property_lists_accept_trailing_commas() {
     let multiplicities = parsed
         .root_items()
         .filter_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data.properties.multiplicity),
+            Item::Data(data) => Some(data.properties.multiplicity),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -291,7 +294,7 @@ fn parses_plain_and_boundary_traits() {
     let traits: Vec<_> = parsed
         .root_items()
         .filter_map(|item| match item {
-            syntax_trees::item::Item::Trait(trait_definition) => Some(trait_definition),
+            Item::Trait(trait_definition) => Some(trait_definition),
             _ => None,
         })
         .collect();
@@ -376,11 +379,7 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
     let structural_machine = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine)
-                if machine.name.as_str(&parsed) == "schedule" =>
-            {
-                Some(machine)
-            }
+            Item::Machine(machine) if machine.name.as_str(&parsed) == "schedule" => Some(machine),
             _ => None,
         })
         .expect("structural machine-parameter owner");
@@ -465,10 +464,7 @@ fn parses_machine_requires_before_reaches_on_one_line() {
     let [contract] = parsed.items.capability_contracts(machine.contracts) else {
         panic!("machine should carry exactly one requires contract");
     };
-    assert!(matches!(
-        contract.kind,
-        syntax_trees::item::CapabilityContractKind::Requires
-    ));
+    assert!(matches!(contract.kind, CapabilityContractKind::Requires));
     assert_eq!(parsed.items.proof_facts(contract.facts).len(), 1);
 }
 
@@ -505,11 +501,7 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
         parsed
             .root_items()
             .find_map(|item| match item {
-                syntax_trees::item::Item::Machine(machine)
-                    if machine.name.as_str(&parsed) == name =>
-                {
-                    Some(machine)
-                }
+                Item::Machine(machine) if machine.name.as_str(&parsed) == name => Some(machine),
                 _ => None,
             })
             .unwrap_or_else(|| panic!("machine {name}"))
@@ -548,10 +540,7 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
     let [contract] = contracts(predicate_machine) else {
         panic!("predicate machine should carry one ensures contract");
     };
-    assert!(matches!(
-        contract.kind,
-        syntax_trees::item::CapabilityContractKind::Ensures
-    ));
+    assert!(matches!(contract.kind, CapabilityContractKind::Ensures));
     let [fact] = parsed.items.proof_facts(contract.facts) else {
         panic!("ensures contract should carry one fact");
     };
@@ -579,7 +568,7 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
     };
     assert!(matches!(
         signature_contract.kind,
-        syntax_trees::item::CapabilityContractKind::Requires
+        CapabilityContractKind::Requires
     ));
     assert_eq!(parsed.items.proof_facts(signature_contract.facts).len(), 1);
 }
@@ -626,16 +615,16 @@ fn parses_guarded_crash_buckets_on_machines_and_requirements() {
     let machine = super::root_machine(&parsed, "machine item");
     let contracts = parsed.items.capability_contracts(machine.contracts);
     assert_eq!(contracts.len(), 2);
-    let syntax_trees::item::CapabilityContractKind::Crashes { cause } = &contracts[0].kind else {
+    let CapabilityContractKind::Crashes { cause } = &contracts[0].kind else {
         panic!("first contract should be a crash bucket");
     };
-    assert_eq!(*cause, syntax_trees::item::CrashCause::Trap);
+    assert_eq!(*cause, CrashCause::Trap);
     assert_eq!(parsed.items.proof_facts(contracts[0].facts).len(), 2);
 
-    let syntax_trees::item::CapabilityContractKind::Crashes { cause } = &contracts[1].kind else {
+    let CapabilityContractKind::Crashes { cause } = &contracts[1].kind else {
         panic!("second contract should be a crash bucket");
     };
-    assert_eq!(*cause, syntax_trees::item::CrashCause::Abort);
+    assert_eq!(*cause, CrashCause::Abort);
     assert!(parsed.items.proof_facts(contracts[1].facts).is_empty());
 
     let trait_definition = super::root_trait(&parsed, "trait item");
@@ -645,10 +634,10 @@ fn parses_guarded_crash_buckets_on_machines_and_requirements() {
     let [contract] = parsed.items.capability_contracts(signature.contracts) else {
         panic!("requirement should carry one crash bucket");
     };
-    let syntax_trees::item::CapabilityContractKind::Crashes { cause } = &contract.kind else {
+    let CapabilityContractKind::Crashes { cause } = &contract.kind else {
         panic!("requirement contract should be a crash bucket");
     };
-    assert_eq!(*cause, syntax_trees::item::CrashCause::Abort);
+    assert_eq!(*cause, CrashCause::Abort);
     assert_eq!(parsed.items.proof_facts(contract.facts).len(), 1);
 }
 
@@ -664,10 +653,10 @@ fn parses_guarded_crash_bucket_on_operator_contract() {
     let [contract] = parsed.items.capability_contracts(operator.contracts) else {
         panic!("operator should carry one crash bucket");
     };
-    let syntax_trees::item::CapabilityContractKind::Crashes { cause } = &contract.kind else {
+    let CapabilityContractKind::Crashes { cause } = &contract.kind else {
         panic!("operator contract should be a crash bucket");
     };
-    assert_eq!(*cause, syntax_trees::item::CrashCause::Trap);
+    assert_eq!(*cause, CrashCause::Trap);
     assert_eq!(parsed.items.proof_facts(contract.facts).len(), 1);
     let keyword = contract
         .keyword_source_span
@@ -909,10 +898,7 @@ fn parses_explicit_crash_terminal_and_retires_trap_statement() {
     let StatementNode::Transition(transition) = parsed.statements.statement(*statement) else {
         panic!("crash should lower to an explicit transition exit");
     };
-    assert_eq!(
-        transition.exit,
-        syntax_trees::statement::TransitionExit::Crash(syntax_trees::item::CrashCause::Abort)
-    );
+    assert_eq!(transition.exit, TransitionExit::Crash(CrashCause::Abort));
 
     let tokens = Lexer::new("machine fail() { trap; }")
         .tokenize()
@@ -1067,7 +1053,7 @@ fn operational_clause_semicolon_terminates_requirement_before_boundary_item() {
     let requirement = parsed
         .root_items()
         .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            Item::Machine(machine) => Some(machine),
             _ => None,
         })
         .expect("top-level requirement");
@@ -1078,7 +1064,7 @@ fn operational_clause_semicolon_terminates_requirement_before_boundary_item() {
     assert!(requirement.blocks);
     assert!(parsed.root_items().any(|item| matches!(
         item,
-        syntax_trees::item::Item::Trait(definition)
+        Item::Trait(definition)
             if definition.name.as_str(&parsed) == "TaskRuntime"
     )));
 }
@@ -1192,12 +1178,9 @@ fn parses_machine_contract_clauses() {
     assert_eq!(contracts.len(), 2);
     assert!(matches!(
         contracts[0].kind,
-        syntax_trees::item::CapabilityContractKind::Requires
+        CapabilityContractKind::Requires
     ));
-    assert!(matches!(
-        contracts[1].kind,
-        syntax_trees::item::CapabilityContractKind::Ensures
-    ));
+    assert!(matches!(contracts[1].kind, CapabilityContractKind::Ensures));
     assert!(contracts[0].token_count > 0);
     assert!(contracts[1].token_count > 0);
     for (contract, keyword) in contracts.iter().zip(["requires", "ensures"]) {
@@ -1261,9 +1244,7 @@ fn parses_outcome_specific_ensures_as_rows_without_group_identity() {
     let contracts = parsed.items.capability_contracts(machine.contracts);
     assert_eq!(contracts.len(), 2);
     for contract in contracts {
-        let syntax_trees::item::CapabilityContractKind::EnsuresForResultCase { result_case } =
-            &contract.kind
-        else {
+        let CapabilityContractKind::EnsuresForResultCase { result_case } = &contract.kind else {
             panic!("guarded guarantee row")
         };
         let names = parsed.items.identifier_path_members(*result_case);
@@ -1342,7 +1323,7 @@ fn parses_named_bodyless_signature_contract_bindings() {
     let worker = parsed
         .root_items()
         .filter_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
+            Item::Trait(definition) => Some(definition),
             _ => None,
         })
         .find(|definition| definition.name.as_str(&parsed) == "Worker")
@@ -1396,11 +1377,7 @@ fn parses_nested_machine_requires() {
         .nested_machines
         .handles()
         .find_map(|handle| match parsed.items.item(handle) {
-            syntax_trees::item::Item::Machine(child)
-                if child.name.as_str(&parsed) == "positive" =>
-            {
-                Some(child)
-            }
+            Item::Machine(child) if child.name.as_str(&parsed) == "positive" => Some(child),
             _ => None,
         })
         .expect("positive machine");
@@ -1408,7 +1385,7 @@ fn parses_nested_machine_requires() {
     assert_eq!(contracts.len(), 1);
     assert!(matches!(
         contracts[0].kind,
-        syntax_trees::item::CapabilityContractKind::Requires
+        CapabilityContractKind::Requires
     ));
     assert_eq!(parsed.items.proof_facts(contracts[0].facts).len(), 1);
 }
@@ -1437,10 +1414,10 @@ fn parses_unguarded_crash_bucket_on_a_bodyless_machine_head() {
     let [contract] = parsed.items.capability_contracts(equal.contracts) else {
         panic!("the bodyless head carries one crash bucket");
     };
-    let syntax_trees::item::CapabilityContractKind::Crashes { cause } = &contract.kind else {
+    let CapabilityContractKind::Crashes { cause } = &contract.kind else {
         panic!("crash bucket");
     };
-    assert_eq!(*cause, syntax_trees::item::CrashCause::Trap);
+    assert_eq!(*cause, CrashCause::Trap);
     assert!(parsed.items.proof_facts(contract.facts).is_empty());
     assert!(!compare.bodyless);
 }
