@@ -5,9 +5,9 @@
 //! than being hidden by the verification stack's reservation.
 //!
 //! `DEEP` sits far past the ~260-link certificate chains the C2L census
-//! measured; the checks that still route a deep subterm through the
-//! recursive substitution helpers stay at `SHALLOW`, which is already
-//! sixteen times that observed depth.
+//! measured. Dependent application, pair and projection tests use `SHALLOW`
+//! to bound their repeated substitution work. Separate remapping tests cover
+//! `DEEP` without replacing the complete dependent judgments here.
 
 use super::{apply, default_budget, lambda, pair, pi, sigma, snd, two, two_zero, variable};
 use crate::mathematical_core::{
@@ -99,9 +99,9 @@ fn long_application_spine_consumes_arguments_in_order() {
     let mut budget = default_budget();
 
     // `f : Π(_ : Two). … Π(_ : Two). Two` applied to `zero` `SHALLOW`
-    // times lands at `Two`. The per-link codomain substitution still
-    // descends recursively through substitution.rs — outside the typing
-    // judgment's own stack discipline — so this stays at `SHALLOW`.
+    // times lands at `Two`. Each argument performs its own dependent
+    // codomain substitution, so this case bounds total work at `SHALLOW`;
+    // the independent remapping tests exercise much deeper term graphs.
     let function_type = two_telescope(&mut arena, SHALLOW);
     let context = Context::empty().extend(function_type);
     let mut term = variable(&mut arena, 0);
@@ -139,8 +139,8 @@ fn long_snd_chain_projects_off_the_call_stack() {
     let mut budget = default_budget();
 
     // `w : Σ(_ : Two). Σ(_ : Two). … Two`; `snd^SHALLOW w : Two`. The
-    // dependent result substitutes the reconstructed `fst` each link —
-    // recursion inside substitution.rs — so this too stays at `SHALLOW`.
+    // dependent result substitutes the reconstructed `fst` at every link,
+    // so this too bounds the total repeated substitution work at `SHALLOW`.
     let mut w_type = two(&mut arena);
     for _ in 0..SHALLOW {
         let domain = two(&mut arena);
@@ -177,4 +177,140 @@ fn a_chain_rejects_at_its_end() {
             context_depth: SHALLOW,
         }
     );
+}
+
+#[test]
+fn deep_binder_domains_form_on_the_default_stack() {
+    std::thread::spawn(|| {
+        let mut arena = TermArena::new();
+        let two = two(&mut arena);
+        let mut term = two;
+        for _ in 0..DEEP {
+            term = pi(&mut arena, term, two);
+        }
+        let inferred = infer_type(&mut arena, &Context::empty(), term, &mut default_budget())
+            .expect("the complete left-nested binder tree is a valid relevant type");
+        assert_eq!(
+            arena.get(inferred),
+            Term::Sort(crate::mathematical_core::Sort::Type(
+                crate::mathematical_core::Level::Constant(0)
+            ))
+        );
+    })
+    .join()
+    .expect("binder-domain formation uses the default stack");
+}
+
+#[test]
+fn binder_formation_restores_the_exact_prefix_between_children() {
+    let mut arena = TermArena::new();
+    let universe = super::type_sort(&mut arena, 0);
+    let a = variable(&mut arena, 0);
+    let a_under_x = variable(&mut arena, 1);
+    let inner = pi(&mut arena, a, a_under_x);
+    let term = pi(&mut arena, universe, inner);
+    let inferred = infer_type(&mut arena, &Context::empty(), term, &mut default_budget()).unwrap();
+    assert_eq!(
+        arena.get(inferred),
+        Term::Sort(crate::mathematical_core::Sort::Type(
+            crate::mathematical_core::Level::Constant(1)
+        ))
+    );
+    // Layer formation uses the same exact binder prefix, including when it
+    // forms a dependent domain in another binder.
+    let proposition = arena.insert(Term::Squash { ty: a });
+    let boxed = arena.insert(Term::Box { ty: proposition });
+    let inner = pi(&mut arena, boxed, a_under_x);
+    let composed = pi(&mut arena, universe, inner);
+    let inferred = infer_type(
+        &mut arena,
+        &Context::empty(),
+        composed,
+        &mut default_budget(),
+    )
+    .unwrap();
+    assert_eq!(
+        arena.get(inferred),
+        Term::Sort(crate::mathematical_core::Sort::Type(
+            crate::mathematical_core::Level::Constant(1)
+        ))
+    );
+    // The domain of the outer binder is checked before that binder exists.
+    // A completed sibling may not donate its binding to this same handle.
+    let invalid = pi(&mut arena, a, universe);
+    assert_eq!(
+        infer_type(
+            &mut arena,
+            &Context::empty(),
+            invalid,
+            &mut default_budget()
+        ),
+        Err(CoreError::UnboundVariable {
+            index: 0,
+            context_depth: 0
+        })
+    );
+    let two = super::two(&mut arena);
+    let invalid_sort = pi(&mut arena, two, a);
+    assert!(
+        matches!(
+            infer_type(
+                &mut arena,
+                &Context::empty(),
+                invalid_sort,
+                &mut default_budget()
+            ),
+            Err(CoreError::NotASort { .. })
+        ),
+        "a bound value does not become a type"
+    );
+}
+
+#[test]
+fn deep_relevant_and_strict_formations_preserve_layer_refusals() {
+    std::thread::spawn(|| {
+        let mut arena = TermArena::new();
+        let two = two(&mut arena);
+        let mut term = two;
+        for _ in 0..DEEP / 2 {
+            let proposition = arena.insert(Term::Squash { ty: term });
+            term = arena.insert(Term::Box { ty: proposition });
+        }
+        let inferred =
+            infer_type(&mut arena, &Context::empty(), term, &mut default_budget()).unwrap();
+        assert_eq!(
+            arena.get(inferred),
+            Term::Sort(crate::mathematical_core::Sort::Type(
+                crate::mathematical_core::Level::Constant(0)
+            ))
+        );
+        let invalid = arena.insert(Term::Box { ty: two });
+        let mut nested_invalid = invalid;
+        for _ in 0..DEEP / 2 {
+            let proposition = arena.insert(Term::Squash { ty: nested_invalid });
+            nested_invalid = arena.insert(Term::Box { ty: proposition });
+        }
+        assert_eq!(
+            infer_type(
+                &mut arena,
+                &Context::empty(),
+                nested_invalid,
+                &mut default_budget()
+            ),
+            Err(CoreError::NonStrictBoxDomain { domain: two })
+        );
+        let empty = arena.insert(Term::Empty);
+        let invalid = arena.insert(Term::Squash { ty: empty });
+        assert_eq!(
+            infer_type(
+                &mut arena,
+                &Context::empty(),
+                invalid,
+                &mut default_budget()
+            ),
+            Err(CoreError::StrictSquashDomain { domain: empty })
+        );
+    })
+    .join()
+    .expect("relevant and strict formation uses the default stack");
 }
