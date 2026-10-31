@@ -117,6 +117,7 @@ pub struct PreparedServiceCatalog {
     requirements: Arena<PreparedServiceRequirement>,
     arguments: Arena<TypeReferenceHandle>,
     sealed: Arena<SealedDeclaration>,
+    signatures: super::signatures::PreparedBoundarySignatures,
 }
 
 /// Authenticated query entrance for one unchanged source owner and purpose.
@@ -172,6 +173,7 @@ impl PreparedServiceCatalog {
             requirements: Arena::new(),
             arguments: Arena::new(),
             sealed: Arena::new(),
+            signatures: super::signatures::PreparedBoundarySignatures::prepare(context),
         };
 
         // Open generic declarations are needed even without executable uses.
@@ -319,6 +321,10 @@ impl PreparedServiceCatalog {
 }
 
 impl<'catalog> ServiceCatalog<'catalog> {
+    pub fn signatures(self) -> &'catalog super::signatures::PreparedBoundarySignatures {
+        &self.catalog.signatures
+    }
+
     pub fn context(self) -> ProviderPlanningContext<'catalog> {
         self.context
     }

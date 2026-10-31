@@ -3,8 +3,8 @@
 //! the plan the policy produced.
 
 use crate::calling_policy_plans::boundary_signatures::{
-    call_signature_from_top_level_requirement, call_signature_from_typed,
     collect_boundary_signatures, compatibility_call_signature, exact_compatibility_overload_index,
+    materialize_prepared_signature,
 };
 use crate::calling_policy_plans::build_time_decoding::{
     CALLBACK_FIELD_PATH_CAPACITY, CALLBACK_MATERIALIZATION_CAPACITY, PARAMETER_CAPACITY,
@@ -38,7 +38,7 @@ macro_rules! row {
 }
 
 pub(crate) fn evaluate_default_calling_application(
-    typed: &TypedTrees,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     layout_target: layout::LayoutTarget,
     trait_name: &str,
     trait_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -48,96 +48,37 @@ pub(crate) fn evaluate_default_calling_application(
     dispatch_only_parameter_count: usize,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<Option<calling_conventions::BoundaryCallingApplication>, String> {
-    let trait_candidates = typed
-        .traits()
-        .iter()
-        .filter(|definition| {
-            typed.trait_declaration_path(definition) == trait_name
-                && crate::service_schema::is_product_declaration(typed, definition.symbol)
-                && typed.symbols.symbol_package_identity(definition.symbol)
-                    == trait_package_identity
+    let candidates = services
+        .signatures()
+        .declarations()
+        .filter(|declaration| {
+            declaration.default_eligible
+                && declaration.path == trait_name
+                && declaration.package == trait_package_identity
+                && declaration.method == method_name
         })
-        .flat_map(|definition| {
-            typed
-                .trait_machine_signatures(definition)
-                .iter()
-                .filter(|signature| signature.name.as_str() == method_name)
-                .map(|signature| {
-                    (
-                        signature,
-                        typed.trait_requirement_callable_identity_text(definition, signature),
-                    )
-                })
-        })
-        .collect::<Vec<_>>();
-    let top_level_candidates = typed
-        .machines()
-        .iter()
-        .filter(|requirement| {
-            requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && crate::service_schema::is_product_declaration(typed, requirement.symbol)
-                && typed.symbols.display_path(requirement.symbol, "::") == trait_name
-                && typed.symbols.symbol_package_identity(requirement.symbol)
-                    == trait_package_identity
-        })
-        .filter_map(|requirement| {
-            let [entry] = typed.machine_states(requirement) else {
-                return None;
-            };
-            (entry.name.as_str() == method_name).then(|| {
-                (
-                    requirement,
-                    entry,
-                    typed
-                        .machine_callable_identity_text(requirement)
-                        .unwrap_or_default(),
-                )
-            })
-        })
-        .collect::<Vec<_>>();
-    let candidate_identities = trait_candidates
-        .iter()
-        .map(|(_, identity)| identity.as_str())
-        .chain(
-            top_level_candidates
-                .iter()
-                .map(|(_, _, identity)| identity.as_str()),
-        )
         .collect::<Vec<_>>();
     let Some(candidate_index) = exact_compatibility_overload_index(
         trait_name,
         method_name,
         requirement_identity,
-        candidate_identities,
+        candidates
+            .iter()
+            .map(|declaration| declaration.requirement_identity.as_str()),
     )?
     else {
         return Ok(None);
     };
-    let materialized = if let Some((signature, _)) = trait_candidates.get(candidate_index) {
-        call_signature_from_typed(
-            typed,
-            signature,
-            &[],
-            requirement_identity,
-            layout_target,
-            opaque_representation_selections,
-        )?
-    } else {
-        let top_level_index = candidate_index - trait_candidates.len();
-        let (requirement, entry, _) =
-            top_level_candidates.get(top_level_index).ok_or_else(|| {
-                "compatibility boundary selection index is outside its exact candidate catalog"
-                    .to_owned()
-            })?;
-        call_signature_from_top_level_requirement(
-            typed,
-            requirement,
-            entry,
-            requirement_identity,
-            layout_target,
-            opaque_representation_selections,
-        )?
-    };
+    let declaration = candidates.get(candidate_index).ok_or_else(|| {
+        "compatibility boundary selection index is outside its exact candidate catalog".to_owned()
+    })?;
+    let materialized = materialize_prepared_signature(
+        services,
+        declaration,
+        &[],
+        layout_target,
+        opaque_representation_selections,
+    )?;
     let classified =
         compatibility_call_signature(&materialized, policy, dispatch_only_parameter_count)?;
     let validated = evaluate_ordinary_boundary_entry_plan(policy, &classified)
@@ -153,10 +94,18 @@ pub(crate) fn evaluate_default_calling_application(
 /// evaluated applications in the realization output. Source trees are borrowed.
 pub fn compute_boundary_calling_plans(
     checked: &checked_trees::CheckedTrees,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     target_profile: target::TargetProfile,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
+    if !std::ptr::eq(&*checked.typed, services.context().typed)
+        || services.context().scope != source::DependencyScope::Product
+    {
+        return Err(vec![Diagnostic::error(
+            "calling plans require the exact Product source owner's prepared signature catalog",
+        )]);
+    }
     // Provider selection consumes the source judgment. Retain it through
     // policy admission rather than rechecking its internal call premises.
     let typed = &checked.typed;
@@ -254,11 +203,18 @@ pub fn compute_boundary_calling_plans(
             );
             for signature_instance in signatures {
                 let signature = signature_instance.signature;
-                let boundary_signature = call_signature_from_typed(
-                    typed,
-                    signature,
+                let declaration = services
+                    .signatures()
+                    .for_requirement(signature.symbol, &signature_instance.requirement_identity)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "calling plan lost its exact prepared signature declaration",
+                        )]
+                    })?;
+                let boundary_signature = materialize_prepared_signature(
+                    services,
+                    declaration,
                     &signature_instance.bindings,
-                    &signature_instance.requirement_identity,
                     layout::LayoutTarget::for_profile(target_profile)
                         .map_err(|reason| vec![Diagnostic::error(reason)])?,
                     opaque_representation_selections,

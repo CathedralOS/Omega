@@ -177,7 +177,6 @@ pub fn component_calling_applications(
     explicit: &[super::BoundaryCallingPlanRealization],
     representations: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
-    let typed = services.context().typed;
     let mut applications = Vec::<calling_conventions::BoundaryCallingApplication>::new();
     for provider in providers {
         let plan = &provider.plan;
@@ -220,7 +219,7 @@ pub fn component_calling_applications(
             let application = match application {
                 Some(application) => application,
                 None => super::plan_computation::evaluate_default_calling_application(
-                    typed, layout_target, trait_name, plan.schema.declaration.trait_package_identity,
+                    services, layout_target, trait_name, plan.schema.declaration.trait_package_identity,
                     &row.method, requirement,
                     calling_conventions::CallingPolicy::native_for_target(native_target),
                     0, representations,

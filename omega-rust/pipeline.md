@@ -328,6 +328,17 @@ invocation-owned projection: canonical Terminal signature publication, exact
 callback/policy capture, and Terminal-first target orchestration are still open.
 In particular, this split does not establish source-discard/reload acceptance.
 
+The same source catalog now retains native parameter/callback telescopes before
+target choice. Psi owns nominal parameter identities, static-machine ordinal
+gaps, callback requirements, synchronous-invocation flags and declared native
+positions. Default ABI lookup uses its Product-eligible declaration subset;
+authored policy evaluation retains the complete checked-input census, including
+Build copies. Omega consumes those records instead of rewalking signatures.
+Projection refusals remain deferred until an ABI request, and runtime type
+recipes still materialize one parameter at a time. These telescopes and their
+separate source correspondence are invocation-owned; publishing the complete
+signature/contract set canonically in Terminal is still required.
+
 The owner approved this implementation plan on 2026-10-24. It is the acceptance
 for **PIPELINE-ARCHITECTURE-ENFORCEMENT**, not a claim that the current Rust
 implementation already has these boundaries. Build suspension and helper

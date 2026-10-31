@@ -179,7 +179,7 @@ impl ExternalBindingContext<'_> {
             (Some(plan), _) => Some(plan),
             (None, Some(policy)) => {
                 crate::calling_policy_plans::evaluate_default_calling_application(
-                    typed,
+                    services,
                     layout_target,
                     plan.schema
                         .identity_text(plan.schema.declaration.trait_name),

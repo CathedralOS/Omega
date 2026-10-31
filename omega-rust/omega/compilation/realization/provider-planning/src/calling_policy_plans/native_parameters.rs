@@ -4,9 +4,7 @@ use super::{
     BoundaryCallbackBinder, BoundaryDirectCallbackParameter, BoundaryNativeParameter,
     BoundaryNativeParameterOrigin, BoundaryNativeParameterShape, MaterializedBoundarySignature,
 };
-use calling_conventions::{
-    CallbackRequirementId, NativeCallbackDemand, NativeParameterId, StaticMachineBinderId,
-};
+use calling_conventions::{NativeCallbackDemand, NativeParameterId};
 use symbols::SymbolHandle;
 
 impl MaterializedBoundarySignature {
@@ -47,27 +45,5 @@ impl BoundaryNativeParameter {
 
     pub const fn layout_data_symbol(&self) -> SymbolHandle {
         self.layout_data_symbol
-    }
-}
-
-impl BoundaryDirectCallbackParameter {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub const fn identity(&self) -> NativeParameterId {
-        self.identity
-    }
-
-    pub const fn native_ordinal(&self) -> u32 {
-        self.native_ordinal
-    }
-
-    pub const fn binder(&self) -> StaticMachineBinderId {
-        self.binder
-    }
-
-    pub const fn requirement(&self) -> CallbackRequirementId {
-        self.requirement
     }
 }
