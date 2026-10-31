@@ -16,8 +16,14 @@
 
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::ExpressionTable;
+use symbol_resolved_trees::statement::StatementTable;
 
 /// The expressions of every resolved body.
 pub(crate) fn body_expressions(program: &SymbolResolvedTrees) -> &ExpressionTable {
     &program.tables.bodies.expressions
+}
+
+/// The statements of every resolved body.
+pub(crate) fn body_statements(program: &SymbolResolvedTrees) -> &StatementTable {
+    &program.tables.bodies.statements
 }
