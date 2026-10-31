@@ -741,6 +741,7 @@ pub(crate) fn prepare_permission_events(
         !absent_carrier_transfer
     });
 
+    facts.flow.ownership.permissions_by_state.clear();
     facts.flow.ownership.permissions = Default::default();
     facts
         .flow
