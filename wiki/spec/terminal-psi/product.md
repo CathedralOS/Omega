@@ -43,6 +43,18 @@ it does not invent an executable entry. Execution requires an explicitly admitte
 callable or an existing default root. Native emission likewise requires its
 selected executable application.
 
+Selected-composition [behavior exclusions](../build/behavior_exclusions.md)
+must not depend on optional optimization. Terminal therefore retains the
+pre-optimization semantic operations for each produced body: direct and boundary
+invocations, instruction service contributions, crash causes, and nominal
+cleanup calls. These are typed operation relationships, not a producer's
+policy verdict. The consumer reconstructs the selected closure against the
+provider catalog and conservative opaque contracts. Historical sites may no
+longer be executable after optimization; missing history supplies no absence
+evidence. Canonical ingress checks referenced declarations and ensures retained
+history covers the executable body's contributions. This structural check does
+not independently establish the producer's historical lowering correctness.
+
 Selected boundary-operator applications belong to these portable semantics.
 Each demand names its Terminal operation, exact-owner requirement identity,
 overload coordinate and declaration-ordered closed type/constant arguments.

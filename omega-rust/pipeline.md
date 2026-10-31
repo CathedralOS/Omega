@@ -182,10 +182,12 @@ publication entrance. Terminal cohorts retain each admitted application beside
 its exact entry, callback roots and exclusion policy. Source-sharing comparisons
 use those requests directly; only caller order is restored after cohort work,
 without parallel entry tables or empty outcome slots.
-Composition admission runs once per application, before optimization. Psi lends
-an ordered, lazily projected stream of canonical entry, callback and physical
-adapter roots; Omega prepares the exclusion/provider context once and judges
-each root separately. Root-specific attribution and first-refusal precedence
+Composition admission runs once per application, after canonical publication.
+Psi projects ordered entry, callback and physical-adapter roots with deferred
+source diagnostics, and retains their pre-optimization semantic operations in
+Terminal. Omega prepares the exclusion/provider context once and judges each
+root's selected semantic closure, without calling product policy from Psi or
+depending on optional optimization. Root-specific attribution and first-refusal precedence
 survive, including missing-body checks when no authored service exclusion
 resolves. This does not remove source-side callback selection or replace its
 complete dormant-declaration checks with emitted-call reachability.
@@ -1136,7 +1138,7 @@ demand and selected rows independently. Reference preparation never copies or
 mutates checked Psi; Build's required comparison preparation remains separate.
 Matching source-owner/entry/Psi-optimization requests share one Terminal
 production and backing allocation, including in retained native images. Each
-target independently admits the unoptimized composition and retains its own
+target independently admits the retained pre-optimization composition and retains its own
 entry receipt and native proposal. Distinct roots and callbacks are retained
 in that same whole-program Terminal roster.
 These remain checked-tree realization seams with package-input custody;
@@ -1468,9 +1470,10 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   Representation data and candidate production remain independent of checking.
 - Psi `compilation/driver/terminal-production/` — sequences stages 05–07 through
   publication. Omega consumers supply product policy and reporting directly;
-  they do not assemble the stages or wrap this production entrance. Exclusion admission
-  borrows the unoptimized Terminal composition inside that sequence, without
-  exporting or cloning its checked-source lowering.
+  they do not assemble the stages or wrap this production entrance. Psi returns
+  ordered composition roots and diagnostic payloads as data. Omega checks
+  exclusions after publication against retained pre-optimization semantic
+  operations, without exporting or cloning checked-source lowering.
 - Psi `compilation/compile-time/` — evaluation admission and result elaboration.
 - Psi `interpreter/` — checked and Terminal execution engines.
 - `compiler/` — compilation coordination.

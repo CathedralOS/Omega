@@ -151,6 +151,9 @@ pub struct TerminalModule {
     /// Shapes and contracts remain on those declarations, not in a second type
     /// graph. These rows select no calling policy or provider implementation.
     pub calling_signatures: Vec<crate::CallingSignatureDeclaration>,
+    /// Source-produced potential semantic operations before optional rewrites.
+    /// A missing body row supplies no evidence of absence for product policy.
+    pub unoptimized_behavior: Vec<crate::UnoptimizedMachineBehavior>,
     /// Exact external satisfaction edges, including demands lowered without calls.
     pub external_providers: Vec<ExternalProviderConformance>,
     /// Every checked, target-neutral provider candidate eligible to realize a
@@ -241,6 +244,15 @@ impl TerminalModule {
         self.machines.iter().find(|machine| machine.id == id)
     }
 
+    pub fn unoptimized_machine_behavior(
+        &self,
+        id: MachineId,
+    ) -> Option<&crate::UnoptimizedMachineBehavior> {
+        self.unoptimized_behavior
+            .iter()
+            .find(|body| body.machine == id)
+    }
+
     /// The service keyed `id`, when the module declares it.
     pub fn service(&self, id: ServiceId) -> Option<&ServiceDeclaration> {
         self.services.iter().find(|service| service.id == id)
@@ -308,6 +320,7 @@ impl TerminalModule {
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines: Vec::new(),
             calling_signatures: Vec::new(),
+            unoptimized_behavior: Vec::new(),
             external_providers: Vec::new(),
             provider_candidates: Vec::new(),
             boundary_application_candidates: Vec::new(),

@@ -8,9 +8,10 @@
 //! an identical declared Trap ceiling, and an ordinary silent logger from an
 //! actual Console invocation behind an equally broad published ceiling.
 //!
-//! The check walks the unoptimized Terminal closure because semantic absence
+//! The check follows the pre-optimization semantic operations retained in
+//! canonical Terminal, not the optionally optimized executable blocks. Absence
 //! cannot be established by native instruction scanning, by a
-//! producer-written summary row, or by a test run, and optional optimization
+//! producer-written policy verdict, or by a test run, and optional optimization
 //! selection must not determine admissibility. For the same reason the walk
 //! never consults an in-module machine's `contract.crash_routes`,
 //! `published_service_ceiling`, or `declared_service_reach`: those publish the
@@ -52,8 +53,8 @@ use semantic_vocabulary::{
 };
 use std::collections::VecDeque;
 use terminal_psi::{
-    CrashCause, OperationKind, ProviderCandidateConformance, TargetMachineCallable,
-    TargetMachineSupply, TerminalMachine, TerminalModule, Terminator,
+    CrashCause, ProviderCandidateConformance, TargetMachineCallable, TargetMachineSupply,
+    TerminalModule, UnoptimizedBehaviorOperation, UnoptimizedMachineBehavior,
 };
 
 /// One exact exclusion selected by the build root.
@@ -241,6 +242,7 @@ pub enum EvidenceGapKind {
         reason: String,
     },
     UnknownEntry,
+    MissingUnoptimizedBehavior(MachineId),
 }
 
 /// One site whose possible behavior the retained evidence does not cover.
@@ -302,7 +304,7 @@ pub fn establish_behavior_exclusions(
         return report;
     }
     for &entry in entries {
-        let Some(machine) = module.machine(entry) else {
+        if module.machine(entry).is_none() {
             report.gaps.push(EvidenceGap {
                 entry,
                 machine: entry,
@@ -311,14 +313,24 @@ pub fn establish_behavior_exclusions(
                 kind: EvidenceGapKind::UnknownEntry,
             });
             continue;
+        }
+        let Some(machine) = module.unoptimized_machine_behavior(entry) else {
+            report.gaps.push(EvidenceGap {
+                entry,
+                machine: entry,
+                block: None,
+                operation: None,
+                kind: EvidenceGapKind::MissingUnoptimizedBehavior(entry),
+            });
+            continue;
         };
         let mut visited = Vec::new();
         let mut pending = VecDeque::from([machine]);
         while let Some(machine) = pending.pop_front() {
-            if visited.contains(&machine.id) {
+            if visited.contains(&machine.machine) {
                 continue;
             }
-            visited.push(machine.id);
+            visited.push(machine.machine);
             inspect_machine(
                 module,
                 entry,
@@ -470,117 +482,85 @@ fn boundary_realization_coverage(
 fn inspect_machine<'module>(
     module: &'module TerminalModule,
     entry: MachineId,
-    machine: &'module TerminalMachine,
+    machine: &'module UnoptimizedMachineBehavior,
     exclusions: &BehaviorExclusions,
     selected_provider_plans: &crate::SelectedProviderPlanFacts,
     deployment_target: &str,
     report: &mut BehaviorExclusionReport,
-    pending: &mut VecDeque<&'module TerminalMachine>,
+    pending: &mut VecDeque<&'module UnoptimizedMachineBehavior>,
 ) {
-    for block in &machine.blocks {
-        for operation in &block.operations {
-            if let Some(callee) = operation.kind.direct_callee() {
+    for operation in &machine.operations {
+        match *operation {
+            UnoptimizedBehaviorOperation::Invocation {
+                block,
+                site,
+                callee,
+            } => {
                 inspect_callee(
                     module,
                     entry,
-                    machine.id,
-                    block.id,
-                    InvocationSite::Operation(operation.id),
+                    machine.machine,
+                    block,
+                    site,
                     callee,
                     report,
                     pending,
                 );
             }
-            match &operation.kind {
-                OperationKind::BoundaryCall { boundary, .. } => {
-                    inspect_boundary(
-                        module,
-                        entry,
-                        machine.id,
-                        block.id,
-                        InvocationSite::Operation(operation.id),
-                        *boundary,
-                        exclusions,
-                        selected_provider_plans,
-                        deployment_target,
-                        report,
-                        pending,
-                    );
-                }
-                OperationKind::PortWrite { service, .. }
-                | OperationKind::RegisterAccess {
-                    service: Some(service),
-                    ..
-                } => {
-                    if exclusions.excludes_service(*service) {
-                        report.prohibited.push(ProhibitedBehavior {
-                            exclusion: BehaviorExclusion::Service(*service),
-                            entry,
-                            machine: machine.id,
-                            site: ProhibitedSite::CheckedInstruction {
-                                block: block.id,
-                                operation: operation.id,
-                            },
-                        });
-                    }
-                }
-                _ => {}
-            }
-        }
-        // A suspended caller still executes the callee's complete prefix.
-        // Lack of a normal result does not make that behavior disappear.
-        if let Terminator::InvokeNoNormal { edge, callee, .. } = &block.terminator {
-            inspect_callee(
-                module,
-                entry,
-                machine.id,
-                block.id,
-                InvocationSite::InvokeNoNormal(*edge),
-                *callee,
-                report,
-                pending,
-            );
-        }
-        if let Terminator::ExternalCompletion { edge, boundary, .. } = &block.terminator {
-            inspect_boundary(
-                module,
-                entry,
-                machine.id,
-                block.id,
-                InvocationSite::ExternalCompletion(*edge),
-                *boundary,
-                exclusions,
-                selected_provider_plans,
-                deployment_target,
-                report,
-                pending,
-            );
-        }
-        if let Terminator::Crash { cause, .. } = &block.terminator
-            && exclusions.excludes_crash_cause(*cause)
-        {
-            report.prohibited.push(ProhibitedBehavior {
-                exclusion: BehaviorExclusion::CrashCause(*cause),
-                entry,
-                machine: machine.id,
-                site: ProhibitedSite::CrashTerminator { block: block.id },
-            });
-        }
-        // An executable nominal cleanup commits a selected machine's body
-        // when the edge commits; it is a call edge carried on the terminator
-        // rather than an operation, so its possible behavior joins the
-        // closure exactly like a static call. Claim-free discards carry no
-        // code and are not invocations.
-        for cleanup_machine in nominal_cleanup_machines(&block.terminator) {
-            match module.machine(cleanup_machine) {
-                Some(target) => pending.push_back(target),
-                None => report.gaps.push(EvidenceGap {
+            UnoptimizedBehaviorOperation::BoundaryInvocation {
+                block,
+                site,
+                boundary,
+            } => {
+                inspect_boundary(
+                    module,
                     entry,
-                    machine: machine.id,
-                    block: Some(block.id),
-                    operation: None,
-                    kind: EvidenceGapKind::UnknownCallee(cleanup_machine),
-                }),
+                    machine.machine,
+                    block,
+                    site,
+                    boundary,
+                    exclusions,
+                    selected_provider_plans,
+                    deployment_target,
+                    report,
+                    pending,
+                );
+            }
+            UnoptimizedBehaviorOperation::InstructionService {
+                block,
+                operation,
+                service,
+            } => {
+                if exclusions.excludes_service(service) {
+                    report.prohibited.push(ProhibitedBehavior {
+                        exclusion: BehaviorExclusion::Service(service),
+                        entry,
+                        machine: machine.machine,
+                        site: ProhibitedSite::CheckedInstruction { block, operation },
+                    });
+                }
+            }
+            UnoptimizedBehaviorOperation::Crash { block, cause } => {
+                if exclusions.excludes_crash_cause(cause) {
+                    report.prohibited.push(ProhibitedBehavior {
+                        exclusion: BehaviorExclusion::CrashCause(cause),
+                        entry,
+                        machine: machine.machine,
+                        site: ProhibitedSite::CrashTerminator { block },
+                    });
+                }
+            }
+            UnoptimizedBehaviorOperation::NominalCleanup { block, callee } => {
+                enqueue_callee(
+                    module,
+                    entry,
+                    machine.machine,
+                    block,
+                    None,
+                    callee,
+                    report,
+                    pending,
+                );
             }
         }
     }
@@ -595,18 +575,45 @@ fn inspect_callee<'module>(
     invocation: InvocationSite,
     callee: MachineId,
     report: &mut BehaviorExclusionReport,
-    pending: &mut VecDeque<&'module TerminalMachine>,
+    pending: &mut VecDeque<&'module UnoptimizedMachineBehavior>,
 ) {
-    match module.machine(callee) {
-        Some(target) => pending.push_back(target),
-        None => report.gaps.push(EvidenceGap {
-            entry,
-            machine,
-            block: Some(block),
-            operation: invocation.operation(),
-            kind: EvidenceGapKind::UnknownCallee(callee),
-        }),
-    }
+    enqueue_callee(
+        module,
+        entry,
+        machine,
+        block,
+        invocation.operation(),
+        callee,
+        report,
+        pending,
+    );
+}
+
+fn enqueue_callee<'module>(
+    module: &'module TerminalModule,
+    entry: MachineId,
+    machine: MachineId,
+    block: BlockId,
+    operation: Option<OperationId>,
+    callee: MachineId,
+    report: &mut BehaviorExclusionReport,
+    pending: &mut VecDeque<&'module UnoptimizedMachineBehavior>,
+) {
+    let kind = if module.machine(callee).is_none() {
+        EvidenceGapKind::UnknownCallee(callee)
+    } else if let Some(target) = module.unoptimized_machine_behavior(callee) {
+        pending.push_back(target);
+        return;
+    } else {
+        EvidenceGapKind::MissingUnoptimizedBehavior(callee)
+    };
+    report.gaps.push(EvidenceGap {
+        entry,
+        machine,
+        block: Some(block),
+        operation,
+        kind,
+    });
 }
 
 /// The same declared service and selected-provider evidence applies at an
@@ -623,7 +630,7 @@ fn inspect_boundary<'module>(
     selected_provider_plans: &crate::SelectedProviderPlanFacts,
     deployment_target: &str,
     report: &mut BehaviorExclusionReport,
-    pending: &mut VecDeque<&'module TerminalMachine>,
+    pending: &mut VecDeque<&'module UnoptimizedMachineBehavior>,
 ) {
     // A generated head is the portable checking contract, not
     // this deployment's executable behavior. Resolve before
@@ -650,16 +657,9 @@ fn inspect_boundary<'module>(
                 TargetMachineCallable::Machine(callee),
                 TargetMachineSupply::CheckedBody | TargetMachineSupply::Boundary,
             ) => {
-                match module.machine(callee) {
-                    Some(target) => pending.push_back(target),
-                    None => report.gaps.push(EvidenceGap {
-                        entry,
-                        machine,
-                        block: Some(block),
-                        operation: invocation.operation(),
-                        kind: EvidenceGapKind::UnknownCallee(callee),
-                    }),
-                }
+                inspect_callee(
+                    module, entry, machine, block, invocation, callee, report, pending,
+                );
                 return;
             }
             (TargetMachineCallable::Boundary(member), supply)
@@ -760,33 +760,17 @@ fn inspect_boundary<'module>(
         }
     }
     for realization in realizations {
-        match module.machine(realization) {
-            Some(target) => pending.push_back(target),
-            None => report.gaps.push(EvidenceGap {
-                entry,
-                machine,
-                block: Some(block),
-                operation: invocation.operation(),
-                kind: EvidenceGapKind::UnknownCallee(realization),
-            }),
-        }
+        inspect_callee(
+            module,
+            entry,
+            machine,
+            block,
+            invocation,
+            realization,
+            report,
+            pending,
+        );
     }
-}
-
-/// Cleanup dependencies on every possible edge join behavior reach. This
-/// enumerates possible calls; it does not execute unselected successor actions.
-fn nominal_cleanup_machines(terminator: &Terminator) -> impl Iterator<Item = MachineId> {
-    terminator
-        .cleanup_rosters()
-        .flat_map(|(_, actions)| actions)
-        .filter_map(|action| match action {
-            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                Some(cleanup.cleanup_machine)
-            }
-            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
-            | terminal_psi::TerminalAffineCleanupAction::RetireHome(_)
-            | terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_) => None,
-        })
 }
 
 /// Nominal invocation contributes the exact owner and its transitive parents.
