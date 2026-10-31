@@ -592,7 +592,22 @@ fn validate_expression_call_bounds(
     ) {
         // A result's scalar/structural use does not change the requirement's
         // argument contract. Apply the same custody, type and bound checks
-        // as statement-position boundary calls before execution planning.
+        // as statement-position boundary calls before execution planning,
+        // including the substitution of the call's own type application.
+        let Some(bindings) = super::type_arguments::requirement_call_type_arguments(
+            program,
+            current_machine,
+            Some(current_state),
+            signature,
+            &call.machine_arguments,
+            arguments,
+        ) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "call `{}` has an invalid static type argument correspondence",
+                signature.name.as_str()
+            )));
+            return;
+        };
         super::validate_call_arguments(
             program,
             current_machine,
@@ -605,7 +620,7 @@ fn validate_expression_call_bounds(
             writable_roots.statements,
             false,
             &[],
-            call_carrier_matcher(program, current_machine.symbol, &[]),
+            call_carrier_matcher(program, current_machine.symbol, &bindings),
             diagnostics,
             formation_obligations,
         );

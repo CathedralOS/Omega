@@ -113,15 +113,17 @@ pub(crate) fn boundary_trait_signature<'program>(
 
 /// Statement-call validation's selection: the same exact receiver/target
 /// join as `boundary_trait_signature`, additionally admitting a requirement
-/// whose generic telescope is entirely `machine` binders. Such a binder is a
-/// compile-time selection, never a runtime formal: MP2b admits the call's
+/// whose generic telescope is `machine` and `Type` binders. A `machine` binder
+/// is a compile-time selection, never a runtime formal: MP2b admits the call's
 /// static machine argument against its bound at this same call edge, and a
 /// `native callback name from Binder` destination takes its selection from
-/// that argument (private_callbacks.md, "Authored selection"). The caller
+/// that argument (private_callbacks.md, "Authored selection"). A `Type` binder
+/// is discharged by the call's own explicit operand, which may be a binder of
+/// the generic caller, or by its arguments; the caller substitutes it into the
+/// formals before comparing them, as an ordinary generic call does. The caller
 /// still validates result use and every runtime argument against the
-/// selected signature. `Type` binders stay excluded: validation has no
-/// substitution for their formals, and fact seeding (the monomorphic
-/// `boundary_trait_signature`) must not read uninstantiated contracts.
+/// selected signature. Fact seeding (the monomorphic `boundary_trait_signature`)
+/// stays excluded: it must not read uninstantiated contracts.
 pub(crate) fn boundary_trait_call_signature<'program>(
     program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
@@ -135,7 +137,7 @@ pub(crate) fn boundary_trait_call_signature<'program>(
         &receiver_members,
         call.target.as_str(),
         CallerWriteSite::Call(call),
-        SignatureBinders::StaticMachines,
+        SignatureBinders::CallBinders,
     )
     .map(|selected| selected.signature)
 }
@@ -156,7 +158,7 @@ pub(crate) fn boundary_trait_expression_call_signature<'program>(
         &receiver_members,
         call.target.as_str(),
         CallerWriteSite::Expression(expression),
-        SignatureBinders::StaticMachines,
+        SignatureBinders::CallBinders,
     )
     .map(|selected| selected.signature)
 }
@@ -201,9 +203,11 @@ enum SignatureBinders {
     Monomorphic,
     /// Write frames substitute `Type` binders the actual arguments pin.
     ArgumentPinnedTypes,
-    /// Call validation admits `machine` binders, which no runtime argument
-    /// supplies (see `boundary_trait_call_signature`).
-    StaticMachines,
+    /// Call validation admits the binders the call itself discharges: `machine`
+    /// binders, which no runtime argument supplies, and `Type` binders, which
+    /// its explicit operands or arguments pin (see
+    /// `boundary_trait_call_signature`).
+    CallBinders,
 }
 
 struct BoundaryWriteSignature<'program> {
@@ -448,10 +452,11 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                 SignatureBinders::ArgumentPinnedTypes => {
                     matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
                 }
-                SignatureBinders::StaticMachines => {
+                SignatureBinders::CallBinders => {
                     matches!(
                         parameter.kind,
-                        typed_trees::data::TypeParameterKind::Machine { .. }
+                        typed_trees::data::TypeParameterKind::Type
+                            | typed_trees::data::TypeParameterKind::Machine { .. }
                     )
                 }
             }
