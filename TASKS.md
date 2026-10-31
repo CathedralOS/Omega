@@ -179,9 +179,8 @@ retired-syntax deletions to completion.
   twins. Reject inaccessible descendants, accidental capture, stale parent
   facts, mismatched results, missing exact call markers, unclosed restoration,
   invalid loan escape, lost linear custody, unjustified recursion and retired
-  `state` syntax. Demonstrate bounded physical stack on a long cycle, including
-  live borrowed backing and completion cleanup, and finish the full affected
-  sample/corpus migration and both compiler implementations before closure.
+  `state` syntax. Finish the full affected sample/corpus migration and both
+  compiler implementations before closure.
 
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
   [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
