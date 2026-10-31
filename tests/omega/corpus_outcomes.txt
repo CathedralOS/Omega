@@ -545,6 +545,28 @@ fail/facts/nested_machine_joint_rank_indexed_payload_parameter_rejected rejected
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_indexed_payload_target_body_rejected rejected 747ms expected @00e93f641615+wt
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_moving_upper_call_result_rejected rejected 4094ms expected @4c8e800a453c
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_moving_upper_const_name_rejected rejected 4447ms expected @4c8e800a453c
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_moving_upper_field_rejected rejected 4550ms expected @4c8e800a453c
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_moving_upper_invalid_exact_requirement_rejected rejected 868ms expected @4c8e800a453c
+	Exact integer cast in machine `count` state `entry` from `u64` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/nested_machine_joint_rank_moving_upper_invalid_falling_interval_rejected rejected 970ms expected @4c8e800a453c
+	machine `forward` state `entry` value call to `count` violates required fact `cursor <= stop && stop <= items.len`: the instantiated fact is structurally false (`ceiling <= ceiling - 1 && ceiling - 1 <= view.len`)
+fail/facts/nested_machine_joint_rank_moving_upper_local_rejected rejected 3221ms expected @4c8e800a453c
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_moving_upper_match_join_rejected rejected 3338ms expected @4c8e800a453c
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_moving_upper_other_machine_rejected rejected 2750ms expected @4c8e800a453c
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_moving_upper_other_state_rejected rejected 2038ms expected @4c8e800a453c
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_moving_upper_parameter_rejected rejected 2459ms expected @4c8e800a453c
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_moving_upper_target_body_rejected rejected 2532ms expected @4c8e800a453c
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_remainder_call_result_rejected rejected 1159ms expected @30a668a64c1c+wt
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_remainder_const_name_rejected rejected 1210ms expected @30a668a64c1c+wt
@@ -7277,6 +7299,18 @@ pass/facts/nested_machine_joint_rank_indexed_value_target_body_exit checked 1084
 pass/facts/nested_machine_joint_rank_local_exit checked 3471ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_long_cycle_exit checked 3388ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_match_join_exit checked 3722ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_joint_rank_moving_upper_call_result_exit checked 7710ms check-target:macos_arm64 @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_const_name_exit checked 5634ms check-target:macos_arm64 @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_exact_requirement_exit checked 6205ms check-target:macos_arm64 @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_field_exit checked 4492ms check-target:macos_arm64 @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_local_exit checked 4082ms check-target:macos_arm64 @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_match_join_exit checked 3497ms check-target:macos_arm64 @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_narrow_endpoints_exit checked 3498ms check-target:macos_arm64 @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_original_probe_exit checked 3631ms check-target:macos_arm64 @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_other_machine_exit checked 3985ms check-target:macos_arm64 @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_other_state_exit checked 5665ms check-target:macos_arm64 @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_parameter_exit checked 4651ms check-target:macos_arm64 @4c8e800a453c
+pass/facts/nested_machine_joint_rank_moving_upper_target_body_exit checked 3344ms check-target:macos_arm64 @4c8e800a453c
 pass/facts/nested_machine_joint_rank_operand_effects_call_result checked 3581ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_operand_effects_const_name checked 3478ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_operand_effects_field checked 3579ms check-target:macos_arm64 @ccdb99ca2214
@@ -27331,7 +27365,7 @@ fail/facts/nested_machine_joint_rank_bounded_distance_const_name_rejected reject
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_bounded_distance_field_rejected rejected 735ms expected @5c5c178f82c7
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_bounded_distance_inverted_entry_rejected rejected 718ms expected @5c5c178f82c7
+fail/facts/nested_machine_joint_rank_bounded_distance_inverted_entry_rejected rejected 2496ms expected @4c8e800a453c
 	machine call cycle: `count`, `forward` -- a bounded cursor rank lacks independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_bounded_distance_local_rejected rejected 722ms expected @5c5c178f82c7
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -27345,7 +27379,7 @@ fail/facts/nested_machine_joint_rank_bounded_distance_parameter_rejected rejecte
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_bounded_distance_target_body_rejected rejected 731ms expected @5c5c178f82c7
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_bounded_distance_upper_drift_rejected rejected 721ms expected @5c5c178f82c7
+fail/facts/nested_machine_joint_rank_bounded_distance_upper_drift_rejected rejected 4195ms expected @4c8e800a453c
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_call_result_rejected rejected 2999ms expected @ccdb99ca2214
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -27435,9 +27469,9 @@ fail/facts/nested_machine_joint_rank_descriptor_wrong-field_rejected rejected 33
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_field_rejected rejected 3468ms expected @ccdb99ca2214
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_increasing_to_overshoot_rejected rejected 762ms expected @5c5c178f82c7
+fail/facts/nested_machine_joint_rank_increasing_to_overshoot_rejected rejected 2958ms expected @4c8e800a453c
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_joint_rank_increasing_to_post_clamp_rejected rejected 710ms expected @5c5c178f82c7
+fail/facts/nested_machine_joint_rank_increasing_to_post_clamp_rejected rejected 2993ms expected @4c8e800a453c
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_indexed_value_call_result_rejected rejected 826ms expected @ed258e523481
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle

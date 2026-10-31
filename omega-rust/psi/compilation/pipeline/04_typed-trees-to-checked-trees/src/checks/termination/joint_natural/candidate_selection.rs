@@ -88,7 +88,9 @@ pub(super) fn prepare(
         if selected_order.is_some_and(|previous| previous != (order, carrier, view.declaration)) {
             return None;
         }
-        if order != Order::Descending && order.function().complement_ceiling(carrier).is_none() {
+        if order != Order::Descending
+            && !matches!(carrier, typed_trees::unsigned_integer_primitive_pattern!())
+        {
             return None;
         }
         selected_order = Some((order, carrier, view.declaration));

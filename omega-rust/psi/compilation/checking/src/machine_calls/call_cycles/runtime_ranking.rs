@@ -26,6 +26,8 @@ use crate::proof_contracts::contract_entailment::{
     call_member_premise_symbols, prove_captured_rank_call, prove_ranking_range_call,
 };
 use projection::RankProjection;
+mod inputs;
+pub use inputs::{RuntimeRankInput, RuntimeRankOperand};
 
 /// Exact scalar coordinates from the runtime component judgment. These are
 /// transient query results, not another executable representation.
@@ -48,7 +50,7 @@ pub struct ValidatedRuntimeIntegerRank {
     pub parameter_position: u32,
     /// Carrier of the produced rank, independent of the captured input coordinate.
     pub primitive_type: typed_trees::types::PrimitiveType,
-    pub observation: crate::RankPremiseObservation,
+    pub observation: RuntimeRankInput,
     pub function: checked_trees::CheckedNaturalRankFunction,
 }
 

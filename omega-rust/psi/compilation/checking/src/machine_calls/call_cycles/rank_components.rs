@@ -181,7 +181,7 @@ pub fn retain_runtime_rank_component(
                     coordinate,
                     parameter_position: value.parameter_position,
                     primitive_type: value.primitive_type,
-                    observation: value.observation,
+                    observation: value.observation.retain(admitted),
                     function: value.function,
                 });
             }
@@ -295,7 +295,10 @@ pub fn retained_runtime_natural_components(
                                     .to_vec(),
                                 parameter_position: value.parameter_position,
                                 primitive_type: value.primitive_type,
-                                observation: value.observation,
+                                observation: super::RuntimeRankInput::from_checked(
+                                    admitted,
+                                    value.observation,
+                                )?,
                                 function: value.function,
                             })
                         })

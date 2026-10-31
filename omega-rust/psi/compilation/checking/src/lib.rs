@@ -265,8 +265,9 @@ pub use crate::declarations::selection_authority::{
     validate_authored_declaration_selections,
 };
 pub use crate::machine_calls::call_cycles::{
-    RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, ValidatedProofCallComponent,
-    ValidatedProofRankInterval, ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
+    RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, RuntimeRankInput,
+    RuntimeRankOperand, ValidatedProofCallComponent, ValidatedProofRankInterval,
+    ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
     ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
     ValidatedProofRecursiveTransitionLane, ValidatedRuntimeIntegerRank,
     ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,

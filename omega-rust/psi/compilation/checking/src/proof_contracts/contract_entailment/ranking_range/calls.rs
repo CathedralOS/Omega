@@ -356,8 +356,7 @@ pub(crate) fn prove_ranking_range_call(
     };
     let rank = rank_value.value.clone();
     let view_bound = match source_measure {
-        RankingRangeMeasure::IncreasingTo { limit, .. }
-        | RankingRangeMeasure::Distance { upper: limit, .. } => Some(engine.normalize(limit)?),
+        RankingRangeMeasure::IncreasingTo { limit, .. } => Some(engine.normalize(limit)?),
         _ => None,
     };
     // The entry-spelled endpoint reads the site's already-established
@@ -601,11 +600,11 @@ pub(crate) fn prove_ranking_range_call(
     };
     let next_rank = next_rank_value.value.clone();
     let pinned_view_bound = match (view_bound, destination_measure) {
-        (Some(bound), RankingRangeMeasure::IncreasingTo { limit, .. })
-        | (Some(bound), RankingRangeMeasure::Distance { upper: limit, .. }) => {
+        (Some(bound), RankingRangeMeasure::IncreasingTo { limit, .. }) => {
             Some((bound, engine.normalize(limit)?))
         }
-        (None, RankingRangeMeasure::Single(_))
+        (None, RankingRangeMeasure::Distance { .. })
+        | (None, RankingRangeMeasure::Single(_))
         | (None, RankingRangeMeasure::Computed { .. })
         | (None, RankingRangeMeasure::Field { .. })
         | (None, RankingRangeMeasure::SliceLength(_)) => None,

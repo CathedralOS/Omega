@@ -190,21 +190,6 @@ pub(super) fn parameter_matched_by_expression<'program>(
         .find(|parameter| expression_matches_parameter(program, expression, parameter))
 }
 
-pub(super) fn parameter_and_argument_index_matched_by_expression<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    state: &'program typed_trees::state::State,
-    expression: ExpressionHandle,
-) -> Option<(&'program typed_trees::signature::StateParameter, usize)> {
-    program
-        .state_parameters(state)
-        .iter()
-        .enumerate()
-        .find_map(|(index, parameter)| {
-            expression_matches_parameter(program, expression, parameter)
-                .then_some((parameter, index))
-        })
-}
-
 pub(super) fn non_self_parameter_index(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
