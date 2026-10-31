@@ -12,40 +12,27 @@ public boundary trait WindowsWords {
     machine write(descriptor: i32, word: &u32, count: u32) -> i32 reaches;
 }
 
-
 // This witness exports exact bytes; MSVCRT stdout must not translate LF.
 public boundary trait WindowsDescriptorMode {
     machine set_mode(descriptor: i32, mode: i32) -> i32 reaches;
 }
-
 
 machine demand(result: bool) crashes Trap {
     transition result { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
-macos_arm64 machine main() crashes Trap {
+machine PosixEntry() crashes Trap
+{
     let mut backing: Cell = INITIAL;
     let selected: &u32 = &backing.word;
     backing.word = 0;
     let written: i64 = Words::write(1, selected, 4);
     demand(written == 4 && backing.prefix == 1650614882 && backing.word == WORD && backing.suffix == 1684300900);
 }
-linux_x86_64 machine main() crashes Trap {
-    let mut backing: Cell = INITIAL;
-    let selected: &u32 = &backing.word;
-    backing.word = 0;
-    let written: i64 = Words::write(1, selected, 4);
-    demand(written == 4 && backing.prefix == 1650614882 && backing.word == WORD && backing.suffix == 1684300900);
-}
-linux_arm64 machine main() crashes Trap {
-    let mut backing: Cell = INITIAL;
-    let selected: &u32 = &backing.word;
-    backing.word = 0;
-    let written: i64 = Words::write(1, selected, 4);
-    demand(written == 4 && backing.prefix == 1650614882 && backing.word == WORD && backing.suffix == 1684300900);
-}
-windows_x86_64 machine main() crashes Trap {
+
+machine WindowsEntry() crashes Trap
+{
     let previous_mode: i32 = WindowsDescriptorMode::set_mode(1, 32768);
     demand(previous_mode != -1);
     let mut backing: Cell = INITIAL;
