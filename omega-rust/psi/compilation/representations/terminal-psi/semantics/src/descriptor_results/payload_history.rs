@@ -12,6 +12,77 @@ use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+/// A shared premise is immutable. Prepare its exact value dependencies once,
+/// rather than walking the same proposition at every replay position. Closedness
+/// is separate: payload retirement also drops structural or opaque premises,
+/// while ambient retirement only withdraws facts mentioning retired values.
+#[derive(Clone)]
+struct SharedPremise(Arc<PremiseDependencies>);
+
+struct PremiseDependencies {
+    proposition: semantic_vocabulary::Proposition,
+    values: Vec<semantic_vocabulary::ValueId>,
+    closed: bool,
+}
+
+impl SharedPremise {
+    fn new(proposition: semantic_vocabulary::Proposition) -> Self {
+        let mut values = Vec::new();
+        let closed = proposition.visit_value_ids(|value| values.push(value));
+        values.sort_unstable();
+        values.dedup();
+        Self(Arc::new(PremiseDependencies {
+            proposition,
+            values,
+            closed,
+        }))
+    }
+
+    fn mentions_any(&self, definitions: &[semantic_vocabulary::ValueId]) -> bool {
+        definitions
+            .iter()
+            .any(|value| self.0.values.binary_search(value).is_ok())
+    }
+
+    fn survives_payload_retirement(&self, definitions: &[semantic_vocabulary::ValueId]) -> bool {
+        self.0.closed && !self.mentions_any(definitions)
+    }
+}
+
+impl Borrow<semantic_vocabulary::Proposition> for SharedPremise {
+    fn borrow(&self) -> &semantic_vocabulary::Proposition {
+        &self.0.proposition
+    }
+}
+
+impl AsRef<semantic_vocabulary::Proposition> for SharedPremise {
+    fn as_ref(&self) -> &semantic_vocabulary::Proposition {
+        &self.0.proposition
+    }
+}
+
+// Derived dependencies are scratch, not another semantic identity or order.
+impl PartialEq for SharedPremise {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0) || self.0.proposition == other.0.proposition
+    }
+}
+impl Eq for SharedPremise {}
+impl PartialOrd for SharedPremise {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for SharedPremise {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        if Arc::ptr_eq(&self.0, &other.0) {
+            std::cmp::Ordering::Equal
+        } else {
+            self.0.proposition.cmp(&other.0.proposition)
+        }
+    }
+}
+
 /// Query-owned snapshots share immutable rows. Only a write detaches a row;
 /// map order and value equality remain identical to the owned representation.
 #[derive(Clone, Default, PartialEq, Eq)]
@@ -62,7 +133,7 @@ struct State {
     values: PayloadContracts,
     // Published snapshots keep all premise rosters sorted and unique. An
     // edge join only removes evidence, so ordered intersection is sufficient.
-    scalar_requirements: Arc<Vec<Arc<semantic_vocabulary::Proposition>>>,
+    scalar_requirements: Arc<Vec<SharedPremise>>,
     // Published payloads contain their local roster plus this shared roster.
     // Shared premises are always a subset of the ambient premises above.
     // Entry starts with none: an entry assumption need not occur in an input
@@ -76,7 +147,7 @@ struct State {
     // Each immutable proposition is shared too: detaching a changed roster
     // copies its handles, rather than every retained expression tree. Ordering
     // and equality still compare the complete proposition values.
-    shared_requirements: Arc<Vec<Arc<semantic_vocabulary::Proposition>>>,
+    shared_requirements: Arc<Vec<SharedPremise>>,
 }
 
 impl State {
@@ -643,7 +714,7 @@ fn payload_contract_at_cut(
                 initial.scalar_requirements = Arc::new(
                     super::scalar_contracts::scalar_conjuncts(requirements)
                         .into_iter()
-                        .map(Arc::new)
+                        .map(SharedPremise::new)
                         .collect(),
                 );
             }
@@ -935,7 +1006,8 @@ fn payload_contract_at_cut(
                 for (location, value) in reads {
                     if let Some(contract) = after.values.get_mut(&location.root) {
                         if let Some(equality) = observe_scalar(contract, &location.path, value) {
-                            Arc::make_mut(&mut after.scalar_requirements).push(Arc::new(equality));
+                            Arc::make_mut(&mut after.scalar_requirements)
+                                .push(SharedPremise::new(equality));
                         }
                     }
                 }
@@ -944,7 +1016,7 @@ fn payload_contract_at_cut(
                 && !requirements.is_empty()
             {
                 Arc::make_mut(&mut after.scalar_requirements)
-                    .extend(requirements.iter().cloned().map(Arc::new));
+                    .extend(requirements.iter().cloned().map(SharedPremise::new));
             }
             // Reads can add equations even when this step has no postcondition.
             // Normalize at publication, after all local append operations.
@@ -997,7 +1069,7 @@ fn payload_contract_at_cut(
                     Arc::make_mut(&mut arrival.scalar_requirements).extend(
                         super::scalar_contracts::scalar_conjuncts(std::slice::from_ref(predicate))
                             .into_iter()
-                            .map(Arc::new),
+                            .map(SharedPremise::new),
                     );
                     canonicalize_snapshot(&mut arrival.scalar_requirements);
                     for contract in arrival.values.values_mut() {
@@ -1122,7 +1194,7 @@ fn payload_contract_at_cut(
                         // can normalize a proposition into a genuinely new row.
                         if !contains_rebound_premises(&arrival.scalar_requirements, &rebound) {
                             Arc::make_mut(&mut arrival.scalar_requirements)
-                                .extend(rebound.into_iter().map(Arc::new));
+                                .extend(rebound.into_iter().map(SharedPremise::new));
                         }
                         canonicalize_snapshot(&mut arrival.scalar_requirements);
                     }
@@ -1232,7 +1304,7 @@ fn payload_contract_at_cut(
 /// can reorder IEEE/math propositions, so unordered results retain the exact
 /// binary-search path. Equal duplicates reuse one retained row; no input moves.
 fn contains_rebound_premises(
-    retained: &[Arc<semantic_vocabulary::Proposition>],
+    retained: &[SharedPremise],
     rebound: &[semantic_vocabulary::Proposition],
 ) -> bool {
     if rebound.windows(2).any(|pair| pair[0] > pair[1]) {
@@ -1242,7 +1314,7 @@ fn contains_rebound_premises(
                 .is_ok()
         });
     }
-    let mut remaining = retained.iter().map(Arc::as_ref).peekable();
+    let mut remaining = retained.iter().map(AsRef::as_ref).peekable();
     rebound
         .iter()
         .all(|premise| next_premise_is(&mut remaining, premise))
@@ -1302,8 +1374,8 @@ pub(super) fn extend_canonical_premises<Additional: Borrow<semantic_vocabulary::
 /// Intersect canonical premise rosters without searching the whole arrival for
 /// every retained premise. The caller publishes sorted, unique snapshots.
 fn retain_common_snapshot(
-    retained: &mut Arc<Vec<Arc<semantic_vocabulary::Proposition>>>,
-    incoming: &[Arc<semantic_vocabulary::Proposition>],
+    retained: &mut Arc<Vec<SharedPremise>>,
+    incoming: &[SharedPremise],
 ) -> bool {
     let mut remaining = incoming.iter().peekable();
     let unchanged = retained
@@ -1317,7 +1389,7 @@ fn retain_common_snapshot(
 
 /// Preserve a published allocation when normalization would change no row.
 /// The check uses the same complete proposition ordering as sort/dedup.
-fn canonicalize_snapshot(premises: &mut Arc<Vec<Arc<semantic_vocabulary::Proposition>>>) {
+fn canonicalize_snapshot(premises: &mut Arc<Vec<SharedPremise>>) {
     if premises.windows(2).any(|pair| pair[0] >= pair[1]) {
         let premises = Arc::make_mut(premises);
         premises.sort();
@@ -1516,17 +1588,18 @@ fn retire_scalar_instances(state: &mut State, definitions: &[semantic_vocabulary
     if state
         .scalar_requirements
         .iter()
-        .any(|premise| premise.any_value_id(|value| definitions.contains(&value)))
+        .any(|premise| premise.mentions_any(definitions))
     {
         Arc::make_mut(&mut state.scalar_requirements)
-            .retain(|premise| !premise.any_value_id(|value| definitions.contains(&value)));
+            .retain(|premise| !premise.mentions_any(definitions));
     }
     if state
         .shared_requirements
         .iter()
-        .any(|premise| !survives_payload_retirement(premise, definitions))
+        .any(|premise| !premise.survives_payload_retirement(definitions))
     {
-        retire_payload_premises(Arc::make_mut(&mut state.shared_requirements), definitions);
+        Arc::make_mut(&mut state.shared_requirements)
+            .retain(|premise| premise.survives_payload_retirement(definitions));
     }
     for contract in state.values.values_mut() {
         // Match both mutation cases below, including already-empty observations
@@ -1815,7 +1888,7 @@ mod tests {
         };
         let mut state = State {
             values: PayloadContracts::from([(root, contract)]),
-            scalar_requirements: Arc::new(vec![Arc::new(condition(1))]),
+            scalar_requirements: Arc::new(vec![SharedPremise::new(condition(1))]),
             ..Default::default()
         };
         let before = state.contract(root, None).unwrap();
@@ -1869,7 +1942,7 @@ mod tests {
                 if different_ambient {
                     // The payload rows and shared theory remain equal, but the
                     // whole states differ. This independently pins row meet.
-                    arrival.scalar_requirements = Arc::new(vec![Arc::new(condition(1))]);
+                    arrival.scalar_requirements = Arc::new(vec![SharedPremise::new(condition(1))]);
                 }
                 let changed = retained.meet(arrival);
                 assert!(
@@ -1957,7 +2030,7 @@ mod tests {
             ..Default::default()
         };
         let mut published = original.clone();
-        published.scalar_requirements = Arc::new(vec![Arc::new(condition(1))]);
+        published.scalar_requirements = Arc::new(vec![SharedPremise::new(condition(1))]);
         published.publish_requirements();
         assert!(!Arc::ptr_eq(
             &original.values.0[&root],
@@ -2010,8 +2083,19 @@ mod tests {
         let mut requirements = vec![
             condition(1),
             Proposition::Atom(PropositionId::new(1).unwrap()),
+            Proposition::Conjunction(vec![
+                Proposition::Atom(PropositionId::new(1).unwrap()),
+                condition(2),
+            ]),
         ];
         requirements.sort();
+        let shared = Arc::new(
+            requirements
+                .iter()
+                .cloned()
+                .map(SharedPremise::new)
+                .collect(),
+        );
         let original = PayloadMembershipContract {
             carrier: StructuralTypeId::new(1).unwrap(),
             scalar_observations: vec![super::super::PayloadScalarObservation {
@@ -2025,7 +2109,8 @@ mod tests {
         };
         let retained = State {
             values: PayloadContracts::from([(root, original.clone())]),
-            ..Default::default()
+            scalar_requirements: Arc::clone(&shared),
+            shared_requirements: shared,
         };
         enum Change {
             Store,
@@ -2060,6 +2145,13 @@ mod tests {
                     // Opaque local premises also retire; the ambient filter is
                     // deliberately insufficient for this payload-local theory.
                     expected.scalar_requirements.clear();
+                    assert!(later.shared_requirements.is_empty());
+                    assert_eq!(later.scalar_requirements.len(), 2);
+                    assert!(later.scalar_requirements.iter().all(|premise| {
+                        !premise
+                            .as_ref()
+                            .any_value_id(|value| value == ValueId::new(1).unwrap())
+                    }));
                 }
                 Change::Close => {
                     super::super::payload_predicates::close_with_shared_requirements::<Proposition>(
@@ -2079,6 +2171,19 @@ mod tests {
             assert_eq!(retained.contract(root, None).unwrap(), original);
             assert_eq!(later.contract(root, None).unwrap(), expected);
         }
+        // Opaque classification must not hide a value dependency inside it.
+        // Ambient facts keep the independent atom, but withdraw the conjunction
+        // when its value retires. Payload theory also withdraws the opaque atom.
+        let mut later = retained.clone();
+        retire_scalar_instances(&mut later, &[ValueId::new(2).unwrap()]);
+        assert_eq!(later.scalar_requirements.len(), 2);
+        assert!(later.scalar_requirements.iter().all(|premise| {
+            !premise
+                .as_ref()
+                .any_value_id(|value| value == ValueId::new(2).unwrap())
+        }));
+        assert_eq!(later.shared_requirements.len(), 1);
+        assert_eq!(later.shared_requirements[0].as_ref(), &condition(1));
     }
 
     #[test]
