@@ -111,8 +111,7 @@ fn physical_copy_bytes_codec_binds_dynamic_operand_roles_without_an_address_oper
         destination_pointer_operand: 1,
         count_operand: 2,
     };
-    source.identity = post_allocation_machine_identity(&source);
-    assert_round_trip(&source);
+    restamp_and_round_trip(&mut source);
     for role in 0..3 {
         let mut changed = source.clone();
         let MachineEncodedMemoryEffect::CopyBytesV1 {
@@ -143,8 +142,7 @@ fn physical_zero_bytes_codec_binds_dynamic_operand_roles_without_an_address_oper
         destination_pointer_operand: 0,
         count_operand: 1,
     };
-    source.identity = post_allocation_machine_identity(&source);
-    assert_round_trip(&source);
+    restamp_and_round_trip(&mut source);
     for role in 0..2 {
         let mut changed = source.clone();
         let MachineEncodedMemoryEffect::ZeroBytesV1 {
@@ -187,6 +185,12 @@ fn add_local_slot(
         alignment,
     };
     plan.functions[0].local_storage_slots.push(slot);
+}
+
+/// Stamp the identity the mutated content now has, then prove it round trips.
+fn restamp_and_round_trip(plan: &mut PostAllocationMachinePlan) {
+    plan.identity = post_allocation_machine_identity(plan);
+    assert_round_trip(plan);
 }
 
 /// The codec contract every field probe re-states: one plan round trips
@@ -328,8 +332,7 @@ fn physical_codec_retains_byte_view_address_family_not_exact_add() {
     let mut source = plan();
     first_instruction(&mut source).alternative.key.family =
         MachineAlternativeFamily::ByteViewAddress;
-    source.identity = post_allocation_machine_identity(&source);
-    assert_round_trip(&source);
+    restamp_and_round_trip(&mut source);
     assert_content_rejected(&source, |changed| {
         first_instruction(changed).alternative.key.family = MachineAlternativeFamily::ExactAddI64;
     });
@@ -614,8 +617,7 @@ fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
         },
     ] {
         first_instruction(&mut source).address = Some(address);
-        source.identity = post_allocation_machine_identity(&source);
-        assert_round_trip(&source);
+        restamp_and_round_trip(&mut source);
         assert_content_rejected(&source, |changed| {
             first_instruction(changed).address = None;
         });
@@ -658,8 +660,7 @@ fn floating_control_codec_binds_direction_and_private_frame_slot() {
                 byte_count: 8,
             }
         };
-        source.identity = post_allocation_machine_identity(&source);
-        assert_round_trip(&source);
+        restamp_and_round_trip(&mut source);
         assert_content_rejected(&source, |changed| {
             first_instruction(changed).address = Some(if restore {
                 PhysicalAddressOperation::SaveFloatingControl { slot }
@@ -682,8 +683,7 @@ fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
     add_local_slot(&mut source, slot, 1, 1);
     first_instruction(&mut source).address =
         Some(PhysicalAddressOperation::HostedWriteByteI32 { slot });
-    source.identity = post_allocation_machine_identity(&source);
-    assert_round_trip(&source);
+    restamp_and_round_trip(&mut source);
     for mutation in 0..4 {
         let mut changed = source.clone();
         match mutation {
@@ -719,8 +719,7 @@ fn read_byte_codec_binds_structural_home_operation_geometry_and_address() {
     add_local_slot(&mut source, slot, 8, 4);
     first_instruction(&mut source).address =
         Some(PhysicalAddressOperation::HostedReadByte { slot });
-    source.identity = post_allocation_machine_identity(&source);
-    assert_round_trip(&source);
+    restamp_and_round_trip(&mut source);
     for mutation in 0..4 {
         let mut changed = source.clone();
         match mutation {
@@ -754,8 +753,7 @@ fn pointer_store_codec_binds_exact_width_and_rejects_unsupported_widths() {
             byte_offset: 16,
             byte_size,
         });
-        source.identity = post_allocation_machine_identity(&source);
-        assert_round_trip(&source);
+        restamp_and_round_trip(&mut source);
         for changed_address in [
             PhysicalAddressOperation::Store {
                 base_operand: 1,
@@ -816,8 +814,7 @@ fn physical_codec_binds_activation_local_geometry_and_source_identity() {
         },
     ] {
         first_instruction(&mut source).address = Some(address);
-        source.identity = post_allocation_machine_identity(&source);
-        assert_round_trip(&source);
+        restamp_and_round_trip(&mut source);
         for field in 0..4 {
             let mut changed = source.clone();
             let local = &mut changed.functions[0].local_storage_slots[0];
@@ -870,8 +867,7 @@ fn reauthenticated_physical_data_is_still_only_a_proposal() {
 fn physical_u32_normalization_round_trips_and_binds_its_family() {
     let mut source = plan();
     first_instruction(&mut source).alternative.key.family = MachineAlternativeFamily::ZeroExtendU32;
-    source.identity = post_allocation_machine_identity(&source);
-    assert_round_trip(&source);
+    restamp_and_round_trip(&mut source);
     assert_content_rejected(&source, |changed| {
         first_instruction(changed).alternative.key.family = MachineAlternativeFamily::CopyI64;
     });
@@ -895,8 +891,7 @@ fn compiler_spill_slot_codec_retains_function_local_identity() {
         },
     ] {
         first_instruction(&mut source).address = Some(address);
-        source.identity = post_allocation_machine_identity(&source);
-        assert_round_trip(&source);
+        restamp_and_round_trip(&mut source);
         let mut changed = source.clone();
         changed.functions[0].local_storage_slots[0].id =
             selected_instructions::LocalStorageSlotId::Spill {
@@ -935,8 +930,7 @@ fn physical_codec_retains_narrow_load_families_and_exact_addresses() {
             pointer_operand: 0,
             byte_count,
         };
-        source.identity = post_allocation_machine_identity(&source);
-        assert_round_trip(&source);
+        restamp_and_round_trip(&mut source);
         for mutation in 0..3 {
             let mut changed = source.clone();
             let instruction = first_instruction(&mut changed);
