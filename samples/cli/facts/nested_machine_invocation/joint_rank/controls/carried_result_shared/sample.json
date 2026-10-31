@@ -1,4 +1,5 @@
 {
+  "role": "intended-invalid",
   "rejection_contains": [
     "return value requires mutable source access; shared or immutable storage cannot supply it",
     "return value expects `&mut Cell`, but the value is delivered as `&Cell`"
