@@ -116,7 +116,7 @@ pub(super) fn observe(
                         expected => {
                             let Ok(ObservationValue::Storage(TerminalStorageContents::Scalar {
                                 value,
-                                ..
+                                stored_scalar,
                             })) = observed
                             else {
                                 return Err(format!("expected {oracle}, observed {observed:?}"));
@@ -128,6 +128,18 @@ pub(super) fn observe(
                             else {
                                 return Err(format!("{oracle}: unexpected scalar {value:?}"));
                             };
+                            let (expected, width) = expected
+                                .split_once('@')
+                                .ok_or("scalar oracle requires value@stored-bits")?;
+                            let width: u16 = width.parse().map_err(describe)?;
+                            if stored_scalar.as_integer().is_none_or(|integer| {
+                                integer.bits() != width
+                                    || integer.sign() != semantic_vocabulary::IntegerSign::Unsigned
+                            }) {
+                                return Err(format!(
+                                    "{oracle}: wrong stored scalar {stored_scalar:?}"
+                                ));
+                            }
                             if actual != expected.parse::<u128>().map_err(describe)? {
                                 return Err(format!("{oracle}: observed {actual}"));
                             }
