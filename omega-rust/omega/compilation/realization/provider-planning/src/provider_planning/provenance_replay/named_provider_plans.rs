@@ -6,7 +6,6 @@ use super::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderRowRealization, ProviderSchemaDeclaration,
     satisfies_plan_name,
 };
-use crate::ProviderPlanningContext;
 use crate::provider_planning::entry_state;
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, trait_name_text};
 use build_time_evaluation::provider_declarations::{
