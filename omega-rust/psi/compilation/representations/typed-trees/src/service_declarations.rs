@@ -7,7 +7,8 @@ pub mod projection;
 pub use projection::ProjectedServiceSurface;
 mod catalog;
 pub use catalog::{
-    PreparedServiceCatalog, PreparedServiceDeclaration, PreparedServiceSurface, ServiceCatalog,
+    PreparedServiceCatalog, PreparedServiceDeclaration, PreparedServiceRequirement,
+    PreparedServiceSurface, ServiceCatalog,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

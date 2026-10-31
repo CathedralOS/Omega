@@ -215,7 +215,15 @@ custody query those records without projecting source schemas again. Candidate
 eligibility and capture coalescing remain separate operations; catalog presence
 grants neither selection nor execution. Independent package-review candidates
 prepare their own source census rather than borrowing custody coordinates.
-Other source-schema consumers, selected-calling replay, default ABI signature
+Selected physical calling consumes the exact provider schema and ordered row
+correspondence rather than searching source declarations by rendered names.
+Psi retains declaring-owner eligibility as deferred per-method data: an ordinary
+inherited trait does not become a boundary owner, and an unused such method does
+not make census preparation fail. Foreign extraction and component ABI preparation
+retain the complete provider/provenance relationship; toolchain settlement emits
+the same derived-plan carrier instead of a separate plan-plus-symbol record.
+Target calling-plan validation and commitment checks remain separate from this
+source correspondence. Other source-schema consumers, default ABI signature
 materialization and canonical Terminal publication of the full catalog remain
 unfinished source dependencies.
 Compiler-private native component retention stores the canonical description
