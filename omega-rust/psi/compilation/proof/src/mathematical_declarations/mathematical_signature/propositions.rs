@@ -10,6 +10,7 @@ use typed_trees::expression::{
 use super::{Elaborator, ScalarCarrier};
 use numerics::literals::FloatFormat;
 use typed_trees::proposition::ProofSubstitutions;
+use typed_trees::types::PrimitiveType;
 use validation::mathematical_applications::operand_type_reference;
 
 impl<'a> Elaborator<'a> {
@@ -269,13 +270,8 @@ impl<'a> Elaborator<'a> {
         let Some(reference) = references.into_iter().flatten().find(|reference| {
             matches!(
                 (self.program.primitive_type_reference(*reference), format),
-                (
-                    Some(typed_trees::types::PrimitiveType::F32),
-                    FloatFormat::F32
-                ) | (
-                    Some(typed_trees::types::PrimitiveType::F64),
-                    FloatFormat::F64
-                )
+                (Some(PrimitiveType::F32), FloatFormat::F32)
+                    | (Some(PrimitiveType::F64), FloatFormat::F64)
             )
         }) else {
             return Ok(None);
