@@ -16,8 +16,43 @@ semicolon after the nested contract; a genuinely nested bodyless requirement
 still owes its separate declaration terminator.
 
 The fixed optimized baseline at `2feafe36` refuses the canonical spelling
-before semantic checking. Acceptance requires all nine positive places to run
-with native/Terminal agreement, all nine extra-terminator twins to reject,
-complete-contract ownership controls, both parser implementations and affected
-source migration. Run evidence and remaining requirements stay with the claim;
-no whole-corpus or other-host execution is inferred.
+before semantic checking. The repaired Rust producer runs all nine positives
+with native/Terminal agreement on macOS arm64; all nine twins reject the displaced
+outer `crashes` clause after the extra terminator. Each place links its positive
+and its delimiter-sensitive control:
+
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| Local | [main](local/main.omg) | [invalid](local/invalid/main.omg) |
+| Field | [main](field/main.omg) | [invalid](field/invalid/main.omg) |
+| Parameter | [main](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
+| Call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
+| Match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
+| Const name | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
+| Nested machine | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
+| Another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
+| Target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+
+Establishment comes from the selected `increment` declaration's input and result
+contract. Exact scalar inputs retain their identities through each transport;
+there are no mutable-storage lifetime or authority changes in this row. The
+nested `Step` requirement closes before the enclosing crash, input and result
+clauses. The call composes those contracts without a post-call guard supplying
+the static fact. Separate parser controls cover grandchildren, siblings,
+bodyless parents and clauses resumed in their owning declaration.
+
+Checked-to-Terminal Psi lowering and native realization are exercised by actual
+`omega run --both`: both input paths must produce five and eight. Taking the
+wrong branch, dropping the increment or misplacing its scalar argument makes
+`main` trap. The Build bindings, scalar call placements, instruction encoding and
+native image execute on macOS arm64. This row does not establish unrelated
+cleanup, borrow restoration, aggregate layout, stack-argument, relocation or
+other-host requirements.
+
+The Omega-written parser's native harness checks 504 cases, including the
+contract-owner controls. Affected source migration and the supported header
+slice of bootstrap D are part of this prerequisite; D's new lower-chain
+customer execution remains pending. The broader `REQUIRES-UNIFICATION` and
+`NESTED-MACHINE-UNIFICATION` acceptances remain open. Run identities, raw engine
+outcomes, baseline failures and migration limits stay in the qualification and
+claim records; no whole-corpus or other-host success is inferred.
