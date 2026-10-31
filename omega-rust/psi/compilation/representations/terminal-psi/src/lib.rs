@@ -26,7 +26,12 @@ pub use language_core::inline_assembly::{
 pub use language_semantics::byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
 
 mod callback_application;
+mod calling_policies;
 pub use callback_application::TerminalCallbackApplication;
+pub use calling_policies::{
+    CallingCallbackBinder, CallingDirectCallback, CallingPolicyApplication, CallingRuntimeFormal,
+    CallingSignatureDeclaration,
+};
 mod callback_declarations;
 pub use callback_declarations::{
     CallbackContractEnvelope, CallbackContractRefinement, CallbackDeclarationRoster,

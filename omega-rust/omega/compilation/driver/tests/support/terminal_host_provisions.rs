@@ -1,5 +1,7 @@
 #[path = "terminal_build_bindings.rs"]
 mod build_bindings;
+#[path = "terminal_calling_policy.rs"]
+mod calling_policy;
 #[path = "terminal_carried_requirements.rs"]
 mod carried_requirements;
 #[path = "terminal_cleanup_resume.rs"]
@@ -34,6 +36,7 @@ pub(super) fn observe_portable(
     words: &[&str],
 ) -> Result<(), String> {
     match words {
+        ["calling-policy", requirement] => calling_policy::observe(artifact, requirement),
         ["input-storage", expected, contents @ ..] => {
             input_contents::observe(artifact, expected, contents)
         }
