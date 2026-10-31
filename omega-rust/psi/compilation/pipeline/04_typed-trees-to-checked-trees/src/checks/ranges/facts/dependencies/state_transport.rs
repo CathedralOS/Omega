@@ -9,6 +9,8 @@
 //! dependencies and subsequent write invalidation.
 
 use super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionDependencyScope};
+use crate::checks::ranges::types::is_const_binder;
+use crate::flow::canonical_place_segments_equal;
 use crate::flow::expressions;
 use crate::places::place_at;
 use facts::{PlaceRoot, PlaceSegment};
@@ -85,9 +87,7 @@ impl StateTransport<'_, '_> {
 
     fn root(&self, source: PlaceRoot) -> Option<PlaceRoot> {
         let symbol = source.as_symbol()?;
-        if symbol == self.machine.symbol
-            || crate::checks::ranges::types::is_const_binder(self.program, self.machine, symbol)
-        {
+        if symbol == self.machine.symbol || is_const_binder(self.program, self.machine, symbol) {
             return Some(source);
         }
         self.scope
@@ -113,11 +113,7 @@ impl StateTransport<'_, '_> {
                             expression: destination,
                         },
                     ) => self.expressions_correspond(*source, *destination, depth + 1),
-                    _ => crate::flow::canonical_place_segments_equal(
-                        self.program,
-                        *source,
-                        *destination,
-                    ),
+                    _ => canonical_place_segments_equal(self.program, *source, *destination),
                 },
             )
     }

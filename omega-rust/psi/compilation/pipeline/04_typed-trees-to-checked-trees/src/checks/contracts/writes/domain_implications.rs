@@ -5,8 +5,11 @@
 //! Recast sources and contextual predicate proofs retain their distinct duties.
 
 use crate::flow::active_context_handles;
+use crate::flow::call_flows;
 use crate::flow::expressions;
+use crate::flow::place_cases_are_selected;
 use crate::places::place_at;
+use crate::values::scalar::structural_fields::storage_observation_is_frozen;
 use checked_trees::{CheckFacts, FlowStateFact};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -76,7 +79,7 @@ fn value_semantic_contexts(
             Ok(None) => {}
         }
     }
-    let contexts = crate::flow::call_flows(&facts.flow.control, state.calls)
+    let contexts = call_flows(&facts.flow.control, state.calls)
         .iter()
         .rfind(|call| call.statement_index == statement_index)
         .map(|call| call.exit_semantic_contexts)
@@ -154,7 +157,7 @@ pub(super) fn value_case_path_is_selected(
         return true;
     }
     let contexts = value_semantic_contexts(facts, state, statement_index, value);
-    crate::flow::place_cases_are_selected(
+    place_cases_are_selected(
         program,
         &facts.semantic,
         &contexts,
@@ -207,7 +210,7 @@ pub(super) fn value_proves_qualification_with_domain_stack(
 ) -> bool {
     let subject = place_at(program, state.state_symbol, statement_index, value);
     if subject.as_ref().is_some_and(|subject| {
-        !crate::flow::place_cases_are_selected(
+        !place_cases_are_selected(
             program,
             &facts.semantic,
             contexts,
@@ -463,12 +466,7 @@ fn value_result_type_carries_domain(
     // its declared invariants; all other reads use live occurrence evidence.
     if place_at(program, state_flow.state_symbol, statement_index, value)
         .is_some_and(|place| place.root.as_symbol().is_some())
-        && !crate::values::scalar::structural_fields::storage_observation_is_frozen(
-            program,
-            state_flow.state_symbol,
-            statement_index,
-            value,
-        )
+        && !storage_observation_is_frozen(program, state_flow.state_symbol, statement_index, value)
     {
         return false;
     }
@@ -499,7 +497,7 @@ fn completed_owned_call_carries_domain(
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     if !value.is_valid()
-        || !crate::flow::call_flows(&facts.flow.control, state_flow.calls)
+        || !call_flows(&facts.flow.control, state_flow.calls)
             .iter()
             .any(|call| {
                 call.statement_index == statement_index && call.authored_expression == value

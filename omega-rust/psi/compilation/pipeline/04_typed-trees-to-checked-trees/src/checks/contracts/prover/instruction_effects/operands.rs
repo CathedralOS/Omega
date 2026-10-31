@@ -4,6 +4,7 @@
 use super::super::call_guarantees::{arithmetic, callable::Callable};
 use super::{QueryArgument, QueryArguments};
 use crate::places::place_at;
+use crate::values::applied_projection_segments;
 use checked_trees::{CheckFacts, FlowOperandFact, FlowStateFact};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::PrimitiveType;
@@ -628,9 +629,7 @@ fn value_place(
             validation::canonical_place_type_reference(program, state, statement, &place)?;
         place
             .segments
-            .extend(crate::values::applied_projection_segments(
-                program, reference, projection,
-            )?);
+            .extend(applied_projection_segments(program, reference, projection)?);
     }
     Some(place)
 }

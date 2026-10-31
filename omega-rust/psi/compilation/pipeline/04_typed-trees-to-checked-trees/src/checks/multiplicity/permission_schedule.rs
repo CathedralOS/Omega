@@ -1,6 +1,8 @@
 //! One source evaluation schedule for permission production and replay.
 //! Custody forks after guard evaluation, and only the missed guard state
 //! continues to the next statement. No expression traversal is duplicated.
+use crate::flow::CaseEvidence;
+use crate::flow::call_permission_evaluation;
 use checked_trees::{FlowClaimJoinExit, FlowClaimJoinExitKind, FlowPermissionEvaluation};
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 
@@ -153,13 +155,8 @@ fn evaluation_has_no_normal_completion(
         call.statement_index == statement
             && !call.authored_selected
             && call.authored_dispatch_role != checked_trees::FlowCallDispatchRole::SavedSubjectRead
-            && crate::flow::call_permission_evaluation(
-                program,
-                machine,
-                state,
-                statement,
-                call.call_ordinal,
-            ) == evaluation
+            && call_permission_evaluation(program, machine, state, statement, call.call_ordinal)
+                == evaluation
             && call_has_no_normal_completion(program, call.target_symbol)
     })
 }
@@ -201,7 +198,7 @@ fn target_has_no_normal_completion(
 /// guard receiver, selected polarity and intervening writes. Custody consumes
 /// those exact observations instead of resolving the guard's descriptor again.
 pub(super) struct SelectedCases<'program> {
-    evidence: crate::flow::CaseEvidence<'program>,
+    evidence: CaseEvidence<'program>,
 }
 
 impl<'program> SelectedCases<'program> {
@@ -290,7 +287,7 @@ impl<'program> SelectedCases<'program> {
         if contexts.is_empty() {
             return None;
         }
-        let evidence = crate::flow::CaseEvidence::prepare(
+        let evidence = CaseEvidence::prepare(
             program,
             &facts.semantic,
             &contexts,

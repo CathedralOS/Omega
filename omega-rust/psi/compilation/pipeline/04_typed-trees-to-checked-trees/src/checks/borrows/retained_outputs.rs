@@ -5,6 +5,9 @@
 //! insufficient: the receiving storage path and establishment statement must
 //! identify the produced occurrence whose lifetime the flow ledger tracks.
 
+use crate::borrow::owner_place_segments;
+use crate::flow::canonical_place_from_semantic_place;
+use crate::flow::place_case_has_value;
 use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
@@ -42,7 +45,7 @@ pub(crate) fn retained_outputs_are_attributed(
             return false;
         };
         for path in paths {
-            let path = crate::borrow::owner_place_segments(&path);
+            let path = owner_place_segments(&path);
             if inactive_path(program, facts, state_flow, value, &path) {
                 continue;
             }
@@ -57,11 +60,7 @@ pub(crate) fn retained_outputs_are_attributed(
                 .is_valid(completed.stored_destination)
                 .then(|| facts.semantic.places.get(completed.stored_destination))
                 .and_then(|place| {
-                    crate::flow::canonical_place_from_semantic_place(
-                        program,
-                        &facts.semantic,
-                        place,
-                    )
+                    canonical_place_from_semantic_place(program, &facts.semantic, place)
                 })
             else {
                 return false;
@@ -161,7 +160,7 @@ fn owner_path_matches(
     loan: &checked_trees::BorrowLoanFact,
     path: &[PlaceSegment],
 ) -> bool {
-    crate::borrow::owner_place_segments(facts.borrow.loan_owner_path(loan)) == path
+    owner_place_segments(facts.borrow.loan_owner_path(loan)) == path
 }
 
 /// A possible type leaf is not necessarily present in this completed value.
@@ -193,7 +192,7 @@ fn inactive_path(
             return false;
         }
         if let PlaceSegment::Case { variant } = segment
-            && crate::flow::place_case_has_value(
+            && place_case_has_value(
                 program,
                 &facts.semantic,
                 &contexts,

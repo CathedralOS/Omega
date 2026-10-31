@@ -5,6 +5,7 @@
 use super::bindings::Alias;
 use super::transport::ConditionalPredicate;
 use super::{BoundPredicate, CapturedBinding, CheckFacts, PredicateTransport};
+use crate::flow::operand_observations_agree;
 use crate::flow::{SelectionCondition, SelectionConditions};
 
 pub(super) fn implies(
@@ -54,13 +55,7 @@ fn aliases_agree(
     right: &Alias<'_>,
 ) -> bool {
     left.place == right.place
-        && crate::flow::operand_observations_agree(
-            program,
-            &facts.flow,
-            left.epoch,
-            right.epoch,
-            &left.place,
-        )
+        && operand_observations_agree(program, &facts.flow, left.epoch, right.epoch, &left.place)
 }
 
 pub(super) fn join_identities(

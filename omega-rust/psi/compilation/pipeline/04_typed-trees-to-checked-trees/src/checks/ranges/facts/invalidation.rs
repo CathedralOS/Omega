@@ -1,4 +1,5 @@
 use super::RangeFacts;
+use crate::checks::ranges::indexes::is_builtin_scalar_index;
 use crate::flow;
 use validation::CanonicalPlace;
 
@@ -134,9 +135,7 @@ impl RangeFacts<'_> {
         state: &State,
         target: typed_trees::expression::ExpressionHandle,
     ) -> Option<(String, Option<i64>, Option<i64>)> {
-        if !crate::checks::ranges::indexes::is_builtin_scalar_index(
-            program, machine, state, self, target,
-        ) {
+        if !is_builtin_scalar_index(program, machine, state, self, target) {
             return None;
         }
         let indexed = program.expression_table.indexed_node(target)?;

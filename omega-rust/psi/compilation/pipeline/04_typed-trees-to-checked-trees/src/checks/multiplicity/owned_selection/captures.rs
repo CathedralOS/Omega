@@ -5,6 +5,7 @@
 
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
 use crate::checks::multiplicity::linear_validation::linear_claim_frontier;
+use crate::flow::canonical_place_from_semantic_place;
 use arena::Handle;
 use checked_trees::{CheckFacts, FlowOperandCompletion, FlowOperandFact};
 use diagnostics::Diagnostic;
@@ -84,11 +85,7 @@ impl SelectionProduction {
                 .is_valid(stored.stored_destination)
                 .then(|| facts.semantic.places.get(stored.stored_destination))
                 .and_then(|place| {
-                    crate::flow::canonical_place_from_semantic_place(
-                        program,
-                        &facts.semantic,
-                        place,
-                    )
+                    canonical_place_from_semantic_place(program, &facts.semantic, place)
                 })
                 .ok_or_else(|| Diagnostic::error("selected store has no exact receiving place"))?;
             (stored.stored_value, destination)

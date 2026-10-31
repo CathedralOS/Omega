@@ -3,6 +3,7 @@
 //! not the invocation snapshot, and must never enter this collection.
 
 use crate::facts::canonical_crash_contract_predicate;
+use crate::values::lower_machine_entry_crash_contract_expression;
 use checked_trees::{CheckedOperatorFacts, CrashPredicateIdentity};
 use typed_trees::expression::ExpressionHandle;
 
@@ -116,14 +117,8 @@ fn has_exact_entry_meaning(
     // and an acyclic live expression tree. Direct integer comparisons retain
     // their existing total numeric contract owner; partial arithmetic cannot
     // become a hypothesis merely because it appears in a Requires clause.
-    if crate::values::lower_machine_entry_crash_contract_expression(
-        program,
-        operators,
-        machine,
-        expression,
-        &[],
-    )
-    .is_none()
+    if lower_machine_entry_crash_contract_expression(program, operators, machine, expression, &[])
+        .is_none()
     {
         return false;
     }

@@ -3,9 +3,18 @@
 //! Such a predicate must use its retained capture; syntax-only proof routes may
 //! not reinterpret both observations as the invocation's final storage value.
 
+use crate::checks::float_implications::contexts_prove_comparison;
+use crate::checks::operators::InvocationContexts;
+use crate::checks::operators::closed_operators_are_builtin;
+use crate::checks::operators::selected_float_boolean_requirement;
+use crate::facts::boolean_predicates::BoundPredicate;
+use crate::facts::boolean_predicates::bind_parameters;
 use crate::facts::contract_occurrences::append_expression_occurrences;
+use crate::facts::contract_occurrences::append_selector_occurrences;
 use crate::places::place_at;
 use crate::semantic::facts::contract_parameter_position;
+use crate::values::lower_callable_scalar_contract_predicate;
+use crate::values::lower_parameter_boolean_expression;
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::{Fact, FactPayload};
 
@@ -111,18 +120,18 @@ fn captured_float_requirement(
         })?;
     let parameters = validation::call_target_parameters(program, call.target_symbol)?;
     let arguments = call_values::captured_argument_expressions(program, facts, state, call)?;
-    let contexts = crate::checks::operators::InvocationContexts::from_call(facts, call, &arguments);
+    let contexts = InvocationContexts::from_call(facts, call, &arguments);
     // Boolean composition keeps each leaf in its own captured operand epoch.
     // The IEEE query publishes only proved positive atoms: failure is unknown,
     // never the false polarity of a NaN-permitting comparison.
-    if crate::checks::operators::closed_operators_are_builtin(program, &facts.operators, expression)
+    if closed_operators_are_builtin(program, &facts.operators, expression)
         && super::super::prover::evaluate_for_atoms(
             program,
             expression,
             &mut |_| None,
             &|_, _| true,
             &mut |leaf| {
-                crate::checks::float_implications::contexts_prove_comparison(
+                contexts_prove_comparison(
                     program,
                     &facts.semantic,
                     &facts.operators,
@@ -138,7 +147,7 @@ fn captured_float_requirement(
     {
         return Some(true);
     }
-    crate::checks::operators::selected_float_boolean_requirement(
+    selected_float_boolean_requirement(
         program,
         facts,
         machine.symbol,
@@ -427,7 +436,7 @@ fn bound_contract_predicate(
     contract: &checked_trees::ContractProofFact,
     target: symbols::SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
-) -> Option<crate::facts::boolean_predicates::BoundPredicate> {
+) -> Option<BoundPredicate> {
     use checked_trees::ContractProofFactOwner;
     let (owner, declared) = if let Some(scope) = contract.inherited_scope {
         let scope = facts.proof.inherited_contract_scopes.get(scope);
@@ -470,7 +479,7 @@ fn bound_contract_predicate(
             Some(parameter)
         })
         .collect::<Option<Vec<_>>>()?;
-    let predicate = crate::values::lower_parameter_boolean_expression(
+    let predicate = lower_parameter_boolean_expression(
         program,
         &facts.operators,
         owner,
@@ -484,7 +493,7 @@ fn bound_contract_predicate(
         // the caller below still binds every leaf to its captured operand and
         // live-reference epoch rather than replaying a record initializer.
         let mut remaining = 256;
-        crate::values::lower_callable_scalar_contract_predicate(
+        lower_callable_scalar_contract_predicate(
             program,
             &facts.operators,
             owner,
@@ -495,14 +504,7 @@ fn bound_contract_predicate(
             &mut remaining,
         )
     })?;
-    crate::facts::boolean_predicates::bind_parameters(
-        program,
-        owner,
-        declared,
-        &parameters,
-        None,
-        predicate,
-    )
+    bind_parameters(program, owner, declared, &parameters, None, predicate)
 }
 
 fn source_substitution_preserves_captures(
@@ -702,11 +704,7 @@ fn reference_construction_preserves_source(
         return Some(false);
     }
     let mut selectors = Vec::new();
-    crate::facts::contract_occurrences::append_selector_occurrences(
-        program,
-        capture.expression,
-        &mut selectors,
-    );
+    append_selector_occurrences(program, capture.expression, &mut selectors);
     for segment in remaining {
         if let facts::PlaceSegment::Index { expression } = segment {
             append_expression_occurrences(program, *expression, &mut selectors);

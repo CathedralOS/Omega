@@ -13,6 +13,9 @@
 
 mod suppliers;
 
+use crate::checks::borrows::access_sources::resolve_captured_all;
+use crate::checks::borrows::aliases::ResolvedAlias;
+use crate::flow::captured_call_operands;
 use crate::flow::expressions;
 use crate::places::place_at;
 use arena::{Arena, Handle, HandleSpan};
@@ -317,23 +320,16 @@ pub(in crate::checks::borrows) fn retained_places(
     constraints: HandleSpan<checked_trees::FlowConstraintRef>,
     source: CapturedPlace,
     active_calls: &mut Vec<Handle<FlowCallFact>>,
-) -> Option<Vec<crate::checks::borrows::aliases::ResolvedAlias>> {
+) -> Option<Vec<ResolvedAlias>> {
     let typed_state = program.state_by_symbol(state.state_symbol)?;
-    let mut pending = crate::checks::borrows::access_sources::resolve_captured_all(
-        program,
-        facts,
-        state,
-        statement,
-        constraints,
-        source,
-    )?
-    .into_iter()
-    .map(|source| (source.place, source.lineage))
-    .collect::<Vec<_>>();
+    let mut pending = resolve_captured_all(program, facts, state, statement, constraints, source)?
+        .into_iter()
+        .map(|source| (source.place, source.lineage))
+        .collect::<Vec<_>>();
     let mut roots = Vec::new();
     while let Some((place, ancestors)) = pending.pop() {
         if place.incoming_reference.is_valid() {
-            roots.push(crate::checks::borrows::aliases::ResolvedAlias {
+            roots.push(ResolvedAlias {
                 place,
                 lineage: ancestors,
             });
@@ -456,7 +452,7 @@ pub(in crate::checks::borrows) fn retained_places(
             if !terminal_storage_is_resolved(program, typed_state, &place)? {
                 return None;
             }
-            roots.push(crate::checks::borrows::aliases::ResolvedAlias {
+            roots.push(ResolvedAlias {
                 place,
                 lineage: ancestors,
             });
@@ -523,13 +519,12 @@ fn returned_places(
     result_suffix: &[facts::PlaceSegment],
     completion: HandleSpan<checked_trees::FlowConstraintRef>,
     active_calls: &mut Vec<Handle<FlowCallFact>>,
-) -> Option<Vec<crate::checks::borrows::aliases::ResolvedAlias>> {
+) -> Option<Vec<ResolvedAlias>> {
     use checked_trees::{
         CheckedReferenceOriginProjection as Projection, CheckedUnitStructuralPathSegment as Segment,
     };
     let call = facts.flow.control.calls.get(call_handle);
-    let (operands, receiver_offset) =
-        crate::flow::captured_call_operands(program, &facts.flow, state, call)?;
+    let (operands, receiver_offset) = captured_call_operands(program, &facts.flow, state, call)?;
     let parameters = validation::call_target_parameters(program, call.target_symbol)?;
     let target = validation::call_target_state(program, call.target_symbol)?;
     let sources = validation::reference_result_custody::call_return_sources(
@@ -682,7 +677,7 @@ fn projected_operand_places(
     path: &[checked_trees::CheckedReferenceOriginProjection],
     invocation: HandleSpan<checked_trees::FlowConstraintRef>,
     active_calls: &mut Vec<Handle<FlowCallFact>>,
-) -> Option<Vec<crate::checks::borrows::aliases::ResolvedAlias>> {
+) -> Option<Vec<ResolvedAlias>> {
     use checked_trees::{
         CheckedReferenceOriginProjection as Projection, CheckedUnitStructuralPathSegment as Segment,
     };
@@ -787,7 +782,7 @@ fn projected_operand_places(
             active_calls,
         )?
     } else {
-        vec![crate::checks::borrows::aliases::ResolvedAlias {
+        vec![ResolvedAlias {
             place: CapturedPlace {
                 root: source.root,
                 segments: source.segments,

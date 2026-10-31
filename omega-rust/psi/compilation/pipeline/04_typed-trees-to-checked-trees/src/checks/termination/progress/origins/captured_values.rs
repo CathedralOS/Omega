@@ -5,6 +5,8 @@
 //! results. Views keep invocation-live contents, while owned leaves retain their
 //! completion frontier. None of these relations grants a loan or membership.
 
+use crate::checks::termination::progress::fact_subjects::subject_from_place;
+use crate::collections::push_unique;
 use arena::Handle;
 use checked_trees::{FlowCallFact, FlowFacts, FlowOperandFact, FlowStateFact};
 use facts::PlaceSegment;
@@ -97,7 +99,7 @@ pub(super) fn at_call(
                     return CapturedOrigins::Unavailable;
                 };
                 for subject in subjects {
-                    crate::collections::push_unique(&mut joined, subject);
+                    push_unique(&mut joined, subject);
                 }
             }
             CapturedOrigins::Exact(joined)
@@ -303,7 +305,7 @@ fn resolve_captures(
             live,
             frames,
         )? {
-            crate::collections::push_unique(&mut subjects, subject);
+            push_unique(&mut subjects, subject);
         }
     }
     (!subjects.is_empty()).then_some(subjects)
@@ -379,7 +381,7 @@ fn resolve_leaf(
             if let Some(subject) = frozen_references::entry_subject(
                 program, flow, machine, state, call, capture, &source, frames,
             ) {
-                crate::collections::push_unique(&mut subjects, subject);
+                push_unique(&mut subjects, subject);
                 continue;
             }
             if !bindings_preserved(program, flow, state, call, capture, &source) {
@@ -388,7 +390,7 @@ fn resolve_leaf(
             for subject in
                 super::direct_at_place(program, flow, machine, state, call, source, Some(frames))?
             {
-                crate::collections::push_unique(&mut subjects, subject);
+                push_unique(&mut subjects, subject);
             }
         } else {
             let source = flow::trace_value_origin_before_statement(
@@ -407,11 +409,8 @@ fn resolve_leaf(
                     )
                 },
             )?;
-            let subject = crate::checks::termination::progress::fact_subjects::subject_from_place(
-                source.root,
-                &source.segments,
-            )?;
-            crate::collections::push_unique(&mut subjects, subject);
+            let subject = subject_from_place(source.root, &source.segments)?;
+            push_unique(&mut subjects, subject);
         }
     }
     (!subjects.is_empty()).then_some(subjects)

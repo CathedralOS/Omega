@@ -1,6 +1,8 @@
 //! arm windows slice of borrowed_windows.
 
 use crate::flow::DiscoveredMoveEvent;
+use crate::flow::FlowOwnershipEventSource;
+use crate::values::evaluate_closed_boolean_expression;
 use validation::CanonicalPlace;
 
 use super::{FrameWalk, StorageWalk, place_spelling};
@@ -532,7 +534,7 @@ impl<'facts> ArmWindowPlan<'facts> {
         if event.source_arm.is_valid() {
             return event.source_arm;
         }
-        let crate::flow::FlowOwnershipEventSource::Call {
+        let FlowOwnershipEventSource::Call {
             statement_index,
             call_ordinal,
             ..
@@ -569,7 +571,7 @@ impl<'facts> ArmWindowPlan<'facts> {
         if event.expression.is_valid() {
             return event.expression;
         }
-        let crate::flow::FlowOwnershipEventSource::Call {
+        let FlowOwnershipEventSource::Call {
             statement_index,
             call_ordinal,
             ..
@@ -675,12 +677,8 @@ impl<'facts> ArmWindowPlan<'facts> {
                 ) {
                     let evaluate_when =
                         binary.operator == typed_trees::expression::BinaryOperator::And;
-                    let left = crate::values::evaluate_closed_boolean_expression(
-                        program,
-                        operators,
-                        binary.left,
-                        &[],
-                    );
+                    let left =
+                        evaluate_closed_boolean_expression(program, operators, binary.left, &[]);
                     if left != Some(!evaluate_when) {
                         self.collect_frames(
                             frames,

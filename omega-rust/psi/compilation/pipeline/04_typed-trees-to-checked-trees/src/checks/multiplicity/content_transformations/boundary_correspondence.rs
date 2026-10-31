@@ -5,6 +5,8 @@
 //! exactly one address in the raw result in the same completed observation.
 //! This preparation grants no result qualification and consults no Build row.
 
+use crate::checks::content::content_path;
+use crate::checks::places::place_or_root_in;
 use arena::Handle;
 use checked_trees::CheckFacts;
 use checked_trees::facts::{
@@ -100,11 +102,7 @@ pub(super) fn prepare(
                 "boundary custody needs exact original-to-current backing correspondence; a joint ancestry roster alone does not establish it",
             );
         };
-        let current = crate::checks::places::place_or_root_in(
-            &ownership.segments,
-            available.root,
-            available.segments,
-        );
+        let current = place_or_root_in(&ownership.segments, available.root, available.segments);
         let reference = validation::canonical_place_type_reference(
             program,
             state.symbol,
@@ -156,7 +154,7 @@ pub(super) fn prepare(
                 result: ContentStructuralPlace {
                     root: ContentPlaceRoot::Result,
                     version: ContentPlaceVersion::Current,
-                    segments: crate::checks::content::content_path(program, &path)
+                    segments: content_path(program, &path)
                         .ok_or("boundary custody result address path is not finite")?,
                 },
             });

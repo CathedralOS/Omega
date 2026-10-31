@@ -7,6 +7,7 @@
 
 use crate::checks::multiplicity::linear_obligations::{ClaimIdentityAllocator, LinearPlace};
 use crate::checks::multiplicity::linear_validation::permission_production::established_provenance;
+use crate::flow::call_permission_evaluation;
 use checked_trees::{CheckFacts, FlowPermissionEventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
@@ -391,13 +392,7 @@ fn append_borrow_permission_event(
             .machine_by_symbol(machine_symbol)
             .zip(program.state_by_symbol(state_symbol))
             .map(|(machine, state)| {
-                crate::flow::call_permission_evaluation(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    call_ordinal,
-                )
+                call_permission_evaluation(program, machine, state, statement_index, call_ordinal)
             })
             .unwrap_or(checked_trees::FlowPermissionEvaluation::Unknown),
         _ => checked_trees::FlowPermissionEvaluation::Statement,

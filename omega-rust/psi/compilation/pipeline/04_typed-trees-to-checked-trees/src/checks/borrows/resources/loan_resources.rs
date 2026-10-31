@@ -7,6 +7,7 @@
 //! omit loans the other sees. Every reconstruction joins the loan's
 //! activation and weakening rows through the lifecycle reader.
 
+use crate::checks::borrows::details::binding_reference_access;
 use crate::checks::borrows::resources::invalid_reborrow_attenuation_diagnostic;
 use crate::checks::borrows::resources::lifecycle::{
     exact_loan_lifecycle_rows, span_handle, weakening_boundary_key,
@@ -145,15 +146,13 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                     // derive write authority from a shared referent. This is
                     // the same edge `Reborrow` loans face above the resource
                     // arenas, applied at the declared-access boundary.
-                    if let Some(parent_access) =
-                        crate::checks::borrows::details::binding_reference_access(
-                            program,
-                            state.machine_symbol,
-                            state.state_symbol,
-                            loan.statement_index,
-                            loan.root,
-                        )
-                        && parent_access.direct_reborrow_effect(&loan.kind).is_none()
+                    if let Some(parent_access) = binding_reference_access(
+                        program,
+                        state.machine_symbol,
+                        state.state_symbol,
+                        loan.statement_index,
+                        loan.root,
+                    ) && parent_access.direct_reborrow_effect(&loan.kind).is_none()
                     {
                         diagnostics.push(invalid_reborrow_attenuation_diagnostic(
                             &parent_access,

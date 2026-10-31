@@ -2,6 +2,7 @@
 //! used by inferred participants. Witness and invariant selection stay outside.
 
 use super::EntryInputs;
+use crate::checks::current_scalar_values::parameter_projection_paths;
 use typed_trees::{expression::ExpressionHandle, machine::Machine};
 use validation::{RankingRangeMeasure, ScopedArithmeticValue};
 
@@ -49,9 +50,7 @@ pub(in crate::checks::termination) fn prove_with_formation(
             if let Some(range) = authored_range {
                 expressions.extend([range.start, range.end]);
             }
-            let mut paths = crate::checks::current_scalar_values::parameter_projection_paths(
-                program, machine, root,
-            );
+            let mut paths = parameter_projection_paths(program, machine, root);
             let mut pending = expressions;
             while let Some(expression) = pending.pop() {
                 if let Some(place) = validation::canonical_place_from_expression_in_state(

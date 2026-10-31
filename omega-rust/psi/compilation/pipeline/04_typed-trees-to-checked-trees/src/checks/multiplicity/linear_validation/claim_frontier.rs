@@ -1,5 +1,6 @@
 //! Initial linear places and the linear claim frontier.
 
+use crate::checks::multiplicity::linear_obligations::type_reference_is_reference;
 use crate::checks::multiplicity::linear_obligations::{LinearClaimTemplate, LinearPlace};
 use crate::checks::multiplicity::linear_validation::permission_production::established_provenance;
 use crate::checks::multiplicity::type_multiplicity::{data_field_name, type_multiplicity};
@@ -20,11 +21,8 @@ pub(crate) fn initial_linear_places(
         // machine, so its claims and whole multiplicity enumerate against the
         // attachment. Borrowed receivers spell a `Reference` node and keep
         // their ordinary (claim-free, unrestricted) reading.
-        let owned_receiver = false
-            && !crate::checks::multiplicity::linear_obligations::type_reference_is_reference(
-                program,
-                parameter.type_reference,
-            );
+        let owned_receiver =
+            false && !type_reference_is_reference(program, parameter.type_reference);
         let (claims, receiver_multiplicity) = if owned_receiver {
             let (multiplicity, claims) = validation::owned_receiver_claims(program, machine_symbol);
             (

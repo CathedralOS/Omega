@@ -1,7 +1,9 @@
 use super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State};
 use crate::checks::ranges::facts::RangeCallContext;
+use crate::collections::push_unique;
 use crate::flow::expressions;
 use crate::places::place_at;
+use crate::proof::contract_target_from_state_symbol;
 use validation::CallSite;
 use validation::CanonicalPlace;
 
@@ -147,17 +149,14 @@ impl ReadWalk<'_, '_, '_> {
                     if self.validate_place_read(&mut place).is_none() {
                         return false;
                     }
-                    crate::collections::push_unique(&mut self.reads, place);
+                    push_unique(&mut self.reads, place);
                 }
                 // Named calls may target the machine symbol rather than a state
                 // symbol; the contract lookup resolves both forms to the exact
                 // invocation while requirement, trait-signature, and conformance
                 // targets resolve to symbols that own no state and stay opaque.
                 let Some((target_machine_symbol, target_state_symbol)) =
-                    crate::proof::contract_target_from_state_symbol(
-                        program,
-                        borrow_call.target_symbol,
-                    )
+                    contract_target_from_state_symbol(program, borrow_call.target_symbol)
                 else {
                     return false;
                 };

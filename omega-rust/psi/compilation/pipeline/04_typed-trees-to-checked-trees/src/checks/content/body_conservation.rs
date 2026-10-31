@@ -11,9 +11,13 @@
 
 use super::content_paths::{ClaimBindings, content_segments_to_fact_path, entry_claim_identity};
 use super::partition_wrappers::ordinary_returns;
+use crate::checks::multiplicity::observe_body_inputs;
+use crate::checks::multiplicity::publish_body_inputs;
 use crate::checks::multiplicity::{
     CompletedClaimLocation, LinearPlace, ReturnedClaimSource, completed_owned_claims,
 };
+use crate::flow::SelectionConditions;
+use crate::flow::state_exit_parameter_origins;
 use checked_trees::CheckFacts;
 use checked_trees::facts::ContentBodyConservationFact;
 use language_semantics::content::{
@@ -108,7 +112,7 @@ pub(crate) fn observe_body_completion(
                 ) {
                     continue;
                 }
-                let mut conditions = crate::flow::SelectionConditions::new();
+                let mut conditions = SelectionConditions::new();
                 let returned = completed_owned_claims(
                     program,
                     facts,
@@ -187,12 +191,7 @@ pub(crate) fn observe_body_completion(
                     outputs,
                     available_inputs: Default::default(),
                 };
-                let available = crate::checks::multiplicity::observe_body_inputs(
-                    program,
-                    facts,
-                    &conservation,
-                    places,
-                );
+                let available = observe_body_inputs(program, facts, &conservation, places);
                 let Ok(available) = available else {
                     continue;
                 };
@@ -201,7 +200,7 @@ pub(crate) fn observe_body_completion(
                     .content
                     .body_conservations
                     .insert(conservation);
-                crate::checks::multiplicity::publish_body_inputs(facts, conservation, available);
+                publish_body_inputs(facts, conservation, available);
                 observed.push(conservation);
             }
         }
@@ -222,7 +221,7 @@ fn plan_at_state(
         return Some(plan);
     }
     let flow = facts.flow.control.state(plan.owner, state.symbol)?;
-    let origins = crate::flow::state_exit_parameter_origins(facts, flow);
+    let origins = state_exit_parameter_origins(facts, flow);
     fn rebase(
         term: &mut ContentConservationTerm,
         origins: &[&checked_trees::FlowExitParameterOrigin],

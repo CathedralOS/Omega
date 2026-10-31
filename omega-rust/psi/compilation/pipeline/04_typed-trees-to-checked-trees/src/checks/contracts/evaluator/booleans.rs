@@ -1,3 +1,7 @@
+use crate::checks::contracts::prover::ScalarValue;
+use crate::checks::contracts::prover::closed_boolean_value;
+use crate::checks::contracts::prover::evaluate_scalar;
+use crate::checks::contracts::prover::has_builtin_operators;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
 use super::{BooleanExpressionOwner, ContractExpressionEvaluator};
@@ -147,32 +151,25 @@ impl ContractExpressionEvaluator<'_, '_> {
         owner: BooleanExpressionOwner,
     ) -> Option<bool> {
         let operators = self.operators?;
-        if !crate::checks::contracts::prover::has_builtin_operators(
-            self.program,
-            operators,
-            expression,
-        ) || !self.builtin_boolean_meaning(expression, owner)
+        if !has_builtin_operators(self.program, operators, expression)
+            || !self.builtin_boolean_meaning(expression, owner)
         {
             return None;
         }
-        if let Some(value) = crate::checks::contracts::prover::closed_boolean_value(
-            self.program,
-            operators,
-            expression,
-        ) {
+        if let Some(value) = closed_boolean_value(self.program, operators, expression) {
             return Some(value);
         }
-        let value = crate::checks::contracts::prover::evaluate_scalar(
+        let value = evaluate_scalar(
             self.program,
             expression,
             &mut |leaf| {
                 let (resolved, resolved_owner) = self.resolved_boolean_expression(leaf, owner)?;
                 self.boolean_value_in_owner(resolved, resolved_owner)
-                    .map(crate::checks::contracts::prover::ScalarValue::Boolean)
+                    .map(ScalarValue::Boolean)
             },
             &|_, _| true,
         )?;
-        let crate::checks::contracts::prover::ScalarValue::Boolean(value) = value else {
+        let ScalarValue::Boolean(value) = value else {
             return None;
         };
         Some(value)
