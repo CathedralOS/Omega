@@ -99,7 +99,7 @@ pub fn compute_boundary_calling_plans(
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
-    if !std::ptr::eq(&checked.typed, services.context().typed)
+    if !std::ptr::eq(&*checked.typed, services.context().typed)
         || services.context().scope != source::DependencyScope::Product
     {
         return Err(vec![Diagnostic::error(
