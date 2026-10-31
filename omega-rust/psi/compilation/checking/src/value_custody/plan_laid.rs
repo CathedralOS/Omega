@@ -29,7 +29,10 @@ pub(crate) fn validate_plans(
             continue;
         }
 
-        let Some(data) = program.closed_data_definition(plan.application) else {
+        // Replay the exact field inventory. A symbolic application may have
+        // validated descriptor geometry without closed pointee storage; the
+        // complete target family and geometry are checked independently here.
+        let Some(data) = program.data_field_definition(plan.application) else {
             laid!("no longer names its exact synthesized data identity");
             continue;
         };
@@ -47,7 +50,7 @@ pub(crate) fn validate_plans(
             continue;
         }
 
-        let Some(schema) = program.closed_data_field_definition(plan.semantic_type) else {
+        let Some(schema) = program.data_field_definition(plan.semantic_type) else {
             laid!("no longer names its exact source schema identity");
             continue;
         };
@@ -143,7 +146,7 @@ fn schema_argument_matches(
     plan: &typed_trees::PlanLaidLayout,
     schema_fields: &[&typed_trees::data::DataField],
 ) -> bool {
-    let Some(schema) = program.closed_data_field_definition(plan.semantic_type) else {
+    let Some(schema) = program.data_field_definition(plan.semantic_type) else {
         return false;
     };
     let mut retired_identities = schema.retired_identities.clone();
