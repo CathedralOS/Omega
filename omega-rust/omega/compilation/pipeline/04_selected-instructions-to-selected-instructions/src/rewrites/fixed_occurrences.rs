@@ -26,7 +26,7 @@ use semantic_vocabulary::{FuelScheduleIdentity, ScalarType};
 
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::runtime_spill::control_mut;
-use crate::rewrites::selected_operands::selected_operand;
+use crate::rewrites::selected_operands::copy_shaped;
 
 validated_transformed_receipt!(ValidatedFixedOccurrences, FixedOccurrencesReceipt);
 
@@ -818,22 +818,17 @@ fn copy(
     register: &VirtualRegister,
     operations: &[semantic_vocabulary::OperationId],
 ) -> SelectedInstruction {
-    let mut instruction = SelectedInstruction {
+    let mut instruction = copy_shaped(
         id,
-        kind: SelectedInstructionKind::CopyI64,
-        constraint: row.key,
-        operands: vec![
-            selected_operand(&row.operands[0], input),
-            selected_operand(&row.operands[1], output),
-        ],
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: selected_instructions::SelectedInstructionProvenance {
+        SelectedInstructionKind::CopyI64,
+        row,
+        input,
+        output,
+        selected_instructions::SelectedInstructionProvenance {
             operations: operations.to_vec(),
             ..Default::default()
         },
-    };
+    );
     match register.origin {
         VirtualRegisterOrigin::InstructionResult { source_value, .. }
         | VirtualRegisterOrigin::EntryParameter { source_value, .. }

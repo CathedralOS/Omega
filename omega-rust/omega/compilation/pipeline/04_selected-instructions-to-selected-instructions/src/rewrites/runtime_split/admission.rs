@@ -17,7 +17,7 @@ use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::runtime_spill::{
     control, next_instruction_id, next_register_id, require_dominated_uses,
 };
-use crate::rewrites::selected_operands::selected_operand;
+use crate::rewrites::selected_operands::copy_shaped;
 
 pub(super) struct Admission {
     pub block_index: usize,
@@ -238,22 +238,17 @@ pub(super) fn copy_instruction(
     fresh: VirtualRegisterId,
     source_value: ValueId,
 ) -> SelectedInstruction {
-    SelectedInstruction {
+    copy_shaped(
         id,
-        kind: SelectedInstructionKind::CopyI64,
-        constraint: row.key,
-        operands: vec![
-            selected_operand(&row.operands[0], victim),
-            selected_operand(&row.operands[1], fresh),
-        ],
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: SelectedInstructionProvenance {
+        SelectedInstructionKind::CopyI64,
+        row,
+        victim,
+        fresh,
+        SelectedInstructionProvenance {
             values: vec![source_value],
             ..Default::default()
         },
-    }
+    )
 }
 
 /// A reference the fresh register can serve unchanged: a plain read in the
