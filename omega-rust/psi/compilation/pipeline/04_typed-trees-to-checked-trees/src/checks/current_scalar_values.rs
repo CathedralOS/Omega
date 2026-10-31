@@ -186,12 +186,20 @@ impl<'program> CurrentScalarValues<'program> {
                 Some(Binding {
                     symbol: parameter.symbol,
                     name: parameter.name.to_string(),
-                    value: readable.then(|| ScopedArithmeticValue::Atom {
-                        identity: format!(
-                            "state:{:?}:parameter:{:?}",
-                            state.symbol, parameter.symbol
-                        ),
-                        unsigned: unsigned(primitive),
+                    value: readable.then(|| {
+                        entry_fields::entry_value(
+                            program,
+                            validation::reference_shell(program, parameter.type_reference)
+                                .map_or(parameter.type_reference, |shell| shell.referee),
+                            None,
+                            ScopedArithmeticValue::Atom {
+                                identity: format!(
+                                    "state:{:?}:parameter:{:?}",
+                                    state.symbol, parameter.symbol
+                                ),
+                                unsigned: unsigned(primitive),
+                            },
+                        )
                     }),
                     alternatives: Vec::new(),
                     immutable_coordinate: false,
@@ -218,13 +226,18 @@ impl<'program> CurrentScalarValues<'program> {
                     Some(Binding {
                         symbol: parameter.symbol,
                         name: parameter.name.to_string(),
-                        value: Some(ScopedArithmeticValue::Atom {
-                            identity: format!(
-                                "machine:{:?}:value:{:?}",
-                                machine.symbol, parameter.symbol
-                            ),
-                            unsigned: unsigned(primitive),
-                        }),
+                        value: Some(entry_fields::entry_value(
+                            program,
+                            reference,
+                            None,
+                            ScopedArithmeticValue::Atom {
+                                identity: format!(
+                                    "machine:{:?}:value:{:?}",
+                                    machine.symbol, parameter.symbol
+                                ),
+                                unsigned: unsigned(primitive),
+                            },
+                        )),
                         alternatives: Vec::new(),
                         immutable_coordinate: true,
                         read_dependencies: Some(Vec::new()),

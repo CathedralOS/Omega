@@ -6,6 +6,7 @@
 use super::{ExpressionHandle, Machine, RankingRangeCallProgress, State};
 use crate::proof_contracts::contract_entailment::{
     citations::machine_requires_facts,
+    specification_calls::{call_parameter_scope, selected_call_site_contract},
     structural_case_arms::recognize_structural_state_prefix,
     structural_judgment::normal_returns::OperationOperandDemand,
     structural_judgment::{CapturedIntegerRank, FormedIntegerRank, StructuralJudge},
@@ -79,6 +80,7 @@ pub(crate) fn prove_captured_scalar_rank_call(
         statement_index,
         target,
         callee: callee.symbol,
+        callee_body: callee.states,
         source: formed,
         destination,
         leading_operands,
@@ -119,6 +121,7 @@ struct CallProgress {
     statement_index: usize,
     target: typed_trees::statement::TransitionTargetHandle,
     callee: SymbolHandle,
+    callee_body: arena::HandleSpan<State>,
     source: FormedIntegerRank,
     destination: CapturedScalarRank,
     leading_operands: usize,
@@ -160,8 +163,10 @@ impl CallProgress {
     fn progress(&self, observation: PrefixObservation<'_, '_>) -> Result<bool, &'static str> {
         let (program, machine, state, judge, environment) = observation;
         let callee = program
-            .machine(self.callee)
-            .ok_or("the captured rank call lost its destination")?;
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == self.callee && machine.states == self.callee_body)
+            .ok_or("the captured rank call lost its exact destination body")?;
         let entry = program
             .machine_states(callee)
             .first()
@@ -219,10 +224,95 @@ impl CallProgress {
                 .zip(actuals)
                 .map(|(formal, value)| (formal.symbol, value.clone()))
                 .collect::<Vec<_>>();
-            let input = entry_observation.judge.bound_contract_term(
-                self.destination.subject, entry.symbol, &parameters, callee.symbol,
-                &bindings, &[], None, 0,
-            ).ok_or("the arriving rank input has no authenticated projection from its captured actuals")?;
+            let place = crate::canonical_place_from_expression(program, self.destination.subject)
+                .ok_or("the arriving rank input has no exact declared coordinate")?;
+            let position = parameters
+                .iter()
+                .position(|parameter| Some(parameter.symbol) == place.root.as_symbol())
+                .ok_or("the arriving rank input is outside its destination telescope")?;
+            let input = if crate::reference_shell(program, parameters[position].type_reference)
+                .is_some()
+            {
+                let public_parameters = match site {
+                    crate::CallSite::Expression { .. } => {
+                        let owner = selected_call_site_contract(program, machine.symbol, site)
+                            .ok_or("the arriving rank reference has no selected public contract")?;
+                        call_parameter_scope(program, machine.symbol, &owner, site)
+                            .ok_or("the arriving rank reference has no applied public telescope")?
+                    }
+                    crate::CallSite::TransitionNamed { .. } => {
+                        std::borrow::Cow::Borrowed(parameters.as_slice())
+                    }
+                    crate::CallSite::Statement(_) => {
+                        return Err("the rank call has no completing invocation");
+                    }
+                };
+                let public_parameter = public_parameters
+                    .get(position)
+                    .filter(|parameter| {
+                        crate::declared_carriers_match(
+                            program,
+                            parameter.type_reference,
+                            parameters[position].type_reference,
+                        )
+                    })
+                    .ok_or("the arriving rank reference public and executable carriers disagree")?;
+                let caller = program
+                    .machines()
+                    .iter()
+                    .find(|candidate| {
+                        candidate.symbol == machine.symbol && candidate.states == machine.states
+                    })
+                    .ok_or("the arriving rank reference lost its exact caller body")?;
+                let frames = entry_observation
+                    .judge
+                    .frame_resolver()
+                    .ok_or("the arriving rank reference has no frame resolver")?;
+                let subjects = match site {
+                    crate::CallSite::Expression { expression, .. } => frames
+                        .expression_entry_reference_subjects(
+                            caller,
+                            expression,
+                            &public_parameters,
+                        ),
+                    crate::CallSite::TransitionNamed { .. } => frames
+                        .transition_entry_reference_subjects(
+                            caller,
+                            self.target,
+                            &public_parameters,
+                        ),
+                    crate::CallSite::Statement(_) => {
+                        return Err("the rank call has no completing invocation");
+                    }
+                }
+                .ok_or("the arriving rank reference has no captured entry subjects")?;
+                let subject = subjects
+                    .iter()
+                    .find(|subject| subject.parameter == public_parameter.symbol)
+                    .ok_or("the arriving rank reference is missing its exact public subject")?;
+                entry_observation.judge.argument_scalar_value(
+                    state,
+                    subject,
+                    &place.segments,
+                    |selector| {
+                        entry_observation.judge.bound_contract_term(
+                            selector,
+                            entry.symbol,
+                            &parameters,
+                            callee.symbol,
+                            &bindings,
+                            &[],
+                            None,
+                            0,
+                        )
+                    },
+                )?
+            } else {
+                entry_observation.judge.bound_contract_term(
+                    self.destination.subject, entry.symbol, &parameters, callee.symbol,
+                    &bindings, &[], None, 0,
+                ).ok_or("the arriving rank input has no authenticated projection from its captured actuals")?
+            };
             let destination = CapturedIntegerRank {
                 input,
                 primitive: self.destination.primitive,

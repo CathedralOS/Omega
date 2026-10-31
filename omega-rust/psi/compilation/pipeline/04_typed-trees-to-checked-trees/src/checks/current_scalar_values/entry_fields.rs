@@ -170,10 +170,15 @@ impl CurrentScalarValues<'_> {
                                         .collect(),
                                     carrier,
                                     read_dependencies: Vec::new(),
-                                    value: ScopedArithmeticValue::Atom {
-                                        identity,
-                                        unsigned: super::unsigned(carrier),
-                                    },
+                                    value: entry_value(
+                                        self.program,
+                                        reference,
+                                        path.last().copied(),
+                                        ScopedArithmeticValue::Atom {
+                                            identity,
+                                            unsigned: super::unsigned(carrier),
+                                        },
+                                    ),
                                 },
                             ));
                     }
@@ -279,16 +284,60 @@ impl CurrentScalarValues<'_> {
                             path,
                             carrier: field.primitive_type,
                             read_dependencies,
-                            value: ScopedArithmeticValue::Atom {
-                                identity: format!(
-                                    "state:{:?}:parameter:{:?}:field:{coordinate:?}",
-                                    self.state.symbol, parameter.symbol
-                                ),
-                                unsigned: super::unsigned(field.primitive_type),
-                            },
+                            value: entry_value(
+                                self.program,
+                                field.result_type_reference,
+                                coordinate.last().and_then(|step| match step {
+                                    facts::PlaceSegment::Field { symbol } => Some(*symbol),
+                                    _ => None,
+                                }),
+                                ScopedArithmeticValue::Atom {
+                                    identity: format!(
+                                        "state:{:?}:parameter:{:?}:field:{coordinate:?}",
+                                        self.state.symbol, parameter.symbol
+                                    ),
+                                    unsigned: super::unsigned(field.primitive_type),
+                                },
+                            ),
                         },
                     ));
             }
         }
+    }
+}
+
+/// Incoming values have already established their declared field and standing
+/// data predicates. Carry those bounds on the saved entry value itself. Stores
+/// replace this record, so an open invariant window acquires no live bound from
+/// this entry evidence. These are declaration facts, never a proposed rank range.
+pub(super) fn entry_value(
+    program: &dyn validation::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    field: Option<symbols::SymbolHandle>,
+    value: ScopedArithmeticValue,
+) -> ScopedArithmeticValue {
+    let declared = validation::enforced_integer_type_bounds(program, reference);
+    let (mut minimum, mut maximum) = declared.map_or((None, None), |(lo, hi)| (Some(lo), Some(hi)));
+    if let Some(field) = field {
+        let owner = program.symbols.get(field).parent;
+        if let Some(data) = program.data_definition_by_symbol(owner)
+            && let Some(intervals) = validation::data_where_field_intervals(program, data)
+            && let Some((_, lo, hi)) = intervals.iter().find(|(symbol, ..)| *symbol == field)
+        {
+            if let Some(lo) = lo {
+                minimum = Some(minimum.map_or(*lo, |old| old.max(*lo)));
+            }
+            if let Some(hi) = hi {
+                maximum = Some(maximum.map_or(*hi, |old| old.min(*hi)));
+            }
+        }
+    }
+    if minimum.is_none() && maximum.is_none() {
+        return value;
+    }
+    ScopedArithmeticValue::BoundedInteger {
+        value: Box::new(value),
+        minimum: minimum.map(numerics::bignum::BigInt::from_i64),
+        maximum: maximum.map(numerics::bignum::BigInt::from_i64),
     }
 }

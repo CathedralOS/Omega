@@ -26,6 +26,7 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
 
+mod argument_reads;
 mod entry_reads;
 mod read_backing;
 
