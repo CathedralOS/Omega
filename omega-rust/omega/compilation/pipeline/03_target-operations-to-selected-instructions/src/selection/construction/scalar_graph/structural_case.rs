@@ -6,6 +6,7 @@ use super::{
     VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
+use crate::structural_inputs::structural_reference_input::reference_source_geometry;
 use legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarTerminator, LegalizedStructuralCaseSuccessor,
 };
@@ -150,12 +151,7 @@ pub(super) fn build(
         .structural_types;
     let root =
         crate::selection::reference_input::root_type(source, subject.place()).ok_or(invalid())?;
-    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
-        root,
-        path,
-        declarations,
-    )
-    .ok_or(invalid())?;
+    let geometry = reference_source_geometry(root, path, declarations).ok_or(invalid())?;
     let region_shape =
         crate::structural_inputs::shape(geometry.region_root, declarations).ok_or(invalid())?;
     if !geometry.elements.is_empty()
