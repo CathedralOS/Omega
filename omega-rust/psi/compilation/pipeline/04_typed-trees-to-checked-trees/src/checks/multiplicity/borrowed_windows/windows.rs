@@ -1,5 +1,6 @@
 //! windows slice of borrowed_windows.
 
+use super::super::linear_obligations::type_reference_is_reference;
 use validation::CanonicalPlace;
 
 use super::{StorageWalk, place_spelling};
@@ -75,9 +76,7 @@ impl<'facts> BorrowedStorageWindows<'facts> {
                 statement_index,
                 &prefix,
             )
-            .is_some_and(|reference| {
-                super::super::linear_obligations::type_reference_is_reference(program, reference)
-            })
+            .is_some_and(|reference| type_reference_is_reference(program, reference))
         });
         if !borrowed
             || !walk.exclusive_storage_chain(statement_index, target.root, &target.segments)

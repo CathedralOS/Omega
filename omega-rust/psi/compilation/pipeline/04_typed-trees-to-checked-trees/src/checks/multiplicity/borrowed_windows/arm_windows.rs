@@ -1,5 +1,6 @@
 //! arm windows slice of borrowed_windows.
 
+use super::super::owned_selection::reachable_arms;
 use crate::flow::DiscoveredMoveEvent;
 use crate::flow::FlowOwnershipEventSource;
 use crate::values::evaluate_closed_boolean_expression;
@@ -623,13 +624,10 @@ impl<'facts> ArmWindowPlan<'facts> {
                 self.frames.push(MatchWindowFrame {
                     expression,
                     arms: dispatch.arms,
-                    reachable: super::super::owned_selection::reachable_arms(
-                        program,
-                        dispatch.arms,
-                    )
-                    .into_iter()
-                    .map(|(handle, _)| handle)
-                    .collect(),
+                    reachable: reachable_arms(program, dispatch.arms)
+                        .into_iter()
+                        .map(|(handle, _)| handle)
+                        .collect(),
                     enclosing_arm,
                     conditional: statement_conditional,
                 });

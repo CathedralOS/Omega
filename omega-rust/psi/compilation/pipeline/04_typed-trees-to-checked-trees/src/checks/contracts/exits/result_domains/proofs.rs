@@ -1,5 +1,10 @@
 //! proofs slice of result_domains.
 
+use super::super::super::float_predicate_domains::expression_establishes_domain_predicate;
+use super::super::super::prover::evaluate_scalar;
+use super::super::super::prover::prove_domain_at_place;
+use super::super::super::prover::prove_indexed_domain_at_place;
+use super::super::super::prover::scalar_value_at_place;
 use super::super::super::return_values::exit_return_expression;
 use super::{domain_predicate_meaning, exact_integer_reference};
 use crate::flow::canonical_place_from_semantic_place;
@@ -237,7 +242,7 @@ fn establishes_scalar_predicates_visited(
             }
         } else if let Some(expression) = fact.as_expression() {
             let returned = exit_return_expression(program, exit);
-            if super::super::super::float_predicate_domains::expression_establishes_domain_predicate(
+            if expression_establishes_domain_predicate(
                 program,
                 facts,
                 contexts,
@@ -256,7 +261,7 @@ fn establishes_scalar_predicates_visited(
                         .is_some();
                 if has_meaning {
                     let known = proof.current_value(returned);
-                    let evaluated = super::super::super::prover::evaluate_scalar(
+                    let evaluated = evaluate_scalar(
                         program,
                         *expression,
                         &mut |leaf| {
@@ -662,7 +667,7 @@ impl ScalarReturnProof<'_> {
         {
             return None;
         }
-        super::super::super::prover::evaluate_scalar(
+        evaluate_scalar(
             self.program,
             expression,
             &mut |leaf| {
@@ -672,7 +677,7 @@ impl ScalarReturnProof<'_> {
                     self.exit.statement_index,
                     leaf,
                 )?;
-                super::super::super::prover::scalar_value_at_place(
+                scalar_value_at_place(
                     self.program,
                     &self.facts.semantic,
                     self.contexts
@@ -757,7 +762,7 @@ pub(in crate::checks::contracts::exits) fn proves_result_domain(
         .domain_definition(domain_symbol)
         .is_some_and(|domain| !typed_trees::domain::index_parameters(program, domain).is_empty())
     {
-        return super::super::super::prover::prove_indexed_domain_at_place(
+        return prove_indexed_domain_at_place(
             program,
             &facts.semantic,
             contexts,
@@ -766,11 +771,5 @@ pub(in crate::checks::contracts::exits) fn proves_result_domain(
             semantic_domain,
         );
     }
-    super::super::super::prover::prove_domain_at_place(
-        program,
-        &facts.semantic,
-        contexts,
-        &subject,
-        domain_symbol,
-    )
+    prove_domain_at_place(program, &facts.semantic, contexts, &subject, domain_symbol)
 }

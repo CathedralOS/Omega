@@ -3,6 +3,7 @@
 //! to its source only while both the destination and every source/selector observation
 //! survive through this exact invocation. This does not replay an initializer
 //! or a callee, and a write followed by restoration still breaks the relation.
+use super::captured_boolean::computed_values_have_source_identity;
 use crate::checks::operators::closed_operators_are_builtin;
 use crate::facts::contract_occurrences::append_expression_occurrences;
 use crate::places::place_at;
@@ -82,11 +83,7 @@ fn stable_copies(
         if program
             .primitive_type_reference(stored.type_reference)
             .is_none()
-            || !super::captured_boolean::computed_values_have_source_identity(
-                program,
-                facts,
-                stored.expression,
-            )
+            || !computed_values_have_source_identity(program, facts, stored.expression)
         {
             continue;
         }
@@ -123,11 +120,7 @@ fn stable_copies(
         for segment in &destination.segments {
             if let facts::PlaceSegment::Index { expression } = segment {
                 selectors_preserve_identity &=
-                    super::captured_boolean::computed_values_have_source_identity(
-                        program,
-                        facts,
-                        *expression,
-                    );
+                    computed_values_have_source_identity(program, facts, *expression);
                 append_expression_occurrences(program, *expression, &mut reads);
             }
         }

@@ -2,6 +2,7 @@
 //! A good candidate cannot hide an incompatible candidate under the same
 //! choice. Shared condition DAGs retain correlation without actual products.
 
+use super::super::prover::call_guarantees::proves_captured_predicates;
 use super::bindings::Alias;
 use super::transport::ConditionalPredicate;
 use super::{BoundPredicate, CapturedBinding, CheckFacts, PredicateTransport};
@@ -157,14 +158,9 @@ pub(super) fn qualify(
         }
         // Each implication uses only premises established throughout this
         // support. The requested proposition is never among its assumptions.
-        if super::super::prover::call_guarantees::proves_captured_predicates(
-            program,
-            &facts.semantic,
-            &[],
-            &hypotheses,
-            required,
-            |_| None,
-        ) {
+        if proves_captured_predicates(program, &facts.semantic, &[], &hypotheses, required, |_| {
+            None
+        }) {
             proven = conditions.any(proven, support.condition);
             if conditions.covers(&facts.flow.control, proven) {
                 break;

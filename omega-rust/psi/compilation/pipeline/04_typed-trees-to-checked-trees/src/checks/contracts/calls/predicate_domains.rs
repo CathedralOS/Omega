@@ -1,6 +1,7 @@
 //! Predicate-only domain vocabulary: predicates, labels, intervals, and
 //! the requirement subject a fact constrains.
 
+use super::super::labels::instantiate_domain_expression_label;
 use checked_trees::CheckFacts;
 
 /// The proof-fact expressions of a PREDICATE-ONLY domain, or `None` when the
@@ -106,12 +107,7 @@ pub(super) fn predicate_only_domain_labels(
         predicate_only_domain_predicates(program, domain)?
             .iter()
             .map(|(owner, expression)| {
-                super::super::labels::instantiate_domain_expression_label(
-                    program,
-                    owner,
-                    *expression,
-                    &subject_label,
-                )
+                instantiate_domain_expression_label(program, owner, *expression, &subject_label)
             })
             .collect(),
     )

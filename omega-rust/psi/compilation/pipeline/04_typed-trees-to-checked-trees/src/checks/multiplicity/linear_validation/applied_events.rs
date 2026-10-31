@@ -5,6 +5,12 @@
 //! an unestablished value, overwriting a live linear value), never to record
 //! them a second time.
 
+use super::super::instruction_dispositions::valid_receipt;
+use super::super::selected_evaluation::ExpressionRoutes;
+use super::super::selected_evaluation::SelectedEvaluation;
+use super::super::selected_evaluation::place_bindings::SelectionSite;
+use super::super::selected_evaluation::place_bindings::join_recorded_places;
+use super::affine_cleanup::exit_evaluation;
 use crate::checks::multiplicity::linear_obligations::{ClaimIdentityAllocator, LinearPlace};
 use crate::checks::multiplicity::linear_validation::permission_production::established_provenance;
 use crate::flow::call_permission_evaluation;
@@ -59,7 +65,7 @@ pub(crate) fn apply_recorded_statement_events(
         return;
     }
     let segments = &facts.flow.ownership.segments;
-    let routes = super::super::selected_evaluation::ExpressionRoutes::new(
+    let routes = ExpressionRoutes::new(
         program,
         machine,
         state,
@@ -74,22 +80,16 @@ pub(crate) fn apply_recorded_statement_events(
         .map_or(&[][..], |flow| {
             facts.flow.control.calls.span_or_empty(flow.calls)
         });
-    let mut selected = super::super::selected_evaluation::SelectedEvaluation::new();
+    let mut selected = SelectedEvaluation::new();
     let mut current = places.to_vec();
-    let site = super::super::selected_evaluation::place_bindings::SelectionSite {
+    let site = SelectionSite {
         machine: machine.symbol,
         state: state.symbol,
         statement: statement_index,
         evaluation,
     };
     let join = |branch, current: &mut Vec<LinearPlace>, sibling: &Vec<LinearPlace>| {
-        super::super::selected_evaluation::place_bindings::join_recorded_places(
-            &facts.flow.ownership,
-            site,
-            branch,
-            current,
-            sibling,
-        )
+        join_recorded_places(&facts.flow.ownership, site, branch, current, sibling)
     };
     for event in events.iter().copied().filter(|event| {
         permission_event_statement_index(event.source) == Some(statement_index)
@@ -108,9 +108,8 @@ pub(crate) fn apply_recorded_statement_events(
         if matches!(
             event.source,
             PermissionEventSource::InstructionDisposition { .. }
-        ) && !super::super::instruction_dispositions::valid_receipt(
-            program, facts, machine, state, event,
-        ) {
+        ) && !valid_receipt(program, facts, machine, state, event)
+        {
             diagnostics.push(Diagnostic::error(
                 "instruction disposition has no matching checked effect receipt",
             ));
@@ -217,15 +216,13 @@ pub(crate) fn apply_recorded_exit_dispositions(
     let source = PermissionEventSource::InstructionExitDisposition {
         statement_index: coordinate.statement_index,
     };
-    let evaluation = super::affine_cleanup::exit_evaluation(program, state, coordinate);
+    let evaluation = exit_evaluation(program, state, coordinate);
     for event in events
         .iter()
         .copied()
         .filter(|event| event.source == source && event.evaluation == evaluation)
     {
-        if !super::super::instruction_dispositions::valid_receipt(
-            program, facts, machine, state, event,
-        ) {
+        if !valid_receipt(program, facts, machine, state, event) {
             diagnostics.push(Diagnostic::error(
                 "instruction exit disposition has no matching checked effect receipt",
             ));

@@ -4,6 +4,7 @@
 //! Input forwarding keeps the caller's held identity; differing exit sources
 //! retain every alternative rather than manufacturing an unconditional lineage.
 
+use super::super::selected_evaluation::place_bindings::claim_origin;
 use super::{
     bind_claim_outcome_source_at_arguments, claim_paths_are_case_alternatives,
     derive_checked_claim_outcome_maps,
@@ -1760,11 +1761,7 @@ pub(crate) fn validate_call_claim_joins(
                 ..
             }
         ) {
-            super::super::selected_evaluation::place_bindings::claim_origin(
-                ownership,
-                event.claim_identity,
-                event.provenance,
-            )
+            claim_origin(ownership, event.claim_identity, event.provenance)
         } else if matches!(event.provenance, PermissionProvenance::Joined { .. }) {
             expected.iter().any(|receipt| {
                 receipt.identity == event.claim_identity

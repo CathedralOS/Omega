@@ -5,6 +5,8 @@
 //! to the receiving state. Field/index paths survive that join; spelling alone cannot keep a
 //! stale predecessor parameter current or authorize an unrelated binding.
 
+use super::super::types::expression_type_reference;
+use super::invalidation::write_covers_place;
 use crate::flow;
 use crate::places::place_at;
 use validation::CanonicalPlace;
@@ -445,12 +447,7 @@ impl<'field> RangeFacts<'field> {
                         assignment.target,
                     ) == Some(symbol) =>
             {
-                super::super::types::expression_type_reference(
-                    program,
-                    machine,
-                    state,
-                    assignment.target,
-                )
+                expression_type_reference(program, machine, state, assignment.target)
             }
             _ => None,
         };
@@ -579,8 +576,7 @@ impl<'field> RangeFacts<'field> {
         state: &State,
         collection: ExpressionHandle,
     ) -> Option<CapturedLength> {
-        let reference =
-            super::super::types::expression_type_reference(program, machine, state, collection)?;
+        let reference = expression_type_reference(program, machine, state, collection)?;
         let reference = validation::unwrapped_type_reference(program, reference)?;
         // A record field merely named `len` is an ordinary scalar. Only the
         // compiler-owned array/slice metadata operation establishes this edge.
@@ -627,7 +623,7 @@ impl<'field> RangeFacts<'field> {
         self.measured_results.retain(|(_, length)| {
             !writes.is_none_or(|writes| {
                 writes.iter().any(|write| {
-                    super::invalidation::write_covers_place(program, write, &length.descriptor)
+                    write_covers_place(program, write, &length.descriptor)
                         || length
                             .selectors
                             .iter()
@@ -655,11 +651,7 @@ impl<'field> RangeFacts<'field> {
             if writes.is_none_or(|writes| {
                 writes.iter().any(|write| {
                     places_overlap(program, &row.place, write)
-                        || super::invalidation::write_covers_place(
-                            program,
-                            write,
-                            &length.descriptor,
-                        )
+                        || write_covers_place(program, write, &length.descriptor)
                         || length
                             .selectors
                             .iter()
@@ -956,7 +948,7 @@ impl<'field> RangeFacts<'field> {
                             if row.descriptor.as_ref().is_some_and(|descriptor| {
                                 flow::canonical_places_agree(program, descriptor, read)
                             }) {
-                                !super::invalidation::write_covers_place(program, write, read)
+                                !write_covers_place(program, write, read)
                             } else {
                                 !places_overlap(program, read, write)
                             }

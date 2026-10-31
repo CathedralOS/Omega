@@ -5,6 +5,7 @@
 //! evaluation before the range owner reuses an entry premise. Only inert
 //! evaluations enter its arithmetic context; a disjoint call preserves existing
 //! facts but does not establish a fact about its returned value.
+use super::super::super::rank_inputs::prove_integer_entry_with_formation;
 use super::super::{ExpressionHandle, ExpressionNode, write_preservation};
 use crate::checks::termination::graph;
 use crate::checks::termination::ranking::DecreaseMeasure;
@@ -221,16 +222,14 @@ fn admit_complete(
     };
     // The entry obligation is independent of every edge's guards. In
     // particular, an acyclic body cannot pass vacuously through an empty SCC.
-    let entry_proof = super::super::super::rank_inputs::prove_integer_entry_with_formation(
-        program,
-        machine,
-        range,
-        measure,
-        call_frames,
-    )
-    .or_else(|| {
-        validation::prove_ranking_range_entry_with_formation(program, machine, root, range, measure)
-    })?;
+    let entry_proof =
+        prove_integer_entry_with_formation(program, machine, range, measure, call_frames).or_else(
+            || {
+                validation::prove_ranking_range_entry_with_formation(
+                    program, machine, root, range, measure,
+                )
+            },
+        )?;
     if !entry_proof.membership_and_pinning {
         return None;
     }

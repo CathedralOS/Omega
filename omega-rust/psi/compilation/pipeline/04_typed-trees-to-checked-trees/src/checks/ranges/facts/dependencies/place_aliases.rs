@@ -8,6 +8,7 @@
 //! Once reanchored, the reference depends on its own captured descriptor and
 //! descendant selectors, not the variables that selected its original root.
 
+use super::captures::integer_value_identity;
 use super::{ExpressionDependencies, reads};
 use crate::checks::ranges::RangeFacts;
 use crate::flow::expressions;
@@ -131,20 +132,16 @@ impl RangeFacts<'_> {
                                 {
                                     return true;
                                 }
-                                let same_value = super::captures::integer_value_identity(
-                                    program,
-                                    bound_lookup,
-                                    state,
-                                    left,
-                                )
-                                .is_some_and(|value| {
-                                    super::captures::integer_value_identity(
-                                        program,
-                                        bound_lookup,
-                                        state,
-                                        right,
-                                    ) == Some(value)
-                                });
+                                let same_value =
+                                    integer_value_identity(program, bound_lookup, state, left)
+                                        .is_some_and(|value| {
+                                            integer_value_identity(
+                                                program,
+                                                bound_lookup,
+                                                state,
+                                                right,
+                                            ) == Some(value)
+                                        });
                                 uses_frozen_selector |= same_value;
                                 same_value
                             } else {

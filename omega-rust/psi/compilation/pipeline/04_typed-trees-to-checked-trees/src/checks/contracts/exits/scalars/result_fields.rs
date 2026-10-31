@@ -16,6 +16,9 @@
 //! The shared occurrence query admits the equality only before such effects;
 //! later writes cannot invalidate a window already captured.
 
+use super::super::super::prover::captured_scalar_at_path;
+use super::super::super::return_values::completed_return_operand;
+use super::super::super::return_values::exit_return_call;
 use validation::CanonicalPlace;
 
 mod descriptor_lengths;
@@ -96,11 +99,7 @@ impl ExitScalars<'_, '_> {
                 }
                 if let Some(result) = validation::reserved_result_place(self.program, occurrence)
                     && result.machine_symbol == self.machine.symbol
-                    && let Some(call) = super::super::super::return_values::exit_return_call(
-                        self.program,
-                        self.facts,
-                        self.exit,
-                    )
+                    && let Some(call) = exit_return_call(self.program, self.facts, self.exit)
                 {
                     return arithmetic::call_result_atom(
                         self.program,
@@ -119,11 +118,7 @@ impl ExitScalars<'_, '_> {
                         self.program.expression_table.expression(selected),
                         ExpressionNode::Call(_)
                     ) && let Some(capture) =
-                        super::super::super::return_values::completed_return_operand(
-                            self.program,
-                            self.facts,
-                            self.exit,
-                        )
+                        completed_return_operand(self.program, self.facts, self.exit)
                         && capture.expression == selected
                         && validation::project_type_reference_from_segments(
                             self.program,
@@ -370,7 +365,7 @@ impl ExitScalars<'_, '_> {
             .control
             .state(self.machine.symbol, self.exit.state_symbol)?;
         let place = validation::reserved_result_place(self.program, expression)?;
-        super::super::super::prover::captured_scalar_at_path(
+        captured_scalar_at_path(
             self.program,
             self.facts,
             state,

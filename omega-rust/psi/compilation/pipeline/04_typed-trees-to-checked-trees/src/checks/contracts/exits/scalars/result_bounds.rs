@@ -2,6 +2,7 @@
 //! The shared bounds owner checks selected arithmetic, including overflow policy;
 //! no initializer or stale mutable read is replayed to reconstruct a value.
 
+use super::super::super::return_values::completed_return_operand;
 use super::{ExitScalars, exit_return_expression, has_builtin_operators, is_result_reference};
 use numerics::{arithmetic::ArithmeticDomain, bignum::BigInt};
 use typed_trees::{
@@ -164,18 +165,15 @@ impl ExitScalars<'_, '_> {
         } else {
             binary.right
         };
-        let completed_subject = super::super::super::return_values::completed_return_operand(
-            self.program,
-            self.facts,
-            self.exit,
-        )
-        .and_then(|operand| {
-            let projection = validation::reserved_result_place(self.program, result_observation)?;
-            Some(validation::CanonicalPlace {
-                root: facts::PlaceRoot::Expression(operand.expression),
-                segments: projection.segments,
-            })
-        });
+        let completed_subject = completed_return_operand(self.program, self.facts, self.exit)
+            .and_then(|operand| {
+                let projection =
+                    validation::reserved_result_place(self.program, result_observation)?;
+                Some(validation::CanonicalPlace {
+                    root: facts::PlaceRoot::Expression(operand.expression),
+                    segments: projection.segments,
+                })
+            });
         if let Some(subject) = completed_subject
             && let Some(result_bounds) = crate::values::integer_bounds_at_place(
                 self.program,

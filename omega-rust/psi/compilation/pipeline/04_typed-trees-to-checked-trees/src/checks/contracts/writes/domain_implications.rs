@@ -4,6 +4,10 @@
 //! instance identity, and payload reads require the currently selected case.
 //! Recast sources and contextual predicate proofs retain their distinct duties.
 
+use super::super::exits::exact_scalar_membership;
+use super::super::prover::prove_domain_at_place;
+use super::member_domains::value_satisfies_domain_instance_predicates_in_contexts;
+use super::member_domains::value_satisfies_domain_predicates_in_contexts;
 use crate::flow::active_context_handles;
 use crate::flow::call_flows;
 use crate::flow::expressions;
@@ -224,9 +228,7 @@ pub(super) fn value_proves_qualification_with_domain_stack(
     }
     if validation::field_domains::domain_requires_provenance(program, domain) {
         if subject.as_ref().is_some_and(|subject| {
-            super::super::exits::exact_scalar_membership(
-                program, facts, contexts, subject, domain, identity,
-            )
+            exact_scalar_membership(program, facts, contexts, subject, domain, identity)
         }) {
             return true;
         }
@@ -251,7 +253,7 @@ pub(super) fn value_proves_qualification_with_domain_stack(
         if !declaration.establishment_routes.is_empty() || declaration.alias.is_some() {
             return false;
         }
-        return super::member_domains::value_satisfies_domain_instance_predicates_in_contexts(
+        return value_satisfies_domain_instance_predicates_in_contexts(
             program,
             facts,
             state,
@@ -282,7 +284,7 @@ pub(super) fn value_proves_qualification_with_domain_stack(
     // Only a missing qualification needs predicate reconstruction. Consume
     // existing occurrence evidence first, without replaying the same prefix.
     // The provenance fence above still precedes this truth judgment.
-    super::member_domains::value_satisfies_domain_predicates_in_contexts(
+    value_satisfies_domain_predicates_in_contexts(
         program,
         facts,
         state,
@@ -389,13 +391,7 @@ pub(super) fn value_proves_domain_in_contexts(
     // predicate without a separate membership token; mutation retires that
     // evidence. Neither a declaration nor its former initializer is replayed.
     subject.as_ref().is_some_and(|subject| {
-        super::super::prover::prove_domain_at_place(
-            program,
-            &facts.semantic,
-            contexts,
-            subject,
-            domain_symbol,
-        )
+        prove_domain_at_place(program, &facts.semantic, contexts, subject, domain_symbol)
     })
 }
 
@@ -439,13 +435,7 @@ fn recast_source_proves_domain(
     let Some(subject) = place_at(program, state_flow.state_symbol, statement_index, source) else {
         return false;
     };
-    super::super::prover::prove_domain_at_place(
-        program,
-        &facts.semantic,
-        contexts,
-        &subject,
-        domain_symbol,
-    )
+    prove_domain_at_place(program, &facts.semantic, contexts, &subject, domain_symbol)
 }
 
 /// Consume a computed producer's result, never a storage declaration. Selected

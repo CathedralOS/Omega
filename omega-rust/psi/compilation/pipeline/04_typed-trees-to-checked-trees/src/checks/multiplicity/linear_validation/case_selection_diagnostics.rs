@@ -4,6 +4,8 @@
 //! store/loan query; neither a matching label nor a missing claim proves absence.
 
 use super::super::linear_obligations::LinearPlace;
+use super::super::permission_events::exact_positive_case_test;
+use super::super::permission_events::visit_positive_case_tests;
 use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowClaimJoinExit, FlowClaimJoinExitKind};
 use symbols::SymbolHandle;
@@ -35,37 +37,26 @@ pub(super) fn exit_detail(
     let mut rows = Vec::new();
     // Keep the diagnostic bounded independently of the number of conjuncts.
     // Every visited test still follows the production traversal below.
-    super::super::permission_events::visit_positive_case_tests(
-        program,
-        state.symbol,
-        guard,
-        &mut |expression, test| {
-            if rows.len() < 4 {
-                rows.push(match test {
-                    Some((subject, variant)) => selected_subject_detail(
-                        program,
-                        facts,
-                        state,
-                        coordinate.statement_index,
-                        expression,
-                        subject,
-                        variant,
-                        place,
-                    ),
-                    None => unavailable_membership_detail(program, state, expression),
-                });
-            }
-        },
-    );
+    visit_positive_case_tests(program, state.symbol, guard, &mut |expression, test| {
+        if rows.len() < 4 {
+            rows.push(match test {
+                Some((subject, variant)) => selected_subject_detail(
+                    program,
+                    facts,
+                    state,
+                    coordinate.statement_index,
+                    expression,
+                    subject,
+                    variant,
+                    place,
+                ),
+                None => unavailable_membership_detail(program, state, expression),
+            });
+        }
+    });
     let polarity = if positive {
         "selected guard"
-    } else if super::super::permission_events::exact_positive_case_test(
-        program,
-        state.symbol,
-        guard,
-    )
-    .is_some()
-    {
+    } else if exact_positive_case_test(program, state.symbol, guard).is_some() {
         "missed exact guard"
     } else {
         "missed guard is not one exact positive case test"

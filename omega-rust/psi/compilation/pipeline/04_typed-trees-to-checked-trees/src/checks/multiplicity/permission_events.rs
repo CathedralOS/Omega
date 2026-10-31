@@ -1,7 +1,19 @@
 //! Recording permission events: crash frontiers, proven case membership
 //! and the statically inactive call results that shape which events count.
 
+use super::claim_outcomes::ClaimOutcomePreparation;
+use super::claim_outcomes::receiving_value;
 use super::cleanup_dispositions::RemainingCustody;
+use super::cleanup_dispositions::StorageEstablishment;
+use super::instruction_dispositions::InstructionDispositions;
+use super::linear_obligations::prepare_storage_deaths;
+use super::linear_validation::completed_statement_values;
+use super::linear_validation::event_statement_index;
+use super::linear_validation::loan_completions::regions_for_calls;
+use super::permission_schedule::PermissionStep;
+use super::permission_schedule::SelectedCases;
+use super::selected_cleanup::SelectedCleanup;
+use super::selected_evaluation::ExpressionRoutes;
 use crate::checks::multiplicity::claim_outcomes::{
     apply_claim_origin_rewrites, call_result_origin_rewrites, derive_checked_claim_outcome_maps,
     publish_call_claim_joins, publish_claim_outcome_maps,
@@ -56,7 +68,7 @@ pub(crate) fn owned_permission_events(
 pub(crate) fn prepare_permission_events(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
-    claim_outcomes: &mut super::claim_outcomes::ClaimOutcomePreparation,
+    claim_outcomes: &mut ClaimOutcomePreparation,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     shared_call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<bool, Vec<Diagnostic>> {
@@ -174,7 +186,7 @@ pub(crate) fn prepare_permission_events(
                 .segments
                 .span_or_empty(event.segments)
                 .to_vec();
-            let statement_index = super::linear_validation::event_statement_index(event.source)
+            let statement_index = event_statement_index(event.source)
                 .expect("every discovered move belongs to a statement");
             if !original
                 .iter()
@@ -221,7 +233,7 @@ pub(crate) fn prepare_permission_events(
         {
             Vec::new()
         } else {
-            match super::linear_validation::loan_completions::regions_for_calls(
+            match regions_for_calls(
                 program,
                 facts,
                 machine.symbol,
@@ -327,9 +339,7 @@ pub(crate) fn prepare_permission_events(
             // unobserved completed child as an independent exit owner.
             completed_temporaries_by_statement.push(temporary_occurrences.completed);
             observed_receivers_by_statement.push(temporary_occurrences.observed);
-            for (expression, _) in
-                super::linear_validation::completed_statement_values(program, statement)
-            {
+            for (expression, _) in completed_statement_values(program, statement) {
                 let Some(place) = place_at(program, state.symbol, statement_index, expression)
                 else {
                     continue;
@@ -393,26 +403,20 @@ pub(crate) fn prepare_permission_events(
                 places,
                 remaining,
                 owned_selection::SelectionOccurrences::default(),
-                super::selected_cleanup::SelectedCleanup::default(),
-                super::instruction_dispositions::InstructionDispositions::default(),
+                SelectedCleanup::default(),
+                InstructionDispositions::default(),
             ),
             |step, custody| {
                 let (places, remaining, selections, selected_cleanup, instruction_dispositions) =
                     custody;
                 if state_needs_case_exclusions
-                    && let Some(selected) = super::permission_schedule::SelectedCases::at_step(
-                        program,
-                        facts,
-                        &state_flow,
-                        machine,
-                        state,
-                        step,
-                    )
+                    && let Some(selected) =
+                        SelectedCases::at_step(program, facts, &state_flow, machine, state, step)
                 {
                     selected.apply(places, Some(remaining));
                 }
                 match step {
-                    super::permission_schedule::PermissionStep::Evaluate {
+                    PermissionStep::Evaluate {
                         statement: statement_index,
                         evaluation,
                     } => {
@@ -503,8 +507,7 @@ pub(crate) fn prepare_permission_events(
                                 return;
                             }
                         };
-                        let routes =
-                            super::selected_evaluation::ExpressionRoutes::from_steps(&occurrences);
+                        let routes = ExpressionRoutes::from_steps(&occurrences);
                         if let Some(capture) = &capture {
                             if let Err(diagnostic) = capture.record(
                                 program,
@@ -628,14 +631,11 @@ pub(crate) fn prepare_permission_events(
                                 .filter(|establishment| {
                                     establishment.event_ordinal >= produced_storage.evaluated_events
                                 })
-                                .map(|establishment| {
-                                    super::cleanup_dispositions::StorageEstablishment {
-                                        event_ordinal: establishment.event_ordinal
-                                            - produced_storage.evaluated_events,
-                                        destination: establishment.destination.clone(),
-                                        prior_value_transferred: establishment
-                                            .prior_value_transferred,
-                                    }
+                                .map(|establishment| StorageEstablishment {
+                                    event_ordinal: establishment.event_ordinal
+                                        - produced_storage.evaluated_events,
+                                    destination: establishment.destination.clone(),
+                                    prior_value_transferred: establishment.prior_value_transferred,
                                 })
                                 .collect::<Vec<_>>();
                             if let Err(diagnostic) = remaining.observe_evaluation(
@@ -652,7 +652,7 @@ pub(crate) fn prepare_permission_events(
                             }
                         }
                     }
-                    super::permission_schedule::PermissionStep::Exit {
+                    PermissionStep::Exit {
                         coordinate,
                         crash: false,
                     } => {
@@ -689,8 +689,7 @@ pub(crate) fn prepare_permission_events(
                             selection_diagnostics.push(diagnostic);
                         }
                     }
-                    super::permission_schedule::PermissionStep::Exit { crash: true, .. }
-                    | super::permission_schedule::PermissionStep::MissedGuard => {}
+                    PermissionStep::Exit { crash: true, .. } | PermissionStep::MissedGuard => {}
                 }
             },
         );
@@ -789,7 +788,7 @@ pub(crate) fn prepare_permission_events(
         // a live old value from an already extracted hole, before deriving
         // hook prerequisites and effects from the complete death roster.
         phase_profile::scope("05.d.3.b.perm.6_storage_deaths", || {
-            super::linear_obligations::prepare_storage_deaths(program, facts)
+            prepare_storage_deaths(program, facts)
         })?;
         let mut cleanup_dispositions = std::mem::take(&mut facts.contextual_cleanup);
         phase_profile::scope("05.d.3.b.perm.7_bind_applications", || {
@@ -870,14 +869,13 @@ pub(crate) fn record_crash_frontier_lower_bounds(
             places,
             |step, places| {
                 if has_case_places
-                    && let Some(selected) = super::permission_schedule::SelectedCases::at_step(
-                        program, facts, state_flow, machine, state, step,
-                    )
+                    && let Some(selected) =
+                        SelectedCases::at_step(program, facts, state_flow, machine, state, step)
                 {
                     selected.apply_claims(places);
                 }
                 match step {
-                    super::permission_schedule::PermissionStep::Evaluate {
+                    PermissionStep::Evaluate {
                         statement,
                         evaluation,
                     } => {
@@ -907,7 +905,7 @@ pub(crate) fn record_crash_frontier_lower_bounds(
                             &mut ignored_diagnostics,
                         );
                     }
-                    super::permission_schedule::PermissionStep::Exit {
+                    PermissionStep::Exit {
                         coordinate,
                         crash: true,
                     } => {
@@ -1285,8 +1283,7 @@ fn apply_statically_inactive_call_results(
             {
                 return None;
             }
-            let (_, expression, receiving_path) =
-                super::claim_outcomes::receiving_value(program, segments, event)?;
+            let (_, expression, receiving_path) = receiving_value(program, segments, event)?;
             let typed_trees::expression::ExpressionNode::Call(call) =
                 program.expression_table.expression(expression)
             else {

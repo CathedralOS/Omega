@@ -4,6 +4,13 @@
 //! second control-flow analysis. The producer forks this state alongside its
 //! ordinary ownership state for each outgoing edge.
 mod case_exclusions;
+use super::construction_frontier::ConstructionFrontier;
+use super::construction_frontier::requires_owned_establishment;
+use super::construction_frontier::transparent_storage;
+use super::construction_frontier::zero_image_inactive_case;
+use super::linear_obligations::LinearPlace;
+use super::selected_evaluation::ExpressionRoutes;
+use super::selected_evaluation::SelectedEvaluation;
 use crate::flow::canonical_place_segments_may_overlap;
 use case_exclusions::CaseExclusions;
 
@@ -27,10 +34,7 @@ pub(crate) struct RemainingCustody {
     // Tag observations are facts, not transfers. They intersect at joins and
     // are invalidated by writes; unioning them can erase every live alternative.
     inactive_cases: CaseExclusions,
-    storage_frontiers: Vec<(
-        PlaceRoot,
-        super::construction_frontier::ConstructionFrontier,
-    )>,
+    storage_frontiers: Vec<(PlaceRoot, ConstructionFrontier)>,
     // Linear locals whose whole storage is currently a zero image: present
     // zero-filled bits that established no value and owe no obligation
     // (ownership.md, "Establishment and erasure"). The first assignment
@@ -81,7 +85,7 @@ pub(super) struct StorageBindingChange {
 pub(crate) struct TransferCustody {
     pub(crate) occurrence_ordinal: usize,
     pub(crate) events: std::ops::Range<usize>,
-    pub(crate) places: Vec<super::linear_obligations::LinearPlace>,
+    pub(crate) places: Vec<LinearPlace>,
     pub(crate) remaining: RemainingCustody,
 }
 
@@ -181,10 +185,7 @@ impl RemainingCustody {
             {
                 custody.storage_frontiers.push((
                     PlaceRoot::Symbol(parameter.symbol),
-                    super::construction_frontier::ConstructionFrontier::completed(
-                        program,
-                        parameter.type_reference,
-                    ),
+                    ConstructionFrontier::completed(program, parameter.type_reference),
                 ));
             }
         }
@@ -291,17 +292,14 @@ impl RemainingCustody {
             return;
         };
         if local.initial_value.is_valid()
-            || !super::construction_frontier::transparent_storage(program, local.type_reference)
-            || !super::construction_frontier::requires_owned_establishment(
-                program,
-                local.type_reference,
-            )
+            || !transparent_storage(program, local.type_reference)
+            || !requires_owned_establishment(program, local.type_reference)
         {
             return;
         }
         self.storage_frontiers.push((
             PlaceRoot::Symbol(local.symbol),
-            super::construction_frontier::ConstructionFrontier::new(program, local.type_reference),
+            ConstructionFrontier::new(program, local.type_reference),
         ));
     }
 
@@ -525,7 +523,7 @@ impl RemainingCustody {
     pub(super) fn observe_evaluation(
         &mut self,
         program: &dyn validation::CheckingInput,
-        routes: &super::selected_evaluation::ExpressionRoutes,
+        routes: &ExpressionRoutes,
         calls: &[checked_trees::FlowCallFact],
         events: &[FlowPermissionEventFact],
         segments: &arena::PagedArenaSet<PlaceSegment>,
@@ -535,7 +533,7 @@ impl RemainingCustody {
         if events.is_empty() {
             return Ok(());
         }
-        let mut selected = super::selected_evaluation::SelectedEvaluation::new();
+        let mut selected = SelectedEvaluation::new();
         let join = |_branch, current: &mut Self, sibling: &Self| {
             current.join(sibling);
             Ok(())
@@ -738,11 +736,8 @@ impl RemainingCustody {
                     && event.root == PlaceRoot::Symbol(local.symbol)
                     && !local.initial_value.is_valid()
                     && !validation::type_requires_establishment(program, local.type_reference)
-                    && let Some(inactive) = super::construction_frontier::zero_image_inactive_case(
-                        program,
-                        local.type_reference,
-                        path,
-                    )
+                    && let Some(inactive) =
+                        zero_image_inactive_case(program, local.type_reference, path)
                 {
                     self.exclude_absent_case(&validation::CanonicalPlace {
                         root: event.root,
@@ -1142,10 +1137,7 @@ impl RemainingCustody {
         {
             self.storage_frontiers.push((
                 root,
-                super::construction_frontier::ConstructionFrontier::completed(
-                    program,
-                    local.type_reference,
-                ),
+                ConstructionFrontier::completed(program, local.type_reference),
             ));
         }
         if let Some((_, frontier)) = self

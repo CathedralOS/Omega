@@ -1,6 +1,9 @@
 //! One source evaluation schedule for permission production and replay.
 //! Custody forks after guard evaluation, and only the missed guard state
 //! continues to the next statement. No expression traversal is duplicated.
+use super::cleanup_dispositions::RemainingCustody;
+use super::linear_obligations::LinearPlace;
+use super::permission_events::case_transition_run_is_exhaustive;
 use crate::flow::CaseEvidence;
 use crate::flow::call_permission_evaluation;
 use checked_trees::{FlowClaimJoinExit, FlowClaimJoinExitKind, FlowPermissionEvaluation};
@@ -109,12 +112,7 @@ pub(super) fn walk<S: Clone>(
         visit(PermissionStep::MissedGuard, &mut custody);
     }
     if !transitions.is_empty()
-        && super::permission_events::case_transition_run_is_exhaustive(
-            program,
-            state.symbol,
-            statements,
-            &transitions,
-        )
+        && case_transition_run_is_exhaustive(program, state.symbol, statements, &transitions)
     {
         return;
     }
@@ -301,14 +299,14 @@ impl<'program> SelectedCases<'program> {
         Some(Self { evidence })
     }
 
-    pub(super) fn apply_claims(self, places: &mut [super::linear_obligations::LinearPlace]) {
+    pub(super) fn apply_claims(self, places: &mut [LinearPlace]) {
         self.apply(places, None);
     }
 
     pub(super) fn apply(
         self,
-        places: &mut [super::linear_obligations::LinearPlace],
-        mut remaining: Option<&mut super::cleanup_dispositions::RemainingCustody>,
+        places: &mut [LinearPlace],
+        mut remaining: Option<&mut RemainingCustody>,
     ) {
         // No consumer exists for this pure prepared batch. Cleanup, when
         // present, must still receive every exclusion even with no claims.

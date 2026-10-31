@@ -1,6 +1,8 @@
 //! Written linear targets and the claim identities and provenance of
 //! permission expressions.
 
+use super::super::construction_frontier::zero_image_inactive_case;
+use super::super::projected_affine::has_reference_prefix;
 use crate::checks::multiplicity::linear_obligations::{LinearPlace, WrittenLinearTarget};
 use crate::checks::multiplicity::type_multiplicity::{
     data_field_name, expression_establishes_obligation, literal_variant,
@@ -109,7 +111,7 @@ pub(crate) fn written_linear_targets(
                         tracked.root == facts::PlaceRoot::Symbol(local.symbol)
                             && tracked.multiplicity != Multiplicity::Unrestricted
                             && (tracked.path.is_empty()
-                                || super::super::construction_frontier::zero_image_inactive_case(
+                                || zero_image_inactive_case(
                                     program,
                                     local.type_reference,
                                     &tracked.path,
@@ -230,12 +232,7 @@ pub(crate) fn written_owner_targets(
             // occurrence, just as extraction through a borrowed parameter does.
             let borrowed_extraction = tracked.multiplicity == Multiplicity::Linear
                 && source_place.as_ref().is_some_and(|source| {
-                    super::super::projected_affine::has_reference_prefix(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        source,
-                    )
+                    has_reference_prefix(program, state_symbol, statement_index, source)
                 });
             Some(WrittenLinearTarget {
                 value,

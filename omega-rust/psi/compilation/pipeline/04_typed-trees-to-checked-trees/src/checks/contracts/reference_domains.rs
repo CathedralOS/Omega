@@ -1,5 +1,6 @@
 //! Exact live aliases and owned captures transport established qualifications.
 
+use super::prover::segments_cover_subject;
 use crate::checks::places::place_or_root_in;
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::{Fact, FactContextHandle};
@@ -222,11 +223,7 @@ fn contexts_prove_domain(
                     return false;
                 };
                 (candidate.root) == (source.root)
-                    && super::prover::segments_cover_subject(
-                        program,
-                        &candidate.segments,
-                        &source.segments,
-                    )
+                    && segments_cover_subject(program, &candidate.segments, &source.segments)
             })
     })
 }
