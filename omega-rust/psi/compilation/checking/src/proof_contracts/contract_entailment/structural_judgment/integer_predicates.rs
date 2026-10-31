@@ -1983,7 +1983,10 @@ impl<'program> StructuralJudge<'program> {
         // denotation (for example a window's end minus start). Keep that
         // equation visible to the existing polynomial owner. Executable
         // operands embedded inside it still owe their original formation.
-        if matches!(value, StructuralTerm::MathematicalBinary { .. }) {
+        if matches!(
+            value,
+            StructuralTerm::MathematicalBinary { .. } | StructuralTerm::IntegerEmbedding { .. }
+        ) {
             return self.mathematical_value(value, observations, depth + 1);
         }
         if let StructuralTerm::ScalarBinary {

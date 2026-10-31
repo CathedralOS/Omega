@@ -84,3 +84,7 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - Mutable slice element write bounds (`&mut [T]` with `view[idx] = val`).
 - Dynamic slice subslice window composition with non-constant runtime offsets (`items[low..high]`).
 - Multi-dimensional nested slice view descriptors.
+
+## Indexed record-held descriptors
+
+The [indexed descriptor production](indexed_descriptor/README.md) carries this same guard, element read and subtraction through runtime-selected record-held views. It exercises the checking-to-Terminal selector route and its nine insufficient-guard twins for `CHECKER-CARRIES-OPERATION-DECISIONS`.

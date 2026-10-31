@@ -1,0 +1,2 @@
+cannot prove requires contract for call read from read_guarded
+windows[selected].values.len >= 3

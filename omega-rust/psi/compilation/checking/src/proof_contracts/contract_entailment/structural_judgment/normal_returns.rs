@@ -1587,7 +1587,13 @@ impl<'program> StructuralJudge<'program> {
                             .map_or_else(|| range.clone(), |target| range.intersect(target));
                         *integer_range = Some(std::sync::Arc::new(range));
                     }
-                    judge.assume_normal_equation(converted.clone(), operand);
+                    // The denotation is the completed source integer, including
+                    // its authenticated carrier. A bare formal would erase that
+                    // carrier when exact arithmetic follows this equation.
+                    judge.assume_normal_equation(converted.clone(), StructuralTerm::IntegerEmbedding {
+                        reference: source,
+                        value: Box::new(operand),
+                    });
                     Some(converted)
                 } else { None };
                 let mut value = if receiver_changed {

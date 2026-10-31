@@ -1,0 +1,44 @@
+// Fact: a slice view (&[u64]) whose length is guarded (view.len >= 3u64) proves safe indexed element read at view[2u64] and preserves the length lower bound to discharge exact subtraction view.len - 3u64 across all nine places.
+// Expected exit: 0
+
+public data Window<'a> { values: &'a [u64]; }
+
+public machine read_guarded(windows: &[Window], selected: u64) -> i32
+requires selected < windows.len
+{
+    transition windows[selected].values.len >= 3 {
+        true -> read(windows, selected)
+        _ -> short()
+    }
+    machine read(windows: &[Window], selected: u64) -> i32
+    requires selected < windows.len && windows[selected].values.len >= 3
+    {
+    let elem: u64 = windows[selected].values[2];
+    let diff: u64 = windows[selected].values.len - 3u64;
+    transition elem == 30u64 && diff == 1u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() -> i32 { 0 }
+    machine bad() -> i32 { 1 }
+
+    }
+    machine short() -> i32 { 1 }
+}
+
+data Envelope<'a> { windows: [Window<'a>; 2]; }
+machine check_pair(windows: &[Window]) -> bool requires windows.len == 2 {
+    let result: i32 = read_guarded(windows, 1);
+    let declined: i32 = read_guarded(windows, 0);
+    result == 0 && declined == 1
+}
+
+machine main() crashes Trap {
+    let other: [u64; 6] = [90u64, 91u64, 92u64, 93u64, 94u64, 95u64];
+    let items: [u64; 4] = [10u64, 20u64, 30u64, 40u64];
+    let envelope: Envelope = Envelope { windows: [Window { values: &other[..2] }, Window { values: &items[..] }] };
+    let correct: bool = check_pair(&envelope.windows[..]);
+    transition correct { true -> pass() _ -> fail() }
+    machine pass() {}
+    machine fail() { crash Trap; }
+}
