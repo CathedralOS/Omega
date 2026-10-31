@@ -54,7 +54,7 @@ linux_x86_64 boundary machine DescriptorImports::write_discarded(descriptor: i32
 linux_arm64 boundary machine DescriptorImports::write_discarded(descriptor: i32, word: &u32, count: u64)
     satisfies DescriptorIo::write_discarded via ForeignBinding::Syscall(64);
 
-machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
+machine Main::main(main: &mut Main) reaches DescriptorIo blocks crashes Trap {
     main.word = 1144201745;
     main.half = 21828;
     let empty: i64 = block DescriptorIo::read_word(0, &mut main.word, 0);
@@ -77,7 +77,7 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches DescriptorIo blocks; crashes Trap {
+machine entry_start() reaches DescriptorIo blocks crashes Trap {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

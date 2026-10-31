@@ -5,7 +5,7 @@ use omega::language::core::option;
 data Payload { #7 value: u32; }
 
 Contiguous satisfies FixedLayout<Payload> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
         let identity_matches: bool = match schema.fields[0].identity {
             Optional::Some { value } -> value == 6u64
             Optional::None -> false

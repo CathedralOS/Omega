@@ -5,6 +5,8 @@
 //! literal extent may copy it into an ordinary array value, and that copy is
 //! exact-width: neither truncation nor zero padding is language semantics.
 
+use crate::tables::expression_table;
+use crate::tables::expression_table_mut;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -196,16 +198,12 @@ fn land_one(
         {
             return Ok(());
         }
-        let prior = program
-            .expression_table
-            .construction_required_type_reference(value);
+        let prior = expression_table(program).construction_required_type_reference(value);
         if !prior.is_valid() {
-            program
-                .expression_table
+            expression_table_mut(program)
                 .set_construction_required_type_reference(value, destination);
         }
-        let fields = program
-            .expression_table
+        let fields = expression_table(program)
             .struct_fields(literal.fields)
             .to_vec();
         for field in fields {
@@ -230,8 +228,7 @@ fn land_one(
         program.expression_table.expression(value),
         program.type_reference_table.type_reference(carrier),
     ) {
-        let elements = program
-            .expression_table
+        let elements = expression_table(program)
             .expression_handles(*elements)
             .to_vec();
         let element_type = *element_type;

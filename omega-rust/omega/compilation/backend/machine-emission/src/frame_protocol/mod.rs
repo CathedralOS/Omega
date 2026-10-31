@@ -16,6 +16,7 @@ pub(crate) use error::TargetFrameProtocolEncodingError;
 pub use machine_code::target_frame_protocol_encoding_identity;
 pub(crate) use validation::validate_target_frame_protocol_encoding;
 
+use crate::count_where;
 use crate::frame_layout::{TargetFrameLayoutIdentity, ValidatedTargetFrameLayout};
 use codec::FrameProtocolCodec;
 pub use machine_code::{
@@ -147,15 +148,7 @@ fn seal(plan: &TargetFrameProtocolEncodingPlan) -> TargetFrameProtocolEncodingRe
         policy: plan.policy,
         function_count: plan.functions.len(),
         byte_count: plan.bytes.len(),
-        nonempty_prologue_count: plan
-            .functions
-            .iter()
-            .filter(|row| row.prologue.length != 0)
-            .count(),
-        nonempty_epilogue_count: plan
-            .functions
-            .iter()
-            .filter(|row| row.epilogue.length != 0)
-            .count(),
+        nonempty_prologue_count: count_where(&plan.functions, |row| row.prologue.length != 0),
+        nonempty_epilogue_count: count_where(&plan.functions, |row| row.epilogue.length != 0),
     }
 }

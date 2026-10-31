@@ -22,6 +22,10 @@ pub struct FlowStateTable {
     arena: Arena<FlowStateFact>,
     machine_rows: KeyedRows<SymbolHandle, FlowStateFact>,
     state_rows: KeyedRows<SymbolHandle, FlowStateFact>,
+    // A semantic span belongs to one call page. Grouping by generation keeps
+    // the reverse lookup bounded by that page without expanding every call.
+    #[record(skip)]
+    call_rows: KeyedRows<u32, FlowStateFact>,
     // The page roster is unchanged throughout an immutable read window.
     // Mutable arena access clears this exact revision together with the rows.
     #[record(skip)]
@@ -34,6 +38,7 @@ impl Clone for FlowStateTable {
             arena: self.arena.clone(),
             machine_rows: self.machine_rows.clone(),
             state_rows: self.state_rows.clone(),
+            call_rows: self.call_rows.clone(),
             revision: OnceLock::new(),
         }
     }
@@ -76,6 +81,7 @@ impl From<Arena<FlowStateFact>> for FlowStateTable {
             arena,
             machine_rows: KeyedRows::default(),
             state_rows: KeyedRows::default(),
+            call_rows: KeyedRows::default(),
             revision: OnceLock::new(),
         }
     }
@@ -94,11 +100,38 @@ impl std::ops::DerefMut for FlowStateTable {
         self.revision.take();
         self.machine_rows.clear();
         self.state_rows.clear();
+        self.call_rows.clear();
         &mut self.arena
     }
 }
 
 impl FlowControlFacts {
+    /// Every owning state of this exact call, in original state-arena order.
+    /// Empty/stale spans contribute nothing. Keep all duplicate owners so the
+    /// consumer retains its ordinary missing/ambiguous judgments.
+    pub fn call_owners(&self, call: Handle<super::FlowCallFact>) -> Vec<&FlowStateFact> {
+        if !self.calls.is_valid(call) {
+            return Vec::new();
+        }
+        let selected = self.calls.get(call);
+        self.states.call_rows.with_rows(
+            &self.states,
+            |state| state.calls.start().generation(),
+            &call.generation(),
+            |rows| {
+                rows.iter()
+                    .map(|owner| self.states.get(*owner))
+                    .filter(|state| {
+                        self.calls
+                            .span_or_empty(state.calls)
+                            .iter()
+                            .any(|candidate| std::ptr::eq(candidate, selected))
+                    })
+                    .collect()
+            },
+        )
+    }
+
     fn with_machine_rows<Result>(
         &self,
         machine: SymbolHandle,
@@ -160,6 +193,88 @@ impl FlowControlFacts {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn owner_matches_scan(control: &FlowControlFacts, call: Handle<super::super::FlowCallFact>) {
+        let expected = if control.calls.is_valid(call) {
+            control
+                .states
+                .iter()
+                .filter_map(|(_, state)| {
+                    control
+                        .calls
+                        .span_or_empty(state.calls)
+                        .iter()
+                        .any(|row| std::ptr::eq(row, control.calls.get(call)))
+                        .then_some(state)
+                })
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+        let actual = control.call_owners(call);
+        assert_eq!(actual.len(), expected.len());
+        assert!(
+            actual
+                .iter()
+                .zip(expected)
+                .all(|(actual, expected)| std::ptr::eq(*actual, expected))
+        );
+    }
+
+    #[test]
+    fn call_page_rows_keep_duplicate_owners_and_follow_state_edits() {
+        let mut control = FlowControlFacts::default();
+        let first = control.calls.append(Default::default());
+        control.calls.begin_page(11);
+        let second = control.calls.append(Default::default());
+        let first_span = arena::HandleSpan::from_parts(first, 1);
+        let second_span = arena::HandleSpan::from_parts(second, 1);
+        let owner = control.states.append(FlowStateFact {
+            calls: first_span,
+            ..Default::default()
+        });
+        owner_matches_scan(&control, first);
+        owner_matches_scan(&control, second);
+        control.states.append(FlowStateFact {
+            calls: first_span,
+            ..Default::default()
+        });
+        assert_eq!(control.call_owners(first).len(), 2);
+        control.states.get_mut(owner).calls = second_span;
+        owner_matches_scan(&control, first);
+        owner_matches_scan(&control, second);
+        control.states.get_mut(owner).calls = arena::HandleSpan::from_parts(second, 20);
+        owner_matches_scan(&control, second);
+        let cloned = control.clone();
+        owner_matches_scan(&cloned, first);
+        owner_matches_scan(&cloned, second);
+        let mut original = Arena::default();
+        original.append(FlowStateFact {
+            calls: first_span,
+            ..Default::default()
+        });
+        let mut replacement = Arena::default();
+        replacement.append(FlowStateFact {
+            calls: second_span,
+            ..Default::default()
+        });
+        assert_eq!(original.revision(), replacement.revision());
+        *control.states = original;
+        owner_matches_scan(&control, first);
+        *control.states = replacement;
+        owner_matches_scan(&control, first);
+        owner_matches_scan(&control, second);
+        let limits = compiler_storage::RecordLimits::default();
+        let before = compiler_storage::encode(&control.states, limits).unwrap();
+        owner_matches_scan(&control, second);
+        assert_eq!(
+            compiler_storage::encode(&control.states, limits).unwrap(),
+            before
+        );
+        let states = compiler_storage::decode(&before, limits).unwrap();
+        control.states = states;
+        owner_matches_scan(&control, second);
+    }
 
     #[test]
     fn machine_rows_preserve_roster_selection_and_mutation_visibility() {

@@ -8,8 +8,8 @@ data Operands {
 }
 
 machine evaluate(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 20u32 && lhs <= 40u32;
-    requires rhs >= 30u32 && rhs <= 50u32;
+    requires lhs >= 20u32 && lhs <= 40u32
+    requires rhs >= 30u32 && rhs <= 50u32
 {
     let ops: Operands = Operands { lhs: lhs, rhs: rhs };
     let sum: u32 = ops.lhs + ops.rhs;

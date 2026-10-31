@@ -416,7 +416,6 @@ pub fn resolve_satisfied_declaration<'program>(
     }
 
     if !program
-        .type_reference_table
         .type_reference_handles(conformance.arguments)
         .is_empty()
     {

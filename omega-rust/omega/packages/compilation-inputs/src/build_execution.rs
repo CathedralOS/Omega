@@ -39,6 +39,13 @@ pub use snapshot_request::{BuildSnapshotCapture, BuildSnapshotRequest};
 use diagnostics::Diagnostic;
 use filesystem_authority::{BuildOutputObligation, BuildOutputReceipt};
 
+/// The refusal text of a failed host or accounting result. Failures below the
+/// compiler are reported as text, so every site that renders one goes through
+/// this adapter rather than repeating the conversion.
+fn message<T, E: std::fmt::Display>(result: Result<T, E>) -> Result<T, String> {
+    result.map_err(|error| error.to_string())
+}
+
 /// Interpreter observations whose output obligations have not yet settled.
 /// Only successful settlement publishes a durable observation summary.
 pub struct CapturedBuildObservations<'scope> {

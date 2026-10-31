@@ -44,14 +44,14 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedProbe {
     machine exercise(pair: &mut Pair)
-        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        reaches SelectedBodyCheck invokes SelectedBodyCheck
         requires pair.right <= 76u64
     crashes Trap;
 }
 
 X86Probe satisfies SelectedProbe {
     machine exercise(pair: &mut Pair)
-        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        reaches SelectedBodyCheck invokes SelectedBodyCheck
         requires pair.right <= 76u64
     crashes Trap
     {
@@ -64,7 +64,7 @@ X86Probe satisfies SelectedProbe {
 
 ArmProbe satisfies SelectedProbe {
     machine exercise(pair: &mut Pair)
-        reaches SelectedBodyCheck invokes SelectedBodyCheck;
+        reaches SelectedBodyCheck invokes SelectedBodyCheck
         requires pair.right <= 76u64
     crashes Trap
     {

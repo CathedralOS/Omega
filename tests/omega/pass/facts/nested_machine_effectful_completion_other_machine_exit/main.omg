@@ -2,7 +2,7 @@
 // Expected exit: 0
 data Storage { value: i64; touched: u64; canary: u64; }
 machine probe(output: &mut Storage, value: i64, select: bool) -> i64
-ensures result != -1;
+ensures result != -1
 {
     transition { _ -> apply(output, value) }
     machine apply(output: &mut Storage, value: i64) -> i64 {
@@ -14,8 +14,8 @@ ensures result != -1;
         output.value
     }
 }
-machine relay(output: &mut Storage, value: i64, select: bool) -> i64 ensures result != -1; { probe(output, value, select) }
-machine accept(value: i64) -> i64 requires value != -1; { value }
+machine relay(output: &mut Storage, value: i64, select: bool) -> i64 ensures result != -1 { probe(output, value, select) }
+machine accept(value: i64) -> i64 requires value != -1 { value }
 machine main() crashes Trap {
     let mut output: Storage = Storage { value: 77, touched: 0, canary: 33 };
     let result_0: i64 = accept(relay(&mut output, 7, true));

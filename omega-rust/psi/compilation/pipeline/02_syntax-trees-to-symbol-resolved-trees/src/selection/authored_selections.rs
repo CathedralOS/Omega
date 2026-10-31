@@ -7,6 +7,8 @@
 //! finalize here once their declarations have symbols.
 
 use crate::resolution::lowerer::{PendingAuthoredExpression, PendingAuthoredProofMembership};
+use crate::tables::body_expressions;
+use crate::tables::resolved_declarations;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind,
@@ -169,11 +171,7 @@ pub(crate) fn finalize_authored_expression_selections(
     pending_proof_memberships: &[PendingAuthoredProofMembership],
 ) -> Result<(), Diagnostic> {
     for pending_expression in pending {
-        if program
-            .tables
-            .bodies
-            .expressions
-            .authored_expression_exposure(pending_expression.expression)
+        if body_expressions(&program).authored_expression_exposure(pending_expression.expression)
             != Some(pending_expression.exposure)
         {
             return Err(Diagnostic::error(
@@ -189,20 +187,14 @@ pub(crate) fn finalize_authored_expression_selections(
         .iter()
         .copied()
         .filter_map(|expression| {
-            if program
-                .tables
-                .bodies
-                .expressions
+            if body_expressions(&program)
                 .authored_selection_occurrences(expression)
                 .len()
                 != 0
             {
                 return None;
             }
-            program
-                .tables
-                .bodies
-                .expressions
+            body_expressions(&program)
                 .authored_expression_exposure(expression)
                 .map(|exposure| (expression, exposure))
         })
@@ -233,9 +225,7 @@ pub(crate) fn finalize_authored_expression_selections(
         if membership.authored_domain_selection.is_some() {
             continue;
         }
-        let members = program
-            .tables
-            .declarations
+        let members = resolved_declarations(&program)
             .domain_path_members
             .span_or_empty(membership.domain);
         let source_span = path_span(members, SourceSpan::default());
@@ -260,11 +250,12 @@ pub(crate) fn finalize_authored_expression_selections(
                 ),
         }
         .map_err(record_diagnostic)?;
-        let symbol_resolved_trees::domain::ProofFact::Membership(membership) = program
-            .tables
-            .declarations
-            .proof_facts
-            .get_mut(pending.fact)
+        let symbol_resolved_trees::domain::ProofFact::Membership(membership) =
+            program
+                .tables
+                .declarations
+                .proof_facts
+                .get_mut(pending.fact)
         else {
             unreachable!("validated authored proof-membership fact changed variant")
         };
@@ -1012,11 +1003,7 @@ fn collect_statement_static_argument_candidates(
                 candidates,
             );
             if application.member.is_valid()
-                && let Some(member) = program
-                    .tables
-                    .bodies
-                    .expressions
-                    .static_member(application.member)
+                && let Some(member) = body_expressions(&program).static_member(application.member)
             {
                 collect_statement_static_argument_candidates(
                     program,
@@ -1040,9 +1027,7 @@ fn contract_clause_expression_handles(
 ) -> std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher> {
     let mut handles = std::collections::HashSet::default();
     for (_, contract) in program.tables.declarations.signature_contracts.iter() {
-        for fact in program
-            .tables
-            .declarations
+        for fact in resolved_declarations(&program)
             .proof_facts
             .span_or_empty(contract.facts)
         {
@@ -1426,11 +1411,7 @@ fn collect_static_argument_candidates(
                 candidates,
             );
             if application.member.is_valid()
-                && let Some(member) = program
-                    .tables
-                    .bodies
-                    .expressions
-                    .static_member(application.member)
+                && let Some(member) = body_expressions(&program).static_member(application.member)
             {
                 collect_static_argument_candidates(
                     program,
@@ -1520,10 +1501,7 @@ pub(crate) fn finalize_constant_expression_selections(
     let expressions = initializers
         .into_iter()
         .filter_map(|expression| {
-            program
-                .tables
-                .bodies
-                .expressions
+            body_expressions(&program)
                 .authored_expression_exposure(expression)
                 .map(|exposure| (expression, exposure))
         })
@@ -1564,11 +1542,8 @@ fn finalize_expression_groups(
     // number of authored selections a large package carries.
     let mut group_index: HashMap<_, usize> = HashMap::default();
     for (expression, exposure) in authored_expressions {
-        let compiler_partition = program
-            .tables
-            .bodies
-            .expressions
-            .compiler_selection_partition(expression);
+        let compiler_partition =
+            body_expressions(&program).compiler_selection_partition(expression);
         for candidate in expression_candidates(
             program,
             expression,

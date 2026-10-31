@@ -68,17 +68,17 @@ machine Buffer8::equal(buffer: &Buffer8, expected: &[u8]) -> bool crashes Trap {
 }
 
 machine Buffer8::copy(storage: &mut [u8; 8], bytes: &[u8], start: u64)
-requires start <= 8; bytes.len <= 8 - start {
+requires start <= 8, bytes.len <= 8 - start {
     transition { _ -> copying(storage, bytes, start, 0) }
     machine copying(storage: &mut [u8; 8], bytes: &[u8], start: u64, index: u64)
-    requires start <= 8; index <= 8 {
+    requires start <= 8, index <= 8 {
         transition index < bytes.len && start + index < 8 {
             true -> writing(storage, bytes, start, index)
             _ -> done()
         }
     }
     machine writing(storage: &mut [u8; 8], bytes: &[u8], start: u64, index: u64)
-    requires start <= 8; index < 8; index < bytes.len; start + index < 8 {
+    requires start <= 8, index < 8, index < bytes.len, start + index < 8 {
         storage[start + index] = bytes[index];
         transition { _ -> copying(storage, bytes, start, index + 1) }
     }
@@ -90,7 +90,7 @@ machine Buffer8::join(left: &[u8], right: &[u8]) -> Buffer8 crashes Trap {
         _ -> bad()
     }
     machine joining(left: &[u8], right: &[u8]) -> Buffer8
-    requires left.len <= 8; right.len <= 8 - left.len {
+    requires left.len <= 8, right.len <= 8 - left.len {
     let mut result: Buffer8;
     Buffer8::copy(&mut result.storage, left, 0);
     Buffer8::copy(&mut result.storage, right, left.len);
@@ -126,17 +126,17 @@ machine Buffer32::equal(buffer: &Buffer32, expected: &[u8]) -> bool crashes Trap
 }
 
 machine Buffer32::copy(storage: &mut [u8; 32], bytes: &[u8], start: u64)
-requires start <= 32; bytes.len <= 32 - start {
+requires start <= 32, bytes.len <= 32 - start {
     transition { _ -> copying(storage, bytes, start, 0) }
     machine copying(storage: &mut [u8; 32], bytes: &[u8], start: u64, index: u64)
-    requires start <= 32; index <= 32 {
+    requires start <= 32, index <= 32 {
         transition index < bytes.len && start + index < 32 {
             true -> writing(storage, bytes, start, index)
             _ -> done()
         }
     }
     machine writing(storage: &mut [u8; 32], bytes: &[u8], start: u64, index: u64)
-    requires start <= 32; index < 32; index < bytes.len; start + index < 32 {
+    requires start <= 32, index < 32, index < bytes.len, start + index < 32 {
         storage[start + index] = bytes[index];
         transition { _ -> copying(storage, bytes, start, index + 1) }
     }
@@ -148,7 +148,7 @@ machine Buffer32::join(left: &[u8], right: &[u8]) -> Buffer32 crashes Trap {
         _ -> bad()
     }
     machine joining(left: &[u8], right: &[u8]) -> Buffer32
-    requires left.len <= 32; right.len <= 32 - left.len {
+    requires left.len <= 32, right.len <= 32 - left.len {
     let mut result: Buffer32;
     Buffer32::copy(&mut result.storage, left, 0);
     Buffer32::copy(&mut result.storage, right, left.len);

@@ -1,6 +1,7 @@
 //! Scope and declaration lookup: in-scope symbols, level indices, and
 //! the constant/term a declaration or carrier resolves to.
 
+use crate::typed_expressions::type_reference_table;
 use proof_admission::{Term, TermHandle};
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 use typed_trees::name::Identifier;
@@ -39,10 +40,8 @@ impl<'a> Elaborator<'a> {
             return Ok(term);
         }
         if self.program.symbols.builtin_type_atom(symbol).is_some()
-            && let Some(reference) = self
-                .program
-                .type_reference_table
-                .find_named_type_reference(symbol)
+            && let Some(reference) =
+                type_reference_table(self.program).find_named_type_reference(symbol)
         {
             return self.elaborate_type_reference(reference);
         }

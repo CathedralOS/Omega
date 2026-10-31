@@ -1,0 +1,22 @@
+// Empty arrays contain no reference descriptors for zero initialization to establish.
+// Expected exit: 0
+data EmptyReferences [copy] {
+    #1 marker: u64;
+    #90 case First(#1 items: [&u64; 0]);
+    #7 case Other;
+}
+machine observe(value: EmptyReferences) -> bool {
+    transition value {
+        EmptyReferences::First { items, .. } -> (items.len == 0 && value.marker == 0)
+        EmptyReferences::Other { .. } -> false
+    }
+}
+machine main() crashes Trap {
+    let value: EmptyReferences;
+    transition observe(value) {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

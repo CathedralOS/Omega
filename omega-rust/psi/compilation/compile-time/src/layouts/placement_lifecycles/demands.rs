@@ -1,6 +1,7 @@
 //! Source-owned policy demand across ordinary specialization. An interned
 //! callable tuple describes a signature, not an invocation or its requester.
 
+use crate::build_time_evaluation::expression_table;
 use crate::unique::{extend_unique, push_unique};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -233,8 +234,7 @@ fn invocations(program: &TypedTrees) -> Vec<Invocation> {
                                 validation::qualified_trait_scope(
                                     program,
                                     machine.symbol,
-                                    program
-                                        .expression_table
+                                    expression_table(program)
                                         .name_path_node(call.receiver)
                                         .map_or_else(SymbolHandle::invalid, |path| path.symbol),
                                     validation::expression_type_reference_in_state(
@@ -317,16 +317,14 @@ fn policy_sources(
         if !call.application.is_valid() {
             return Err("supplying call lost its retained static application");
         }
-        if program
-            .expression_table
+        if expression_table(program)
             .static_machine_application(call.application)
             .lexical_owner
             != call.owner
         {
             return Err("supplying static application belongs to a different caller");
         }
-        let mut bindings = program
-            .expression_table
+        let mut bindings = expression_table(program)
             .static_machine_application_bindings(call.application)
             .iter()
             .filter(|binding| binding.parameter == parameter);

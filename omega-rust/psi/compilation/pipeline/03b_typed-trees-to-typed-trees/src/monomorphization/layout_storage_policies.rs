@@ -1,6 +1,7 @@
 //! Fixed storage selects an ordinary map application as compile-time work.
 //! Source type occurrences remain the independent reason each capture exists.
 use super::{Diagnostic, TypedTrees};
+use crate::tables::expressions_of_mut;
 use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
 
 pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
@@ -66,25 +67,21 @@ pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             continue;
         };
         let parameter = parameter.symbol;
-        let supplying = program.expression_table.retain_static_machine_application(
+        let supplying = expressions_of_mut(program).retain_static_machine_application(
             constructor,
             typed_trees::name::Identifier::generated("LayoutStorage"),
             std::slice::from_ref(&operand),
         );
-        let source = program
-            .expression_table
-            .static_machine_application_mut(supplying);
+        let source = expressions_of_mut(program).static_machine_application_mut(supplying);
         source.lexical_owner = occurrence.lexical_owner;
         source.binding_declaration = constructor;
-        program
-            .expression_table
-            .set_static_machine_application_bindings(
-                supplying,
-                &[StaticMachineBinding {
-                    parameter,
-                    value: StaticMachineBindingValue::Conformance(operand),
-                }],
-            );
+        expressions_of_mut(program).set_static_machine_application_bindings(
+            supplying,
+            &[StaticMachineBinding {
+                parameter,
+                value: StaticMachineBindingValue::Conformance(operand),
+            }],
+        );
         program.data_implementation_applications.insert(
             typed_trees::typed_trees::DataImplementationApplication {
                 source_application: occurrence.reference,

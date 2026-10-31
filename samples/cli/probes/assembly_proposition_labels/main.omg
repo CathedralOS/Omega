@@ -3,7 +3,7 @@ proposition bounded(value: i32) = value >= 0 && value <= 10;
 proposition bounded_alias(value: i32) = bounded(value + 0);
 proposition ready(value: i32);
 machine preserve_ready(value: i32)
-requires ready(value);
+requires ready(value)
 { asm where requires ready(value) ensures ready(value) { nop } }
 machine specialized<const Instance: u64>() -> i32 {
     let mut value: i32 = 7;

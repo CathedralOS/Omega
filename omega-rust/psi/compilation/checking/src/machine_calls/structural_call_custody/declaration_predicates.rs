@@ -49,6 +49,7 @@
 //! beneath definitions, and through literal-length arrays at each exact index.
 
 use super::super::super::proof_contracts::collection_predicates;
+use crate::frozen_program::expression_table;
 use checked_trees::{
     CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerComparisonKind,
     CheckedOperatorFacts, CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
@@ -197,40 +198,67 @@ pub fn machine_declaration_predicates(
 /// Whether every own and reachable owned `where` fact has complete roster
 /// evidence. A store of an unrelated common field cannot skip this recursive
 /// fence merely because its destination path never enters a case payload.
-pub fn declaration_facts_carried(
-    program: &dyn crate::CheckingInput,
+pub fn declaration_facts_carried<'program>(
+    program: &'program dyn crate::CheckingInput,
     operators: &CheckedOperatorFacts,
-    definition: &DataDefinition,
+    definition: &'program DataDefinition,
 ) -> bool {
-    complete_definition_storage(program, operators, definition, &mut Vec::new())
+    complete_definition_storage(
+        program,
+        operators,
+        definition,
+        &mut Vec::new(),
+        &mut Vec::new(),
+    )
 }
 
-fn complete_definition_storage(
-    program: &dyn crate::CheckingInput,
+fn complete_definition_storage<'program>(
+    program: &'program dyn crate::CheckingInput,
     operators: &CheckedOperatorFacts,
-    definition: &DataDefinition,
+    definition: &'program DataDefinition,
     visited: &mut Vec<StorageDefinitionIdentity>,
+    checked_own_facts: &mut Vec<&'program DataDefinition>,
 ) -> bool {
     // Emission cannot revisit an inline recursive owner. Borrowed referents
     // and empty arrays are excluded by the same storage traversal below.
-    if visited.contains(&StorageDefinitionIdentity::of(definition))
-        || !definition_own_facts_carried(program, operators, definition)
-    {
+    if visited.contains(&StorageDefinitionIdentity::of(definition)) {
         return false;
+    }
+    // This query fixes the program and operator roster. Reconstruct a
+    // nonempty own-fact set once for the exact borrowed declaration row;
+    // equal nominal/application identities can retain different field views.
+    // Never reuse subtree completion: every visit still checks its active
+    // cycle context and walks every owned child in the original order.
+    if !definition.where_facts.is_empty()
+        && !checked_own_facts
+            .iter()
+            .any(|known| std::ptr::eq(*known, definition))
+    {
+        if !definition_own_facts_carried(program, operators, definition) {
+            return false;
+        }
+        checked_own_facts.push(definition);
     }
     visited.push(StorageDefinitionIdentity::of(definition));
     let complete = owned_storage_fields(program, definition).all(|(_, field)| {
-        complete_owned_storage(program, operators, field.type_reference, visited)
+        complete_owned_storage(
+            program,
+            operators,
+            field.type_reference,
+            visited,
+            checked_own_facts,
+        )
     });
     visited.pop();
     complete
 }
 
-fn complete_owned_storage(
-    program: &dyn crate::CheckingInput,
+fn complete_owned_storage<'program>(
+    program: &'program dyn crate::CheckingInput,
     operators: &CheckedOperatorFacts,
     reference: TypeReferenceHandle,
     visited: &mut Vec<StorageDefinitionIdentity>,
+    checked_own_facts: &mut Vec<&'program DataDefinition>,
 ) -> bool {
     let carrier = program
         .type_reference_table
@@ -243,7 +271,13 @@ fn complete_owned_storage(
         TypeReferenceNode::FixedArray {
             element_type,
             length: FixedArrayLength::Literal(_),
-        } => complete_owned_storage(program, operators, *element_type, visited),
+        } => complete_owned_storage(
+            program,
+            operators,
+            *element_type,
+            visited,
+            checked_own_facts,
+        ),
         TypeReferenceNode::FixedArray { element_type, .. } => {
             // The roster can enumerate only an exact retained literal extent.
             // Never publish a partial element predicate list for another form.
@@ -251,7 +285,7 @@ fn complete_owned_storage(
         }
         TypeReferenceNode::Reference { .. } => true,
         _ => owned_data_definition(program, carrier).is_none_or(|definition| {
-            complete_definition_storage(program, operators, definition, visited)
+            complete_definition_storage(program, operators, definition, visited, checked_own_facts)
         }),
     }
 }
@@ -684,8 +718,9 @@ fn find_data_field<'program>(
 /// Spell one complete authored fact over exact parameter storage paths.
 /// Tag tests and payload paths retain their selected case identity. An ordinary
 /// predicate relation uses the shared independent equivalence judgment; its
-/// necessary consequence alone is insufficient. Unsupported arithmetic,
-/// indexed reads and borrowed fields remain outside this vocabulary.
+/// necessary consequence alone is insufficient. Closed builtin array selections
+/// retain their exact element coordinate. Unsupported arithmetic, runtime
+/// selectors and borrowed fields remain outside this vocabulary.
 struct FactSpelling<'a> {
     program: &'a dyn crate::CheckingInput,
     operators: &'a CheckedOperatorFacts,
@@ -718,7 +753,7 @@ impl FactSpelling<'_> {
         ) {
             return self.exact_ordering(consequence);
         }
-        match self.program.expression_table.expression(expression) {
+        match expression_table(self.program).expression(expression) {
             ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => Some(
                 CheckedBooleanExpression::Not(Box::new(self.boolean(unary.operand)?)),
@@ -733,9 +768,7 @@ impl FactSpelling<'_> {
                     ) =>
                 {
                     let (path, reference) = self.field_path(binary.left)?;
-                    let selected = self
-                        .program
-                        .expression_table
+                    let selected = expression_table(self.program)
                         .name_path_node(binary.right)?
                         .symbol;
                     let case = self
@@ -889,7 +922,7 @@ impl FactSpelling<'_> {
             _ => return None,
         };
         if matches!(operand_type, PrimitiveType::F32 | PrimitiveType::F64) {
-            let Some(binary) = self.program.expression_table.binary_node(authored) else {
+            let Some(binary) = expression_table(self.program).binary_node(authored) else {
                 return None;
             };
             let operand_types = [
@@ -949,7 +982,10 @@ impl FactSpelling<'_> {
             PrimitiveType::F64 => numerics::literals::FloatFormat::F64,
             _ => return None,
         };
-        match (&operand, self.program.expression_table.expression(authored)) {
+        match (
+            &operand,
+            expression_table(self.program).expression(authored),
+        ) {
             (CheckedScalarExpression::IeeeFloatLiteral { .. }, ExpressionNode::Float(literal)) => {
                 if literal.landing().is_some_and(|landing| landing != format) {
                     return None;
@@ -981,7 +1017,7 @@ impl FactSpelling<'_> {
         if self.selects_declared_operator(expression) {
             return None;
         }
-        match self.program.expression_table.expression(expression) {
+        match expression_table(self.program).expression(expression) {
             ExpressionNode::Name(path)
                 if path.symbol.is_valid()
                     && self.program.symbols.get(path.symbol).kind
@@ -1097,9 +1133,10 @@ impl FactSpelling<'_> {
         }
     }
 
-    /// Resolve a fact leaf (`value`, `inner.value`) to its path below the
-    /// prefix and the leaf's declared type. Only plain record-field chains
-    /// have a requirement spelling.
+    /// Resolve the complete owned-storage projection below this declaration.
+    /// A fixed array element is part of that path, just like a record field;
+    /// dropping it would publish a weaker contract than the source checked.
+    /// Index formation remains an independent source obligation.
     fn field_path(
         &self,
         expression: ExpressionHandle,
@@ -1107,27 +1144,19 @@ impl FactSpelling<'_> {
         Vec<CheckedStructuralPredicatePathSegment>,
         TypeReferenceHandle,
     )> {
-        match self.program.expression_table.expression(expression) {
+        match expression_table(self.program).expression(expression) {
             ExpressionNode::Name(name) => {
                 if self.definition.predicate_subject_symbol.is_valid()
                     && name.symbol == self.definition.predicate_subject_symbol
                     && name.head_symbol == name.symbol
-                    && self
-                        .program
-                        .expression_table
-                        .name_path_member_symbols(name.member_symbols)
+                    && expression_table(self.program).name_path_member_symbols(name.member_symbols)
                         == [name.symbol]
                 {
                     return Some((self.prefix.to_vec(), self.definition.predicate_subject_type));
                 }
-                let members = self
-                    .program
-                    .expression_table
-                    .name_path_members(name.members);
-                let member_symbols = self
-                    .program
-                    .expression_table
-                    .name_path_member_symbols(name.member_symbols);
+                let members = expression_table(self.program).name_path_members(name.members);
+                let member_symbols =
+                    expression_table(self.program).name_path_member_symbols(name.member_symbols);
                 let mut path = self.prefix.to_vec();
                 let mut owner = self.definition;
                 let mut leaf = None;
@@ -1190,6 +1219,28 @@ impl FactSpelling<'_> {
                     ),
                 ));
                 Some((path, field.type_reference))
+            }
+            ExpressionNode::Indexed(indexed) => {
+                if self.selects_declared_operator(expression) {
+                    return None;
+                }
+                let (mut path, collection) = self.field_path(indexed.collection)?;
+                let collection = self
+                    .program
+                    .type_reference_table
+                    .unconstrained_type_reference(collection);
+                let TypeReferenceNode::FixedArray { element_type, .. } =
+                    self.program.type_reference_table.type_reference(collection)
+                else {
+                    return None;
+                };
+                let index = self
+                    .program
+                    .expression_table
+                    .constant_integer_value(indexed.index)
+                    .and_then(|index| u64::try_from(index).ok())?;
+                path.push(CheckedStructuralPredicatePathSegment::FixedIndex(index));
+                Some((path, *element_type))
             }
             ExpressionNode::Borrow(borrow) => self.field_path(borrow.target),
             _ => None,

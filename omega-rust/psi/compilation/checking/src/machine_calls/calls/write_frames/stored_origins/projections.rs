@@ -7,6 +7,7 @@ use super::super::path_instantiation::aggregate_arguments::{
 };
 use super::StoredLocalOrigins;
 use super::storage_projection::{projected_storage_type, projected_type};
+use crate::frozen_program::expression_table;
 use facts::{FactPlan, PlaceSegment};
 use symbols::SymbolKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -150,7 +151,7 @@ fn reference_leaves_with_projection(
 ) -> Option<AggregateOrigins> {
     let mut root_expression = expression;
     let root_name = loop {
-        match program.expression_table.expression(root_expression) {
+        match expression_table(program).expression(root_expression) {
             ExpressionNode::Name(name) => break name,
             ExpressionNode::Member(member) => root_expression = member.receiver,
             ExpressionNode::Indexed(indexed) => root_expression = indexed.collection,
@@ -196,9 +197,7 @@ fn reference_leaves_with_projection(
     } else {
         source_reference
     };
-    let names = program
-        .expression_table
-        .name_path_members(root_name.members);
+    let names = expression_table(program).name_path_members(root_name.members);
     if names.first()?.as_str() != source_name
         || program.symbols.name(root) != source_name
         || (names.len() == 1 && root_name.symbol != root)

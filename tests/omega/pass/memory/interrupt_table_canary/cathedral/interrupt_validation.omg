@@ -129,7 +129,7 @@ machine DescriptorTableValidation::run(
 ) -> TableVerdict
 requires 1 <= fuel
 requires fuel <= 768
-terminates by fuel;
+terminates by fuel
 {
     transition { _ -> declared(image, gates, members, ist, fuel, 0) }
 

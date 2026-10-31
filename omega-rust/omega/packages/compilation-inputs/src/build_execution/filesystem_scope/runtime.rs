@@ -6,6 +6,7 @@
 //! admitted scope directly; no checked source or evaluator values enter here.
 
 use super::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope};
+use crate::build_execution::message;
 use crate::build_execution::observations::{
     BuildFilesystemAuthorizedPath, BuildFilesystemOperationAttempt, BuildFilesystemRoot,
     BuildIncludedSourceHandoff,
@@ -155,9 +156,7 @@ impl BuildFilesystemRuntime {
         if self.incomplete_attempt.is_some() || self.refused.is_some() {
             return Err("Build filesystem activation has already failed".into());
         }
-        self.account
-            .charge_filesystem_operation_attempt()
-            .map_err(|error| error.to_string())?;
+        message(self.account.charge_filesystem_operation_attempt())?;
         let storage = self
             .account
             .reserve_site(
@@ -297,10 +296,7 @@ impl BuildFilesystemRuntime {
             }
             _ => return Ok(self.complete_attempt(ordinal, -1, 2) as i32),
         }
-        let handle = self
-            .account
-            .reserve_site(1, 1, path.len() as u64)
-            .map_err(|error| error.to_string())?;
+        let handle = message(self.account.reserve_site(1, 1, path.len() as u64))?;
         let descriptor = i32::try_from(self.descriptors.len())
             .ok()
             .and_then(|value| value.checked_add(3))
@@ -374,10 +370,7 @@ impl BuildFilesystemRuntime {
             .ok()
             .and_then(|value| value.checked_add(3))
             .ok_or("Build descriptor space exhausted")?;
-        let handle = self
-            .account
-            .reserve_site(1, 1, path.len() as u64)
-            .map_err(|error| error.to_string())?;
+        let handle = message(self.account.reserve_site(1, 1, path.len() as u64))?;
         self.descriptors
             .try_reserve(1)
             .map_err(|_| "cannot retain Build descriptor")?;
@@ -393,12 +386,8 @@ impl BuildFilesystemRuntime {
             .sponsor
             .as_ref()
             .ok_or("Output sponsor is absent")?;
-        let bound = sponsor
-            .bind_path(&physical)
-            .map_err(|error| error.to_string())?;
-        let prepared = sponsor
-            .prepare_create_object_open(&bound, 0)
-            .map_err(|error| error.to_string())?;
+        let bound = message(sponsor.bind_path(&physical))?;
+        let prepared = message(sponsor.prepare_create_object_open(&bound, 0))?;
         let file = match std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -454,9 +443,7 @@ impl BuildFilesystemRuntime {
             .sponsor
             .as_ref()
             .ok_or("Output sponsor is absent")?;
-        let prepared = sponsor
-            .prepare_write(writer, *extent, bytes.len() as u64)
-            .map_err(|error| error.to_string())?;
+        let prepared = message(sponsor.prepare_write(writer, *extent, bytes.len() as u64))?;
         let written = match file.write(bytes) {
             Ok(written) => written,
             Err(error) => {
@@ -464,9 +451,7 @@ impl BuildFilesystemRuntime {
                 return Ok(self.complete_attempt(ordinal, -1, error.raw_os_error().unwrap_or(5)));
             }
         };
-        prepared
-            .commit_written(written as u64)
-            .map_err(|error| error.to_string())?;
+        message(prepared.commit_written(written as u64))?;
         *extent = extent
             .checked_add(written as u64)
             .ok_or("Build output extent overflowed")?;
@@ -487,10 +472,7 @@ impl BuildFilesystemRuntime {
             FilesystemGrantAccess::Read,
             Some(descriptor),
         )?;
-        let storage = self
-            .account
-            .reserve_site(0, 1, path.len() as u64)
-            .map_err(|error| error.to_string())?;
+        let storage = message(self.account.reserve_site(0, 1, path.len() as u64))?;
         self.sealed
             .try_reserve(1)
             .map_err(|_| "cannot retain sealed output")?;
@@ -543,10 +525,7 @@ impl BuildFilesystemRuntime {
             .get(slot)
             .and_then(Option::as_ref)
             .ok_or("closed Build descriptor")?;
-        let storage = self
-            .account
-            .reserve_site(0, 1, file.path.len() as u64)
-            .map_err(|error| error.to_string())?;
+        let storage = message(self.account.reserve_site(0, 1, file.path.len() as u64))?;
         Ok((copy_bytes(&file.path)?, storage))
     }
 
@@ -562,10 +541,7 @@ impl BuildFilesystemRuntime {
         }) {
             return Err("Build required-output names collide".into());
         }
-        let storage = self
-            .account
-            .reserve_site(0, 1, path.len() as u64)
-            .map_err(|error| error.to_string())?;
+        let storage = message(self.account.reserve_site(0, 1, path.len() as u64))?;
         let identity = self.effects.obligations.len();
         self.effects
             .obligations
@@ -610,10 +586,7 @@ impl BuildFilesystemRuntime {
             .find(|(sealed, _)| sealed == path)
             .map(|(_, ordinal)| *ordinal)
             .ok_or("Build output is not sealed")?;
-        let storage = self
-            .account
-            .reserve_site(0, 1, path.len() as u64)
-            .map_err(|error| error.to_string())?;
+        let storage = message(self.account.reserve_site(0, 1, path.len() as u64))?;
         self.effects
             .receipts
             .try_reserve(1)
@@ -643,10 +616,7 @@ impl BuildFilesystemRuntime {
         diagnostic: &[u8],
         machine_name: &str,
     ) -> Result<(), String> {
-        let storage = self
-            .account
-            .reserve_site(0, 1, diagnostic.len() as u64)
-            .map_err(|error| error.to_string())?;
+        let storage = message(self.account.reserve_site(0, 1, diagnostic.len() as u64))?;
         self.effects
             .storage
             .try_reserve(1)
@@ -676,10 +646,7 @@ impl BuildFilesystemRuntime {
         if !self.sealed.iter().any(|(sealed, _)| sealed == path) {
             return Err("staging entry is not sealed: generated source still has a live writer or was never created".into());
         }
-        let storage = self
-            .account
-            .reserve_site(0, 1, path.len() as u64)
-            .map_err(|error| error.to_string())?;
+        let storage = message(self.account.reserve_site(0, 1, path.len() as u64))?;
         self.effects
             .included
             .try_reserve(1)
@@ -740,9 +707,7 @@ impl BuildFilesystemRuntime {
                 .checked_add(path.len() as u64)
                 .ok_or("filesystem result payload overflowed")?;
         }
-        self.account
-            .charge_result_custody(rows, bytes)
-            .map_err(|error| error.to_string())?;
+        message(self.account.charge_result_custody(rows, bytes))?;
         Ok(self.effects)
     }
 }

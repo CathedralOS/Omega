@@ -10,7 +10,7 @@ use domain::grid;
 use domain::solver;
 use platform::decimal;
 
-machine field(value:f64) reaches Console invokes Console; {
+machine field(value:f64) reaches Console invokes Console {
  let scaled:f64=value*1000000000000.0;
  transition scaled == scaled && scaled >= -900000000000000000.0 && scaled <= 900000000000000000.0 {
   true -> emit(scaled) false -> failure()
@@ -21,13 +21,13 @@ machine field(value:f64) reaches Console invokes Console; {
  }
  machine failure() { Console::write_line("REJECT numeric output"); Console::exit_process(70); }
 }
-machine count(value:u64 in Saturating) reaches Console invokes Console; {
+machine count(value:u64 in Saturating) reaches Console invokes Console {
  transition value <= 1000 { true -> bounded(value) false -> failure() }
  machine bounded(value:u64 in Saturating) requires value <= 1000 { number(value as i64 in Wrapping); }
  machine failure() { Console::write_line("REJECT report count"); Console::exit_process(70); }
 }
 data Main { }
-machine Main::main(main: &mut Main) reaches Console invokes Console; {
+machine Main::main(main: &mut Main) reaches Console invokes Console {
  let request:ByteRead=block Console::read_byte();
  transition request { ByteRead::Byte { value } -> ending(value) _ -> input_error() }
  machine ending(value:i32) {
@@ -101,7 +101,7 @@ machine Main::main(main: &mut Main) reaches Console invokes Console; {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console invokes Console; {
+machine entry_start() reaches Console invokes Console {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

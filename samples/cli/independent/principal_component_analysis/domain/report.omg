@@ -4,7 +4,7 @@ use omega::language::core::numeric_conversion;
 use domain::model;
 // Scientific output retains twelve significant decimal places at every scale.
 public machine number(value: f64)
-invokes Console; reaches Console {
+invokes Console reaches Console {
  transition value < 0.0 { true -> negative(value) false -> normalize(value, 0) }
  machine negative(value: f64) { Console::write("-"); transition { _ -> normalize(0.0 - value, 0) } }
  machine normalize(value: f64, exponent: i32 in Wrapping) {
@@ -20,7 +20,7 @@ invokes Console; reaches Console {
  machine positive_exponent(exponent: i32 in Wrapping) { unsigned(narrow_i32_to_u64_saturating(exponent as i32) as u64 in Wrapping, 100, false); }
 }
 machine unsigned(value: u64 in Wrapping, divisor: u64 in Wrapping, decimal: bool)
-invokes Console; reaches Console {
+invokes Console reaches Console {
  transition divisor > 0 { true -> digit(value, divisor, decimal) false -> done() }
  machine digit(value: u64 in Wrapping, divisor: u64 in Wrapping, decimal: bool) requires divisor > 0 {
   let digit: u64 in Wrapping = value / divisor % 10;
@@ -31,7 +31,7 @@ invokes Console; reaches Console {
  machine done() {}
 }
 public machine report(a: &Analysis)
-invokes Console; reaches Console {
+invokes Console reaches Console {
  Console::write_line("principal_component_analysis");
  Console::write("means");
  transition { _ -> vector(a, 0, 0) }

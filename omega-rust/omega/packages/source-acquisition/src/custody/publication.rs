@@ -12,6 +12,7 @@ use crate::SourceResolveError;
 use crate::error::cache_invalid;
 use crate::limits::STAGING_SEQUENCE;
 use crate::snapshot::permissions::remove_unpublished;
+use crate::tree::filesystem::IoResultAt;
 use crate::tree::filesystem::io_error;
 #[cfg(test)]
 use crate::tree::filesystem::open_absolute_directory_nofollow;
@@ -100,9 +101,7 @@ pub(crate) fn publish_cache_directory_from_open_parent(
 ) -> Result<(), SourceResolveError> {
     let staged_path = parent.join(staged_name);
     let publication_path = parent.join(publication_name);
-    let staged_metadata = directory
-        .symlink_metadata(staged_name)
-        .map_err(|error| io_error(&staged_path, error))?;
+    let staged_metadata = directory.symlink_metadata(staged_name).at(&staged_path)?;
     if staged_metadata.file_type().is_symlink() || !staged_metadata.is_dir() {
         return Err(cache_custody_invalid(
             kind,
@@ -133,14 +132,14 @@ pub(crate) fn publish_cache_directory_from_open_parent(
 
     directory
         .rename(staged_name, directory, publication_name)
-        .map_err(|error| io_error(&publication_path, error))?;
+        .at(&publication_path)?;
     // Retained-stage owners must retarget cleanup before any fallible work
     // after the rename. A later identity or durability failure must remove the
     // publication, not leave it behind under its new name.
     on_renamed();
     let published_metadata = directory
         .symlink_metadata(publication_name)
-        .map_err(|error| io_error(&publication_path, error))?;
+        .at(&publication_path)?;
     if !published_metadata.is_dir()
         || !same_capability_file_identity(&staged_metadata, &published_metadata)
     {
@@ -166,7 +165,7 @@ fn synchronize_cache_parent(
     directory: &CapabilityDirectory,
     parent: &Path,
 ) -> Result<(), SourceResolveError> {
-    synchronize_directory(directory).map_err(|error| io_error(parent, error))
+    synchronize_directory(directory).at(parent)
 }
 
 #[cfg(not(unix))]
@@ -246,7 +245,7 @@ impl PendingCacheEntry {
         path: &Path,
     ) -> Result<(), SourceResolveError> {
         let directory = self.directory()?;
-        create_private_cache_directory(directory, name).map_err(|error| io_error(path, error))?;
+        create_private_cache_directory(directory, name).at(path)?;
         let provisional = ProvisionalCacheDirectory::new(directory, OsStr::new(name));
         retain_private_cache_directory(CacheCustodyKind::Git, directory, OsStr::new(name), path)?;
         provisional.disarm();
@@ -254,14 +253,11 @@ impl PendingCacheEntry {
     }
 
     pub(crate) fn verify_path_identity(&self) -> Result<CapabilityMetadata, SourceResolveError> {
-        let retained = self
-            .directory()?
-            .dir_metadata()
-            .map_err(|error| io_error(&self.root, error))?;
+        let retained = self.directory()?.dir_metadata().at(&self.root)?;
         let named = self
             .parent
             .symlink_metadata(&self.stage_name)
-            .map_err(|error| io_error(&self.root, error))?;
+            .at(&self.root)?;
         if !named.is_dir() || !same_capability_file_identity(&retained, &named) {
             return Err(cache_invalid(
                 &self.root,
@@ -306,10 +302,7 @@ impl PendingCacheEntry {
             self.root = entry_root.to_path_buf();
         }
         publication_result?;
-        let published = self
-            .parent
-            .symlink_metadata(entry_name)
-            .map_err(|error| io_error(entry_root, error))?;
+        let published = self.parent.symlink_metadata(entry_name).at(entry_root)?;
         if !same_capability_file_identity(&retained, &published) {
             return Err(cache_invalid(
                 entry_root,
@@ -381,15 +374,11 @@ pub(crate) fn retain_private_cache_directory(
     name: &OsStr,
     path: &Path,
 ) -> Result<CapabilityDirectory, SourceResolveError> {
-    let classified = parent
-        .symlink_metadata(name)
-        .map_err(|error| io_error(path, error))?;
+    let classified = parent.symlink_metadata(name).at(path)?;
     let directory = parent
         .open_dir_nofollow(name)
         .map_err(|error| cache_custody_invalid(kind, path, error.to_string()))?;
-    let mut opened = directory
-        .dir_metadata()
-        .map_err(|error| io_error(path, error))?;
+    let mut opened = directory.dir_metadata().at(path)?;
     if !classified.is_dir() || !same_capability_file_identity(&classified, &opened) {
         return Err(cache_custody_invalid(
             kind,
@@ -403,10 +392,8 @@ pub(crate) fn retain_private_cache_directory(
 
         parent
             .set_permissions(name, cap_std::fs::Permissions::from_mode(0o700))
-            .map_err(|error| io_error(path, error))?;
-        let retained = parent
-            .symlink_metadata(name)
-            .map_err(|error| io_error(path, error))?;
+            .at(path)?;
+        let retained = parent.symlink_metadata(name).at(path)?;
         if !same_capability_file_identity(&retained, &opened) {
             return Err(cache_custody_invalid(
                 kind,
@@ -415,9 +402,7 @@ pub(crate) fn retain_private_cache_directory(
             ));
         }
     }
-    opened = directory
-        .dir_metadata()
-        .map_err(|error| io_error(path, error))?;
+    opened = directory.dir_metadata().at(path)?;
     verify_capability_cache_node_owner_and_mode(kind, path, &opened)?;
     #[cfg(unix)]
     {
@@ -434,10 +419,7 @@ pub(crate) fn retain_private_cache_directory(
     verify_macos_open_cache_extended_acl_custody(
         kind,
         path,
-        &directory
-            .try_clone()
-            .map_err(|error| io_error(path, error))?
-            .into_std_file(),
+        &directory.try_clone().at(path)?.into_std_file(),
     )?;
     Ok(directory)
 }

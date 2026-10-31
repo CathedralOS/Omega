@@ -284,7 +284,7 @@ fn nested_readiness_jobs() {
                 root.join("backing/leaf/build.omg"),
                 r#"
 use omega::language::core::program_image;
-machine build(builder: &mut Build) suspends; {
+machine build(builder: &mut Build) suspends {
     Build::package(builder, "readiness_leaf");
     Build::build_depend_as(builder, "root", Source::Path { location: "../.." });
     suspend Build::await_provider<ProgramImage, root::TestImage>(builder);

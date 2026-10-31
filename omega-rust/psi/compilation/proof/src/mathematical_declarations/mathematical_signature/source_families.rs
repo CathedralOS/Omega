@@ -24,6 +24,7 @@ mod induction;
 mod terms;
 
 use super::{Elaborator, ScalarCarrier};
+use crate::typed_expressions::type_reference_table;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use numerics::bignum::BigInt;
@@ -58,8 +59,7 @@ pub(super) fn needs_scheme(program: &dyn validation::CheckingInput) -> bool {
                                 )
                             })
                     })
-                    || program
-                        .type_reference_table
+                    || type_reference_table(program)
                         .type_reference_handles(*arguments)
                         .iter()
                         .any(|argument| reference(program, *argument))
@@ -157,10 +157,7 @@ fn erased_family_demands(program: &dyn validation::CheckingInput) -> Vec<SymbolH
                 {
                     result.push(*base_symbol);
                 }
-                for &argument in program
-                    .type_reference_table
-                    .type_reference_handles(*arguments)
-                {
+                for &argument in type_reference_table(program).type_reference_handles(*arguments) {
                     demand(program, argument, result);
                 }
             }
@@ -680,8 +677,7 @@ impl Elaborator<'_> {
                     ));
                 }
                 Ok(Some(
-                    self.program
-                        .type_reference_table
+                    type_reference_table(self.program)
                         .type_reference_handles(*arguments)
                         .to_vec(),
                 ))
@@ -829,9 +825,7 @@ impl Elaborator<'_> {
         else {
             unreachable!("family producer retains only Value indices")
         };
-        let node = self
-            .program
-            .type_reference_table
+        let node = type_reference_table(self.program)
             .type_reference(reference)
             .clone();
         match node {

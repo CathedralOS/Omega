@@ -304,7 +304,7 @@ public machine posix_terminated_path(path: &[u8], out: &mut [u8]) -> bool {
 }
 
 machine posix_copy_path_from(path: &[u8], out: &mut [u8], index: u64)
-terminates by (index, path.len) -> Nat::BoundedDistance;
+terminates by (index, path.len) -> Nat::BoundedDistance
 {
     posix_put_path_byte(path, out, index);
     transition index < path.len {

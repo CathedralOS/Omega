@@ -19,8 +19,8 @@ machine sorted(values: &[i32; 16]) -> bool {
 
 machine check_sorted(values: &[i32; 16], remaining: u64) -> bool
 requires remaining <= 15
-terminates;
-terminates by remaining in 0..=15;
+terminates
+terminates by remaining in 0..=15
 {
     transition remaining >= 1 {
         true -> inspect(values, remaining)
@@ -53,7 +53,7 @@ requires width == hi - lo
 requires width <= 16
 requires sorted(values) == true
 ensures lo <= result && result <= hi
-terminates by width -> Nat::Descending in 0..=16;
+terminates by width -> Nat::Descending in 0..=16
 {
     transition lo < hi {
         true -> split(values, lo, hi, width, key)
@@ -139,7 +139,7 @@ requires pos <= cursor
 requires cursor <= live
 requires live <= 15
 ensures result == live + 1
-terminates by cursor -> Nat::Descending in 0..=15;
+terminates by cursor -> Nat::Descending in 0..=15
 {
     transition cursor > pos {
         true -> shift(context, key, pos, live, cursor)

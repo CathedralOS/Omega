@@ -12,9 +12,8 @@ data Verdict {
     case Yes(score: i32 in Wrapping);
 }
 data Main { result: Verdict; }
-machine Main::count(main: &mut Main, i: u64, j: u64, acc: i32 in Wrapping)
-terminates by (j, i) -> Nat::BoundedDistance;
--> Verdict
+machine Main::count(main: &mut Main, i: u64, j: u64, acc: i32 in Wrapping) -> Verdict
+terminates by (j, i) -> Nat::BoundedDistance
 {
     transition j < i {
         true -> count(main, i, j + 1, acc + 5)

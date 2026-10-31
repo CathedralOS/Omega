@@ -24,6 +24,7 @@
 //! roster without manufacturing a machine or demanding runtime specialization.
 
 use crate::expression_roots::{append_statement_roots, visit_post_order};
+use crate::tables::{expressions_of, expressions_of_mut};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
@@ -231,9 +232,7 @@ fn retain_borrow_result_type(
     derived.map(|node| {
         // Preparation repeats as calls specialize. Reuse exact vocabulary
         // rather than adding another shell on every fixed-point round.
-        let retained = program
-            .expression_table
-            .constructed_value_type_reference(expression);
+        let retained = expressions_of(program).constructed_value_type_reference(expression);
         let existing = if retained.is_valid()
             && program.type_reference_table.type_reference(retained) == &node
         {
@@ -262,7 +261,7 @@ pub(crate) fn retain_constructed_result_types(
         ) || matches!(node, ExpressionNode::Cast(cast) if cast.form.is_recast())
     }) {
         let type_start = program.type_reference_table.type_reference_count();
-        let reference = if program.expression_table.call_node(expression).is_some() {
+        let reference = if expressions_of(program).call_node(expression).is_some() {
             let result = match scope {
                 ValueTypeOwner::State { machine, state } => {
                     call_results::retain(program, machine, state, expression)
@@ -272,12 +271,10 @@ pub(crate) fn retain_constructed_result_types(
                 ValueTypeOwner::Declaration { .. } => {
                     // Rebinding revisits the occurrence. Its previous result
                     // cannot witness the newly selected application itself.
-                    program
-                        .expression_table
-                        .set_constructed_value_type_reference(
-                            expression,
-                            TypeReferenceHandle::invalid(),
-                        );
+                    expressions_of_mut(program).set_constructed_value_type_reference(
+                        expression,
+                        TypeReferenceHandle::invalid(),
+                    );
                     Ok(scope.result_type(program, expression))
                 }
             };
@@ -293,16 +290,15 @@ pub(crate) fn retain_constructed_result_types(
             }
         } else if validation::reference_formation_source(program, expression).is_some() {
             retain_borrow_result_type(program, scope, expression)
-        } else if program
-            .expression_table
+        } else if expressions_of(program)
             .struct_literal_node(expression)
             .is_some()
         {
             retain_constructor_result_type(program, scope, expression)
         } else {
             let derived = (|| {
-                let elements = program.expression_table.array_literal_node(expression)?;
-                let elements = program.expression_table.expression_handles(*elements);
+                let elements = expressions_of(program).array_literal_node(expression)?;
+                let elements = expressions_of(program).expression_handles(*elements);
                 let references = elements
                     .iter()
                     .map(|element| scope.result_type(program, *element))
@@ -319,9 +315,7 @@ pub(crate) fn retain_constructed_result_types(
                     element_type,
                     length: FixedArrayLength::Literal(length),
                 };
-                let retained = program
-                    .expression_table
-                    .constructed_value_type_reference(expression);
+                let retained = expressions_of(program).constructed_value_type_reference(expression);
                 if retained.is_valid()
                     && program.type_reference_table.type_reference(retained) == &node
                 {
@@ -345,17 +339,13 @@ pub(crate) fn retain_constructed_result_types(
         let Some(reference) = reference else {
             // A private execution graph may be prepared again after call
             // rebinding. Unresolved new children cannot retain the old type.
-            program
-                .expression_table
-                .set_constructed_value_type_reference(
-                    expression,
-                    typed_trees::types::TypeReferenceHandle::invalid(),
-                );
+            expressions_of_mut(program).set_constructed_value_type_reference(
+                expression,
+                typed_trees::types::TypeReferenceHandle::invalid(),
+            );
             continue;
         };
-        program
-            .expression_table
-            .set_constructed_value_type_reference(expression, reference);
+        expressions_of_mut(program).set_constructed_value_type_reference(expression, reference);
     }
     Ok(unavailable)
 }
@@ -368,7 +358,7 @@ fn retain_constructor_result_type(
     scope: ValueTypeOwner,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    let literal = program.expression_table.struct_literal_node(expression)?;
+    let literal = expressions_of(program).struct_literal_node(expression)?;
     let owner = program.unique_data_definition_by_symbol(literal.type_symbol)?;
     let parameters = program.data_type_parameters(owner);
     if parameters.is_empty() && owner.lifetime_parameters.is_empty() {
@@ -401,7 +391,7 @@ fn retain_constructor_result_type(
     let mut inferred = crate::monomorphization::StaticProposals::default();
     let mut lifetime_bindings = Vec::new();
     let mut lifetime_conflict = false;
-    for field in program.expression_table.struct_fields(literal.fields) {
+    for field in expressions_of(program).struct_fields(literal.fields) {
         // Inference reads an open declaration, not concrete construction
         // obligations. Select by the authored member handle inside this owner.
         let required = program
@@ -514,9 +504,7 @@ fn retain_constructor_result_type(
     let base_name = owner.name.clone();
     // Static inference revisits this same postorder as calls specialize. Keep
     // an unchanged application rather than growing type vocabulary each round.
-    let retained = program
-        .expression_table
-        .constructed_value_type_reference(expression);
+    let retained = expressions_of(program).constructed_value_type_reference(expression);
     if retained.is_valid()
         && let TypeReferenceNode::Generic {
             base_symbol: previous_base,

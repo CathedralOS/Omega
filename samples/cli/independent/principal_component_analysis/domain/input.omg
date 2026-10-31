@@ -6,7 +6,7 @@ public data Input {
  token: [i32 in Wrapping; 64]; valid: bool;
 }
 public machine Input::read(input: &mut Input)
-invokes Console; reaches Console blocks; crashes Trap {
+invokes Console reaches Console blocks crashes Trap {
  input.count = 0; input.bytes = 0; input.length = 0; input.valid = true;
  transition { _ -> receive(input) }
  machine receive(input: &mut Input) {

@@ -114,19 +114,24 @@ impl<'program> LayoutBuilder<'program> {
                 &geometry.offsets,
                 crate::type_layout(geometry.size, geometry.align),
             )?;
+            let placed = self
+                .fields
+                .span(fields)
+                .expect("newly inserted plan-laid fields retain their span");
+            // Every placement row names a field index into the packed span the
+            // plan just placed; a stale index is a rejection, never a panic.
+            let field_at = |index: usize, placement: &str| {
+                placed.get(index).map(|field| field.symbol).ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "plan-laid data `{}` has no field at {placement} index {index}",
+                        definition.name
+                    ))
+                })
+            };
             for bit_field in &geometry.bit_fields {
-                let Some(field) = self
-                    .fields
-                    .span(fields)
-                    .and_then(|fields| fields.get(bit_field.field_index))
-                else {
-                    return Err(Diagnostic::error(format!(
-                        "plan-laid data `{}` has no field at bit-placement index {}",
-                        definition.name, bit_field.field_index
-                    )));
-                };
+                let field = field_at(bit_field.field_index, "bit-placement")?;
                 self.bit_fields.push(BitFieldLayout {
-                    field: field.symbol,
+                    field,
                     fragments: bit_field
                         .fragments
                         .iter()
@@ -141,36 +146,18 @@ impl<'program> LayoutBuilder<'program> {
                 });
             }
             for integer_field in &geometry.integer_fields {
-                let Some(field) = self
-                    .fields
-                    .span(fields)
-                    .and_then(|fields| fields.get(integer_field.field_index))
-                else {
-                    return Err(Diagnostic::error(format!(
-                        "plan-laid data `{}` has no field at stored-integer index {}",
-                        definition.name, integer_field.field_index
-                    )));
-                };
+                let field = field_at(integer_field.field_index, "stored-integer")?;
                 self.stored_integers.push(StoredIntegerLayout {
-                    field: field.symbol,
+                    field,
                     stored_width_bits: integer_field.stored_width_bits,
                     interpretation: integer_field.interpretation,
                     write_is_total: integer_field.write_is_total,
                 });
             }
             for repeated_field in &geometry.repeated_fields {
-                let Some(field) = self
-                    .fields
-                    .span(fields)
-                    .and_then(|fields| fields.get(repeated_field.field_index))
-                else {
-                    return Err(Diagnostic::error(format!(
-                        "plan-laid data `{}` has no field at repeated-placement index {}",
-                        definition.name, repeated_field.field_index
-                    )));
-                };
+                let field = field_at(repeated_field.field_index, "repeated-placement")?;
                 self.repeated_fields.push(RepeatedFieldLayout {
-                    field: field.symbol,
+                    field,
                     element_stride: repeated_field.element_stride,
                 });
             }
@@ -237,9 +224,7 @@ impl<'program> LayoutBuilder<'program> {
                 close_private_callback_demands(
                     plan,
                     geometry,
-                    self.fields
-                        .span(fields)
-                        .expect("newly inserted plan-laid fields retain their span"),
+                    placed,
                     self.target,
                     canonical_layout_subject,
                     terminal_layout_identity,

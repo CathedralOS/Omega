@@ -9,6 +9,7 @@
 //! Nested fields, array elements and active payloads retain their declarations;
 //! no schema-specific bounds or second predicate evaluator belong here.
 
+use crate::build_time_evaluation::type_reference_table;
 use build_time_values::BuildTimeValue;
 use numerics::literals::{FloatLiteral, IntegerLiteral, IntegerRadix};
 use typed_trees::TypedTrees;
@@ -37,13 +38,11 @@ pub(crate) fn require_established_arguments(
     for (parameter, value) in parameters.iter().zip(arguments) {
         // A borrowed policy arrival refers to the evaluator's fresh owned
         // snapshot. Establish its pointee, not an escaping reference result.
-        let destination = match program
-            .type_reference_table
-            .type_reference(parameter.type_reference)
-        {
-            TypeReferenceNode::Reference { referee, .. } => *referee,
-            _ => parameter.type_reference,
-        };
+        let destination =
+            match type_reference_table(program).type_reference(parameter.type_reference) {
+                TypeReferenceNode::Reference { referee, .. } => *referee,
+                _ => parameter.type_reference,
+            };
         if let BuildTimeValue::LayoutTarget(facts) = value {
             facts.validate()?;
             let symbol = program.type_reference_table.type_symbol(destination);
@@ -163,8 +162,7 @@ fn literal(
     destination: TypeReferenceHandle,
     value: &mut BuildTimeValue,
 ) -> Result<ExpressionHandle, String> {
-    let carrier = program
-        .type_reference_table
+    let carrier = type_reference_table(program)
         .type_reference(destination)
         .clone();
     let node = match carrier {

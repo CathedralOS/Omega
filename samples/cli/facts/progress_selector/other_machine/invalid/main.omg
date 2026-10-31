@@ -10,21 +10,21 @@ Provider satisfies Grants {
 }
 machine consume(value: &Token, calls: &mut u64) -> u64
 requires value in Token::Fair
-terminates;
+terminates
 {
     calls = (calls as u64 in Wrapping + 1) as u64;
     value.identity
 }
 machine nested(left: &Token, right: &Token, index: u64, calls: &mut u64) -> u64
 requires left in Token::Fair, index < 2
-terminates;
+terminates
 {
     let values: [&Token; 2] = [left, right];
     consume(values[index], calls)
 }
 machine select(left: &Token, right: &Token, index: u64, calls: &mut u64) -> u64
 requires left in Token::Fair, index < 2
-terminates;
+terminates
 { nested(left, right, index, calls) }
 machine main() reaches Grants crashes Trap {
     let left: Token = Grants::grant(37);

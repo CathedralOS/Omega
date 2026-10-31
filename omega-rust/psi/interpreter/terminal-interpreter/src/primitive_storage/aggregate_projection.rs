@@ -46,7 +46,7 @@ impl TerminalExecution<'_> {
             .checked_add(byte_length)
             .and_then(|end| end.checked_mul(8))
             .ok_or_else(malformed)?;
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let geometry = crate::reference::scalar_storage_fragments(
             &types,
             referent.structural_type,

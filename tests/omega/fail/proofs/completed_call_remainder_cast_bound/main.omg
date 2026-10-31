@@ -1,0 +1,37 @@
+// Completed public call results retain remainder/cast bounds at construction.
+// Source-only proof regression; no execution root is declared.
+
+data NormalizedInstant [copy] requires subsecond_nanoseconds <= 999_999_998 {
+    seconds: u64;
+    subsecond_nanoseconds: u32;
+}
+
+public machine confine_u64(value: u64, lower: u64, upper: u64) -> u64
+requires lower <= upper
+ensures result >= lower && result <= upper &&
+    ((value < lower && result == lower) ||
+     (value > upper && result == upper) ||
+     (value >= lower && value <= upper && result == value))
+{
+    transition {
+        value < lower -> (lower)
+        value > upper -> (upper)
+        _ -> (value)
+    }
+}
+
+
+machine normalize(ticks: u64, frequency_raw: u64) -> NormalizedInstant {
+    let frequency: u64 = confine_u64(frequency_raw, 1, 18446744073);
+    let whole_seconds: u64 = ticks / frequency;
+    let remainder: u64 = ticks % frequency;
+    // Fits u64 by the clamp bound, but the interval fold cannot multiply
+    // variable bounds -- Wrapping spelling (the checked_multiply idiom).
+    let scaled_wrapped: u64 in Wrapping = (remainder as u64 in Wrapping) * 1000000000;
+    let scaled: u64 = scaled_wrapped as u64;
+    let subnanos_wide: u64 = scaled / frequency;
+    // The remainder's initializer fact survives narrowing and establishes
+    // Instant's normalization predicate; the quotient is already < 10^9.
+    let subsecond: u32 = (subnanos_wide % 1000000000) as u32;
+    NormalizedInstant { seconds: whole_seconds, subsecond_nanoseconds: subsecond }
+}

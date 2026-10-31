@@ -140,7 +140,7 @@ impl TerminalExecution<'_> {
             {
                 for row in preserved_projected_qualifications {
                     if crate::structural_inputs::case_membership::case_projection_in_value_is_active(
-                        &self.program.structural_types(), &value, self.structural_cases.as_map(), &row.path,
+                        &self.structural_types(), &value, self.structural_cases.as_map(), &row.path,
                     )? {
                         value.projected_qualifications.push(row.clone());
                     }
@@ -161,7 +161,7 @@ impl TerminalExecution<'_> {
                 let mut receiving = Vec::new();
                 for row in &result.projected_qualifications {
                     if crate::structural_inputs::case_membership::case_projection_in_value_is_active(
-                        &self.program.structural_types(), &value, self.structural_cases.as_map(), &row.path,
+                        &self.structural_types(), &value, self.structural_cases.as_map(), &row.path,
                     )? {
                         if !value.projected_qualifications.contains(row) {
                             return Err(malformed());
@@ -212,7 +212,7 @@ impl TerminalExecution<'_> {
             let borrowed_descriptor = signature.multiplicity == StructuralMultiplicity::Affine
                 && signature.qualifications.is_empty()
                 && terminal_semantics::view_descriptor_projected_qualifications(
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                     signature.structural_type,
                     &signature.projected_qualifications,
                 )
@@ -223,7 +223,7 @@ impl TerminalExecution<'_> {
                 && active_returned_claims.is_empty()
                 && value.qualifications.is_empty()
                 && terminal_semantics::view_descriptor_projected_qualifications(
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                     value.structural_type,
                     &value.projected_qualifications,
                 )
@@ -237,19 +237,19 @@ impl TerminalExecution<'_> {
                             && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                             && terminal_semantics::view_descriptor_parameter(
                                 parameter,
-                                self.program.structural_types().values(),
+                                self.structural_types().values(),
                             )
                             // Stored descriptors and canonical borrowed ingress
                             // retain one pointer/count home. Geometry never pays
                             // owned debt or changes the independently checked access.
                             && terminal_semantics::borrowed_referent_presentation(
-                                self.program.structural_types().values(),
+                                self.structural_types().values(),
                                 parameter.structural_type,
                                 signature.structural_type,
                             ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
                             && parameter.qualifications.is_empty()
                             && terminal_semantics::view_descriptor_projected_qualifications(
-                                self.program.structural_types().values(),
+                                self.structural_types().values(),
                                 parameter.structural_type,
                                 &parameter.projected_qualifications,
                             )
@@ -258,7 +258,6 @@ impl TerminalExecution<'_> {
                     .as_ref()
                     .is_some_and(|view| view.access() == StructuralAccess::MutableBorrow)
                     || (self
-                        .program
                         .structural_types()
                         .get(&signature.structural_type)
                         .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
@@ -267,7 +266,7 @@ impl TerminalExecution<'_> {
             // Owned results leave with their exact affine complement. Borrowed
             // ingress contributes no source frontier to transfer.
             let carried = crate::custody::whole_value_frontier(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 *source,
                 signature.structural_type,
                 if borrowed_descriptor {
@@ -374,7 +373,7 @@ impl TerminalExecution<'_> {
                 let mut active = Vec::new();
                 for row in &result.projected_qualifications {
                     if crate::structural_inputs::case_membership::case_projection_in_value_is_active(
-                        &self.program.structural_types(), &value, self.structural_cases.as_map(), &row.path,
+                        &self.structural_types(), &value, self.structural_cases.as_map(), &row.path,
                     )? {
                         if !value.projected_qualifications.contains(row) {
                             return Err(malformed());
@@ -462,7 +461,7 @@ impl TerminalExecution<'_> {
         if !value.qualifications.is_empty() || !value.projected_qualifications.is_empty() {
             return Ok(None);
         }
-        let declaration = self.program.structural_declaration(value.structural_type)?;
+        let declaration = self.structural_declaration(value.structural_type)?;
         let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
             return Ok(None);
         };

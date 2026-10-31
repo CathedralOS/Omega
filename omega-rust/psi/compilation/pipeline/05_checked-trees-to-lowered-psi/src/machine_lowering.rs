@@ -23,6 +23,7 @@ pub(crate) mod float_meanings;
 pub(crate) mod guarded_exits;
 pub(crate) mod machine_dispatch;
 
+use crate::checked_facts::flow_facts;
 use checked_trees::{CheckedTerminalSignatureEligibility, CheckedTrees};
 use lowered_psi::LoweredPsi;
 
@@ -57,9 +58,7 @@ pub fn lower_machine(
             "physical layout applications require strict target closure before Terminal production",
         );
     }
-    if checked
-        .facts
-        .flow
+    if flow_facts(checked)
         .terminal_unit_effects
         .boundary_machines
         .iter()
@@ -175,16 +174,12 @@ pub fn lower_machine(
             && selection.signature == CheckedTerminalSignatureEligibility::Eligible
             && completion.debug == DebugPublication::FromCheckedPlan
         {
-            let live_states = checked
-                .facts
-                .flow
+            let live_states = flow_facts(checked)
                 .terminal_unit_effects
                 .composed_for_machine(selection.machine)
                 .map(attached_unit::unit_graph_live_states)
                 .transpose()?;
-            checked
-                .facts
-                .flow
+            flow_facts(checked)
                 .terminal_debug
                 .for_machine(selection.machine)
                 .map(|plan| build_debug_map(plan, &lowered.semantic_module, live_states.as_deref()))

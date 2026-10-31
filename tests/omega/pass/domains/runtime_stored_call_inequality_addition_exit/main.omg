@@ -1,11 +1,11 @@
 // A stored completed-call strict bound proves its next exact addition.
 // Expected exit: 0
 machine below(limit: u64) -> u64
-    requires limit > 0;
-    ensures result < limit;
+    requires limit > 0
+    ensures result < limit
 { limit - 1 }
 
-machine increase(limit: u64) -> u64 requires limit > 0; {
+machine increase(limit: u64) -> u64 requires limit > 0 {
     let value: u64 = below(limit);
     value + 1
 }

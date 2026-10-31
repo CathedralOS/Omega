@@ -34,7 +34,7 @@ public data Token {
 }
 
 machine Worker::run(token: Token in AcrossSuspend) -> Token
-suspends;
+suspends
 {
     suspend Sleeper::park(7);
     token

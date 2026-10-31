@@ -3,14 +3,14 @@ use omega_language_std::console;
 // Only the counter is the ranking coordinate. Integer payload operations
 // remain well-typed builtin evaluations, not new arithmetic rank facts.
 machine fold_bits(value: u32, remaining: u64) -> u32
-terminates by remaining;
+terminates by remaining
 {
     transition remaining > 0 {
         true -> update(value, remaining)
         _ -> (value)
     }
     machine update(value: u32, remaining: u64) -> u32
-    requires remaining > 0;
+    requires remaining > 0
     {
         let shifted: u32 = (value >> 1) | 16;
         transition (value & 1) == 0 {

@@ -5,7 +5,7 @@ use omega::language::core::numeric_conversion;
 // Prints nonnegative i64 values through existing Console byte providers.
 // Largest reachable element total is 64*INT32_MAX (<10^12).
 machine number(value: i64 in Wrapping) reaches Console
-invokes Console;
+invokes Console
 {
     transition { _ -> place(value, 1000000000000, false) }
     machine place(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
@@ -32,14 +32,14 @@ invokes Console;
 }
 
 machine line_number(value: i64 in Wrapping) reaches Console
-invokes Console;
+invokes Console
 {
     number(value);
     Console::write_line("");
 }
 
 machine line_four(values: &[i64 in Wrapping; 4]) reaches Console
-invokes Console;
+invokes Console
 {
     number(values[0]);
     Console::write(" ");

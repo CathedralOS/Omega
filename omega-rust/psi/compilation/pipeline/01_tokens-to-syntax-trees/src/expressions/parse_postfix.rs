@@ -1,6 +1,7 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::context::ExpressionContext;
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::tables::{exprs, exprs_of};
 use crate::type_syntax::parse_type::parse_cast_target_type_reference_handle;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
@@ -152,15 +153,11 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                 parse_index_or_range_expression_handle(syntax_trees, input, context.value())?;
             input = rest.take_punctuation(PunctuationKind::RightBracket, "]")?;
             expression =
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Indexed(TableIndexedExpression {
-                        collection: expression,
-                        index,
-                    }));
-            syntax_trees
-                .expressions
-                .set_source_span(expression, operator_span);
+                exprs(syntax_trees).insert(ExpressionNode::Indexed(TableIndexedExpression {
+                    collection: expression,
+                    index,
+                }));
+            exprs(syntax_trees).set_source_span(expression, operator_span);
             continue;
         }
 
@@ -228,7 +225,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                             )));
                         }
                         input = after_ord.take_punctuation(PunctuationKind::RightParen, ")")?;
-                        expression = syntax_trees.expressions.insert(ExpressionNode::Atomic(
+                        expression = exprs(syntax_trees).insert(ExpressionNode::Atomic(
                             syntax_trees::expression::TableAtomicExpression {
                                 value: expression,
                                 result: ExpressionHandle::invalid(),
@@ -257,17 +254,13 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
             // occurrence of this read; the receiver keeps its own span.
             let member_span = member.source_span();
             expression =
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Member(TableMemberExpression {
-                        receiver: expression,
-                        access_source_span,
-                        member,
-                        case_variant: None,
-                    }));
-            syntax_trees
-                .expressions
-                .set_source_span(expression, member_span);
+                exprs(syntax_trees).insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver: expression,
+                    access_source_span,
+                    member,
+                    case_variant: None,
+                }));
+            exprs(syntax_trees).set_source_span(expression, member_span);
             continue;
         }
 
@@ -302,12 +295,10 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                 .map(|token| target_start.text(token).as_str())
                 .collect::<String>();
             let mut target_label = HandleSpan::empty();
-            syntax_trees
-                .expressions
-                .append_identifier_path_member_to_span(
-                    &mut target_label,
-                    syntax_trees::identifier::Identifier::generated(target_label_text),
-                );
+            exprs(syntax_trees).append_identifier_path_member_to_span(
+                &mut target_label,
+                syntax_trees::identifier::Identifier::generated(target_label_text),
+            );
             input = rest;
             // Optional arithmetic DOMAIN cast suffix (`x as u8 in Saturating`),
             // decision 17 S2: re-tags the value's arithmetic domain so it can
@@ -337,12 +328,10 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                     // judges it against the program's DECLARED domains (the
                     // parser cannot see other items).
                     None => {
-                        syntax_trees
-                            .expressions
-                            .append_identifier_path_member_to_span(
-                                &mut semantic_domain,
-                                domain_name.clone(),
-                            );
+                        exprs(syntax_trees).append_identifier_path_member_to_span(
+                            &mut semantic_domain,
+                            domain_name.clone(),
+                        );
                         let (arguments, rest) =
                             crate::type_syntax::parse_type::parse_domain_argument_handles(
                                 syntax_trees,
@@ -361,21 +350,16 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                     input = rest;
                 }
             }
-            expression =
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Cast(TableCastExpression {
-                        value: expression,
-                        target_type,
-                        target_label,
-                        domain,
-                        semantic_domain,
-                        semantic_domain_arguments,
-                        form,
-                    }));
-            syntax_trees
-                .expressions
-                .set_source_span(expression, cast_source);
+            expression = exprs(syntax_trees).insert(ExpressionNode::Cast(TableCastExpression {
+                value: expression,
+                target_type,
+                target_label,
+                domain,
+                semantic_domain,
+                semantic_domain_arguments,
+                form,
+            }));
+            exprs(syntax_trees).set_source_span(expression, cast_source);
             continue;
         }
 
@@ -415,13 +399,11 @@ fn parse_index_or_range_expression_handle<'tokens, 'source>(
         (end, input)
     };
     Ok((
-        syntax_trees
-            .expressions
-            .insert(ExpressionNode::Range(TableRangeExpression {
-                start,
-                end,
-                end_inclusive,
-            })),
+        exprs(syntax_trees).insert(ExpressionNode::Range(TableRangeExpression {
+            start,
+            end,
+            end_inclusive,
+        })),
         input,
     ))
 }
@@ -456,7 +438,7 @@ fn build_call_expression_handle(
     arguments: HandleSpan<ExpressionHandle>,
     evidence_arguments: Box<[syntax_trees::identifier::Identifier]>,
 ) -> Result<ExpressionHandle, ParseError> {
-    let expression = syntax_trees.expressions.expression(expression);
+    let expression = exprs_of(syntax_trees).expression(expression);
     let call = match expression {
         ExpressionNode::Name(path) => {
             let path = *path;
@@ -500,8 +482,8 @@ fn build_call_expression_handle(
     // Like an operator token, the authored call target is the stable occurrence
     // of this expression. Argument and receiver occurrences remain distinct.
     let source = call.target.source_span();
-    let expression = syntax_trees.expressions.insert(ExpressionNode::Call(call));
-    syntax_trees.expressions.set_source_span(expression, source);
+    let expression = exprs(syntax_trees).insert(ExpressionNode::Call(call));
+    exprs(syntax_trees).set_source_span(expression, source);
     Ok(expression)
 }
 
@@ -509,13 +491,13 @@ pub(crate) fn memory_ordering_from_expression(
     syntax_trees: &SyntaxTrees,
     expression: ExpressionHandle,
 ) -> Result<language_core::atomic::MemoryOrdering, String> {
-    let ExpressionNode::Name(path) = syntax_trees.expressions.expression(expression) else {
+    let ExpressionNode::Name(path) = exprs_of(syntax_trees).expression(expression) else {
         return Err(
             "atomic ordering must be one of `NoOrdering`, `Receive`, `Publish`, `ReceivePublish`, or `GlobalOrder`"
                 .to_owned(),
         );
     };
-    let members = syntax_trees.expressions.identifier_path_members(*path);
+    let members = exprs_of(syntax_trees).identifier_path_members(*path);
     if members.len() != 1 {
         return Err(
             "atomic ordering must be an unqualified built-in name: `NoOrdering`, `Receive`, `Publish`, `ReceivePublish`, or `GlobalOrder`"
@@ -542,7 +524,7 @@ fn validate_atomic_call_orderings(
     if !receiver.is_valid() {
         return Ok(());
     }
-    let arguments = syntax_trees.expressions.expression_handles(arguments);
+    let arguments = exprs_of(syntax_trees).expression_handles(arguments);
     match (target, arguments) {
         ("store", [_, ordering]) => {
             let ordering = memory_ordering_from_expression(syntax_trees, *ordering)
@@ -738,7 +720,7 @@ fn try_parse_static_argument<'tokens, 'source>(
                 let Some((member, rest)) = try_parse_static_argument(syntax_trees, next)? else {
                     return Ok(None);
                 };
-                application.member = syntax_trees.expressions.insert_static_member(member);
+                application.member = exprs(syntax_trees).insert_static_member(member);
                 input = rest;
             }
             Some(application)
@@ -975,7 +957,7 @@ pub(crate) fn call_path_target_and_receiver(
     Option<syntax_trees::identifier::Identifier>,
     ExpressionHandle,
 ) {
-    let members = syntax_trees.expressions.identifier_path_members(path);
+    let members = exprs_of(syntax_trees).identifier_path_members(path);
     let count = members.len();
     let target = members.last().cloned();
     let receiver = if count <= 1 {
@@ -984,9 +966,7 @@ pub(crate) fn call_path_target_and_receiver(
         let receiver_path = syntax_trees
             .expressions
             .copy_identifier_path_prefix(path, count - 1);
-        syntax_trees
-            .expressions
-            .insert(ExpressionNode::Name(receiver_path))
+        exprs(syntax_trees).insert(ExpressionNode::Name(receiver_path))
     };
     (target, receiver)
 }

@@ -262,11 +262,8 @@ pub(super) fn header(
         .collect::<Result<Vec<_>, _>>()?;
     for parameter in &abstracted.structural_parameters {
         shapes.push(
-            crate::structural_inputs::structural_reference_input::parameter_shape(
-                parameter,
-                &plan.structural_types,
-            )
-            .ok_or(LegalizationError::custody())?,
+            crate::structural_inputs::parameter_shape(parameter, &plan.structural_types)
+                .ok_or(LegalizationError::custody())?,
         );
     }
     let expected = evaluate_call_plan(
@@ -586,13 +583,7 @@ pub(super) fn result_home(
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralHomeRequirement, LegalizationError> {
     let source = super::structural_case::source_owner(function, place).or_else(|_| {
-        let mut matching = function.blocks.iter().flat_map(|block| {
-            block
-                .structural_parameters
-                .iter()
-                .filter(move |parameter| parameter.place == place)
-                .map(move |parameter| (block.id, parameter))
-        });
+        let mut matching = super::structural_case::arrivals(function, place);
         let (block, declaration) = matching.next().ok_or(LegalizationError::custody())?;
         if matching.next().is_some()
             || !abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
@@ -683,12 +674,7 @@ pub(in crate::legalization) fn type_home_layout(
                 structural_type,
                 &plan.structural_types,
             )
-            .or_else(|| {
-                crate::structural_inputs::structural_reference_input::shape(
-                    structural_type,
-                    &plan.structural_types,
-                )
-            })
+            .or_else(|| crate::structural_inputs::shape(structural_type, &plan.structural_types))
             .ok_or(LegalizationError::custody())?,
         ));
     }

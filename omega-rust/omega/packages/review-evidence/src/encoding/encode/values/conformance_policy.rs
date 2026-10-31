@@ -17,9 +17,7 @@ pub(crate) fn encode_application(
     encoder.field("lifetime_arguments", |encoder| {
         encoder.sequence(&application.lifetime_arguments, ordinal)
     })?;
-    encoder.field("type_arguments", |encoder| {
-        encoder.sequence(&application.type_arguments, type_identity)
-    })?;
+    encoder.sequence_field("type_arguments", &application.type_arguments, type_identity)?;
     encoder.field("const_arguments", |encoder| {
         encoder.sequence(&application.const_arguments, const_argument)
     })?;

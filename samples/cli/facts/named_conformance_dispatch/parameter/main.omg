@@ -12,14 +12,14 @@ Selected satisfies Arithmetic<i32> {
     requires 0 <= left && left <= 50
     requires 0 <= right && right <= 50
     ensures result == left + right
-    blocks;
+    blocks
     {
         left + right
     }
 }
 
 machine apply<Operations satisfies Arithmetic<i32>>(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
 ensures result == left + right
@@ -30,7 +30,7 @@ ensures result == left + right
 // Place: parameter. The dispatching probe reads its two bounded parameters directly.
 // Expected exit: 0
 machine probe(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
 ensures result == left + right
@@ -38,7 +38,7 @@ ensures result == left + right
     block apply<Selected>(left, right)
 }
 
-machine main() blocks; crashes Trap {
+machine main() blocks crashes Trap {
     let result: i32 = block probe(20, 22);
     transition result == 42 { true -> done() _ -> bad() }
     machine done() {}

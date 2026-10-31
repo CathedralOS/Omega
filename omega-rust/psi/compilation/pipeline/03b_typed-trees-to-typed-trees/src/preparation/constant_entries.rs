@@ -4,6 +4,7 @@
 //! its formation and evaluation obligations. The next specialization round
 //! closes helper calls in those bodies, without another driver pipeline.
 
+use crate::tables::{expressions_of, expressions_of_mut};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -54,11 +55,10 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<usize, Vec<Diagnos
         if !expression.is_valid() {
             continue;
         }
-        if program
-            .expression_table
+        if expressions_of(program)
             .expression_handles(recipe.invocations)
             .iter()
-            .any(|invocation| !program.expression_table.expression_is_valid(*invocation))
+            .any(|invocation| !expressions_of(program).expression_is_valid(*invocation))
         {
             return Err(vec![Diagnostic::error(
                 "constant entry lost its invocation correspondence",
@@ -93,7 +93,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<usize, Vec<Diagnos
     }
     let count = initializer_count + pending.len();
     for (handle, context, expression) in pending {
-        if !program.expression_table.expression_is_valid(expression) {
+        if !expressions_of(program).expression_is_valid(expression) {
             return Err(vec![Diagnostic::error(
                 "constant entry lost its complete expression",
             )]);
@@ -101,7 +101,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<usize, Vec<Diagnos
         // Static occurrences are excluded from executable specialization.
         // Give the entry its own graph, preserving authored selections while
         // allowing its calls to acquire their ordinary executable identities.
-        let expression = program.expression_table.insert_copy(expression);
+        let expression = expressions_of_mut(program).insert_copy(expression);
         let entry = create_evaluation_entry(
             program,
             context.owner,
@@ -237,9 +237,7 @@ mod tests {
             symbols: symbols.finish(),
             ..Default::default()
         };
-        let root = program
-            .expression_table
-            .insert(ExpressionNode::Boolean(true));
+        let root = expressions_of_mut(&mut program).insert(ExpressionNode::Boolean(true));
         let closed = program.type_reference_table.insert(TypeReferenceNode::Unit);
         let open = program
             .type_reference_table

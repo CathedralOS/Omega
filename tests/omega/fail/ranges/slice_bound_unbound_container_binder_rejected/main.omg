@@ -6,7 +6,7 @@ data Buffer<const N: u64> {
 }
 
 machine Buffer::window<const M: u64>(buffer: &Buffer<M>) -> u8
-requires N >= 0;
+requires N >= 0
 {
     let view: &[u8] = &buffer.items[..N];
     transition { _ -> (0) }
@@ -22,8 +22,8 @@ data Nest<'next, Value> {
 machine nested_window<'storage, const Extent: u64, const Other: u64>(
     node: &Nest<'storage, Buffer<Extent>>
 ) -> u8
-requires Extent >= 0;
-requires Other >= 0;
+requires Extent >= 0
+requires Other >= 0
 {
     let view: &[u8] = &node.next.value[0].items[..Other];
     transition { _ -> (0) }

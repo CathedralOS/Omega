@@ -27,6 +27,6 @@ requires value.value == 17 {
     }
 }
 public machine enter(normal: bool) reaches Console + ProcessExit
-invokes Console; invokes ProcessExit; {
+invokes Console invokes ProcessExit {
     consume(select_word(normal));
 }

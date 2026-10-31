@@ -10,9 +10,9 @@ machine conditional_ih_requires_all(
     witness_right: Nat,
     factor: Nat
 ) -> Nat
-terminates by factor;
+terminates by factor
 requires
-    (saturating_sub(a, b)) == Nat::Zero;
+    (saturating_sub(a, b)) == Nat::Zero,
     (saturating_sub(witness_left, witness_right)) == Nat::Zero
 ensures
     (saturating_sub(mul(a, factor), mul(b, factor))) == Nat::Zero

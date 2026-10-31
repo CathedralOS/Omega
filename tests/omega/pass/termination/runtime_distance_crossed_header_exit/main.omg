@@ -1,17 +1,15 @@
 // Distance ranks must be defined even when the cursor already exceeds its
 // bound. Such an entry immediately returns; it does not promise cursor <= bound.
-machine count_to(cursor: u64, limit: u64)
-terminates by (cursor, limit) -> Nat::BoundedDistance;
--> u64 {
+machine count_to(cursor: u64, limit: u64) -> u64
+terminates by (cursor, limit) -> Nat::BoundedDistance {
     transition cursor < limit {
         true -> count_to(cursor + 1, limit)
         false -> cursor
     }
 }
 
-machine count_to_eight(cursor: u32)
-terminates by cursor -> Nat::IncreasingTo(8);
--> u32 {
+machine count_to_eight(cursor: u32) -> u32
+terminates by cursor -> Nat::IncreasingTo(8) {
     transition cursor < 8 {
         true -> count_to_eight(cursor + 1)
         false -> cursor
@@ -19,18 +17,16 @@ terminates by cursor -> Nat::IncreasingTo(8);
 }
 
 // A call component keeps the bound's value, not its name or formal ordinal.
-machine count_via_peer(cursor: u64, limit: u64)
-terminates by (cursor, limit) -> Nat::BoundedDistance;
--> u64 {
+machine count_via_peer(cursor: u64, limit: u64) -> u64
+terminates by (cursor, limit) -> Nat::BoundedDistance {
     transition cursor < limit {
         true -> peer(limit, cursor + 1)
         false -> cursor
     }
 }
 
-machine peer(ceiling: u64, position: u64)
-terminates by (position, ceiling) -> Nat::BoundedDistance;
--> u64 {
+machine peer(ceiling: u64, position: u64) -> u64
+terminates by (position, ceiling) -> Nat::BoundedDistance {
     transition position < ceiling {
         true -> count_via_peer(position + 1, ceiling)
         false -> position

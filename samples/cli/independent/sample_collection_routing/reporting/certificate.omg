@@ -3,7 +3,7 @@ use routing::model;
 
 // Fixed-width decimal keeps every output field easy to compare as raw bytes.
 machine number(value: i32 in Saturating) reaches Console
-invokes Console;
+invokes Console
 {
     Console::write_byte(((value / 100) % 10 + 48) as i32);
     Console::write_byte(((value / 10) % 10 + 48) as i32);
@@ -14,7 +14,7 @@ invokes Console;
 // A route event must be 0..3; guard before the Exact narrowing to i32.
 // Domain qualification alone does not authorize a narrowing conversion.
 machine route_event(event: u64) reaches Console
-invokes Console;
+invokes Console
 {
     transition event < 4 {
         true -> emit(event)
@@ -52,7 +52,7 @@ requires span.events.len >= 1
 }
 
 public machine report(certificate: &Certificate) reaches Console
-invokes Console;
+invokes Console
 {
     Console::write_line("sample_collection_routing: synthetic integer-minute model");
     Console::write_line("explored_words"); number(256);

@@ -4,6 +4,7 @@ use crate::checker::AssignmentRangeContext;
 use crate::checker::arrival_stability;
 use crate::checker::guards::unwrap_true_guard_condition;
 use crate::obligations::{BoundedAssignmentObligation, ProofPlan};
+use crate::typed_expressions::expression_table;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 
@@ -129,9 +130,7 @@ pub(crate) fn written_place_path(
             Some(path)
         }
         ExpressionNode::Name(path) => Some(
-            proof_plan
-                .program
-                .expression_table
+            expression_table(proof_plan.program)
                 .name_path_members(path.members)
                 .iter()
                 .map(|member| member.as_str().to_owned())
@@ -155,13 +154,10 @@ pub(crate) fn collect_read_place_paths(
     }
     match proof_plan.program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            proof_plan
-                .program
-                .expression_table
-                .match_deep_all(dispatch, |handle| {
-                    collect_read_place_paths(proof_plan, handle, paths);
-                    true
-                });
+            expression_table(proof_plan.program).match_deep_all(dispatch, |handle| {
+                collect_read_place_paths(proof_plan, handle, paths);
+                true
+            });
         }
         ExpressionNode::Binary(binary) => {
             collect_read_place_paths(proof_plan, binary.left, paths);

@@ -5,6 +5,7 @@
 //! their different provider owners. Default native plans are materialized only
 //! when an actual external or component boundary requests an ABI application.
 
+use crate::provider_planning::trait_name_text;
 use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 
@@ -25,9 +26,7 @@ pub(crate) fn selected_source_calling_application(
         ));
     }
     let provider_plan_name = plan.name.as_str();
-    let trait_name = plan
-        .schema
-        .identity_text(plan.schema.declaration.trait_name);
+    let trait_name = trait_name_text(&plan.schema);
     let row = plan
         .rows
         .get(row_index)
@@ -177,7 +176,6 @@ pub fn component_calling_applications(
     explicit: &[super::BoundaryCallingPlanRealization],
     representations: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
-    let typed = services.context().typed;
     let mut applications = Vec::<calling_conventions::BoundaryCallingApplication>::new();
     for provider in providers {
         let plan = &provider.plan;
@@ -205,9 +203,7 @@ pub fn component_calling_applications(
             ) {
                 continue;
             }
-            let trait_name = plan
-                .schema
-                .identity_text(plan.schema.declaration.trait_name);
+            let trait_name = trait_name_text(&plan.schema);
             let requirement = plan.identities.text(row.requirement_identity);
             let application = selected_source_calling_application(
                 services,
@@ -220,7 +216,7 @@ pub fn component_calling_applications(
             let application = match application {
                 Some(application) => application,
                 None => super::plan_computation::evaluate_default_calling_application(
-                    typed, layout_target, trait_name, plan.schema.declaration.trait_package_identity,
+                    services, layout_target, trait_name, plan.schema.declaration.trait_package_identity,
                     &row.method, requirement,
                     calling_conventions::CallingPolicy::native_for_target(native_target),
                     0, representations,

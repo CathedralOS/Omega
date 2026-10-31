@@ -553,9 +553,11 @@ fn lower_proof_output_runtime_call(
         return Ok((None, None));
     };
     let mut matching = occurrences.iter().filter(|occurrence| {
-        occurrence.source_state == invocation.caller_state_symbol
-            && occurrence.statement_index == runtime_call.statement_index
-            && occurrence.call_ordinal == runtime_call.call_ordinal
+        occurrence.matches_statement(
+            invocation.caller_state_symbol,
+            runtime_call.statement_index,
+            runtime_call.call_ordinal,
+        )
     });
     let occurrence = matching.next().ok_or(LoweringError::Unsupported(
         "runtime proof-output call has no emitted terminal operation",

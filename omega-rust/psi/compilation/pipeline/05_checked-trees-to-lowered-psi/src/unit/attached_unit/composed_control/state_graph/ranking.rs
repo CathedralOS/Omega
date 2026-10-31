@@ -31,6 +31,7 @@ use super::super::super::super::{BlockId, IntegerType, TerminalRankedScc, ValueI
 use super::super::super::{TerminalMachine, Terminator, unsupported};
 use super::super::LoweringError;
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
+use crate::checked_facts::value_facts;
 use std::collections::BTreeMap;
 use terminal_psi::{
     TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
@@ -96,9 +97,7 @@ pub(super) fn observation<'a>(
     else {
         return Ok(None);
     };
-    let mut roots = checked
-        .facts
-        .values
+    let mut roots = value_facts(checked)
         .scalar_computations
         .roots
         .iter()

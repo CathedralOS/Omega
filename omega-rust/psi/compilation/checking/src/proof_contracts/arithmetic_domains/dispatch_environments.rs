@@ -6,6 +6,7 @@
 //! predicate about a place that the dispatch can mutate.
 
 use super::{Machine, State, ValueEnvironment, guard_narrowing};
+use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::{CallFrameResolver, expression_has_calls};
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, MatchPattern, TableBinaryExpression, TableMatchExpression,
@@ -41,8 +42,7 @@ pub(crate) fn dispatch_arm_contexts<Context: Clone>(
     mut select: impl FnMut(&mut Context, DispatchSelection),
 ) -> Vec<Context> {
     let mut remaining = context.clone();
-    program
-        .expression_table
+    expression_table(program)
         .match_arms(dispatch.arms)
         .iter()
         .map(|arm| {
@@ -141,8 +141,7 @@ pub(crate) fn dispatch_arm_environments(
             if dispatch.capture.is_valid()
                 && let Some(source) = super::place_path(program, dispatch.subject)
             {
-                let anchor = program
-                    .expression_table
+                let anchor = expression_table(program)
                     .value_capture(dispatch.capture)
                     .value_anchor;
                 selected.copy_path_facts(&super::place_paths::capture_path(anchor), &source);

@@ -9,7 +9,7 @@ data Tree<Nodes: u64, Total: u64>
               left [erased]: Tree<left_nodes, left_total>, right [erased]: Tree<right_nodes, right_total>);
 }
 machine tree_bound<Nodes: u64, Total: u64>(evidence [erased]: Tree<Nodes, Total>)
-terminates by Nodes;
+terminates by Nodes
 ensures embed(Total) <= 10 * embed(Nodes)
 {
     transition evidence {

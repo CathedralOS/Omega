@@ -20,12 +20,10 @@ pub(crate) fn project_contract_constructor_expression(
         .filter(|data| data.symbol == literal.type_symbol)
         .collect::<Vec<_>>();
     let [data] = matching_data.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` constructor resolves its data symbol to {} declarations; expected one",
-            context.subject_kind,
-            context.subject_name,
+        return Err(context.rejected(format!(
+            "constructor resolves its data symbol to {} declarations; expected one",
             matching_data.len()
-        ))]);
+        )));
     };
     let data_identity = nominal_identity(compilation, data.symbol)?;
     let reviewed_package = reviewed_package(compilation, "package")?;
@@ -33,10 +31,10 @@ pub(crate) fn project_contract_constructor_expression(
         && reviewed_package_owns(&data_identity, reviewed_package)?
         && !data.is_public
     {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` exposes non-public data `{}` through a constructor",
-            context.subject_kind, context.subject_name, data.name
-        ))]);
+        return Err(context.rejected(format!(
+            "exposes non-public data `{}` through a constructor",
+            data.name
+        )));
     }
 
     let selected_variant = match literal.case_symbol {
@@ -50,23 +48,18 @@ pub(crate) fn project_contract_constructor_expression(
                 })
                 .collect::<Vec<_>>();
             let [variant] = matching.as_slice() else {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` constructor case resolves to {} variants in `{}`; expected one",
-                    context.subject_kind,
-                    context.subject_name,
+                return Err(context.rejected(format!(
+                    "constructor case resolves to {} variants in `{}`; expected one",
                     matching.len(),
                     data.name
-                ))]);
+                )));
             };
             Some(*variant)
         }
         None => None,
     };
     if literal.case_name.is_some() != selected_variant.is_some() {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` constructor has inconsistent checked case identity",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected("constructor has inconsistent checked case identity"));
     }
 
     let mut allowed_fields = compilation
@@ -91,13 +84,11 @@ pub(crate) fn project_contract_constructor_expression(
         .struct_fields(literal.fields)
         .iter()
         .map(|field| {
-            if !field.field_symbol.is_valid()
-                || !allowed_fields.contains(&field.field_symbol)
-            {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` constructor field `{}` does not rejoin its selected data/case",
-                    context.subject_kind, context.subject_name, field.name
-                ))]);
+            if !field.field_symbol.is_valid() || !allowed_fields.contains(&field.field_symbol) {
+                return Err(context.rejected(format!(
+                    "constructor field `{}` does not rejoin its selected data/case",
+                    field.name
+                )));
             }
             Ok(PackageReviewConstructorField {
                 field: nominal_identity(compilation, field.field_symbol)?,
@@ -107,10 +98,7 @@ pub(crate) fn project_contract_constructor_expression(
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
     fields.sort();
     if fields.windows(2).any(|pair| pair[0].field == pair[1].field) {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` constructor repeats one exact field",
-            context.subject_kind, context.subject_name
-        ))]);
+        return Err(context.rejected("constructor repeats one exact field"));
     }
 
     Ok(PackageReviewContractExpression::Constructor {

@@ -5,6 +5,7 @@
 
 use crate::ProviderPlanningContext;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
+use crate::provider_planning::trait_name_text;
 use checked_trees::typed_trees::service_declarations::projection;
 use checked_trees::typed_trees::service_declarations::{
     PreparedServiceSurface, ProviderSchemaDeclaration,
@@ -96,7 +97,7 @@ pub fn schema_binds_exact_boundary_operator(
         && operator.is_boundary
         && checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
             program, operator,
-        ) == schema.identity_text(schema.declaration.trait_name)
+        ) == trait_name_text(schema)
         && program.symbols.symbol_package_identity(operator.symbol)
             == schema.declaration.trait_package_identity
 }
@@ -112,8 +113,7 @@ pub fn schema_binds_exact_boundary_trait(
     let program = context.typed;
     context.contains(trait_definition.symbol)
         && trait_definition.is_boundary
-        && program.trait_declaration_path(trait_definition)
-            == schema.identity_text(schema.declaration.trait_name)
+        && program.trait_declaration_path(trait_definition) == trait_name_text(schema)
         && program
             .symbols
             .symbol_package_identity(trait_definition.symbol)
@@ -137,7 +137,7 @@ pub fn schema_binds_exact_boundary_requirement(
     {
         return false;
     }
-    let schema_trait_name = schema.identity_text(schema.declaration.trait_name);
+    let schema_trait_name = trait_name_text(schema);
     if requirement.spelling.is_some() {
         let target_id = program.callable_identity_by_text(schema_trait_name);
         if !target_id.is_valid() || program.machine_callable_identity(requirement) != target_id {

@@ -28,9 +28,7 @@ impl Writer {
         {
             return Err(Error::ByteLimitExceeded);
         }
-        self.output
-            .try_reserve_exact(text.len())
-            .map_err(|_| Error::AllocationFailed)?;
+        crate::reserve!(self.output, text.len(), Error);
         self.output.push_str(text);
         Ok(())
     }

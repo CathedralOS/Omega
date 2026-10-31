@@ -21,10 +21,7 @@ pub(crate) fn project_contract_call_evidence_arguments(
         return Ok(Vec::new());
     }
     let Some(fact) = fact else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` evidence-bearing call has no exact owning proof fact",
-            context.subject_kind, context.subject_name,
-        ))]);
+        return Err(context.rejected("evidence-bearing call has no exact owning proof fact"));
     };
     let matching = compilation
         .facts
@@ -38,20 +35,15 @@ pub(crate) fn project_contract_call_evidence_arguments(
         })
         .collect::<Vec<_>>();
     let [checked] = matching.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` evidence-bearing call has {} exact checked occurrence rows; expected one",
-            context.subject_kind,
-            context.subject_name,
-            matching.len(),
-        ))]);
+        return Err(context.rejected(format!(
+            "evidence-bearing call has {} exact checked occurrence rows; expected one",
+            matching.len()
+        )));
     };
     let Some((target_machine, target_state)) =
         exact_contract_target(compilation.checking_input, target_state_symbol)
     else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` evidence-bearing call has no exact target owner",
-            context.subject_kind, context.subject_name,
-        ))]);
+        return Err(context.rejected("evidence-bearing call has no exact target owner"));
     };
     let parameters =
         typed_trees_to_checked_trees::derive_checked_contract_expression_evidence_parameters(
@@ -64,10 +56,9 @@ pub(crate) fn project_contract_call_evidence_arguments(
         || checked.evidence_arguments.len() != authored_count
         || parameters.len() != authored_count
     {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` evidence-bearing call disagrees with its exact checked target or lane arity",
-            context.subject_kind, context.subject_name,
-        ))]);
+        return Err(context.rejected(
+            "evidence-bearing call disagrees with its exact checked target or lane arity",
+        ));
     }
 
     checked
@@ -76,16 +67,16 @@ pub(crate) fn project_contract_call_evidence_arguments(
         .enumerate()
         .map(|(lane_position, binding)| {
             if binding.lane_position != lane_position {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` evidence-bearing call changed checked lane position {}",
-                    context.subject_kind, context.subject_name, lane_position,
-                ))]);
+                return Err(context.rejected(format!(
+                    "evidence-bearing call changed checked lane position {}",
+                    lane_position
+                )));
             }
             if binding.parameter != parameters[lane_position] {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` evidence-bearing call changed checked parameter binding at lane {}",
-                    context.subject_kind, context.subject_name, lane_position,
-                ))]);
+                return Err(context.rejected(format!(
+                    "evidence-bearing call changed checked parameter binding at lane {}",
+                    lane_position
+                )));
             }
             let source = compilation.facts.proof.evidence_terms.get(binding.source);
             let parameter = compilation
@@ -106,16 +97,12 @@ pub(crate) fn project_contract_call_evidence_arguments(
                 || source.proposition != binding.instantiated_proposition
                 || current_instantiation.as_ref() != Some(&binding.instantiated_proposition)
                 || parameter.kind != checked_trees::ContractProofFactKind::Requires
-                || !evidence_owner_belongs_to_target(
-                    parameter.owner,
-                    target_machine,
-                    target_state,
-                )
+                || !evidence_owner_belongs_to_target(parameter.owner, target_machine, target_state)
             {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed {} `{}` evidence-bearing call changed checked binding at lane {}",
-                    context.subject_kind, context.subject_name, lane_position,
-                ))]);
+                return Err(context.rejected(format!(
+                    "evidence-bearing call changed checked binding at lane {}",
+                    lane_position
+                )));
             }
             Ok(PackageReviewContractEvidenceArgument {
                 lane_position: portable_ordinal(lane_position)?,

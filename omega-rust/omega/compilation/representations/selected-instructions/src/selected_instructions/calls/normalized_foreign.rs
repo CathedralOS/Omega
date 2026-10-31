@@ -20,3 +20,11 @@ pub struct SelectedNormalizedForeignCall {
 }
 
 pub mod return_transport;
+
+impl SelectedNormalizedForeignCall {
+    /// The boundary's placement for this call's result, when the retained
+    /// evaluated plan names one.
+    fn result_placement(&self) -> Option<&calling_conventions::ValuePlacement> {
+        self.call.binding.boundary_entry_plan.call.result.as_ref()
+    }
+}

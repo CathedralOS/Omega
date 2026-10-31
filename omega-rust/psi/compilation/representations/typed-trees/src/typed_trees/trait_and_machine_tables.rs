@@ -475,7 +475,6 @@ impl TypedTrees {
                 break;
             }
             let lexical_owner = self
-                .expression_table
                 .static_machine_application(specialization.binding_application)
                 .lexical_owner;
             if lexical_owner == owner {

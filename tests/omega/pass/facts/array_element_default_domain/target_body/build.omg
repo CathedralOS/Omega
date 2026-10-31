@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "array_element_default_domain_target_body");
+    Build::select_provider<TalliesProvider, HostedTallies>(builder, windows_x86_64);
+    Build::select_provider<TalliesProvider, HostedTallies>(builder, linux_x86_64);
+    Build::select_provider<TalliesProvider, HostedTallies>(builder, macos_arm64);
+    Build::select_provider<TalliesProvider, HostedTallies>(builder, linux_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+}

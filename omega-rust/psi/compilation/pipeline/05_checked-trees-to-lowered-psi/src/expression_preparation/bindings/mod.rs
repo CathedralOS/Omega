@@ -13,6 +13,7 @@ use super::{
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeId,
     terminal_scalar_type, unsupported,
 };
+use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use terminal_psi::find_structural_type;
@@ -1672,9 +1673,7 @@ impl ScalarBindings {
         statement: u32,
         role: CheckedScalarExpressionRole,
     ) -> Result<LoweredDirectExpression, LoweringError> {
-        let Some((_, expression)) = checked
-            .facts
-            .values
+        let Some((_, expression)) = value_facts(checked)
             .scalar_expressions
             .bound_expression_at(state, statement, role)
         else {

@@ -10,7 +10,7 @@ use calling_conventions::{
     ValueClass, ValueLocation, ValuePlacement, ValueShape,
 };
 
-pub(crate) const PARAMETER_CAPACITY: usize = 32;
+pub(crate) use language_semantics::callback_declarations::BOUNDARY_NATIVE_PARAMETER_CAPACITY as PARAMETER_CAPACITY;
 
 pub(crate) use layout::{
     BOUNDARY_VALUE_FIELD_CAPACITY as VALUE_FIELD_CAPACITY,

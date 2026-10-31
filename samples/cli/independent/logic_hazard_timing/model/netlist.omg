@@ -11,7 +11,7 @@ public machine Network::configure(network: &mut Network, output_delay: u64) {
     network.gates[8] = Gate { kind: 3, left: 6, right: 7, delay: 1 };
 }
 public machine Network::evaluate(network: &Network, gate: u64) -> bool
-requires gate < 9;
+requires gate < 9
 {
     let definition: Gate = network.gates[gate];
     transition definition.left < 9 && definition.right < 9 {
@@ -19,7 +19,7 @@ requires gate < 9;
         false -> invalid()
     }
     machine operands(network: &Network, definition: Gate) -> bool
-    requires definition.left < 9 && definition.right < 9;
+    requires definition.left < 9 && definition.right < 9
     {
         let left: bool = network.values[definition.left];
         let right: bool = network.values[definition.right];

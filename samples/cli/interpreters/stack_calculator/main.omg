@@ -18,7 +18,9 @@
 
 use omega_language_std::console;
 
-data Main {
+data Main
+requires self.sp >= 0 && self.sp <= 8
+{
     // Wrapping DECLARED (stack/a/b/acc): the operands round-trip through array
     // elements, which carry no range facts yet.
     stack: [i32; 8] in Wrapping;
@@ -34,65 +36,65 @@ machine Main::main(main: &mut Main) reaches Console {
     main.sp = 0;
 
     transition main.sp >= 0 && main.sp < 8 {
-        true -> push_three(main)
-        _ -> bad(main)
+        true -> block push_three(main)
+        _ -> block bad(main)
     }
 
     machine push_three(main: &mut Main) {
         main.stack[main.sp] = 3;
         main.sp = main.sp + 1;
-        transition main.sp >= 0 && main.sp < 8 { true -> push_four(main) _ -> bad(main) }
+        transition main.sp >= 0 && main.sp < 8 { true -> block push_four(main) _ -> block bad(main) }
     }
 
     machine push_four(main: &mut Main) {
         main.stack[main.sp] = 4;
         main.sp = main.sp + 1;
-        transition main.sp >= 2 && main.sp <= 8 { true -> add_pop_b(main) _ -> bad(main) }
+        transition main.sp >= 2 && main.sp <= 8 { true -> block add_pop_b(main) _ -> block bad(main) }
     }
 
     machine add_pop_b(main: &mut Main) {
         main.sp = main.sp - 1;
-        transition main.sp >= 0 && main.sp < 8 { true -> add_read_b(main) _ -> bad(main) }
+        transition main.sp >= 0 && main.sp < 8 { true -> block add_read_b(main) _ -> block bad(main) }
     }
     machine add_read_b(main: &mut Main) {
         main.b = main.stack[main.sp];
-        transition main.sp >= 1 && main.sp <= 8 { true -> add_pop_a(main) _ -> bad(main) }
+        transition main.sp >= 1 && main.sp <= 8 { true -> block add_pop_a(main) _ -> block bad(main) }
     }
     machine add_pop_a(main: &mut Main) {
         main.sp = main.sp - 1;
-        transition main.sp >= 0 && main.sp < 8 { true -> add_read_a(main) _ -> bad(main) }
+        transition main.sp >= 0 && main.sp < 8 { true -> block add_read_a(main) _ -> block bad(main) }
     }
     machine add_read_a(main: &mut Main) {
         main.a = main.stack[main.sp];
         main.acc = main.a + main.b;              // compute into a temp (a binary value
         main.stack[main.sp] = main.acc;          // into an indexed target is unsupported)
         main.sp = main.sp + 1;
-        transition main.sp >= 0 && main.sp < 8 { true -> push_five(main) _ -> bad(main) }
+        transition main.sp >= 0 && main.sp < 8 { true -> block push_five(main) _ -> block bad(main) }
     }
 
     machine push_five(main: &mut Main) {
         main.stack[main.sp] = 5;
         main.sp = main.sp + 1;
-        transition main.sp >= 2 && main.sp <= 8 { true -> mul_pop_b(main) _ -> bad(main) }
+        transition main.sp >= 2 && main.sp <= 8 { true -> block mul_pop_b(main) _ -> block bad(main) }
     }
 
     machine mul_pop_b(main: &mut Main) {
         main.sp = main.sp - 1;
-        transition main.sp >= 0 && main.sp < 8 { true -> mul_read_b(main) _ -> bad(main) }
+        transition main.sp >= 0 && main.sp < 8 { true -> block mul_read_b(main) _ -> block bad(main) }
     }
     machine mul_read_b(main: &mut Main) {
         main.b = main.stack[main.sp];
-        transition main.sp >= 1 && main.sp <= 8 { true -> mul_pop_a(main) _ -> bad(main) }
+        transition main.sp >= 1 && main.sp <= 8 { true -> block mul_pop_a(main) _ -> block bad(main) }
     }
     machine mul_pop_a(main: &mut Main) {
         main.sp = main.sp - 1;
-        transition main.sp >= 0 && main.sp < 8 { true -> mul_read_a(main) _ -> bad(main) }
+        transition main.sp >= 0 && main.sp < 8 { true -> block mul_read_a(main) _ -> block bad(main) }
     }
     machine mul_read_a(main: &mut Main) {
         main.a = main.stack[main.sp];
         main.acc = main.a * main.b;              // compute into a temp, then push
         main.stack[main.sp] = main.acc;
-        transition main.sp >= 0 && main.sp < 8 { true -> done(main) _ -> bad(main) }
+        transition main.sp >= 0 && main.sp < 8 { true -> block done(main) _ -> block bad(main) }
     }
 
     machine done(main: &mut Main) {

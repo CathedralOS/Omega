@@ -31,7 +31,7 @@ machine consume(receipt: Receipt) -> i32 {
 }
 
 machine spin(held: Receipt, remaining: u32) -> i32
-terminates by remaining -> Nat::Descending;
+terminates by remaining -> Nat::Descending
 {
     transition remaining > 0 {
         true -> spin(held, remaining - 1)
@@ -68,7 +68,7 @@ machine exchange(swap: bool, left: Receipt, right: Receipt) crashes Trap {
 }
 
 machine rotate(first: Receipt, second: Receipt, remaining: u32) -> i32
-terminates by remaining -> Nat::Descending;
+terminates by remaining -> Nat::Descending
 {
     transition remaining > 0 {
         true -> rotate(second, first, remaining - 1)

@@ -3,6 +3,7 @@
 //! callable binder into its caller would manufacture an undeclared lifetime.
 //! The source signature remains intact for independent loan-source admission.
 
+use crate::tables::expressions_of;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::expression::TableCallExpression;
@@ -53,7 +54,7 @@ pub(super) fn bindings(
     let mut conflict = false;
     for (parameter, argument) in parameters
         .iter()
-        .zip(program.expression_table.expression_handles(call.arguments))
+        .zip(expressions_of(program).expression_handles(call.arguments))
     {
         let Some(actual) =
             validation::expression_result_type_reference(program, caller, state, *argument)

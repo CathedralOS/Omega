@@ -2,14 +2,14 @@
 // Expected exit: 0
 use omega::language::core::nat;
 machine collapse(value: Nat) -> Nat
-terminates by value;
+terminates by value
 {
     transition value {
         Nat::Zero -> (Nat::Zero)
         Nat::Succ { prev } -> continue_collapse(prev)
     }
     machine continue_collapse(value: Nat) -> Nat
-    terminates by value;
+    terminates by value
     {
         let captured: Nat = collapse(value);
         transition captured {

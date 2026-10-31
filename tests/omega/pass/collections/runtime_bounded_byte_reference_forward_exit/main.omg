@@ -33,7 +33,7 @@ machine narrow_index(index: u64) -> u8 {
 }
 
 machine fill_from(bytes: &mut [u8; 8], index: u64, limit: u64)
-terminates by (index, limit) -> Nat::BoundedDistance;
+terminates by (index, limit) -> Nat::BoundedDistance
 {
     put(bytes, index);
     transition index < limit {
@@ -45,7 +45,7 @@ terminates by (index, limit) -> Nat::BoundedDistance;
 }
 
 machine sum_from(bytes: &[u8; 8], index: u64, limit: u64, total: u64) -> u64
-terminates by (index, limit) -> Nat::BoundedDistance;
+terminates by (index, limit) -> Nat::BoundedDistance
 {
     let next: u64 = add_byte(bytes, index, total);
     transition index < limit {

@@ -8,6 +8,7 @@ use super::{
     CollectedStatementPrefix, FrameInference, Machine, SlotEffect, SlotRelationTransfer,
     TopLevelSymbols,
 };
+use crate::frozen_program::expression_table;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern};
 use typed_trees::statement::{
     StatementNode, TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
@@ -122,8 +123,7 @@ pub(super) fn prepare_normal_exits<'program>(
             let owner = program.machine_holding_state(transfer.state.symbol)?;
             let static_context_unchanged = if transfer.expression.is_valid() {
                 program.machine_type_parameters(owner).is_empty()
-                    && program
-                        .expression_table
+                    && expression_table(program)
                         .call_node(transfer.expression)?
                         .machine_arguments
                         .is_empty()
@@ -610,7 +610,7 @@ impl Evaluation<'_, '_> {
             self.observe(expression, context, effects, inference, prefix, capture)?;
             return Some(());
         }
-        let node = self.program.expression_table.expression(expression);
+        let node = expression_table(self.program).expression(expression);
         match node {
             ExpressionNode::Match(dispatch) => {
                 self.expression(
@@ -628,11 +628,9 @@ impl Evaluation<'_, '_> {
                 let mut prefix_inference = inference.clone();
                 let mut alternatives = Vec::new();
                 let mut alternative_calls = Vec::new();
-                for arm in self.program.expression_table.match_arms(dispatch.arms) {
-                    for pattern in self
-                        .program
-                        .expression_table
-                        .match_pattern_operands(arm.pattern)
+                for arm in expression_table(self.program).match_arms(dispatch.arms) {
+                    for pattern in
+                        expression_table(self.program).match_pattern_operands(arm.pattern)
                     {
                         self.expression(
                             pattern,
@@ -798,9 +796,7 @@ impl Evaluation<'_, '_> {
                 call.target_symbol,
                 expression,
                 super::super::caller_aliases::CallerWriteSite::Expression(expression),
-                self.program
-                    .expression_table
-                    .expression_handles(call.arguments),
+                expression_table(self.program).expression_handles(call.arguments),
                 &completed_inputs,
                 call.machine_arguments.is_empty(),
                 context,

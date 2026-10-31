@@ -4,7 +4,8 @@ use crate::interpreter::evaluator::{
     DataDefinition, DataMember, EvalResult, EvaluatedArgument, EvaluationUsage, Evaluator,
     FilesystemLogicalHandles, FilesystemMetadataLayout, Frame, FrameLocal, Halt, Machine,
     PrimitiveType, State, StatementNode, SymbolHandle, TextByteMeter, TransitionDecision,
-    TypedTrees, Value, ambient_step_budget, trap, unsupported, wrap_to_width,
+    TypedTrees, Value, ambient_step_budget, expression_table, statement_table, trap,
+    type_reference_table, unsupported, wrap_to_width,
 };
 impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn new_build(
@@ -474,10 +475,8 @@ impl<'program> Evaluator<'program> {
         )],
     ) -> EvalResult<Value> {
         if type_reference.is_valid() {
-            if let typed_trees::types::TypeReferenceNode::Named { symbol, name } = self
-                .program
-                .type_reference_table
-                .type_reference(type_reference)
+            if let typed_trees::types::TypeReferenceNode::Named { symbol, name } =
+                type_reference_table(self.program).type_reference(type_reference)
                 && let Some(argument) =
                     self.generic_binding_argument(*symbol, name.as_str(), bindings)
             {
@@ -489,10 +488,8 @@ impl<'program> Evaluator<'program> {
             // arithmetic domain). Without this, a domain-constrained ARRAY field falls past the
             // FixedArray case below and defaults to `Unit`, so a later `self.arr[i]` raised
             // "cannot index Unit" and the whole canary was SKIPPED by the differential oracle.
-            if let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } = self
-                .program
-                .type_reference_table
-                .type_reference(type_reference)
+            if let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+                type_reference_table(self.program).type_reference(type_reference)
             {
                 let base_type = *base_type;
                 return self.default_value_for_type_with_bindings(base_type, bindings);
@@ -502,10 +499,7 @@ impl<'program> Evaluator<'program> {
             if let typed_trees::types::TypeReferenceNode::FixedArray {
                 element_type,
                 length,
-            } = self
-                .program
-                .type_reference_table
-                .type_reference(type_reference)
+            } = type_reference_table(self.program).type_reference(type_reference)
             {
                 let element_type = *element_type;
                 let count = match length {
@@ -562,10 +556,7 @@ impl<'program> Evaluator<'program> {
                 base_name,
                 arguments,
                 ..
-            } = self
-                .program
-                .type_reference_table
-                .type_reference(type_reference)
+            } = type_reference_table(self.program).type_reference(type_reference)
             {
                 let program = self.program;
                 let definition = program.closed_data_definition(type_reference).or_else(|| {
@@ -584,9 +575,7 @@ impl<'program> Evaluator<'program> {
                     )
                 {
                     let parameters = self.program.data_type_parameters(definition).to_vec();
-                    let arguments = self
-                        .program
-                        .type_reference_table
+                    let arguments = type_reference_table(self.program)
                         .type_reference_handles(*arguments)
                         .to_vec();
                     let mut nested_bindings = bindings.to_vec();
@@ -683,10 +672,8 @@ impl<'program> Evaluator<'program> {
         if depth >= 16 {
             return None;
         }
-        if let Some(value) = self
-            .program
-            .type_reference_table
-            .anonymous_numeric_literal_value(argument)
+        if let Some(value) =
+            type_reference_table(self.program).anonymous_numeric_literal_value(argument)
         {
             return Some(value);
         }
@@ -869,16 +856,12 @@ impl<'program> Evaluator<'program> {
             let mut tail_value: Option<Value> = None;
             let mut exit = checked_trees::FlowClaimJoinExit {
                 state_symbol: state.symbol,
-                statement_index: self
-                    .program
-                    .statement_table
+                statement_index: statement_table(self.program)
                     .statements(state.statement_nodes)
                     .len(),
                 kind: checked_trees::FlowClaimJoinExitKind::FinalExpression,
             };
-            let order = self
-                .program
-                .statement_table
+            let order = statement_table(self.program)
                 .finite_execution_order(state.statement_nodes)
                 .map_err(Halt::Trap)?;
             let Some(order) = order else {
@@ -901,9 +884,7 @@ impl<'program> Evaluator<'program> {
                         }
                     }
                     StatementNode::Expression(expression) => {
-                        if self
-                            .program
-                            .expression_table
+                        if expression_table(self.program)
                             .call_node(*expression)
                             .and_then(|call| call.native_code_layout.as_ref())
                             .is_some_and(|query| query.discards_result)
@@ -912,9 +893,7 @@ impl<'program> Evaluator<'program> {
                         }
 
                         if statement_index + 1
-                            == self
-                                .program
-                                .statement_table
+                            == statement_table(self.program)
                                 .statements(state.statement_nodes)
                                 .len()
                         {

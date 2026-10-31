@@ -7,7 +7,7 @@ boundary trait Completion {
 }
 proposition acknowledged(ack: Ack, word: &Cell) = atomic_release_written<AtomicU64, u64>(&word.value, ack.nonce);
 machine finish(ack: Ack, word: &Cell) satisfies Completion::complete
-ensures acknowledged(ack, word);
+ensures acknowledged(ack, word)
 {
  let ignored_atomic_observed: u64 = word.value.load(Receive);
  let ignored: u64 in Wrapping = ignored_atomic_observed as u64 in Wrapping;

@@ -11,8 +11,8 @@ const PROD_MIN: u32 = 300u32;
 const PROD_MAX: u32 = 750u32;
 
 machine multiply_const(lhs: u32, rhs: u32) -> i32
-    requires lhs >= LHS_MIN && lhs <= LHS_MAX;
-    requires rhs >= RHS_MIN && rhs <= RHS_MAX;
+    requires lhs >= LHS_MIN && lhs <= LHS_MAX
+    requires rhs >= RHS_MIN && rhs <= RHS_MAX
 {
     let prod: u32 = lhs * rhs;
     let headroom: u32 = PROD_MAX - prod;

@@ -1,8 +1,8 @@
 // Expected rejection: a partial read cannot establish its own index bound.
 machine observe(view: &[u64], slot: u64) -> u64
-terminates;
-terminates by view[slot];
-requires view[slot] == slot && view[slot] < view.len;
+terminates
+terminates by view[slot]
+requires view[slot] == slot && view[slot] < view.len
 { view[slot] }
 machine main() crashes Trap {
     let values: [u64; 2] = [0, 1];

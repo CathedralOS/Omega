@@ -25,100 +25,118 @@ pub fn liveness_identity_from_digests(
 
 /// One function's share of `liveness_identity`.
 pub fn liveness_function_digest(function: &FunctionLiveness) -> [u8; 32] {
-    let mut bytes = Vec::with_capacity(
-        256 + function.operand_positions.len() * 24 + function.blocks.len() * 1024,
-    );
-    bytes.extend_from_slice(b"omega.terminal-register-liveness-function.v2\0");
-    encode_function(&mut bytes, function);
-    crate::digest_encoder::content_identity(&bytes).into()
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
+    digest.raw(b"omega.terminal-register-liveness-function.v2\0");
+    encode_function(&mut digest, function);
+    digest.finish()
 }
 
-fn encode_function(bytes: &mut Vec<u8>, function: &FunctionLiveness) {
-    crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
-    crate::codec_bytes::encode_len(bytes, function.entry_definitions.len());
+fn encode_function(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    function: &FunctionLiveness,
+) {
+    digest.raw(&function.machine.get().to_le_bytes());
+    digest.len(function.entry_definitions.len());
     for definition in &function.entry_definitions {
-        crate::codec_bytes::push_encoded(bytes, definition.virtual_register.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, definition.class.0.to_le_bytes());
-        encode_option_u16(bytes, definition.fixed_view.map(|view| view.0));
+        digest.raw(&definition.virtual_register.0.to_le_bytes());
+        digest.raw(&definition.class.0.to_le_bytes());
+        encode_option_u16(digest, definition.fixed_view.map(|view| view.0));
     }
-    crate::codec_bytes::encode_len(bytes, function.operand_positions.len());
+    digest.len(function.operand_positions.len());
     for operand in function.operand_positions.storage_slice() {
-        encode_operand(bytes, operand);
+        encode_operand(digest, operand);
     }
-    crate::codec_bytes::encode_len(bytes, function.blocks.len());
+    digest.len(function.blocks.len());
     for block in &function.blocks {
-        crate::codec_bytes::push_encoded(bytes, block.block.0.to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, block.source_block.get().to_le_bytes());
-        encode_vregs(bytes, &block.virtual_live_in);
-        encode_vregs(bytes, &block.virtual_live_out);
-        encode_units(bytes, &block.unit_live_in);
-        encode_units(bytes, &block.unit_live_out);
-        crate::codec_bytes::encode_len(bytes, block.instructions.len());
+        digest.raw(&block.block.0.to_le_bytes());
+        digest.raw(&block.source_block.get().to_le_bytes());
+        encode_vregs(digest, &block.virtual_live_in);
+        encode_vregs(digest, &block.virtual_live_out);
+        encode_units(digest, &block.unit_live_in);
+        encode_units(digest, &block.unit_live_out);
+        digest.len(block.instructions.len());
         for instruction in &block.instructions {
-            crate::codec_bytes::push_encoded(bytes, instruction.position.0.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, instruction.instruction.0.to_le_bytes());
+            digest.raw(&instruction.position.0.to_le_bytes());
+            digest.raw(&instruction.instruction.0.to_le_bytes());
             // Encode membership by the actual operand rows, not arena addresses.
             let operands = function
                 .operand_positions
                 .span_or_empty(instruction.operands);
-            crate::codec_bytes::encode_len(bytes, operands.len());
+            digest.len(operands.len());
             for operand in operands {
-                encode_operand(bytes, operand);
+                encode_operand(digest, operand);
             }
-            encode_vregs(bytes, &instruction.virtual_uses);
-            encode_vregs(bytes, &instruction.virtual_defs);
-            encode_vregs(bytes, &instruction.virtual_live_in);
-            encode_vregs(bytes, &instruction.virtual_live_out);
-            encode_units(bytes, &instruction.unit_uses);
-            encode_units(bytes, &instruction.unit_defs);
-            encode_units(bytes, &instruction.unit_clobbers);
-            encode_units(bytes, &instruction.unit_live_in);
-            encode_units(bytes, &instruction.unit_live_out);
+            encode_vregs(digest, &instruction.virtual_uses);
+            encode_vregs(digest, &instruction.virtual_defs);
+            encode_vregs(digest, &instruction.virtual_live_in);
+            encode_vregs(digest, &instruction.virtual_live_out);
+            encode_units(digest, &instruction.unit_uses);
+            encode_units(digest, &instruction.unit_defs);
+            encode_units(digest, &instruction.unit_clobbers);
+            encode_units(digest, &instruction.unit_live_in);
+            encode_units(digest, &instruction.unit_live_out);
         }
-        crate::codec_bytes::encode_len(bytes, block.successors.len());
+        digest.len(block.successors.len());
         for successor in &block.successors {
-            crate::codec_bytes::push_encoded(bytes, successor.terminator.0.to_le_bytes());
-            bytes.push(successor.polarity_ordinal);
-            crate::codec_bytes::push_encoded(
-                bytes,
-                successor
+            digest.raw(&successor.terminator.0.to_le_bytes());
+            digest.byte(successor.polarity_ordinal);
+            digest.raw(
+                &successor
                     .psi_edge
                     .map_or(0, |edge| edge.get())
                     .to_le_bytes(),
             );
-            crate::codec_bytes::push_encoded(bytes, successor.target.0.to_le_bytes());
-            encode_vregs(bytes, &successor.virtual_live);
-            encode_units(bytes, &successor.unit_live);
+            digest.raw(&successor.target.0.to_le_bytes());
+            encode_vregs(digest, &successor.virtual_live);
+            encode_units(digest, &successor.unit_live);
         }
     }
 }
 
-fn encode_option_u16(bytes: &mut Vec<u8>, value: Option<u16>) {
+fn encode_option_u16(digest: &mut crate::digest_encoder::DomainDigestEncoder, value: Option<u16>) {
     match value {
-        None => bytes.push(0),
+        None => digest.byte(0),
         Some(value) => {
-            bytes.push(1);
-            crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
+            digest.byte(1);
+            digest.raw(&value.to_le_bytes());
         }
     }
 }
 
-fn encode_vregs(bytes: &mut Vec<u8>, values: &[crate::VirtualRegisterId]) {
-    crate::codec_bytes::encode_le_list(bytes, values, |value| value.0.to_le_bytes());
+fn encode_vregs(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    values: &[crate::VirtualRegisterId],
+) {
+    digest.len(values.len());
+    for value in values {
+        digest.raw(&value.0.to_le_bytes());
+    }
 }
 
-fn encode_units(bytes: &mut Vec<u8>, values: &[register_model::RegisterUnitId]) {
-    crate::codec_bytes::encode_le_list(bytes, values, |value| value.0.to_le_bytes());
+fn encode_units(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    values: &[register_model::RegisterUnitId],
+) {
+    digest.len(values.len());
+    for value in values {
+        digest.raw(&value.0.to_le_bytes());
+    }
 }
 
-fn encode_operand(bytes: &mut Vec<u8>, operand: &crate::OperandPosition) {
-    crate::codec_bytes::push_encoded(bytes, operand.position.0.to_le_bytes());
-    crate::codec_bytes::push_encoded(bytes, operand.instruction.0.to_le_bytes());
-    crate::codec_bytes::push_encoded(bytes, operand.operand.to_le_bytes());
-    crate::codec_bytes::push_encoded(bytes, operand.virtual_register.0.to_le_bytes());
-    bytes.push(operand.access.access_tag());
-    crate::codec_bytes::push_encoded(bytes, operand.class.0.to_le_bytes());
-    encode_option_u16(bytes, operand.fixed_view.map(|view| view.0));
-    encode_option_u16(bytes, operand.tied_to);
-    bytes.push(u8::from(operand.early_clobber));
+fn encode_operand(
+    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    operand: &crate::OperandPosition,
+) {
+    digest.raw(&operand.position.0.to_le_bytes());
+    digest.raw(&operand.instruction.0.to_le_bytes());
+    digest.raw(&operand.operand.to_le_bytes());
+    digest.raw(&operand.virtual_register.0.to_le_bytes());
+    digest.byte(operand.access.access_tag());
+    digest.raw(&operand.class.0.to_le_bytes());
+    encode_option_u16(digest, operand.fixed_view.map(|view| view.0));
+    encode_option_u16(digest, operand.tied_to);
+    digest.byte(u8::from(operand.early_clobber));
 }
+
+#[cfg(test)]
+mod tests;

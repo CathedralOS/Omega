@@ -155,7 +155,7 @@ machine advance_generation(grid: &mut [i32; 364]) -> bool {
 }
 
 machine live_neighbors(grid: &[i32; 364], cell_index: i32) -> i32
-requires cell_index >= 0 && cell_index < 364;
+requires cell_index >= 0 && cell_index < 364
 {
     transition { _ -> neighbors(grid, cell_index, 0, 0) }
 

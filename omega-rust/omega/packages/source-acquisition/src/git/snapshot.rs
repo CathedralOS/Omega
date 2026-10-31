@@ -19,7 +19,7 @@ use crate::tree::capture::{
     CapturedLocalEntry, CapturedLocalEntryKind, SourceTreePolicy, capture_exact_materialized,
     capture_local_source_from_open_root,
 };
-use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
+use crate::tree::filesystem::{IoResultAt, io_error, open_absolute_directory_nofollow};
 use crate::tree::identity::SourceIdentityHasher;
 use cap_fs_ext::DirExt;
 use cap_std::fs::Dir as CapabilityDirectory;
@@ -142,11 +142,11 @@ fn resolve_git_snapshot_in_collection(
     pending
         .directory()?
         .create_dir(GIT_SNAPSHOT_SOURCE)
-        .map_err(|error| io_error(&source, error))?;
+        .at(&source)?;
     let source_directory = pending
         .directory()?
         .open_dir_nofollow(GIT_SNAPSHOT_SOURCE)
-        .map_err(|error| io_error(&source, error))?;
+        .at(&source)?;
     for entry in &entries {
         executor.verify_budget()?;
         checked_git_destination(&source, entry)?;

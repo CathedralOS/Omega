@@ -1,0 +1,11 @@
+machine only_nonzero(value: u64) -> bool
+requires value != 0
+{ true }
+
+data Gated
+requires only_nonzero(0)
+{ marker: u64; }
+
+machine main() {
+    let gated: Gated = Gated { marker: 0 };
+}

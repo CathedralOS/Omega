@@ -6,16 +6,16 @@
 //! ([invariant windows](../../../../../../../wiki/spec/language/dependent_values.md#invariant-windows)).
 //! Measures such as `field.len` cannot change and do not count as reads.
 //!
-//! A fact that applies a collection predicate re-proves by exploring the
-//! predicate's checked body over the field's current element knowledge. That
+//! Every affected proposition re-proves through the shared predicate explorer,
+//! including direct indexed clauses and checked predicate calls. Its operand
 //! knowledge starts from the facts standing before the first store (the
 //! place is established and no window is open on it), or from nothing, and
 //! each store replaces the written element with the proved set of the stored
 //! value. A literal is that set's singleton. A value with no proved bounds
 //! keeps the element's carrier. A computed index joins the same set into
-//! every element, because the selector may name any of them. Any other fact
-//! that reads the contents cannot be re-proved here, so its window stays open
-//! and the consumption point rejects it.
+//! every element, because the selector may name any of them. An unsupported
+//! clause or missing element keeps its window open; no convenient subset of
+//! the declaration can close the complete restoration obligation.
 
 use super::assignment_windows::tracked_receiver;
 use super::place_queries::{data_definition_for_expression, write_place_spelling};
@@ -26,7 +26,6 @@ use crate::proof_contracts::collection_predicates::{
     self, ArgumentKnowledge, IntegerSet, unknown_knowledge,
 };
 use typed_trees::data::{DataDefinition, DataField, DataMember};
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -77,16 +76,8 @@ pub(super) fn handle_element_store<'program>(
     };
     let affected = program
         .conjunctive_proof_facts(definition.where_facts)
-        .filter(|fact| match fact {
-            ProofFact::Expression(expression) => {
-                reads_field_contents(program, *expression, field.name.as_str())
-            }
-            _ => super::place_queries::fact_names_field(
-                program,
-                definition,
-                fact,
-                field.name.as_str(),
-            ),
+        .filter(|fact| {
+            super::place_queries::fact_reads_field_contents(program, definition, fact, field.symbol)
         })
         .collect::<Vec<_>>();
     if affected.is_empty() {
@@ -211,45 +202,6 @@ fn data_field<'program>(
             DataMember::Field(field) if field.name.as_str() == name => Some(field),
             _ => None,
         })
-}
-
-/// Whether `expression` reads the contents of the field named `field`: any
-/// occurrence other than the receiver of a collection measure.
-fn reads_field_contents(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    field: &str,
-) -> bool {
-    if !program.expression_table.expression_is_valid(expression) {
-        return false;
-    }
-    let node = program.expression_table.expression(expression);
-    match node {
-        ExpressionNode::Name(path) => program
-            .expression_table
-            .name_path_members(path.members)
-            .first()
-            .is_some_and(|member| member.as_str() == field),
-        ExpressionNode::Member(member)
-            if language_semantics::declaration_selection::CollectionMeasure::from_authored_spelling(
-                member.member.as_str(),
-            )
-            .is_some()
-                && matches!(
-                    program.expression_table.expression(member.receiver),
-                    ExpressionNode::Name(_)
-                ) =>
-        {
-            false
-        }
-        _ => {
-            let mut reads = false;
-            crate::expression_traversal::children(program, node, |child| {
-                reads = reads || reads_field_contents(program, child, field);
-            });
-            reads
-        }
-    }
 }
 
 /// The integer set flow has already proved for `value` at this statement.

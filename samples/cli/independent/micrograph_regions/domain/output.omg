@@ -30,7 +30,7 @@ machine number(value: i32 in Wrapping) reaches Console {
 }
 
 public machine render(image: &Image)
-invokes Console;
+invokes Console
 reaches Console {
     Console::write_line("P2");
     Console::write_line("# micrograph region labels; zero is background");

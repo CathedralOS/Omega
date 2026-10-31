@@ -4,7 +4,7 @@
 // length alike.
 data Main {}
 machine count_to(index: u64, limit: u64) -> u64
-terminates by (index, limit) -> Nat::BoundedDistance;
+terminates by (index, limit) -> Nat::BoundedDistance
 {
     transition index < limit && index < 4096 {
         true -> count_to(index + 1, limit)
@@ -12,7 +12,7 @@ terminates by (index, limit) -> Nat::BoundedDistance;
     }
 }
 machine count_in(bytes: &[u8], index: u64) -> u64
-terminates by (index, bytes.len) -> Nat::BoundedDistance;
+terminates by (index, bytes.len) -> Nat::BoundedDistance
 {
     transition index < 4096 && index < bytes.len {
         true -> count_in(bytes, index + 1)

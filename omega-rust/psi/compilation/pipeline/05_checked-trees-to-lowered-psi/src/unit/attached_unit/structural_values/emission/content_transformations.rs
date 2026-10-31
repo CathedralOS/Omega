@@ -6,6 +6,7 @@
 mod boundary_correspondence;
 
 use super::{Emission, LoweringError, StructuralArgument, unsupported};
+use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
 use semantic_vocabulary::{ContentPlaceSegment, ContentPlaceVersion, ContentStructuralPlace};
 use terminal_psi::{
@@ -334,10 +335,7 @@ impl Emission<'_, '_, '_> {
         use checked_trees::facts::ContentClaimTransformationSource;
         let content = &self.checked.facts.qualifications.content;
         let equation = content.body_conservations.get(conservation);
-        let completed = self
-            .checked
-            .facts
-            .flow
+        let completed = flow_facts(&self.checked)
             .control
             .operands
             .get(equation.completed_value);
@@ -381,9 +379,11 @@ impl Emission<'_, '_, '_> {
             let producer_operation = match transformation.source {
                 ContentClaimTransformationSource::Call { call_ordinal, .. } => {
                     let mut calls = self.operations.source_calls.iter().filter(|call| {
-                        call.source_state == transformation.state_symbol
-                            && call.statement_index == transformation.statement_index
-                            && call.call_ordinal == call_ordinal
+                        call.matches_statement(
+                            transformation.state_symbol,
+                            transformation.statement_index,
+                            call_ordinal,
+                        )
                     });
                     let call = calls.next().ok_or(LoweringError::Unsupported(
                         "content ancestry call was not emitted",

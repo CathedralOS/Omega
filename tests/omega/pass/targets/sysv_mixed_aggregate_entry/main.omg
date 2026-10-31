@@ -16,7 +16,7 @@ boundary machine Main::main(
     tail: f64
 ) -> i32
 requires
-    tag <= 100;
+    tag <= 100
 {
     main.observed_integer = tag + pair.integer;
     main.observed_float = pair.floating + tail;

@@ -25,5 +25,5 @@ satisfies Direct::value
 
 data Direct { }
 boundary requirement Direct::value() -> u64
-terminates;
+terminates
 reaches;

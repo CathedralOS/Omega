@@ -3,6 +3,7 @@
 //! exit roster the completion has no route for, such as an ordered arm that
 //! transfers or crashes instead of returning.
 use super::{CheckedTrees, LoweringError, unsupported};
+use crate::checked_facts::flow_facts;
 use checked_trees::CheckedScalarBranchDestination;
 
 /// The ordered guarded exits of a returning scalar tail, as stage 04 planned
@@ -13,9 +14,7 @@ pub(crate) fn returning_exits<'checked>(
     fallback: Option<&CheckedScalarBranchDestination>,
 ) -> Result<&'checked [checked_trees::CheckedScalarGuardedExit], LoweringError> {
     let arms =
-        checked
-            .facts
-            .flow
+        flow_facts(checked)
             .guarded_exits
             .exits
             .span(arms)

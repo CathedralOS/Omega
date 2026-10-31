@@ -1,4 +1,5 @@
 //! Capture private and unused native choices as explicit acceptance/audit rows.
+use crate::capture::EvidenceOption;
 use crate::capture::{PackageReviewInput, semantics::services};
 use crate::record::PackagePolicyNativeBinding;
 use diagnostics::Diagnostic;
@@ -35,11 +36,7 @@ pub(super) fn project(
                         .identity_text(method.requirement_identity)
                         == candidate.plan.identities.text(row.requirement_identity)
                 })
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "native inventory lost its complete checked requirement",
-                    )]
-                })?;
+                .or_evidence("native inventory lost its complete checked requirement")?;
             let method = services::project(
                 &mut signatures,
                 &candidate.plan.schema,

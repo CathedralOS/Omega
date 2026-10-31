@@ -5,7 +5,7 @@ data Status [copy] { code: u64; }
 // invalidate entry observations even when the returned status is established.
 machine wrong(original: &mut Counter) -> Status
 requires original.value == 9
-ensures result.code == 7 && original.value != 0; {
+ensures result.code == 7 && original.value != 0 {
     transition { _ -> next(original) }
     machine next(renamed: &mut Counter) -> Status {
         renamed.value = 0;

@@ -3,8 +3,8 @@
 machine visits_only(values: &[i32]) -> bool { skip(values, values.len) }
 machine skip(values: &[i32], remaining: u64) -> bool
 requires remaining <= values.len
-terminates;
-terminates by remaining in 0..=values.len;
+terminates
+terminates by remaining in 0..=values.len
 {
     transition remaining > 0 {
         true -> skip(values, remaining - 1)
@@ -20,8 +20,8 @@ ensures values[selected] >= 0 && values[selected] <= 255
 machine valid_values(values: &[i32]) -> bool { check_values(values, values.len) }
 machine check_values(values: &[i32], remaining: u64) -> bool
 requires remaining <= values.len
-terminates;
-terminates by remaining in 0..=values.len;
+terminates
+terminates by remaining in 0..=values.len
 {
     transition remaining > 0 { true -> inspect(values, remaining) false -> (true) }
     machine inspect(values: &[i32], remaining: u64) -> bool

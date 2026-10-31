@@ -17,13 +17,13 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("fibonacci_golden: iterating fibonacci pairs to approximate the golden ratio");
 
     transition {
-        _ -> step(1, 1, 0)
+        _ -> block step(1, 1, 0)
     }
 
     machine step(left: i32 in Wrapping, right: i32 in Wrapping, iteration: i32 in Wrapping) {
         transition iteration == 13 {
-            true -> ratio_calc(left, right)
-            _ -> advance(left, right, iteration)
+            true -> block ratio_calc(left, right)
+            _ -> block advance(left, right, iteration)
         }
     }
 
@@ -31,7 +31,7 @@ machine Main::main(main: &mut Main) reaches Console {
         let next: i32 in Wrapping = left + right;
         let next_iteration: i32 in Wrapping = iteration + 1;
         transition {
-            _ -> step(right, next, next_iteration)
+            _ -> block step(right, next, next_iteration)
         }
     }
 

@@ -26,24 +26,24 @@ data Main {
 }
 
 machine Main::add(main: &mut Main, value: i32, bias: i32) -> i32
-requires 0 <= value && value <= 100 && 0 <= bias && bias <= 100;
+requires 0 <= value && value <= 100 && 0 <= bias && bias <= 100
 {
     main.last = value;
     transition { _ -> (value + bias) }
 }
 
 machine Main::forward(main: &mut Main, value: i32) -> i32
-requires 0 <= value && value <= 100;
+requires 0 <= value && value <= 100
 {
     transition { _ -> Main::add(main, value, 5) }
 }
 
 machine Main::staged(main: &mut Main, value: i32) -> i32
-requires 0 <= value && value <= 100;
+requires 0 <= value && value <= 100
 {
     transition { _ -> adding(main, value) }
     machine adding(main: &mut Main, value: i32) -> i32
-    requires 0 <= value && value <= 100;
+    requires 0 <= value && value <= 100
     {
         transition { _ -> Main::add(main, value, 7) }
     }

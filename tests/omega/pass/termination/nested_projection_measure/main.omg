@@ -7,11 +7,10 @@ data Inner where 0 <= remaining, remaining <= 5 { remaining: u64; }
 data Countdown { label: u64; inner: Inner; }
 measure Countdown::Remaining(countdown: Countdown) -> u64
 { countdown.inner.remaining }
-machine walk(countdown: Countdown, ceiling: u64, amount: u64)
+machine walk(countdown: Countdown, ceiling: u64, amount: u64) -> u64
     requires 0 <= ceiling && ceiling <= 5 && 1 <= amount && amount <= 2
-requires countdown.inner.remaining <= ceiling;
-terminates by countdown -> Countdown::Remaining in 0..=ceiling;
--> u64 {
+requires countdown.inner.remaining <= ceiling
+terminates by countdown -> Countdown::Remaining in 0..=ceiling {
     transition countdown.inner.remaining >= amount {
         true -> walk(Countdown { label: countdown.label, inner: Inner { remaining: countdown.inner.remaining - amount } }, ceiling, amount)
         false -> countdown.inner.remaining

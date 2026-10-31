@@ -1,8 +1,7 @@
 // This rank-free state is recurrent through an ordinary terminal tail call.
 // The zero-rank cycle bypasses the other member's strict descent.
-machine left(remaining: u64)
-terminates by remaining in 0..=9;
--> u64
+machine left(remaining: u64) -> u64
+terminates by remaining in 0..=9
 requires remaining <= 9
 {
     transition remaining > 0 {
@@ -12,9 +11,8 @@ requires remaining <= 9
     machine finish() -> u64 { left(0) }
 }
 
-machine right(remaining: u64)
-terminates by remaining in 0..=9;
--> u64
+machine right(remaining: u64) -> u64
+terminates by remaining in 0..=9
 requires remaining > 0 && remaining <= 9
 {
     transition { _ -> left(remaining - 1) }

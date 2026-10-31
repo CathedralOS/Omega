@@ -49,10 +49,7 @@ pub(super) fn nominal_name(
         else {
             return Err("derived placed origin is not an exact generic application");
         };
-        let [policy, schema] = program
-            .type_reference_table
-            .type_reference_handles(*arguments)
-        else {
+        let [policy, schema] = program.type_reference_handles(*arguments) else {
             return Err("derived placed origin lost its policy/schema operands");
         };
         if !view.template_symbol.is_valid()

@@ -31,7 +31,7 @@ impl TypedTrees {
         caller_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         caller_lifetime_bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
     ) -> Result<(), &'static str> {
-        let application = self.expression_table.static_machine_application(provider);
+        let application = self.static_machine_application(provider);
         let selected = application.registration_operation;
         let machine = self.machine_by_symbol(application.binding_declaration);
         let forwarded = if machine.is_none() {
@@ -44,7 +44,6 @@ impl TypedTrees {
             return Err("applied callable lost its original declaration or Machine binder");
         }
         let substitutions = self
-            .expression_table
             .static_machine_application_bindings(provider)
             .iter()
             .filter_map(|binding| match binding.value {
@@ -57,7 +56,6 @@ impl TypedTrees {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let static_arguments = self
-            .expression_table
             .static_machine_application_bindings(provider)
             .iter()
             .filter_map(|binding| match &binding.value {
@@ -164,14 +162,11 @@ impl TypedTrees {
             ..CallableApplication::default()
         }
         .signature(self, &declared)?;
-        let provider_region_rows = self
-            .expression_table
-            .static_machine_application_lifetimes(provider)
-            .to_vec();
+        let provider_region_rows = self.static_machine_application_lifetimes(provider).to_vec();
         let provider_lifetimes = self
             .callable_lifetime_substitutions
             .insert_many(provider_region_rows);
-        let invocation_source = self.expression_table.static_machine_application(invocation);
+        let invocation_source = self.static_machine_application(invocation);
         let caller_lifetime_declaration = invocation_source.lifetime_binding_declaration;
         let caller_lifetime_owner = invocation_source.lexical_owner;
         let source_required = required.clone();

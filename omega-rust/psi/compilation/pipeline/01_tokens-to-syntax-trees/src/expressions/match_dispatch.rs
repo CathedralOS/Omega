@@ -8,6 +8,7 @@ use super::parse_expression::{
 };
 use crate::input::token_cursor::{Input, ParseResult};
 use crate::patterns::bindings::{DestructureBinding, rewrite_destructure_guard_expression};
+use crate::tables::{exprs, exprs_of};
 use arena::Handle;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -33,7 +34,7 @@ pub(super) fn parse_match_expression_handle<'tokens, 'source>(
         let (mut value, rest) = parse_expression_handle(syntax_trees, rest)?;
         if let MatchPattern::Destructure(destructure) = &mut pattern {
             if !capture.is_valid() {
-                capture = syntax_trees.expressions.insert_match_subject(subject);
+                capture = exprs(syntax_trees).insert_match_subject(subject);
             }
             let bindings = syntax_trees
                 .expressions
@@ -74,8 +75,8 @@ pub(super) fn parse_match_expression_handle<'tokens, 'source>(
                     capture,
                     pattern_head: destructure.head,
                 }));
-            let source_span = syntax_trees.expressions.source_span(subject);
-            syntax_trees.expressions.set_source_span(saved, source_span);
+            let source_span = exprs_of(syntax_trees).source_span(subject);
+            exprs(syntax_trees).set_source_span(saved, source_span);
             value = rewrite_destructure_guard_expression(syntax_trees, value, saved, &bindings);
             if destructure.guard.is_valid() {
                 destructure.guard = rewrite_destructure_guard_expression(
@@ -101,7 +102,7 @@ pub(super) fn parse_match_expression_handle<'tokens, 'source>(
     if arms.is_empty() {
         return Err(input.error_here("match expression must have at least one arm"));
     }
-    let arms = syntax_trees.expressions.insert_match_arms(arms);
+    let arms = exprs(syntax_trees).insert_match_arms(arms);
     let expression = syntax_trees
         .expressions
         .insert(ExpressionNode::Match(TableMatchExpression {
@@ -109,9 +110,7 @@ pub(super) fn parse_match_expression_handle<'tokens, 'source>(
             capture,
             arms,
         }));
-    syntax_trees
-        .expressions
-        .set_source_span(expression, start.source_span_until(input));
+    exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
     Ok((expression, input))
 }
 
@@ -125,14 +124,14 @@ fn parse_pattern<'tokens, 'source>(
     let (head, rest) = parse_expression_handle_without_struct_literals(syntax_trees, input)?;
     if !rest.at_punctuation(PunctuationKind::LeftBrace)
         || !matches!(
-            syntax_trees.expressions.expression(head),
+            exprs_of(syntax_trees).expression(head),
             ExpressionNode::Name(_)
         )
     {
         return Ok((MatchPattern::Value(head), rest));
     }
     let (fields, rest) = crate::patterns::parse_destructure_fields(syntax_trees, rest)?;
-    let fields_span = syntax_trees.expressions.insert_match_fields(fields.fields);
+    let fields_span = exprs(syntax_trees).insert_match_fields(fields.fields);
     let proof_selectors = syntax_trees
         .statements
         .insert_outcome_proof_selectors(fields.proof_selectors);

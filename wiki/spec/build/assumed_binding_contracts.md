@@ -42,7 +42,7 @@ satisfies RangeSupplier::supply
 }
 
 machine claim_memory(region: Range) -> Range in Writable
-reaches WritableMemory;
+reaches WritableMemory
 {
     WritableMemory::claim(region)
 }

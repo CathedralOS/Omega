@@ -10,6 +10,7 @@
 //! substitution.
 
 use super::Candidate;
+use crate::tables::{expressions_of, expressions_of_mut};
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, boolean_literal_spelling};
 use numerics::literals::{IntegerLanding, IntegerLiteral};
@@ -44,14 +45,12 @@ pub(super) fn substitute(
                 );
                 tree.into_iter().any(|handle| {
                     matches!(
-                        program.expression_table.expression(handle),
+                        expressions_of(program).expression(handle),
                         ExpressionNode::Name(path)
                             if binder.is_valid()
                                 && path.symbol == *binder
                                 && path.head_symbol == *binder
-                                && program
-                                    .expression_table
-                                    .name_path_members(path.members)
+                                && expressions_of(program).name_path_members(path.members)
                                     .len()
                                     == 1
                     )
@@ -67,15 +66,13 @@ pub(super) fn substitute(
             continue;
         }
         let occurrences = match expression_start {
-            Some(start) => program
-                .expression_table
+            Some(start) => expressions_of(program)
                 .iter_expressions_from(start)
                 .filter_map(|(handle, _)| {
                     exact_binder_name(program, handle, *binder).then_some(handle)
                 })
                 .collect::<Vec<_>>(),
-            None => program
-                .expression_table
+            None => expressions_of(program)
                 .iter_expressions()
                 .filter_map(|(handle, _)| {
                     exact_binder_name(program, handle, *binder).then_some(handle)
@@ -102,14 +99,14 @@ pub(super) fn substitute(
             else {
                 continue;
             };
-            *program.expression_table.expression_mut(projection.outer) = projected;
+            *expressions_of_mut(program).expression_mut(projection.outer) = projected;
             projected_receivers.push(projection.root);
         }
         for occurrence in occurrences {
             if projected_receivers.contains(&occurrence) {
                 continue;
             }
-            *program.expression_table.expression_mut(occurrence) = replacement.clone();
+            *expressions_of_mut(program).expression_mut(occurrence) = replacement.clone();
         }
     }
     Ok(())
@@ -120,14 +117,13 @@ fn exact_binder_name(
     expression: ExpressionHandle,
     binder: symbols::SymbolHandle,
 ) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let ExpressionNode::Name(path) = expressions_of(program).expression(expression) else {
         return false;
     };
     binder.is_valid()
         && path.symbol == binder
         && path.head_symbol == binder
-        && program
-            .expression_table
+        && expressions_of(program)
             .name_path_members(path.members)
             .len()
             == 1
@@ -155,14 +151,12 @@ fn nominal_record_projections(
     expression_start: Option<usize>,
 ) -> Vec<NominalProjection> {
     let members = match expression_start {
-        Some(start) => program
-            .expression_table
+        Some(start) => expressions_of(program)
             .iter_expressions_from(start)
             .filter(|(_, expression)| matches!(expression, ExpressionNode::Member(_)))
             .map(|(handle, _)| handle)
             .collect::<Vec<_>>(),
-        None => program
-            .expression_table
+        None => expressions_of(program)
             .iter_expressions()
             .filter(|(_, expression)| matches!(expression, ExpressionNode::Member(_)))
             .map(|(handle, _)| handle)
@@ -170,7 +164,7 @@ fn nominal_record_projections(
     };
     let mut receivers = Vec::new();
     for handle in &members {
-        if let ExpressionNode::Member(member) = program.expression_table.expression(*handle) {
+        if let ExpressionNode::Member(member) = expressions_of(program).expression(*handle) {
             receivers.push(member.receiver);
         }
     }
@@ -182,8 +176,7 @@ fn nominal_record_projections(
         let mut fields = Vec::new();
         let mut current = outer;
         let root = loop {
-            let ExpressionNode::Member(member) = program.expression_table.expression(current)
-            else {
+            let ExpressionNode::Member(member) = expressions_of(program).expression(current) else {
                 break current;
             };
             let step = NominalField {
@@ -235,8 +228,7 @@ fn project_nominal_field(
     } else if literal.case_name.is_some() || literal.case_symbol.is_some() {
         return None;
     }
-    let selected = program
-        .expression_table
+    let selected = expressions_of(program)
         .struct_fields(literal.fields)
         .iter()
         .find(|declared| {
@@ -246,7 +238,7 @@ fn project_nominal_field(
                 declared.name.as_str() == field.name.as_str()
             }
         })?;
-    Some(program.expression_table.expression(selected.value).clone())
+    Some(expressions_of(program).expression(selected.value).clone())
 }
 
 pub(crate) fn value(
@@ -260,10 +252,10 @@ pub(crate) fn value(
         program.type_reference_table.type_reference(binding)
     {
         let expression = *expression;
-        if !program.expression_table.expression_is_valid(expression) {
+        if !expressions_of(program).expression_is_valid(expression) {
             return None;
         }
-        return Some(program.expression_table.expression(expression).clone());
+        return Some(expressions_of(program).expression(expression).clone());
     }
     let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(binding)

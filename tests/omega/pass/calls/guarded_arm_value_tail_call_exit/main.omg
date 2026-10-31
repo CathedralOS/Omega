@@ -29,14 +29,14 @@ data Main {
 }
 
 machine Main::add(main: &mut Main, value: i32, bias: i32) -> i32
-requires 0 <= value && value <= 100 && 0 <= bias && bias <= 100;
+requires 0 <= value && value <= 100 && 0 <= bias && bias <= 100
 {
     main.last = value;
     transition { _ -> (value + bias) }
 }
 
 machine Main::choose(main: &mut Main, value: i32) -> i32
-requires 0 <= value && value <= 100;
+requires 0 <= value && value <= 100
 {
     transition value > 50 {
         true -> Main::add(main, value, 5)
@@ -45,14 +45,14 @@ requires 0 <= value && value <= 100;
 }
 
 machine Main::staged(main: &mut Main, value: i32) -> i32
-requires 0 <= value && value <= 100;
+requires 0 <= value && value <= 100
 {
     transition value > 10 {
         true -> deciding(main, value)
         false -> 2
     }
     machine deciding(main: &mut Main, value: i32) -> i32
-    requires 0 <= value && value <= 100;
+    requires 0 <= value && value <= 100
     {
         transition value > 30 {
             true -> Main::add(main, value, 7)

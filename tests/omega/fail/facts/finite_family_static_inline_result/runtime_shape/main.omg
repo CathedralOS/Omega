@@ -8,6 +8,6 @@ machine produce<Width: u64>() -> Prepared<Width> satisfies Family::row {
 }
 Selected satisfies Family { Family::row = produce; }
 machine escape(selected: dyn Family, width: u64) -> Prepared<width>
-requires width == 16 || width == 32;
+requires width == 16 || width == 32
 { Family::row<width>(selected) }
 machine main() { let result: Prepared<16> = escape(Selected as dyn Family, 16); }

@@ -401,78 +401,116 @@ pub fn validate_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Result<u64, &'static str> {
-    // Establishment rows, not a descriptor's geometry, identify the types
-    // whose custody belongs to this module's activation grants.
-    let claim_types = module
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
-        .filter(|operation| matches!(operation.kind, O::EstablishActivationClaim { .. }))
-        .map(|operation| {
-            super::activation_claim_shape(module, operation).map(|shape| shape.claim_type)
-        })
-        .collect::<Result<BTreeSet<_>, _>>()?;
-    // Parking retains the caller's admitted homes. The callee, including an
-    // unknown or dynamic target, does not receive those homes. An admission
-    // that is still pending has no selected storage role, so it cannot cross.
-    let known: BTreeSet<_> = module.machines.iter().map(|machine| machine.id).collect();
-    let mut suspending = BTreeSet::new();
-    let may_suspend = |operation: &terminal_psi::Operation, machines: &BTreeSet<_>| {
-        operation.suspension_crossing.is_some()
-            || matches!(
-                operation.kind,
-                O::BoundaryCall { .. } | O::CallDynamic { .. }
-            )
-            || operation
-                .kind
-                .direct_callee()
-                .is_some_and(|callee| !known.contains(&callee) || machines.contains(&callee))
-    };
-    loop {
-        let additions: Vec<_> = module
-            .machines
-            .iter()
-            .filter(|machine| {
-                machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.operations)
-                    .any(|operation| may_suspend(operation, &suspending))
-                    || machine.blocks.iter().any(|block| {
-                        block.terminator.cleanup_rosters().flat_map(|(_, actions)| actions).any(|action| {
-                            matches!(action, terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                                if !known.contains(&cleanup.cleanup_machine) || suspending.contains(&cleanup.cleanup_machine))
-                        })
-                    })
-            })
-            .map(|machine| machine.id)
-            .collect();
-        let previous = suspending.len();
-        suspending.extend(additions);
-        if previous == suspending.len() {
-            break;
-        }
-    }
-    let crossings: BTreeSet<_> = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter(|operation| may_suspend(operation, &suspending))
-        .map(|operation| operation.id)
-        .collect();
-    validate_flow(
-        &module.structural_types,
-        &machine.structural_parameters,
-        &machine.block_entry_claims,
-        machine.entry,
-        &machine.blocks,
-        &claim_types,
-        &|operation| crossings.contains(&operation),
-        &|callee| !known.contains(&callee) || suspending.contains(&callee),
-    )
+    ModuleActivation::new(module)?.validate_machine(machine)
 }
 
+/// Validate machines in module order, preparing shared activation facts once.
+/// Every machine still replays its own complete current control-flow graph.
+pub fn validate_module(module: &TerminalModule) -> Result<(), &'static str> {
+    let prepared = ModuleActivation::new(module)?;
+    for machine in &module.machines {
+        prepared.validate_machine(machine)?;
+    }
+    Ok(())
+}
+
+/// Derived facts belong to one immutable module borrow, never another graph or
+/// a later mutation. They contain no per-machine validation result.
+struct ModuleActivation<'module> {
+    module: &'module TerminalModule,
+    claim_types: BTreeSet<StructuralTypeId>,
+    known: BTreeSet<MachineId>,
+    suspending: BTreeSet<MachineId>,
+}
+
+fn may_suspend(
+    operation: &terminal_psi::Operation,
+    known: &BTreeSet<MachineId>,
+    machines: &BTreeSet<MachineId>,
+) -> bool {
+    operation.suspension_crossing.is_some()
+        || matches!(
+            operation.kind,
+            O::BoundaryCall { .. } | O::CallDynamic { .. }
+        )
+        || operation
+            .kind
+            .direct_callee()
+            .is_some_and(|callee| !known.contains(&callee) || machines.contains(&callee))
+}
+
+impl<'module> ModuleActivation<'module> {
+    fn new(module: &'module TerminalModule) -> Result<Self, &'static str> {
+        // Establishment rows, not a descriptor's geometry, identify the types
+        // whose custody belongs to this module's activation grants.
+        let claim_types = module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .filter(|operation| matches!(operation.kind, O::EstablishActivationClaim { .. }))
+            .map(|operation| {
+                super::activation_claim_shape(module, operation).map(|shape| shape.claim_type)
+            })
+            .collect::<Result<BTreeSet<_>, _>>()?;
+        // Parking retains the caller's admitted homes. The callee, including an
+        // unknown or dynamic target, does not receive those homes. An admission
+        // that is still pending has no selected storage role, so it cannot cross.
+        let known: BTreeSet<_> = module.machines.iter().map(|machine| machine.id).collect();
+        let mut suspending = BTreeSet::new();
+        loop {
+            let additions: Vec<_> = module
+                .machines
+                .iter()
+                .filter(|machine| {
+                    machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.operations)
+                        .any(|operation| may_suspend(operation, &known, &suspending))
+                        || machine.blocks.iter().any(|block| {
+                            block.terminator.cleanup_rosters().flat_map(|(_, actions)| actions).any(|action| {
+                                matches!(action, terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                                    if !known.contains(&cleanup.cleanup_machine) || suspending.contains(&cleanup.cleanup_machine))
+                            })
+                        })
+                })
+                .map(|machine| machine.id)
+                .collect();
+            let previous = suspending.len();
+            suspending.extend(additions);
+            if previous == suspending.len() {
+                break;
+            }
+        }
+        Ok(Self {
+            module,
+            claim_types,
+            known,
+            suspending,
+        })
+    }
+
+    fn validate_machine(&self, machine: &TerminalMachine) -> Result<u64, &'static str> {
+        let crossings: BTreeSet<_> = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| may_suspend(operation, &self.known, &self.suspending))
+            .map(|operation| operation.id)
+            .collect();
+        validate_flow(
+            &self.module.structural_types,
+            &machine.structural_parameters,
+            &machine.block_entry_claims,
+            machine.entry,
+            &machine.blocks,
+            &self.claim_types,
+            &|operation| crossings.contains(&operation),
+            &|callee| !self.known.contains(&callee) || self.suspending.contains(&callee),
+        )
+    }
+}
 /// Replay current executable flow independently of its producing representation.
 /// Only storage types and current blocks participate; retained source snapshots
 /// cannot stand in for an optimizer's actual operation order or successor graph.
@@ -1228,3 +1266,6 @@ pub fn validate_flow(
     }
     Ok(maximum)
 }
+
+#[cfg(test)]
+mod batch_tests;

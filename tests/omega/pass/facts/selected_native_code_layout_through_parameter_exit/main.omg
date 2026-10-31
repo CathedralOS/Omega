@@ -3,7 +3,7 @@
 use omega::language::core::code_layout;
 machine selected<T, const Salt: u64>(value: T) -> T { value }
 machine inspect(layout: &CodeLayout) -> bool
-terminates;
+terminates
 {
     transition layout.regions.len > 0 { true -> region(layout) _ -> false }
     machine region(layout: &CodeLayout) -> bool
@@ -12,8 +12,8 @@ terminates;
         layout.entry != 0 && layout.regions[0].base == layout.entry && layout.regions[0].length > 0
     }
 }
-machine carry(layout: CodeLayout) -> bool terminates; { inspect(&layout) }
-machine witness() -> bool terminates; { carry(code_layout<selected<u64, 7>>()) }
+machine carry(layout: CodeLayout) -> bool terminates { inspect(&layout) }
+machine witness() -> bool terminates { carry(code_layout<selected<u64, 7>>()) }
 machine main() crashes Trap {
     transition witness() { true -> done() _ -> bad() }
     machine done() {}

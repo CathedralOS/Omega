@@ -12,6 +12,7 @@
 //! executable occurrences and ordered effects before a particular captured read;
 //! match-derived place and returned-window proofs share that evidence query.
 
+use crate::frozen_program::expression_table;
 use std::collections::HashSet;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMatchExpression};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -31,7 +32,7 @@ pub fn inert_value_tree_with_operations(
     collect_expression_tree(program, expression, &mut expressions);
     expressions.iter().all(|expression| {
         matches!(
-            program.expression_table.expression(*expression),
+            expression_table(program).expression(*expression),
             ExpressionNode::Name(_)
                 | ExpressionNode::Integer(_)
                 | ExpressionNode::Boolean(_)
@@ -80,7 +81,7 @@ pub fn expression_has_inert_prefix(
         if depth >= 64 {
             return false;
         }
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         let mut complete = true;
         executable_children(program, node, |child| {
             complete &= visit(program, child, endpoint, depth + 1, prefix);
@@ -147,7 +148,7 @@ pub fn expressions_before_occurrence(
             return Some(());
         }
         let start = prefix.len();
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         if let ExpressionNode::Match(dispatch) = node {
             visit(
                 program,
@@ -158,8 +159,8 @@ pub fn expressions_before_occurrence(
                 prefix,
                 captured,
             )?;
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
+            for arm in expression_table(program).match_arms(dispatch.arms) {
+                for pattern in expression_table(program).match_pattern_operands(arm.pattern) {
                     visit(
                         program,
                         pattern,
@@ -256,13 +257,13 @@ pub fn children(
             }
         }
         ExpressionNode::ArrayLiteral(elements) => {
-            for element in program.expression_table.expression_handles(*elements) {
+            for element in expression_table(program).expression_handles(*elements) {
                 child(*element);
             }
         }
         ExpressionNode::Call(call) => {
             child(call.receiver);
-            for argument in program.expression_table.expression_handles(call.arguments) {
+            for argument in expression_table(program).expression_handles(call.arguments) {
                 child(*argument);
             }
         }
@@ -276,7 +277,7 @@ pub fn children(
             child(range.end);
         }
         ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
+            for field in expression_table(program).struct_fields(literal.fields) {
                 child(field.value);
             }
         }
@@ -329,7 +330,7 @@ pub fn visit_post_order(
             return;
         }
         visited.push(expression);
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         children(program, node, |child| inner(program, child, visited, arm));
         arm(expression, node);
     }
@@ -347,13 +348,13 @@ pub fn visit_pre_order(
     let mut pending = pending;
     let mut visited = Vec::new();
     while let Some(expression) = pending.pop() {
-        if !program.expression_table.expression_is_valid(expression)
+        if !expression_table(program).expression_is_valid(expression)
             || visited.contains(&expression)
         {
             continue;
         }
         visited.push(expression);
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         if arm(expression, node) {
             return true;
         }
@@ -373,13 +374,13 @@ pub fn projection_climb(
     let mut projections = Vec::new();
     let mut cursor = expression;
     loop {
-        if !program.expression_table.expression_is_valid(cursor)
+        if !expression_table(program).expression_is_valid(cursor)
             || projections.contains(&cursor)
             || projections.len() >= max_depth
         {
             return None;
         }
-        cursor = match program.expression_table.expression(cursor) {
+        cursor = match expression_table(program).expression(cursor) {
             ExpressionNode::Member(member) if member.case_variant.is_none() => {
                 projections.push(cursor);
                 member.receiver
@@ -400,7 +401,7 @@ pub fn single_member_argument_symbol(
     program: &dyn crate::CheckingInput,
     argument: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
-    let named = match program.expression_table.expression(argument) {
+    let named = match expression_table(program).expression(argument) {
         ExpressionNode::Borrow(borrow)
             if borrow.access == language_core::ReferenceAccess::Shared =>
         {
@@ -408,10 +409,9 @@ pub fn single_member_argument_symbol(
         }
         _ => argument,
     };
-    let path = program.expression_table.name_path_node(named)?;
+    let path = expression_table(program).name_path_node(named)?;
     (path.symbol.is_valid()
-        && program
-            .expression_table
+        && expression_table(program)
             .name_path_members(path.members)
             .len()
             == 1)
@@ -423,9 +423,8 @@ pub fn name_path_last_member<'a>(
     program: &'a dyn crate::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<&'a str> {
-    let path = program.expression_table.name_path_node(value)?;
-    program
-        .expression_table
+    let path = expression_table(program).name_path_node(value)?;
+    expression_table(program)
         .name_path_members(path.members)
         .last()
         .map(|member| member.as_str())
@@ -436,7 +435,7 @@ pub fn unwrapped(
     program: &dyn crate::CheckingInput,
     mut expression: ExpressionHandle,
 ) -> ExpressionHandle {
-    while let ExpressionNode::Atomic(atomic) = program.expression_table.expression(expression) {
+    while let ExpressionNode::Atomic(atomic) = expression_table(program).expression(expression) {
         expression = atomic.value;
     }
     expression
@@ -460,13 +459,11 @@ pub(crate) fn match_children(
     dispatch: TableMatchExpression,
 ) -> impl Iterator<Item = ExpressionHandle> + '_ {
     std::iter::once(dispatch.subject).chain(
-        program
-            .expression_table
+        expression_table(program)
             .match_arms(dispatch.arms)
             .iter()
             .flat_map(|arm| {
-                program
-                    .expression_table
+                expression_table(program)
                     .match_pattern_operands(arm.pattern)
                     .chain(std::iter::once(arm.value))
             }),
@@ -486,7 +483,7 @@ pub(crate) fn collect_expression_nodes<Hashing: std::hash::BuildHasher>(
     nodes.push(expression);
     children(
         program,
-        program.expression_table.expression(expression),
+        expression_table(program).expression(expression),
         |child| {
             collect_expression_nodes(program, child, nodes, seen);
         },
@@ -499,7 +496,7 @@ pub fn single_segment_name_symbol(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
-    let path = program.expression_table.name_path_node(expression)?;
+    let path = expression_table(program).name_path_node(expression)?;
     is_single_segment_name_path(program, path).then_some(path.symbol)
 }
 
@@ -509,7 +506,7 @@ pub fn is_single_segment_name_path(
     program: &dyn crate::CheckingInput,
     path: &typed_trees::expression::TableNamePath,
 ) -> bool {
-    program.expression_table.name_path_is_single_member(path)
+    expression_table(program).name_path_is_single_member(path)
 }
 
 /// Append structural expression handles in preorder, once per existing roster.
@@ -656,8 +653,7 @@ pub fn append_fact_expression_roots(
             expressions.push(membership.value)
         }
         typed_trees::domain::ProofFact::Proposition(application) => expressions.extend(
-            program
-                .expression_table
+            expression_table(program)
                 .expression_handles(application.arguments)
                 .iter()
                 .copied(),
@@ -680,9 +676,7 @@ pub fn collect_contract_facts(
                 collect_expression_tree(program, membership.value, handles)
             }
             typed_trees::domain::ProofFact::Proposition(application) => {
-                for argument in program
-                    .expression_table
-                    .expression_handles(application.arguments)
+                for argument in expression_table(program).expression_handles(application.arguments)
                 {
                     collect_expression_tree(program, *argument, handles);
                 }

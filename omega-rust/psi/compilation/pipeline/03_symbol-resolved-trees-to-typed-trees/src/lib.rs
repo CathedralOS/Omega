@@ -53,6 +53,9 @@ pub use placed_borrow_factory::placed_borrow_factory;
 // declaration form binds through.
 mod signatures;
 
+// Beneath every step: the tables those steps name once instead of chaining to.
+mod tables;
+
 // The entrance.
 pub use lowerer::lower_symbol_resolved_trees;
 

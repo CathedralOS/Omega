@@ -2,6 +2,18 @@ use super::{Builder, CheckedScalarExpressionRole, ExpressionHandle, SymbolHandle
 use crate::values::scalar::call_lowering::call_is_boundary;
 use crate::values::scalar::scalar_lowering::land_anonymous_scalar_expression;
 
+#[derive(Clone, Copy)]
+pub(super) enum CallOperandCustody {
+    Statement {
+        call: arena::Handle<checked_trees::FlowCallFact>,
+        captures: arena::HandleSpan<checked_trees::FlowOperandFact>,
+    },
+    Declaration {
+        application: checked_trees::CheckedRankApplicationFormationHandle,
+        call: arena::Handle<checked_trees::CheckedDeclarationCall>,
+    },
+}
+
 impl Builder<'_, '_> {
     /// Index operands have mathematical carriers, not necessarily stored type
     /// references: a binary result owns no declaration identity. Reuse the
@@ -188,13 +200,37 @@ impl Builder<'_, '_> {
 impl Builder<'_, '_> {
     pub(super) fn call_operands(
         &mut self,
-        source_call: arena::Handle<checked_trees::FlowCallFact>,
-        captures: arena::HandleSpan<checked_trees::FlowOperandFact>,
+        custody: CallOperandCustody,
         arguments: &[ExpressionHandle],
         parameters: &[typed_trees::signature::StateParameter],
     ) -> Option<ComputedCallOperands> {
+        let (statement_call, captures) = match custody {
+            CallOperandCustody::Statement { call, captures } => {
+                if captures.len() != arguments.len() || !self.flow.control.calls.is_valid(call) {
+                    return None;
+                }
+                (Some(call), Some(captures))
+            }
+            CallOperandCustody::Declaration { application, call } => {
+                let scope = self.declaration_scope.as_ref()?;
+                if scope.application != application {
+                    return None;
+                }
+                let (_, call) = checked_trees::CheckedCallOrigin::Declaration { application, call }
+                    .declaration(scope.plan, self.machine, self.state)
+                    .ok()?;
+                if self
+                    .program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    != arguments
+                {
+                    return None;
+                }
+                (None, None)
+            }
+        };
         if arguments.len() != parameters.len()
-            || captures.len() != arguments.len()
             || parameters.iter().any(|parameter| {
                 parameter.is_const
                     || (parameter.is_mutable
@@ -212,10 +248,15 @@ impl Builder<'_, '_> {
         let mut structural_arguments = Vec::new();
         let mut structural_actuals = Vec::new();
         let mut temporary_cleanups = Vec::new();
-        for ((argument, parameter), operand) in
-            arguments.iter().zip(parameters).zip(captures.handles())
-        {
-            if self.flow.control.operands.get(operand).expression != *argument {
+        let mut captures = captures.map(|span| span.handles());
+        for (argument, parameter) in arguments.iter().zip(parameters) {
+            let operand = match &mut captures {
+                Some(captures) => Some(captures.next()?),
+                None => None,
+            };
+            if let Some(operand) = operand
+                && self.flow.control.operands.get(operand).expression != *argument
+            {
                 return None;
             }
             // An erased parameter position consumes its authored
@@ -233,6 +274,10 @@ impl Builder<'_, '_> {
                 self.plans.nodes.get_mut(root).authored_root = *argument;
                 computed_arguments.push(root);
             } else {
+                // Structural arguments require their actual loan/owner capture;
+                // a declaration's scalar input binding cannot manufacture it.
+                let source_call = statement_call?;
+                let operand = operand?;
                 let state =
                     validation::find_state_in_machine(self.program, self.machine, self.state)?;
                 // Value planning owns both snapshots and loans. A borrowed
@@ -322,7 +367,7 @@ impl Builder<'_, '_> {
         }
         // The claims crossing at this call join the same owned operands an
         // ordinary call operation's arguments join.
-        let claim_transfers =
+        let claim_transfers = if let Some(source_call) = statement_call {
             crate::execution::terminal_unit::calls::computed_call_claim_transfers(
                 self.program,
                 self.flow,
@@ -335,7 +380,13 @@ impl Builder<'_, '_> {
                     .zip(&structural_arguments)
                     .map(|(actual, argument)| Some((*actual, argument.as_place()?)))
                     .collect::<Option<Vec<_>>>()?,
-            )?;
+            )?
+        } else {
+            if !structural_arguments.is_empty() || !temporary_cleanups.is_empty() {
+                return None;
+            }
+            Vec::new()
+        };
         let arguments = self.plans.operands.insert_many(computed_arguments);
         let structural_arguments = self
             .plans

@@ -8,7 +8,7 @@ data Main { cell: Cell; }
 machine Worker::write(cell: &mut Cell) -> i32 {
     transition { _ -> step(cell, 0) }
     machine step(cell: &mut Cell, position: u64) -> i32
-    requires position <= 2;
+    requires position <= 2
     {
         transition position < 2 {
             true -> store(cell, position)
@@ -16,7 +16,7 @@ machine Worker::write(cell: &mut Cell) -> i32 {
         }
     }
     machine store(cell: &mut Cell, position: u64) -> i32
-    requires position < 2;
+    requires position < 2
     {
         cell.values[position] = 70;
         cell.value = cell.values[position];

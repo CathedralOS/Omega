@@ -4,9 +4,8 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
     SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand,
-    SelectedStructuralTransport, SelectedValueTransport, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedStructuralTransport,
+    SelectedValueTransport, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{IntegerValue, ScalarType, ValueId};
 
@@ -15,6 +14,7 @@ use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::runtime_spill::{
     control, next_instruction_id, next_register_id, require_dominated_uses,
 };
+use crate::rewrites::selected_operands::selected_operand;
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -347,15 +347,10 @@ pub(super) fn materialization(
                 value: admitted.value,
             },
             constraint: admitted.materialize.key,
-            operands: vec![SelectedOperand {
-                operand: admitted.materialize.operands[0].operand,
-                virtual_register: register,
-                access: admitted.materialize.operands[0].access,
-                class: admitted.materialize.operands[0].class,
-                fixed_view: admitted.materialize.operands[0].fixed_view,
-                tied_to: admitted.materialize.operands[0].tied_to,
-                early_clobber: admitted.materialize.operands[0].early_clobber,
-            }],
+            operands: vec![selected_operand(
+                &admitted.materialize.operands[0],
+                register,
+            )],
             implicit_uses: admitted.materialize.implicit_uses.clone(),
             implicit_defs: admitted.materialize.implicit_defs.clone(),
             clobbers: admitted.materialize.clobbers.clone(),

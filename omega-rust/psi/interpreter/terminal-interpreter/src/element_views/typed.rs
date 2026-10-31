@@ -102,7 +102,7 @@ impl TerminalExecution<'_> {
         target_element: StructuralTypeId,
     ) -> Result<TypedElementView, TerminalInterpretError> {
         let relation = terminal_semantics::element_representation_relation(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             source_element,
             target_element,
             source.access,

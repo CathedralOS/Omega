@@ -81,9 +81,7 @@ pub(super) fn policy(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.package_identity_field("package", policy.package)?;
     encoder.field_by("target", policy.target, encode_representation_target)?;
-    encoder.field("declarations", |encoder| {
-        encoder.sequence(&policy.declarations, encode_nominal)
-    })?;
+    encoder.sequence_field("declarations", &policy.declarations, encode_nominal)?;
     encoder.field("producer_availability", |encoder| {
         encoder.sequence(&policy.producer_availability, |encoder, availability| {
             encoder.field_by("opaque", &availability.opaque, encode_nominal)?;

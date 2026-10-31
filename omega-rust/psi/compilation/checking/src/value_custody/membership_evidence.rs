@@ -8,6 +8,7 @@
 //! cached proof: it cannot recover a retired fact or combine capture epochs.
 
 use crate::CanonicalPlace;
+use crate::frozen_program::expression_table;
 use facts::{FactContextHandle, FactPlan, PlaceSegment};
 use language_semantics::SemanticDomainId;
 use symbols::SymbolHandle;
@@ -176,8 +177,7 @@ fn segment_covers_subject(
             if start == 0 && end == usize::MAX {
                 true
             } else {
-                program
-                    .expression_table
+                expression_table(program)
                     .constant_integer_value(expression)
                     .and_then(|value| usize::try_from(value).ok())
                     .is_some_and(|index| start <= index && index < end)
@@ -206,7 +206,7 @@ pub fn canonical_place_from_semantic_place(
         facts::PlaceRoot::Expression(expression) => {
             // Semantic expression roots name completed values. Replaying their
             // syntax would replace that identity with newer source storage.
-            if !program.expression_table.expression_is_valid(expression) {
+            if !expression_table(program).expression_is_valid(expression) {
                 return None;
             }
             CanonicalPlace {

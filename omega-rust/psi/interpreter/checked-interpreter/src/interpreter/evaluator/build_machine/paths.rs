@@ -4,6 +4,7 @@
 //! pass explicit operands to this owner; the first operand carries the private
 //! activation facet. Filesystem operand evaluation stays inside its existing
 //! accounting owner, so nested calls retain call-start order and live buffers.
+use crate::interpreter::evaluator::filesystem::real::real_fs;
 use crate::interpreter::evaluator::{
     BTreeMap, Cell, EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation, Frame, Halt,
     SymbolHandle, Value, trap,
@@ -160,9 +161,7 @@ impl<'program> Evaluator<'program> {
                     crate::interpreter::evaluator::PreparedFilesystemCall::Read { fd, .. }
                     | crate::interpreter::evaluator::PreparedFilesystemCall::Write { fd, .. }
                     | crate::interpreter::evaluator::PreparedFilesystemCall::Close { fd } => {
-                        if let Some(issued) = evaluator
-                            .real_fs
-                            .as_ref()
+                        if let Some(issued) = real_fs(evaluator)
                             .and_then(|filesystem| filesystem.descriptor_root(*fd))
                             && issued != root
                         {
@@ -259,9 +258,7 @@ impl<'program> Evaluator<'program> {
             .as_ref()
             .ok_or_else(|| Halt::Trap("generated source requires scoped output custody".into()))?
             .require_sealed_rooted_file(output_root, &relative_path)?;
-        let scoped_real_output = self
-            .real_fs
-            .as_ref()
+        let scoped_real_output = real_fs(self)
             .is_some_and(crate::interpreter::evaluator::filesystem::real::RealFs::is_scoped);
         if !scoped_real_output {
             return trap("generated-source handoff requires a scoped build-output grant");

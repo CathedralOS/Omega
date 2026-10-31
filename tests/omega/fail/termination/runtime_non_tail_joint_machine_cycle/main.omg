@@ -8,9 +8,8 @@ machine Main::main(main: &mut Main) -> bool {
     transition { _ -> Main::left(main, 4) }
 }
 
-machine Main::left(main: &mut Main, remaining: u64)
-terminates by remaining;
--> bool
+machine Main::left(main: &mut Main, remaining: u64) -> bool
+terminates by remaining
 {
     transition remaining > 0 {
         true -> (!Main::right(main, remaining - 1))
@@ -18,9 +17,8 @@ terminates by remaining;
     }
 }
 
-machine Main::right(main: &mut Main, remaining: u64)
-terminates by remaining;
--> bool
+machine Main::right(main: &mut Main, remaining: u64) -> bool
+terminates by remaining
 {
     transition remaining > 0 {
         true -> (!Main::left(main, remaining - 1))

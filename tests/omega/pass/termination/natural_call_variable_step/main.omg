@@ -5,15 +5,15 @@ machine Main::main(main: &mut Main) -> u64 {
 }
 
 machine Main::first(main: &mut Main, remaining: u64, step: u64) -> u64
-requires step > 0;
-terminates by remaining;
+requires step > 0
+terminates by remaining
 {
     transition { _ -> Main::second(main, step, remaining) }
 }
 
 machine Main::second(main: &mut Main, amount: u64, pending: u64) -> u64
-requires amount > 0;
-terminates by pending;
+requires amount > 0
+terminates by pending
 {
     transition pending >= amount {
         true -> Main::first(main, pending - amount, amount)

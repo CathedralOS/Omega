@@ -11,6 +11,7 @@
 //! This identity supplies no bound, reference origin, access, or proposition.
 //! Formation independently proves every index against its actual collection.
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -90,7 +91,7 @@ pub fn immutable_entry_indexed_read_identity(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<ImmutableEntryReadIdentity> {
-    program.expression_table.indexed_node(expression)?;
+    expression_table(program).indexed_node(expression)?;
     let symbol = super::binary::expression_scope(program, expression, 0)?;
     let (machine, state) = super::binary::scoped_machine_state(program, symbol)?;
     let reference = immutable_formal_expression(program, machine, state, expression, 0)?;
@@ -133,7 +134,7 @@ pub fn instantiate_immutable_entry_indexed_read_identity(
     if parameters.len() != arguments.len() {
         return None;
     }
-    program.expression_table.indexed_node(expression)?;
+    expression_table(program).indexed_node(expression)?;
     let reference = immutable_formal_expression(program, machine, entry, expression, 0)?;
     if !program
         .primitive_type_reference(reference)?
@@ -167,7 +168,7 @@ pub fn instantiate_immutable_entry_indexed_read_identity(
         )?);
     }
     let bindings = |expression| {
-        let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+        let ExpressionNode::Name(name) = expression_table(program).expression(expression) else {
             return None;
         };
         let position = parameters
@@ -199,12 +200,11 @@ fn immutable_formal_expression(
     if depth >= 32 {
         return None;
     }
-    let reference = match program.expression_table.expression(expression) {
+    let reference = match expression_table(program).expression(expression) {
         ExpressionNode::Name(name) => {
             if !name.symbol.is_valid()
                 || name.head_symbol != name.symbol
-                || program
-                    .expression_table
+                || expression_table(program)
                     .name_path_members(name.members)
                     .len()
                     != 1
@@ -246,7 +246,7 @@ fn immutable_formal_expression(
                 machine,
                 Some(state),
                 expression,
-            ) || program.expression_table.indexed_on_range(indexed)
+            ) || expression_table(program).indexed_on_range(indexed)
             {
                 return None;
             }
@@ -261,8 +261,7 @@ fn immutable_formal_expression(
             // builtin indexing operation. It has no standalone landed runtime
             // type yet. Keep the original read/selector in the structural term;
             // neither this identity nor the literal grants its bounds proof.
-            let contextual_count = program
-                .expression_table
+            let contextual_count = expression_table(program)
                 .integer_node(indexed.index)
                 .is_some_and(|literal| literal.landing().is_none());
             if !contextual_count {

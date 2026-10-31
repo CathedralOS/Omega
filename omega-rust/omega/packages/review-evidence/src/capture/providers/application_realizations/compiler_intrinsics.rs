@@ -4,6 +4,7 @@ use super::{
     StagedRealization, authored_application_source_span, canonical_source_span_location,
     expression_is_owned_by_package, nominal_identity, stage_realization, token_authored_use_kind,
 };
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::record::{
     CheckedPackageBoundaryApplicationRealizationReview, PackageReviewBoundaryApplication,
@@ -123,18 +124,10 @@ pub(super) fn project(
                                 == application.requirement_symbol
                     })
                     .map(|(_, operator_use)| operator_use)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "implicit application lost its exact source use",
-                        )]
-                    })?;
+                    .or_evidence("implicit application lost its exact source use")?;
                 source_use
                     .operands(compilation.checking_input)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "implicit application has invalid Match arm custody",
-                        )]
-                    })?;
+                    .or_evidence("implicit application has invalid Match arm custody")?;
                 let typed_trees::expression::ExpressionNode::Match(dispatch) =
                     compilation.typed.expression_table.expression(expression)
                 else {
@@ -149,21 +142,13 @@ pub(super) fn project(
                     .arena_index()
                     .checked_sub(dispatch.arms.start().arena_index())
                     .and_then(|ordinal| usize::try_from(ordinal).ok())
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "implicit application has invalid source arm ordinal",
-                        )]
-                    })?;
+                    .or_evidence("implicit application has invalid source arm ordinal")?;
                 let arm = compilation
                     .typed
                     .expression_table
                     .match_arms(dispatch.arms)
                     .get(ordinal)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "implicit application lost its source arm",
-                        )]
-                    })?;
+                    .or_evidence("implicit application lost its source arm")?;
                 Some(arm.source_span)
             }
             _ => None,
@@ -313,12 +298,10 @@ pub(super) fn project(
                 .map(target::TargetProfile::target_name),
             **retained_execution,
         )?
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
+        .or_evidence(format!(
                 "actual boundary application at expression {expression:?} selects compiler intrinsic `{}`, but no closed execution identity exists",
                 plan.name,
-            ))]
-        })?;
+            ))?;
         // The demand names a boundary operator or a top-level boundary
         // requirement; the review row keys on the same overload coordinate
         // for either species.
@@ -334,11 +317,7 @@ pub(super) fn project(
             provider_planning::IntrinsicRequirement::by_symbol(compilation.checking_input, origin)
         })
         .map(|requirement| requirement.into_source().requirement_identity)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "actual compiler-intrinsic application names no boundary operator or top-level boundary requirement",
-            )]
-        })?;
+        .or_evidence("actual compiler-intrinsic application names no boundary operator or top-level boundary requirement",)?;
         if requirement_identity.is_empty() {
             return Err(vec![Diagnostic::error(
                 "actual compiler-intrinsic application lost a strong semantic identity",

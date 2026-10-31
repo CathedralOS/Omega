@@ -46,11 +46,13 @@ pub trait SelectedScalarIntervalSource {
         position: u32,
         path: &[CheckedStructuralPredicatePathSegment],
     ) -> Option<IntegerRange>;
-    fn indexed_field(
+    fn indexed_read(
         &mut self,
-        position: u32,
+        root: checked_trees::CheckedStorageRoot,
         path: &[CheckedStructuralPredicatePathSegment],
-        index: Option<&IntegerRange>,
+        index: &checked_trees::CheckedScalarSelector,
+        element_path: &[checked_trees::CheckedScalarReadProjection],
+        primitive: PrimitiveType,
     ) -> Option<IntegerRange>;
     /// The live byte length of a resolved structural byte carrier. Only a
     /// completed whole-carrier snapshot supplies it; a source with no such
@@ -178,20 +180,10 @@ fn integer(
             element_path,
             primitive_type,
             ..
-        } => {
-            let index = selected_scalar_interval(&index.expression, source);
-            (
-                *primitive_type,
-                match root.parameter() {
-                    // A record element's leaf, or an element selected again
-                    // inside a nested array, carries only its leaf type.
-                    Some(_) if !element_path.is_empty() => carrier_integer_range(*primitive_type)?,
-                    Some(position) => source.indexed_field(position, path, index.as_ref())?,
-                    // A view local's elements carry only their element type.
-                    None => carrier_integer_range(*primitive_type)?,
-                },
-            )
-        }
+        } => (
+            *primitive_type,
+            source.indexed_read(*root, path, index, element_path, *primitive_type)?,
+        ),
         Expression::IntegerLiteral { literal } => {
             let primitive =
                 PrimitiveType::non_address_landed_integer(literal.landing()?.landed_type)?;

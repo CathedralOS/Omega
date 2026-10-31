@@ -3,7 +3,7 @@ use omega::language::core::layout;
 use omega::language::core::numeric_conversion;
 data Payload [copy] { first: u64; value: u64; }
 Policy satisfies FixedLayout<Payload> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
         let mut entries: [FieldEntry; 64];
         entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
         entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };

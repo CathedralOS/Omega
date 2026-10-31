@@ -37,7 +37,11 @@ pub(crate) fn plan_laid_semantic_ranges(
     geometry: &typed_trees::PlanLaidGeometry,
     fields: &[FieldLayout],
 ) -> Result<Vec<(usize, usize)>, Diagnostic> {
-    let mut ranges = Vec::new();
+    let mut ranges = SemanticRanges {
+        plan,
+        geometry,
+        ranges: Vec::new(),
+    };
     for (index, field) in fields.iter().enumerate() {
         if let Some(bit_field) = geometry
             .bit_fields
@@ -46,13 +50,10 @@ pub(crate) fn plan_laid_semantic_ranges(
         {
             for fragment in &bit_field.fragments {
                 let byte_size = usize::from(fragment.container_width_bits).div_ceil(8);
-                push_semantic_range(
-                    plan,
-                    geometry,
+                ranges.push(
                     field.name.as_str(),
                     fragment.container_byte_offset,
                     byte_size,
-                    &mut ranges,
                 )?;
             }
             continue;
@@ -62,14 +63,8 @@ pub(crate) fn plan_laid_semantic_ranges(
             .iter()
             .find(|candidate| candidate.field_index == index)
         {
-            push_semantic_range(
-                plan,
-                geometry,
-                field.name.as_str(),
-                field.offset,
-                usize::from(integer_field.stored_width_bits).div_ceil(8),
-                &mut ranges,
-            )?;
+            let byte_size = usize::from(integer_field.stored_width_bits).div_ceil(8);
+            ranges.push(field.name.as_str(), field.offset, byte_size)?;
             continue;
         }
         if let Some(repeated_field) = geometry
@@ -110,54 +105,44 @@ pub(crate) fn plan_laid_semantic_ranges(
                     .ok_or_else(|| {
                         Diagnostic::error("repeated field callback-closure offset overflows")
                     })?;
-                push_semantic_range(
-                    plan,
-                    geometry,
-                    field.name.as_str(),
-                    start,
-                    element_size,
-                    &mut ranges,
-                )?;
+                ranges.push(field.name.as_str(), start, element_size)?;
             }
             continue;
         }
-        push_semantic_range(
-            plan,
-            geometry,
-            field.name.as_str(),
-            field.offset,
-            field.layout.size,
-            &mut ranges,
-        )?;
+        ranges.push(field.name.as_str(), field.offset, field.layout.size)?;
     }
-    Ok(ranges)
+    Ok(ranges.ranges)
 }
 
-fn push_semantic_range(
-    plan: &typed_trees::typed_trees::PlanLaidLayout,
-    geometry: &typed_trees::PlanLaidGeometry,
-    field: &str,
-    start: usize,
-    byte_size: usize,
-    ranges: &mut Vec<(usize, usize)>,
-) -> Result<(), Diagnostic> {
-    if byte_size == 0 {
-        return Ok(());
+/// The semantic-field byte extents of one plan-laid value, appended in field
+/// order with the range checks every extent must pass before a private callback
+/// slot may claim adjacent storage.
+struct SemanticRanges<'a> {
+    plan: &'a typed_trees::typed_trees::PlanLaidLayout,
+    geometry: &'a typed_trees::PlanLaidGeometry,
+    ranges: Vec<(usize, usize)>,
+}
+
+impl SemanticRanges<'_> {
+    fn push(&mut self, field: &str, start: usize, byte_size: usize) -> Result<(), Diagnostic> {
+        if byte_size == 0 {
+            return Ok(());
+        }
+        let end = start.checked_add(byte_size).ok_or_else(|| {
+            Diagnostic::error(format!(
+                "plan-laid data `{}` semantic field `{field}` extent overflows during private callback closure",
+                self.plan.data_name
+            ))
+        })?;
+        if end > self.geometry.size {
+            return Err(Diagnostic::error(format!(
+                "plan-laid data `{}` semantic field `{field}` range {start}..{end} lies outside its {}-byte layout during private callback closure",
+                self.plan.data_name, self.geometry.size
+            )));
+        }
+        self.ranges.push((start, end));
+        Ok(())
     }
-    let end = start.checked_add(byte_size).ok_or_else(|| {
-        Diagnostic::error(format!(
-            "plan-laid data `{}` semantic field `{field}` extent overflows during private callback closure",
-            plan.data_name
-        ))
-    })?;
-    if end > geometry.size {
-        return Err(Diagnostic::error(format!(
-            "plan-laid data `{}` semantic field `{field}` range {start}..{end} lies outside its {}-byte layout during private callback closure",
-            plan.data_name, geometry.size
-        )));
-    }
-    ranges.push((start, end));
-    Ok(())
 }
 
 pub(crate) fn ranges_overlap(

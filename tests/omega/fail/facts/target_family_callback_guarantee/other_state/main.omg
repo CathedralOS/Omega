@@ -13,7 +13,7 @@ SharedApply satisfies CallbackApply {
         requires value <= 64 ensures result <= 64
     { Action(value) }
 }
-machine main() reaches CallbackApply invokes CallbackApply; crashes Trap {
+machine main() reaches CallbackApply invokes CallbackApply crashes Trap {
     let result: u64 = CallbackApply::apply<identity>(42);
     transition { _ -> consume(result) }
     machine consume(value: u64) crashes Trap requires value <= 64 {

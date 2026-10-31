@@ -13,20 +13,20 @@
 data Filter { threshold: u64; }
 
 machine probe(buf: &mut [u64], filter: &Filter, index: u64)
-requires index < buf.len;
+requires index < buf.len
 {
     transition buf[index] > filter.threshold {
         true -> bump(buf, index)
         _ -> done()
     }
     machine bump(buf: &mut [u64], index: u64)
-    requires index < buf.len;
+    requires index < buf.len
     { buf[index] = 99; }
     machine done() { }
 }
 
 machine drain(buf: &mut [u64], filter: &Filter, index: u64)
-requires index < buf.len;
+requires index < buf.len
 {
     transition { _ -> probe(&mut buf, filter, index) }
 }

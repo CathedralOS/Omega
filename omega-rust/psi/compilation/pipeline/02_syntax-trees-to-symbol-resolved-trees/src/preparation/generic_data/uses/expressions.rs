@@ -4,6 +4,7 @@ use super::super::{
     ExpressionHandle, ExpressionNode, HandleSpan, HashSet, Identifier, Item, StatementNode,
     SyntaxTrees,
 };
+use crate::tables::syntax_type_references;
 /// Marks expressions reached by a collection walk; `mark` reports whether
 /// the expression was new, so a shared subtree is walked once.
 pub(in crate::preparation::generic_data) trait ExpressionMarks {
@@ -64,8 +65,7 @@ pub(in crate::preparation::generic_data) fn visit_expression_type_inputs(
     match syntax.expressions.expression(expression) {
         ExpressionNode::Cast(cast) => {
             visit(cast.target_type);
-            for &argument in syntax
-                .type_references
+            for &argument in syntax_type_references(&syntax)
                 .type_reference_handles(cast.semantic_domain_arguments)
             {
                 visit(argument);

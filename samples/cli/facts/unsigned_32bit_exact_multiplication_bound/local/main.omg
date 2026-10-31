@@ -3,8 +3,8 @@
 // Expected exit: 0
 
 machine multiply_local(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 20u32 && lhs <= 30u32;
-    requires rhs >= 15u32 && rhs <= 25u32;
+    requires lhs >= 20u32 && lhs <= 30u32
+    requires rhs >= 15u32 && rhs <= 25u32
 {
     let l: u32 = lhs;
     let r: u32 = rhs;

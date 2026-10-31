@@ -21,6 +21,7 @@ use super::{
     ExactQuotientRelation, PositionalRelation, RelationPlanError, RepresentativeStaticBinding,
     RepresentativeTelescope,
 };
+use crate::frozen_program::expression_table;
 use numerics::literals::{FloatFormat, IntegerLanding, IntegerLiteral, LandedIntegerType};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -35,7 +36,7 @@ fn literal_target_mismatch_or_none<T>(
     expression: ExpressionHandle,
     position: usize,
 ) -> Result<Option<T>, RelationPlanError> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
             Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
         }
@@ -185,7 +186,7 @@ pub(super) fn derive_direct_lift_runtime_correspondence(
         return Err(RelationPlanError::DirectLiftOwnerRequiresSubstitution);
     }
     let public_parameters = program.public_state_parameters(state).collect::<Vec<_>>();
-    let arguments = program.expression_table.expression_handles(call.arguments);
+    let arguments = expression_table(program).expression_handles(call.arguments);
     if arguments.len() != representative.parameters.len()
         || input_relations.len() != arguments.len()
     {
@@ -308,7 +309,7 @@ fn derive_define_position_runtime_correspondence(
         return Err(RelationPlanError::DefineOwnerRequiresSubstitution);
     }
     let public_parameters = program.public_state_parameters(state).collect::<Vec<_>>();
-    let arguments = program.expression_table.expression_handles(call.arguments);
+    let arguments = expression_table(program).expression_handles(call.arguments);
     let arity_matches = arguments.len() == representative.parameters.len()
         && input_relations.len() == arguments.len()
         && public_parameters.len() == arguments.len();
@@ -375,7 +376,7 @@ pub(super) fn closed_lift_literal_for_representative(
     representative_type: TypeReferenceHandle,
     position: usize,
 ) -> Result<Option<ClosedLiftLiteral>, RelationPlanError> {
-    if let Some(elements) = program.expression_table.array_literal_node(expression) {
+    if let Some(elements) = expression_table(program).array_literal_node(expression) {
         let TypeReferenceNode::FixedArray {
             element_type,
             length: typed_trees::types::FixedArrayLength::Literal(width),
@@ -385,7 +386,7 @@ pub(super) fn closed_lift_literal_for_representative(
         else {
             return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
         };
-        let elements = program.expression_table.expression_handles(*elements);
+        let elements = expression_table(program).expression_handles(*elements);
         if elements.len() != *width {
             return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
         }
@@ -402,22 +403,22 @@ pub(super) fn closed_lift_literal_for_representative(
             let planes = elements
                 .iter()
                 .map(|plane| {
-                    let rows = program.expression_table.array_literal_node(*plane)?;
-                    let rows = program.expression_table.expression_handles(*rows);
+                    let rows = expression_table(program).array_literal_node(*plane)?;
+                    let rows = expression_table(program).expression_handles(*rows);
                     if rows.len() != *plane_height {
                         return None;
                     }
                     rows.iter()
                         .map(|row| {
-                            let leaves = program.expression_table.array_literal_node(*row)?;
-                            let leaves = program.expression_table.expression_handles(*leaves);
+                            let leaves = expression_table(program).array_literal_node(*row)?;
+                            let leaves = expression_table(program).expression_handles(*leaves);
                             if leaves.len() != *row_width {
                                 return None;
                             }
                             leaves
                                 .iter()
                                 .map(|leaf| {
-                                    let value = program.expression_table.boolean_node(*leaf)?;
+                                    let value = expression_table(program).boolean_node(*leaf)?;
                                     Some(*value)
                                 })
                                 .collect::<Option<Vec<_>>>()
@@ -582,7 +583,7 @@ pub(super) fn closed_lift_literal_for_representative(
         }
         return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
     }
-    if let Some(bytes) = program.expression_table.string_node(expression) {
+    if let Some(bytes) = expression_table(program).string_node(expression) {
         let exact_target = exact_shared_byte_slice(program, representative_type)
             || crate::value_custody::expression_types::bounded_byte_buffer_capacity(
                 program,
@@ -611,7 +612,7 @@ pub(super) fn closed_lift_literal_for_representative(
     if name.as_str() != primitive.name() {
         return literal_target_mismatch_or_none(program, expression, position);
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Boolean(value) if primitive == PrimitiveType::Bool => {
             Ok(Some(ClosedLiftLiteral::Boolean(*value)))
         }
@@ -709,10 +710,10 @@ fn closed_recursive_array_element(
             element_type,
             length: typed_trees::types::FixedArrayLength::Literal(width),
         } => {
-            let Some(elements) = program.expression_table.array_literal_node(expression) else {
+            let Some(elements) = expression_table(program).array_literal_node(expression) else {
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             };
-            let elements = program.expression_table.expression_handles(*elements);
+            let elements = expression_table(program).expression_handles(*elements);
             if elements.len() != *width {
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             }
@@ -732,7 +733,7 @@ fn closed_recursive_array_element(
         {
             match (
                 leaf_primitive,
-                program.expression_table.expression(expression),
+                expression_table(program).expression(expression),
             ) {
                 (PrimitiveType::Bool, ExpressionNode::Boolean(value)) => {
                     Ok(ClosedRecursiveArrayElement::Boolean(*value))
@@ -789,10 +790,10 @@ fn nested_literal_rows<'program>(
     elements
         .iter()
         .map(|row| {
-            let Some(row_elements) = program.expression_table.array_literal_node(*row) else {
+            let Some(row_elements) = expression_table(program).array_literal_node(*row) else {
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             };
-            let row_elements = program.expression_table.expression_handles(*row_elements);
+            let row_elements = expression_table(program).expression_handles(*row_elements);
             if row_elements.len() != row_width {
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             }
@@ -808,7 +809,7 @@ fn closed_integer_array_element(
     primitive: PrimitiveType,
     position: usize,
 ) -> Result<ClosedIntegerArrayElement, RelationPlanError> {
-    let Some(literal) = program.expression_table.integer_node(element) else {
+    let Some(literal) = expression_table(program).integer_node(element) else {
         return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
     };
     let landing = exact_integer_landing(program, element_type, primitive, literal, position)?;
@@ -825,7 +826,7 @@ fn closed_float_array_element(
     primitive: PrimitiveType,
     position: usize,
 ) -> Result<ClosedFloatArrayElement, RelationPlanError> {
-    let ExpressionNode::Float(literal) = program.expression_table.expression(element) else {
+    let ExpressionNode::Float(literal) = expression_table(program).expression(element) else {
         return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
     };
     let landing = exact_float_landing(primitive, literal, position)?;
@@ -844,7 +845,7 @@ fn closed_boolean_array_elements(
     elements
         .iter()
         .map(|element| {
-            let value = program.expression_table.boolean_node(*element)?;
+            let value = expression_table(program).boolean_node(*element)?;
             Some(*value)
         })
         .collect()
@@ -857,7 +858,7 @@ fn canonical_fixed_bytes(
     elements
         .iter()
         .map(|element| {
-            let literal = program.expression_table.integer_node(*element)?;
+            let literal = expression_table(program).integer_node(*element)?;
             let value = literal
                 .value_u64()
                 .and_then(|value| u8::try_from(value).ok())?;
@@ -947,13 +948,12 @@ pub(super) fn direct_public_parameter_symbol(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let expression = match program.expression_table.expression(expression) {
+    let expression = match expression_table(program).expression(expression) {
         ExpressionNode::Borrow(inner) => inner.target,
         _ => expression,
     };
-    let path = program.expression_table.name_path_node(expression)?;
-    (program
-        .expression_table
+    let path = expression_table(program).name_path_node(expression)?;
+    (expression_table(program)
         .name_path_members(path.members)
         .len()
         == 1

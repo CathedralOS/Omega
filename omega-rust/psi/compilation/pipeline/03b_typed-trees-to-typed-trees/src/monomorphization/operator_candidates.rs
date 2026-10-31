@@ -6,6 +6,7 @@ use crate::monomorphization::body_cloning::{clone_specialized_machine, copy_type
 use crate::monomorphization::{
     Candidate, SpecializationKey, candidate, materialize_static_argument_types, saved_calls,
 };
+use crate::tables::expressions_of;
 use typed_trees::operator::ClosedOperatorApplicationArgument;
 use validation::collect_expression_tree;
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
@@ -460,16 +461,14 @@ fn selected_operator_applications(
                 ));
                 continue;
             }
-            let retained = program
-                .expression_table
-                .static_machine_application(receipt.binding_application);
+            let retained =
+                expressions_of(program).static_machine_application(receipt.binding_application);
             let application = (retained.binding_declaration == operator.symbol)
                 .then(|| {
                     typed_trees::operator::closed_operator_application_from_bindings(
                         program,
                         operator,
-                        program
-                            .expression_table
+                        expressions_of(program)
                             .static_machine_application_bindings(receipt.binding_application),
                     )
                 })
@@ -557,45 +556,44 @@ fn selected_operator_application_at_expression(
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Result<Option<Vec<ClosedOperatorApplicationArgument>>, Diagnostic> {
-    let (operands, explicit_static_arguments) =
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Call(call) => {
-                if typed_trees::operator::resolve_named_expression_call(program, call)
-                    .is_none_or(|resolved| resolved.symbol != operator.symbol)
-                {
-                    return Ok(None);
-                }
-                let explicit = program.expression_table.expression_handles(call.arguments);
-                let parameters = program.operator_parameters(operator);
-                let mut operands = Vec::with_capacity(explicit.len() + 1);
-                if call.receiver.is_valid() && parameters.len() == explicit.len() + 1 {
-                    operands.push(call.receiver);
-                }
-                operands.extend_from_slice(explicit);
-                (operands, Some(call.machine_arguments.as_ref()))
-            }
-            ExpressionNode::Binary(binary) => {
-                let Some(spelling) =
-                    typed_trees::operator::binary_operator_spelling(binary.operator)
-                else {
-                    return Ok(None);
-                };
-                if operator.spelling != Some(spelling) {
-                    return Ok(None);
-                }
-                (vec![binary.left, binary.right], None)
-            }
-            ExpressionNode::Indexed(indexed)
-                if !matches!(
-                    program.expression_table.expression(indexed.index),
-                    ExpressionNode::Range(_)
-                ) && operator.spelling
-                    == Some(language_core::operator_spelling::OperatorSpelling::Index) =>
+    let (operands, explicit_static_arguments) = match expressions_of(program).expression(expression)
+    {
+        ExpressionNode::Call(call) => {
+            if typed_trees::operator::resolve_named_expression_call(program, call)
+                .is_none_or(|resolved| resolved.symbol != operator.symbol)
             {
-                (vec![indexed.collection, indexed.index], None)
+                return Ok(None);
             }
-            _ => return Ok(None),
-        };
+            let explicit = expressions_of(program).expression_handles(call.arguments);
+            let parameters = program.operator_parameters(operator);
+            let mut operands = Vec::with_capacity(explicit.len() + 1);
+            if call.receiver.is_valid() && parameters.len() == explicit.len() + 1 {
+                operands.push(call.receiver);
+            }
+            operands.extend_from_slice(explicit);
+            (operands, Some(call.machine_arguments.as_ref()))
+        }
+        ExpressionNode::Binary(binary) => {
+            let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
+            else {
+                return Ok(None);
+            };
+            if operator.spelling != Some(spelling) {
+                return Ok(None);
+            }
+            (vec![binary.left, binary.right], None)
+        }
+        ExpressionNode::Indexed(indexed)
+            if !matches!(
+                expressions_of(program).expression(indexed.index),
+                ExpressionNode::Range(_)
+            ) && operator.spelling
+                == Some(language_core::operator_spelling::OperatorSpelling::Index) =>
+        {
+            (vec![indexed.collection, indexed.index], None)
+        }
+        _ => return Ok(None),
+    };
     let origin = checked_trees::CheckedValueOrigin::StateStatement {
         machine_symbol: machine.symbol,
         state_symbol: state.symbol,
@@ -635,7 +633,7 @@ fn selected_operator_application_at_expression(
         program,
         spelling,
         &operand_types,
-        program.expression_table.source_span(expression),
+        expressions_of(program).source_span(expression),
     )
     .iter()
     .any(|candidate| candidate.operator.symbol == operator.symbol)

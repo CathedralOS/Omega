@@ -5,18 +5,18 @@ use omega::language::core::numeric_conversion;
 // A near-singular algebraic equilibrium can be far outside the output rails.
 // Keep its microvolt presentation in i64 rather than silently clipping to i32.
 public machine voltage(value: f64)
-invokes Console;
+invokes Console
 reaches Console {
     let scaled: i64 in Saturating = I64::from_f64(value * 1000000.0);
     integer64(scaled as i64);
 }
 public machine integer(value: i32)
-invokes Console;
+invokes Console
 reaches Console {
     integer64(widen_i32_to_i64(value));
 }
 machine integer64(value: i64)
-invokes Console;
+invokes Console
 reaches Console {
     transition value < 0 {
         true -> negative(value)
@@ -34,7 +34,7 @@ reaches Console {
     }
 }
 machine unsigned(value: u64)
-invokes Console;
+invokes Console
 reaches Console {
     transition { _ -> digits(value, 10000000000000000000, false) }
     machine digits(value: u64, divisor: u64, started: bool)

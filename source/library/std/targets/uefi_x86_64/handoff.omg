@@ -179,7 +179,7 @@ public data UefiOsHandoffLegs {
 // on `status` for the enclosing cycle's dispatch.
 machine UefiOsHandoffLegs::acquire(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
     reaches UefiBootServices
-    invokes UefiBootServices;
+    invokes UefiBootServices
 {
     uefi_os_handoff_legs.map_size = uefi_os_handoff_legs.map_capacity;
     let table_in: &EfiBootServicesTable = uefi_os_handoff_legs.table;
@@ -199,7 +199,7 @@ machine UefiOsHandoffLegs::acquire(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
 // `map`/`map_pages` storage live and untouched.
 machine UefiOsHandoffLegs::grow(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
     reaches UefiBootServices
-    invokes UefiBootServices;
+    invokes UefiBootServices
 {
     let table_in: &EfiBootServicesTable = uefi_os_handoff_legs.table;
     let pages_in: u64 = uefi_os_handoff_legs.pages;
@@ -216,7 +216,7 @@ machine UefiOsHandoffLegs::grow(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
 // Release the superseded map storage before the grown buffer is adopted.
 machine UefiOsHandoffLegs::free_map(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
     reaches UefiBootServices
-    invokes UefiBootServices;
+    invokes UefiBootServices
 {
     let table_in: &EfiBootServicesTable = uefi_os_handoff_legs.table;
     let map_in: u64 = uefi_os_handoff_legs.map;
@@ -229,7 +229,7 @@ machine UefiOsHandoffLegs::free_map(uefi_os_handoff_legs: &mut UefiOsHandoffLegs
 // rejected exit leaves the retained evidence live for the cycle's retry.
 machine UefiOsHandoffLegs::attempt_exit(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
     reaches UefiBootServices
-    invokes UefiBootServices;
+    invokes UefiBootServices
 {
     let table_in: &EfiBootServicesTable = uefi_os_handoff_legs.table;
     let image_in: u64 = uefi_os_handoff_legs.image;
@@ -244,14 +244,14 @@ public data UefiOsHandoffTerminal { }
 
 public machine UefiOsHandoffTerminal::firmware_return(uefi_os_handoff_terminal: &mut UefiOsHandoffTerminal, status: u64)
     reaches UefiOsHandoffTermination
-    invokes UefiOsHandoffTermination;
+    invokes UefiOsHandoffTermination
 {
     UefiOsHandoffTermination::firmware_return(status);
 }
 
 public machine UefiOsHandoffTerminal::transfer(uefi_os_handoff_terminal: &mut UefiOsHandoffTerminal)
     reaches UefiOsHandoffTermination
-    invokes UefiOsHandoffTermination;
+    invokes UefiOsHandoffTermination
 {
     UefiOsHandoffTermination::transfer();
 }
@@ -275,42 +275,42 @@ public data UefiOsHandoffCycle {
 
 machine UefiOsHandoffCycle::acquire(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
     reaches UefiBootServices
-    invokes UefiBootServices;
+    invokes UefiBootServices
 {
     UefiOsHandoffLegs::acquire(&mut uefi_os_handoff_cycle.legs);
 }
 
 machine UefiOsHandoffCycle::grow(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
     reaches UefiBootServices
-    invokes UefiBootServices;
+    invokes UefiBootServices
 {
     UefiOsHandoffLegs::grow(&mut uefi_os_handoff_cycle.legs);
 }
 
 machine UefiOsHandoffCycle::free_map(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
     reaches UefiBootServices
-    invokes UefiBootServices;
+    invokes UefiBootServices
 {
     UefiOsHandoffLegs::free_map(&mut uefi_os_handoff_cycle.legs);
 }
 
 machine UefiOsHandoffCycle::attempt_exit(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
     reaches UefiBootServices
-    invokes UefiBootServices;
+    invokes UefiBootServices
 {
     UefiOsHandoffLegs::attempt_exit(&mut uefi_os_handoff_cycle.legs);
 }
 
 machine UefiOsHandoffCycle::firmware_return(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle, status: u64)
     reaches UefiOsHandoffTermination
-    invokes UefiOsHandoffTermination;
+    invokes UefiOsHandoffTermination
 {
     UefiOsHandoffTerminal::firmware_return(&mut uefi_os_handoff_cycle.terminal, status);
 }
 
 machine UefiOsHandoffCycle::transfer(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
     reaches UefiOsHandoffTermination
-    invokes UefiOsHandoffTermination;
+    invokes UefiOsHandoffTermination
 {
     UefiOsHandoffTerminal::transfer(&mut uefi_os_handoff_cycle.terminal);
 }
@@ -328,7 +328,7 @@ machine valid_map_geometry(size: u64, capacity: u64, stride: u64, version: u32) 
         _ -> (false)
     }
     machine tiled(size: u64, capacity: u64, stride: u64) -> bool
-    requires stride >= EFI_MEMORY_DESCRIPTOR_MINIMUM_SIZE;
+    requires stride >= EFI_MEMORY_DESCRIPTOR_MINIMUM_SIZE
     {
         size > 0 && size <= capacity && size % stride == 0
     }
@@ -336,7 +336,7 @@ machine valid_map_geometry(size: u64, capacity: u64, stride: u64, version: u32) 
 
 public machine UefiOsHandoffCycle::complete_boot_services(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition
     reaches UefiBootServices
-    invokes UefiBootServices;
+    invokes UefiBootServices
 {
     // A retained decision is not permission to restart firmware operations.
     // This guard also retains failed-release allocations and the spent budget.
@@ -513,8 +513,8 @@ public machine UefiOsHandoffCycle::complete_boot_services(uefi_os_handoff_cycle:
 // execute a firmware return or an OS entry.
 public machine UefiOsHandoffCycle::run(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
     reaches UefiBootServices + UefiOsHandoffTermination
-    invokes UefiBootServices;
-    invokes UefiOsHandoffTermination;
+    invokes UefiBootServices
+    invokes UefiOsHandoffTermination
 {
     let disposition: UefiOsHandoffDisposition = UefiOsHandoffCycle::complete_boot_services(uefi_os_handoff_cycle);
     transition disposition {

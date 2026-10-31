@@ -15,9 +15,7 @@ impl TerminalExecution<'_> {
         operation_kind!(operation => EstablishByteSequenceConcatenation { left, right, .. });
         let result = operation.result.structural().ok_or_else(malformed)?;
         let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
-            self.program
-                .structural_declaration(result.structural_type)?
-                .shape
+            self.structural_declaration(result.structural_type)?.shape
         else {
             return Err(malformed());
         };

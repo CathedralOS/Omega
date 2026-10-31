@@ -8,6 +8,9 @@
 use crate::lowering::name::lower_names;
 use crate::lowering::type_reference::{lower_child_type_references, lower_type_reference_handle};
 use crate::resolution::lowerer::Lowerer;
+use crate::tables::syntax_expressions;
+use crate::tables::syntax_items;
+use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
@@ -122,10 +125,7 @@ fn lower_data_definition_with_argument_origins(
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
     let case_fact_gate = GenericCaseFactGate::new(syntax_trees, data_definition.type_parameters);
     let mut members = HandleSpan::empty();
-    for parameter in syntax_trees
-        .items
-        .type_parameters(data_definition.type_parameters)
-    {
+    for parameter in syntax_items(&syntax_trees).type_parameters(data_definition.type_parameters) {
         let syntax::item::TypeParameterKind::Value { type_reference } = &parameter.kind else {
             continue;
         };
@@ -167,8 +167,7 @@ fn lower_data_definition_with_argument_origins(
             ));
         }
     }
-    let retired_identities = syntax_trees
-        .items
+    let retired_identities = syntax_items(&syntax_trees)
         .data_members(data_definition.members)
         .iter()
         .filter_map(|member| match member {
@@ -184,9 +183,7 @@ fn lower_data_definition_with_argument_origins(
                 carrier: lower_type_reference_handle(lowerer, syntax_trees, quotient.carrier)?,
                 relation: lower_names(
                     syntax_trees,
-                    syntax_trees
-                        .items
-                        .identifier_path_members(quotient.relation),
+                    syntax_items(&syntax_trees).identifier_path_members(quotient.relation),
                 ),
                 relation_symbol: SymbolHandle::invalid(),
                 equivalence: quotient
@@ -195,8 +192,7 @@ fn lower_data_definition_with_argument_origins(
                     .map(|selection| {
                         Ok::<_, Diagnostic>(
                             symbol_resolved_trees::data::QuotientEquivalenceSelection {
-                                relation: syntax_trees
-                                    .items
+                                relation: syntax_items(&syntax_trees)
                                     .identifier_path_members(selection.relation)
                                     .iter()
                                     .map(|name| {
@@ -638,8 +634,7 @@ fn generic_case_facts_unsupported(
     if gate.unsubstituted.is_empty() && gate.consts.is_empty() && gate.values.is_empty() {
         return false;
     }
-    syntax_trees
-        .items
+    syntax_items(&syntax_trees)
         .proof_facts(facts)
         .iter()
         .any(|fact| match fact {
@@ -662,13 +657,11 @@ fn generic_case_facts_unsupported(
             // positions, so `type`/`const` binders admit there.
             syntax::item::ProofFact::Membership(membership) => {
                 case_fact_expression_mentions(syntax_trees, membership.value, gate, false)
-                    || syntax_trees
-                        .items
+                    || syntax_items(&syntax_trees)
                         .identifier_path_members(membership.domain)
                         .iter()
                         .any(|member| gate.mentions(member.as_str(syntax_trees)))
-                    || syntax_trees
-                        .type_references
+                    || syntax_type_references(&syntax_trees)
                         .type_reference_handles(membership.domain_arguments)
                         .iter()
                         .any(|argument| membership_argument_mentions(syntax_trees, *argument, gate))
@@ -773,8 +766,7 @@ fn case_fact_expression_mentions(
         };
     }
     match syntax_trees.expressions.expression(expression) {
-        ExpressionNode::Name(path) => syntax_trees
-            .expressions
+        ExpressionNode::Name(path) => syntax_expressions(&syntax_trees)
             .identifier_path_members(*path)
             .iter()
             .any(|member| {
@@ -790,15 +782,13 @@ fn case_fact_expression_mentions(
             mention_child!(indexed.collection) || mention_child!(indexed.index)
         }
         ExpressionNode::Range(range) => mention_child!(range.start) || mention_child!(range.end),
-        ExpressionNode::ArrayLiteral(elements) => syntax_trees
-            .expressions
+        ExpressionNode::ArrayLiteral(elements) => syntax_expressions(&syntax_trees)
             .expression_handles(*elements)
             .iter()
             .any(|element| mention_child!(*element)),
         ExpressionNode::Membership(membership) => {
             case_fact_expression_mentions(syntax_trees, membership.value, gate, false)
-                || syntax_trees
-                    .expressions
+                || syntax_expressions(&syntax_trees)
                     .identifier_path_members(membership.domain)
                     .iter()
                     .any(|member| gate.mentions(member.as_str(syntax_trees)))
@@ -806,13 +796,11 @@ fn case_fact_expression_mentions(
         ExpressionNode::Cast(cast) => {
             mention_child!(cast.value)
                 || case_fact_type_mentions(syntax_trees, cast.target_type, gate)
-                || syntax_trees
-                    .expressions
+                || syntax_expressions(&syntax_trees)
                     .identifier_path_members(cast.semantic_domain)
                     .iter()
                     .any(|member| gate.mentions(member.as_str(syntax_trees)))
-                || syntax_trees
-                    .type_references
+                || syntax_type_references(&syntax_trees)
                     .type_reference_handles(cast.semantic_domain_arguments)
                     .iter()
                     .any(|argument| case_fact_type_mentions(syntax_trees, *argument, gate))
@@ -831,8 +819,7 @@ fn case_fact_expression_mentions(
                 .split("::")
                 .any(|name| gate.mentions(name))
                 || (call.receiver.is_valid() && mention_child!(call.receiver))
-                || syntax_trees
-                    .expressions
+                || syntax_expressions(&syntax_trees)
                     .expression_handles(call.arguments)
                     .iter()
                     .any(|argument| mention_child!(*argument))
@@ -924,8 +911,7 @@ fn case_fact_type_mentions(
             ..
         } => {
             gate.mentions(base_name.as_str(syntax_trees))
-                || syntax_trees
-                    .type_references
+                || syntax_type_references(&syntax_trees)
                     .type_reference_handles(*arguments)
                     .iter()
                     .any(|argument| case_fact_type_mentions(syntax_trees, *argument, gate))
@@ -935,8 +921,7 @@ fn case_fact_type_mentions(
             constraints,
         } => {
             case_fact_type_mentions(syntax_trees, *base_type, gate)
-                || syntax_trees
-                    .type_references
+                || syntax_type_references(&syntax_trees)
                     .constraints(*constraints)
                     .iter()
                     .any(|constraint| match constraint {
@@ -950,8 +935,7 @@ fn case_fact_type_mentions(
                         TypeConstraintNode::ArithmeticDomain(_) => false,
                         TypeConstraintNode::Domain(domain) => {
                             gate.mentions(domain.name.as_str(syntax_trees))
-                                || syntax_trees
-                                    .type_references
+                                || syntax_type_references(&syntax_trees)
                                     .type_reference_handles(domain.arguments)
                                     .iter()
                                     .any(|argument| {
@@ -968,8 +952,7 @@ fn case_fact_type_mentions(
             trait_arguments,
         } => {
             gate.mentions(trait_name.as_str(syntax_trees))
-                || syntax_trees
-                    .type_references
+                || syntax_type_references(&syntax_trees)
                     .type_reference_handles(*trait_arguments)
                     .iter()
                     .any(|argument| case_fact_type_mentions(syntax_trees, *argument, gate))

@@ -10,7 +10,7 @@ macos_x86_64 machine selected() -> u32 reaches Output { Output::value() }
 linux_x86_64 machine selected() -> u32 reaches Output { Output::value() }
 linux_arm64 machine selected() -> u32 reaches Output { Output::value() }
 windows_x86_64 machine selected() -> u32 reaches Output { Output::value() }
-machine count(remaining: u32) terminates by remaining; -> u32 reaches Output {
+machine count(remaining: u32) -> u32 terminates by remaining reaches Output {
     transition remaining > 0 {
         true -> count(remaining - 1)
         false -> finish()

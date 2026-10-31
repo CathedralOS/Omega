@@ -538,11 +538,8 @@ pub(super) fn callee_plan(
                 .structural_parameter(position)
                 .ok_or(LegalizationError::custody())?;
             parameters.push(
-                crate::structural_inputs::structural_reference_input::parameter_shape(
-                    formal,
-                    &plan.structural_types,
-                )
-                .ok_or(LegalizationError::custody())?,
+                crate::structural_inputs::parameter_shape(formal, &plan.structural_types)
+                    .ok_or(LegalizationError::custody())?,
             );
         }
         let result = if let Some(result) = signature.structural_result() {

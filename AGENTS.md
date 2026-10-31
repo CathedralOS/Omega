@@ -488,9 +488,10 @@ profiles bound to the actual binary digests. See
   `~/.cache/mbx` on Unix), hardlinking pre-compiled objects across worktrees.
   Update it via `cargo install mbx`. Running `mbx setup` configures plain Cargo
   commands to leverage mbx caching automatically.
-- Keep each worktree's Cargo target directory separate, including baseline
-  comparisons. Share objects through `mbx`, never by pointing two worktrees at
-  one `CARGO_TARGET_DIR`; a baseline can replace dependencies later reused as fresh.
+- Keep each worktree's Cargo target directory independent. Share mbx's cache,
+  not `CARGO_TARGET_DIR` between checkouts: Cargo can treat another checkout's
+  artifacts as fresh. In particular, baseline comparisons must not write into
+  the candidate's target directory.
 - Wrap a lane's local build/test chain in one `tools/build_slot.py`
   hold; release it before waiting on GitHub. Nested holds short-circuit
   ([build slots](tools/build_slot.md#one-hold-for-a-whole-chain)).
@@ -514,6 +515,14 @@ profiles bound to the actual binary digests. See
   bootstrap gates, test selection, slow builds — lives in
   [tools/testing.md](tools/testing.md). Read it before running more than the
   affected crate's check.
+- **Keep progress PRs bounded.** Name the changed behavior and its necessary
+  checks before building. Reuse unchanged results; finish and enqueue once
+  those checks and required review pass. Full Product builds, self-hosting,
+  release matrices and pinned qualification are separate assignments unless
+  explicitly required for the current acceptance. Do not accumulate every
+  earlier repair's tests or turn a discovered performance problem into another
+  prerequisite for an independently complete PR. Follow the
+  [merge validation budget](tools/testing.md#merge-validation-budget).
 
 ## The Psi/Omega firewall
 

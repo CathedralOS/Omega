@@ -3,6 +3,7 @@
 mod rational_bounds;
 
 use super::{Shape, Value, land_anonymous, primitive};
+use crate::build_time_evaluation::expression_table;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigRational;
 use numerics::literals::LandedIntegerType;
@@ -262,8 +263,7 @@ pub(super) fn validate_landing(
     while let Some(expression) = pending.pop() {
         if let Some(dispatch) = program.expression_table.match_node(expression) {
             pending.extend(
-                program
-                    .expression_table
+                expression_table(program)
                     .match_arms(dispatch.arms)
                     .iter()
                     .map(|arm| arm.value),
@@ -521,8 +521,7 @@ pub(super) fn validate_anonymous_fragments(
     while let Some(expression) = pending.pop() {
         if let Some(dispatch) = program.expression_table.match_node(expression) {
             pending.extend(
-                program
-                    .expression_table
+                expression_table(program)
                     .match_arms(dispatch.arms)
                     .iter()
                     .map(|arm| arm.value),

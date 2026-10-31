@@ -83,7 +83,6 @@ impl<'call> StaticArgumentCall<'call> {
         let application = self.application();
         if application.is_valid() {
             return program
-                .expression_table
                 .static_machine_application(application)
                 .registration_operation;
         }
@@ -98,7 +97,6 @@ impl<'call> StaticArgumentCall<'call> {
         let application = self.application();
         if application.is_valid() {
             program
-                .expression_table
                 .static_machine_application(application)
                 .lexical_owner
         } else {
@@ -111,9 +109,7 @@ impl<'call> StaticArgumentCall<'call> {
     pub fn arguments(&self, program: &'call TypedTrees) -> &'call [StaticMachineArgument] {
         let application = self.application();
         if application.is_valid() {
-            return program
-                .expression_table
-                .static_machine_application_arguments(application);
+            return program.static_machine_application_arguments(application);
         }
         match self {
             Self::Expression(_, call) => &call.machine_arguments,
@@ -449,7 +445,6 @@ impl TypeOccurrences {
         program: &TypedTrees,
     ) -> Vec<crate::static_applications::StaticMachineApplicationHandle> {
         program
-            .expression_table
             .static_machine_applications()
             .filter_map(|(handle, _)| self.applications.contains(&handle).then_some(handle))
             .collect()
@@ -463,10 +458,7 @@ impl Extend<SymbolHandle> for TypeOccurrences {
 impl TypedReferences for TypeOccurrences {
     fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
         if let StaticArgumentCall::Expression(_, call) = call {
-            let readiness = match program
-                .expression_table
-                .build_selection_request(call.build_selection)
-            {
+            let readiness = match program.build_selection_request(call.build_selection) {
                 Some(crate::expression::BuildSelectionRequest::ProviderReadiness(request)) => {
                     request.requirement
                 }
@@ -487,7 +479,7 @@ impl TypedReferences for TypeOccurrences {
         }
         for handle in [call.application(), call.selection_application()] {
             if handle.is_valid() {
-                let source = program.expression_table.static_machine_application(handle);
+                let source = program.static_machine_application(handle);
                 if source.lexical_owner == self.owner && source.conformance_selection.is_some() {
                     self.applications.insert(handle);
                 }
@@ -873,9 +865,7 @@ pub fn visit_product_operand_inputs(
         .product_operand_applications
         .iter()
         .filter_map(|(handle, application)| {
-            let source = program
-                .expression_table
-                .static_machine_application(application.supplying_application);
+            let source = program.static_machine_application(application.supplying_application);
             (source.lexical_owner == owner).then_some(handle)
         })
         .collect::<Vec<_>>();
@@ -885,9 +875,7 @@ pub fn visit_product_operand_inputs(
     let live = program.live_product_operand_applications();
     for handle in pending.into_iter().filter(|handle| live.contains(handle)) {
         let application = program.product_operand_applications.get(handle);
-        let source = program
-            .expression_table
-            .static_machine_application(application.supplying_application);
+        let source = program.static_machine_application(application.supplying_application);
         roots.enter_lexical_scope(source.lexical_owner);
         roots.declaration_description_dependency(application.declaration);
         for selection in program
@@ -949,10 +937,7 @@ pub fn collect_expression_source_owners(
             if self.matched || !self.expressions.insert(handle) {
                 return false;
             }
-            if self
-                .sources
-                .contains(&self.program.expression_table.source_span(handle))
-            {
+            if self.sources.contains(&self.program.source_span(handle)) {
                 self.owners.include(self.current);
                 self.matched = true;
                 return false;
@@ -1180,9 +1165,7 @@ fn visit_callable_symbol(
     {
         visit_type_reference(program, retained, *reference);
     }
-    let source = program
-        .expression_table
-        .static_machine_application(application.application);
+    let source = program.static_machine_application(application.application);
     visit_symbol(retained, source.binding_declaration);
     retained.declaration_description_dependency(source.lexical_owner);
     visit_static_machine_bindings(program, retained, application.application);
@@ -1220,7 +1203,7 @@ pub fn visit_static_argument(
         for nested in application.arguments.iter() {
             visit_static_argument(program, retained, nested);
         }
-        if let Some(member) = program.expression_table.static_member(application.member) {
+        if let Some(member) = program.static_member(application.member) {
             visit_static_argument(program, retained, member);
         }
     }
@@ -1248,11 +1231,8 @@ fn visit_static_machine_bindings_inner(
         return;
     }
     retained.static_application(application);
-    let source = program
-        .expression_table
-        .static_machine_application(application);
+    let source = program.static_machine_application(application);
     if !program
-        .expression_table
         .static_machine_application_lifetimes(application)
         .is_empty()
     {
@@ -1269,7 +1249,6 @@ fn visit_static_machine_bindings_inner(
         }
     }
     if let Some(selection) = &program
-        .expression_table
         .static_machine_application(application)
         .conformance_selection
         && let Some(selected) = selection.application.as_deref()
@@ -1281,16 +1260,10 @@ fn visit_static_machine_bindings_inner(
         visit_signature(program, retained, applied.required);
         visit_signature(program, retained, applied.selected);
     }
-    for selected in program
-        .expression_table
-        .static_machine_application_selected_machines(application)
-    {
+    for selected in program.static_machine_application_selected_machines(application) {
         visit_static_argument(program, retained, selected);
     }
-    for binding in program
-        .expression_table
-        .static_machine_application_bindings(application)
-    {
+    for binding in program.static_machine_application_bindings(application) {
         use crate::static_applications::StaticMachineBindingValue;
         match &binding.value {
             StaticMachineBindingValue::Type(reference)
@@ -1399,7 +1372,6 @@ fn visit_declaration_dependencies(
             .filter(|(_, capture)| {
                 capture.conformance_application == selected.application
                     && program
-                        .expression_table
                         .static_machine_application(capture.supplying_application)
                         .lexical_owner
                         == owner
@@ -1416,7 +1388,6 @@ fn visit_declaration_dependencies(
         .iter()
         .filter(|(_, selected)| {
             program
-                .expression_table
                 .static_machine_application(selected.supplying_application)
                 .lexical_owner
                 == owner
@@ -1434,7 +1405,6 @@ fn visit_declaration_dependencies(
                     .filter(|(_, capture)| {
                         capture.conformance_application == selected.application
                             && program
-                                .expression_table
                                 .static_machine_application(capture.supplying_application)
                                 .lexical_owner
                                 == owner
@@ -1541,10 +1511,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             .chain(definition.refines.iter())
         {
             visit_symbol(retained, requirement.symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(requirement.arguments)
-            {
+            for argument in program.type_reference_handles(requirement.arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -1582,10 +1549,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             visit_symbol(retained, row.realization_machine);
             visit_symbol(retained, row.realization_state);
         }
-        for argument in program
-            .type_reference_table
-            .type_reference_handles(conformance.arguments)
-        {
+        for argument in program.type_reference_handles(conformance.arguments) {
             visit_type_reference(program, retained, *argument);
         }
     }
@@ -1642,7 +1606,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             visit_type_reference(program, retained, parameter.type_reference);
         }
         visit_type_reference(program, retained, measure.return_type);
-        for expression in program.expression_table.expression_handles(measure.body) {
+        for expression in program.expression_handles(measure.body) {
             visit_expression(program, retained, *expression);
         }
     }
@@ -1764,19 +1728,14 @@ fn visit_cleanup_selection(
     retained: &mut impl TypedReferences,
     selection: &crate::domain::CleanupSelection,
 ) {
-    let application = program
-        .expression_table
-        .static_machine_application(selection.application);
+    let application = program.static_machine_application(selection.application);
     if let Some(occurrence) = selection.authorization {
         retained.authored_selection(occurrence);
     }
     visit_symbol(retained, application.registration_operation);
     visit_symbol(retained, selection.executable);
     visit_type_reference(program, retained, selection.subject);
-    for argument in program
-        .expression_table
-        .static_machine_application_arguments(selection.application)
-    {
+    for argument in program.static_machine_application_arguments(selection.application) {
         visit_static_argument(program, retained, argument);
     }
     visit_static_machine_bindings(program, retained, selection.application);
@@ -1801,10 +1760,7 @@ pub fn visit_proof_fact(
             }
             visit_expression(program, retained, membership.value);
             visit_symbol(retained, membership.domain_symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(membership.domain_arguments)
-            {
+            for argument in program.type_reference_handles(membership.domain_arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -1827,10 +1783,7 @@ fn visit_proposition_application(
             visit_symbol(retained, binder.symbol);
         }
     }
-    for argument in program
-        .expression_table
-        .expression_handles(application.arguments)
-    {
+    for argument in program.expression_handles(application.arguments) {
         visit_expression(program, retained, *argument);
     }
 }
@@ -1974,10 +1927,7 @@ pub fn visit_type_reference(
             ..
         } => {
             visit_symbol(retained, *base_symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
+            for argument in program.type_reference_handles(*arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -1990,10 +1940,7 @@ pub fn visit_type_reference(
             symbol, arguments, ..
         } => {
             visit_symbol(retained, *symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-            {
+            for argument in program.type_reference_handles(*arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -2013,7 +1960,7 @@ pub fn visit_expression(
     if !expression.is_valid() || !retained.expression(expression) {
         return;
     }
-    if let Some(operation) = program.expression_table.open_index_operation(expression) {
+    if let Some(operation) = program.open_index_operation(expression) {
         visit_symbol(retained, operation.provider);
         visit_symbol(retained, operation.operator);
         visit_symbol(retained, operation.algebra_trait);
@@ -2022,16 +1969,13 @@ pub fn visit_expression(
             visit_static_argument(program, retained, application);
         }
     }
-    for occurrence in program
-        .expression_table
-        .authored_selection_occurrences(expression)
-    {
+    for occurrence in program.authored_selection_occurrences(expression) {
         visit_authored_selection(program, retained, occurrence);
     }
-    match program.expression_table.expression(expression) {
+    match program.expression(expression) {
         ExpressionNode::Match(match_expression) => {
             visit_expression(program, retained, match_expression.subject);
-            for arm in program.expression_table.match_arms(match_expression.arms) {
+            for arm in program.match_arms(match_expression.arms) {
                 visit_match_arm(program, retained, arm);
             }
         }
@@ -2039,15 +1983,12 @@ pub fn visit_expression(
             visit_expression(
                 program,
                 retained,
-                program
-                    .expression_table
-                    .value_capture(saved.capture)
-                    .subject,
+                program.value_capture(saved.capture).subject,
             );
             visit_expression(program, retained, saved.pattern_head);
         }
         ExpressionNode::ArrayLiteral(elements) => {
-            for element in program.expression_table.expression_handles(*elements) {
+            for element in program.expression_handles(*elements) {
                 visit_expression(program, retained, *element);
             }
         }
@@ -2069,10 +2010,7 @@ pub fn visit_expression(
             visit_type_reference(program, retained, cast.target_type);
             visit_type_reference(program, retained, cast.result_type);
             visit_symbol(retained, cast.semantic_domain_symbol);
-            for argument in program
-                .type_reference_table
-                .type_reference_handles(cast.semantic_domain_arguments)
-            {
+            for argument in program.type_reference_handles(cast.semantic_domain_arguments) {
                 visit_type_reference(program, retained, *argument);
             }
         }
@@ -2102,7 +2040,7 @@ pub fn visit_expression(
             if let Some(case_symbol) = literal.case_symbol {
                 visit_symbol(retained, case_symbol);
             }
-            for field in program.expression_table.struct_fields(literal.fields) {
+            for field in program.struct_fields(literal.fields) {
                 visit_expression(program, retained, field.value);
             }
         }
@@ -2118,14 +2056,11 @@ pub fn visit_expression(
 
 /// Retain machines referenced by one match arm pattern and value.
 fn visit_match_arm(program: &TypedTrees, retained: &mut impl TypedReferences, arm: &TableMatchArm) {
-    for pattern in program
-        .expression_table
-        .match_pattern_dependencies(arm.pattern)
-    {
+    for pattern in program.match_pattern_dependencies(arm.pattern) {
         visit_expression(program, retained, pattern);
     }
     if let crate::expression::MatchPattern::Destructure(pattern) = arm.pattern {
-        for field in program.expression_table.match_fields(pattern.fields) {
+        for field in program.match_fields(pattern.fields) {
             visit_symbol(retained, field.field_symbol);
         }
     }
@@ -2141,10 +2076,7 @@ fn visit_name_path(
 ) {
     visit_symbol(retained, path.head_symbol);
     visit_symbol(retained, path.symbol);
-    for member in program
-        .expression_table
-        .name_path_member_symbols(path.member_symbols)
-    {
+    for member in program.name_path_member_symbols(path.member_symbols) {
         visit_symbol(retained, *member);
     }
 }
@@ -2166,14 +2098,9 @@ fn visit_static_requirement_dispatch(
     visit_symbol(retained, dispatch.declaring_trait);
     let selected = dispatch.selection_application;
     if selected.is_valid() && selected != invocation {
-        let application = program
-            .expression_table
-            .static_machine_application(selected);
+        let application = program.static_machine_application(selected);
         visit_symbol(retained, application.registration_operation);
-        for argument in program
-            .expression_table
-            .static_machine_application_arguments(selected)
-        {
+        for argument in program.static_machine_application_arguments(selected) {
             visit_static_argument(program, retained, argument);
         }
         visit_static_machine_bindings(program, retained, selected);
@@ -2201,7 +2128,6 @@ fn visit_call_expression(
         visit_symbol(
             retained,
             program
-                .expression_table
                 .static_machine_application(call.authored_machine_application)
                 .registration_operation,
         );
@@ -2212,9 +2138,8 @@ fn visit_call_expression(
     if call.requirement_application.is_valid() {
         visit_type_reference(program, retained, call.requirement_application);
     }
-    if let Some(crate::expression::BuildSelectionRequest::ProviderReadiness(request)) = program
-        .expression_table
-        .build_selection_request(call.build_selection)
+    if let Some(crate::expression::BuildSelectionRequest::ProviderReadiness(request)) =
+        program.build_selection_request(call.build_selection)
     {
         visit_type_reference(program, retained, request.requirement);
     }
@@ -2247,7 +2172,7 @@ fn visit_call_expression(
     if let Some(query) = &call.layout_query {
         visit_static_argument(program, retained, &query.operand);
     }
-    for argument in program.expression_table.expression_handles(call.arguments) {
+    for argument in program.expression_handles(call.arguments) {
         visit_expression(program, retained, *argument);
     }
 }
@@ -2264,10 +2189,7 @@ fn visit_conformance(
     visit_symbol(retained, conformance.symbol);
     visit_symbol(retained, conformance.requirement_symbol);
     visit_expression(program, retained, conformance.via_expression);
-    for argument in program
-        .type_reference_table
-        .type_reference_handles(conformance.arguments)
-    {
+    for argument in program.type_reference_handles(conformance.arguments) {
         visit_type_reference(program, retained, *argument);
     }
 }
@@ -2299,7 +2221,6 @@ fn visit_statement(
                 visit_symbol(
                     retained,
                     program
-                        .expression_table
                         .static_machine_application(call.authored_machine_application)
                         .registration_operation,
                 );
@@ -2435,9 +2356,7 @@ fn visit_machine_with_sidecars(
             .filter(|(_, capture)| capture.instance == machine.symbol)
         {
             visit_symbol(retained, capture.template);
-            let source = program
-                .expression_table
-                .static_machine_application(capture.supplying_application);
+            let source = program.static_machine_application(capture.supplying_application);
             // This declaration owns the independently replayed evidence occurrence.
             // It is a checking prerequisite, not a call edge or permission to
             // execute the supplying owner's body.
@@ -2521,10 +2440,7 @@ fn visit_machine_with_sidecars(
         visit_type_reference(program, retained, equation.parameter);
         visit_type_reference(program, retained, equation.definition);
     }
-    for &predicate in program
-        .expression_table
-        .expression_handles(machine.declared_type_predicates)
-    {
+    for &predicate in program.expression_handles(machine.declared_type_predicates) {
         visit_expression(program, retained, predicate);
     }
     visit_type_reference(program, retained, machine.attached_data_application);
@@ -2631,7 +2547,7 @@ fn visit_mathematical_type(
         }
         MathematicalType::Application { callee, arguments } => {
             visit_mathematical_type(program, retained, *callee);
-            for argument in program.expression_table.expression_handles(*arguments) {
+            for argument in program.expression_handles(*arguments) {
                 visit_expression(program, retained, *argument);
             }
         }
@@ -2658,40 +2574,34 @@ mod conformance_occurrence_tests {
         ExpressionHandle,
         crate::static_applications::StaticMachineApplicationHandle,
     ) {
-        let application = program.expression_table.retain_static_machine_application(
-            Default::default(),
-            Default::default(),
-            &[],
-        );
+        let application =
+            program.retain_static_machine_application(Default::default(), Default::default(), &[]);
         let source = program
             .expression_table
             .static_machine_application_mut(application);
         source.lexical_owner = owner;
         source.conformance_selection = Some(Box::new(StaticConformanceSelection::default()));
-        let expression =
-            program
-                .expression_table
-                .insert(ExpressionNode::Call(TableCallExpression {
-                    authored_call_selection: None,
-                    authored_call_binding: None,
-                    authored_machine_application: application,
-                    requirement_application: Default::default(),
-                    exact_coercion_target: Default::default(),
-                    receiver: Default::default(),
-                    target_symbol: Default::default(),
-                    static_machine_parameter: Default::default(),
-                    target: Default::default(),
-                    static_requirement_dispatch: None,
-                    machine_arguments: Box::new([]),
-                    quotient_operation: None,
-                    private_layout_operation: None,
-                    layout_query: None,
-                    native_code_layout: None,
-                    build_selection: Default::default(),
-                    arguments: Default::default(),
-                    evidence_arguments: Box::new([]),
-                    operational_acknowledgement: Default::default(),
-                }));
+        let expression = program.insert(ExpressionNode::Call(TableCallExpression {
+            authored_call_selection: None,
+            authored_call_binding: None,
+            authored_machine_application: application,
+            requirement_application: Default::default(),
+            exact_coercion_target: Default::default(),
+            receiver: Default::default(),
+            target_symbol: Default::default(),
+            static_machine_parameter: Default::default(),
+            target: Default::default(),
+            static_requirement_dispatch: None,
+            machine_arguments: Box::new([]),
+            quotient_operation: None,
+            private_layout_operation: None,
+            layout_query: None,
+            native_code_layout: None,
+            build_selection: Default::default(),
+            arguments: Default::default(),
+            evidence_arguments: Box::new([]),
+            operational_acknowledgement: Default::default(),
+        }));
         (expression, application)
     }
 
@@ -2715,12 +2625,7 @@ mod conformance_occurrence_tests {
         );
         machine.owned_data = Default::default();
         program.push_machine(machine);
-        assert!(
-            program
-                .expression_table
-                .iter_expressions()
-                .any(|(h, _)| h == removed)
-        );
+        assert!(program.iter_expressions().any(|(h, _)| h == removed));
         assert!(
             !program
                 .live_conformance_occurrence_applications()
@@ -2770,12 +2675,12 @@ mod conformance_occurrence_tests {
     #[test]
     fn cyclic_derived_occurrence_views_do_not_recurse_or_admit() {
         let mut program = TypedTrees::default();
-        let a = program.expression_table.retain_static_machine_application(
+        let a = program.retain_static_machine_application(
             SymbolHandle::invalid(),
             Default::default(),
             &[],
         );
-        let b = program.expression_table.retain_static_machine_application(
+        let b = program.retain_static_machine_application(
             SymbolHandle::invalid(),
             Default::default(),
             &[],
@@ -2797,12 +2702,6 @@ mod conformance_occurrence_tests {
         let mut sink = Sink::default();
         visit_static_machine_bindings(&program, &mut sink, a);
         assert!(sink.0.is_empty());
-        assert_eq!(
-            program
-                .expression_table
-                .static_machine_applications()
-                .count(),
-            2
-        );
+        assert_eq!(program.static_machine_applications().count(), 2);
     }
 }

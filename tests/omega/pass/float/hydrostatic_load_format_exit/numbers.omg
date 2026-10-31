@@ -5,7 +5,7 @@ use omega::language::core::float_operations;
 use omega::language::core::numeric_conversion;
 
 public machine write_integer(value: i64 in Wrapping) reaches Console
-invokes Console;
+invokes Console
 {
     transition value < 0 {
         true -> negative(value)
@@ -46,7 +46,7 @@ invokes Console;
 }
 
 public machine write_scaled(value: f64) reaches Console
-invokes Console;
+invokes Console
 {
     transition value < 0.0 {
         true -> negative(value)

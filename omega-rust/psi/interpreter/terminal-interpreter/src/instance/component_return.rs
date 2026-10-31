@@ -81,7 +81,6 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
                 TerminalExecutionResult::Unit | TerminalExecutionResult::Scalar(_) => {}
                 TerminalExecutionResult::Structural(returned) => {
                     let declaration = execution
-                        .program
                         .structural_types()
                         .get(&returned.value.structural_type)
                         .ok_or("component return lost its structural declaration")?;

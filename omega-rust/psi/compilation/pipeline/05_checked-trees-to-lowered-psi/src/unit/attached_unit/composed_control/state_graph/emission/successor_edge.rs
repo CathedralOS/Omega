@@ -19,6 +19,7 @@ use super::super::{
     subslices,
 };
 use super::StateGraphEmission;
+use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::buffer::{
     OperationBuffer, StorageObservations, structural_result_declaration,
 };
@@ -432,9 +433,7 @@ impl StateGraphEmission<'_, '_> {
                                                         let source_value_count = edge_values.len();
                                                         for segment in &subject.path {
                                                             if let checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(handle) = segment {
-                                                                let root = checked
-                                                                    .facts
-                                                                    .values
+                                                                let root = value_facts(checked)
                                                                     .scalar_computations
                                                                     .roots
                                                                     .iter()

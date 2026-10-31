@@ -4,7 +4,7 @@
 use omega_language_std::console;
 data Main { }
 machine Main::pick(d: u64) -> u64
-    requires d > 5;
+    requires d > 5
 {
     d
 }

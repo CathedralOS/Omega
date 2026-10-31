@@ -55,7 +55,7 @@ reaches ExtentPartition
 
 machine abandon(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
 requires
-    48 <= capacity;
+    48 <= capacity,
     capacity == whole.length
 reaches ExtentPartition
 {

@@ -1,0 +1,6 @@
+// Distinct lifetime slots in one callback declaration do not change backing.
+// The signature still promises the item; the body returns captured storage.
+data Holder<'captured> { reference: &'captured u64; }
+machine callback<'item, 'captured>(context: Holder<'captured>, item: &'item u64) -> &'item u64 {
+    context.reference
+}

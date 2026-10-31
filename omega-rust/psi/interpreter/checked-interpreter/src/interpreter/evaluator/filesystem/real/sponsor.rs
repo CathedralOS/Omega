@@ -1,5 +1,5 @@
 use super::host_io::{open_options_for, open_real, win32_error_code};
-use super::{EACCES, EBADF, io_errno};
+use super::{EACCES, EBADF, io_errno, real_fs};
 use crate::interpreter::evaluator::EvalResult;
 use std::io::Seek;
 use std::path::{Path, PathBuf};
@@ -72,11 +72,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         fd: i32,
         win32_errors: bool,
     ) -> bool {
-        match self
-            .real_fs
-            .as_ref()
-            .and_then(|filesystem| filesystem.descriptor_write_granted(fd))
-        {
+        match real_fs(self).and_then(|filesystem| filesystem.descriptor_write_granted(fd)) {
             Some(true) => true,
             Some(false) => {
                 self.real_fs_mut().errno = if win32_errors { 5 } else { EACCES };
@@ -96,11 +92,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         truncates: bool,
         wants_write: bool,
     ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemOpen>> {
-        let Some(sponsor) = self
-            .real_fs
-            .as_ref()
-            .and_then(|filesystem| filesystem.sponsor.clone())
-        else {
+        let Some(sponsor) = real_fs(self).and_then(|filesystem| filesystem.sponsor.clone()) else {
             return Ok(SponsorPreparation::Unsponsored);
         };
         let session_root = sponsor_value(sponsor.session_root())?;
@@ -326,11 +318,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         from: &Path,
         to: &Path,
     ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemMutation>> {
-        let Some(sponsor) = self
-            .real_fs
-            .as_ref()
-            .and_then(|filesystem| filesystem.sponsor.clone())
-        else {
+        let Some(sponsor) = real_fs(self).and_then(|filesystem| filesystem.sponsor.clone()) else {
             return Ok(SponsorPreparation::Unsponsored);
         };
         sponsor_value(sponsor.bind_path(from))?;
@@ -345,11 +333,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         existing: &Path,
         new_name: &Path,
     ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemMutation>> {
-        let Some(sponsor) = self
-            .real_fs
-            .as_ref()
-            .and_then(|filesystem| filesystem.sponsor.clone())
-        else {
+        let Some(sponsor) = real_fs(self).and_then(|filesystem| filesystem.sponsor.clone()) else {
             return Ok(SponsorPreparation::Unsponsored);
         };
         sponsor_value(sponsor.bind_path(existing))?;
@@ -377,11 +361,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         &mut self,
         path: &Path,
     ) -> EvalResult<Option<(crate::FilesystemSponsor, crate::FilesystemSponsorPath)>> {
-        let Some(sponsor) = self
-            .real_fs
-            .as_ref()
-            .and_then(|filesystem| filesystem.sponsor.clone())
-        else {
+        let Some(sponsor) = real_fs(self).and_then(|filesystem| filesystem.sponsor.clone()) else {
             return Ok(None);
         };
         let path = sponsor_value(sponsor.bind_path(path))?;

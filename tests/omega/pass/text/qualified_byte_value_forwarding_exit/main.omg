@@ -24,7 +24,7 @@ machine independent(mut first: [u8; 4] in Ascii, second: [u8; 4] in Ascii) -> bo
         _ -> false
     }
     machine rewrite(mut first: [u8; 4] in Ascii, second: [u8; 4] in Ascii) -> bool
-    requires first.len == 4 && second.len == 4;
+    requires first.len == 4 && second.len == 4
     {
         first[0] = 65;
         first == "Aate" && second == "gate"

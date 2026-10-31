@@ -16,16 +16,16 @@ machine perform(counter: &mut u64, active: bool, second: bool) crashes Trap {
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
     machine count(counter: &mut u64, remaining: &mut [u64], slot: u64) crashes Trap
-    terminates;
-    terminates by remaining[slot];
-    requires slot < remaining.len && remaining[slot] <= 7;
+    terminates
+    terminates by remaining[slot]
+    requires slot < remaining.len && remaining[slot] <= 7
     {
         transition remaining[slot] > 0 {
             true -> forward(remaining, slot, counter)
             false -> done()
         }
         machine forward(pending: &mut [u64], selected: u64, counter: &mut u64) crashes Trap
-        requires selected < pending.len && pending[selected] > 0 && pending[selected] <= 7;
+        requires selected < pending.len && pending[selected] > 0 && pending[selected] <= 7
         {
             counter = ((counter as u64 in Wrapping) + 1) as u64;
             pending[selected] = pending[selected] - 1;

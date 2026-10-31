@@ -335,15 +335,15 @@ fn parses_trait_owned_fixed_operator_requirements() {
 #[test]
 fn parses_independent_operational_clauses_on_machines_and_requirements() {
     let source = r#"
-        machine run() reaches Console suspends; blocks; {
+        machine run() reaches Console suspends blocks {
         }
 
         trait Worker {
-            machine wait() reaches Clock suspends; blocks; ensures true;
+            machine wait() reaches Clock suspends blocks ensures true;
         }
 
         machine schedule<machine Callback>()
-        requires machine Callback() suspends; blocks;
+        requires machine Callback() suspends blocks;
         {
         }
         "#;
@@ -479,7 +479,7 @@ fn parses_contract_clause_orderings_and_predicate_boundaries() {
 
         machine App::reaches_then_requires(app: &mut App) reaches Console requires app.a <= app.b {
         }
-        machine App::requires_semicolon_reaches(app: &mut App) requires app.a <= app.b; reaches Console {
+        machine App::requires_semicolon_reaches(app: &mut App) requires app.a <= app.b reaches Console {
         }
         machine App::requires_newline_reaches(app: &mut App)
             requires app.a <= app.b
@@ -923,9 +923,9 @@ fn parses_explicit_crash_terminal_and_retires_trap_statement() {
 
 #[test]
 fn rejects_duplicate_operational_clauses() {
-    let source = "machine run() suspends; suspends; {}";
+    let source = "machine run() suspends suspends {}";
     let error = super::parse_tokenized_error(source, "duplicate clause must fail");
-    super::expect_error(&error, "duplicate `suspends;`");
+    super::expect_error(&error, "duplicate `suspends`");
 }
 
 #[test]
@@ -1055,7 +1055,7 @@ fn contract_terminated_top_level_requirement_stops_before_public_requirement() {
 fn operational_clause_semicolon_terminates_requirement_before_boundary_item() {
     let source = r#"
         public boundary requirement Task::finish<T>(task: Task<T>) -> T
-        suspends; blocks;
+        suspends blocks;
 
         boundary trait TaskRuntime {}
     "#;
@@ -1162,9 +1162,9 @@ fn rejects_empty_or_mixed_installation_bound_reach_rows() {
 #[test]
 fn rejects_operational_members_in_service_reach_rows() {
     for (retired, replacement) in [
-        ("Suspend", "suspends;"),
-        ("Block", "blocks;"),
-        ("thread_block", "blocks;"),
+        ("Suspend", "suspends"),
+        ("Block", "blocks"),
+        ("thread_block", "blocks"),
     ] {
         let source = format!("machine run() reaches Console, {retired} {{}}");
         let error = super::parse_tokenized_error(&source, "retired effect member must fail");
@@ -1297,7 +1297,7 @@ fn rejects_ambiguous_and_duplicate_outcome_specific_ensures_surfaces() {
             "duplicate outcome-specific ensures group",
         ),
         (
-            "machine choose() -> Outcome ensures selected: true; ensures Outcome::Success -> { selected: true; } {}",
+            "machine choose() -> Outcome ensures selected: true ensures Outcome::Success -> { selected: true; } {}",
             "duplicate machine-wide public ensures selector",
         ),
     ] {
@@ -1315,7 +1315,7 @@ fn rejects_named_contract_with_multiple_propositions() {
     let source = r#"
         proposition carries(value: i32);
         machine invalid(value: i32)
-        requires proof: carries(value); carries(value)
+        requires proof: carries(value), carries(value)
         {
         }
     "#;
@@ -1471,10 +1471,10 @@ fn bare_bodyless_machine_signature_parses_and_bodyless_satisfies_without_via_rej
 fn contextual_clause_names_retain_their_first_contract_proposition() {
     let parsed = super::parse_source_verbose(
         r#"machine check(blocks: i64, suspends: bool)
-            requires blocks >= 0;
-            requires suspends;
-            blocks;
-            ensures blocks >= 0;
+            requires blocks >= 0
+            requires suspends
+            blocks
+            ensures blocks >= 0
             {}"#,
         "tokenize contextual contract subjects",
         "contextual subjects must not become empty contracts or effect clauses",

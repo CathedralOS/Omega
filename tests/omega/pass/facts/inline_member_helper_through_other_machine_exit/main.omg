@@ -20,14 +20,14 @@ Selected satisfies Sum<i32> {
     requires 0 <= left && left <= 50
     requires 0 <= right && right <= 50
     ensures result == left + right
-    blocks;
+    blocks
     {
         add(left, right)
     }
 }
 
 machine apply<Operations satisfies Sum<i32>>(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
 ensures result == left + right
@@ -38,7 +38,7 @@ ensures result == left + right
 // Place: another machine. A forwarding machine transports both bounded operands to combine.
 // Expected exit: 0
 machine forward(left: i32, right: i32) -> i32
-blocks;
+blocks
 requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
 ensures result == left + right
@@ -47,7 +47,7 @@ ensures result == left + right
 }
 
 machine probe(a: i32, b: i32) -> i32
-blocks;
+blocks
 requires 0 <= a && a <= 50
 requires 0 <= b && b <= 50
 ensures result == a + b
@@ -55,7 +55,7 @@ ensures result == a + b
     block forward(a, b)
 }
 
-machine main() blocks; crashes Trap {
+machine main() blocks crashes Trap {
     let wide: i32 = block probe(20, 22);
     let narrow: i32 = block probe(10, 12);
     transition wide == 42 && narrow == 22 { true -> done() _ -> bad() }

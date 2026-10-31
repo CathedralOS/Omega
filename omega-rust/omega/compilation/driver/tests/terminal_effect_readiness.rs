@@ -36,7 +36,7 @@ fn build_readiness_installs_applied_inherited_slots() {
         root.join("build.omg"),
         r#"
 use backing::api;
-machine build(builder: &mut Build) suspends; {
+machine build(builder: &mut Build) suspends {
     Build::application(builder, "applied_readiness");
     Build::build_depend_as(builder, "backing", Source::Path { location: "../backing" });
     let mut count: u64 = 0;

@@ -1,1 +1,1 @@
-cannot prove the `terminates by` ranking
+cannot prove strict rank decrease on a recurrent arrival

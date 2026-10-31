@@ -2,7 +2,7 @@
 let fits(base: addr, length: u64): core::Strict<0> =
     embed(base) + embed(length) <= addr::Bound;
 machine cut(base: addr, length: u64, requested: u64, replacement: addr) -> addr
-requires fits(base, length); requested < length
+requires fits(base, length), requested < length
 {
     let mut current: addr = base;
     current = replacement;

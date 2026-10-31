@@ -1,15 +1,13 @@
-machine bytes_walk(unrelated: u64, bytes: &[u8])
-terminates by bytes -> Slice::Length;
--> u64 {
+machine bytes_walk(unrelated: u64, bytes: &[u8]) -> u64
+terminates by bytes -> Slice::Length {
     transition bytes.len > 0 {
         true -> bytes_walk(unrelated, bytes[1..])
         false -> unrelated
     }
 }
 
-machine elements_walk(unrelated: u64, elements: &[u32])
-terminates by elements -> Slice::Length;
--> u64 {
+machine elements_walk(unrelated: u64, elements: &[u32]) -> u64
+terminates by elements -> Slice::Length {
     transition elements.len > 0 {
         true -> elements_walk(unrelated, elements[1..])
         false -> unrelated

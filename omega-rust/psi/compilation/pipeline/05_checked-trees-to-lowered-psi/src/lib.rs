@@ -79,6 +79,7 @@ mod task_activation;
 pub use task_activation::lower_task_activation_demands;
 mod call_operands;
 mod call_sites;
+mod checked_facts;
 mod content_classes;
 mod declarations;
 mod direct_calls;

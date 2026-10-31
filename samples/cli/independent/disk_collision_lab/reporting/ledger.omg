@@ -4,7 +4,7 @@ use physics::model;
 // Bounded scientific output: signed fixed point with six fractional digits.
 // Model validation and 8-event cap keep all printed magnitudes below 10^9.
 public machine integer(value:u64) reaches Console
-invokes Console;
+invokes Console
 {
  transition { _ -> digits(value,1000000000000000,false) }
  machine digits(value:u64,divisor:u64,started:bool) {
@@ -28,7 +28,7 @@ invokes Console;
  machine done() {}
 }
 public machine number(value:f64) reaches Console
-invokes Console;
+invokes Console
 {
  transition value < 0.0 {true -> negative(value) _ -> positive(value)}
  machine negative(value:f64) {
@@ -56,14 +56,14 @@ invokes Console;
  machine done() {}
 }
 public machine contact_row(lab:&Lab) reaches Console
-invokes Console;
+invokes Console
 {
  Console::write("contact ");integer(lab.first);Console::write(" ");integer(lab.second);
  Console::write(" time=");number(lab.time);Console::write(" impulse=");number(lab.impulse);
  Console::write(" error=");number(lab.contact_error);Console::write_line("");
 }
 public machine totals_row(lab:&Lab) reaches Console
-invokes Console;
+invokes Console
 {
  Console::write("ledger time=");number(lab.time);
  Console::write(" px=");number(lab.momentum_x);Console::write(" py=");number(lab.momentum_y);
@@ -71,7 +71,7 @@ invokes Console;
  Console::write_line("");
 }
 public machine disk_rows(lab:&Lab) reaches Console
-invokes Console;
+invokes Console
 {
  transition { _ -> scan(lab,0) }
  machine scan(lab:&Lab,index:u64) {

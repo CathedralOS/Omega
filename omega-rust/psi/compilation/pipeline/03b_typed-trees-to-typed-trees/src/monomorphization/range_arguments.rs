@@ -24,6 +24,7 @@ use crate::monomorphization::{BindingContext, StaticProposals};
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
 
+use crate::tables::expressions_of;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
 use validation::{
     closed_integer_range_bound, closed_integer_range_maximum,
@@ -100,7 +101,7 @@ pub(super) fn infer(
         _ => None,
     };
     for (endpoint_index, required_endpoint) in required_endpoints.into_iter().enumerate() {
-        let Some(name) = program.expression_table.name_path_node(required_endpoint) else {
+        let Some(name) = expressions_of(program).name_path_node(required_endpoint) else {
             continue;
         };
         let Some(parameter_index) = context
@@ -153,7 +154,7 @@ fn open_endpoint_binder(
     if !same_inclusion_position {
         return None;
     }
-    let name = program.expression_table.name_path_node(actual_endpoint)?;
+    let name = expressions_of(program).name_path_node(actual_endpoint)?;
     if !is_const_parameter_symbol(program, name.symbol) {
         return None;
     }
@@ -195,7 +196,7 @@ pub(super) fn collect_binders(
                 continue;
             };
             for endpoint in [minimum, maximum] {
-                let Some(name) = program.expression_table.name_path_node(*endpoint) else {
+                let Some(name) = expressions_of(program).name_path_node(*endpoint) else {
                     continue;
                 };
                 if !is_const_parameter_symbol(program, name.symbol)
@@ -203,8 +204,7 @@ pub(super) fn collect_binders(
                 {
                     continue;
                 }
-                if let Some(member) = program
-                    .expression_table
+                if let Some(member) = expressions_of(program)
                     .name_path_members(name.members)
                     .first()
                 {

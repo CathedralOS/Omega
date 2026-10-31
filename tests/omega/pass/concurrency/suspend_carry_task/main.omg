@@ -7,7 +7,7 @@ public data Token {
     id: u64;
 }
 data Worker { }
-machine Worker::run(token: Token in Carry::AcrossSuspend) -> Token suspends; {
+machine Worker::run(token: Token in Carry::AcrossSuspend) -> Token suspends {
     let carried: Token = token;
     suspend Sleeper::park(7);
     carried

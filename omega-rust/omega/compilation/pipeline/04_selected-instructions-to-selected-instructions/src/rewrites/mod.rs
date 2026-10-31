@@ -639,15 +639,7 @@ pub(crate) fn instruction(
             .operands
             .iter()
             .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
+            .map(|(operand, register)| selected_operands::selected_operand(operand, *register))
             .collect(),
         implicit_uses: row.implicit_uses.clone(),
         implicit_defs: row.implicit_defs.clone(),

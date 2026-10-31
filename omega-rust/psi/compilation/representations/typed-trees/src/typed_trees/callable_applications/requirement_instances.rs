@@ -110,12 +110,8 @@ impl TypedTrees {
                 .callable_argument_identities
                 .span_or_empty(portable_local_arguments),
             trait_scope,
-            trait_arguments: self
-                .type_reference_table
-                .type_reference_handles(trait_arguments),
-            local_arguments: self
-                .type_reference_table
-                .type_reference_handles(local_arguments),
+            trait_arguments: self.type_reference_handles(trait_arguments),
+            local_arguments: self.type_reference_handles(local_arguments),
             invocation_contract_parameters: self
                 .data_type_parameters
                 .span_or_empty(invocation_contract_parameters),
@@ -155,11 +151,8 @@ impl TypedTrees {
         provider: SymbolHandle,
     ) -> Option<&crate::typed_trees::commitments::MachineSpecialization> {
         let application = self.closed_requirement_application(requirement)?;
-        let arguments = self
-            .expression_table
-            .static_machine_application_arguments(application.application);
+        let arguments = self.static_machine_application_arguments(application.application);
         let source_owner = self
-            .expression_table
             .static_machine_application(application.application)
             .lexical_owner;
         let mut matches = self.machine_specializations.iter().filter(|receipt| {
@@ -172,11 +165,8 @@ impl TypedTrees {
             let parameters = self
                 .data_type_parameters
                 .span_or_empty(receipt.template_parameters);
-            let bindings = self
-                .expression_table
-                .static_machine_application_bindings(receipt.binding_application);
+            let bindings = self.static_machine_application_bindings(receipt.binding_application);
             let binding_owner = self
-                .expression_table
                 .static_machine_application(receipt.binding_application)
                 .lexical_owner;
             let same_regions = self
@@ -282,15 +272,12 @@ impl TypedTrees {
         if !application.is_valid() {
             return Err("closed requirement has no retained source application");
         }
-        let source = self
-            .expression_table
-            .static_machine_application(application);
+        let source = self.static_machine_application(application);
         if source.registration_operation != template || source.binding_declaration != template {
             return Err("closed requirement application names a different declaration");
         }
         let lexical_owner = source.lexical_owner;
         let bindings = self
-            .expression_table
             .static_machine_application_bindings(application)
             .to_vec();
         let local_arguments = bindings
@@ -346,35 +333,25 @@ impl TypedTrees {
                     == portable_trait_application_identity
                 && existing.portable_local_arguments == portable_local_arguments
                 && self
-                    .expression_table
                     .static_machine_application(existing.application)
                     .lifetime_binding_declaration
                     == self
-                        .expression_table
                         .static_machine_application(application)
                         .lifetime_binding_declaration
-                && self
-                    .expression_table
-                    .static_machine_application_lifetimes(existing.application)
-                    == self
-                        .expression_table
-                        .static_machine_application_lifetimes(application)
+                && self.static_machine_application_lifetimes(existing.application)
+                    == self.static_machine_application_lifetimes(application)
                 && (self
-                    .expression_table
                     .static_machine_application_lifetimes(application)
                     .is_empty()
                     || self
-                        .expression_table
                         .static_machine_application(existing.application)
                         .lexical_owner
                         == lexical_owner)
                 && self
-                    .expression_table
                     .static_machine_application_bindings(existing.application)
                     .len()
                     == bindings.len()
                 && self
-                    .expression_table
                     .static_machine_application_bindings(existing.application)
                     .iter()
                     .zip(&bindings)
@@ -390,7 +367,6 @@ impl TypedTrees {
                                     static_applications::StaticMachineBindingValue::Const(right),
                                 ) => {
                                     let existing_owner = self
-                                        .expression_table
                                         .static_machine_application(existing.application)
                                         .lexical_owner;
                                     crate::type_identity::applied_type_identity(

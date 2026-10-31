@@ -6,7 +6,7 @@ public data Raw { values: [f64; 17]; count: u32; }
 public data Feed { count: u32; fractions: [f64; 8]; ratios: [f64; 8]; }
 // Finite decimal grammar, 1023 bytes, 32 characters/token, 17 tokens.
 // No floating parser can manufacture NaN/Inf; exponent and sign tokens refuse.
-public machine parse(raw: &mut Raw) -> bool reaches Console invokes Console; blocks; crashes Trap {
+public machine parse(raw: &mut Raw) -> bool reaches Console invokes Console blocks crashes Trap {
     transition { _ -> read(raw, 0.0, 1.0, false, false, false, 0, 0) }
     machine read(raw: &mut Raw, value: f64, scale: f64, active: bool, dot: bool, digits: bool, length: u32, bytes: u32) -> bool {
         transition bytes < 1024 {

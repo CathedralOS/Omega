@@ -430,7 +430,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .filter(|(_, parameter)| {
                     parameter.access == StructuralAccess::Owned
                         && terminal_semantics::scalar_array_leaf_shape(
-                            self.program.structural_types().values(),
+                            self.structural_types().values(),
                             parameter.structural_type,
                         )
                         .is_some()
@@ -451,7 +451,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             bind_active_structural_arguments(
                 &opaque_parameters,
                 &boundary_arguments.values,
-                &self.program.structural_types(),
+                &self.structural_types(),
                 self.structural_cases.as_map(),
                 self.account.as_ref(),
             )?;
@@ -475,7 +475,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             let callee = self.program.verified_machine(callee_id)?;
             let mut prepared_arguments = boundary_arguments.into_call_arguments(
                 &select_positions(&callee.structural_parameters, &opaque_positions)?,
-                &self.program.structural_types(),
+                &self.structural_types(),
                 self.structural_cases.as_map(),
                 self.account.as_ref(),
             )?;
@@ -577,7 +577,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         bind_active_structural_arguments(
             &boundary_declaration.structural_parameters,
             &boundary_arguments.values,
-            &self.program.structural_types(),
+            &self.structural_types(),
             self.structural_cases.as_map(),
             self.account.as_ref(),
         )

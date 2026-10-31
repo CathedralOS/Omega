@@ -9,7 +9,7 @@ data Supplier {}
 machine Supplier::wrong(value: bool) -> bool satisfies Conversion::read { value }
 public data Main { }
 public machine Main::main(application: &mut Main) reaches Console
-invokes Console;
+invokes Console
 {
     Console::exit_process(0);
 }

@@ -64,9 +64,9 @@ reaches Console {
 }
 
 public machine read_image(image: &mut Image) -> bool
-invokes Console;
+invokes Console
 reaches Console
-blocks;
+blocks
 crashes Trap
 {
     let mut number: Token;

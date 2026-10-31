@@ -13,19 +13,19 @@
 // ProcessExit provider.
 
 machine clamp(value: u32) -> u32
-    requires value <= 4;
+    requires value <= 4
 {
     value + 1
 }
 
 machine max(value: u32) -> u32
-    requires value <= 4;
+    requires value <= 4
 {
     value + 40
 }
 
 machine forward(value: u32) -> u32
-    requires value <= 4;
+    requires value <= 4
 {
     max(value)
 }

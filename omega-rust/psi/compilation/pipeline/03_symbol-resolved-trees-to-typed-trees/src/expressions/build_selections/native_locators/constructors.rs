@@ -1,5 +1,7 @@
 //! Infer the checked core locator application from its selected payload.
 
+use crate::tables::expression_table;
+use crate::tables::expression_table_mut;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{
@@ -162,8 +164,7 @@ fn field(
     literal: &TableStructLiteral,
     name: &str,
 ) -> Result<ExpressionHandle, Diagnostic> {
-    let mut fields = program
-        .expression_table
+    let mut fields = expression_table(program)
         .struct_fields(literal.fields)
         .iter()
         .filter(|field| field.name.as_str() == name);
@@ -238,11 +239,7 @@ fn application(
             lifetime_arguments: Default::default(),
             arguments,
         });
-    program
-        .expression_table
-        .set_constructed_value_type_reference(value, application);
-    program
-        .expression_table
-        .set_construction_required_type_reference(value, application);
+    expression_table_mut(program).set_constructed_value_type_reference(value, application);
+    expression_table_mut(program).set_construction_required_type_reference(value, application);
     Ok(application)
 }

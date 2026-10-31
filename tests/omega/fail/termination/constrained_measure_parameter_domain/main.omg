@@ -2,10 +2,9 @@ domain u64::OneToFive requires self >= 1 && self <= 5;
 data Countdown {}
 measure Countdown::Remaining(value: u64 in OneToFive) -> u64 { value }
 
-machine walk(remaining: u64)
-requires remaining <= 5;
-terminates by remaining -> Countdown::Remaining in 0..=5;
--> u64 {
+machine walk(remaining: u64) -> u64
+requires remaining <= 5
+terminates by remaining -> Countdown::Remaining in 0..=5 {
     transition remaining > 0 {
         true -> walk(remaining - 1)
         false -> remaining

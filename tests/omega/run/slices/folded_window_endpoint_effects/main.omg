@@ -9,22 +9,12 @@ data Sequence [copy] { digits: u64 in Wrapping; }
 boundary trait ByteCounter {
     machine count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 reaches;
 }
-data Provider {}
 Selected satisfies ByteCounter {
-    ByteCounter::count = Provider::count;
-}
-macos_arm64 machine Provider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteCounter::count {
+    machine count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 {
     sized(prefix, bytes, suffix)
 }
-linux_arm64 machine Provider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteCounter::count {
-    sized(prefix, bytes, suffix)
 }
-linux_x86_64 machine Provider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteCounter::count {
-    sized(prefix, bytes, suffix)
-}
-windows_x86_64 machine Provider::count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 satisfies ByteCounter::count {
-    sized(prefix, bytes, suffix)
-}
+
 machine sized(prefix: u64, bytes: &[u8], suffix: u64) -> u64 {
     transition prefix == 17 && suffix == 23 {
         true -> window(bytes)
@@ -36,11 +26,11 @@ machine prefix_of(sequence: &mut Sequence) -> u64 {
     sequence.digits = sequence.digits * 10 + 1;
     17
 }
-machine range_start(sequence: &mut Sequence) -> u64 ensures result == 0; {
+machine range_start(sequence: &mut Sequence) -> u64 ensures result == 0 {
     sequence.digits = sequence.digits * 10 + 2;
     0
 }
-machine range_end(sequence: &mut Sequence) -> u64 ensures result == 3; {
+machine range_end(sequence: &mut Sequence) -> u64 ensures result == 3 {
     sequence.digits = sequence.digits * 10 + 3;
     3
 }

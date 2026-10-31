@@ -4,7 +4,7 @@ public data Words [copy] { first: u64; second: u64; third: u64; }
 
 
 public Aligned32 satisfies FixedLayout<Words> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };
@@ -14,7 +14,7 @@ public Aligned32 satisfies FixedLayout<Words> {
 }
 
 public Aligned64 satisfies FixedLayout<Words> {
-    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 8 } };

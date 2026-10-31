@@ -20,8 +20,8 @@ public boundary trait Join {
 public boundary trait Sink { machine accept(value: Chunk in Held) reaches; }
 public machine combine(left: Chunk in Held, right: Chunk in Held)
 reaches Join, Sink
-    invokes Join;
-    invokes Sink;
+    invokes Join
+    invokes Sink
 {
     let joined: Chunk in Held = Join::merge(Pair { left: left, right: right });
     Sink::accept(joined);
@@ -37,8 +37,8 @@ public boundary trait NestedJoin {
 }
 public machine nested(left: Chunk in Held, right: Chunk in Held)
 reaches NestedJoin, Sink
-    invokes NestedJoin;
-    invokes Sink;
+    invokes NestedJoin
+    invokes Sink
 {
     let joined: Chunk in Held = NestedJoin::merge(Shell { parts: Pair { left: left, right: right } });
     Sink::accept(joined);

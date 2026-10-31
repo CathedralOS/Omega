@@ -13,6 +13,8 @@ use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::lower_name;
 use crate::signatures::type_parameters::lower_type_parameters;
+use crate::tables::expression_table_mut;
+use crate::tables::resolved_expressions;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -94,11 +96,7 @@ fn lower_mathematical_type(
             codomain: lower_mathematical_type(lowerer, *codomain)?,
         },
         resolved::mathematical::MathematicalType::Application { callee, arguments } => {
-            let arguments = lowerer
-                .source_trees
-                .tables
-                .bodies
-                .expressions
+            let arguments = resolved_expressions(lowerer.source_trees)
                 .expression_handles(*arguments)
                 .iter()
                 .copied()
@@ -106,9 +104,7 @@ fn lower_mathematical_type(
                 .collect::<Result<Vec<_>, Diagnostic>>()?;
             typed::mathematical::MathematicalType::Application {
                 callee: lower_mathematical_type(lowerer, *callee)?,
-                arguments: lowerer
-                    .typed_trees
-                    .expression_table
+                arguments: expression_table_mut(&mut lowerer.typed_trees)
                     .insert_expression_handles(arguments),
             }
         }

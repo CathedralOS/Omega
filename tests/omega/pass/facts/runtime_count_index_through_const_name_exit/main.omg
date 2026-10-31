@@ -3,13 +3,13 @@
 const COUNT: u32 = 1;
 
 machine read_at<Index: u32>(items: &[u8]) -> u8
-requires Index < items.len;
+requires Index < items.len
 {
     items[Index]
 }
 
 machine indexed(items: &[u8]) -> u8
-requires COUNT < items.len;
+requires COUNT < items.len
 {
     read_at<COUNT>(items)
 }

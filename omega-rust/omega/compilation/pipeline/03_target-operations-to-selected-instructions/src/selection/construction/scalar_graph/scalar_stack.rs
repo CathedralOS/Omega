@@ -23,25 +23,13 @@ pub(super) fn address_register(
     value: ValueId,
     site: ValueDefinitionSite,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let id = VirtualRegisterId(
-        builder
-            .registers
-            .len()
-            .try_into()
-            .map_err(|_| SelectedInstructionError::custody())?,
-    );
+    let id = VirtualRegisterId(super::next_index(builder.registers.len())?);
     builder.registers.push(VirtualRegister {
         id,
         scalar_type: address_type()?,
         class: builder.class,
         origin: VirtualRegisterOrigin::ScalarAbiAddress {
-            instruction: SelectedInstructionId(
-                builder
-                    .instructions
-                    .len()
-                    .try_into()
-                    .map_err(|_| SelectedInstructionError::custody())?,
-            ),
+            instruction: SelectedInstructionId(super::next_index(builder.instructions.len())?),
             source_value: value,
         },
         definition_site: Some(site),

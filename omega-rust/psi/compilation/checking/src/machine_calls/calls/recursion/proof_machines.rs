@@ -8,6 +8,7 @@
 //! judge's premise checks.
 
 use super::is_current_entry_call;
+use crate::frozen_program::expression_table;
 use crate::value_custody::places::binding_observations::{
     binding_is_unchanged_value, immutable_value_origin,
 };
@@ -60,7 +61,7 @@ fn guarded_integer_predecessor_call(
             &operand_types,
         )
     };
-    let Some(predecessor) = program.expression_table.binary_node(argument) else {
+    let Some(predecessor) = expression_table(program).binary_node(argument) else {
         return false;
     };
     if predecessor.operator != typed_trees::expression::BinaryOperator::Subtract
@@ -71,7 +72,7 @@ fn guarded_integer_predecessor_call(
             predecessor.right,
         )
         || !expression_names_measure(program, predecessor.left, measure_symbol)
-        || !matches!(program.expression_table.expression(predecessor.right),
+        || !matches!(expression_table(program).expression(predecessor.right),
             ExpressionNode::Integer(literal) if literal.value_i64() == Some(1))
     {
         return false;
@@ -87,7 +88,7 @@ fn guarded_integer_predecessor_call(
     let TransitionGuardNode::When(guard) = transition.guard else {
         return false;
     };
-    let guard = match program.expression_table.expression(guard) {
+    let guard = match expression_table(program).expression(guard) {
         ExpressionNode::Binary(wrapper)
             if wrapper.operator == typed_trees::expression::BinaryOperator::Equal
                 && has_builtin_meaning(
@@ -97,7 +98,7 @@ fn guarded_integer_predecessor_call(
                     wrapper.right,
                 )
                 && matches!(
-                    program.expression_table.expression(wrapper.right),
+                    expression_table(program).expression(wrapper.right),
                     ExpressionNode::Boolean(true)
                 ) =>
         {
@@ -105,7 +106,7 @@ fn guarded_integer_predecessor_call(
         }
         _ => guard,
     };
-    let Some(positive) = program.expression_table.binary_node(guard) else {
+    let Some(positive) = expression_table(program).binary_node(guard) else {
         return false;
     };
     positive.operator == typed_trees::expression::BinaryOperator::Greater
@@ -116,7 +117,7 @@ fn guarded_integer_predecessor_call(
             positive.right,
         )
         && expression_names_measure(program, positive.left, measure_symbol)
-        && matches!(program.expression_table.expression(positive.right),
+        && matches!(expression_table(program).expression(positive.right),
             ExpressionNode::Integer(literal) if literal.value_i64() == Some(0))
 }
 
@@ -125,7 +126,7 @@ fn expression_names_measure(
     expression: ExpressionHandle,
     measure_symbol: symbols::SymbolHandle,
 ) -> bool {
-    let Some(path) = program.expression_table.name_path_node(expression) else {
+    let Some(path) = expression_table(program).name_path_node(expression) else {
         return false;
     };
     path.symbol.is_valid() && measure_symbol.is_valid() && path.symbol == measure_symbol
@@ -149,7 +150,7 @@ pub(crate) fn proof_call_has_structural_descent(
     let Some(entry) = program.machine_states(machine).first() else {
         return false;
     };
-    let Some(call) = program.expression_table.call_node(expression) else {
+    let Some(call) = expression_table(program).call_node(expression) else {
         return false;
     };
     call.target_symbol == entry.symbol
@@ -220,7 +221,7 @@ pub(crate) fn validate_proof_machine_recursion(
         )));
         return Vec::new();
     };
-    let Some(measure_path) = program.expression_table.name_path_node(*subject) else {
+    let Some(measure_path) = expression_table(program).name_path_node(*subject) else {
         diagnostics.push(Diagnostic::error(format!(
             "recursive proof machine `{}`: the structural measure must be a bare \
              parameter name (rung 1); compound measures over proof data are not \
@@ -230,8 +231,7 @@ pub(crate) fn validate_proof_machine_recursion(
         return Vec::new();
     };
     let measure_symbol = measure_path.symbol;
-    let measure_name = program
-        .expression_table
+    let measure_name = expression_table(program)
         .name_path_members(measure_path.members)
         .first()
         .cloned();
@@ -368,7 +368,7 @@ fn substate_parameter_descends(
     let Some((_, argument)) = immutable_value_origin(program, source, before, argument) else {
         return false;
     };
-    let Some(path) = program.expression_table.name_path_node(argument) else {
+    let Some(path) = expression_table(program).name_path_node(argument) else {
         return false;
     };
     if !path.symbol.is_valid() {
@@ -440,7 +440,7 @@ fn substate_parameter_descends(
                         let forwarded =
                             immutable_value_origin(program, source, statement_index, *bound)
                                 .and_then(|(_, origin)| {
-                                    program.expression_table.name_path_node(origin)
+                                    expression_table(program).name_path_node(origin)
                                 })
                                 .is_some_and(|path| {
                                     path.symbol.is_valid() && descending.contains(&path.symbol)
@@ -497,7 +497,7 @@ fn strict_subterm_of_measure(
             return false;
         }
         seen.push(expression);
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Member(member) => {
                 receivers.push(member.receiver);
                 expression = member.receiver;

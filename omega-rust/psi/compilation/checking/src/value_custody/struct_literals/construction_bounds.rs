@@ -5,6 +5,7 @@
 //! independently permitted primitive zeros. Neither route grants qualification
 //! from the presence of a clause.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::JoinedPath;
@@ -146,7 +147,7 @@ fn bounds_eval(
     {
         return bounds_eval(program, owner, valuation, declared, argument);
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => {
             if !path.symbol.is_valid() {
                 return Bounds::UNKNOWN;
@@ -183,7 +184,7 @@ fn bounds_eval(
         ExpressionNode::Member(member)
             if CollectionMeasure::from_authored_spelling(member.member.as_str()).is_some() =>
         {
-            let measure = match program.expression_table.expression(member.receiver) {
+            let measure = match expression_table(program).expression(member.receiver) {
                 ExpressionNode::Name(path) if path.symbol.is_valid() => {
                     match valuation.iter().find(|(field, _)| *field == path.symbol) {
                         Some((_, bounds)) => {
@@ -593,7 +594,7 @@ fn flatten_operator(
     operator: BinaryOperator,
     out: &mut Vec<ExpressionHandle>,
 ) {
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+    if let ExpressionNode::Binary(binary) = expression_table(program).expression(expression)
         && binary.operator == operator
     {
         flatten_operator(program, binary.left, operator, out);
@@ -608,7 +609,7 @@ fn case_membership_symbol(
     subject: symbols::SymbolHandle,
     expression: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let ExpressionNode::Binary(binary) = expression_table(program).expression(expression) else {
         return None;
     };
     if !matches!(
@@ -624,11 +625,10 @@ fn case_membership_symbol(
     } else {
         return None;
     };
-    let ExpressionNode::Name(path) = program.expression_table.expression(case_expression) else {
+    let ExpressionNode::Name(path) = expression_table(program).expression(case_expression) else {
         return None;
     };
-    if program
-        .expression_table
+    if expression_table(program)
         .name_path_members(path.members)
         .len()
         != 2
@@ -643,11 +643,10 @@ fn names_predicate_subject(
     subject: symbols::SymbolHandle,
     expression: ExpressionHandle,
 ) -> bool {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => {
             path.symbol == subject
-                && program
-                    .expression_table
+                && expression_table(program)
                     .name_path_members(path.members)
                     .len()
                     == 1
@@ -694,10 +693,9 @@ fn collect_out_of_scope_leaf_names(
     expression: ExpressionHandle,
     out_of_scope: &mut Vec<String>,
 ) {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => {
-            if let Some(last) = program
-                .expression_table
+            if let Some(last) = expression_table(program)
                 .name_path_members(path.members)
                 .last()
                 && (!path.symbol.is_valid()
@@ -823,8 +821,7 @@ fn validate_literal_facts(
                         });
                 let field_name = selected.map(|field| field.name.as_str());
                 let authored_value = selected.and_then(|wanted| {
-                    program
-                        .expression_table
+                    expression_table(program)
                         .struct_fields(literal.fields)
                         .iter()
                         .find(|field| {
@@ -880,7 +877,7 @@ fn validate_literal_facts(
             }
         }
     }
-    let source_span = program.expression_table.source_span(expression);
+    let source_span = expression_table(program).source_span(expression);
     diagnostics.extend(
         predicate_diagnostics
             .into_iter()

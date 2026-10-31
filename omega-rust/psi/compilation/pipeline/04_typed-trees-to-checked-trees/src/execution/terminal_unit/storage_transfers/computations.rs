@@ -183,10 +183,10 @@ impl Query<'_> {
                 for argument in plans.operands.span(*arguments)? {
                     output.append(self.computation(*argument)?);
                 }
-                let call = self.facts.flow.control.calls.get(*source_call);
                 for operand in plans.structural_arguments.span(*structural_arguments)? {
                     output.append(self.structural_operand_computations(operand)?);
                     if let CheckedScalarComputationStructuralArgument::Place(argument) = operand {
+                        let call = self.facts.flow.control.calls.get(source_call.statement()?);
                         output.append(self.argument_transfers(
                             argument,
                             ValueReceiver::Call {

@@ -11,7 +11,7 @@ machine finish(main: &mut Main) -> i32
 reaches
     Console + ProcessExit
 ensures
-    result == 7;
+    result == 7
 {
     ProcessExit::exit_process(70);
     Console::write_line("unreachable literal");

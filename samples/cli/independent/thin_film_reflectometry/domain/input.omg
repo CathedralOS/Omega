@@ -17,7 +17,7 @@ machine character(reader: &mut Reader) -> i32 reaches Console {
     }
 }
 machine whitespace(value: i32) -> bool { transition { _ -> (value == 32 || value == 10 || value == 13 || value == 9) } }
-public machine number(reader: &mut Reader) -> Number reaches Console invokes Console; blocks; crashes Trap {
+public machine number(reader: &mut Reader) -> Number reaches Console invokes Console blocks crashes Trap {
     transition { _ -> start(reader) }
     machine start(reader: &mut Reader) -> Number {
         let value: i32 = block character(reader);
@@ -61,7 +61,7 @@ public machine number(reader: &mut Reader) -> Number reaches Console invokes Con
         }
     }
 }
-public machine ended(reader: &mut Reader) -> bool reaches Console invokes Console; blocks; crashes Trap {
+public machine ended(reader: &mut Reader) -> bool reaches Console invokes Console blocks crashes Trap {
     transition { _ -> scan(reader) }
     machine scan(reader: &mut Reader) -> bool {
         let value: i32 = block character(reader);

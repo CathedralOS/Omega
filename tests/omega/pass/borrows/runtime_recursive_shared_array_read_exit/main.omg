@@ -10,7 +10,7 @@ data Stack { items: [u32; 8]; count: u64; }
 data Main { stack: Stack; }
 
 machine sum(items: &[u32; 8], index: u64, limit: u64, total: u64 in Wrapping) -> u64 in Wrapping
-terminates by (index, limit) -> Nat::BoundedDistance;
+terminates by (index, limit) -> Nat::BoundedDistance
 requires limit <= 8
 {
     transition {

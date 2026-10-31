@@ -39,7 +39,7 @@ machine report(solver: &mut Solver, lower: i64 in Wrapping, upper: i64 in Wrappi
 // discriminant separately, including non-grid rational vertices.
 public machine solve(solver: &mut Solver)
 reaches Console
-invokes Console;
+invokes Console
 {
     let quadratic: i64 in Wrapping = -solver.network.c * (solver.network.r1 + solver.network.r2);
     let linear: i64 in Wrapping = solver.network.b * (solver.network.r1 + solver.network.r2)

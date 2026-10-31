@@ -38,7 +38,7 @@ Bumped satisfies Shape<Item> {
 
 machine scan(selected: dyn Shape<Item>, item: &Item, w: u32) -> Packet
 requires
-    w == 16 || w == 32 || w == 64;
+    w == 16 || w == 32 || w == 64
 {
     let r: Packet = Shape::code<w>(selected, item);
     transition {

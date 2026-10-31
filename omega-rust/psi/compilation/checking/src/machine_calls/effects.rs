@@ -39,13 +39,13 @@ pub fn validate_behavior_plan(
         {
             if machine_summary.body_may_suspend && !machine.suspends {
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` omits `suspends;` from its published contract, but its body may suspend",
+                    "machine `{}` omits `suspends` from its published contract, but its body may suspend",
                     machine.name
                 )));
             }
             if machine_summary.body_may_block && !machine.blocks {
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` omits `blocks;` from its published contract, but its body may block",
+                    "machine `{}` omits `blocks` from its published contract, but its body may block",
                     machine.name
                 )));
             }

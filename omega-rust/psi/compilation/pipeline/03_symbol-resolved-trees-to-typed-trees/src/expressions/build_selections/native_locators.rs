@@ -3,6 +3,7 @@
 
 mod constructors;
 
+use crate::tables::expression_table;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{BuildOperation, BuildSelectionRequest};
 use std::collections::HashSet;
@@ -12,8 +13,7 @@ use typed_trees::{
 };
 
 pub(crate) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(), Diagnostic> {
-    let pending = program
-        .expression_table
+    let pending = expression_table(program)
         .expression_entries()
         .filter_map(|(handle, node)| {
             if handle.arena_index() as usize <= frontier {
@@ -22,9 +22,8 @@ pub(crate) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
             let ExpressionNode::Call(call) = node else {
                 return None;
             };
-            let Some(BuildSelectionRequest::Declaration(request)) = program
-                .expression_table
-                .build_selection_request(call.build_selection)
+            let Some(BuildSelectionRequest::Declaration(request)) =
+                expression_table(program).build_selection_request(call.build_selection)
             else {
                 return None;
             };
@@ -71,8 +70,7 @@ pub(crate) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
     let mut completed = HashSet::<ExpressionHandle, symbols::BuildSymbolHasher>::default();
     for (machine, state, sites) in groups {
         for site in sites {
-            let call = program
-                .expression_table
+            let call = expression_table(program)
                 .call_node(site)
                 .cloned()
                 .ok_or_else(|| Diagnostic::error("native binding lost its ordinary call"))?;

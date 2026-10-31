@@ -510,9 +510,7 @@ pub(crate) fn validate(
             || argument.shape != storage_shape
             || argument.fixed_array_length != presentation.and_then(|(_, length, _)| length)
             || argument.element_stride != presentation.and_then(|(_, _, stride)| stride)
-            || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                indices, &elements,
-            )
+            || !crate::structural_inputs::runtime_indices_match(indices, &elements)
             || argument.indices.len() != indices.len()
             || argument
                 .indices

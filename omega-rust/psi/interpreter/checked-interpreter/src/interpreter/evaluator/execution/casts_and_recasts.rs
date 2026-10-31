@@ -2,7 +2,7 @@ use crate::interpreter::evaluator::{
     ArithmeticDomain, BigInt, EvalResult, Evaluator, ExpressionNode, FloatMeaning, FloatSemantics,
     Frame, Halt, PrimitiveType, SemanticFloatFormat, Value, big_integer_runtime_value,
     float_to_integer_trap_message, is_unsigned_integer_primitive, semantic_integer_format, trap,
-    wrap_to_width,
+    type_reference_table, wrap_to_width,
 };
 impl<'program> Evaluator<'program> {
     /// `X as dyn Trait<Args>` produces a runtime selector, not a storage
@@ -16,9 +16,7 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
         if !matches!(
-            self.program
-                .type_reference_table
-                .type_reference(cast.target_type),
+            type_reference_table(self.program).type_reference(cast.target_type),
             typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
         ) {
             return Ok(None);

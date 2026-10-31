@@ -4,7 +4,7 @@
 // Expected rejection: may overflow `u64`
 
 linux_x86_64 machine remainder_target(dividend: u64, divisor: u64) -> i32
-    requires divisor >= 64u64 && divisor <= 65u64;
+    requires divisor >= 64u64 && divisor <= 65u64
 {
     let rem: u64 = dividend % divisor;
     let headroom: u64 = 63u64 - rem;
@@ -17,7 +17,7 @@ linux_x86_64 machine remainder_target(dividend: u64, divisor: u64) -> i32
 }
 
 linux_arm64 machine remainder_target(dividend: u64, divisor: u64) -> i32
-    requires divisor >= 64u64 && divisor <= 65u64;
+    requires divisor >= 64u64 && divisor <= 65u64
 {
     let rem: u64 = dividend % divisor;
     let headroom: u64 = 63u64 - rem;
@@ -30,7 +30,7 @@ linux_arm64 machine remainder_target(dividend: u64, divisor: u64) -> i32
 }
 
 macos_arm64 machine remainder_target(dividend: u64, divisor: u64) -> i32
-    requires divisor >= 64u64 && divisor <= 65u64;
+    requires divisor >= 64u64 && divisor <= 65u64
 {
     let rem: u64 = dividend % divisor;
     let headroom: u64 = 63u64 - rem;
@@ -43,7 +43,7 @@ macos_arm64 machine remainder_target(dividend: u64, divisor: u64) -> i32
 }
 
 windows_x86_64 machine remainder_target(dividend: u64, divisor: u64) -> i32
-    requires divisor >= 64u64 && divisor <= 65u64;
+    requires divisor >= 64u64 && divisor <= 65u64
 {
     let rem: u64 = dividend % divisor;
     let headroom: u64 = 63u64 - rem;

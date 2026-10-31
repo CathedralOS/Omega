@@ -8,7 +8,7 @@ where ticks >= 0 && ticks < ANIMATION_PERIOD {
 }
 
 public machine advance_clock(clock: FrameClock) -> FrameClock
-terminates;
+terminates
 {
     FrameClock { ticks: (clock.ticks + 1) % ANIMATION_PERIOD }
 }

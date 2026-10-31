@@ -3,23 +3,23 @@
 
 machine publish(remaining: u64) -> u64
 requires
-    remaining <= 5;
+    remaining <= 5
 ensures
-    result == remaining;
+    result == remaining
 {
     remaining
 }
 
 machine deduct(value: u64) -> u64
 requires
-    value <= 5;
+    value <= 5
 {
     value - 2
 }
 
 machine walk(remaining: u64) -> u64
 requires
-    remaining <= 5;
+    remaining <= 5
 {
     deduct(publish(remaining))
 }

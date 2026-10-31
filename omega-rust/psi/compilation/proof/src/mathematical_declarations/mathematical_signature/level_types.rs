@@ -3,6 +3,7 @@
 //! entries and term domains inside the signature under construction.
 
 use crate::mathematical_declarations::FixedCore;
+use crate::typed_expressions::{expression_table, type_reference_table};
 use proof_admission::{Level, Term, TermHandle};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -21,11 +22,7 @@ impl<'a> Elaborator<'a> {
         &mut self,
         reference: TypeReferenceHandle,
     ) -> Result<Level, Vec<diagnostics::Diagnostic>> {
-        if !self
-            .program
-            .type_reference_table
-            .contains_type_reference(reference)
-        {
+        if !type_reference_table(self.program).contains_type_reference(reference) {
             return Err(self.refuse(
                 "a universe-level argument references a type that does not exist".to_owned(),
             ));
@@ -112,9 +109,7 @@ impl<'a> Elaborator<'a> {
             MathematicalType::Application { callee, arguments } => {
                 let callee = self.elaborate_mathematical_type(*callee)?;
                 let mut inputs = Vec::new();
-                for argument in self
-                    .program
-                    .expression_table
+                for argument in expression_table(self.program)
                     .expression_handles(*arguments)
                     .to_vec()
                 {
@@ -135,11 +130,7 @@ impl<'a> Elaborator<'a> {
         &mut self,
         reference: TypeReferenceHandle,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
-        if !self
-            .program
-            .type_reference_table
-            .contains_type_reference(reference)
-        {
+        if !type_reference_table(self.program).contains_type_reference(reference) {
             return Err(
                 self.refuse("a mathematical type references a type that does not exist".to_owned())
             );
@@ -154,9 +145,7 @@ impl<'a> Elaborator<'a> {
             constraints,
         } = self.program.type_reference_table.type_reference(qualified)
         {
-            if self
-                .program
-                .type_reference_table
+            if type_reference_table(self.program)
                 .constraints(*constraints)
                 .iter()
                 .any(|constraint| matches!(constraint, TypeConstraintNode::Range { .. }))
@@ -189,9 +178,7 @@ impl<'a> Elaborator<'a> {
                         "mathematical type `{base_name}` carries lifetime arguments the kernel cannot express"
                     )));
                 }
-                let arguments = self
-                    .program
-                    .type_reference_table
+                let arguments = type_reference_table(self.program)
                     .type_reference_handles(*arguments)
                     .to_vec();
                 let base_symbol = *base_symbol;

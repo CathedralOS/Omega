@@ -5,6 +5,7 @@
 use super::super::{
     CallSite, ExpressionNode, StaticMachineArgument, SymbolHandle, TypeReferenceHandle, TypedTrees,
 };
+use crate::tables::expressions_of;
 use symbols::SymbolKind;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::signature::StateSignature;
@@ -151,8 +152,7 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Invocation>, Vec<s
                 );
                 for expression in expressions {
                     let site = CallSite::Expression(expression);
-                    let ExpressionNode::Call(call) =
-                        program.expression_table.expression(expression)
+                    let ExpressionNode::Call(call) = expressions_of(program).expression(expression)
                     else {
                         continue;
                     };
@@ -161,8 +161,7 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Invocation>, Vec<s
                         site,
                         call.target_symbol,
                         call.machine_arguments.to_vec(),
-                        program
-                            .expression_table
+                        expressions_of(program)
                             .expression_handles(call.arguments)
                             .to_vec(),
                     ));
@@ -182,12 +181,12 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Invocation>, Vec<s
             declaration.authored_initializer,
             declaration.materialized_initializer,
         ] {
-            if program.expression_table.expression_is_valid(root) {
+            if expressions_of(program).expression_is_valid(root) {
                 validation::collect_expression_tree(program, root, &mut expressions);
             }
         }
         for expression in expressions {
-            let Some(call) = program.expression_table.call_node(expression) else {
+            let Some(call) = expressions_of(program).call_node(expression) else {
                 continue;
             };
             pending.push((
@@ -195,8 +194,7 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Invocation>, Vec<s
                 CallSite::Expression(expression),
                 call.target_symbol,
                 call.machine_arguments.to_vec(),
-                program
-                    .expression_table
+                expressions_of(program)
                     .expression_handles(call.arguments)
                     .to_vec(),
             ));
@@ -246,16 +244,13 @@ fn proposal(
     let application = site.authored_machine_application(program)?;
     let (target, mut selected, selected_machines) = if application.is_valid() {
         (
-            program
-                .expression_table
+            expressions_of(program)
                 .static_machine_application(application)
                 .registration_operation,
-            program
-                .expression_table
+            expressions_of(program)
                 .static_machine_application_arguments(application)
                 .to_vec(),
-            program
-                .expression_table
+            expressions_of(program)
                 .static_machine_application_selected_machines(application)
                 .to_vec(),
         )
@@ -263,8 +258,7 @@ fn proposal(
         (selected_target, selected.to_vec(), Vec::new())
     };
     let retained_owner = if application.is_valid() {
-        program
-            .expression_table
+        expressions_of(program)
             .static_machine_application(application)
             .lexical_owner
     } else {

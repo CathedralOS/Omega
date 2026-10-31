@@ -134,7 +134,7 @@ machine CallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResul
 
 public boundary trait Initializer: Calling<InitializerCalling> {
     machine call(context: u64) reaches Initializer + Registration + Console
-    invokes Registration;
+    invokes Registration
     invokes Console;
 }
 
@@ -164,8 +164,8 @@ via registration_binding();
 public data Initialization { }
 public machine Initialization::call(context: u64) satisfies Initializer::call
 reaches Initializer + Registration + Console
-invokes Registration;
-invokes Console;
+invokes Registration
+invokes Console
 {
     let mut key: ThreadKey = ThreadKey { token: 0 };
     let status: i32 = Registration::register<Initialization::call>(&mut key);
@@ -179,8 +179,8 @@ invokes Console;
 
 data Main { key: ThreadKey; status: i32; }
 machine Main::main(main: &mut Main) reaches Registration + Initializer + Console
-invokes Registration;
-invokes Console;
+invokes Registration
+invokes Console
 {
     main.key.token = 0;
     main.status = Registration::register<Initialization::call>(&mut main.key);
@@ -196,8 +196,8 @@ invokes Console;
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Registration + Initializer + Console
-invokes Registration;
-invokes Console;
+invokes Registration
+invokes Console
 {
     let mut entry_storage: Main;
     Main::main(&mut entry_storage);

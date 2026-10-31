@@ -8,7 +8,7 @@
 // Both paths must return the final element, not merely accept the argument.
 
 machine walk(values: &[i32 in Wrapping]) -> i32
-terminates by values -> Slice::Length;
+terminates by values -> Slice::Length
 {
     transition { _ -> scan(values) }
 

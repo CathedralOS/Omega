@@ -4,8 +4,8 @@
 // Expected rejection: may overflow `u32`
 
 linux_x86_64 machine evaluate_target(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 20u32 && lhs <= 40u32;
-    requires rhs >= 30u32 && rhs <= 51u32;
+    requires lhs >= 20u32 && lhs <= 40u32
+    requires rhs >= 30u32 && rhs <= 51u32
 {
     let sum: u32 = lhs + rhs;
     let headroom: u32 = 90u32 - sum;
@@ -19,8 +19,8 @@ linux_x86_64 machine evaluate_target(lhs: u32, rhs: u32) -> i32
 }
 
 linux_arm64 machine evaluate_target(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 20u32 && lhs <= 40u32;
-    requires rhs >= 30u32 && rhs <= 51u32;
+    requires lhs >= 20u32 && lhs <= 40u32
+    requires rhs >= 30u32 && rhs <= 51u32
 {
     let sum: u32 = lhs + rhs;
     let headroom: u32 = 90u32 - sum;
@@ -34,8 +34,8 @@ linux_arm64 machine evaluate_target(lhs: u32, rhs: u32) -> i32
 }
 
 macos_arm64 machine evaluate_target(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 20u32 && lhs <= 40u32;
-    requires rhs >= 30u32 && rhs <= 51u32;
+    requires lhs >= 20u32 && lhs <= 40u32
+    requires rhs >= 30u32 && rhs <= 51u32
 {
     let sum: u32 = lhs + rhs;
     let headroom: u32 = 90u32 - sum;
@@ -49,8 +49,8 @@ macos_arm64 machine evaluate_target(lhs: u32, rhs: u32) -> i32
 }
 
 windows_x86_64 machine evaluate_target(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 20u32 && lhs <= 40u32;
-    requires rhs >= 30u32 && rhs <= 51u32;
+    requires lhs >= 20u32 && lhs <= 40u32
+    requires rhs >= 30u32 && rhs <= 51u32
 {
     let sum: u32 = lhs + rhs;
     let headroom: u32 = 90u32 - sum;

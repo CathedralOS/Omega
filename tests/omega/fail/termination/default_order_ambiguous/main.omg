@@ -6,9 +6,8 @@ machine Main::main(main: &mut Main) -> i32 {
     }
 }
 
-machine Main::countdown(main: &mut Main, remaining: i32)
-terminates by remaining;
--> i32
+machine Main::countdown(main: &mut Main, remaining: i32) -> i32
+terminates by remaining
 {
     transition remaining > 0 {
         true -> countdown(main, remaining - 1)

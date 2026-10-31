@@ -10,7 +10,7 @@ machine replace(at: u64, bytes: &mut Buffer, value: u8) -> bool {
         _ -> false
     }
     machine write(at: u64, bytes: &mut Buffer, value: u8, repeat: bool) -> bool
-    requires at < 8; value < 128 {
+    requires at < 8, value < 128 {
         bytes.storage[at] = value;
         transition repeat {
             true -> write(at, bytes, value, false)

@@ -3,6 +3,7 @@ use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, QualifiedScalarType, ScalarType,
     computations, scalar_carriers, storage, unsupported, validate_boolean_parameter_types,
 };
+use crate::checked_facts::value_facts;
 use crate::emission::expression_validation::validate_short_circuit_expression;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -20,9 +21,7 @@ pub(crate) fn is_computed(
     state: symbols::SymbolHandle,
     statement: u32,
 ) -> bool {
-    checked
-        .facts
-        .values
+    value_facts(checked)
         .scalar_computations
         .roots_for_statement_role(state, statement, CheckedScalarExpressionRole::Guard)
         .next()

@@ -2,7 +2,7 @@
 public data Scalar {}
 public boundary operator Scalar::observe(value: u32);
 public boundary operator Value::value() -> u32;
-machine count(remaining: u32) terminates by remaining; -> u32 {
+machine count(remaining: u32) -> u32 terminates by remaining {
     transition remaining > 0 {
         true -> count(remaining - 1)
         false -> finish()

@@ -7,6 +7,7 @@
 //! integer semantic family has eight carriers, so its proof-position overload
 //! is selected by that exact parameter kind before checking sealed custody.
 
+use crate::frozen_program::expression_table;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::operator::OperatorDefinition;
 use typed_trees::types::PrimitiveType;
@@ -85,9 +86,8 @@ fn selected_numeric_float_conversion_contract(
             return None;
         }
         let semantic = candidate.semantic;
-        let [format, value] = program
-            .expression_table
-            .expression_handles(candidate.conversion.arguments)
+        let [format, value] =
+            expression_table(program).expression_handles(candidate.conversion.arguments)
         else {
             return None;
         };
@@ -125,7 +125,7 @@ fn selected_numeric_float_conversion_contract(
             }
             *value
         };
-        let value = program.expression_table.name_path_node(value)?;
+        let value = expression_table(program).name_path_node(value)?;
         if value.symbol.is_valid() && value.symbol == parameter.symbol {
             Some((source, target, semantic))
         } else {
@@ -190,7 +190,7 @@ fn scan_conversion_equalities<'program, R>(
         program,
         program.operator_contracts(operator),
     ) {
-        let Some(equality) = program.expression_table.binary_node(expression) else {
+        let Some(equality) = expression_table(program).binary_node(expression) else {
             continue;
         };
         if equality.operator != BinaryOperator::Equal {
@@ -200,7 +200,7 @@ fn scan_conversion_equalities<'program, R>(
             (equality.left, equality.right),
             (equality.right, equality.left),
         ] {
-            let Some(conversion) = program.expression_table.call_node(converted) else {
+            let Some(conversion) = expression_table(program).call_node(converted) else {
                 continue;
             };
             let Some((selected, semantic)) = resolve(program, conversion) else {
@@ -228,13 +228,13 @@ fn projection(
     PrimitiveType,
     typed_trees::types::TypeReferenceHandle,
 )> {
-    let call = program.expression_table.call_node(expression)?;
+    let call = expression_table(program).call_node(expression)?;
     let (selected, primitive, _, _) =
         crate::proof_contracts::float_projection_invocations::exact_projection_operation(
             program, call,
         )?;
     let operator = typed_trees::operator::declaration_by_symbol(program, selected)?;
-    let [operand] = program.expression_table.expression_handles(call.arguments) else {
+    let [operand] = expression_table(program).expression_handles(call.arguments) else {
         return None;
     };
     Some((*operand, primitive, operator.return_type))
@@ -298,14 +298,12 @@ pub fn float_integer_conversion_contract(
         {
             return None;
         }
-        let [value] = program
-            .expression_table
-            .expression_handles(candidate.conversion.arguments)
+        let [value] = expression_table(program).expression_handles(candidate.conversion.arguments)
         else {
             return None;
         };
         let (value, primitive, _) = projection(program, *value)?;
-        let value = program.expression_table.name_path_node(value)?;
+        let value = expression_table(program).name_path_node(value)?;
         if primitive == source && value.symbol.is_valid() && value.symbol == parameter.symbol {
             Some((source, semantic))
         } else {

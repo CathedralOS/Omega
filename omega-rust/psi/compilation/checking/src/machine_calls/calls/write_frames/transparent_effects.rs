@@ -5,6 +5,7 @@
 //! malformed expression handles contribute no invented effect. It does not
 //! resolve or summarize any call frame.
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -15,7 +16,7 @@ pub(super) fn expression_is_effectful_for_transparent_result(
     if !expression.is_valid() {
         return false;
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Match(dispatch) => {
             crate::expression_traversal::match_children(program, *dispatch)
                 .any(|child| expression_is_effectful_for_transparent_result(program, child))
@@ -41,8 +42,7 @@ pub(super) fn expression_is_effectful_for_transparent_result(
         ExpressionNode::Unary(unary) => {
             expression_is_effectful_for_transparent_result(program, unary.operand)
         }
-        ExpressionNode::ArrayLiteral(elements) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(elements) => expression_table(program)
             .expression_handles(*elements)
             .iter()
             .any(|element| expression_is_effectful_for_transparent_result(program, *element)),
@@ -50,8 +50,7 @@ pub(super) fn expression_is_effectful_for_transparent_result(
             expression_is_effectful_for_transparent_result(program, range.start)
                 || expression_is_effectful_for_transparent_result(program, range.end)
         }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expression_table(program)
             .struct_fields(literal.fields)
             .iter()
             .any(|field| expression_is_effectful_for_transparent_result(program, field.value)),
@@ -65,7 +64,7 @@ pub(super) fn frame_place_root_symbol(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Borrow(inner) => frame_place_root_symbol(program, inner.target),
         ExpressionNode::Indexed(indexed) => frame_place_root_symbol(program, indexed.collection),
         ExpressionNode::Member(member) => frame_place_root_symbol(program, member.receiver),

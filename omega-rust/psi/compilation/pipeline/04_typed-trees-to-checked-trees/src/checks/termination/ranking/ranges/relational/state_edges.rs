@@ -8,6 +8,10 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 
 pub(super) struct SelectedCorrespondence {
+    pub applications: Vec<(
+        symbols::SymbolHandle,
+        validation::IntegerApplicationFormation,
+    )>,
     pub states: Vec<validation::RankStateBindings>,
     pub origins: Vec<validation::StateEntryCorrespondence>,
     pub edges: Vec<checked_trees::CheckedRankArrivalEdge>,
@@ -22,6 +26,10 @@ pub(super) fn select<'program>(
     premises: validation::RankingRangePremises,
     premise_inputs: &[validation::RankPremiseInput],
     root_edges: &[checked_trees::CheckedRankArrivalEdge],
+    root_applications: &[(
+        symbols::SymbolHandle,
+        validation::IntegerApplicationFormation,
+    )],
     accept: &mut dyn FnMut(&super::RankArrivalAdmission) -> bool,
     failure: &mut RankArrivalFailure,
 ) -> Option<SelectedCorrespondence> {
@@ -50,6 +58,7 @@ pub(super) fn select<'program>(
         .collect::<Vec<_>>();
     let components = graph::strongly_connected_components(&adjacency);
     let mut accepted_edges = Vec::new();
+    let mut accepted_applications = Vec::new();
     let states = validation::select_rank_arrival_correspondence(
         program,
         machine,
@@ -58,6 +67,7 @@ pub(super) fn select<'program>(
         |selected| {
             let mut complete = true;
             let mut edge_judgments = Vec::new();
+            let mut applications = Vec::new();
             for (source_position, source) in states.iter().enumerate() {
                 let Some(source_bindings) = selected
                     .iter()
@@ -183,6 +193,9 @@ pub(super) fn select<'program>(
                         let Ok(statement_ordinal) = u32::try_from(edge.statement_ordinal) else {
                             return validation::RankArrivalCompatibility::Refuted;
                         };
+                        if let Some(application) = proof.arrival_application {
+                            applications.push((target.symbol, application));
+                        }
                         edge_judgments.push(checked_trees::CheckedRankArrivalEdge {
                             source: source.symbol,
                             destination: target.symbol,
@@ -197,7 +210,10 @@ pub(super) fn select<'program>(
             if complete {
                 let mut edges = edge_judgments.clone();
                 edges.extend_from_slice(root_edges);
+                let mut all_applications = applications.clone();
+                all_applications.extend_from_slice(root_applications);
                 let candidate = super::RankArrivalAdmission {
+                    applications: all_applications,
                     premises,
                     states: selected.to_vec(),
                     origins: discovered.clone(),
@@ -207,6 +223,7 @@ pub(super) fn select<'program>(
                     return validation::RankArrivalCompatibility::Refuted;
                 }
                 accepted_edges = edge_judgments;
+                accepted_applications = applications;
                 validation::RankArrivalCompatibility::Complete
             } else {
                 validation::RankArrivalCompatibility::Pending
@@ -214,6 +231,7 @@ pub(super) fn select<'program>(
         },
     )?;
     Some(SelectedCorrespondence {
+        applications: accepted_applications,
         states,
         origins: discovered,
         edges: accepted_edges,

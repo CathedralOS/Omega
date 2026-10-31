@@ -3,6 +3,7 @@
 //! both reject a valid payload read and admit a field from an inactive case.
 
 use super::{declared_place_type_raw, unwrapped_type_reference};
+use crate::frozen_program::expression_table;
 use language_core::is_self_receiver;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -72,10 +73,9 @@ pub(super) fn collect_member_path(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<Vec<String>> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Name(path) => Some(
-            program
-                .expression_table
+            expression_table(program)
                 .name_path_members(path.members)
                 .iter()
                 .map(|member| member.as_str().to_owned())
@@ -110,7 +110,7 @@ pub(crate) fn first_unknown_nested_field(
     current_state: Option<&typed_trees::state::State>,
     expression: ExpressionHandle,
 ) -> Option<(String, String)> {
-    if let Some(member) = program.expression_table.member_node(expression) {
+    if let Some(member) = expression_table(program).member_node(expression) {
         // Diagnose the first missing receiver hop before resolving this member.
         // The shared type query retains every selected case in that receiver;
         // a name-only walk would choose the first same-spelled payload instead.

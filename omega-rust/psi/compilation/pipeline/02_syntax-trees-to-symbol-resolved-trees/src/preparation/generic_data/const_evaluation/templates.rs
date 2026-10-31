@@ -7,6 +7,9 @@ use crate::preparation::generic_data::uses::{
     ConstructorFrontier, collect_expression_handles, collect_statement_expression_handles,
     visit_expression_type_inputs, visit_static_argument_type_inputs,
 };
+use crate::tables::syntax_expressions;
+use crate::tables::syntax_items;
+use crate::tables::syntax_type_references;
 
 use crate::preparation::generic_data::EvaluatedConst;
 
@@ -70,10 +73,7 @@ pub(in crate::preparation::generic_data) fn capture_machine_runtime_template_nam
             captured.expressions.insert(handle);
         }
     }
-    for (handle, _) in syntax
-        .type_references
-        .named_nodes_from(type_watermark, syntax)
-    {
+    for (handle, _) in syntax_type_references(&syntax).named_nodes_from(type_watermark, syntax) {
         if let Some(name) = syntax.type_references.type_reference(handle).as_named()
             && header_frontier.captures_name(syntax, name)
         {
@@ -237,8 +237,7 @@ fn collect_contract_expression_handles(
                 }
                 ProofFact::Membership(membership) => {
                     collect_expression_handles(syntax, membership.value, expressions);
-                    for argument in syntax
-                        .type_references
+                    for argument in syntax_type_references(&syntax)
                         .type_reference_handles(membership.domain_arguments)
                     {
                         collect_type_expression_handles(
@@ -305,9 +304,8 @@ fn collect_type_expression_handles(
                         collect_expression_handles(syntax, *maximum, expressions);
                     }
                     TypeConstraintNode::Domain(domain) => {
-                        for argument in syntax
-                            .type_references
-                            .type_reference_handles(domain.arguments)
+                        for argument in
+                            syntax_type_references(&syntax).type_reference_handles(domain.arguments)
                         {
                             collect_type_expression_handles(
                                 syntax,
@@ -331,8 +329,7 @@ fn replace_uncaptured_const_names(
     const_expressions: &HashMap<String, ExpressionNode>,
     captured: &HashSet<ExpressionHandle>,
 ) {
-    let replacements = syntax
-        .expressions
+    let replacements = syntax_expressions(&syntax)
         .iter_expressions()
         .filter(|(handle, _)| expression_watermark.contains(*handle))
         .filter(|(handle, _)| !captured.contains(handle))
@@ -375,17 +372,13 @@ pub(in crate::preparation::generic_data) fn normalize_generic_template_const_exp
             if definition.type_parameters.is_empty() {
                 return None;
             }
-            let symbolic_parameters = syntax
-                .tables
-                .items
+            let symbolic_parameters = syntax_items(&syntax)
                 .type_parameters(definition.type_parameters)
                 .iter()
                 .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }))
                 .map(|parameter| parameter.name.as_str(syntax).to_string())
                 .collect();
-            let fields = syntax
-                .tables
-                .items
+            let fields = syntax_items(&syntax)
                 .data_members(definition.members)
                 .iter()
                 .filter_map(|member| match member {
@@ -428,9 +421,7 @@ pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
     symbolic_parameters: &HashSet<String>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), String> {
-    let node = syntax
-        .tables
-        .type_references
+    let node = syntax_type_references(&syntax)
         .type_reference(type_reference)
         .clone();
     match node {
@@ -461,16 +452,12 @@ pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
             arguments,
             ..
         } => {
-            let arguments = syntax
-                .tables
-                .type_references
+            let arguments = syntax_type_references(&syntax)
                 .type_reference_handles(arguments)
                 .to_vec();
             let integer_types = generic_const_integer_types(syntax, base_name.as_str(syntax));
             for (index, argument) in arguments.into_iter().enumerate() {
-                let node = syntax
-                    .tables
-                    .type_references
+                let node = syntax_type_references(&syntax)
                     .type_reference(argument)
                     .clone();
                 if let TypeReferenceNode::ConstExpression(expression) = node {
@@ -633,9 +620,8 @@ fn visit_type_positions(
             }
             for constraint in syntax.type_references.constraints(*constraints) {
                 if let TypeConstraintNode::Domain(domain) = constraint {
-                    for argument in syntax
-                        .type_references
-                        .type_reference_handles(domain.arguments)
+                    for argument in
+                        syntax_type_references(&syntax).type_reference_handles(domain.arguments)
                     {
                         visit_child!(*argument);
                     }
@@ -657,11 +643,7 @@ fn visit_type_positions(
             trait_arguments: arguments,
             ..
         } => {
-            for argument in syntax
-                .tables
-                .type_references
-                .type_reference_handles(*arguments)
-            {
+            for argument in syntax_type_references(&syntax).type_reference_handles(*arguments) {
                 visit_child!(*argument);
             }
         }
@@ -754,9 +736,8 @@ fn collect_owned_type_reference_positions(
         // Satisfier arguments and signatures select the same closed carrier.
         // All states, including inline conformance states, own their type uses.
         for conformance in syntax.items.satisfies_clauses(machine.satisfies) {
-            for argument in syntax
-                .type_references
-                .type_reference_handles(conformance.arguments)
+            for argument in
+                syntax_type_references(&syntax).type_reference_handles(conformance.arguments)
             {
                 visit_type_positions(syntax, *argument, &mut positions, false, traversal);
             }
@@ -793,8 +774,7 @@ pub(in crate::preparation::generic_data) fn collect_machine_type_reference_posit
     for machine in
         super::super::uses::concrete_machine_declarations(syntax, syntax.root_item_handles())
     {
-        for (ordinal, state_handle) in syntax
-            .items
+        for (ordinal, state_handle) in syntax_items(&syntax)
             .state_handles(machine.states)
             .iter()
             .enumerate()

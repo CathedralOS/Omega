@@ -4,7 +4,7 @@
 // Expected rejection: may overflow `u64`
 
 machine remainder_local(dividend: u64, divisor: u64) -> i32
-    requires divisor >= 64u64 && divisor <= 65u64;
+    requires divisor >= 64u64 && divisor <= 65u64
 {
     let d: u64 = dividend;
     let s: u64 = divisor;

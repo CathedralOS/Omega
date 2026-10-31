@@ -4,6 +4,8 @@ use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::lower_names;
 use crate::signatures::type_parameters::lower_type_parameters;
+use crate::tables::expression_table_mut;
+use crate::tables::resolved_expressions;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
@@ -279,19 +281,13 @@ fn lower_machine_contents(
         .insert_many(equations);
 
     let mut predicates = Vec::new();
-    for &expression in lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
+    for &expression in resolved_expressions(lowerer.source_trees)
         .expression_handles(machine.declared_type_predicates)
     {
         predicates.push(lower_expression_handle(lowerer, expression)?);
     }
-    typed_machine.declared_type_predicates = lowerer
-        .typed_trees
-        .expression_table
-        .insert_expression_handles(predicates);
+    typed_machine.declared_type_predicates =
+        expression_table_mut(&mut lowerer.typed_trees).insert_expression_handles(predicates);
 
     if let Some(application) = &machine.attached_data_application {
         typed_machine.attached_data_application =
@@ -513,20 +509,12 @@ fn retain_machine_ranking_expressions(
     lowerer: &mut Lowerer,
     machine: &resolved::machine::Machine,
 ) -> Result<(), Diagnostic> {
-    let ranking_subjects = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
+    let ranking_subjects = resolved_expressions(lowerer.source_trees)
         .expression_handles(machine.ranking_subjects)
         .iter()
         .map(|decrease| lower_expression_handle(lowerer, *decrease))
         .collect::<Result<Vec<_>, _>>()?;
-    let ranking_view_arguments = lowerer
-        .source_trees
-        .tables
-        .bodies
-        .expressions
+    let ranking_view_arguments = resolved_expressions(lowerer.source_trees)
         .expression_handles(machine.ranking_view_arguments)
         .iter()
         .map(|argument| lower_expression_handle(lowerer, *argument))

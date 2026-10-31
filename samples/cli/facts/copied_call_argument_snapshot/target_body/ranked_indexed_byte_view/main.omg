@@ -8,7 +8,7 @@ where view.bytes.len == Count
 { view: View<'storage>; }
 machine retain_counted<'storage, Count: u64>(selected: Counted<'storage, Count>, remaining: u64)
 requires remaining <= 2
-terminates by remaining -> Nat::Descending in 0..=2;
+terminates by remaining -> Nat::Descending in 0..=2
 -> Counted<'storage, Count>
 {
     transition remaining > 0 {

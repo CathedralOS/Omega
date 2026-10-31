@@ -8,6 +8,7 @@
 //! A total, value-only static callable closes a leaf through its exact public
 //! contract. Unresolved calls supply no denotational authority.
 
+use crate::frozen_program::expression_table;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -135,14 +136,14 @@ pub fn expression_values_have_call_identity(
     let mut pending = vec![expression];
     let mut seen = Vec::new();
     while let Some(expression) = pending.pop() {
-        if !program.expression_table.expression_is_valid(expression) {
+        if !expression_table(program).expression_is_valid(expression) {
             return false;
         }
         if seen.contains(&expression) {
             continue;
         }
         seen.push(expression);
-        let node = program.expression_table.expression(expression);
+        let node = expression_table(program).expression(expression);
         if let ExpressionNode::Call(call) = node
             && !admitted(expression)
             && normal_return_call_candidate(program, call, operational, service_reaches).is_err()
@@ -353,7 +354,7 @@ fn expression_is_fact_observation_free(
     expression: ExpressionHandle,
     internal_borrow: &impl Fn(ExpressionHandle) -> bool,
 ) -> bool {
-    let node = program.expression_table.expression(expression);
+    let node = expression_table(program).expression(expression);
     let allowed = match node {
         ExpressionNode::Match(dispatch) => {
             crate::expression_traversal::match_children(program, *dispatch)
@@ -377,8 +378,7 @@ fn expression_is_fact_observation_free(
             // Rejoin it to the exact selected target through the shared call
             // owner; declaration spelling or namespace kind alone is no proof.
             (!call.receiver.is_valid() || program.call_has_no_runtime_receiver_for_target(call))
-                && program
-                    .expression_table
+                && expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .all(|argument| {
@@ -396,8 +396,7 @@ fn expression_is_fact_observation_free(
             expression_is_fact_observation_free(program, range.start, internal_borrow)
                 && expression_is_fact_observation_free(program, range.end, internal_borrow)
         }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expression_table(program)
             .struct_fields(literal.fields)
             .iter()
             .all(|field| {
@@ -406,8 +405,7 @@ fn expression_is_fact_observation_free(
         ExpressionNode::Unary(unary) => {
             expression_is_fact_observation_free(program, unary.operand, internal_borrow)
         }
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(values) => expression_table(program)
             .expression_handles(*values)
             .iter()
             .all(|value| expression_is_fact_observation_free(program, *value, internal_borrow)),

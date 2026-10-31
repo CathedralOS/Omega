@@ -14,6 +14,7 @@ use super::super::semantics::signatures::parameters::{
 };
 use super::super::semantics::types::lifetimes::lifetime_binder_ordinal;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
@@ -152,11 +153,7 @@ pub(crate) fn project_trait_requirement(
 ) -> Result<PackageReviewTraitRequirement, Vec<Diagnostic>> {
     let owner = compilation
         .trait_definition_by_symbol(trait_symbol)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "package review trait requirement has no exact declaring trait",
-            )]
-        })?;
+        .or_evidence("package review trait requirement has no exact declaring trait")?;
     let identity = trait_requirement_identity(compilation, owner, requirement)?;
     let parameters = compilation.state_signature_type_parameters(requirement);
     let mut lifetime_binders = trait_lifetime_parameters.to_vec();
@@ -203,12 +200,10 @@ pub(crate) fn project_trait_requirement(
         .filter(|capsule| {
             capsule.target_machine() == trait_symbol && capsule.target_state() == requirement.symbol
         });
-    let crash_capsule = crash_capsules.next().ok_or_else(|| {
-        vec![Diagnostic::error(format!(
-            "public trait requirement `{}` has no exact checked crash capsule",
-            identity.path
-        ))]
-    })?;
+    let crash_capsule = crash_capsules.next().or_evidence(format!(
+        "public trait requirement `{}` has no exact checked crash capsule",
+        identity.path
+    ))?;
     if crash_capsules.next().is_some() {
         return Err(vec![Diagnostic::error(format!(
             "public trait requirement `{}` has duplicate checked crash capsules",

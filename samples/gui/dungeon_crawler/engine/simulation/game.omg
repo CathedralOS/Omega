@@ -41,7 +41,7 @@ public data Game {
 }
 
 public machine Game::reset(game: &mut Game)
-terminates;
+terminates
 {
     game.dungeon = hollow_dungeon();
     game.actors = ActorSet { count: 2 };
@@ -56,7 +56,7 @@ terminates;
 }
 
 public machine Game::enter(game: &mut Game)
-terminates;
+terminates
 {
     let room: u64 = game.camera.room;
     transition room < ROOM_COUNT { true -> install(game, room) _ -> done() }
@@ -76,7 +76,7 @@ terminates;
 }
 
 public machine Game::walk(game: &mut Game, direction: i32)
-terminates;
+terminates
 requires direction >= -1 && direction < 4 {
     Game::commands(game, Command { direction: direction, attack: false });
     Game::move(game);
@@ -84,7 +84,7 @@ requires direction >= -1 && direction < 4 {
 }
 
 public machine Game::tick(game: &mut Game, direction: i32, swing: bool)
-terminates;
+terminates
 requires direction >= -1 && direction < 4 {
     let selected: u64 = game.camera.actor;
     transition selected < ACTOR_CAPACITY { true -> playing(game, direction, swing, selected) _ -> idle() }
@@ -174,7 +174,7 @@ machine Game::rewards(game: &mut Game) {
 }
 
 public machine Game::capture(game: &Game) -> Frame
-terminates;
+terminates
 {
     let selected: u64 = game.camera.actor;
     let room: u64 = game.camera.room;
@@ -189,7 +189,7 @@ terminates;
 }
 
 public machine Game::verify(game: &mut Game) -> bool
-terminates;
+terminates
 {
     Game::reset(game);
     let wall: i32 = tile_at(&game.dungeon.rooms[0], 0, 1, false);

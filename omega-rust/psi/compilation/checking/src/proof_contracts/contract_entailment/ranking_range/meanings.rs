@@ -3,6 +3,7 @@
 //! sealed IEEE comparisons may guard an integer rank, while the strict
 //! arithmetic engine independently declines their floating-point operands.
 use super::{BinaryOperator, ExpressionHandle, ExpressionNode, Machine, PrimitiveType, State};
+use crate::frozen_program::expression_table;
 use typed_trees::expression::UnaryOperator;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -13,9 +14,7 @@ pub(super) fn admitted_carrier(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<Option<TypeReferenceHandle>> {
-    let node = program
-        .expression_table
-        .expression_at_depth(expression, depth)?;
+    let node = expression_table(program).expression_at_depth(expression, depth)?;
     if super::super::proof_integer::anonymous_integer_value(program, expression).is_some() {
         // This uses the existing anonymous-operator classifier and folds only
         // a wholly anonymous integral subtree, not typed integer division.
@@ -107,7 +106,7 @@ pub(super) fn admitted_carrier(
         ExpressionNode::Indexed(indexed) => {
             let collection_type =
                 admitted_carrier(program, machine, state, indexed.collection, depth + 1)?;
-            if !program.expression_table.indexed_on_range(indexed) {
+            if !expression_table(program).indexed_on_range(indexed) {
                 // An element read can be another arrival's payload without
                 // becoming a ranking coordinate. The shared place owner
                 // authenticates its selected builtin operation; the raw
@@ -143,7 +142,7 @@ pub(super) fn admitted_carrier(
             ) {
                 return None;
             }
-            let range = program.expression_table.range_node(indexed.index)?;
+            let range = expression_table(program).range_node(indexed.index)?;
             for endpoint in [range.start, range.end] {
                 if endpoint.is_valid() {
                     admitted_carrier(program, machine, state, endpoint, depth + 1)?;
@@ -188,7 +187,7 @@ pub(super) fn admitted_carrier(
             // cast onto a fixed integer still records that integer: the
             // literal is the operand, and the cast is the carrier.
             let integer_literal = matches!(
-                program.expression_table.expression(cast.value),
+                expression_table(program).expression(cast.value),
                 ExpressionNode::Integer(_)
             );
             // A value cast reads its operand, including the referent of an
@@ -354,7 +353,7 @@ pub(super) fn admitted_carrier(
         // An arm this query declines, or two different primitives, leaves
         // the match outside the coordinate. Pattern facts stay with the walker.
         ExpressionNode::Match(dispatch) => {
-            let arms = program.expression_table.match_arms(dispatch.arms);
+            let arms = expression_table(program).match_arms(dispatch.arms);
             if arms.is_empty() {
                 return None;
             }
@@ -384,8 +383,7 @@ pub(in crate::proof_contracts::contract_entailment) fn unselected_or_builtin_ari
         AuthoredDeclarationSelectionIntrinsic as Intrinsic,
         AuthoredDeclarationSelectionTarget as Target,
     };
-    program
-        .expression_table
+    expression_table(program)
         .authored_selection_occurrences(expression)
         .all(|occurrence| {
             program
@@ -434,7 +432,7 @@ pub(super) fn install_nonpolynomial_terms(
     if super::super::proof_integer::anonymous_integer_value(program, expression).is_some() {
         return Some(());
     }
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Atomic(atomic) => {
             install_nonpolynomial_terms(program, machine, state, engine, atomic.value, depth + 1)?;
         }
@@ -449,7 +447,7 @@ pub(super) fn install_nonpolynomial_terms(
                     depth + 1,
                 )?;
             }
-            for argument in program.expression_table.expression_handles(call.arguments) {
+            for argument in expression_table(program).expression_handles(call.arguments) {
                 install_nonpolynomial_terms(program, machine, state, engine, *argument, depth + 1)?;
             }
         }

@@ -18,7 +18,6 @@ impl TerminalExecution<'_> {
             element,
             length: terminal_psi::ArrayExtent::Literal(length),
         }) = self
-            .program
             .structural_types()
             .get(&result.structural_type)
             .map(|row| &row.shape)

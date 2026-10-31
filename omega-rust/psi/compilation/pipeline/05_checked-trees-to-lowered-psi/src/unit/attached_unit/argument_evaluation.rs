@@ -16,6 +16,7 @@ use super::{
     direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
+use crate::checked_facts::value_facts;
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
@@ -747,9 +748,10 @@ impl Evaluation {
             if producers.next().is_some()
                 || produced.claims.is_empty()
                 || !operations.source_calls.iter().any(|occurrence| {
-                    occurrence.source_state == state
-                        && occurrence.statement_index == result.statement_index as usize
-                        && occurrence.terminal_site.operation() == Some(producer.id)
+                    occurrence.origin.statement().is_some_and(|site| {
+                        site.state == state
+                            && site.statement_index == result.statement_index as usize
+                    }) && occurrence.terminal_site.operation() == Some(producer.id)
                 })
             {
                 return unsupported("linear local lost its exact call result custody");
@@ -1253,9 +1255,7 @@ impl Evaluation {
             });
         let value = match (computation.as_ref(), path) {
             (Some(root), _) => {
-                let source = checked
-                    .facts
-                    .values
+                let source = value_facts(checked)
                     .scalar_computations
                     .roots
                     .iter()
@@ -1772,6 +1772,7 @@ impl Evaluation {
                 next_value,
                 operations,
                 calls,
+                environment,
             )?
         {
             return Ok(completed);

@@ -8,7 +8,7 @@ windows_x86_64 machine ByteProvider::count<const Answer: u64>(bytes: &[u8]) -> u
 data Payload [copy] { bytes: [u8; 8]; length: u64; }
 data CountResult { case Error; case Ok; }
 machine inspect(payload: Payload) -> CountResult
-requires payload.length <= payload.bytes.len;
+requires payload.length <= payload.bytes.len
 {
     let first: u64 = Selected::count<2>(payload.bytes[0..payload.length]);
     let second: u64 = Selected::count<4>(payload.bytes[0..payload.length]);

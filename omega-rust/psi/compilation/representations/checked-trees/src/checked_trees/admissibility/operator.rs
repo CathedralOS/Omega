@@ -25,16 +25,10 @@ impl<'facts> OperatorAcceptance<'facts> {
     }
 
     pub fn requires(&self) -> &'facts [ContractProofFactRef] {
-        self.facts
-            .proof
-            .contract_fact_refs
-            .span_or_empty(self.operator_use.requires)
+        self.facts.contract_fact_refs(self.operator_use.requires)
     }
 
     pub fn ensures(&self) -> &'facts [ContractProofFactRef] {
-        self.facts
-            .proof
-            .contract_fact_refs
-            .span_or_empty(self.operator_use.ensures)
+        self.facts.contract_fact_refs(self.operator_use.ensures)
     }
 }

@@ -6,6 +6,7 @@ use super::super::{
 };
 use super::completed_aggregate::{self, CompletedAggregate};
 use super::emission;
+use crate::checked_facts::value_facts;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 
 impl emission::Emission<'_, '_, '_> {
@@ -14,10 +15,7 @@ impl emission::Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
     ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
-        let node = self
-            .checked
-            .facts
-            .values
+        let node = value_facts(&self.checked)
             .structural_values
             .nodes
             .get(value)

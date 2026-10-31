@@ -9,9 +9,8 @@ machine main() -> u64 {
         _ -> walk(4, 0)
     }
 }
-machine walk(limit: u64, index: u64)
-terminates by (index, limit) -> Nat::BoundedDistance;
--> u64
+machine walk(limit: u64, index: u64) -> u64
+terminates by (index, limit) -> Nat::BoundedDistance
 {
     transition index < limit {
         true -> walk(limit, index + 1)

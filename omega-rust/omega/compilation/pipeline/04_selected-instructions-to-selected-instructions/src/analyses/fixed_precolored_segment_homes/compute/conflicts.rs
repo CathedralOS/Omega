@@ -4,7 +4,7 @@ use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterMode
 
 use crate::FixedPrecoloredSegmentHomeError;
 use register_homes::FixedPrecoloredHomeDomainId;
-use selected_instructions::{FunctionLiveRanges, VirtualInterference};
+use selected_instructions::{FunctionLiveRanges, VirtualInterference, VirtualInterferences};
 
 use super::super::domains::Domain;
 use crate::work_accounting::Work;
@@ -121,11 +121,7 @@ fn live_overlap(left: &Domain, right: &Domain) -> bool {
     })
 }
 
-fn registers_interfere(
-    left: &Domain,
-    right: &Domain,
-    interference: &[VirtualInterference],
-) -> bool {
+fn registers_interfere(left: &Domain, right: &Domain, interference: &VirtualInterferences) -> bool {
     if left.virtual_register == right.virtual_register {
         return false;
     }

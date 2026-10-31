@@ -3,8 +3,8 @@
 // Expected exit: 0
 
 machine multiply_match_join(lhs: i32, rhs: i32, choose: bool) -> i32
-    requires lhs >= 10i32 && lhs <= 20i32;
-    requires rhs >= 5i32 && rhs <= 10i32;
+    requires lhs >= 10i32 && lhs <= 20i32
+    requires rhs >= 5i32 && rhs <= 10i32
 {
     let a: i32 in Saturating = lhs as i32 in Saturating;
     let b: i32 in Saturating = rhs as i32 in Saturating;

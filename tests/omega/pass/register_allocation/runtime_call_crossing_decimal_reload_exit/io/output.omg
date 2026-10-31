@@ -2,7 +2,7 @@ use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 // Every emitted quantity is below 10^12 in magnitude by the input envelope.
 public machine integer(value: i64 in Wrapping) reaches Console
-invokes Console;
+invokes Console
 crashes Trap
 {
     transition value < 0 { true -> negative(value) _ -> digits(value, 1000000000000, false) }

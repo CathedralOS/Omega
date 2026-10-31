@@ -6,6 +6,7 @@
 //! The global source admission pass still checks original generic templates
 //! and discarded arena calls. Missing or ambiguous context fails closed.
 
+use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
@@ -29,15 +30,12 @@ impl<'program> CallScopes<'program> {
                 .trait_machine_signatures(owner)
                 .iter()
                 .any(|signature| !signature.where_facts.is_empty())
-        }) && !program
-            .expression_table
-            .iter_expressions()
-            .any(|(_, expression)| {
+        }) && !expression_table(program).iter_expressions().any(|(_, expression)| {
                 matches!(
                     expression,
                     typed_trees::expression::ExpressionNode::Call(call)
                         if call.requirement_application.is_valid()
-                            || matches!(program.expression_table.build_selection_request(call.build_selection),
+                            || matches!(expression_table(program).build_selection_request(call.build_selection),
                                 Some(typed_trees::expression::BuildSelectionRequest::ProviderReadiness(_)))
                 )
             })
@@ -61,7 +59,7 @@ impl<'program> CallScopes<'program> {
                     }
                 }
                 entries.extend(expressions.iter().filter_map(|expression| {
-                    program.expression_table.call_node(*expression)?;
+                    expression_table(program).call_node(*expression)?;
                     Some((*expression, machine, state))
                 }));
             }
@@ -140,7 +138,7 @@ pub(super) fn validate(
                             program,
                             call.receiver,
                         ),
-                        program.expression_table.expression_handles(call.arguments),
+                        expression_table(program).expression_handles(call.arguments),
                     ),
                     StaticArgumentCall::Statement(call) => (
                         call.receiver_symbol,

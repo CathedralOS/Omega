@@ -4,6 +4,7 @@
 //! supplies symbol correspondence and subsequently substitutes the fresh type
 //! payloads. This carries pending work, never a closed value or execution right.
 
+use crate::tables::{expressions_of, expressions_of_mut};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -92,9 +93,7 @@ pub(super) fn copy_type_contexts<'scope>(
                         "copied constant root lost its invocation correspondence",
                     ))
             };
-            let invocations = source_program
-                .expression_table
-                .expression_handles(recipe.invocations);
+            let invocations = expressions_of(source_program).expression_handles(recipe.invocations);
             if invocations.len() != recipe.invocations.len() {
                 return Err(super::TypeCopyError(
                     "copied constant root lost its invocation span",
@@ -126,9 +125,7 @@ pub(super) fn copy_type_contexts<'scope>(
         let recipe = RetainedConstantRecipe {
             position: RetainedConstantPosition::ConstApplication { site, root },
             contexts: program.constant_expression_contexts.insert_many(contexts),
-            invocations: program
-                .expression_table
-                .insert_expression_handles(invocations),
+            invocations: expressions_of_mut(program).insert_expression_handles(invocations),
             machine: super::remapped_symbol(recipe.machine, &symbols),
             name: recipe.name,
             source_span: recipe.source_span,
@@ -146,12 +143,9 @@ pub(super) fn copy_expression<'scope>(
     symbols: impl Into<typed_trees::SymbolRebinding<'scope>>,
 ) -> Result<ExpressionHandle, Vec<Diagnostic>> {
     let symbols = symbols.into();
-    let copied = program
-        .expression_table
+    let copied = expressions_of_mut(program)
         .copy_graph(source.map(|source| &source.expression_table), expression);
-    program
-        .expression_table
-        .remap_symbols_in(copied.root, symbols);
+    expressions_of_mut(program).remap_symbols_in(copied.root, symbols);
     copy_contexts(source, program, &copied, symbols)?;
     Ok(copied.root)
 }
@@ -200,9 +194,7 @@ fn copy_contexts<'scope>(
         if contexts.is_empty() {
             continue;
         }
-        let invocations = source_program
-            .expression_table
-            .expression_handles(recipe.invocations);
+        let invocations = expressions_of(source_program).expression_handles(recipe.invocations);
         if invocations.len() != recipe.invocations.len() {
             return Err(vec![Diagnostic::error(
                 "copied constant root lost its invocation span",
@@ -261,9 +253,7 @@ fn copy_contexts<'scope>(
         let recipe = RetainedConstantRecipe {
             position: RetainedConstantPosition::ContractExpression(root),
             contexts: program.constant_expression_contexts.insert_many(contexts),
-            invocations: program
-                .expression_table
-                .insert_expression_handles(invocations),
+            invocations: expressions_of_mut(program).insert_expression_handles(invocations),
             machine: super::remapped_symbol(recipe.machine, &symbols),
             name: recipe.name,
             source_span: recipe.source_span,
@@ -285,7 +275,7 @@ mod tests {
         let mut program = TypedTrees::default();
         let owner = SymbolHandle::from_parts(17, 1);
         let instance = SymbolHandle::from_parts(23, 1);
-        let root = program.expression_table.insert(ExpressionNode::default());
+        let root = expressions_of_mut(&mut program).insert(ExpressionNode::default());
         let site = program
             .type_reference_table
             .insert(TypeReferenceNode::ConstExpression(root));
@@ -299,7 +289,7 @@ mod tests {
                     evaluation_entry: SymbolHandle::from_parts(31, 1),
                     ..Default::default()
                 }]);
-        let invocations = program.expression_table.insert_expression_handles([root]);
+        let invocations = expressions_of_mut(&mut program).insert_expression_handles([root]);
         retain_constant_recipes(
             &mut program,
             [RetainedConstantRecipe {
@@ -330,9 +320,7 @@ mod tests {
         assert_ne!(context.result_type, carrier);
         assert!(!context.evaluation_entry.is_valid());
         assert_eq!(
-            program
-                .expression_table
-                .expression_handles(recipe.invocations),
+            expressions_of(&program).expression_handles(recipe.invocations),
             &[copied_root]
         );
         assert!(program.pending_const_range_endpoints.contains(&copied_root));
@@ -341,7 +329,7 @@ mod tests {
     #[test]
     fn constant_type_copy_keeps_preliminary_marks_before_recipes_exist() {
         let mut program = TypedTrees::default();
-        let root = program.expression_table.insert(ExpressionNode::default());
+        let root = expressions_of_mut(&mut program).insert(ExpressionNode::default());
         let site = program
             .type_reference_table
             .insert(TypeReferenceNode::ConstExpression(root));
@@ -374,30 +362,29 @@ mod tests {
                 symbol: SymbolHandle::invalid(),
                 name: typed_trees::name::Identifier::generated("u64"),
             });
-        let leaf =
-            program
-                .expression_table
-                .insert_tree(&typed_trees::expression::Expression::Call(Box::new(
-                    typed_trees::expression::CallExpression {
-                        authored_call_selection: None,
-                        authored_call_binding: None,
-                        exact_coercion_target: Default::default(),
-                        requirement_application: Default::default(),
-                        receiver: None,
-                        target_symbol: SymbolHandle::from_parts(37, 1),
-                        target: typed_trees::name::Identifier::generated("extent"),
-                        arguments: Default::default(),
-                        evidence_arguments: Default::default(),
-                        operational_acknowledgement: Default::default(),
-                    },
-                )));
-        let root = program
-            .expression_table
-            .insert(ExpressionNode::Binary(TableBinaryExpression {
+        let leaf = expressions_of_mut(&mut program).insert_tree(
+            &typed_trees::expression::Expression::Call(Box::new(
+                typed_trees::expression::CallExpression {
+                    authored_call_selection: None,
+                    authored_call_binding: None,
+                    exact_coercion_target: Default::default(),
+                    requirement_application: Default::default(),
+                    receiver: None,
+                    target_symbol: SymbolHandle::from_parts(37, 1),
+                    target: typed_trees::name::Identifier::generated("extent"),
+                    arguments: Default::default(),
+                    evidence_arguments: Default::default(),
+                    operational_acknowledgement: Default::default(),
+                },
+            )),
+        );
+        let root = expressions_of_mut(&mut program).insert(ExpressionNode::Binary(
+            TableBinaryExpression {
                 left: leaf,
                 operator: BinaryOperator::Add,
                 right: leaf,
-            }));
+            },
+        ));
         let contexts = program
             .constant_expression_contexts
             .insert_many([owner, foreign].map(|owner| ConstantExpressionContext {
@@ -405,7 +392,7 @@ mod tests {
                 result_type: carrier,
                 ..Default::default()
             }));
-        let invocations = program.expression_table.insert_expression_handles([leaf]);
+        let invocations = expressions_of_mut(&mut program).insert_expression_handles([leaf]);
         retain_constant_recipes(
             &mut program,
             [RetainedConstantRecipe {
@@ -452,14 +439,11 @@ mod tests {
                 .type_reference(context.result_type),
             program.type_reference_table.type_reference(carrier)
         );
-        let [invocation] = program
-            .expression_table
-            .expression_handles(recipe.invocations)
-        else {
+        let [invocation] = expressions_of(&program).expression_handles(recipe.invocations) else {
             panic!("one copied invocation");
         };
         assert_ne!(*invocation, leaf);
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(copied_root)
+        let ExpressionNode::Binary(binary) = expressions_of(&program).expression(copied_root)
         else {
             panic!("complete copied root");
         };
@@ -482,8 +466,8 @@ mod tests {
         let mut program = TypedTrees::default();
         let owner = SymbolHandle::from_parts(17, 1);
         let instance = SymbolHandle::from_parts(23, 1);
-        let root = program.expression_table.insert(ExpressionNode::default());
-        let outside = program.expression_table.insert(ExpressionNode::default());
+        let root = expressions_of_mut(&mut program).insert(ExpressionNode::default());
+        let outside = expressions_of_mut(&mut program).insert(ExpressionNode::default());
         let contexts =
             program
                 .constant_expression_contexts
@@ -491,9 +475,7 @@ mod tests {
                     owner,
                     ..Default::default()
                 }]);
-        let invocations = program
-            .expression_table
-            .insert_expression_handles([outside]);
+        let invocations = expressions_of_mut(&mut program).insert_expression_handles([outside]);
         retain_constant_recipes(
             &mut program,
             [RetainedConstantRecipe {

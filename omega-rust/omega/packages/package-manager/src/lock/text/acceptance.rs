@@ -3,6 +3,7 @@ use super::{
     MAXIMUM_POLICY_TEXT_BYTES,
     framing::{Reader, Writer},
 };
+use crate::hex_digest;
 use crate::lock::{PackageAcceptanceRow, PackageLockError as Error, PackagePolicyAcceptance};
 use package_evidence::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRowKind};
 use semantic_vocabulary::PackageKeyIdentity;
@@ -48,8 +49,7 @@ pub(in crate::lock) fn read(
         return Err(Error::InvalidFraming);
     }
     let mut rows: Vec<PackageAcceptanceRow> = Vec::new();
-    rows.try_reserve_exact(count)
-        .map_err(|_| Error::AllocationFailed)?;
+    crate::reserve!(rows, count, Error);
     for _ in 0..count {
         let kind = match reader.field("row")? {
             "callable" => PackagePolicyRowKind::Callable,
@@ -62,19 +62,7 @@ pub(in crate::lock) fn read(
             "native_binding" => PackagePolicyRowKind::NativeBinding,
             _ => return Err(Error::InvalidFraming),
         };
-        let hex = reader.field("key")?;
-        if hex.len() != 64
-            || !hex
-                .bytes()
-                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        {
-            return Err(Error::InvalidFraming);
-        }
-        let mut key = [0u8; 32];
-        for (index, byte) in key.iter_mut().enumerate() {
-            *byte = u8::from_str_radix(&hex[index * 2..index * 2 + 2], 16)
-                .map_err(|_| Error::InvalidFraming)?;
-        }
+        let key = hex_digest(reader.field("key")?).ok_or(Error::InvalidFraming)?;
         if rows
             .last()
             .is_some_and(|last| (last.kind, last.key) >= (kind, key))

@@ -181,6 +181,7 @@ pub enum CheckedNaturalRankMeasure {
     /// Exact declared view identity; executable arithmetic and projections
     /// reside in the common scalar computation graph.
     DeclaredMeasure {
+        formation: crate::CheckedRankApplicationFormationHandle,
         measure: SymbolHandle,
         /// Complete admitted formal-relative inputs; execution never reopens
         /// an owner's source witness to discover the application arguments.

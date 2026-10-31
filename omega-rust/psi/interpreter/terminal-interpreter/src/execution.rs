@@ -15,6 +15,7 @@ use crate::effects::{
     AdmittedAssumedBinding, TerminalEffect, TerminalEffectHandler, TerminalRuntimeSupplies,
 };
 use crate::errors::{TerminalInterpretError, malformed};
+use crate::program::ProgramDeclarations;
 use crate::results::meter_status;
 use crate::results::{TerminalCrash, TerminalExecutionResult, TerminalExecutionStatus};
 use crate::runtime_rows::RuntimeRows;
@@ -40,7 +41,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
     NominalAffineCleanup, OperationKind, StructuralAffineDiscard, StructuralMultiplicity,
-    StructuralOperationResult, StructuralPathSegment, TerminalPlacedViewInput, Terminator,
+    StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
+    TerminalPlacedViewInput, Terminator,
 };
 
 /// What one settled terminator tells the interpreter loop to do next.
@@ -512,6 +514,22 @@ macro_rules! frame_field_mut {
 pub(crate) use frame_field_mut;
 
 impl<'artifact> TerminalExecution<'artifact> {
+    /// The admitted program's structural catalog, including the selected target
+    /// closure's declaration overlays.
+    pub(crate) fn structural_types(&self) -> ProgramDeclarations<'_, StructuralTypeDeclaration> {
+        self.program.structural_types()
+    }
+
+    /// The structural declaration keyed `structural_type`, refusing a miss as a
+    /// malformed state: every live structural identity was admitted from this
+    /// catalog, so absence is a defect rather than an input error.
+    pub(crate) fn structural_declaration(
+        &self,
+        structural_type: StructuralTypeId,
+    ) -> Result<&StructuralTypeDeclaration, TerminalInterpretError> {
+        self.program.structural_declaration(structural_type)
+    }
+
     /// Start one instance on an already-admitted program: bind this
     /// invocation's inputs and custody, commit no operation. The program is
     /// data — no decode or verification repeats here.
@@ -782,7 +800,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             if parameter.access != terminal_psi::StructuralAccess::Owned
                 || inputs.zero_initialized_arguments.contains(&index)
                 || crate::effects::results::requires_materialized_host_custody(
-                    &self.program.structural_types(),
+                    &self.structural_types(),
                     parameter.structural_type,
                 )
             {

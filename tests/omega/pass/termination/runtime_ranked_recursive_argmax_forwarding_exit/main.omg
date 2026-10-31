@@ -3,7 +3,7 @@
 // This is not a subordinate-state cycle requiring strictness on both hops.
 machine argmax(items: &[i32; 5], index: u64, best: u64) -> u64
 requires best < 5
-terminates by index -> Nat::IncreasingTo(5);
+terminates by index -> Nat::IncreasingTo(5)
 {
     transition index < 5 {
         true -> step(items, index, best)

@@ -10,6 +10,7 @@ pub use build_declarations::{
     resolve_build_static_operand,
 };
 
+use crate::frozen_program::expression_table;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionIntrinsic, BuildOperation,
 };
@@ -85,8 +86,7 @@ pub fn authored_call_intrinsic(
     };
     let selections = program.authored_declaration_selections();
     let selection = match call {
-        StaticArgumentCall::Expression(expression, _) => program
-            .expression_table
+        StaticArgumentCall::Expression(expression, _) => expression_table(program)
             .authored_selection_occurrences(expression)
             .filter_map(|occurrence| selections.get(occurrence))
             .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call),
@@ -150,8 +150,7 @@ pub fn classify_expression_call_intrinsic(
         | BuildOperation::AssumedBindingContract),
     ) = BuildOperation::from_call_target(call.target.as_str())
         && build_declarations::has_explicit_build_argument(program, call)
-        && program
-            .expression_table
+        && expression_table(program)
             .expression_handles(call.arguments)
             .len()
             == 1
@@ -246,7 +245,7 @@ pub fn storage_address_operand(
     (classify_expression_call_intrinsic(program, call)
         == Some(AuthoredDeclarationSelectionIntrinsic::StorageAddress)
         && call.machine_arguments.is_empty())
-    .then(|| program.expression_table.expression_handles(call.arguments))
+    .then(|| expression_table(program).expression_handles(call.arguments))
     .filter(|arguments| arguments.len() == 1)
     .map(|arguments| arguments[0])
 }

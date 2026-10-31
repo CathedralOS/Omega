@@ -11,6 +11,7 @@ use super::{
     narrow_environment_by_condition, ordered_values, place_path,
 };
 use crate::CallFrameResolver;
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::CopiedIntegerValue;
 use crate::proof_contracts::arithmetic_domains::expression_analysis::{
     CheckedAnalysis, analyze, analyze_arrival,
@@ -281,7 +282,7 @@ pub fn occurrence_collection_footprint_fits(
     expression: ExpressionHandle,
     width: i64,
 ) -> bool {
-    let Some(indexed) = program.expression_table.indexed_node(expression) else {
+    let Some(indexed) = expression_table(program).indexed_node(expression) else {
         return false;
     };
     let Some(environment) = expression_observation(
@@ -749,7 +750,7 @@ impl ArrivalWalk<'_, '_> {
                 // after a sibling write. Its completed snapshot owns that
                 // payload; post-environment reconstruction cannot overwrite it.
                 if matches!(
-                    self.program.expression_table.expression(expression),
+                    expression_table(self.program).expression(expression),
                     ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
                 ) {
                     // Scalar reevaluations keep their current analysis. A
@@ -1003,7 +1004,7 @@ impl ArrivalWalk<'_, '_> {
     }
 
     fn bound_place(&self, source: &State, expression: ExpressionHandle) -> Option<String> {
-        match self.program.expression_table.expression(expression) {
+        match expression_table(self.program).expression(expression) {
             ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol.is_valid() => {
                 let root = self
                     .program
@@ -1161,7 +1162,6 @@ impl ArrivalWalk<'_, '_> {
                         self.machine,
                         source,
                         statement_index,
-                        statement,
                     );
                     let mut selected = None;
                     let mut fallback = None;
@@ -1232,7 +1232,6 @@ impl ArrivalWalk<'_, '_> {
                 self.machine,
                 source,
                 statement_index,
-                statement,
             );
             match statement {
                 StatementNode::Transition(_) => unreachable!(),
@@ -1556,7 +1555,6 @@ impl ArrivalWalk<'_, '_> {
                 self.machine,
                 source,
                 statement_index,
-                statement,
             );
         }
         match statement {
@@ -1601,23 +1599,23 @@ impl ArrivalWalk<'_, '_> {
         if !expression.is_valid() {
             return;
         }
-        match self.program.expression_table.expression(expression) {
+        match expression_table(self.program).expression(expression) {
             ExpressionNode::Match(dispatch) => {
                 self.expression(source, dispatch.subject, environment);
                 let mut remaining = environment.clone();
                 let mut joined: Option<ValueEnvironment> = None;
                 let mut boolean_values = [false; 2];
-                for arm in self.program.expression_table.match_arms(dispatch.arms) {
+                for arm in expression_table(self.program).match_arms(dispatch.arms) {
                     if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         self.expression(source, pattern, &mut remaining);
-                        if let Some(value) = self.program.expression_table.boolean_node(pattern) {
+                        if let Some(value) = expression_table(self.program).boolean_node(pattern) {
                             boolean_values[usize::from(*value)] = true;
                         }
                     }
                     let mut selected = remaining.clone();
                     if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern
                         && let ExpressionNode::Boolean(positive) =
-                            self.program.expression_table.expression(pattern)
+                            expression_table(self.program).expression(pattern)
                     {
                         narrow_environment_by_condition(
                             self.program,
@@ -1654,10 +1652,7 @@ impl ArrivalWalk<'_, '_> {
             }
             ExpressionNode::Call(call) => {
                 self.expression(source, call.receiver, environment);
-                let arguments = self
-                    .program
-                    .expression_table
-                    .expression_handles(call.arguments);
+                let arguments = expression_table(self.program).expression_handles(call.arguments);
                 self.visit_call_or_target(source, call.target_symbol, arguments, environment);
                 self.expression_effects(source, expression, environment);
             }
@@ -1687,7 +1682,7 @@ impl ArrivalWalk<'_, '_> {
             ExpressionNode::ArrayLiteral(values) => {
                 let capture_children = self.observations.iter().any(|obs| obs.include_bounds)
                     || crate::machine_calls::calls::expression_has_calls(self.program, expression);
-                for value in self.program.expression_table.expression_handles(*values) {
+                for value in expression_table(self.program).expression_handles(*values) {
                     self.expression(source, *value, environment);
                     if capture_children {
                         self.capture_completed_child(source, *value, environment);
@@ -1697,7 +1692,7 @@ impl ArrivalWalk<'_, '_> {
             ExpressionNode::StructLiteral(literal) => {
                 let capture_children = self.observations.iter().any(|obs| obs.include_bounds)
                     || crate::machine_calls::calls::expression_has_calls(self.program, expression);
-                for field in self.program.expression_table.struct_fields(literal.fields) {
+                for field in expression_table(self.program).struct_fields(literal.fields) {
                     self.expression(source, field.value, environment);
                     if capture_children {
                         self.capture_completed_child(source, field.value, environment);
@@ -1735,7 +1730,7 @@ impl ArrivalWalk<'_, '_> {
             let observation = &mut self.observations[position];
             if include_bounds
                 && matches!(
-                    self.program.expression_table.expression(expression),
+                    expression_table(self.program).expression(expression),
                     ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
                 )
             {
@@ -1862,10 +1857,10 @@ fn state_has_in_machine_arrivals(
         if !expression.is_valid() {
             continue;
         }
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Match(dispatch) => {
                 stack.push(dispatch.subject);
-                for arm in program.expression_table.match_arms(dispatch.arms) {
+                for arm in expression_table(program).match_arms(dispatch.arms) {
                     if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
                         stack.push(pattern);
                     }
@@ -1877,8 +1872,9 @@ fn state_has_in_machine_arrivals(
                     return true;
                 }
                 stack.push(call.receiver);
-                stack
-                    .extend_from_slice(program.expression_table.expression_handles(call.arguments));
+                stack.extend_from_slice(
+                    expression_table(program).expression_handles(call.arguments),
+                );
             }
             ExpressionNode::Binary(binary) => {
                 stack.push(binary.left);
@@ -1898,10 +1894,10 @@ fn state_has_in_machine_arrivals(
                 stack.push(range.end);
             }
             ExpressionNode::ArrayLiteral(values) => {
-                stack.extend_from_slice(program.expression_table.expression_handles(*values));
+                stack.extend_from_slice(expression_table(program).expression_handles(*values));
             }
             ExpressionNode::StructLiteral(literal) => {
-                for field in program.expression_table.struct_fields(literal.fields) {
+                for field in expression_table(program).struct_fields(literal.fields) {
                     stack.push(field.value);
                 }
             }

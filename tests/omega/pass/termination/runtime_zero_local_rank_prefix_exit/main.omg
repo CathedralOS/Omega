@@ -3,15 +3,15 @@ data Scratch { value: u32; }
 data Main {}
 
 machine countdown(remaining: u32) -> u32
-requires remaining <= 9;
-terminates by remaining;
+requires remaining <= 9
+terminates by remaining
 {
     let mut scratch: [u32; 2];
     scratch[0] = 7;
     transition { _ -> step(remaining, scratch) }
 
     machine step(remaining: u32, scratch: [u32; 2]) -> u32
-    requires remaining <= 9;
+    requires remaining <= 9
     {
         let mut record: Scratch;
         let scalar: u32;

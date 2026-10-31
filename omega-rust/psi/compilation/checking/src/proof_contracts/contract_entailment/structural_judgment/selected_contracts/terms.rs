@@ -8,6 +8,7 @@
 use super::super::{StructuralJudge, StructuralTerm};
 use super::metadata_paths;
 use super::{owner_symbol, selected_call_contract_for_parameters};
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::contract_entailment::{
     observed_projections, proof_integer, structural_terms,
 };
@@ -44,7 +45,7 @@ impl StructuralJudge<'_> {
         if let Some(value) = proof_integer::anonymous_integer_value(program, expression) {
             return Some(StructuralTerm::Integer(value));
         }
-        match program.expression_table.expression(expression) {
+        match expression_table(program).expression(expression) {
             ExpressionNode::Name(path) => {
                 if let Some((_, value)) = bindings
                     .iter()
@@ -226,8 +227,7 @@ impl StructuralJudge<'_> {
                 let selected =
                     selected_call_contract_for_parameters(program, call, scope, parameters)?;
                 let realization = structural_terms::realized_requirement_state(call);
-                let arguments = program
-                    .expression_table
+                let arguments = expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .map(|argument| {

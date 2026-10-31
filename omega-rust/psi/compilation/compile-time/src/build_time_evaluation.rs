@@ -7,6 +7,32 @@
 use std::sync::Arc;
 use typed_trees::references::DeclarationSelection;
 
+/// The expression table of `program`. A reader that would otherwise name the
+/// table in the middle of a long receiver chain names it here once, and the
+/// chain keeps its receiver on one line.
+pub(crate) fn expression_table(
+    program: &typed_trees::TypedTrees,
+) -> &typed_trees::expression::ExpressionTable {
+    &program.expression_table
+}
+
+/// The type-reference table of `program`, named once for a reader whose
+/// receiver chain would otherwise carry it in the middle.
+pub(crate) fn type_reference_table(
+    program: &typed_trees::TypedTrees,
+) -> &typed_trees::types::TypeReferenceTable {
+    &program.type_reference_table
+}
+
+/// The type-reference table of the syntax under check, named once for a reader
+/// whose receiver chain would otherwise carry it in the middle. The tables are
+/// the deref target of the syntax root, so both receivers coerce here.
+pub(crate) fn type_references(
+    tables: &syntax_trees::SyntaxTreeTables,
+) -> &syntax_trees::types::TypeReferenceTable {
+    &tables.type_references
+}
+
 /// Work ownership is narrower than executable lookup. Product work excludes
 /// completed Build jobs but still needs shared toolchain declarations. Build
 /// execution instead keeps exactly its admitted roster: a Product descriptor

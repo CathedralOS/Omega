@@ -10,14 +10,14 @@ Provider satisfies Grants {
 }
 machine consume(value: &Token, calls: &mut u64) -> u64
 requires value in Token::Fair
-terminates;
+terminates
 {
     calls = (calls as u64 in Wrapping + 1) as u64;
     value.identity
 }
 machine select(input: &Token, calls: &mut u64) -> u64
 requires input in Token::Fair
-terminates;
+terminates
 {
     let selected: &Token = &input;
     transition { _ -> arrive(selected, calls) }

@@ -18,7 +18,7 @@ requires width == 16 || width == 32 {
     Windowing::window<width>(selected, source)
 }
 machine check(packet: &Packet, width: u32) crashes Trap
-requires width == 16 || width == 32;
+requires width == 16 || width == 32
 {
     let selected: dyn Windowing = Header as dyn Windowing;
     let result: Packet = dispatch(selected, packet, width);

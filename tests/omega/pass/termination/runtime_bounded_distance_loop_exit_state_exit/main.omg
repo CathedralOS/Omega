@@ -12,7 +12,7 @@ machine put(chunk: &mut [u8; 4], index: u64) {
     machine done() { }
 }
 machine fill(chunk: &mut [u8; 4], index: u64, limit: u64)
-terminates by (index, limit) -> Nat::BoundedDistance;
+terminates by (index, limit) -> Nat::BoundedDistance
 {
     put(chunk, index);
     transition index < limit {

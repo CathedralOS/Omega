@@ -15,9 +15,7 @@ pub(crate) fn encode_proposition_shape(
     shape: &PackageReviewPropositionShape,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("identity", &shape.identity, encode_nominal)?;
-    encoder.field("binders", |encoder| {
-        encoder.sequence(&shape.binders, encode_proposition_binder)
-    })?;
+    encoder.sequence_field("binders", &shape.binders, encode_proposition_binder)?;
     encoder.field("parameter_types", |encoder| {
         encoder.sequence(&shape.parameter_types, encode_type_identity)
     })?;
@@ -124,9 +122,7 @@ pub(crate) fn encode_evidence_interface(
             Ok(())
         })
     })?;
-    encoder.field("arguments", |encoder| {
-        encoder.sequence(&interface.arguments, encode_type_identity)
-    })?;
+    encoder.sequence_field("arguments", &interface.arguments, encode_type_identity)?;
     encoder.field("requirements", |encoder| {
         encoder.sequence(&interface.requirements, |encoder, requirement| {
             encoder.field_by(

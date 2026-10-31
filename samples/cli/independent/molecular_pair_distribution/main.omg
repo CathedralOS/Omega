@@ -7,7 +7,7 @@ use io::output;
 use domain::model;
 use domain::distribution;
 
-machine main() reaches Console invokes Console; blocks; crashes Trap {
+machine main() reaches Console invokes Console blocks crashes Trap {
     let mut reader: InputReader;
     reader.remaining = 32768; reader.exhausted = false;
     let mut distribution: Distribution;

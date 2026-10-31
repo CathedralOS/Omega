@@ -1,5 +1,5 @@
 machine walk(remaining: u64) -> u64
-terminates;
+terminates
 {
     transition { _ -> walk(remaining) }
 }

@@ -1,6 +1,7 @@
 //! A branch state's non-scalar effects consume completed operands without
 //! adding value slots.
 use super::{LoweringError, ValueDeclaration, emit_direct_expression, unsupported};
+use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::view_subslice;
@@ -35,18 +36,14 @@ pub(crate) fn emit(
                     .ok_or(LoweringError::Unsupported(
                         "computed observation has no completed value",
                     ))?;
-                if checked
-                    .facts
-                    .values
+                if value_facts(checked)
                     .structural_values
                     .root_for_value(*value)
                     .is_some_and(|root| root.captured_copy.is_valid())
                 {
                     evaluation.saved_value_binding(*value, operations)?;
                 }
-                let node = checked
-                    .facts
-                    .values
+                let node = value_facts(checked)
                     .scalar_computations
                     .nodes
                     .get(*observation);
@@ -141,17 +138,17 @@ pub(crate) fn emit(
             | LoweredScalarEffect::CompleteTemporaryOperands { .. } => {
                 let control = &checked.facts.flow.terminal_unit_effects.cleanup_control;
                 let actions = match effect {
-                    LoweredScalarEffect::CompleteObservationReceiver { actions } => checked
-                        .facts
-                        .values
-                        .scalar_computations
-                        .temporary_cleanup_actions
-                        .span(*actions)
-                        .ok_or(LoweringError::Unsupported(
-                            "receiver observation lost its checked action roster",
-                        ))?
-                        .iter()
-                        .collect::<Vec<_>>(),
+                    LoweredScalarEffect::CompleteObservationReceiver { actions } => {
+                        value_facts(checked)
+                            .scalar_computations
+                            .temporary_cleanup_actions
+                            .span(*actions)
+                            .ok_or(LoweringError::Unsupported(
+                                "receiver observation lost its checked action roster",
+                            ))?
+                            .iter()
+                            .collect::<Vec<_>>()
+                    }
                     LoweredScalarEffect::CompleteValueObservation {
                         machine,
                         state,

@@ -20,19 +20,19 @@ public OpenGate satisfies ProviderGate {
 
 // The interpreter installs the selected Readiness::wait component while this
 // distinct, checked host crossing retains the original caller continuation.
-machine component_entry() reaches Readiness ProviderGate suspends; {
+machine component_entry() reaches Readiness ProviderGate suspends {
     Readiness::observe(1);
     let ignored: i32 = suspend ProviderGate::wait(0);
     let result: i32 = suspend await_value(42);
     Readiness::observe(result);
 }
 
-machine component_premature_entry() reaches Readiness suspends; {
+machine component_premature_entry() reaches Readiness suspends {
     let result: i32 = suspend await_value(42);
     Readiness::observe(result);
 }
 
-machine await_value(value: i32) -> i32 reaches Readiness suspends; {
+machine await_value(value: i32) -> i32 reaches Readiness suspends {
     suspend Readiness::wait(value)
 }
 
@@ -69,7 +69,7 @@ machine storage_entry() reaches Readiness crashes Trap {
 }
 
 // The same host write now crosses an incoming loan and two incomplete calls.
-machine replace_incoming(value: &mut i32) reaches Readiness suspends; {
+machine replace_incoming(value: &mut i32) reaches Readiness suspends {
     initialize_incoming(value);
     suspend Readiness::replace(value);
 }

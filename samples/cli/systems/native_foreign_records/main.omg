@@ -37,16 +37,16 @@ satisfies Tables::compare via ForeignBinding::TableFunction(compare);
 
 machine compare_folded(table: &Functions, left: &[u16; 5], right: &[u16; 5]) -> Comparison
 reaches Tables
-invokes Tables;
+invokes Tables
 {
     Tables::compare(table, left, 5, right, 5, 1)
 }
 
 machine main()
 reaches Symbols + Imports + Tables
-invokes Symbols;
-invokes Imports;
-invokes Tables;
+invokes Symbols
+invokes Imports
+invokes Tables
 crashes Trap
 {
     let library: [u8; 13] = "kernel32.dll\0";

@@ -161,7 +161,7 @@ reaches DirectoryEnumeration
 {
     let total: i64 = PosixFilesystemImplementation::read_dir(fd, buffer, count, position);
     transition total > 0 && total <= 512 { true -> bounded(buffer, total) _ -> total }
-    machine bounded(buffer: &mut [u8], total: i64) -> i64 requires total > 0; {
+    machine bounded(buffer: &mut [u8], total: i64) -> i64 requires total > 0 {
         let length: u64 = narrow_i64_to_u64_exact(total);
         transition { _ -> walk(buffer, total, length, 0) }
     }
@@ -174,7 +174,7 @@ reaches DirectoryEnumeration
         }
     }
     machine record(buffer: &mut [u8], total: i64, length: u64, offset: u64) -> i64
-    requires offset < 489, offset + 17 < buffer.len;
+    requires offset < 489, offset + 17 < buffer.len
     {
         let low: u64 = widen_u8_to_u64(buffer[offset + 16]);
         let high: u64 = widen_u8_to_u64(buffer[offset + 17]);
@@ -184,7 +184,7 @@ reaches DirectoryEnumeration
         }
     }
     machine clear(buffer: &mut [u8], total: i64, length: u64, offset: u64, record_length: u64) -> i64
-    requires offset < 489, record_length <= 512 - offset;
+    requires offset < 489, record_length <= 512 - offset
     {
         let kind_offset: u64 = offset + directory_kind_offset();
         transition kind_offset < buffer.len {
@@ -192,7 +192,7 @@ reaches DirectoryEnumeration
         }
     }
     machine store(buffer: &mut [u8], total: i64, length: u64, offset: u64, record_length: u64, kind_offset: u64) -> i64
-    requires kind_offset < buffer.len, offset < 489, record_length <= 512 - offset;
+    requires kind_offset < buffer.len, offset < 489, record_length <= 512 - offset
     {
         buffer[kind_offset] = 0;
         transition { _ -> walk(buffer, total, length, offset + record_length) }

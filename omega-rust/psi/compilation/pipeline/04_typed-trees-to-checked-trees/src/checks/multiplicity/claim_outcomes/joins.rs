@@ -1557,6 +1557,7 @@ pub(crate) fn publish_call_claim_joins(
     }
     let receipts = derive_receipts(program, facts, &events, None)?;
     let ownership = &mut facts.flow.ownership;
+    ownership.permissions_by_state.clear();
     ownership.permissions = Default::default();
     ownership.permissions.insert_many(events);
     ownership.claim_join_receipts = Default::default();

@@ -41,7 +41,7 @@ machine answer() -> i32 {
     value + 1
 
     machine base() -> i32
-    ensures result == 41;
+    ensures result == 41
     {
         41
     }

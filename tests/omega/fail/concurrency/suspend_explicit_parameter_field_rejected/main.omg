@@ -9,7 +9,7 @@ public boundary trait Scheduler { machine park() reaches suspends; }
 
 // A field read keeps its explicit parameter root live across the call.
 machine inspect(message: Message)
-suspends; reaches Scheduler {
+suspends reaches Scheduler {
     suspend Scheduler::park();
     let value: i32 = message.value;
 }

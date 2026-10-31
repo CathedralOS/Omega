@@ -329,7 +329,7 @@ impl TerminalExecution<'_> {
             ));
         }
         let path = &source.path[allocation.path.len()..];
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let (size, alignment) = terminal_semantics::reference_storage_layout(
             types.values(),
             allocation.structural_type,
@@ -384,10 +384,8 @@ impl TerminalExecution<'_> {
         };
         // Contents belong to that captured schema, not the accessor's opaque
         // presentation. An incomplete source cannot mint initialized custody.
-        let StructuralTypeShape::Record { fields, .. } = &self
-            .program
-            .structural_declaration(source.structural_type)?
-            .shape
+        let StructuralTypeShape::Record { fields, .. } =
+            &self.structural_declaration(source.structural_type)?.shape
         else {
             return Err(malformed());
         };
@@ -395,7 +393,7 @@ impl TerminalExecution<'_> {
             let Some(scalar) = field.field_type.scalar_type() else {
                 let root = field.field_type.as_structural().ok_or_else(malformed)?;
                 let (scalar, count) = terminal_semantics::scalar_array_leaf_shape(
-                    self.program.structural_types().values(),
+                    self.structural_types().values(),
                     root,
                 )
                 .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
@@ -427,7 +425,7 @@ impl TerminalExecution<'_> {
                     path.truncate(prefix_length);
                     path.extend(
                         terminal_semantics::scalar_array_leaf_path(
-                            self.program.structural_types().values(),
+                            self.structural_types().values(),
                             root,
                             ordinal,
                         )
@@ -649,7 +647,7 @@ impl TerminalExecution<'_> {
             let mut projection = captured.projection.clone();
             projection.extend_from_slice(relative);
             let selected = terminal_semantics::runtime_structural_path_tip(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 field.accessor,
                 &projection,
             )

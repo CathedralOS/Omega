@@ -3,7 +3,7 @@
 // Expected exit: 0
 
 linux_x86_64 machine shift_target(val: u16) -> i32
-    requires val >= 30u16 && val <= 30u16;
+    requires val >= 30u16 && val <= 30u16
 {
     let shifted: u16 = val << 2u16;
     let check: u16 = shifted - 120u16;
@@ -16,7 +16,7 @@ linux_x86_64 machine shift_target(val: u16) -> i32
 }
 
 linux_arm64 machine shift_target(val: u16) -> i32
-    requires val >= 30u16 && val <= 30u16;
+    requires val >= 30u16 && val <= 30u16
 {
     let shifted: u16 = val << 2u16;
     let check: u16 = shifted - 120u16;
@@ -29,7 +29,7 @@ linux_arm64 machine shift_target(val: u16) -> i32
 }
 
 macos_arm64 machine shift_target(val: u16) -> i32
-    requires val >= 30u16 && val <= 30u16;
+    requires val >= 30u16 && val <= 30u16
 {
     let shifted: u16 = val << 2u16;
     let check: u16 = shifted - 120u16;
@@ -42,7 +42,7 @@ macos_arm64 machine shift_target(val: u16) -> i32
 }
 
 windows_x86_64 machine shift_target(val: u16) -> i32
-    requires val >= 30u16 && val <= 30u16;
+    requires val >= 30u16 && val <= 30u16
 {
     let shifted: u16 = val << 2u16;
     let check: u16 = shifted - 120u16;

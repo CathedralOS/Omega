@@ -1,3 +1,4 @@
+use crate::hex_digest;
 use std::fmt;
 
 pub(super) struct Writer {
@@ -124,23 +125,5 @@ pub(super) fn write_digest(digest: &[u8; 32]) -> String {
 }
 
 pub(super) fn read_digest(text: &str) -> Result<[u8; 32], String> {
-    if text.len() != 64
-        || !text
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    {
-        return Err("package proposal digest must be 64 lowercase hexadecimal digits".into());
-    }
-    let mut digest = [0; 32];
-    for (destination, pair) in digest.iter_mut().zip(text.as_bytes().as_chunks::<2>().0) {
-        let digit = |byte: u8| {
-            if byte <= b'9' {
-                byte - b'0'
-            } else {
-                byte - b'a' + 10
-            }
-        };
-        *destination = digit(pair[0]) * 16 + digit(pair[1]);
-    }
-    Ok(digest)
+    hex_digest(text).ok_or("package proposal digest must be 64 lowercase hexadecimal digits".into())
 }

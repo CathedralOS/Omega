@@ -4,6 +4,7 @@
 
 use super::super::StructuralTypeId;
 use super::{CheckedTrees, LoweringError};
+use crate::checked_facts::{flow_facts, value_facts};
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarEffect,
 };
@@ -24,9 +25,7 @@ impl ValueRequest {
         value: checked_trees::CheckedStructuralValueHandle,
         types: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<Self, LoweringError> {
-        let root = checked
-            .facts
-            .values
+        let root = value_facts(checked)
             .structural_values
             .root_for_value(value)
             .ok_or(LoweringError::Unsupported(
@@ -58,9 +57,7 @@ impl ValueRequest {
         target: usize,
         expansion: &mut Expansion<'_>,
     ) -> Result<usize, LoweringError> {
-        let root = checked
-            .facts
-            .values
+        let root = value_facts(checked)
             .structural_values
             .root_for_value(self.value)
             .ok_or(LoweringError::Unsupported(
@@ -72,9 +69,7 @@ impl ValueRequest {
             &[],
             &[],
         );
-        let intrinsic_copy = checked
-            .facts
-            .flow
+        let intrinsic_copy = flow_facts(checked)
             .terminal_unit_effects
             .structural_types
             .iter()

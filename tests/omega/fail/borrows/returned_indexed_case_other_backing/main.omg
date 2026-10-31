@@ -2,10 +2,10 @@
 data Node { case Number(value: u64); case Empty; }
 data Nodes { items: [Node; 2]; }
 machine get(nodes: &Nodes, position: u64) -> &Node
-requires position < 2;
+requires position < 2
 { &nodes.items[position] }
 machine evaluate(nodes: &Nodes, position: u64) -> u64
-requires position < 2;
+requires position < 2
 {
     let node: &Node = get(nodes, position);
     match node {

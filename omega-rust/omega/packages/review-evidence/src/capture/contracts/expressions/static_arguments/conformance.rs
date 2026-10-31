@@ -34,10 +34,8 @@ pub(crate) fn require_exact_conformance_static_argument_selections(
             .authored_declaration_selections()
             .get(occurrence)
         else {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` retains an unknown conformance static-argument selection occurrence",
-                context.subject_kind, context.subject_name,
-            ))]);
+            return Err(context
+                .rejected("retains an unknown conformance static-argument selection occurrence"));
         };
         if selection.kind() != AuthoredDeclarationSelectionKind::Conformance {
             continue;
@@ -51,18 +49,16 @@ pub(crate) fn require_exact_conformance_static_argument_selections(
             continue;
         }
         if selection.exposure() != context.selection_exposure {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` conformance static argument has the wrong retained selection exposure",
-                context.subject_kind, context.subject_name,
-            ))]);
+            return Err(context.rejected(
+                "conformance static argument has the wrong retained selection exposure",
+            ));
         }
         retained.push(target.selected_symbol());
     }
     if retained != authored {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` conformance static arguments do not match their exact authored selections",
-            context.subject_kind, context.subject_name,
-        ))]);
+        return Err(context.rejected(
+            "conformance static arguments do not match their exact authored selections",
+        ));
     }
     Ok(())
 }
@@ -79,12 +75,8 @@ pub(super) fn project_contract_conformance_application(
     parameter_kind: ContractCallStaticParameterKind,
     depth: usize,
 ) -> Result<PackageReviewContractStaticArgument, Vec<Diagnostic>> {
-    let rejected = |reason: &str| {
-        vec![Diagnostic::error(format!(
-            "reviewed {} `{}` uses a static conformance application {reason}",
-            context.subject_kind, context.subject_name,
-        ))]
-    };
+    let rejected =
+        |reason: &str| context.rejected(format!("uses a static conformance application {reason}"));
     if depth != 0 || parameter_kind != ContractCallStaticParameterKind::Conformance {
         return Err(rejected(
             "outside the admitted top-level conformance-binder cohort",

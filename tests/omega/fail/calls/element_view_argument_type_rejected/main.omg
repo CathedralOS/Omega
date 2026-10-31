@@ -13,7 +13,7 @@
 data Walker {}
 
 machine Walker::walk(s: &[u8]) -> i32
-terminates by s -> Slice::Length;
+terminates by s -> Slice::Length
 {
     transition { _ -> scan(s) }
 

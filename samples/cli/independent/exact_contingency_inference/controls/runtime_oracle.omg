@@ -13,7 +13,7 @@ machine snapshot(model: &Model, expected: &Inference) -> bool {
     actual.ties == expected.ties
 }
 public machine frozen_numerical_control() reaches Console
-invokes Console;
+invokes Console
 {
     transition { _ -> case_0() }
     machine case_0() {

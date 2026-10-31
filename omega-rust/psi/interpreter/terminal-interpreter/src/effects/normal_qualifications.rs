@@ -73,7 +73,7 @@ impl TerminalExecution<'_> {
         let mut captured = Vec::new();
         for row in promised {
             let carrier = terminal_semantics::qualification_path_carrier(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 owner.structural_type,
                 &row.path,
             )
@@ -119,7 +119,7 @@ impl TerminalExecution<'_> {
         }
         let subject = self.normal_qualification_subject(value, path)?;
         let carrier = terminal_semantics::qualification_path_carrier(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             value.structural_type,
             path,
         )
@@ -190,7 +190,7 @@ impl TerminalExecution<'_> {
         domain: StructuralDomainId,
     ) -> bool {
         terminal_semantics::scalar_projection_entails_membership(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             self.program.catalogs.structural_domains.iter(),
             value.structural_type,
             path,

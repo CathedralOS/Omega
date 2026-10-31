@@ -40,6 +40,7 @@ mod operators;
 mod propositions;
 mod traits;
 
+use crate::tables::resolved_declarations;
 use arena::Arena;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
@@ -76,9 +77,7 @@ pub(super) fn trait_parameter_tables(
         .map(|trait_definition| {
             (
                 trait_definition.symbol,
-                program
-                    .tables
-                    .declarations
+                resolved_declarations(&program)
                     .data_type_parameters
                     .span_or_empty(trait_definition.type_parameters)
                     .iter()
@@ -99,10 +98,7 @@ pub(super) fn trait_parameter_tables(
         .map(|definition| {
             (
                 definition.symbol,
-                program
-                    .tables
-                    .declarations
-                    .data_type_parameters
+                resolved_declarations(&program).data_type_parameters
                     .span_or_empty(definition.type_parameters)
                     .iter()
                     .map(|parameter| {

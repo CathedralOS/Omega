@@ -1,11 +1,11 @@
 // An acknowledged target-scoped tail-recursive countdown carries its result bound of at most 60 into exact subtraction 60 - result.
 // Invalid: only the supplied bound changes from 60 to 61.
-public machine tick() -> bool blocks; terminates; { true }
+public machine tick() -> bool blocks terminates { true }
 
 windows_x86_64 machine countdown(remaining: u64, value: u64) -> u64
-requires remaining <= 4 && value <= 60;
-ensures result <= 60;
-terminates by remaining;
+requires remaining <= 4 && value <= 60
+ensures result <= 60
+terminates by remaining
 {
     transition remaining > 0 { true -> step(remaining, value) false -> (value) }
     machine step(remaining: u64, value: u64) -> u64
@@ -19,9 +19,9 @@ terminates by remaining;
 }
 
 linux_x86_64 machine countdown(remaining: u64, value: u64) -> u64
-requires remaining <= 4 && value <= 60;
-ensures result <= 60;
-terminates by remaining;
+requires remaining <= 4 && value <= 60
+ensures result <= 60
+terminates by remaining
 {
     transition remaining > 0 { true -> step(remaining, value) false -> (value) }
     machine step(remaining: u64, value: u64) -> u64
@@ -35,9 +35,9 @@ terminates by remaining;
 }
 
 macos_arm64 machine countdown(remaining: u64, value: u64) -> u64
-requires remaining <= 4 && value <= 60;
-ensures result <= 60;
-terminates by remaining;
+requires remaining <= 4 && value <= 60
+ensures result <= 60
+terminates by remaining
 {
     transition remaining > 0 { true -> step(remaining, value) false -> (value) }
     machine step(remaining: u64, value: u64) -> u64
@@ -51,9 +51,9 @@ terminates by remaining;
 }
 
 linux_arm64 machine countdown(remaining: u64, value: u64) -> u64
-requires remaining <= 4 && value <= 60;
-ensures result <= 60;
-terminates by remaining;
+requires remaining <= 4 && value <= 60
+ensures result <= 60
+terminates by remaining
 {
     transition remaining > 0 { true -> step(remaining, value) false -> (value) }
     machine step(remaining: u64, value: u64) -> u64

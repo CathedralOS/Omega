@@ -2,11 +2,10 @@ data Countdown where 0 <= remaining, remaining <= 5 { remaining: u64; }
 measure Countdown::Remaining(countdown: Countdown) -> u64
 { countdown.remaining }
 
-machine walk(countdown: Countdown, ceiling: u64, amount: u64)
+machine walk(countdown: Countdown, ceiling: u64, amount: u64) -> u64
     requires 0 <= ceiling && ceiling <= 5 && 1 <= amount && amount <= 2
-requires countdown.remaining <= ceiling;
-terminates by countdown -> Countdown::Remaining in 0..=ceiling;
--> u64 {
+requires countdown.remaining <= ceiling
+terminates by countdown -> Countdown::Remaining in 0..=ceiling {
     transition countdown.remaining >= amount {
         true -> walk(Countdown { remaining: countdown.remaining - amount }, ceiling, amount)
         false -> countdown.remaining

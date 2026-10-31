@@ -496,6 +496,18 @@ pub(crate) fn unfold(
         .machine_states(program.machines().get(machine)?)
         .first()?;
     let parameters = program.state_parameters(entry);
+    let (bindings, atoms, layout) = argument_bindings(program, parameters, arguments)?;
+    let outcomes = exploration::explore(program, machine, bindings, atoms)?;
+    Some(Unfolding { outcomes, layout })
+}
+
+/// One explicit telescope and its actual numeric knowledge. Declaration facts
+/// and predicate bodies share this binding and consequence layout.
+fn argument_bindings(
+    program: &dyn crate::CheckingInput,
+    parameters: &[typed_trees::signature::StateParameter],
+    arguments: &[ArgumentKnowledge],
+) -> Option<(Vec<Binding>, Vec<IntegerSet>, Vec<std::ops::Range<usize>>)> {
     if parameters.len() != arguments.len() {
         return None;
     }
@@ -547,8 +559,7 @@ pub(crate) fn unfold(
     if atoms.iter().any(IntegerSet::is_empty) {
         return None;
     }
-    let outcomes = exploration::explore(program, machine, bindings, atoms)?;
-    Some(Unfolding { outcomes, layout })
+    Some((bindings, atoms, layout))
 }
 
 /// The full carrier knowledge of a parameter or field type: nothing known.
@@ -607,34 +618,56 @@ pub(crate) fn fact_argument_field<'program>(
         })
 }
 
-/// A data fact that applies a predicate to fields of `definition`, with each
-/// argument's knowledge supplied by `field_knowledge`.
+/// Interpret the complete authored proposition in its exact field telescope.
+/// Direct clauses and predicate applications share one evaluator; supplied
+/// knowledge establishes the operands without assuming the desired result.
 fn data_fact_unfolding(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     fact: ExpressionHandle,
     field_knowledge: &mut dyn FnMut(&DataField) -> Option<ArgumentKnowledge>,
-) -> Option<(Unfolding, Vec<Option<symbols::SymbolHandle>>)> {
-    let application = predicate_application(program, definition.symbol, fact)?;
-    let mut knowledge = Vec::with_capacity(application.arguments.len());
-    let mut fields = Vec::with_capacity(application.arguments.len());
-    for argument in application.arguments {
-        if let Some(field) = fact_argument_field(program, definition, *argument) {
-            knowledge.push(field_knowledge(field)?);
-            fields.push(Some(field.symbol));
-            continue;
-        }
-        let value = program.expression_table.constant_integer_value(*argument)?;
-        knowledge.push(ArgumentKnowledge::Integer(IntegerSet::singleton(
-            i128::from(value),
-        )));
-        fields.push(None);
-    }
-    Some((unfold(program, application.machine, &knowledge)?, fields))
+) -> Option<(Unfolding, Vec<symbols::SymbolHandle>)> {
+    let demanded = crate::proof_contracts::default_domains::data_predicate_fields(
+        program,
+        definition,
+        &typed_trees::domain::ProofFact::Expression(fact),
+    );
+    let fields = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_field())
+        .filter(|field| demanded.contains(&field.symbol))
+        .collect::<Vec<_>>();
+    let parameters = fields
+        .iter()
+        .map(|field| typed_trees::signature::StateParameter {
+            symbol: field.symbol,
+            name: field.name.clone(),
+            type_reference: field.type_reference,
+            ..Default::default()
+        })
+        .collect::<Vec<_>>();
+    let knowledge = fields
+        .iter()
+        .map(|field| field_knowledge(field))
+        .collect::<Option<Vec<_>>>()?;
+    let (bindings, atoms, layout) = argument_bindings(program, &parameters, &knowledge)?;
+    let outcomes = exploration::explore_expression(
+        program,
+        definition.symbol,
+        &parameters,
+        fact,
+        bindings,
+        atoms,
+    )?;
+    Some((
+        Unfolding { outcomes, layout },
+        fields.iter().map(|field| field.symbol).collect(),
+    ))
 }
 
-/// Whether one data `where` fact is a collection-predicate application that
-/// holds at the all-zero representation of its fields.
+/// Whether one complete data fact holds at the independently supplied
+/// all-zero representation of its fields.
 pub(crate) fn data_fact_holds_at_zero(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
@@ -647,18 +680,21 @@ pub(crate) fn data_fact_holds_at_zero(
         == Some(true)
 }
 
-/// Whether a data fact mentions `field` as a predicate argument.
+/// Whether the resolved proposition depends on this exact field.
 pub(crate) fn data_fact_applies_to_field(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
     fact: ExpressionHandle,
     field: symbols::SymbolHandle,
 ) -> Option<bool> {
-    let application = predicate_application(program, definition.symbol, fact)?;
-    Some(application.arguments.iter().any(|argument| {
-        fact_argument_field(program, definition, *argument)
-            .is_some_and(|argument_field| argument_field.symbol == field)
-    }))
+    Some(
+        crate::proof_contracts::default_domains::data_predicate_fields(
+            program,
+            definition,
+            &typed_trees::domain::ProofFact::Expression(fact),
+        )
+        .contains(&field),
+    )
 }
 
 /// Decide one data fact with the caller's knowledge of its argument fields.
@@ -698,7 +734,7 @@ pub(crate) fn standing_field_elements(
             continue;
         };
         for (position, argument_field) in fields.iter().enumerate() {
-            if *argument_field != Some(field.symbol) {
+            if *argument_field != field.symbol {
                 continue;
             }
             let Some(implied) = unfolding.when_true(position) else {
@@ -756,9 +792,6 @@ pub(crate) fn data_fact_element_consequences(
     })?;
     let mut consequences: Vec<(symbols::SymbolHandle, Vec<IntegerSet>, bool)> = Vec::new();
     for (position, field) in fields.iter().enumerate() {
-        let Some(field) = field else {
-            continue;
-        };
         let implied = unfolding.when_true(position)?;
         let is_array = match unknown_knowledge(program, field_type(program, definition, *field)?)? {
             ArgumentKnowledge::Array(_) => true,

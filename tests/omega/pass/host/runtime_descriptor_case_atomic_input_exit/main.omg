@@ -59,7 +59,7 @@ linux_x86_64 boundary machine Imports::write_tag(descriptor: i32, choice: &Choic
     satisfies DescriptorIo::write_tag via linux_x86_64_tag_binding();
 
 machine make() -> Choice { Choice::Empty {} }
-machine receive(choice: &mut Choice) -> i64 reaches DescriptorIo blocks; {
+machine receive(choice: &mut Choice) -> i64 reaches DescriptorIo blocks {
     block DescriptorIo::read(0, choice, 8)
 }
 machine observe(choice: &Choice) -> u32 in Wrapping {
@@ -72,7 +72,7 @@ machine observe(choice: &Choice) -> u32 in Wrapping {
         transition { _ -> (resident) }
     }
 }
-machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
+machine Main::main(main: &mut Main) reaches DescriptorIo blocks crashes Trap {
     let mut choice: Choice = make();
     let received: i64 = block receive(&mut choice);
     let resident: u32 in Wrapping = observe(&choice);
@@ -87,7 +87,7 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches DescriptorIo blocks; crashes Trap {
+machine entry_start() reaches DescriptorIo blocks crashes Trap {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

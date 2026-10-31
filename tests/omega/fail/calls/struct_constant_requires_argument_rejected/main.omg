@@ -13,7 +13,7 @@ machine Point::zero() -> Point {
     }
 }
 machine Main::take(p: Point) -> u64
-    requires p == Point::zero();
+    requires p == Point::zero()
 {
     p.y
 }

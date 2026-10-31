@@ -12,3 +12,20 @@ impl<B: AsRef<[u8]> + ?Sized> fmt::Display for Hex<'_, B> {
         Ok(())
     }
 }
+
+/// Parse exactly 64 lowercase hexadecimal digits — the inverse of [`Hex`]'s
+/// display form. `None` for any other length or a non-hexadecimal byte.
+pub(crate) fn hex_digest(text: &str) -> Option<[u8; 32]> {
+    if text.len() != 64
+        || !text
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return None;
+    }
+    let mut digest = [0; 32];
+    for (index, byte) in digest.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&text[index * 2..index * 2 + 2], 16).ok()?;
+    }
+    Some(digest)
+}

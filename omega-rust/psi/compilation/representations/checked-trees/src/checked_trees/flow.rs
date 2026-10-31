@@ -20,8 +20,10 @@ mod roots;
 // declaration-level semantic dependencies.
 mod borrow_lifetimes;
 mod boundaries;
+mod call_origins;
 mod contexts;
 mod control;
+pub use call_origins::CheckedCallOrigin;
 mod descriptor_observations;
 mod invalidations;
 mod operand;

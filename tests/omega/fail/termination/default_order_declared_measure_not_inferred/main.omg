@@ -11,9 +11,8 @@ machine Main::main(main: &mut Main) {
     let value: u64 = Main::weaken(main, Card { power: 3 });
 }
 
-machine Main::weaken(main: &mut Main, card: Card)
-terminates by card;
--> u64
+machine Main::weaken(main: &mut Main, card: Card) -> u64
+terminates by card
 {
     transition card.power > 0 {
         true -> weaken(main, Card { power: card.power - 1 })

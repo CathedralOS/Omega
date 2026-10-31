@@ -3,6 +3,7 @@
 //! binding view without overwriting the executable's retained substitution.
 //! Inferred operands come only from this invocation's exact selected realizer.
 
+use crate::tables::expressions_of;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{
@@ -22,8 +23,7 @@ pub(super) fn public_bindings(
     let invocation = call.authored_machine_application;
     let Some(dispatch) = &call.static_requirement_dispatch else {
         return Ok(Some(
-            program
-                .expression_table
+            expressions_of(program)
                 .static_machine_application_bindings(invocation)
                 .to_vec(),
         ));
@@ -82,15 +82,11 @@ pub(super) fn complete_arguments(
         return None;
     }
     let invocation = call.application();
-    let source = program
-        .expression_table
-        .static_machine_application(invocation);
+    let source = expressions_of(program).static_machine_application(invocation);
     if source.lexical_owner != owner {
         return None;
     }
-    let bindings = program
-        .expression_table
-        .static_machine_application_bindings(invocation);
+    let bindings = expressions_of(program).static_machine_application_bindings(invocation);
     let applications = selected_applications(program, owner, dispatch);
     let [application] = applications.as_slice() else {
         return None;

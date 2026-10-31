@@ -21,7 +21,7 @@ public data EfiSystemTable {
 public data Main { msg: [u16; 19]; }
 boundary machine Main::main(main: &mut Main, handle: addr, table: &EfiSystemTable) -> i32
 reaches TextOutput
-invokes TextOutput;
+invokes TextOutput
 {
     main.msg = utf16"Hello from Omega\r\n\0";
     let con_out: addr = table.con_out;

@@ -3,8 +3,8 @@ public data Parsed [copy] { value: i64 in Wrapping; valid: bool; }
 // One signed decimal per LF-delimited field. Ten digits bound accumulation;
 // malformed, empty, missing and overlong fields are rejected before forecasting.
 public machine read_number() -> Parsed reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     transition { _ -> scan(0, 0, false, false) }
@@ -46,8 +46,8 @@ crashes Trap
     }
 }
 public machine input_complete() -> bool reaches Console
-invokes Console;
-blocks;
+invokes Console
+blocks
 crashes Trap
 {
     let observed: ByteRead = block Console::read_byte();

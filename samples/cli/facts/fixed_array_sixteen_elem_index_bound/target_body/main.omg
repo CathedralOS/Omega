@@ -3,31 +3,31 @@
 // Expected exit: 0
 
 linux_x86_64 machine read_element(values: [u64; 16], idx: u64) -> u64
-    requires idx < 16u64;
+    requires idx < 16u64
 {
     values[idx]
 }
 
 linux_arm64 machine read_element(values: [u64; 16], idx: u64) -> u64
-    requires idx < 16u64;
+    requires idx < 16u64
 {
     values[idx]
 }
 
 macos_arm64 machine read_element(values: [u64; 16], idx: u64) -> u64
-    requires idx < 16u64;
+    requires idx < 16u64
 {
     values[idx]
 }
 
 windows_x86_64 machine read_element(values: [u64; 16], idx: u64) -> u64
-    requires idx < 16u64;
+    requires idx < 16u64
 {
     values[idx]
 }
 
 machine probe(values: [u64; 16], idx: u64) -> u64
-    requires idx < 16u64;
+    requires idx < 16u64
 {
     read_element(values, idx)
 }

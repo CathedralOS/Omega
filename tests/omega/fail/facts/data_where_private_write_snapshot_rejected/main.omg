@@ -1,7 +1,7 @@
 // Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
 data Counter [copy] where self.value <= 60 { value: i32; }
 data Cell { prefix: u64; value: i32; canary: u64; }
-machine bump(cell: &mut Cell) -> bool ensures cell.value == 61; {
+machine bump(cell: &mut Cell) -> bool ensures cell.value == 61 {
     cell.value = 61;
     true
 }

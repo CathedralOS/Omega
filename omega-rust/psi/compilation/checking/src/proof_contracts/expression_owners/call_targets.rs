@@ -7,6 +7,7 @@ use super::inference::{
     infer_expression_type, inferred_nominal_symbol, member_target_in_environment,
 };
 use super::{InferredType, OwnerEnvironmentIndex, OwnerMemberTarget, TypeEnvironment};
+use crate::frozen_program::expression_table;
 use symbols::JoinedPath;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 use symbols::SymbolHandle;
@@ -34,10 +35,7 @@ pub(super) fn authored_member_source_span(
     expression: ExpressionHandle,
 ) -> Option<source::SourceSpan> {
     let mut retained = None;
-    for occurrence in program
-        .expression_table
-        .authored_selection_occurrences(expression)
-    {
+    for occurrence in expression_table(program).authored_selection_occurrences(expression) {
         let selection = program.authored_declaration_selections().get(occurrence)?;
         if selection.kind()
             != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::MemberAccess
@@ -282,8 +280,8 @@ pub(super) fn exact_static_data_receiver(
     receiver: ExpressionHandle,
     environment: &TypeEnvironment,
 ) -> Option<InferredType> {
-    let path = program.expression_table.name_path_node(receiver)?;
-    let members = program.expression_table.name_path_members(path.members);
+    let path = expression_table(program).name_path_node(receiver)?;
+    let members = expression_table(program).name_path_members(path.members);
     let selected =
         crate::resolve_name_path_member_symbol(program, path, members.len().checked_sub(1)?);
     if selected.is_valid() && program.symbols.get(selected).kind == symbols::SymbolKind::Data {

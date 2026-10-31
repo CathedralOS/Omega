@@ -6,6 +6,7 @@
 
 use crate::lowering::name::lower_name;
 use crate::resolution::lowerer::Lowerer;
+use crate::tables::syntax_expressions;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::expression::{
@@ -52,8 +53,7 @@ pub(crate) fn lower_expression_into_table(
         && let syntax::expression::ExpressionNode::Name(receiver) =
             syntax_trees.expressions.expression(call.receiver)
     {
-        let mut path = syntax_trees
-            .expressions
+        let mut path = syntax_expressions(&syntax_trees)
             .identifier_path_members(*receiver)
             .iter()
             .map(|value| lower_name(syntax_trees, value))
@@ -159,8 +159,7 @@ fn lower_nonbinary_expression_node_into_table(
         }
         syntax::expression::ExpressionNode::ArrayLiteral(values) => {
             let span = expression_table(lowerer).reserve_expression_handles(values.count());
-            for (offset, value) in syntax_trees
-                .expressions
+            for (offset, value) in syntax_expressions(&syntax_trees)
                 .expression_handles(*values)
                 .iter()
                 .enumerate()
@@ -230,17 +229,15 @@ fn lower_nonbinary_expression_node_into_table(
                 .declaration_child_type_references()
                 .append(target_type);
             let mut target_label = HandleSpan::empty();
-            for member in syntax_trees
-                .expressions
-                .identifier_path_members(cast.target_label)
+            for member in
+                syntax_expressions(&syntax_trees).identifier_path_members(cast.target_label)
             {
                 expression_table(lowerer)
                     .push_name_path_member(&mut target_label, lower_name(syntax_trees, member));
             }
             let mut semantic_domain = HandleSpan::empty();
-            for member in syntax_trees
-                .expressions
-                .identifier_path_members(cast.semantic_domain)
+            for member in
+                syntax_expressions(&syntax_trees).identifier_path_members(cast.semantic_domain)
             {
                 expression_table(lowerer)
                     .push_name_path_member(&mut semantic_domain, lower_name(syntax_trees, member));
@@ -287,8 +284,7 @@ fn lower_nonbinary_expression_node_into_table(
             };
             let arguments =
                 expression_table(lowerer).reserve_expression_handles(call.arguments.count());
-            for (offset, argument) in syntax_trees
-                .expressions
+            for (offset, argument) in syntax_expressions(&syntax_trees)
                 .expression_handles(call.arguments)
                 .iter()
                 .enumerate()
@@ -356,9 +352,8 @@ fn lower_nonbinary_expression_node_into_table(
         syntax::expression::ExpressionNode::Membership(membership) => {
             let value = lower_expression_into_table(lowerer, syntax_trees, membership.value)?;
             let mut domain = HandleSpan::empty();
-            for member in syntax_trees
-                .expressions
-                .identifier_path_members(membership.domain)
+            for member in
+                syntax_expressions(&syntax_trees).identifier_path_members(membership.domain)
             {
                 expression_table(lowerer)
                     .push_name_path_member(&mut domain, lower_name(syntax_trees, member));
@@ -462,8 +457,7 @@ fn lower_nonbinary_expression_node_into_table(
         syntax::expression::ExpressionNode::StructLiteral(struct_literal) => {
             let fields =
                 expression_table(lowerer).reserve_struct_fields(struct_literal.fields.count());
-            for (offset, field) in syntax_trees
-                .expressions
+            for (offset, field) in syntax_expressions(&syntax_trees)
                 .struct_fields(struct_literal.fields)
                 .iter()
                 .enumerate()
@@ -576,8 +570,7 @@ pub(crate) fn lower_static_machine_argument(
                 Ok::<_, Diagnostic>(Box::new(
                     symbol_resolved_trees::expression::StaticSymbolApplication {
                         member: if application.member.is_valid() {
-                            let source = syntax_trees
-                                .expressions
+                            let source = syntax_expressions(&syntax_trees)
                                 .static_member(application.member)
                                 .ok_or_else(|| {
                                     Diagnostic::error(

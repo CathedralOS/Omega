@@ -5,6 +5,7 @@
 //! Queries may discard those decisions, but lowering never reconstructs them
 //! by re-running an expression under a different destination or branch scope.
 
+use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
 use crate::proof_contracts::arithmetic_domains::place_paths::place_path;
@@ -57,12 +58,11 @@ pub(crate) fn validate_anonymous_integer_primitive_range(
     if !primitive.accepts_integer_literal() {
         return None;
     }
-    if let Some(dispatch) = program.expression_table.match_node(expression) {
+    if let Some(dispatch) = expression_table(program).match_node(expression) {
         // Every arm must form a compatible result, even after a wildcard. The
         // destination checks the complete anonymous arm; a successful arm is
         // not an unconditional interval fact about the whole dispatch.
-        let mut pending = program
-            .expression_table
+        let mut pending = expression_table(program)
             .match_arms(dispatch.arms)
             .iter()
             .map(|arm| arm.value)
@@ -73,10 +73,9 @@ pub(crate) fn validate_anonymous_integer_primitive_range(
                 continue;
             }
             visited.push(value);
-            if let Some(nested) = program.expression_table.match_node(value) {
+            if let Some(nested) = expression_table(program).match_node(value) {
                 pending.extend(
-                    program
-                        .expression_table
+                    expression_table(program)
                         .match_arms(nested.arms)
                         .iter()
                         .map(|arm| arm.value),
@@ -108,7 +107,7 @@ pub(crate) fn validate_anonymous_integer_primitive_range(
                 evaluated.value,
                 primitive.name(),
             ))
-            .with_source_span(program.expression_table.source_span(expression)),
+            .with_source_span(expression_table(program).source_span(expression)),
         );
         return Some((Interval::UNBOUNDED, None, None));
     };
@@ -350,7 +349,7 @@ pub(crate) fn validate_anonymous_address_landing(
             Diagnostic::error(format!(
                 "anonymous address value cannot prove fit in `addr::Bound` in {owner}",
             ))
-            .with_source_span(program.expression_table.source_span(expression)),
+            .with_source_span(expression_table(program).source_span(expression)),
         );
     }
 }
@@ -472,7 +471,7 @@ pub(crate) fn exact_unsigned_widened_multiply_fits(
     right: ExpressionHandle,
 ) -> bool {
     let operand = |expression| -> Option<(i64, PrimitiveType)> {
-        let cast = program.expression_table.cast_node(expression)?;
+        let cast = expression_table(program).cast_node(expression)?;
         if cast.form.is_recast()
             || !cast.semantic_domain.is_empty()
             || cast.domain != ArithmeticDomain::Exact
@@ -529,14 +528,14 @@ pub(crate) fn literal_i64(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<i64> {
-    program.expression_table.constant_integer_value(expression)
+    expression_table(program).constant_integer_value(expression)
 }
 
 pub(crate) fn literal_u64(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<u64> {
-    match program.expression_table.expression(expression) {
+    match expression_table(program).expression(expression) {
         ExpressionNode::Integer(literal) => literal.value_bignum()?.to_u64(),
         ExpressionNode::Borrow(inner) => literal_u64(program, inner.target),
         _ => None,

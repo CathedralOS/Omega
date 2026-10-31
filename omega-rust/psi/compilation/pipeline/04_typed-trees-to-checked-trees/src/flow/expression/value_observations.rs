@@ -13,6 +13,7 @@ use typed_trees::expression::ExpressionHandle;
 #[derive(Clone, PartialEq, Eq)]
 pub(super) enum OwnedValueObservation {
     Scalar(ScalarValue),
+    IntegerBounds(facts::IntegerRange),
     Case(symbols::SymbolHandle),
     Capture {
         source: facts::PlaceHandle,
@@ -295,6 +296,39 @@ impl Execution<'_, '_, '_> {
         if let Some(value) = scalar {
             values.push((destination.to_vec(), OwnedValueObservation::Scalar(value)));
         }
+        // A completed read owns its justified interval just as it owns an
+        // exact scalar. Publish at this cut, before a later sibling can write
+        // the source; returns, copies and joins then consume one snapshot.
+        if values.is_empty()
+            && let Some(primitive) = primitive
+            && let Some(carrier) = validation::carrier_integer_range(primitive)
+            && validation::value_has_builtin_coordinates(
+                self.program,
+                self.machine,
+                self.state,
+                evaluated.capture.expression,
+            )
+            && let Some(source) = self.completed_value_place(evaluated.capture.expression)
+            && let Some(bounds) = crate::values::CurrentIntegerBounds::new(
+                self.program,
+                self.context.operators,
+                self.semantic,
+                &captured_contexts,
+                self.state.symbol,
+                ProgramPoint::Statement {
+                    machine_symbol: self.machine.symbol,
+                    state_symbol: self.state.symbol,
+                    statement_index: self.statement_index,
+                },
+            )
+            .at_place(&source, primitive)
+            && bounds != carrier
+        {
+            values.push((
+                destination.to_vec(),
+                OwnedValueObservation::IntegerBounds(bounds),
+            ));
+        }
         // Scalar children supplied their completed observation. Only
         // aggregate children need the captured context's nested member facts.
         let is_aggregate = primitive.is_none();
@@ -396,6 +430,11 @@ impl Execution<'_, '_, '_> {
                         continue;
                     }
                     let value = match fact.payload {
+                        FactPayload::AssignedIntegerBounds { bounds } => {
+                            Some(OwnedValueObservation::IntegerBounds(
+                                self.semantic.integer_ranges.get(bounds).clone(),
+                            ))
+                        }
                         FactPayload::CaseValue {
                             variant,
                             value: true,
@@ -450,6 +489,11 @@ impl Execution<'_, '_, '_> {
                 OwnedValueObservation::Scalar(value) => FactPayload::AssignedScalarValue {
                     value: self.semantic.scalar_values.append(value),
                 },
+                OwnedValueObservation::IntegerBounds(bounds) => {
+                    FactPayload::AssignedIntegerBounds {
+                        bounds: self.semantic.integer_ranges.append(bounds),
+                    }
+                }
                 OwnedValueObservation::Case(variant) => FactPayload::CaseValue {
                     variant,
                     value: true,

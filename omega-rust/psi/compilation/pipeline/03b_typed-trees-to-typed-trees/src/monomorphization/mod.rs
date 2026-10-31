@@ -26,6 +26,7 @@ pub(crate) use result_locals::require_complete_dispatch_subjects;
 
 use crate::monomorphization::body_cloning::clone_specialized_machine;
 use crate::monomorphization::body_rewriting::rewrite_selected_call;
+use crate::tables::{expressions_of, expressions_of_mut};
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
@@ -160,8 +161,7 @@ impl CallSite {
     ) -> Option<typed_trees::static_applications::StaticMachineApplicationHandle> {
         Some(match self {
             CallSite::Expression(handle) => {
-                program
-                    .expression_table
+                expressions_of(program)
                     .call_node(handle)?
                     .authored_machine_application
             }
@@ -525,7 +525,7 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
 
     let mut literals = Vec::new();
     let mut types = Vec::new();
-    for (_, expression) in program.expression_table.iter_expressions() {
+    for (_, expression) in expressions_of(program).iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             collect(program, &call.machine_arguments, &mut literals, &mut types);
             if let Some(query) = &call.native_code_layout {
@@ -548,12 +548,10 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
         }
     }
     // Declaration-owned cleanup applications have no ordinary source-call node.
-    for (handle, _) in program.expression_table.static_machine_applications() {
+    for (handle, _) in expressions_of(program).static_machine_applications() {
         collect(
             program,
-            program
-                .expression_table
-                .static_machine_application_arguments(handle),
+            expressions_of(program).static_machine_application_arguments(handle),
             &mut literals,
             &mut types,
         );
@@ -614,7 +612,7 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
     // Typed lowering retains integer landings; intern the remaining literal
     // carriers here so every literal family is proposable on every route.
     let mut atoms = Vec::new();
-    for (_, expression) in program.expression_table.iter_expressions() {
+    for (_, expression) in expressions_of(program).iter_expressions() {
         let atom = match expression {
             ExpressionNode::Integer(literal) => literal
                 .landing()
@@ -759,7 +757,7 @@ fn incomplete_selection_diagnostic(
     ));
     match selection.site {
         CallSite::Expression(expression) => {
-            diagnostic.with_source_span(program.expression_table.source_span(expression))
+            diagnostic.with_source_span(expressions_of(program).source_span(expression))
         }
         CallSite::Statement(statement) => match program.statement_table.statement(statement) {
             StatementNode::Call(call) => diagnostic.with_source_span(call.source_span),
@@ -1016,7 +1014,7 @@ pub(crate) fn finalize_referenced_domain_instance_identities(
     let cast_sites = expressions
         .into_iter()
         .filter_map(|handle| {
-            let expression = program.expression_table.expression(handle);
+            let expression = expressions_of(program).expression(handle);
             let ExpressionNode::Cast(cast) = expression else {
                 return None;
             };
@@ -1047,7 +1045,7 @@ pub(crate) fn finalize_referenced_domain_instance_identities(
     }
     for (handle, identity) in cast_updates {
         let semantic_id = program.semantic_domains.intern(&identity);
-        let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(handle) else {
+        let ExpressionNode::Cast(cast) = expressions_of_mut(program).expression_mut(handle) else {
             unreachable!("collected cast changed kind")
         };
         cast.semantic_domain_id = semantic_id;

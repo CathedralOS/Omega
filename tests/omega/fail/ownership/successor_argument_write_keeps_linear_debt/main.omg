@@ -4,7 +4,7 @@ data Token [linear] { value: u64; }
 data Slot { case Empty; case Held(token: Token); }
 
 machine install(slot: &mut Slot) -> bool
-requires slot in Slot::Empty;
+requires slot in Slot::Empty
 {
     slot = Slot::Held { token: Token { value: 7 } };
     true

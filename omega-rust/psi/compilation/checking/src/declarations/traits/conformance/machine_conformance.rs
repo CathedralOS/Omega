@@ -14,6 +14,7 @@ use crate::declarations::traits::conformance::signature_matching::{
 };
 use crate::declarations::traits::conformance::trait_applications::validate_trait_application_obligations;
 use crate::declarations::traits::trait_definition_by_symbol;
+use crate::frozen_program::expression_table;
 use crate::value_custody::type_references::TypeParameterScope;
 use crate::value_custody::type_references::type_reference_label;
 use diagnostics::Diagnostic;
@@ -516,10 +517,10 @@ fn validate_top_level_requirement_effect_ceiling(
                 format!("{label} reaches service `{service_name}` outside the requirement ceiling")
             }
             super::OperationalCeilingBreach::Suspends => {
-                format!("{label} declares `suspends;` beyond the requirement ceiling")
+                format!("{label} declares `suspends` beyond the requirement ceiling")
             }
             super::OperationalCeilingBreach::Blocks => {
-                format!("{label} declares `blocks;` beyond the requirement ceiling")
+                format!("{label} declares `blocks` beyond the requirement ceiling")
             }
         },
         diagnostics,
@@ -993,8 +994,7 @@ fn validate_named_contract_lane(
             )));
             continue;
         }
-        let argument_labels = program
-            .expression_table
+        let argument_labels = expression_table(program)
             .expression_handles(required_application.arguments)
             .iter()
             .map(|argument| {

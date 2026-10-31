@@ -24,11 +24,8 @@ macro_rules! nominal_plan_id {
     };
 }
 
-nominal_plan_id!(StaticMachineBinderId);
-nominal_plan_id!(NativeParameterId);
 nominal_plan_id!(LayoutPlanId);
 nominal_plan_id!(LayoutSlotId);
-nominal_plan_id!(CallbackRequirementId);
 
 /// Exact target-closed application of one nominal native parameter.
 ///
@@ -44,62 +41,12 @@ pub struct NativeParameterApplication {
     pub placement: ValuePlacement,
 }
 
-/// The authored origin of one row in the ordered native telescope. An ABI
-/// location or equal-sized shape cannot establish semantic formal identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BoundaryNativeParameterOrigin {
-    SemanticFormal {
-        formal_ordinal: u32,
-    },
-    PrivateCallback {
-        binder: StaticMachineBinderId,
-        requirement: CallbackRequirementId,
-    },
-}
-
-pub fn callback_nominal_report_fingerprint(domain: &[u8], parts: &[&[u8]]) -> u64 {
-    let mut hasher = crate::fnv1a::Fnv1a::new();
-    for bytes in std::iter::once(domain).chain(parts.iter().copied()) {
-        hasher.bytes_framed(bytes);
-    }
-    let report_fingerprint = hasher.finish();
-    if report_fingerprint == 0 {
-        1
-    } else {
-        report_fingerprint
-    }
-}
-
-/// Compiler-issued identity of one canonical callback requirement overload.
-/// The same constructor is used for boundary binders and target-closed private
-/// layout demands, so matching text cannot be rebound through a second hash
-/// convention.
-pub fn callback_requirement_id(canonical_requirement: &str) -> CallbackRequirementId {
-    CallbackRequirementId::new(callback_nominal_report_fingerprint(
-        b"omega.callback-requirement.v1",
-        &[canonical_requirement.as_bytes()],
-    ))
-    .expect("callback requirement identity is nonzero")
-}
-/// Compiler-issued nominal identity for a declared native-parameter name.
-///
-/// This v2 domain deliberately replaces the earlier ordinal-derived report
-/// identity. Authored telescope order is retained separately and therefore a
-/// reorder changes application identity without silently renaming either
-/// parameter.
-pub fn nominal_callback_native_parameter_id(
-    canonical_requirement: &str,
-    canonical_parameter_name: &str,
-) -> NativeParameterId {
-    NativeParameterId::new(callback_nominal_report_fingerprint(
-        b"omega.callback-native-parameter.v2",
-        &[
-            canonical_requirement.as_bytes(),
-            canonical_parameter_name.as_bytes(),
-        ],
-    ))
-    .expect("nominal callback native-parameter identity is nonzero")
-}
+// Declaration identities are produced by Psi; this owner adds target placement.
+pub use semantic_vocabulary::{
+    BoundaryNativeParameterOrigin, CallbackRequirementId, NativeParameterId, StaticMachineBinderId,
+    callback_nominal_report_fingerprint, callback_requirement_id,
+    nominal_callback_native_parameter_id,
+};
 
 /// Compiler-issued identity of one complete target-closed native layout.
 /// Pointer geometry participates because it supplies the physical callback

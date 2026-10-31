@@ -33,7 +33,7 @@ public boundary trait Scheduler {
 data Harness {
 }
 
-machine Harness::forward(harness: & Harness, raw: Token) -> Token suspends; reaches ClaimProvider + Scheduler {
+machine Harness::forward(harness: & Harness, raw: Token) -> Token suspends reaches ClaimProvider + Scheduler {
     let claim: Token = ClaimProvider::grant(raw);
     let forwarded: Token = forward_claim(claim);
     suspend Scheduler::park();

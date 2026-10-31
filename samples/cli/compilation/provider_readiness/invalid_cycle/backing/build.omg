@@ -1,6 +1,6 @@
 use omega::language::core::program_image;
 
-machine build(builder: &mut Build) suspends;
+machine build(builder: &mut Build) suspends
 requires addr::Bound == 18446744073709551616 {
     Build::package(builder, "readiness_backing");
     Build::build_depend_as(builder, "backing", Source::Path { location: "../helper" });

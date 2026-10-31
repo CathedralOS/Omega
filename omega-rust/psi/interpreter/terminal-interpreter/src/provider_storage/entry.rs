@@ -52,7 +52,7 @@ impl TerminalExecution<'_> {
             return Err("provider storage handback requires returned ownership custody".into());
         }
         if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &result.value,
             self.structural_cases.as_map(),
             path,
@@ -61,12 +61,9 @@ impl TerminalExecution<'_> {
         {
             return Err("provider storage result path is inactive".into());
         }
-        let value = crate::custody::project_structural_value(
-            &self.program.structural_types(),
-            &result.value,
-            path,
-        )
-        .map_err(|reason| format!("provider storage result path: {reason:?}"))?;
+        let value =
+            crate::custody::project_structural_value(&self.structural_types(), &result.value, path)
+                .map_err(|reason| format!("provider storage result path: {reason:?}"))?;
         let storage = self
             .program
             .catalogs
@@ -90,7 +87,7 @@ impl TerminalExecution<'_> {
         // Only the paid return's exact active roster can hand storage back;
         // some unrelated claim in the same result is not ownership of this home.
         let returned_claim = returned_storage_claim(
-            &self.program.structural_types(),
+            &self.structural_types(),
             self.structural_cases.as_map(),
             result,
             &self.returned_claims,
@@ -169,14 +166,14 @@ impl TerminalExecution<'_> {
                         return false;
                     };
                     crate::structural_inputs::case_membership::case_projection_in_value_is_active(
-                        &self.program.structural_types(),
+                        &self.structural_types(),
                         value,
                         self.structural_cases.as_map(),
                         &claim.path,
                     )
                     .is_ok_and(|active| active)
                         && crate::custody::project_structural_value(
-                            &self.program.structural_types(),
+                            &self.structural_types(),
                             value,
                             &claim.path,
                         )
@@ -321,7 +318,7 @@ impl TerminalExecution<'_> {
             .get(&parameter.place)
             .ok_or("provider storage entry has no actual argument")?;
         if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
-            &self.program.structural_types(),
+            &self.structural_types(),
             root,
             self.structural_cases.as_map(),
             &input.path,
@@ -331,7 +328,7 @@ impl TerminalExecution<'_> {
             return Err("provider storage entry path is inactive".into());
         }
         let value = crate::custody::resolve_single_structural_argument(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &self.structural_values,
             &argument,
         )

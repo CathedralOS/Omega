@@ -6,7 +6,7 @@ public boundary trait WorkerProvider {
     machine execute<T, Arguments, machine Target>(
         arguments: Arguments
     ) -> T
-    requires machine Target(arguments: Arguments) -> T suspends; blocks;
+    requires machine Target(arguments: Arguments) -> T suspends blocks;
     ensures true reaches;
 }
 
@@ -15,7 +15,7 @@ data IntrinsicWorkerProvider { }
 machine IntrinsicWorkerProvider::execute<T, Arguments, machine Target>(
     arguments: Arguments
 ) -> T
-requires machine Target(arguments: Arguments) -> T suspends; blocks;
+requires machine Target(arguments: Arguments) -> T suspends blocks;
 satisfies WorkerProvider::execute
 via ForeignBinding::CompilerIntrinsic;
 

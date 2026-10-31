@@ -44,6 +44,7 @@ pub(crate) fn build_semantic_facts(
     // Receivers and named inputs have the same caller-enforced declared domains.
     // Actual zero-initialized storage is established separately below.
     append_state_parameter_domain_facts(program, &mut facts);
+    append_state_parameter_predicates(program, operators, &mut facts);
     // ZII locals (`let room: Room;`): the zeroed storage already satisfies
     // every declared field domain that admits the empty byte sequence -- the
     // establishment gate -- so those fields are live evidence
@@ -51,6 +52,42 @@ pub(crate) fn build_semantic_facts(
     append_local_zii_field_domain_facts(program, &mut facts);
 
     Ok(facts)
+}
+
+/// Call admission checks these same declaration rows. Bind the complete rows
+/// at entry, rather than rediscovering individual fields at a later consumer.
+/// The roster excludes write-only contents; the normal predicate dependencies
+/// retire a row when any storage it observes is changed.
+fn append_state_parameter_predicates(
+    program: &dyn validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    facts: &mut FactPlan,
+) {
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for row in validation::state_declaration_predicates(program, operators, state) {
+                let Some(predicate) = crate::facts::boolean_predicates::bind_parameters(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    program.state_parameters(state),
+                    None,
+                    row.predicate,
+                ) else {
+                    continue;
+                };
+                crate::facts::boolean_predicates::seed(
+                    facts,
+                    &predicate,
+                    facts::ProgramPoint::State {
+                        machine_symbol: machine.symbol,
+                        state_symbol: state.symbol,
+                    },
+                    FactOrigin::StatementTransfer,
+                );
+            }
+        }
+    }
 }
 
 fn append_proof_obligation_semantic_facts(proof: &ProofFacts, facts: &mut FactPlan) {

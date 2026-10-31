@@ -4,15 +4,15 @@
 // Expected rejection: may overflow `u32`
 
 machine multiply_other_state(lhs: u32, rhs: u32) -> i32
-    requires lhs >= 20u32 && lhs <= 30u32;
-    requires rhs >= 15u32 && rhs <= 26u32;
+    requires lhs >= 20u32 && lhs <= 30u32
+    requires rhs >= 15u32 && rhs <= 26u32
 {
     let prod: u32 = lhs * rhs;
     transition {
         _ -> check_state(prod)
     }
     machine check_state(p: u32) -> i32
-        requires p >= 300u32 && p <= 780u32;
+        requires p >= 300u32 && p <= 780u32
     {
         let headroom: u32 = 750u32 - p;
         let margin: u32 = p - 300u32;

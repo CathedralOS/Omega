@@ -2,6 +2,7 @@
 
 /// These membership sets are never iterated for authored output order.
 type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
+use crate::frozen_program::expression_table;
 use typed_trees::expression::ExpressionNode;
 
 /// Whether the containment walk from `root` reaches `target`.
@@ -19,7 +20,7 @@ pub fn expression_contains(
         return true;
     }
     if matches!(
-        program.expression_table.expression(root),
+        expression_table(program).expression(root),
         typed_trees::literal_expression_pattern!()
     ) {
         return false;
@@ -65,14 +66,13 @@ fn reaches(
     if root == target {
         return true;
     }
-    match program.expression_table.expression(root) {
+    match expression_table(program).expression(root) {
         ExpressionNode::Match(dispatch) => {
             crate::expression_traversal::match_children(program, *dispatch)
                 .any(|child| reaches(program, child, target, visited))
         }
         ExpressionNode::Atomic(atomic) => reaches(program, atomic.value, target, visited),
-        ExpressionNode::ArrayLiteral(values) => program
-            .expression_table
+        ExpressionNode::ArrayLiteral(values) => expression_table(program)
             .expression_handles(*values)
             .iter()
             .any(|child| reaches(program, *child, target, visited)),
@@ -82,8 +82,7 @@ fn reaches(
         }
         ExpressionNode::Call(call) => {
             (call.receiver.is_valid() && reaches(program, call.receiver, target, visited))
-                || program
-                    .expression_table
+                || expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .any(|child| reaches(program, *child, target, visited))
@@ -99,8 +98,7 @@ fn reaches(
             reaches(program, range.start, target, visited)
                 || reaches(program, range.end, target, visited)
         }
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
+        ExpressionNode::StructLiteral(literal) => expression_table(program)
             .struct_fields(literal.fields)
             .iter()
             .any(|field| reaches(program, field.value, target, visited)),

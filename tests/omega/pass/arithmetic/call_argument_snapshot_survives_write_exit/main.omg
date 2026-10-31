@@ -2,7 +2,7 @@
 // A scalar local snapshots the argument before a later parameter mutates its source.
 data Cell { value: u32; }
 machine capture(value: u32, cell: &mut Cell) -> u32
-ensures result == value;
+ensures result == value
 {
     cell.value = 2u32;
     value

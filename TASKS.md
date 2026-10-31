@@ -157,8 +157,9 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    authored computed measures over indexed storage, non-polynomial or
-    non-monotone declared bodies, nonscalar orders, or dependent distances
+    other declared body forms (including structured and cross-carrier
+    bodies), nonscalar orders,
+    or dependent distances
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
@@ -786,13 +787,7 @@ helper that passes does not close an item.
     repeated predicates conjoin only within their owning scope. Keep a nested
     callable's complete contract and terminating semicolon distinct from its
     enclosing declaration's requirements and guarantees, including higher-order
-    and logical-evidence requirements. Apply the settled
-    [machine header delimiters](wiki/spec/language/state_contracts.md#machine-header-delimiters):
-    no clause-ending semicolons, including termination and operational clauses;
-    one final semicolon closes each bodyless callable. Remove the parser's
-    termination-clause semicolon requirement; reject extra same-level terminators
-    rather than treating them as a workaround. Keep distinct terminators for
-    genuinely nested declarations.
+    and logical-evidence requirements.
   - Parse body-level assembly `requires`, `ensures` and `clobbers` directly
     after `asm`, including headers without predicates. Preserve label scopes,
     incoming-edge and exit proofs, exact clobbers, instruction-catalog checks
@@ -810,10 +805,7 @@ helper that passes does not close an item.
   twins retain native/Terminal agreement (`omega run --both`). Exercise repeated
   predicates, mixed generic/call-entry constraints, nested callable contracts
   followed by outer clauses, and assembly with and without entry predicates.
-  Pin callbacks with combined `suspends blocks terminates`, termination followed
-  by another clause or a body, and correctly closed higher-order requirements;
-  reject clause separators and extra same-level terminators. Migrate both
-  producers' parsers, source examples and diagnostic expectations without
+  Migrate both producers' parsers, source examples and diagnostic expectations without
   changing which callable owns each obligation.
   Reject each retired `where` form, unsatisfied predicates, wrong callable scope
   or kind, unjustified static specialization, invalid default-domain formation,
@@ -963,20 +955,6 @@ helper that passes does not close an item.
   duplicated linear custody and abandoned restoration. Existing case-literal
   construction, matching-host layout/ABI and customer oracles remain unchanged;
   no retired syntax acceptance path remains.
-
-- **PREFIX-CASE-IDENTITIES.** Implement the ratified
-  [identity-before-case syntax](wiki/spec/language/data_and_literals.md#construction-and-case-identity)
-  through Rust and Omega parsers, schema reflection, retained encodings and
-  source tooling. Migrate every numbered-case declaration under source,
-  samples, fixtures and compiler-input literals to `#N case Name`, preserving
-  member numbers, payload scopes, tombstones, default-domain obligations,
-  authored case order and runtime discriminators; remove the retired parser
-  path rather than accepting two dialects. Unnumbered cases remain unchanged.
-  Acceptance: a mixed common-field/case fact survives all nine places with
-  native/Terminal agreement, payload and neighbor checks, and fact-sensitive
-  reject twins; old-order and case-block declarations reject. No executable
-  source fixture remains in the retired numbered spelling or changes its
-  expected value/reject obligation merely to accommodate the migration.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** (also covers **REFERENCE-LOCAL-BINDING-ROUTES**
   and **TRANSITION-TAIL-CALL-TO-MACHINE**)

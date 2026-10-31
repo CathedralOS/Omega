@@ -1,7 +1,8 @@
 use crate::interpreter::evaluator::{
     ArithmeticDomain, BinaryOperator, EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle,
     ExpressionNode, FixedArrayLength, Frame, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
-    Value, integer_primitive_byte_width, primitive_is_unsigned64, trap,
+    Value, expression_table, integer_primitive_byte_width, primitive_is_unsigned64, trap,
+    type_reference_table,
 };
 impl<'program> Evaluator<'program> {
     /// Evaluate and capture one operand at its declared parameter type before
@@ -48,11 +49,7 @@ impl<'program> Evaluator<'program> {
         mut destination: TypeReferenceHandle,
     ) -> bool {
         loop {
-            match self
-                .program
-                .type_reference_table
-                .type_reference(destination)
-            {
+            match type_reference_table(self.program).type_reference(destination) {
                 TypeReferenceNode::Constrained { base_type, .. } => destination = *base_type,
                 TypeReferenceNode::Reference { .. } => return true,
                 _ => return false,
@@ -93,10 +90,7 @@ impl<'program> Evaluator<'program> {
                 self.projected_member_type(receiver, member.member.as_str())
             }
             ExpressionNode::Name(path) => {
-                let members = self
-                    .program
-                    .expression_table
-                    .name_path_members(path.members);
+                let members = expression_table(self.program).name_path_members(path.members);
                 let (_, rest) = members.split_first()?;
                 let mut current = frame.local_type(path.head_symbol)?;
                 for member in rest {
@@ -114,11 +108,7 @@ impl<'program> Evaluator<'program> {
         member_name: &str,
     ) -> Option<TypeReferenceHandle> {
         loop {
-            match self
-                .program
-                .type_reference_table
-                .type_reference(type_reference)
-            {
+            match type_reference_table(self.program).type_reference(type_reference) {
                 TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
                 TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
                 TypeReferenceNode::Named { symbol, .. } => {
@@ -134,11 +124,7 @@ impl<'program> Evaluator<'program> {
         mut type_reference: TypeReferenceHandle,
     ) -> Option<TypeReferenceHandle> {
         loop {
-            match self
-                .program
-                .type_reference_table
-                .type_reference(type_reference)
-            {
+            match type_reference_table(self.program).type_reference(type_reference) {
                 TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
                 TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
                 TypeReferenceNode::FixedArray { element_type, .. }
@@ -153,9 +139,7 @@ impl<'program> Evaluator<'program> {
         value: Value,
         target_type: TypeReferenceHandle,
     ) -> EvalResult<Value> {
-        let target = self
-            .program
-            .type_reference_table
+        let target = type_reference_table(self.program)
             .type_reference(target_type)
             .clone();
         match target {
@@ -337,10 +321,7 @@ impl<'program> Evaluator<'program> {
                 }
             }
             ExpressionNode::Name(path) => {
-                let members = self
-                    .program
-                    .expression_table
-                    .name_path_members(path.members);
+                let members = expression_table(self.program).name_path_members(path.members);
                 if members.len() == 1 {
                     return frame.local_scalar(path.head_symbol);
                 }

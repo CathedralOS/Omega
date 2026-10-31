@@ -1,6 +1,6 @@
 use omega::language::core::float_operations;
 machine row(values: &[[f64; 2]; 2], index: u64) -> [f64; 2]
-requires index < 2;
+requires index < 2
 { values[index] }
 machine main() crashes Trap {
  let values: [[f64; 2]; 2] = [[1.0, 2.0], [3.0, 4.0]];

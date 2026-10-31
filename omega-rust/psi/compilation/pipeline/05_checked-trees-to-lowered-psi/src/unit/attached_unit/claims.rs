@@ -62,9 +62,11 @@ pub(super) fn lower_return_claims(
             // this machine's namespace. The producer has already joined these
             // claims through the exact call occurrence (including unreceived ones).
             let mut matching = operations.source_calls.iter().filter(|occurrence| {
-                occurrence.source_state == state
-                    && occurrence.statement_index == coordinate.statement_index as usize
-                    && occurrence.call_ordinal == coordinate.call_ordinal as usize
+                occurrence.matches_statement(
+                    state,
+                    coordinate.statement_index as usize,
+                    coordinate.call_ordinal as usize,
+                )
             });
             let occurrence = matching.next().ok_or(LoweringError::Unsupported(
                 "terminal return call occurrence is absent",

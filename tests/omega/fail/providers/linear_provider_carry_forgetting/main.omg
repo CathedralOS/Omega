@@ -4,7 +4,7 @@ public boundary trait Scheduler { machine park() reaches suspends; }
 data Provider {}
 machine Provider::forward(token: Token) -> Token satisfies Flow::forward { token }
 data Harness { }
-machine Harness::forget(harness: &Harness, token: Token) -> Token suspends; reaches Flow + Scheduler {
+machine Harness::forget(harness: &Harness, token: Token) -> Token suspends reaches Flow + Scheduler {
     let issued: Token = Flow::forward(token);
     let forgotten: Token = issued as Token;
     suspend Scheduler::park();

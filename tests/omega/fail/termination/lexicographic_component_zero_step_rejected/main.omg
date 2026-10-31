@@ -17,9 +17,8 @@ machine Main::main(main: &mut Main) -> u64 {
     }
 }
 
-machine Main::scan_a(main: &mut Main, progress: Progress)
-terminates by progress -> Progress::Steps;
--> u64
+machine Main::scan_a(main: &mut Main, progress: Progress) -> u64
+terminates by progress -> Progress::Steps
 {
     transition progress.inner > 1 {
         true -> Main::scan_b(main, progress)
@@ -27,9 +26,8 @@ terminates by progress -> Progress::Steps;
     }
 }
 
-machine Main::scan_b(main: &mut Main, progress: Progress)
-terminates by progress -> Progress::Steps;
--> u64
+machine Main::scan_b(main: &mut Main, progress: Progress) -> u64
+terminates by progress -> Progress::Steps
 {
     transition progress.inner > 1 {
         true -> Main::scan_a(main, Progress {

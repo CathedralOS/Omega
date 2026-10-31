@@ -7,6 +7,7 @@
 //! keep their own producer types, and bounds/access remain independent checks.
 //! Unknown widths stay unavailable rather than borrowing the source's extent.
 
+use crate::tables::expressions_of;
 use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
@@ -35,10 +36,9 @@ pub(crate) fn prepare(program: &mut TypedTrees) {
                     receiving_type: TypeReferenceHandle::invalid(),
                     ..*assignment
                 };
-                let is_window = program
-                    .expression_table
+                let is_window = expressions_of(program)
                     .indexed_node(assignment.target)
-                    .and_then(|indexed| program.expression_table.range_node(indexed.index))
+                    .and_then(|indexed| expressions_of(program).range_node(indexed.index))
                     .is_some();
                 let receiving = if is_window {
                     validation::array_window_shape(

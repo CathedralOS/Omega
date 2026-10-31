@@ -44,10 +44,7 @@ pub(super) fn view_argument_at(
         &signature.structural_types,
     )?;
     (target.source_byte_offset == geometry.offset
-        && crate::structural_inputs::structural_reference_input::runtime_indices_match(
-            indices,
-            &geometry.elements,
-        )
+        && crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
         && target.indices.len() == indices.len()
         && target.indices.iter().zip(indices).all(|(target, index)| {
             target.operand.source_value() == index.operand.value
