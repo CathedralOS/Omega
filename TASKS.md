@@ -887,6 +887,11 @@ helper that passes does not close an item.
     compile-time evaluation, complete plan validation, field/case projection,
     nested representation composition, cleanup, references, recasts and ABI
     realization without wrapper storage or per-layout Build registration.
+    The unqualified [nested-reference descriptor witness](https://github.com/CathedralOS/Omega/blob/ac343388cae3444d9eda04a548139f2ec8a9dd9c/samples/cli/facts/fixed_layout_storage/compositions/reference_descriptor/main.omg)
+    remains follow-on acceptance: preserve its value 7 and pointee 43 checks,
+    with the original 256-width and mismatched-policy-argument reject controls.
+    Its exact source and unfinished repairs are retained at that checkpoint;
+    the completed storage/bit rows do not establish this composition.
   - Supply a library C-layout family and migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring

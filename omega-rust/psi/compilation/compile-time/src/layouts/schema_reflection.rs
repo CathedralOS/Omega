@@ -304,7 +304,7 @@ pub(super) fn reflected_field_layout(
     ))
 }
 
-/// Walk the exact applied field telescope. Lifetimes and qualifications remain
+/// Walk the exact closed field telescope. Lifetimes and qualifications remain
 /// semantic evidence; references contribute their descriptor geometry without
 /// recursively demanding storage of the referent.
 fn reflected_member_layout(
@@ -324,7 +324,17 @@ fn reflected_member_layout(
     match typed.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::Reference { referee, .. } => {
             let target = target?;
-            let words = reference_descriptor_words(typed, *referee)?;
+            let referent = typed
+                .type_reference_table
+                .unconstrained_type_reference(*referee);
+            let words = if matches!(
+                typed.type_reference_table.type_reference(referent),
+                TypeReferenceNode::Slice { .. }
+            ) {
+                2
+            } else {
+                1
+            };
             Some((
                 target.pointer_size.checked_mul(words)?,
                 target.pointer_alignment,
@@ -351,10 +361,7 @@ fn reflected_member_layout(
             if typed.layout_storage_arguments(carrier).is_some() {
                 return None;
             }
-            // An applied field description need not close every semantic
-            // operand. Each by-value child must still supply actual geometry;
-            // an unresolved T or unadmitted representation remains unavailable.
-            let data = typed.data_field_definition(carrier)?;
+            let data = typed.closed_data_definition(carrier)?;
             let identity = typed.normalized_type_identity(carrier);
             if data.quotient.is_some()
                 || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
@@ -381,38 +388,6 @@ fn reflected_member_layout(
             visiting.pop();
             result
         }
-        _ => None,
-    }
-}
-
-/// The referent's shape determines a borrow's descriptor, independently of its
-/// storage geometry. A nominal data application stays nominal with open static
-/// operands; an unconstrained type binder may still denote a slice and cannot
-/// be assumed to have a thin descriptor. Text is the ordinary borrowed slice
-/// shape and needs no separate name-based classification.
-fn reference_descriptor_words(
-    typed: &TypedTrees,
-    referent: typed_trees::types::TypeReferenceHandle,
-) -> Option<u64> {
-    use typed_trees::types::TypeReferenceNode;
-    let referent = typed
-        .type_reference_table
-        .unconstrained_type_reference(referent);
-    if typed.primitive_type_reference(referent).is_some() {
-        return Some(1);
-    }
-    match typed.type_reference_table.type_reference(referent) {
-        TypeReferenceNode::Slice { .. } => Some(2),
-        TypeReferenceNode::Reference { .. }
-        | TypeReferenceNode::FixedArray { .. }
-        | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::Unit => Some(1),
-        TypeReferenceNode::Named { symbol, .. } => {
-            typed.unique_data_definition_by_symbol(*symbol).map(|_| 1)
-        }
-        TypeReferenceNode::Generic { base_symbol, .. } => typed
-            .unique_data_definition_by_symbol(*base_symbol)
-            .map(|_| 1),
         _ => None,
     }
 }

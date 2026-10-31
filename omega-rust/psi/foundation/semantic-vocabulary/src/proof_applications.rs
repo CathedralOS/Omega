@@ -98,8 +98,24 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
             .then_some(machine)
     }
 
+    /// Complete descriptive dependencies of independently supplied declaration
+    /// roots. This traversal never follows execution/provider edges or grants
+    /// a machine body membership merely because a type mentions its context.
+    pub fn declaration_closure(&self, declarations: &[Declaration]) -> Vec<Declaration> {
+        let mut roots = self.declaration_dependencies(declarations);
+        self.retain_declaration_signatures(&mut roots);
+        roots
+    }
+
     fn declaration_membership(&self, machines: &[Declaration]) -> Vec<Declaration> {
-        let mut roots = machines.to_vec();
+        let mut roots = self.declaration_dependencies(machines);
+        roots.retain(|root| !machines.contains(root));
+        self.retain_declaration_signatures(&mut roots);
+        roots
+    }
+
+    fn declaration_dependencies(&self, declarations: &[Declaration]) -> Vec<Declaration> {
+        let mut roots = declarations.to_vec();
         let mut next = 0;
         while let Some(owner) = roots.get(next).copied() {
             next += 1;
@@ -115,13 +131,15 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
                 }
             }
         }
-        roots.retain(|root| !machines.contains(root));
+        roots
+    }
+
+    fn retain_declaration_signatures(&self, roots: &mut Vec<Declaration>) {
         for (_, row) in self.declaration_dependencies.iter() {
             if roots.contains(&row.declaration) {
                 roots.extend(self.symbols.span_or_empty(row.signatures));
             }
         }
-        roots
     }
 }
 

@@ -110,7 +110,10 @@ pub(crate) fn compute_plan_laid_layouts_in(
         // ordinary evaluator receives no value for those symbolic operands:
         // only an output that does not read them can complete. Explicit target
         // facts remain known inputs; no caller's policy instance supplies proof.
-        if typed.data_field_definition(storage.semantic_type).is_some() {
+        if typed
+            .closed_data_field_definition(storage.semantic_type)
+            .is_some()
+        {
             let policy_is_closed =
                 typed_trees::domain::index_argument_is_closed(typed, storage.policy);
             let policy_declaration = typed.type_reference_table.type_symbol(storage.policy);
@@ -264,7 +267,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
         // of the narrower roster of bodies permitted to execute. Describing T
         // never promotes T or any Product machine into the execution domain.
         let semantic = typed
-            .data_field_definition(storage.semantic_type)
+            .closed_data_field_definition(storage.semantic_type)
             .ok_or_else(|| {
                 fail(format!(
                     "fixed representation lost its exact declared semantic application `{}`",
@@ -564,15 +567,14 @@ pub(crate) fn validate_layout_application_coverage(
     Ok(())
 }
 
-/// Discover only by-value dependencies from exact applied field descriptions.
-/// Actual geometry is validated separately; references never add referent debt.
+/// Discover only by-value dependencies from the exact closed field views.
 fn representation_dependencies(
     typed: &TypedTrees,
     semantic_type: typed_trees::types::TypeReferenceHandle,
 ) -> Result<Vec<RepresentationDependency>, Vec<Diagnostic>> {
     use typed_trees::types::TypeReferenceNode;
     let owner = typed
-        .data_field_definition(semantic_type)
+        .closed_data_field_definition(semantic_type)
         .map(|data| data.symbol)
         .unwrap_or_default();
     let mut work = vec![(semantic_type, owner)];
@@ -604,7 +606,7 @@ fn representation_dependencies(
                 work.push((*element_type, lexical_owner))
             }
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
-                if let Some(data) = typed.data_field_definition(reference) {
+                if let Some(data) = typed.closed_data_definition(reference) {
                     work.extend(
                         typed
                             .live_data_fields(typed.data_members(data))

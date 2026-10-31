@@ -269,18 +269,15 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
     };
     if let Some(storage) = program.layout_storage_arguments(reference) {
         elaborate_value_fields(program, storage.semantic_type, &mut Vec::new());
-        let is_closed = program
-            .closed_data_field_definition(storage.semantic_type)
-            .is_some();
         if let Some(mut semantic) = program
-            .data_field_definition(storage.semantic_type)
+            .closed_data_field_definition(storage.semantic_type)
             .cloned()
         {
             // This is a field view of the original semantic application, not a
             // declaration or an owned wrapper. Every member keeps T's symbols,
             // regions, predicates, relevance and cleanup disposition.
             semantic.generic_instance = Some(reference);
-            program.retain_data_application_definition(reference, semantic, is_closed);
+            program.retain_data_application_definition(reference, semantic, true);
         }
         return;
     }
@@ -441,37 +438,13 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
             continue;
         }
         match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Named { symbol, name } => {
-                if !symbol.is_valid() {
-                    if program
-                        .type_reference_table
-                        .primitive_type(reference)
-                        .is_none()
-                        && program
-                            .static_const_literal_from_type_reference(reference)
-                            .is_none()
-                        && language_semantics::const_value::CanonicalConstValue::from_atom(
-                            name.as_str(),
-                        )
-                        .and_then(|value| value.decode_encoding())
-                        .is_none()
-                    {
-                        return false;
-                    }
-                    continue;
-                }
-                if matches!(
-                    program.symbols.get(*symbol).kind,
-                    SymbolKind::Unknown
-                        | SymbolKind::TypeParameter
-                        | SymbolKind::MachineParameter
-                        | SymbolKind::ConformanceParameter
-                        | SymbolKind::PropositionParameter
-                        | SymbolKind::PropositionMachineParameter
-                        | SymbolKind::Parameter
-                        | SymbolKind::Local
-                        | SymbolKind::Field
-                ) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                if symbol.is_valid()
+                    && matches!(
+                        program.symbols.get(*symbol).kind,
+                        SymbolKind::TypeParameter | SymbolKind::Parameter | SymbolKind::Local
+                    )
+                {
                     return false;
                 }
                 if let Some(data) = program.unique_data_definition_by_symbol(*symbol)
@@ -481,12 +454,6 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 }
                 if let Some(declaration) = program.trait_definition_by_symbol(*symbol)
                     && !program.trait_type_parameters(declaration).is_empty()
-                {
-                    return false;
-                }
-                if let Some(declaration) = program.conformance_by_symbol(*symbol)
-                    && (!program.conformance_type_parameters(declaration).is_empty()
-                        || !declaration.lifetime_parameters.is_empty())
                 {
                     return false;
                 }
@@ -530,9 +497,10 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 ..
             } => {
                 // A nominal application's static operands can themselves be
-                // applied type or code declarations. They describe its closed
-                // contract, not a second stored data value. Read the exact
-                // selected declaration telescope; closure is not admission.
+                // applied traits. They describe its closed contract, not a
+                // second stored data value. Closure must follow either exact
+                // declaration telescope rather than treating every Generic
+                // node as a data constructor.
                 let telescope = program
                     .unique_data_definition_by_symbol(*base_symbol)
                     .map(|data| {
@@ -550,24 +518,6 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                                     declaration.lifetime_parameters.len(),
                                 )
                             })
-                    })
-                    .or_else(|| {
-                        program
-                            .conformance_by_symbol(*base_symbol)
-                            .map(|declaration| {
-                                (
-                                    program.conformance_type_parameters(declaration).len(),
-                                    declaration.lifetime_parameters.len(),
-                                )
-                            })
-                    })
-                    .or_else(|| {
-                        program.machine_by_symbol(*base_symbol).map(|declaration| {
-                            (
-                                program.machine_type_parameters(declaration).len(),
-                                declaration.lifetime_parameters.len(),
-                            )
-                        })
                     });
                 let Some((parameter_count, lifetime_count)) = telescope else {
                     return false;
@@ -606,11 +556,8 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 // requirement telescope still describes a closed stored value.
                 pending.extend(arguments.iter().copied());
             }
-            TypeReferenceNode::ConstExpression(expression) => {
-                // A static value recipe is not an array extent. Complete
-                // operand closure covers Boolean and structured values too;
-                // source formation and target realization remain independent.
-                if !closed_static_value_recipe(program, reference, *expression) {
+            TypeReferenceNode::ConstExpression(_) => {
+                if program.declared_constant_extent(reference).is_none() {
                     return false;
                 }
             }
@@ -618,26 +565,6 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
         }
     }
     true
-}
-
-/// Static application values need complete operand custody. This does not
-/// change the separate representation rule for value-dependent range bounds.
-fn closed_static_value_recipe(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> bool {
-    if !typed_trees::domain::index_argument_is_closed(program, reference) {
-        return false;
-    }
-    let mut expressions = Vec::new();
-    validation::collect_expression_tree(program, expression, &mut expressions);
-    !expressions.iter().any(|expression| {
-        matches!(program.expression_table.expression(*expression),
-            typed_trees::expression::ExpressionNode::Name(path)
-                if !path.resolved_symbol().is_some_and(|symbol| !matches!(program.symbols.get(symbol).kind,
-                    SymbolKind::Unknown | SymbolKind::PropositionMachineParameter | SymbolKind::Field)))
-    })
 }
 
 fn closed_expression(

@@ -62,12 +62,65 @@ pub(crate) fn source_checking_applications(
         })
         .map(|machine| machine.symbol)
         .collect::<Vec<_>>();
+    // Finish every ordinary body assignment before classifying declaration
+    // roots. A target-scoped fallback body may supply its global data only on
+    // that target; visiting another scope first cannot erase that assignment.
     if !unscoped.is_empty() {
         for (scope, work) in prepared.iter().zip(&mut work) {
             *work = scope.work(typed, &applications, &unscoped);
         }
     }
+    // A field or declaration telescope can itself choose LayoutStorage even
+    // when no body mentions its containing data. Its exact source owner owes
+    // the same formation checks. Seed only owners of actual applications;
+    // imported declarations without representation work add no checking roots.
+    let mut declaration_roots = Vec::new();
+    for occurrence in typed_trees::references::collect_program_type_occurrences(typed) {
+        if typed
+            .layout_storage_arguments(occurrence.reference)
+            .is_none()
+            || typed
+                .machine_by_own_or_state_symbol(occurrence.lexical_owner)
+                .is_some()
+            || !applications
+                .declarations()
+                .contains(&occurrence.lexical_owner)
+            || work
+                .iter()
+                .any(|selection| selection.contains(occurrence.lexical_owner))
+            || declaration_roots.contains(&occurrence.lexical_owner)
+        {
+            continue;
+        }
+        declaration_roots.push(occurrence.lexical_owner);
+    }
+    for (scope, work) in prepared.iter().zip(&mut work) {
+        let roots = declaration_roots
+            .iter()
+            .copied()
+            .filter(|owner| {
+                declaration_target(typed, *owner).is_none_or(|target| target == scope.target)
+            })
+            .collect::<Vec<_>>();
+        for owner in topology.declaration_closure(&roots) {
+            work.include(owner);
+        }
+    }
     Ok(work)
+}
+
+/// A declaration inherits its actual authored body context, never a profile
+/// inferred from its spelling or from whichever scope happens to visit first.
+fn declaration_target(typed: &TypedTrees, mut owner: SymbolHandle) -> Option<&str> {
+    while owner.is_valid() {
+        if let Some(machine) = typed.machine_by_own_or_state_symbol(owner) {
+            return typed
+                .source_target_context(machine)
+                .or_else(|| typed.machine_authored_target(machine));
+        }
+        owner = typed.declaration_scope_parent(owner);
+    }
+    None
 }
 
 impl<'request> CheckingScope<'request> {

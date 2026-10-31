@@ -63,7 +63,7 @@ WindowsX8664LayoutExpectedSize satisfies LayoutExpectedSize {
 // This portable helper's intermediate underflows only in the sibling capsule.
 // Its final expression cannot cancel the child's formation obligation.
 trait GeometryQuery { machine query() -> u64; }
-machine geometry() -> u64 {
+machine geometry() -> u64 satisfies GeometryQuery::query {
     let payload: LayoutStorage<Payload, Policy>;
     let bytes: u64 = size_of<LayoutStorage<Payload, Policy>>();
     let excess: u64 = bytes - 6;

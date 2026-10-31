@@ -11,45 +11,6 @@ use crate::{TypedTrees, signature, trait_definition::AppliedTraitScope};
 use symbols::SymbolHandle;
 
 impl TypedTrees {
-    /// The authored public declaration of this exact produced signature.
-    /// Applied views may share a template symbol or own a fresh instance;
-    /// neither symbol equality nor another equivalent application identifies
-    /// the borrowed signature's source.
-    pub fn requirement_signature_source(
-        &self,
-        signature: &signature::StateSignature,
-    ) -> Option<(&crate::trait_definition::TraitDefinition, SymbolHandle)> {
-        if let Some(application) = self
-            .closed_requirement_application(signature.symbol)
-            .filter(|application| std::ptr::eq(application.signature, signature))
-        {
-            return Some((
-                self.trait_definition_by_symbol(application.declaring_trait)?,
-                application.template,
-            ));
-        }
-        if let Some((declaration, authored)) = self.trait_machine_signature(signature.symbol)
-            && std::ptr::eq(authored, signature)
-        {
-            return Some((declaration, signature.symbol));
-        }
-        let (_, prepared) = self
-            .applied_callable_signatures
-            .iter()
-            .find(|(_, prepared)| {
-                self.callable_application_owner_is_live(prepared)
-                    && std::ptr::eq(&prepared.signature, signature)
-            })?;
-        let declaration = match prepared.owner {
-            AppliedCallableOwner::Trait { declaration, .. }
-            | AppliedCallableOwner::RequirementInvocation { declaration, .. } => declaration,
-            _ => return None,
-        };
-        let declaration = self.trait_definition_by_symbol(declaration)?;
-        self.trait_machine_signature_by_symbol(declaration, signature.symbol)?;
-        Some((declaration, signature.symbol))
-    }
-
     /// The logical signature selected by this exact requirement invocation.
     /// Open trait operands still substitute the caller's binders; they do not
     /// need an executable instance to describe a result. Neither a provider's

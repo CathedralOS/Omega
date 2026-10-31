@@ -1220,9 +1220,7 @@ pub(super) fn selected_call_site_contract<'program>(
     if let Some((_, signature)) = crate::requirement_contract_signature(program, caller, &site) {
         return Some(SelectedCallContract::Signature(signature));
     }
-    if site.static_requirement_dispatch().is_some()
-        || matches!(site, crate::CallSite::Expression { call, .. } if call.requirement_application.is_valid())
-    {
+    if site.static_requirement_dispatch().is_some() {
         // A selected body cannot replace a lost occurrence-local public view.
         return None;
     }
@@ -1655,18 +1653,7 @@ pub(super) fn call_scalar_substitution(
     let mut values = applied
         .constants
         .iter()
-        .map(|binding| {
-            let value = binding.value_term().or_else(|| {
-                if super::struct_trace() {
-                    eprintln!(
-                        "STRUCT call scalar substitution refused caller={caller:?} owner={:?} parameter={:?} stage=const-value",
-                        owner_symbol(owner), binding.symbol,
-                    );
-                }
-                None
-            })?;
-            Some((binding.symbol, value))
-        })
+        .map(|binding| Some((binding.symbol, binding.value_term()?)))
         .collect::<Option<Vec<_>>>()?;
     if !applied.runtime_parameters.is_empty() {
         let executable = call_parameter_scope(program, caller, owner, site)?;
