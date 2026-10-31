@@ -17,7 +17,7 @@
 //! structural places, selector snapshots, and scalar computations retain their
 //! formal order. Their published boundary signature still owns access, claims,
 //! completion and contract requirements independently of evaluation.
-use super::call_arguments::ComputedCallOperands;
+use super::call_arguments::{CallOperandCustody, ComputedCallOperands};
 use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
     ExpressionNode, PrimitiveType,
@@ -166,8 +166,10 @@ impl Builder<'_, '_> {
             mut temporary_cleanups,
             claim_transfers,
         } = self.call_operands(
-            source_call,
-            self.flow.control.calls.get(source_call).argument_operands(),
+            CallOperandCustody::Statement {
+                call: source_call,
+                captures: self.flow.control.calls.get(source_call).argument_operands(),
+            },
             operands,
             parameters,
         )?;

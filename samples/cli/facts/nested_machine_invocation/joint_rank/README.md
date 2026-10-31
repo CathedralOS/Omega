@@ -229,10 +229,6 @@ and untouched neighbors. Each invalid twin removes strict progress on the cycle.
 The [original frozen probe](parameter/computed_measure/call/probe/main.omg)
 retains the smaller direct-call shape used to locate the first refusal.
 
-This production remains unfinished. The fixed optimized baseline refuses all
-nine positive places. The current repair gets the probe through application
-formation, range checking and joint-cycle proof; executable observation lowering
-still refuses. Acceptance requires all nine native/Terminal oracles and sensitive
-twins, their corpus pins, and authentic declaration-call custody through the
-ordinary computation and native production route. This does not close the
-parent `NESTED-MACHINE-UNIFICATION` outcome.
+[Call formation, captured inputs and execution evidence](local/computed_measure/call/README.md)
+cover this production's nine places, its composition probe and invalid controls.
+The parent `NESTED-MACHINE-UNIFICATION` outcome remains open.

@@ -1,6 +1,9 @@
-//! builder slice of computations.
+//! Build the ordinary scalar evaluation graph from retained checked operations.
+//! A declaration application supplies captured formal values and its admitted
+//! call/cast receipts; it does not turn its body into a separate evaluator.
+//! Structural operands still require statement-owned loan or value captures.
 
-use super::call_arguments::ComputedCallOperands;
+use super::call_arguments::{CallOperandCustody, ComputedCallOperands};
 use super::{boundary_calls, integers, normal_return};
 use crate::values::operator_is_builtin;
 use crate::values::scalar::expression_facts::is_integer;
@@ -31,6 +34,11 @@ use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::TypeReferenceNode;
 
+pub(super) struct DeclarationScope<'program> {
+    pub(super) plan: &'program checked_trees::CheckedRankArrivalPlan,
+    pub(super) application: checked_trees::CheckedRankApplicationFormationHandle,
+}
+
 pub(super) struct Builder<'program, 'plans> {
     pub(super) program: &'program dyn ::validation::CheckingInput,
     pub(super) shapes: crate::execution::terminal_unit::types::ShapeCollector<'program>,
@@ -49,6 +57,9 @@ pub(super) struct Builder<'program, 'plans> {
     pub(super) declaration_bindings:
         &'program [(validation::CanonicalPlace, validation::CanonicalPlace)],
     pub(super) declaration_parameters: &'program [StateParameter],
+    pub(super) declaration_scope: Option<DeclarationScope<'program>>,
+    /// Completed declaration inputs, captured once before evaluating its body.
+    pub(super) declaration_values: Vec<(SymbolHandle, CheckedScalarComputationHandle)>,
     pub(super) authored_parameters: &'program [StateParameter],
     pub(super) parameter_types: &'program [PrimitiveType],
     pub(super) locals: &'program [ScalarLocal],
@@ -74,6 +85,27 @@ pub(super) struct Builder<'program, 'plans> {
 }
 
 impl Builder<'_, '_> {
+    pub(super) fn declaration_input(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<(CheckedScalarComputationHandle, TypeReferenceHandle)> {
+        let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        let (_, value) = self
+            .declaration_values
+            .iter()
+            .find(|(formal, _)| *formal == name.symbol)?;
+        let formal = self
+            .declaration_parameters
+            .iter()
+            .find(|formal| formal.symbol == name.symbol)?;
+        (self.program.primitive_type_reference(formal.type_reference)
+            == Some(self.plans.nodes.get(*value).primitive_type))
+        .then_some((*value, formal.type_reference))
+    }
+
     /// Pure lowering owns a scalar telescope, so a subtree that refers to
     /// an explicitly rebound declaration input must first pass through the
     /// computation graph. The shared typed-reference walk owns all expression
@@ -495,6 +527,9 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
+        if let Some((value, _)) = self.declaration_input(expression) {
+            return (self.plans.nodes.get(value).primitive_type == expected_type).then_some(value);
+        }
         if let Some((constant, primitive)) = self.retained_constant(expression) {
             return (primitive == expected_type).then_some(constant);
         }
@@ -836,7 +871,7 @@ impl Builder<'_, '_> {
                     return None;
                 }
                 let (source_call, call_ordinal) =
-                    self.call_ordinal(expression, call.target_symbol)?;
+                    self.call_origin(expression, call.target_symbol)?;
                 if !call.evidence_arguments.is_empty()
                     && !self.has_declared_evidence_inputs(
                         target_machine.symbol,
@@ -864,8 +899,17 @@ impl Builder<'_, '_> {
                     temporary_cleanups,
                     claim_transfers,
                 } = self.call_operands(
-                    source_call,
-                    self.flow.control.calls.get(source_call).argument_operands(),
+                    match source_call {
+                        checked_trees::CheckedCallOrigin::Statement(call) => {
+                            CallOperandCustody::Statement {
+                                call,
+                                captures: self.flow.control.calls.get(call).argument_operands(),
+                            }
+                        }
+                        checked_trees::CheckedCallOrigin::Declaration { application, call } => {
+                            CallOperandCustody::Declaration { application, call }
+                        }
+                    },
                     &arguments,
                     target_parameters,
                 )?;
@@ -1032,6 +1076,42 @@ impl Builder<'_, '_> {
         }
         parameters.sort_unstable();
         parameters.len() == count && parameters.iter().copied().eq(0..count)
+    }
+
+    fn call_origin(
+        &self,
+        expression: ExpressionHandle,
+        target: SymbolHandle,
+    ) -> Option<(checked_trees::CheckedCallOrigin, u32)> {
+        let Some(scope) = &self.declaration_scope else {
+            return self
+                .call_ordinal(expression, target)
+                .map(|(call, ordinal)| (call.into(), ordinal));
+        };
+        let application = scope.plan.application_formations.get(scope.application);
+        let mut matching =
+            application
+                .application
+                .calls
+                .handles()
+                .enumerate()
+                .filter(|(_, handle)| {
+                    let call = scope.plan.application_calls.get(*handle);
+                    call.expression == expression && call.authored_target == target
+                });
+        let (ordinal, call) = matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+        let origin = checked_trees::CheckedCallOrigin::Declaration {
+            application: scope.application,
+            call,
+        };
+        let (_, call) = origin
+            .declaration(scope.plan, self.machine, self.state)
+            .ok()?;
+        (call.target_state == validation::call_target_entry_symbol(self.program, target))
+            .then_some((origin, u32::try_from(ordinal).ok()?))
     }
 
     pub(super) fn call_ordinal(

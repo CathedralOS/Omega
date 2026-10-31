@@ -12,7 +12,7 @@
 //! discharged its `requires` against these operands and every selectable
 //! implementation refines it where its conformance is checked. Suspension
 //! retains the same call occurrence and its independently checked frontier.
-use super::call_arguments::ComputedCallOperands;
+use super::call_arguments::{CallOperandCustody, ComputedCallOperands};
 use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
     PrimitiveType,
@@ -74,8 +74,10 @@ impl Builder<'_, '_> {
             temporary_cleanups,
             claim_transfers,
         } = self.call_operands(
-            source_call,
-            data_captures,
+            CallOperandCustody::Statement {
+                call: source_call,
+                captures: data_captures,
+            },
             data_arguments,
             slot.data_parameters(),
         )?;

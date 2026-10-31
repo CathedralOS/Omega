@@ -1,0 +1,1 @@
+selected closure publishes a crash route

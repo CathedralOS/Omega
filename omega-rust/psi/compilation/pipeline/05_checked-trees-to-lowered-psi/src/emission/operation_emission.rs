@@ -234,10 +234,10 @@ pub(crate) fn emit_scalar_binding(
             Some((call.source_coordinate, &call.loan_completions))
         }
         LoweredScalarBinding::BoundaryCall(call) => {
-            Some((call.source_coordinate, &call.loan_completions))
+            Some((call.source_coordinate.into(), &call.loan_completions))
         }
         LoweredScalarBinding::DynamicCall(call) => {
-            Some((call.source_coordinate, &call.loan_completions))
+            Some((call.source_coordinate.into(), &call.loan_completions))
         }
         _ => None,
     };

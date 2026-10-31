@@ -6,7 +6,7 @@
 //! its normal continuation retires the checked ordered residual complement.
 use super::{
     Argument, CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedTrees, Computation,
-    EstablishedValue, Expansion, Handle, LoweringError, QualifiedScalarType, Site, literals,
+    EstablishedValue, Expansion, LoweringError, QualifiedScalarType, Site, literals,
     lower_scalar_call, parameter, produced_values, storage, structural_arguments, subslices,
     unsupported,
 };
@@ -19,6 +19,8 @@ use arena::HandleSpan;
 use checked_trees::{
     CheckedScalarComputationStructuralArgument, CheckedScalarComputationTemporaryCleanup,
 };
+
+mod source;
 
 enum Operand {
     Structural {
@@ -170,7 +172,8 @@ impl Expansion<'_> {
     pub(super) fn call(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        source_call: checked_trees::CheckedCallOrigin,
+        origin: checked_trees::CheckedCallOrigin,
+        source_expression: checked_trees::expression::ExpressionHandle,
         callee: &checked_trees::CheckedScalarCallee,
         call_ordinal: u32,
         arguments: HandleSpan<Computation>,
@@ -183,43 +186,15 @@ impl Expansion<'_> {
         site: &Site<'_>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
-        let source_call = source_call.statement().ok_or(LoweringError::Unsupported(
-            "declaration application call scheduling is unfinished",
-        ))?;
-        let control = &self.checked.facts.flow.control;
-        if !control.calls.is_valid(source_call) {
-            return unsupported("scalar computation lost its exact checked invocation");
-        }
-        let source = control.calls.get(source_call);
-
-        // A static callee names its machine and entry; a selector call names
-        // its instantiated slot for both coordinates.
+        let source = self.call_source(origin, source_expression, callee, call_ordinal, site)?;
+        let source_call = origin.statement();
         let (target_machine, target_state) = callee
             .static_target()
             .unwrap_or((callee.called_signature(), callee.called_signature()));
-        let state = control
-            .states
-            .iter()
-            .map(|(_, state)| state)
-            .find(|state| state.machine_symbol == self.machine && state.state_symbol == site.state)
-            .ok_or(LoweringError::Unsupported(
-                "scalar computation invocation state is absent",
-            ))?;
-        if !control
-            .calls
-            .span_or_empty(state.calls)
-            .iter()
-            .any(|call| std::ptr::eq(call, source))
-            || source.statement_index != site.statement as usize
-            || source.call_ordinal != call_ordinal as usize
-            || source.target_symbol != callee.called_signature()
-        {
-            return unsupported("scalar computation invocation coordinate disagrees");
-        }
         let signature = crate::declarations::target_signature(
             self.checked,
             self.machine,
-            source.target_symbol,
+            callee.called_signature(),
         )?;
         let plans = &self.checked.facts.values.scalar_computations;
         let structural =
@@ -229,20 +204,27 @@ impl Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "computed structural arguments have a stale span",
                 ))?;
-        let mut structural_arguments = structural_arguments::lower(
-            identities,
-            self.checked,
-            source_call,
-            target_machine,
-            target_state,
-            site.state,
-            structural,
-            site.bindings,
-            &self.produced_values,
-            &self.subslices,
-            &self.literals,
-            self.structural_types,
-        )?;
+        let mut structural_arguments = if let Some(source_call) = source_call {
+            structural_arguments::lower(
+                identities,
+                self.checked,
+                source_call,
+                target_machine,
+                target_state,
+                site.state,
+                structural,
+                site.bindings,
+                &self.produced_values,
+                &self.subslices,
+                &self.literals,
+                self.structural_types,
+            )?
+        } else {
+            if !structural.is_empty() {
+                return unsupported("declaration call has no structural operand custody");
+            }
+            Vec::new()
+        };
         let scalars = plans
             .operands
             .span(arguments)
@@ -269,7 +251,9 @@ impl Expansion<'_> {
             let slot = self
                 .produced_values
                 .iter()
-                .find(|slot| slot.source_call == source_call && slot.argument_ordinal.is_none())
+                .find(|slot| {
+                    Some(slot.source_call) == source_call && slot.argument_ordinal.is_none()
+                })
                 .ok_or(LoweringError::Unsupported(
                     "computed authority has no reserved home",
                 ))?;
@@ -302,7 +286,7 @@ impl Expansion<'_> {
                     && matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. })
                 {
                     let slot = self.produced_values.iter().find(|slot| {
-                        slot.source_call == source_call && slot.argument_ordinal == Some(structural_ordinal)
+                        Some(slot.source_call) == source_call && slot.argument_ordinal == Some(structural_ordinal)
                     }).ok_or(LoweringError::Unsupported(
                         "computed value has no reserved argument home",
                     ))?;
@@ -337,7 +321,7 @@ impl Expansion<'_> {
                         .literals
                         .iter()
                         .find(|slot| {
-                            slot.source_call == source_call
+                            Some(slot.source_call) == source_call
                                 && slot.argument_ordinal == structural_ordinal
                                 && slot.literal.bytes.as_slice() == bytes
                         })
@@ -460,15 +444,11 @@ impl Expansion<'_> {
                                 removed = prefix;
                             }
                             Frontier::Value { structural_type } => {
-                                let expression = flow_facts(&self.checked)
-                                    .control
-                                    .call_arguments
-                                    .span(source.authored_arguments)
-                                    .and_then(|arguments| arguments.get(position))
-                                    .copied()
-                                    .ok_or(LoweringError::Unsupported(
+                                let expression = source.arguments.get(position).copied().ok_or(
+                                    LoweringError::Unsupported(
                                         "computed copy lost its authored operand",
-                                    ))?;
+                                    ),
+                                )?;
                                 let place = crate::terminal_identities::place_id(
                                     crate::terminal_identities::allocate_dense(self.next_place)?,
                                 );
@@ -566,29 +546,32 @@ impl Expansion<'_> {
         let call_types = prefixes.last().ok_or(LoweringError::Unsupported(
             "computed call lost its completed prefix",
         ))?;
-        let coordinate = crate::emission::operation_emission::buffer::SourceCallCoordinate {
-            state: site.state,
-            statement_index: source.statement_index,
-            call_ordinal: source.call_ordinal,
-        };
+        let coordinate = source.coordinate;
         let (_, caller_state) = crate::declarations::state_declaration(self.checked, site.state)?;
-        let loan_completions = crate::emission::loan_completions::prepare(
-            identities,
-            self.checked,
-            self.machine,
-            coordinate,
-            self.structural_types,
-            |root| {
-                site.bindings
-                    .owned_structural_home(root, self.checked.state_parameters(caller_state))
-            },
-        )?;
+        let loan_completions = if let Some(coordinate) = coordinate.statement() {
+            crate::emission::loan_completions::prepare(
+                identities,
+                self.checked,
+                self.machine,
+                coordinate,
+                self.structural_types,
+                |root| {
+                    site.bindings
+                        .owned_structural_home(root, self.checked.state_parameters(caller_state))
+                },
+            )?
+        } else {
+            Vec::new()
+        };
         let call = if let checked_trees::CheckedScalarCallee::Dynamic {
             slot,
             interface_identity,
             ..
         } = callee
         {
+            let coordinate = coordinate.statement().ok_or(LoweringError::Unsupported(
+                "dynamic invocation lacks statement custody",
+            ))?;
             let slot_plan = flow_facts(&self.checked)
                 .terminal_unit_effects
                 .dynamic_slots
@@ -628,7 +611,7 @@ impl Expansion<'_> {
                     .scalar_expressions
                     .bound_expression_at(
                         site.state,
-                        u32::try_from(source.statement_index).map_err(|_| {
+                        u32::try_from(coordinate.statement_index).map_err(|_| {
                             LoweringError::Unsupported(
                                 "dynamic family call statement ordinal overflows",
                             )
@@ -648,7 +631,7 @@ impl Expansion<'_> {
                 crate::emission::operation_emission::dynamic_calls::LoweredDynamicCallBinding {
                     source_coordinate: coordinate,
                     loan_completions,
-                    source_expression: source.authored_expression,
+                    source_expression: source.expression,
                     slot: *slot,
                     interface_identity: interface_identity.clone(),
                     requirement_identity,
@@ -671,15 +654,18 @@ impl Expansion<'_> {
                 },
             )
         } else if signature.boundary {
+            let coordinate = coordinate.statement().ok_or(LoweringError::Unsupported(
+                "boundary invocation lacks statement custody",
+            ))?;
             LoweredScalarBinding::BoundaryCall(crate::emission::operation_emission::boundary_calls::LoweredBoundaryCallBinding {
                 source_coordinate: coordinate,
                 loan_completions,
-                source_expression: source.authored_expression,
+                source_expression: source.expression,
                 target_machine,
                 result_type,
                 result_policy: crate::emission::operation_emission::boundary_calls::result_policy::BoundaryResultPolicy::prepare(
                     self.checked, self.machine, coordinate,
-                    Some(checked_trees::NominalMachineUseSite::Expression(source.authored_expression)), target_machine,
+                    Some(checked_trees::NominalMachineUseSite::Expression(source.expression)), target_machine,
                 )?,
                 arguments: scalar_actuals,
                 structural_arguments,
@@ -691,11 +677,9 @@ impl Expansion<'_> {
                 self.checked,
                 self.qualifications,
                 self.machine,
-                site.state,
-                site.statement,
+                coordinate,
                 target_machine,
                 target_state,
-                call_ordinal,
                 result_type,
                 call_types,
                 site.bindings,
