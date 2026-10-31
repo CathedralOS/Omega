@@ -4,6 +4,7 @@
 //! A direct name remains ambiguous between a type and a value until resolution;
 //! every other value tree is retained without parser-side evaluation.
 
+use crate::contracts::conformance::parse_conformance::parse_conformance_trait_application;
 use crate::expressions::parse_expression::{
     parse_const_integer_expression_handle, parse_expression_handle_without_struct_literals,
 };
@@ -167,10 +168,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     if input.at_contextual("dyn") {
         let input = input.take_contextual("dyn")?;
         let ((trait_name, lifetime_arguments, trait_arguments), input) =
-            crate::contracts::conformance::parse_conformance::parse_conformance_trait_application(
-                syntax_trees,
-                input,
-            )?;
+            parse_conformance_trait_application(syntax_trees, input)?;
         if !lifetime_arguments.is_empty() {
             return Err(input
                 .error_here("a dynamic selector takes no lifetime arguments; it borrows nothing"));
