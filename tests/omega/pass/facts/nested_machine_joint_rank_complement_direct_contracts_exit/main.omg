@@ -1,0 +1,39 @@
+// Expected exit: 0
+machine invert_unsigned(value: u64) -> u64
+ensures result == 18446744073709551615u64 - value;
+{ ~value }
+machine invert_byte(value: u8) -> u8
+ensures result == 255u8 - value;
+{ ~value }
+machine invert_signed(value: i64) -> i64
+ensures result == -1i64 - value;
+{ ~value }
+machine twice(value: u64) -> u64
+ensures result == value;
+{ ~~value }
+machine wrapped(value: u8 in Wrapping) -> u8 in Wrapping { ~(value + 1) }
+machine saturated(value: u8 in Saturating) -> u8 in Saturating { ~(value + 1) }
+machine not_bool(value: bool) -> bool { !value }
+machine main() crashes Trap {
+    let u0: u64 = invert_unsigned(0);
+    let umax: u64 = invert_unsigned(18446744073709551615u64);
+    let b0: u8 = invert_byte(0);
+    let bmax: u8 = invert_byte(255);
+    let smin: i64 = invert_signed(-9223372036854775808i64);
+    let smax: i64 = invert_signed(9223372036854775807i64);
+    let zero: i64 = invert_signed(0);
+    let identity: u64 = twice(37);
+    let wide_identity: u64 = twice(18446744073709551615u64);
+    let w: u8 in Wrapping = wrapped(255u8 as u8 in Wrapping);
+    let s: u8 in Saturating = saturated(255u8 as u8 in Saturating);
+    let f: bool = not_bool(true);
+    let t: bool = not_bool(false);
+    transition u0 == 18446744073709551615u64 && umax == 0 && b0 == 255 && bmax == 0
+        && smin == 9223372036854775807i64 && smax == -9223372036854775808i64 && zero == -1
+        && identity == 37 && wide_identity == 18446744073709551615u64
+        && w == 255 && s == 0 && f == false && t == true {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
