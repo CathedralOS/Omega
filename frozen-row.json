@@ -1,0 +1,180 @@
+{
+  "baseline_producer": "C6 fcdd021bc488acadbf96f2defe73abe77675cc9056078a87ab9c8098a95d5a59",
+  "fixed_base": "2feafe36a0b7de29a61055e003996dd7574ea8c1",
+  "source_base": "be05ba1c315dd4e4e9d2429a3e9d6d2979cf80f9",
+  "cases": [
+    {
+      "place": "local",
+      "invalid": false,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/local/computed_measure/call",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "3903f004730c275a6243b1350163187017c10dade620baeea4e8f82892eb7cc0"
+      }
+    },
+    {
+      "place": "local",
+      "invalid": true,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/local/computed_measure/call/invalid",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "a47bd8ac417c5541d5f530e7a8561a120367bee2610aa52159849e1729ed454f",
+        "sample.json": "46ada4edd6eaa3ea58472d1247cd0af51e3d7a3253c81e8c96f2c35a2c86b047"
+      }
+    },
+    {
+      "place": "field",
+      "invalid": false,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/field/computed_measure/call",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "02d648e40fec71999a24c1c17e334c2b8c52a08e2b81cc3e066c463bf08c7a1a"
+      }
+    },
+    {
+      "place": "field",
+      "invalid": true,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/field/computed_measure/call/invalid",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "4cab314c4657ede58b9bd1878417cbcee3b911dd90969c4a97b9baa3515279f3",
+        "sample.json": "46ada4edd6eaa3ea58472d1247cd0af51e3d7a3253c81e8c96f2c35a2c86b047"
+      }
+    },
+    {
+      "place": "parameter",
+      "invalid": false,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "61e846db44838273c0828a0efcb50133c27ce8af7b7c1f630ca316a3ab1e03be"
+      }
+    },
+    {
+      "place": "parameter",
+      "invalid": true,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/invalid",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "95d496d0f1d948145ae8122d504bd03e5752fdbe73878d51c931cbae587ea828",
+        "sample.json": "46ada4edd6eaa3ea58472d1247cd0af51e3d7a3253c81e8c96f2c35a2c86b047"
+      }
+    },
+    {
+      "place": "call_result",
+      "invalid": false,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/call_result/computed_measure/call",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "dc731b32bc316bbb8135fc82056976cdd5bd0630d69dc3dbd3d5fb3c0842f765"
+      }
+    },
+    {
+      "place": "call_result",
+      "invalid": true,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/call_result/computed_measure/call/invalid",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "04dc58f26c1e4fb18b86159c77eb02ccdc79179eadfa40f3c8a0a936f54ee861",
+        "sample.json": "46ada4edd6eaa3ea58472d1247cd0af51e3d7a3253c81e8c96f2c35a2c86b047"
+      }
+    },
+    {
+      "place": "match_join",
+      "invalid": false,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/match_join/computed_measure/call",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "ca197b14ec6ae530e059835088c6d1bc5fbb5f86d8b90ab5d230a2ee3f755895"
+      }
+    },
+    {
+      "place": "match_join",
+      "invalid": true,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/match_join/computed_measure/call/invalid",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "f0ac35fffb224d78756b45bdfbb9a01479789ac735f05215eb4e406df56d22fd",
+        "sample.json": "46ada4edd6eaa3ea58472d1247cd0af51e3d7a3253c81e8c96f2c35a2c86b047"
+      }
+    },
+    {
+      "place": "const_name",
+      "invalid": false,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/const_name/computed_measure/call",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "668d577bcf35e484492ba33799c696557e931a72622f5994589206a2e125bbc6"
+      }
+    },
+    {
+      "place": "const_name",
+      "invalid": true,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/const_name/computed_measure/call/invalid",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "a298b2fa07c2fd76c7b38885353ed046b04afe807d70928f8b96e1958bf880ed",
+        "sample.json": "46ada4edd6eaa3ea58472d1247cd0af51e3d7a3253c81e8c96f2c35a2c86b047"
+      }
+    },
+    {
+      "place": "other_state",
+      "invalid": false,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/other_state/computed_measure/call",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "251048e8cddb75207013003a305f578e3daf0becb793f67a04547d45910d8b3d"
+      }
+    },
+    {
+      "place": "other_state",
+      "invalid": true,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/other_state/computed_measure/call/invalid",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "2c9699b04847a35c4d5b333317a6387aaa7891715ea16cb220e836df482ef203",
+        "sample.json": "46ada4edd6eaa3ea58472d1247cd0af51e3d7a3253c81e8c96f2c35a2c86b047"
+      }
+    },
+    {
+      "place": "other_machine",
+      "invalid": false,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/computed_measure/call",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "08e7fad8984a08f944e0d78c9e66ba573f67a34378408efd279c9784dcea1f46"
+      }
+    },
+    {
+      "place": "other_machine",
+      "invalid": true,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/computed_measure/call/invalid",
+      "sources": {
+        "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+        "main.omg": "1ed054fa8f48e734306e27fb26c7194e7ab5e46251c4cb3e7377a4fa05b5d9c9",
+        "sample.json": "46ada4edd6eaa3ea58472d1247cd0af51e3d7a3253c81e8c96f2c35a2c86b047"
+      }
+    },
+    {
+      "place": "target_body",
+      "invalid": false,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/target_body/computed_measure/call",
+      "sources": {
+        "build.omg": "9051942e675c48ee7be51466600897c5cc780af532dd52123ee3ccc7b7f95662",
+        "main.omg": "8fc0d2ba38d482ae368667e712d93a15591c7582929d692257e38fbc2fa1282f"
+      }
+    },
+    {
+      "place": "target_body",
+      "invalid": true,
+      "path": "samples/cli/facts/nested_machine_invocation/joint_rank/target_body/computed_measure/call/invalid",
+      "sources": {
+        "build.omg": "9051942e675c48ee7be51466600897c5cc780af532dd52123ee3ccc7b7f95662",
+        "main.omg": "ad2a82faf92a4580ca3c57a337bdc9cf051183dfb0a3b7551dffed683ec9c4a6",
+        "sample.json": "46ada4edd6eaa3ea58472d1247cd0af51e3d7a3253c81e8c96f2c35a2c86b047"
+      }
+    }
+  ],
+  "rung": "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/probe",
+  "note": "Row preserves the existing transport wrappers; the original preimplementation frozen probe omits the parameter wrapper and is retained byte-exact as its probe rung."
+}

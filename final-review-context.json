@@ -1,0 +1,685 @@
+{
+  "schema": "qualification-handoff-1",
+  "role": "review",
+  "candidate": "6f16e1d62ac101765338d18cba952edcba84a89b",
+  "source_revision": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+  "changed_paths": [
+    "TASKS.md",
+    "omega-rust/psi/compilation/checking/src/lib.rs",
+    "omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/rank_components.rs",
+    "omega-rust/psi/compilation/checking/src/machine_calls/denotational_calls/specification.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/application_formation.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/application_formation/calls.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/call_values.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/captured_calls.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/arithmetic_judgment/denotations.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/scoped_arithmetic/calls.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls.rs",
+    "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/integer_predicates/rank_comparison.rs",
+    "omega-rust/psi/compilation/driver/terminal-production/src/build_bindings.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/boolean_results/computations.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/scalars/calls.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/joint_natural/observations.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking/ranges/relational/retained_correspondence.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/scalar_computations.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/scalar_computations/boundary_calls.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/scalar_computations/builder.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/scalar_computations/call_arguments.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/scalar_computations/dynamic_calls.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/scalar_computations/integers.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/scalar_computations/rank_observations.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup/temporary_actions.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/call_occurrences/collecting.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/storage_transfers/computations.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts.rs",
+    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/declaration_calls.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/call_sites.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/direct_calls.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/loan_completions.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/buffer.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/operation_emission/calls.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/computation_graph.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/machine_lowering/build_providers.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/evidence_lowering/outcome_specific_calls.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/evidence_lowering/proof_output_calls.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/float_meaning_projection.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/closed_reach_applications.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/operation_crash_contracts.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/reborrow_restored_call_use.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/branch_states/call_lowering.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls/source.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/cases/observed_values.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/literals.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/operand_types.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/produced_values.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation/source_values.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation/state_emission.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation/straight_line.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/claims.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/case_emission.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/operation_frame/boundary_calls.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/operation_frame/calls.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/ordinary_calls.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/scalar_applications/conditions.rs",
+    "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission/content_transformations.rs",
+    "omega-rust/psi/compilation/pipeline/07_lowered-psi-to-terminal-psi/src/result_policy_verification.rs",
+    "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees.rs",
+    "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/facts.rs",
+    "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/facts/contract_plans.rs",
+    "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/facts/termination.rs",
+    "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/facts/termination/application_formation.rs",
+    "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/facts/termination/arrival_correspondence.rs",
+    "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/flow.rs",
+    "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/flow/call_origins.rs",
+    "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/values/computations.rs",
+    "omega-rust/psi/compilation/representations/lowered-psi/src/lib.rs",
+    "omega-rust/psi/compilation/representations/lowered-psi/src/lowered_psi.rs",
+    "omega-rust/psi/compilation/representations/lowered-psi/src/lowered_psi/source_custody.rs",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/README.md",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/call_result/computed_measure/call/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/call_result/computed_measure/call/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/call_result/computed_measure/call/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/call_result/computed_measure/call/invalid/sample.json",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/call_result/computed_measure/call/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/const_name/computed_measure/call/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/const_name/computed_measure/call/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/const_name/computed_measure/call/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/const_name/computed_measure/call/invalid/sample.json",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/const_name/computed_measure/call/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/controls/declared_call_crash_ceiling/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/controls/declared_call_crash_ceiling/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/controls/declared_call_crash_ceiling/sample.json",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/controls/declared_call_nonterminating/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/controls/declared_call_nonterminating/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/controls/declared_call_nonterminating/sample.json",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/controls/declared_call_precondition/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/controls/declared_call_precondition/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/controls/declared_call_precondition/sample.json",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/controls/declared_call_self_establishment/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/controls/declared_call_self_establishment/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/controls/declared_call_self_establishment/sample.json",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/field/computed_measure/call/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/field/computed_measure/call/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/field/computed_measure/call/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/field/computed_measure/call/invalid/sample.json",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/field/computed_measure/call/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/local/computed_measure/call/README.md",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/local/computed_measure/call/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/local/computed_measure/call/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/local/computed_measure/call/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/local/computed_measure/call/invalid/sample.json",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/local/computed_measure/call/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/match_join/computed_measure/call/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/match_join/computed_measure/call/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/match_join/computed_measure/call/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/match_join/computed_measure/call/invalid/sample.json",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/match_join/computed_measure/call/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/computed_measure/call/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/computed_measure/call/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/computed_measure/call/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/computed_measure/call/invalid/sample.json",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/computed_measure/call/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/other_state/computed_measure/call/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/other_state/computed_measure/call/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/other_state/computed_measure/call/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/other_state/computed_measure/call/invalid/sample.json",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/other_state/computed_measure/call/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/invalid/sample.json",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/probe/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/probe/composition/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/probe/composition/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/probe/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/target_body/computed_measure/call/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/target_body/computed_measure/call/invalid/build.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/target_body/computed_measure/call/invalid/main.omg",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/target_body/computed_measure/call/invalid/sample.json",
+    "samples/cli/facts/nested_machine_invocation/joint_rank/target_body/computed_measure/call/main.omg",
+    "tests/omega/corpus_both_macos_arm64.txt",
+    "tests/omega/corpus_outcomes.txt",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_call_result_rejected/build.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_call_result_rejected/expected.txt",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_call_result_rejected/main.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_const_name_rejected/build.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_const_name_rejected/expected.txt",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_const_name_rejected/main.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_crash_ceiling_rejected/build.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_crash_ceiling_rejected/expected.txt",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_crash_ceiling_rejected/main.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_field_rejected/build.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_field_rejected/expected.txt",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_field_rejected/main.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_local_rejected/build.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_local_rejected/expected.txt",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_local_rejected/main.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_match_join_rejected/build.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_match_join_rejected/expected.txt",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_match_join_rejected/main.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_nonterminating_rejected/build.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_nonterminating_rejected/expected.txt",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_nonterminating_rejected/main.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_other_machine_rejected/build.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_other_machine_rejected/expected.txt",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_other_machine_rejected/main.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_other_state_rejected/build.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_other_state_rejected/expected.txt",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_other_state_rejected/main.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_parameter_rejected/build.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_parameter_rejected/expected.txt",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_parameter_rejected/main.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_precondition_rejected/build.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_precondition_rejected/expected.txt",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_precondition_rejected/main.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_self_establishment_rejected/build.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_self_establishment_rejected/expected.txt",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_self_establishment_rejected/main.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_target_body_rejected/build.omg",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_target_body_rejected/expected.txt",
+    "tests/omega/fail/facts/nested_machine_joint_rank_declared_call_target_body_rejected/main.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_call_result_exit/build.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_call_result_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_call_result_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_call_result_exit/main.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_composition_exit/build.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_composition_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_composition_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_composition_exit/main.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_const_name_exit/build.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_const_name_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_const_name_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_const_name_exit/main.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_field_exit/build.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_field_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_field_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_field_exit/main.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_local_exit/build.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_local_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_local_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_local_exit/main.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_match_join_exit/build.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_match_join_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_match_join_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_match_join_exit/main.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_other_machine_exit/build.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_other_machine_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_other_machine_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_other_machine_exit/main.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_other_state_exit/build.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_other_state_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_other_state_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_other_state_exit/main.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_parameter_exit/build.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_parameter_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_parameter_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_parameter_exit/main.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_probe_exit/build.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_probe_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_probe_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_probe_exit/main.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_target_body_exit/build.omg",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_target_body_exit/expected_interpreter_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_target_body_exit/expected_native_exit.txt",
+    "tests/omega/pass/facts/nested_machine_joint_rank_declared_call_target_body_exit/main.omg"
+  ],
+  "canonical_context": [
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/proofs/contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src"
+      ],
+      "passages": [
+        "A machine's parameters bind subjects, `requires` supplies assumptions, and\n`ensures` states conclusions its body must justify. Before importing a callee's\nconclusions, a caller establishes the assumptions under the exact argument\nsubstitution. Naming a condition does not prove it; failed proof search does\nnot prove its negation.\n\nThe same [call-precondition rule](../language/machines.md#call-preconditions)\nalso governs forming a mathematical result term, even if none of the callee's\nconclusions is used. Proof-to-proof calls have no exemption. Named calls and\noperator syntax retain the same selected contract except for contextual data\nidentity below; erasure, normalization, or knowledge that the underlying body\nis total cannot remove a selected call's `requires`."
+      ],
+      "reason": "Admit a call term only after its complete actuals and Requires form; import independent public Ensures afterward, retaining value identity and congruence.",
+      "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+      "blob": "5a119a32dab322e798317944119dbef9a6b09960"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/termination.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees"
+      ],
+      "passages": [
+        "Termination is a positive eventual-terminal-outcome guarantee under authored\nrequirements and pinned callee/provider progress premises. It does not promise\na particular result, fairness, wakeup, deadlines, no suspension, or no blocking.\n`ensures` is partial correctness: it constrains a reached return edge but does\nnot prove that edge is reached. [Effects](effects.md) independently constrains\npossible suspension, blocking, and crashes.\n\nPermitted endpoints include normal return, a covered crash, and the canonical\n[process-exit transfer](process_exit.md). The promise authorizes none of them;\ncrash contracts and service reach/capability requirements remain independent.\nA machine that conditionally exits and otherwise returns can satisfy\n`terminates` when every admitted path has the required progress. An exit leaf\nneeds no further cycle decrease, but its operands and preceding calls still\nrequire progress. Excluding crashes and all external-terminal services together\nwith termination establishes normal return under the stated premises."
+      ],
+      "reason": "Ensures is partial correctness; operational/termination request admission must independently establish a pure, crash-free terminating value closure for each measure call.",
+      "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+      "blob": "51ab495f74c4da5f36ce675c18fc0fb8b7202812"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees",
+        "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi",
+        "omega-rust/psi/compilation/representations/checked-trees"
+      ],
+      "passages": [
+        "Machine `requires` applies at every invocation, including terminal and recursive\ncalls. Every arrival establishes the target's requirements and declared domains\nunder actual argument substitution. Nesting does not assume the parent's entry\nrequirements again, import its return guarantees, or supply facts invalidated\nby mutation. Live caller facts can discharge a nested helper's requirements;\nbody inference must justify any inferred private requirements on every arrival,\nnot grant them from lexical ancestry. Every invocation retains both sides of\nits own contract. A recursive contract is not its own proof; induction follows\nthe well-founded obligations in [termination](termination.md).\n\nArrival substitution is simultaneous and identity-based. Scalar arguments retain\ntheir evaluation snapshots; facts about referenced storage must survive writes\nfrom later arguments. A same-named formal cannot alias an unrelated caller value.\nEvery reachable predecessor participates in a join. Unknown input cannot be\nomitted to preserve a convenient invariant. A minimum collection length is not\nan exact extent, and declaration initializers are not recurring loop invariants."
+      ],
+      "reason": "Capture exact argument snapshots and callee contract identities in the declaration application; compose ordinary executable calls without impersonating statement custody.",
+      "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+      "blob": "58df5543c427ed92730f32e86573f4e5700911ee"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/termination.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi"
+      ],
+      "passages": [
+        "Terminating recursive machines use one joint ranking for the entire strongly\nconnected call component, whether declarations are nested or top-level and\nwhether an edge is an ordinary call or terminal transfer. Edges may preserve\nrank only if every complete cycle contains strict descent. A DFS-selected\nsubset of cycles is insufficient. There is no separate source-state ranking\nrule; lexical containment is not a recursion or induction boundary.\nThe exact source spelling for differently shaped mutual participants remains\nundetermined; the joint-cycle semantic rule is settled.\n\nOne component cites its relation and well-foundedness evidence once, with a\ncomparison proof for every internal edge and a global every-cycle descent check.\nLocal decreases cannot prove well-foundedness. An admitted custom ranking theory\nmakes dependent recursive proofs admission-dependent. Calls outside the component\nuse ordinary contract application. [Terminal control](../terminal-psi/control_flow.md)\ndefines reconstruction and grouped certificates."
+      ],
+      "reason": "Ordinary calls in measure bodies execute through the shared scalar graph, preserving the admitted joint-cycle rank and guard against premature SSA rank publication.",
+      "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+      "blob": "51ab495f74c4da5f36ce675c18fc0fb8b7202812"
+    }
+  ],
+  "context_fingerprint": "72ae481efc1522c62e93eb1cff854086b4bb5e00db6aff3121649dfb290d4260",
+  "reinject_context": [
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/proofs/contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src"
+      ],
+      "passages": [
+        "A machine's parameters bind subjects, `requires` supplies assumptions, and\n`ensures` states conclusions its body must justify. Before importing a callee's\nconclusions, a caller establishes the assumptions under the exact argument\nsubstitution. Naming a condition does not prove it; failed proof search does\nnot prove its negation.\n\nThe same [call-precondition rule](../language/machines.md#call-preconditions)\nalso governs forming a mathematical result term, even if none of the callee's\nconclusions is used. Proof-to-proof calls have no exemption. Named calls and\noperator syntax retain the same selected contract except for contextual data\nidentity below; erasure, normalization, or knowledge that the underlying body\nis total cannot remove a selected call's `requires`."
+      ],
+      "reason": "Admit a call term only after its complete actuals and Requires form; import independent public Ensures afterward, retaining value identity and congruence.",
+      "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+      "blob": "5a119a32dab322e798317944119dbef9a6b09960"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/termination.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees"
+      ],
+      "passages": [
+        "Termination is a positive eventual-terminal-outcome guarantee under authored\nrequirements and pinned callee/provider progress premises. It does not promise\na particular result, fairness, wakeup, deadlines, no suspension, or no blocking.\n`ensures` is partial correctness: it constrains a reached return edge but does\nnot prove that edge is reached. [Effects](effects.md) independently constrains\npossible suspension, blocking, and crashes.\n\nPermitted endpoints include normal return, a covered crash, and the canonical\n[process-exit transfer](process_exit.md). The promise authorizes none of them;\ncrash contracts and service reach/capability requirements remain independent.\nA machine that conditionally exits and otherwise returns can satisfy\n`terminates` when every admitted path has the required progress. An exit leaf\nneeds no further cycle decrease, but its operands and preceding calls still\nrequire progress. Excluding crashes and all external-terminal services together\nwith termination establishes normal return under the stated premises."
+      ],
+      "reason": "Ensures is partial correctness; operational/termination request admission must independently establish a pure, crash-free terminating value closure for each measure call.",
+      "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+      "blob": "51ab495f74c4da5f36ce675c18fc0fb8b7202812"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees",
+        "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi",
+        "omega-rust/psi/compilation/representations/checked-trees"
+      ],
+      "passages": [
+        "Machine `requires` applies at every invocation, including terminal and recursive\ncalls. Every arrival establishes the target's requirements and declared domains\nunder actual argument substitution. Nesting does not assume the parent's entry\nrequirements again, import its return guarantees, or supply facts invalidated\nby mutation. Live caller facts can discharge a nested helper's requirements;\nbody inference must justify any inferred private requirements on every arrival,\nnot grant them from lexical ancestry. Every invocation retains both sides of\nits own contract. A recursive contract is not its own proof; induction follows\nthe well-founded obligations in [termination](termination.md).\n\nArrival substitution is simultaneous and identity-based. Scalar arguments retain\ntheir evaluation snapshots; facts about referenced storage must survive writes\nfrom later arguments. A same-named formal cannot alias an unrelated caller value.\nEvery reachable predecessor participates in a join. Unknown input cannot be\nomitted to preserve a convenient invariant. A minimum collection length is not\nan exact extent, and declaration initializers are not recurring loop invariants."
+      ],
+      "reason": "Capture exact argument snapshots and callee contract identities in the declaration application; compose ordinary executable calls without impersonating statement custody.",
+      "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+      "blob": "58df5543c427ed92730f32e86573f4e5700911ee"
+    },
+    {
+      "classification": "missing_implementation",
+      "contract": "wiki/spec/language/termination.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi"
+      ],
+      "passages": [
+        "Terminating recursive machines use one joint ranking for the entire strongly\nconnected call component, whether declarations are nested or top-level and\nwhether an edge is an ordinary call or terminal transfer. Edges may preserve\nrank only if every complete cycle contains strict descent. A DFS-selected\nsubset of cycles is insufficient. There is no separate source-state ranking\nrule; lexical containment is not a recursion or induction boundary.\nThe exact source spelling for differently shaped mutual participants remains\nundetermined; the joint-cycle semantic rule is settled.\n\nOne component cites its relation and well-foundedness evidence once, with a\ncomparison proof for every internal edge and a global every-cycle descent check.\nLocal decreases cannot prove well-foundedness. An admitted custom ranking theory\nmakes dependent recursive proofs admission-dependent. Calls outside the component\nuse ordinary contract application. [Terminal control](../terminal-psi/control_flow.md)\ndefines reconstruction and grouped certificates."
+      ],
+      "reason": "Ordinary calls in measure bodies execute through the shared scalar graph, preserving the admitted joint-cycle rank and guard against premature SSA rank publication.",
+      "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+      "blob": "51ab495f74c4da5f36ce675c18fc0fb8b7202812"
+    }
+  ],
+  "context_refresh": true,
+  "checks": [
+    {
+      "artifacts": [],
+      "closure_reason": "Conservative compiler/library/Cargo source closure and all authored fixtures for this repair; runtime checks added after integrated producers are frozen.",
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "6966f21a71342fa6725fb12763e3a7250b8761e7",
+        "HEAD"
+      ],
+      "expected_exit": 0,
+      "final": false,
+      "id": "source-checkpoint",
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "omega-rust",
+        "rust-toolchain.toml",
+        "samples/cli/facts/nested_machine_invocation/joint_rank",
+        "source/library",
+        "tests/omega",
+        "wiki/spec/language/state_contracts.md",
+        "wiki/spec/language/termination.md",
+        "wiki/spec/proofs/contracts.md"
+      ],
+      "kind": "tests",
+      "timeout_seconds": 120
+    },
+    {
+      "artifacts": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-producer/omega",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-producer/producer.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/validate-row.py",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/integrated-cli-build.jsonl",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/integrated-cli-build.stderr"
+      ],
+      "closure_reason": "Conservative Rust compiler, bundled library, Cargo/toolchain and complete fact source closure. Validator checks actual native and Terminal exits, exact negative diagnostics, and all raw engine observations; metadata-only f482 does not change producer inputs.",
+      "command": [
+        "python3",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/validate-row.py"
+      ],
+      "expected_exit": 0,
+      "final": false,
+      "id": "rank-call-row",
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "omega-rust",
+        "rust-toolchain.toml",
+        "samples/cli/facts/nested_machine_invocation/joint_rank",
+        "source/library",
+        "wiki/spec/language/state_contracts.md",
+        "wiki/spec/language/termination.md",
+        "wiki/spec/proofs/contracts.md"
+      ],
+      "kind": "native",
+      "producer": {
+        "executables": [
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-producer/omega"
+        ],
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "revision": "6ed8c4bb9c5421d28c8caa07d61a2776439a1c40"
+      },
+      "timeout_seconds": 300
+    },
+    {
+      "artifacts": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/validate-corpus-records.py",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-producer/producer.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-producer/corpus-producer.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-producer/corpus_runner",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/cli-producer.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-new-source.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-new-source.stdout",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-new-source.stderr",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-new.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-new.stdout",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-new.stderr",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-neighbors-source.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-neighbors-source.stdout",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-neighbors-source.stderr",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-neighbors-both.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-neighbors-both.stdout",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-neighbors-both.stderr",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/neighbors-baseline-attribution.json"
+      ],
+      "closure_reason": "Validate preserved raw corpus observations against authored source/oracles and exact frozen C6 diagnostic/status comparisons. This authenticates historical captures, does not relabel producer revisions or repeat execution, and excludes noisy timing movement from behavior claims.",
+      "command": [
+        "python3",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/validate-corpus-records.py"
+      ],
+      "expected_exit": 0,
+      "final": false,
+      "id": "retained-corpus-observations",
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "omega-rust",
+        "rust-toolchain.toml",
+        "source/library",
+        "tests/omega",
+        "tools/corpus_gate.py",
+        "tools/corpus_records.py",
+        "wiki/spec/language/state_contracts.md",
+        "wiki/spec/language/termination.md",
+        "wiki/spec/proofs/contracts.md"
+      ],
+      "kind": "tests",
+      "timeout_seconds": 120
+    },
+    {
+      "artifacts": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-review.json"
+      ],
+      "closure_reason": "Required independent review covers exact submitted source, accepted canonical premises, raw current/historical execution, custody and source-oracle counterfactuals. This check authenticates the returned exact-candidate decision; the review itself supplies judgment.",
+      "command": [
+        "python3",
+        "-c",
+        "import json,subprocess; p=json.load(open('/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-review.json')); assert p[\"accepted\"] is True and p[\"candidate\"]==subprocess.check_output([\"git\",\"rev-parse\",\"HEAD\"],text=True).strip() and p[\"base\"]==\"6966f21a71342fa6725fb12763e3a7250b8761e7\" and not p[\"blockers\"]; print(\"independent exact-candidate review accepted\",p[\"candidate\"])"
+      ],
+      "expected_exit": 0,
+      "final": true,
+      "id": "independent-review",
+      "inputs": [
+        "TASKS.md",
+        "omega-rust",
+        "samples/cli/facts/nested_machine_invocation/joint_rank",
+        "source/library",
+        "tests/omega",
+        "wiki/spec/language/state_contracts.md",
+        "wiki/spec/language/termination.md",
+        "wiki/spec/proofs/contracts.md"
+      ],
+      "kind": "review",
+      "timeout_seconds": 120
+    }
+  ],
+  "assessments": [
+    {
+      "base": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+      "candidate": "6f16e1d62ac101765338d18cba952edcba84a89b",
+      "canonical_context": [
+        {
+          "blob": "5a119a32dab322e798317944119dbef9a6b09960",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/proofs/contracts.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking/src"
+          ],
+          "passages": [
+            "A machine's parameters bind subjects, `requires` supplies assumptions, and\n`ensures` states conclusions its body must justify. Before importing a callee's\nconclusions, a caller establishes the assumptions under the exact argument\nsubstitution. Naming a condition does not prove it; failed proof search does\nnot prove its negation.\n\nThe same [call-precondition rule](../language/machines.md#call-preconditions)\nalso governs forming a mathematical result term, even if none of the callee's\nconclusions is used. Proof-to-proof calls have no exemption. Named calls and\noperator syntax retain the same selected contract except for contextual data\nidentity below; erasure, normalization, or knowledge that the underlying body\nis total cannot remove a selected call's `requires`."
+          ],
+          "reason": "Admit a call term only after its complete actuals and Requires form; import independent public Ensures afterward, retaining value identity and congruence.",
+          "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7"
+        },
+        {
+          "blob": "51ab495f74c4da5f36ce675c18fc0fb8b7202812",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/termination.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking/src",
+            "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees"
+          ],
+          "passages": [
+            "Termination is a positive eventual-terminal-outcome guarantee under authored\nrequirements and pinned callee/provider progress premises. It does not promise\na particular result, fairness, wakeup, deadlines, no suspension, or no blocking.\n`ensures` is partial correctness: it constrains a reached return edge but does\nnot prove that edge is reached. [Effects](effects.md) independently constrains\npossible suspension, blocking, and crashes.\n\nPermitted endpoints include normal return, a covered crash, and the canonical\n[process-exit transfer](process_exit.md). The promise authorizes none of them;\ncrash contracts and service reach/capability requirements remain independent.\nA machine that conditionally exits and otherwise returns can satisfy\n`terminates` when every admitted path has the required progress. An exit leaf\nneeds no further cycle decrease, but its operands and preceding calls still\nrequire progress. Excluding crashes and all external-terminal services together\nwith termination establishes normal return under the stated premises."
+          ],
+          "reason": "Ensures is partial correctness; operational/termination request admission must independently establish a pure, crash-free terminating value closure for each measure call.",
+          "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7"
+        },
+        {
+          "blob": "58df5543c427ed92730f32e86573f4e5700911ee",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/state_contracts.md",
+          "implementation": [
+            "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees",
+            "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi",
+            "omega-rust/psi/compilation/representations/checked-trees"
+          ],
+          "passages": [
+            "Machine `requires` applies at every invocation, including terminal and recursive\ncalls. Every arrival establishes the target's requirements and declared domains\nunder actual argument substitution. Nesting does not assume the parent's entry\nrequirements again, import its return guarantees, or supply facts invalidated\nby mutation. Live caller facts can discharge a nested helper's requirements;\nbody inference must justify any inferred private requirements on every arrival,\nnot grant them from lexical ancestry. Every invocation retains both sides of\nits own contract. A recursive contract is not its own proof; induction follows\nthe well-founded obligations in [termination](termination.md).\n\nArrival substitution is simultaneous and identity-based. Scalar arguments retain\ntheir evaluation snapshots; facts about referenced storage must survive writes\nfrom later arguments. A same-named formal cannot alias an unrelated caller value.\nEvery reachable predecessor participates in a join. Unknown input cannot be\nomitted to preserve a convenient invariant. A minimum collection length is not\nan exact extent, and declaration initializers are not recurring loop invariants."
+          ],
+          "reason": "Capture exact argument snapshots and callee contract identities in the declaration application; compose ordinary executable calls without impersonating statement custody.",
+          "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7"
+        },
+        {
+          "blob": "51ab495f74c4da5f36ce675c18fc0fb8b7202812",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/termination.md",
+          "implementation": [
+            "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi"
+          ],
+          "passages": [
+            "Terminating recursive machines use one joint ranking for the entire strongly\nconnected call component, whether declarations are nested or top-level and\nwhether an edge is an ordinary call or terminal transfer. Edges may preserve\nrank only if every complete cycle contains strict descent. A DFS-selected\nsubset of cycles is insufficient. There is no separate source-state ranking\nrule; lexical containment is not a recursion or induction boundary.\nThe exact source spelling for differently shaped mutual participants remains\nundetermined; the joint-cycle semantic rule is settled.\n\nOne component cites its relation and well-foundedness evidence once, with a\ncomparison proof for every internal edge and a global every-cycle descent check.\nLocal decreases cannot prove well-foundedness. An admitted custom ranking theory\nmakes dependent recursive proofs admission-dependent. Calls outside the component\nuse ordinary contract application. [Terminal control](../terminal-psi/control_flow.md)\ndefines reconstruction and grouped certificates."
+          ],
+          "reason": "Ordinary calls in measure bodies execute through the shared scalar graph, preserving the admitted joint-cycle rank and guard against premature SSA rank publication.",
+          "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7"
+        }
+      ],
+      "checks": [
+        {
+          "action": "rerun",
+          "check": "source-checkpoint",
+          "evidence": null,
+          "observed_revision": null,
+          "reasons": [
+            "not_run"
+          ]
+        },
+        {
+          "action": "rerun",
+          "check": "rank-call-row",
+          "evidence": null,
+          "observed_revision": null,
+          "reasons": [
+            "not_run"
+          ]
+        }
+      ],
+      "duration_seconds": 1.519409542,
+      "incoming_paths": [],
+      "invalidated": 2,
+      "reused": 0,
+      "receipt": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/3e17fca3e082cdac3061a0fb465c1b0a5032b6a8dc6e665894f09cec3b36f1ef.assessment.json",
+        "sha256": "3e17fca3e082cdac3061a0fb465c1b0a5032b6a8dc6e665894f09cec3b36f1ef"
+      }
+    },
+    {
+      "base": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+      "candidate": "6f16e1d62ac101765338d18cba952edcba84a89b",
+      "canonical_context": [
+        {
+          "blob": "5a119a32dab322e798317944119dbef9a6b09960",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/proofs/contracts.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking/src"
+          ],
+          "passages": [
+            "A machine's parameters bind subjects, `requires` supplies assumptions, and\n`ensures` states conclusions its body must justify. Before importing a callee's\nconclusions, a caller establishes the assumptions under the exact argument\nsubstitution. Naming a condition does not prove it; failed proof search does\nnot prove its negation.\n\nThe same [call-precondition rule](../language/machines.md#call-preconditions)\nalso governs forming a mathematical result term, even if none of the callee's\nconclusions is used. Proof-to-proof calls have no exemption. Named calls and\noperator syntax retain the same selected contract except for contextual data\nidentity below; erasure, normalization, or knowledge that the underlying body\nis total cannot remove a selected call's `requires`."
+          ],
+          "reason": "Admit a call term only after its complete actuals and Requires form; import independent public Ensures afterward, retaining value identity and congruence.",
+          "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7"
+        },
+        {
+          "blob": "51ab495f74c4da5f36ce675c18fc0fb8b7202812",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/termination.md",
+          "implementation": [
+            "omega-rust/psi/compilation/checking/src",
+            "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees"
+          ],
+          "passages": [
+            "Termination is a positive eventual-terminal-outcome guarantee under authored\nrequirements and pinned callee/provider progress premises. It does not promise\na particular result, fairness, wakeup, deadlines, no suspension, or no blocking.\n`ensures` is partial correctness: it constrains a reached return edge but does\nnot prove that edge is reached. [Effects](effects.md) independently constrains\npossible suspension, blocking, and crashes.\n\nPermitted endpoints include normal return, a covered crash, and the canonical\n[process-exit transfer](process_exit.md). The promise authorizes none of them;\ncrash contracts and service reach/capability requirements remain independent.\nA machine that conditionally exits and otherwise returns can satisfy\n`terminates` when every admitted path has the required progress. An exit leaf\nneeds no further cycle decrease, but its operands and preceding calls still\nrequire progress. Excluding crashes and all external-terminal services together\nwith termination establishes normal return under the stated premises."
+          ],
+          "reason": "Ensures is partial correctness; operational/termination request admission must independently establish a pure, crash-free terminating value closure for each measure call.",
+          "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7"
+        },
+        {
+          "blob": "58df5543c427ed92730f32e86573f4e5700911ee",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/state_contracts.md",
+          "implementation": [
+            "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees",
+            "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi",
+            "omega-rust/psi/compilation/representations/checked-trees"
+          ],
+          "passages": [
+            "Machine `requires` applies at every invocation, including terminal and recursive\ncalls. Every arrival establishes the target's requirements and declared domains\nunder actual argument substitution. Nesting does not assume the parent's entry\nrequirements again, import its return guarantees, or supply facts invalidated\nby mutation. Live caller facts can discharge a nested helper's requirements;\nbody inference must justify any inferred private requirements on every arrival,\nnot grant them from lexical ancestry. Every invocation retains both sides of\nits own contract. A recursive contract is not its own proof; induction follows\nthe well-founded obligations in [termination](termination.md).\n\nArrival substitution is simultaneous and identity-based. Scalar arguments retain\ntheir evaluation snapshots; facts about referenced storage must survive writes\nfrom later arguments. A same-named formal cannot alias an unrelated caller value.\nEvery reachable predecessor participates in a join. Unknown input cannot be\nomitted to preserve a convenient invariant. A minimum collection length is not\nan exact extent, and declaration initializers are not recurring loop invariants."
+          ],
+          "reason": "Capture exact argument snapshots and callee contract identities in the declaration application; compose ordinary executable calls without impersonating statement custody.",
+          "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7"
+        },
+        {
+          "blob": "51ab495f74c4da5f36ce675c18fc0fb8b7202812",
+          "classification": "missing_implementation",
+          "contract": "wiki/spec/language/termination.md",
+          "implementation": [
+            "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi"
+          ],
+          "passages": [
+            "Terminating recursive machines use one joint ranking for the entire strongly\nconnected call component, whether declarations are nested or top-level and\nwhether an edge is an ordinary call or terminal transfer. Edges may preserve\nrank only if every complete cycle contains strict descent. A DFS-selected\nsubset of cycles is insufficient. There is no separate source-state ranking\nrule; lexical containment is not a recursion or induction boundary.\nThe exact source spelling for differently shaped mutual participants remains\nundetermined; the joint-cycle semantic rule is settled.\n\nOne component cites its relation and well-foundedness evidence once, with a\ncomparison proof for every internal edge and a global every-cycle descent check.\nLocal decreases cannot prove well-foundedness. An admitted custom ranking theory\nmakes dependent recursive proofs admission-dependent. Calls outside the component\nuse ordinary contract application. [Terminal control](../terminal-psi/control_flow.md)\ndefines reconstruction and grouped certificates."
+          ],
+          "reason": "Ordinary calls in measure bodies execute through the shared scalar graph, preserving the admitted joint-cycle rank and guard against premature SSA rank publication.",
+          "revision": "6966f21a71342fa6725fb12763e3a7250b8761e7"
+        }
+      ],
+      "checks": [
+        {
+          "action": "reuse",
+          "check": "source-checkpoint",
+          "evidence": "a56defcd284b41ada68b5bf621c8acab",
+          "observed_revision": "6f16e1d62ac101765338d18cba952edcba84a89b",
+          "reasons": [
+            "reviewed_inputs_unchanged"
+          ]
+        },
+        {
+          "action": "reuse",
+          "check": "rank-call-row",
+          "evidence": "e83212e4772f4dda8a92a5bdf8012825",
+          "observed_revision": "6f16e1d62ac101765338d18cba952edcba84a89b",
+          "reasons": [
+            "reviewed_inputs_unchanged"
+          ]
+        },
+        {
+          "action": "reuse",
+          "check": "retained-corpus-observations",
+          "evidence": "7132fffca7dd4330a8892d555670215e",
+          "observed_revision": "6f16e1d62ac101765338d18cba952edcba84a89b",
+          "reasons": [
+            "reviewed_inputs_unchanged"
+          ]
+        }
+      ],
+      "duration_seconds": 2.001153709,
+      "incoming_paths": [],
+      "invalidated": 0,
+      "reused": 3,
+      "receipt": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/qualification.records/beb2fb512e123d072489080220dcb1454d31f79a4a99c1ab4bd51202a7043e38.assessment.json",
+        "sha256": "beb2fb512e123d072489080220dcb1454d31f79a4a99c1ab4bd51202a7043e38"
+      }
+    }
+  ],
+  "review_instruction": "Judge behavior against these passages; uncovered semantics need an explicit owner decision. Inspect the candidate diff and check evidence; passage identity alone is not semantic compliance.",
+  "prior_context_retained": false
+}

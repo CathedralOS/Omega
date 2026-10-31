@@ -1,0 +1,6 @@
+~ pass/facts/nested_machine_joint_rank_authored_indexed_computed_const_name_exit: 2003ms -> 8415ms (>=2x slowdown)
+corpus_gate: perf context — the golden was recorded on a busy machine (pre-run load 7.27 on 10 cpus); fixtures only look faster now — treat perf_faster moves as noise
+corpus_gate: 0 structural move(s), 1 perf move(s) — 31 fixtures ({'built': 31}), 0 rejected without their expected fragment, 0 fail fixtures did not reject; executed 31 (exit codes {'0': 31}), 0 with stdout differing from expected; verdicts {'perf_slower': 1}
+corpus_gate: no structured diffs to classify
+corpus_gate: golden provenance: 31 rows stamped, 0 legacy (unstamped), 1 revision distance(s) unavailable, oldest stamped row 83 commits behind HEAD (@4518281b90b2)
+corpus_gate: measured at jobs=runner default, golden jobs=2

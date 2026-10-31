@@ -1,0 +1,195 @@
+{
+  "producer": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+  "sha256": "fcdd021bc488acadbf96f2defe73abe77675cc9056078a87ab9c8098a95d5a59",
+  "rows": [
+    {
+      "case": {
+        "place": "local",
+        "invalid": false,
+        "path": "samples/cli/facts/nested_machine_invocation/joint_rank/local/computed_measure/call",
+        "sources": {
+          "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+          "main.omg": "3903f004730c275a6243b1350163187017c10dade620baeea4e8f82892eb7cc0"
+        }
+      },
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/local/computed_measure/call/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 2 diagnostic(s)\n  error: terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view\n  error: machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.340988542
+    },
+    {
+      "case": {
+        "place": "field",
+        "invalid": false,
+        "path": "samples/cli/facts/nested_machine_invocation/joint_rank/field/computed_measure/call",
+        "sources": {
+          "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+          "main.omg": "02d648e40fec71999a24c1c17e334c2b8c52a08e2b81cc3e066c463bf08c7a1a"
+        }
+      },
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/field/computed_measure/call/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 2 diagnostic(s)\n  error: terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view\n  error: machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.1561004169999998
+    },
+    {
+      "case": {
+        "place": "parameter",
+        "invalid": false,
+        "path": "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call",
+        "sources": {
+          "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+          "main.omg": "61e846db44838273c0828a0efcb50133c27ce8af7b7c1f630ca316a3ab1e03be"
+        }
+      },
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 2 diagnostic(s)\n  error: terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view\n  error: machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.1122660409999998
+    },
+    {
+      "case": {
+        "place": "call_result",
+        "invalid": false,
+        "path": "samples/cli/facts/nested_machine_invocation/joint_rank/call_result/computed_measure/call",
+        "sources": {
+          "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+          "main.omg": "dc731b32bc316bbb8135fc82056976cdd5bd0630d69dc3dbd3d5fb3c0842f765"
+        }
+      },
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/call_result/computed_measure/call/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 2 diagnostic(s)\n  error: terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view\n  error: machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.0974853749999998
+    },
+    {
+      "case": {
+        "place": "match_join",
+        "invalid": false,
+        "path": "samples/cli/facts/nested_machine_invocation/joint_rank/match_join/computed_measure/call",
+        "sources": {
+          "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+          "main.omg": "ca197b14ec6ae530e059835088c6d1bc5fbb5f86d8b90ab5d230a2ee3f755895"
+        }
+      },
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/match_join/computed_measure/call/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 2 diagnostic(s)\n  error: terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view\n  error: machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.1346192080000002
+    },
+    {
+      "case": {
+        "place": "const_name",
+        "invalid": false,
+        "path": "samples/cli/facts/nested_machine_invocation/joint_rank/const_name/computed_measure/call",
+        "sources": {
+          "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+          "main.omg": "668d577bcf35e484492ba33799c696557e931a72622f5994589206a2e125bbc6"
+        }
+      },
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/const_name/computed_measure/call/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 2 diagnostic(s)\n  error: terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view\n  error: machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.1011391249999996
+    },
+    {
+      "case": {
+        "place": "other_state",
+        "invalid": false,
+        "path": "samples/cli/facts/nested_machine_invocation/joint_rank/other_state/computed_measure/call",
+        "sources": {
+          "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+          "main.omg": "251048e8cddb75207013003a305f578e3daf0becb793f67a04547d45910d8b3d"
+        }
+      },
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/other_state/computed_measure/call/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 2 diagnostic(s)\n  error: terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view\n  error: machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.093734500000001
+    },
+    {
+      "case": {
+        "place": "other_machine",
+        "invalid": false,
+        "path": "samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/computed_measure/call",
+        "sources": {
+          "build.omg": "a516efc7cbd318d6cef42f3b6a8c62c7492b4e7caf3c877c84b3111c35978572",
+          "main.omg": "08e7fad8984a08f944e0d78c9e66ba573f67a34378408efd279c9784dcea1f46"
+        }
+      },
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/computed_measure/call/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 2 diagnostic(s)\n  error: terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view\n  error: machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.101687708
+    },
+    {
+      "case": {
+        "place": "target_body",
+        "invalid": false,
+        "path": "samples/cli/facts/nested_machine_invocation/joint_rank/target_body/computed_measure/call",
+        "sources": {
+          "build.omg": "9051942e675c48ee7be51466600897c5cc780af532dd52123ee3ccc7b7f95662",
+          "main.omg": "8fc0d2ba38d482ae368667e712d93a15591c7582929d692257e38fbc2fa1282f"
+        }
+      },
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/target_body/computed_measure/call/main.omg"
+      ],
+      "exit": 200,
+      "stdout": "",
+      "stderr": "native compile FAILED:\n  error: cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 2 diagnostic(s)\n  error: terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view\n  error: machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.1106088750000005
+    }
+  ]
+}

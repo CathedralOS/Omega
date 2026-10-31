@@ -1,0 +1,1490 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "6f16e1d62ac101765338d18cba952edcba84a89b",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 21865
+  },
+  "subset": true,
+  "filter": "nested_machine_joint_rank_authored_indexed_computed_,nested_machine_joint_rank_computed_,ordinary_denotational_,selected_specification_,declaration_call_,scoped_integer_call_",
+  "shard": null,
+  "verdict": "moved",
+  "exit_code": 1,
+  "counts": {
+    "fixtures": 93,
+    "by_status": {
+      "checked": 35,
+      "rejected": 58
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 1,
+    "fail_not_rejected_fixtures": [
+      "fail/core/scoped_integer_call_guarantee_requires_published_equality"
+    ],
+    "lost_successes": 5,
+    "lost_success_fixtures": [
+      "pass/proofs/declaration_call_requires",
+      "pass/proofs/selected_specification_requires_composition",
+      "pass/proofs/selected_specification_requires_exact",
+      "pass/proofs/selected_specification_requires_renamed",
+      "pass/proofs/selected_specification_requires_state"
+    ],
+    "pinned_off_target": 6,
+    "pinned_off_target_fixtures": [
+      "pass/proofs/declaration_call_requires",
+      "pass/proofs/selected_specification_requires_composition",
+      "pass/proofs/selected_specification_requires_exact",
+      "pass/proofs/selected_specification_requires_renamed",
+      "pass/proofs/selected_specification_requires_state",
+      "fail/core/scoped_integer_call_guarantee_requires_published_equality"
+    ],
+    "by_verdict": {
+      "perf_slower": 2,
+      "moved": 2
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 93,
+    "legacy": 0,
+    "unknown_revisions": 2,
+    "oldest": {
+      "revision": "4518281b90b2",
+      "commits_behind": 83
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585",
+      "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6",
+      "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.",
+      "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": null,
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 5.37,
+      "load1_end": 7.84
+    },
+    "warnings": [
+      "this run started on a busy machine (pre-run load 5.37 on 10 cpus); fixtures only look slower \u2014 treat perf_slower moves as noise"
+    ]
+  },
+  "observations": [
+    {
+      "fixture": "pass/core/scoped_integer_call_exact_actual_requires_formation",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 17220,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/core/scoped_integer_call_guarantees_composed_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 20581,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/core/scoped_integer_call_unrelated_trait_operator_requires_formation",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 21321,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8519,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4634,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3665,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3772,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3674,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4069,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6173,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4214,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4670,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_affine_view_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4660,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3548,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5757,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4990,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3128,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5564,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5808,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5737,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3365,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3857,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_rank_range_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4202,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_scalar_helper_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4129,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3081,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3606,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5690,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6683,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5488,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4766,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4298,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4061,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2535,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/proofs/declaration_call_requires",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 5,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/pass/proofs/declaration_call_requires/main.omg:8:30: implicit `self` is retired; name the explicit parameter or domain subject"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {}
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/proofs/ordinary_denotational_requirement_published_termination_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6851,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/proofs/selected_specification_requires_composition",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 2013,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "specification call `Right` is not denotational: the selected machine is not unconditionally terminating",
+        "specification call `Left` is not denotational: the selected machine is not unconditionally terminating",
+        "specification call `Second` is not denotational: the selected machine is not unconditionally terminating",
+        "specification call `First` is not denotational: the selected machine is not unconditionally terminating"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {}
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/proofs/selected_specification_requires_exact",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 3099,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "specification call `Modulus` is not denotational: the selected machine is not unconditionally terminating",
+        "specification call `Modulus` is not denotational: the selected machine is not unconditionally terminating"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {}
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/proofs/selected_specification_requires_renamed",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 3685,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "specification call `Choice` is not denotational: the selected machine is not unconditionally terminating",
+        "specification call `Modulus` is not denotational: the selected machine is not unconditionally terminating"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {}
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/proofs/selected_specification_requires_state",
+      "tier": "pass",
+      "status": "rejected",
+      "millis": 5,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [
+        "tests/omega/pass/proofs/selected_specification_requires_state/main.omg:11:5: expected transition subject expression"
+      ],
+      "regressed_from": {
+        "status": "checked",
+        "facts": {}
+      },
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/core/scoped_integer_call_abstract_trait_operator_requires_formation",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 16711,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot form specification operator `==` in trait `ReplacementArithmetic` state `restricted` requires contract: no exact selected meaning",
+        "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact",
+        "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/core/scoped_integer_call_actual_requires_selected_meaning",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4961,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from caller at statement 0: identity(left + right) as i16  == result"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/core/scoped_integer_call_guarantee_requires_formation",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2324,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for specification call `restricted` in machine `caller` ensures contract: establish its selected precondition in an independently formed prior requires fact"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/core/scoped_integer_call_guarantee_requires_published_equality",
+      "tier": "fail",
+      "status": "checked",
+      "millis": 3354,
+      "expected_satisfied": null,
+      "facts": {},
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/core/scoped_integer_call_guarantee_retains_actual",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5633,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from caller at statement 0: identity(value + 1) as i16  == result"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/core/scoped_integer_call_guarantees_cannot_form_cycle",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1322,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove ensures contract for exit from first at statement 0: second(value) as i16  == result",
+        "cannot prove ensures contract for exit from second at statement 0: first(value) as i16  == result"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/core/scoped_integer_call_inherited_trait_operator_requires_formation",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 15930,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot form specification operator `==` in trait `InheritedArithmetic` state `restricted` requires contract: no exact selected meaning",
+        "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact",
+        "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/core/scoped_integer_call_primitive_operator_requires_formation",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 15454,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact",
+        "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/core/scoped_integer_call_wrapping_actual_requires_formation",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 14941,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact",
+        "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_authored_indexed_computed_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3578,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_authored_indexed_computed_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2731,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_authored_indexed_computed_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3789,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_authored_indexed_computed_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5250,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_authored_indexed_computed_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3049,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_authored_indexed_computed_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2630,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_authored_indexed_computed_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3635,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_authored_indexed_computed_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 6743,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_authored_indexed_computed_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3046,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_measure_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3336,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_measure_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 6072,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_measure_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2730,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_measure_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2277,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_measure_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3594,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_measure_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3226,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_measure_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3729,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_measure_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4322,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_measure_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3168,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_rank_ceiling_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2662,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- an authored natural rank range has no independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_rank_floor_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3646,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- an authored natural rank range has no independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_scalar_helper_non_decreasing_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4905,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_square_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3875,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_square_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5327,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_square_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 6748,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_square_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5146,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_square_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4743,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_square_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4462,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_square_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5938,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_square_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4097,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_square_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3707,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_unsafe_intermediate_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1982,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a computed natural rank application has no independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_computed_unsafe_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3863,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a computed natural rank application has no independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/declaration_call_argument_type",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1265,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "domain `Input::Invalid` predicate constant expression call argument `false` does not form parameter `value` of `accepts`: actual bool, required u64"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/declaration_call_arity",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1246,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "domain `Input::Invalid` predicate constant expression call has incompatible argument arity"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/declaration_call_future_requires",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1134,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact",
+        "cannot prove requires contract for specification call `guarded` in data `InvalidData` default-domain predicate: establish its selected precondition in an independently formed prior requires fact",
+        "cannot prove requires contract for specification call `guarded` in data `InvalidCase` default-domain predicate: establish its selected precondition in an independently formed prior requires fact",
+        "cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: establish its selected precondition in an independently formed prior requires fact"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/declaration_call_requires",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1127,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact",
+        "cannot prove requires contract for specification call `guarded` in data `InvalidCase` default-domain predicate: establish its selected precondition in an independently formed prior requires fact",
+        "cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: establish its selected precondition in an independently formed prior requires fact",
+        "cannot prove requires contract for specification call `guarded` in data `SiblingCases` default-domain predicate: establish its selected precondition in an independently formed prior requires fact",
+        "cannot prove requires contract for specification call `guarded` in data `SiblingCases` case `Unestablished` predicate: establish its selected precondition in an independently formed prior requires fact"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/ordinary_denotational_call_requires_normal_return",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4630,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "specification call `partial` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route",
+        "specification call `partial` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route",
+        "specification call `partial` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route",
+        "specification call `partial` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/ordinary_denotational_call_requires_termination",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4251,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "specification call `stalled` is not denotational: the selected machine is not unconditionally terminating",
+        "specification call `stalled` is not denotational: the selected machine is not unconditionally terminating",
+        "specification call `stalled` is not denotational: the selected machine is not unconditionally terminating",
+        "specification call `stalled` is not denotational: the selected machine is not unconditionally terminating"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/ordinary_denotational_operator_requires_normal_return",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3103,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "specification call `Partial::value` has no observation-free, reach-free, crash-free value denotation",
+        "specification call `Partial::value` has no observation-free, reach-free, crash-free value denotation",
+        "specification call `Partial::value` has no observation-free, reach-free, crash-free value denotation",
+        "specification call `Partial::value` has no observation-free, reach-free, crash-free value denotation"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/ordinary_denotational_requirement_requires_normal_return",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3475,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "specification call `value` has no observation-free, reach-free, crash-free value denotation",
+        "specification call `value` has no observation-free, reach-free, crash-free value denotation",
+        "specification call `value` has no observation-free, reach-free, crash-free value denotation",
+        "specification call `value` has no observation-free, reach-free, crash-free value denotation"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/ordinary_denotational_requirement_requires_termination",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2967,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "specification call `value` is not denotational: the selected machine is not unconditionally terminating",
+        "specification call `value` is not denotational: the selected machine is not unconditionally terminating",
+        "specification call `value` is not denotational: the selected machine is not unconditionally terminating",
+        "specification call `value` is not denotational: the selected machine is not unconditionally terminating"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/selected_specification_requires_false_result",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1873,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `identity` ensures contract proof fact `selected_identity<Modulus>(value) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/selected_specification_requires_missing_premise",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1870,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/selected_specification_requires_wrong_machine",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1254,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/proofs/selected_specification_requires_wrong_subject",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1388,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/core/scoped_integer_call_guarantees_composed_exit",
+      "verdict": "perf_slower",
+      "reasons": [
+        "10178ms -> 20581ms (>=2x slowdown)"
+      ],
+      "before": {
+        "fixture": "pass/core/scoped_integer_call_guarantees_composed_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 10178,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "pass/core/scoped_integer_call_guarantees_composed_exit",
+        "tier": "pass",
+        "status": "checked",
+        "millis": 20581,
+        "expected_satisfied": null,
+        "facts": {
+          "check-target": "macos_arm64"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/core/scoped_integer_call_abstract_trait_operator_requires_formation",
+      "verdict": "perf_slower",
+      "reasons": [
+        "5829ms -> 16711ms (>=2x slowdown)"
+      ],
+      "before": {
+        "fixture": "fail/core/scoped_integer_call_abstract_trait_operator_requires_formation",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 5829,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot form specification operator `==` in trait `ReplacementArithmetic` state `restricted` requires contract: no exact selected meaning",
+          "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact"
+        ],
+        "regressed_from": null,
+        "recorded_at": "8b519ca647cd+wt"
+      },
+      "after": {
+        "fixture": "fail/core/scoped_integer_call_abstract_trait_operator_requires_formation",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 16711,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot form specification operator `==` in trait `ReplacementArithmetic` state `restricted` requires contract: no exact selected meaning",
+          "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `restricted` in machine `caller` requires contract: establish its selected precondition in an independently formed prior requires fact"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/proofs/declaration_call_future_requires",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/proofs/declaration_call_future_requires",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 731,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `guarded` in data `InvalidData` default-domain predicate: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: establish its selected precondition in an independently formed prior requires fact"
+        ],
+        "regressed_from": null,
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "fail/proofs/declaration_call_future_requires",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1134,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `guarded` in data `InvalidData` default-domain predicate: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `guarded` in data `InvalidCase` default-domain predicate: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: establish its selected precondition in an independently formed prior requires fact"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    },
+    {
+      "fixture": "fail/proofs/declaration_call_requires",
+      "verdict": "moved",
+      "reasons": [
+        "diagnostics moved"
+      ],
+      "before": {
+        "fixture": "fail/proofs/declaration_call_requires",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 850,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `guarded` in data `SiblingCases` case `Unestablished` predicate: establish its selected precondition in an independently formed prior requires fact"
+        ],
+        "regressed_from": null,
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "fail/proofs/declaration_call_requires",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1127,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `guarded` in data `InvalidCase` default-domain predicate: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `guarded` in data `SiblingCases` default-domain predicate: establish its selected precondition in an independently formed prior requires fact",
+          "cannot prove requires contract for specification call `guarded` in data `SiblingCases` case `Unestablished` predicate: establish its selected precondition in an independently formed prior requires fact"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

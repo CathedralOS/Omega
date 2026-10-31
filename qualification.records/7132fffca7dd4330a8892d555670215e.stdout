@@ -1,0 +1,1 @@
+24 new source outcomes; 11 new and 31 neighboring BOTH native0/interpreter0. Eight source exceptions exactly reproduce frozen C6 diagnostics/status. Performance-only movement is not runtime failure or a performance acceptance claim.

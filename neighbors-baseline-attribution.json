@@ -1,0 +1,143 @@
+{
+  "producer": {
+    "revision": "2fc408782574caca80f6fa48deee61c767f1616e",
+    "executable": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+    "sha256": "fcdd021bc488acadbf96f2defe73abe77675cc9056078a87ab9c8098a95d5a59",
+    "profile": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+      "sha256": "fcdd021bc488acadbf96f2defe73abe77675cc9056078a87ab9c8098a95d5a59",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "command": [
+      "cargo",
+      "build",
+      "--locked",
+      "-p",
+      "omega",
+      "--bin",
+      "omega",
+      "--message-format=json"
+    ],
+    "seconds": 214.803997875,
+    "compiler_inputs_dirty": false,
+    "inputs": "100644 blob 15189e48ff99e162ec8fcda46c1fb927fd647834\tCargo.lock\n100644 blob 2e3a2bcd27f2e7fdda48c885f2c48d6b6803e40a\tCargo.toml\n040000 tree b1991e23856bfcdcc7128476f8ec325d3c5b18ff\tomega-rust\n100644 blob 34677fc928123970d13e8b81641724e2a9e6f929\trust-toolchain.toml\n040000 tree da4874962247958f1a949e1dd4d13bd8451dbe87\tsource/library\n",
+    "scope": [
+      "omega-rust",
+      "source/library",
+      "Cargo.toml",
+      "Cargo.lock",
+      "rust-toolchain.toml",
+      ".cargo"
+    ]
+  },
+  "library_identity": "da4874962247958f1a949e1dd4d13bd8451dbe87",
+  "results": [
+    {
+      "fixture": "fail/core/scoped_integer_call_guarantee_requires_published_equality",
+      "source_sha256": "72c2a246b9da0462e1311ccf18863181b6e7b87ca66c3eb992b2c93c8e0b30b7",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "--check",
+        "tests/omega/fail/core/scoped_integer_call_guarantee_requires_published_equality/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "compiled 18 source file(s) from tests/omega/fail/core/scoped_integer_call_guarantee_requires_published_equality/main.omg; wrote_output=false\n",
+      "stderr": "",
+      "seconds": 1.3163959159999998
+    },
+    {
+      "fixture": "fail/proofs/declaration_call_future_requires",
+      "source_sha256": "21ae79691705a0392cd612c87e10b1d557a5d2992f3f1dd353be1d0e44a408bc",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "--check",
+        "tests/omega/fail/proofs/declaration_call_future_requires/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "error: cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact\nerror: cannot prove requires contract for specification call `guarded` in data `InvalidData` default-domain predicate: establish its selected precondition in an independently formed prior requires fact\nerror: cannot prove requires contract for specification call `guarded` in data `InvalidCase` default-domain predicate: establish its selected precondition in an independently formed prior requires fact\nerror: cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: establish its selected precondition in an independently formed prior requires fact\n",
+      "seconds": 0.5475688749999998
+    },
+    {
+      "fixture": "fail/proofs/declaration_call_requires",
+      "source_sha256": "47d2b6676511651ea0fd7b9ae152993093ed0b2a917e430595054a7d3f82625f",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "--check",
+        "tests/omega/fail/proofs/declaration_call_requires/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "error: cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact\nerror: cannot prove requires contract for specification call `guarded` in data `InvalidCase` default-domain predicate: establish its selected precondition in an independently formed prior requires fact\nerror: cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: establish its selected precondition in an independently formed prior requires fact\nerror: cannot prove requires contract for specification call `guarded` in data `SiblingCases` default-domain predicate: establish its selected precondition in an independently formed prior requires fact\nerror: cannot prove requires contract for specification call `guarded` in data `SiblingCases` case `Unestablished` predicate: establish its selected precondition in an independently formed prior requires fact\n",
+      "seconds": 0.7969445839999998
+    },
+    {
+      "fixture": "pass/proofs/declaration_call_requires",
+      "source_sha256": "99dad9ee026f1039fcc4283d1d97230c38bf91f4bd7db1ac6fb6c866d6909dbd",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "--check",
+        "tests/omega/pass/proofs/declaration_call_requires/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/tests/omega/pass/proofs/declaration_call_requires/main.omg:8:30: implicit `self` is retired; name the explicit parameter or domain subject\n",
+      "seconds": 0.03554624999999989
+    },
+    {
+      "fixture": "pass/proofs/selected_specification_requires_composition",
+      "source_sha256": "fa140046aad0a6e218d62574621af964838bb0c035b9df530ff8c454d6ff9d65",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "--check",
+        "tests/omega/pass/proofs/selected_specification_requires_composition/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "error: specification call `Right` is not denotational: the selected machine is not unconditionally terminating\nerror: specification call `Left` is not denotational: the selected machine is not unconditionally terminating\nerror: specification call `Second` is not denotational: the selected machine is not unconditionally terminating\nerror: specification call `First` is not denotational: the selected machine is not unconditionally terminating\n",
+      "seconds": 1.109976375
+    },
+    {
+      "fixture": "pass/proofs/selected_specification_requires_exact",
+      "source_sha256": "52a6a228bbca1e11375ab8b6a73469967b5f7cb8147a36a9f811885bbb9879bf",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "--check",
+        "tests/omega/pass/proofs/selected_specification_requires_exact/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "error: specification call `Modulus` is not denotational: the selected machine is not unconditionally terminating\nerror: specification call `Modulus` is not denotational: the selected machine is not unconditionally terminating\n",
+      "seconds": 1.0682905420000002
+    },
+    {
+      "fixture": "pass/proofs/selected_specification_requires_renamed",
+      "source_sha256": "d241ab32d3d23c3e980668788f32350e8e50eea9c74414ab46c643698b0fba21",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "--check",
+        "tests/omega/pass/proofs/selected_specification_requires_renamed/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "error: specification call `Choice` is not denotational: the selected machine is not unconditionally terminating\nerror: specification call `Modulus` is not denotational: the selected machine is not unconditionally terminating\n",
+      "seconds": 1.0650457079999995
+    },
+    {
+      "fixture": "pass/proofs/selected_specification_requires_state",
+      "source_sha256": "fbb332ea5ded1b0856547d946d36b87a9e464537a48c891aa679833ddbe8749f",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "--check",
+        "tests/omega/pass/proofs/selected_specification_requires_state/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "error: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/tests/omega/pass/proofs/selected_specification_requires_state/main.omg:11:5: expected transition subject expression\n",
+      "seconds": 0.037575166999999965
+    }
+  ]
+}

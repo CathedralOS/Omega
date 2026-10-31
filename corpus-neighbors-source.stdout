@@ -1,0 +1,17 @@
+corpus_gate: tests/omega/corpus_outcomes.txt carries 1 of 21865 rows asserting an expected/unexpected outcome with no stored diagnostic line — their outcome is an observation, their reason is unsupported, and LOST cannot see them because the key is present. Reason-level verdicts drawn from them are unsupported; --record refuses to write new rows of that shape
+~ fail/proofs/declaration_call_future_requires: diagnostics moved
+    - cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact | cannot prove requires contract for specification call `guarded` in data `InvalidData` default-domain predicate: e
+    + cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact | cannot prove requires contract for specification call `guarded` in data `InvalidData` default-domain predicate: e
+~ fail/proofs/declaration_call_requires: diagnostics moved
+    - cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact | cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: esta
+    + cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact | cannot prove requires contract for specification call `guarded` in data `InvalidCase` default-domain predicate: e
+~ pass/core/scoped_integer_call_guarantees_composed_exit: 10178ms -> 20581ms (>=2x slowdown)
+~ fail/core/scoped_integer_call_abstract_trait_operator_requires_formation: 5829ms -> 16711ms (>=2x slowdown)
+corpus_gate: perf context — this run started on a busy machine (pre-run load 5.37 on 10 cpus); fixtures only look slower — treat perf_slower moves as noise
+corpus_gate: 2 structural move(s), 2 perf move(s) — 93 fixtures ({'checked': 35, 'rejected': 58}), 0 rejected without their expected fragment, 1 fail fixtures did not reject; verdicts {'perf_slower': 2, 'moved': 2}
+corpus_gate: of those — 2 diagnostics or facts moved
+corpus_gate: golden provenance: 93 rows stamped, 0 legacy (unstamped), 2 revision distance(s) unavailable, oldest stamped row 83 commits behind HEAD (@4518281b90b2)
+corpus_gate: measured at jobs=runner default, golden jobs=runner default
+corpus_gate: fail/core/scoped_integer_call_guarantee_requires_published_equality did not reject at all
+corpus_gate: 1113 pass/run row(s) pinned without a success and 78 fail row(s) pinned as a success (947 carry regressed-from)
+corpus_gate:   list them with --list-pinned-regressions

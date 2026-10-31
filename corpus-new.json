@@ -1,0 +1,204 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "f482ff56d451ed09a00f4d8a4288a79d5070368e",
+  "dirty": true,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 6759
+  },
+  "subset": true,
+  "filter": "nested_machine_joint_rank_declared_call_",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 11,
+    "by_status": {
+      "built": 11
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3026,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_composition_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5524,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5076,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5437,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3123,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4596,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3625,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3721,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4706,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_probe_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4157,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2129,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    }
+  ],
+  "fixtures": []
+}

@@ -1,0 +1,191 @@
+{
+  "context": {
+    "host": "macOS arm64",
+    "target": "macos_arm64",
+    "toolchain": "nightly-2026-09-04",
+    "original_base": "2feafe36a0b7de29a61055e003996dd7574ea8c1",
+    "published_prerequisite": "6966f21a71342fa6725fb12763e3a7250b8761e7"
+  },
+  "semantic_contracts": [
+    {
+      "contract": "wiki/spec/proofs/contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Admit a call term only after its complete actuals and Requires form; import independent public Ensures afterward, retaining value identity and congruence.",
+      "passages": [
+        "A machine's parameters bind subjects, `requires` supplies assumptions, and\n`ensures` states conclusions its body must justify. Before importing a callee's\nconclusions, a caller establishes the assumptions under the exact argument\nsubstitution. Naming a condition does not prove it; failed proof search does\nnot prove its negation.\n\nThe same [call-precondition rule](../language/machines.md#call-preconditions)\nalso governs forming a mathematical result term, even if none of the callee's\nconclusions is used. Proof-to-proof calls have no exemption. Named calls and\noperator syntax retain the same selected contract except for contextual data\nidentity below; erasure, normalization, or knowledge that the underlying body\nis total cannot remove a selected call's `requires`."
+      ]
+    },
+    {
+      "contract": "wiki/spec/language/termination.md",
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Ensures is partial correctness; operational/termination request admission must independently establish a pure, crash-free terminating value closure for each measure call.",
+      "passages": [
+        "Termination is a positive eventual-terminal-outcome guarantee under authored\nrequirements and pinned callee/provider progress premises. It does not promise\na particular result, fairness, wakeup, deadlines, no suspension, or no blocking.\n`ensures` is partial correctness: it constrains a reached return edge but does\nnot prove that edge is reached. [Effects](effects.md) independently constrains\npossible suspension, blocking, and crashes.\n\nPermitted endpoints include normal return, a covered crash, and the canonical\n[process-exit transfer](process_exit.md). The promise authorizes none of them;\ncrash contracts and service reach/capability requirements remain independent.\nA machine that conditionally exits and otherwise returns can satisfy\n`terminates` when every admitted path has the required progress. An exit leaf\nneeds no further cycle decrease, but its operands and preceding calls still\nrequire progress. Excluding crashes and all external-terminal services together\nwith termination establishes normal return under the stated premises."
+      ]
+    },
+    {
+      "contract": "wiki/spec/language/state_contracts.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees",
+        "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi",
+        "omega-rust/psi/compilation/representations/checked-trees"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Capture exact argument snapshots and callee contract identities in the declaration application; compose ordinary executable calls without impersonating statement custody.",
+      "passages": [
+        "Machine `requires` applies at every invocation, including terminal and recursive\ncalls. Every arrival establishes the target's requirements and declared domains\nunder actual argument substitution. Nesting does not assume the parent's entry\nrequirements again, import its return guarantees, or supply facts invalidated\nby mutation. Live caller facts can discharge a nested helper's requirements;\nbody inference must justify any inferred private requirements on every arrival,\nnot grant them from lexical ancestry. Every invocation retains both sides of\nits own contract. A recursive contract is not its own proof; induction follows\nthe well-founded obligations in [termination](termination.md).\n\nArrival substitution is simultaneous and identity-based. Scalar arguments retain\ntheir evaluation snapshots; facts about referenced storage must survive writes\nfrom later arguments. A same-named formal cannot alias an unrelated caller value.\nEvery reachable predecessor participates in a join. Unknown input cannot be\nomitted to preserve a convenient invariant. A minimum collection length is not\nan exact extent, and declaration initializers are not recurring loop invariants."
+      ]
+    },
+    {
+      "contract": "wiki/spec/language/termination.md",
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi"
+      ],
+      "classification": "missing_implementation",
+      "reason": "Ordinary calls in measure bodies execute through the shared scalar graph, preserving the admitted joint-cycle rank and guard against premature SSA rank publication.",
+      "passages": [
+        "Terminating recursive machines use one joint ranking for the entire strongly\nconnected call component, whether declarations are nested or top-level and\nwhether an edge is an ordinary call or terminal transfer. Edges may preserve\nrank only if every complete cycle contains strict descent. A DFS-selected\nsubset of cycles is insufficient. There is no separate source-state ranking\nrule; lexical containment is not a recursion or induction boundary.\nThe exact source spelling for differently shaped mutual participants remains\nundetermined; the joint-cycle semantic rule is settled.\n\nOne component cites its relation and well-foundedness evidence once, with a\ncomparison proof for every internal edge and a global every-cycle descent check.\nLocal decreases cannot prove well-foundedness. An admitted custom ranking theory\nmakes dependent recursive proofs admission-dependent. Calls outside the component\nuse ordinary contract application. [Terminal control](../terminal-psi/control_flow.md)\ndefines reconstruction and grouped certificates."
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "source-checkpoint",
+      "kind": "tests",
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "6966f21a71342fa6725fb12763e3a7250b8761e7",
+        "HEAD"
+      ],
+      "inputs": [
+        "omega-rust",
+        "source/library",
+        "samples/cli/facts/nested_machine_invocation/joint_rank",
+        "tests/omega",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ],
+      "artifacts": [],
+      "closure_reason": "Conservative compiler/library/Cargo source closure and all authored fixtures for this repair; runtime checks added after integrated producers are frozen.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 120
+    },
+    {
+      "id": "rank-call-row",
+      "kind": "native",
+      "command": [
+        "python3",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/validate-row.py"
+      ],
+      "inputs": [
+        "omega-rust",
+        "source/library",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "samples/cli/facts/nested_machine_invocation/joint_rank"
+      ],
+      "artifacts": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-producer/omega",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-producer/producer.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/validate-row.py",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/integrated-cli-build.jsonl",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/integrated-cli-build.stderr"
+      ],
+      "producer": {
+        "revision": "6ed8c4bb9c5421d28c8caa07d61a2776439a1c40",
+        "inputs": [
+          "omega-rust",
+          "source/library",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml"
+        ],
+        "executables": [
+          "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-producer/omega"
+        ]
+      },
+      "closure_reason": "Conservative Rust compiler, bundled library, Cargo/toolchain and complete fact source closure. Validator checks actual native and Terminal exits, exact negative diagnostics, and all raw engine observations; metadata-only f482 does not change producer inputs.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    },
+    {
+      "id": "retained-corpus-observations",
+      "kind": "tests",
+      "command": [
+        "python3",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/validate-corpus-records.py"
+      ],
+      "inputs": [
+        "omega-rust",
+        "source/library",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/omega",
+        "tools/corpus_gate.py",
+        "tools/corpus_records.py"
+      ],
+      "artifacts": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/validate-corpus-records.py",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-producer/producer.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-producer/corpus-producer.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-producer/corpus_runner",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/omega",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/schedule/build/header-contracts/candidate6-producer/cli-producer.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-new-source.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-new-source.stdout",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-new-source.stderr",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-new.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-new.stdout",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-new.stderr",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-neighbors-source.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-neighbors-source.stdout",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-neighbors-source.stderr",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-neighbors-both.json",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-neighbors-both.stdout",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/corpus-neighbors-both.stderr",
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/neighbors-baseline-attribution.json"
+      ],
+      "closure_reason": "Validate preserved raw corpus observations against authored source/oracles and exact frozen C6 diagnostic/status comparisons. This authenticates historical captures, does not relabel producer revisions or repeat execution, and excludes noisy timing movement from behavior claims.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 120
+    },
+    {
+      "id": "independent-review",
+      "kind": "review",
+      "command": [
+        "python3",
+        "-c",
+        "import json,subprocess; p=json.load(open('/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-review.json')); assert p[\"accepted\"] is True and p[\"candidate\"]==subprocess.check_output([\"git\",\"rev-parse\",\"HEAD\"],text=True).strip() and p[\"base\"]==\"6966f21a71342fa6725fb12763e3a7250b8761e7\" and not p[\"blockers\"]; print(\"independent exact-candidate review accepted\",p[\"candidate\"])"
+      ],
+      "inputs": [
+        "omega-rust",
+        "source/library",
+        "samples/cli/facts/nested_machine_invocation/joint_rank",
+        "tests/omega",
+        "TASKS.md"
+      ],
+      "artifacts": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-review.json"
+      ],
+      "closure_reason": "Required independent review covers exact submitted source, accepted canonical premises, raw current/historical execution, custody and source-oracle counterfactuals. This check authenticates the returned exact-candidate decision; the review itself supplies judgment.",
+      "final": true,
+      "expected_exit": 0,
+      "timeout_seconds": 120
+    }
+  ]
+}

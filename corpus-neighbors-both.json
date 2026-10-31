@@ -1,0 +1,574 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "6f16e1d62ac101765338d18cba952edcba84a89b",
+  "dirty": false,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 6759
+  },
+  "subset": true,
+  "filter": "nested_machine_joint_rank_authored_indexed_computed_,nested_machine_joint_rank_computed_,scoped_integer_call_guarantees_composed_exit",
+  "shard": null,
+  "verdict": "moved",
+  "exit_code": 1,
+  "counts": {
+    "fixtures": 31,
+    "by_status": {
+      "built": 31
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {
+      "perf_slower": 1
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 31,
+    "legacy": 0,
+    "unknown_revisions": 1,
+    "oldest": {
+      "revision": "4518281b90b2",
+      "commits_behind": 83
+    }
+  },
+  "perf_context": {
+    "golden": {
+      "cpus": 10,
+      "jobs": "2",
+      "load1_end": 8.75,
+      "load1_start": 7.27,
+      "machine": "arm64",
+      "platform": "darwin",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": null,
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 4.78,
+      "load1_end": 6.56
+    },
+    "warnings": [
+      "the golden was recorded on a busy machine (pre-run load 7.27 on 10 cpus); fixtures only look faster now \u2014 treat perf_faster moves as noise"
+    ]
+  },
+  "observations": [
+    {
+      "fixture": "pass/core/scoped_integer_call_guarantees_composed_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 15878,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 8249,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 8415,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4708,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3666,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5807,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5889,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4103,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5100,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 6729,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_affine_view_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3145,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3204,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4833,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3236,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4493,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3564,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 7995,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2824,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3096,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_measure_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3135,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_rank_range_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3613,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_scalar_helper_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3816,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4842,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4904,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3207,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 4246,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 5361,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3436,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2687,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3194,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_computed_square_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3590,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_const_name_exit",
+      "verdict": "perf_slower",
+      "reasons": [
+        "2003ms -> 8415ms (>=2x slowdown)"
+      ],
+      "before": {
+        "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_const_name_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 2003,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": "be61262f3842"
+      },
+      "after": {
+        "fixture": "pass/facts/nested_machine_joint_rank_authored_indexed_computed_const_name_exit",
+        "tier": "pass",
+        "status": "built",
+        "millis": 8415,
+        "expected_satisfied": null,
+        "facts": {
+          "exit": "0",
+          "interpreter-exit": "0",
+          "interpreter": "agrees"
+        },
+        "diagnostics": [],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

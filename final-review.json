@@ -1,0 +1,187 @@
+{
+  "schema": "omega-independent-semantic-review-v1",
+  "candidate": "6f16e1d62ac101765338d18cba952edcba84a89b",
+  "base": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+  "reviewer": "/root/saved_reference_final_review",
+  "accepted": true,
+  "blockers": [],
+  "scope": "PR1028 scalar call-computed invocation ranks under the still-open NESTED-MACHINE-UNIFICATION parent, following the published header delimiter prerequisite.",
+  "review_method": "Independent read-only source/semantic review against6966, followed by raw integrated evidence and attribution review. No compiler executions or builds performed by the reviewer; only this ignored review artifact written.",
+  "rationale": [
+    "Call formation recursively forms complete operands and independently proves the selected formal carriers and Requires before publishing result carrier bounds or importing public Ensures. The existing contract dependency checks prevent self-establishment. Global denotational admission independently requires a pure, observation-free, reach-free, crash-free, unconditionally terminating selected closure; Ensures alone supplies none of these obligations.",
+    "Call atoms preserve supplying owner, expression, selected target and full operand denotations. Later independently installed equalities may canonicalize those operands; congruence introduces only equality of the same admitted application. The earlier direct cyclic alias insertion is removed: existing guarded substitution and retained residual equations preserve occurs-dependent or contradictory constraints. Ordered opaque dependency transport retains nested call inputs rather than reducing them to coincident result intervals.",
+    "Integer application decisions remain transactional and scoped to the exact measure/body, runtime machine/body/state and complete captured input roster. Declaration call receipts are settled against this checking invocation\u2019s admitted specification requests and completed public contract fingerprint. Captured indexed formal values feed the ordinary scalar graph; declaration recipes do not impersonate statement occurrences or re-read changed input recipes.",
+    "Checked and lowered source custody explicitly distinguish statement calls from declaration applications. Structural operands, loans, erased arguments, dynamic/boundary calls, provider/proof/content and policy consumers retain statement-only authority where required. Declaration calls validate body, roster, expression, selected callee and contract membership. Each fresh retained observation reserves an independent invocation scope, separating entry from later arrival executions.",
+    "The existing scalar scheduler now accepts direct-call operations in an independently preflighted straight-line Jump chain. It retains cycle checks, exact telescopes, short-circuit/structural/cleanup exclusions and ordinary emission. Statement calls retain suspension frontiers. The unchanged entry rank dominance guard rejects a split before a cyclic rank can use a later SSA value. There is no separate measure interpreter, private-body proof unfolding or new Terminal instruction.",
+    "All nine positive/twin source pairs preserve the same fact, bound and operation; each twin changes only selected increment one to zero. Four hosted bindings are authored. The runtime oracle tests active4-to7 and complete7-to7 inputs, both selectors, independent counters3-to6 then unchanged, unchanged neighboring array element and canary641. Wrong active branch, missing/repeated increment or wrong slot violates main and traps. The composition probe rank(identity(value)+0) challenges exact congruence without using a caller equality guard.",
+    "Current final-row raw observations contain11successful BOTH cases and13intended rejections. Reviewer verified all source hashes, native/interpreter exit text and required reject fragments:9preserving-cycle failures,2rank-range formation failures,1crash closure and1nontermination closure. The new corpus capture contains11checked positives and13expected rejections; its11BOTH results all report native0/interpreter0/agrees.",
+    "The nearby corpus raw records contain31BOTH native0/interpreter0/agrees observations and93source observations (35checked,58rejected). Eight explicit source exceptions reproduce actual historical C6 commands with equal source hashes, normalized diagnostics and status. The two diagnostic drifts and six known bad outcomes remain attributed, not rewritten into green outcomes. Performance-only movements and raw gate exit1 remain visible; no performance improvement or full93-green claim is made.",
+    "The C6 attribution producer is historical2fc408, not an exact6966 producer: its compiler tree differs after intervening changes. Consumer applicability was checked independently: parser/typing/checking contract consumers and library inputs relevant to the eight proof/primitive observations are unchanged; intervening stage04 changes only invalidate permission caches and select entry linear claims, outside those fixtures. Downstream mechanical changes do not alter these source diagnostics. This establishes bounded historical attribution rather than a relabeled published-base sweep.",
+    "Optimized final CLI/corpus binaries match their producer receipts. Their actual source is6ed8; compiler/library/Cargo/toolchain closure matches submitted6f16. Subsequent changes only classify four already-invalid samples and add scoped actual goldens. Immutable row, retained-corpus and source-checkpoint receipts plus stdout/stderr digests match; all exit0 with no invalidations. Latest exact-candidate assessment reuses3checks and invalidates0. Canonical focused passages match the published base."
+  ],
+  "resolved_findings": [
+    "The prior call congruence occurs-cycle concern is resolved by guarded harvesting plus residual equality, replacing direct substitutions.insert aliases."
+  ],
+  "execution_identity": {
+    "actual_producer_revision": "6ed8c4bb9c5421d28c8caa07d61a2776439a1c40",
+    "CLI_sha256": "9069059b9335b01d1550137f4d0a15893f84d83bf7dcb2307a13ec17ce47c730",
+    "corpus_sha256": "5a509bf9b35602af9f33c50811c790e27596548608b4ef1694dc7a8bbce3ccd9",
+    "profile": "optimized1",
+    "actual_recording_workspace": "new corpus recordings at f482ff56d451ed09a00f4d8a4288a79d5070368e with dirty recording goldens; neighboring corpus observations and accepted qualification capture at exact6f16",
+    "historical_baseline_producer": "2fc408782574caca80f6fa48deee61c767f1616e, CLI fcdd021bc488acadbf96f2defe73abe77675cc9056078a87ab9c8098a95d5a59",
+    "applicability": "Actual producer/recording identities remain explicit. No final-source rebuild or historical runtime relabeling is claimed."
+  },
+  "limitations": [
+    "Actual runtime execution is macos_arm64 only. Four hosted bindings do not establish native execution on the other hosts.",
+    "Five selected/declaration specification positive fixtures remain rejected, and fail/core/scoped_integer_call_guarantee_requires_published_equality remains wrongly accepted as it was by historical C6. Two additional diagnostic drifts reproduce that baseline. These remain unresolved, not acceptance gains.",
+    "Nearby BOTH gate exits1 solely for one perf_slower movement; source neighbor gate exits1 for retained diagnostic/performance movements. Busy-context observations do not establish a timing regression or improvement, and raw nonzero statuses are retained.",
+    "This is focused source-to-native evidence for scalar call-computed rank observations. Structured/cross-carrier/nonscalar measures, composed WCSU, complete migration, the Omega-written producer and the full parent acceptance remain open.",
+    "No whole-corpus or whole-workspace execution was performed. Runtime counterfactuals were audited against authored oracles, not by executing mutated binaries."
+  ],
+  "evidence": [
+    {
+      "path": "build/call-rank/integrated-review-context.json",
+      "sha256": "fcfe7ed47c178133d18f2bce10da4d5d4510413ff078b751ccc8c63a00f0ce45"
+    },
+    {
+      "path": "build/call-rank/final-review-context.json",
+      "sha256": "3b6cd684bc9c2cfa1d4ca6b4da92944e298ab32bbcf75df6a1d8f53466d17fbb"
+    },
+    {
+      "path": "build/call-rank/baseline-c6.json",
+      "sha256": "22550aa3bacd0e14801b77a590f7abb985b10c02d9b09264dd4d3ead0211fb74"
+    },
+    {
+      "path": "build/call-rank/baseline-row.json",
+      "sha256": "ff366d7ee6c36b9762bd753b262364a2d7206d9cb703b2889fa469e45e3d730e"
+    },
+    {
+      "path": "build/call-rank/final-producer/producer.json",
+      "sha256": "c72c6f8d54eee6ad4de4d0a5e636b62d04ae7d6c1756ce8c4d0d7aef10da67eb"
+    },
+    {
+      "path": "build/call-rank/final-producer/corpus-producer.json",
+      "sha256": "64637cf0fdac203a281efaaaace695757340b2c3d974d0aabdc1f1a8d721229d"
+    },
+    {
+      "path": "build/call-rank/final-row.json",
+      "sha256": "a172329f03141f454f914550834f1748b9336e51dc309797a87f4bd3da020b07"
+    },
+    {
+      "path": "build/call-rank/corpus-new-source.json",
+      "sha256": "3ff952a929213330b6264db7be1e31edb6b3d4d4d536985cfd2277ca91458c33"
+    },
+    {
+      "path": "build/call-rank/corpus-new-source.stdout",
+      "sha256": "b090b44229a118faf69c72a8731b7aeb4b0bc5e29e4419cf5d09866c02d2b2b2"
+    },
+    {
+      "path": "build/call-rank/corpus-new-source.stderr",
+      "sha256": "fe39f5ce0abe04715ca061c064dac5fae16e2da8aa6708b20f400bf2abeb215f"
+    },
+    {
+      "path": "build/call-rank/corpus-new.json",
+      "sha256": "30a0aacc09e9713b4d79410eb689df5ab265ca58f32c61110dc89753eb13f86a"
+    },
+    {
+      "path": "build/call-rank/corpus-new.stdout",
+      "sha256": "2bb6709036c9745798796080daf0702c310fd58498c161c254df5f588d3448d3"
+    },
+    {
+      "path": "build/call-rank/corpus-new.stderr",
+      "sha256": "56b3807e30abd9e2667a95db3876092df7016def0dc8a35e333216d88f8852d4"
+    },
+    {
+      "path": "build/call-rank/corpus-neighbors-source.json",
+      "sha256": "95a65bd317a5b9f4779f012cb5c61140cb6ce79022106e0b875acb58eff2bf46"
+    },
+    {
+      "path": "build/call-rank/corpus-neighbors-source.stdout",
+      "sha256": "790d510abc6ee77cae078d0de694535991bc3e32648acc009c30c656f375a067"
+    },
+    {
+      "path": "build/call-rank/corpus-neighbors-source.stderr",
+      "sha256": "2494196ae8a51cd6f00206a9b88754d68419b2bb028b2d20ad5371b54726eccd"
+    },
+    {
+      "path": "build/call-rank/corpus-neighbors-both.json",
+      "sha256": "60139e9f0e5c0ea4bf47b3f0a39f89e040dda045a2173e51b707971adab1cac6"
+    },
+    {
+      "path": "build/call-rank/corpus-neighbors-both.stdout",
+      "sha256": "fdd2a0bd4cb3e5ce429693ef677d28fba2d1eb9249431c7ad204c00991b05330"
+    },
+    {
+      "path": "build/call-rank/corpus-neighbors-both.stderr",
+      "sha256": "f7b0d9472425d36e739e5edd3c000fc122965c27d527dc047e4f723713621e56"
+    },
+    {
+      "path": "build/call-rank/neighbors-baseline-attribution.json",
+      "sha256": "a27daef7a5fdd843fba261e1c40eebd3d69dec267e6a2489bf93e1adffd7864d"
+    },
+    {
+      "path": "build/call-rank/validate-corpus-records.py",
+      "sha256": "583200421075e8d28039beb1a7526470596e111aa4a15637bee44ba32b8f62fd"
+    },
+    {
+      "path": "build/call-rank/final-build.stderr",
+      "sha256": "e089d8fb18bd8bfa99014a97a774dfdbcb01f6e07baf0ed0a272a911784d853d"
+    },
+    {
+      "path": "build/call-rank/integrated-corpus-build.stderr",
+      "sha256": "c5c3d361668af0b2571cb9e17bb547bee0d37f85abdf74b63fc055fb395693ac"
+    },
+    {
+      "path": "build/call-rank/origin-check4.stderr",
+      "sha256": "a64408cfa52eb02727cc84dd9738c4391de39ddfa5a9547d2d4f1a20f78af577"
+    },
+    {
+      "path": "build/call-rank/call-refresh-check.stderr",
+      "sha256": "7ad5049c65ee8651688385b09bf70adb3aee2196b0cd49dab42480ae6b0d392d"
+    },
+    {
+      "path": "build/call-rank/bound-graph-check1.stderr",
+      "sha256": "9f55574bc679829fe9d451ef49526a9cb4729c8c72d479342d06bba06761fe1f"
+    },
+    {
+      "path": "build/call-rank/qualification.records/beb2fb512e123d072489080220dcb1454d31f79a4a99c1ab4bd51202a7043e38.assessment.json",
+      "sha256": "beb2fb512e123d072489080220dcb1454d31f79a4a99c1ab4bd51202a7043e38"
+    },
+    {
+      "path": "build/call-rank/qualification.records/e83212e4772f4dda8a92a5bdf8012825.json",
+      "sha256": "59e093e7b0d090363adccd9c947d61642dc631dd81767df9e24390033a74ee61"
+    },
+    {
+      "path": "build/call-rank/qualification.records/e83212e4772f4dda8a92a5bdf8012825.stdout",
+      "sha256": "b61f45e634d73dbb416bad54e2be6d3fece3ee11524a6df3f77f040b86029140"
+    },
+    {
+      "path": "build/call-rank/qualification.records/e83212e4772f4dda8a92a5bdf8012825.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build/call-rank/qualification.records/7132fffca7dd4330a8892d555670215e.json",
+      "sha256": "755d2a2dfcd89adc4332b63d9dba16b620b201244e081ee4df9ae91b77062030"
+    },
+    {
+      "path": "build/call-rank/qualification.records/7132fffca7dd4330a8892d555670215e.stdout",
+      "sha256": "9772d2c9dc0a0f65d8861d8ebe0e064b5d46b2a192c7fda3c0bdf5e04237d012"
+    },
+    {
+      "path": "build/call-rank/qualification.records/7132fffca7dd4330a8892d555670215e.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build/call-rank/qualification.records/a56defcd284b41ada68b5bf621c8acab.json",
+      "sha256": "47ad0270b9282fb7ad6c90028e6403a1acf154f6444e99f4aa28b51c14a86c51"
+    },
+    {
+      "path": "build/call-rank/qualification.records/a56defcd284b41ada68b5bf621c8acab.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build/call-rank/qualification.records/a56defcd284b41ada68b5bf621c8acab.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

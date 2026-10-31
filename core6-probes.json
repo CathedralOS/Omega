@@ -1,0 +1,46 @@
+{
+  "producer": {
+    "base": "3f42f4745a73e2698ac030712ec62323d3ca5c66",
+    "dirty": true,
+    "diff_sha256": "e3b2cddcd19d1c4fcb3995465e7e84ac6f5f2b2dc25afec352fc5814e651bc0f",
+    "untracked": {
+      "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls/source.rs": "51825dd6e4d46efe40211408740cf71cb4b2f9b17c601340a3df91d486d47034"
+    },
+    "executable": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+    "sha256": "0025d9f61b39554f7869098cf265fda5a26ae6ef9226213515a99af2ae6045c5",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "results": [
+    {
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/probe/main.omg",
+      "source_sha256": "3903f004730c275a6243b1350163187017c10dade620baeea4e8f82892eb7cc0",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/probe/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n",
+      "seconds": 1.740116209
+    },
+    {
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/probe/composition/main.omg",
+      "source_sha256": "86411933166599fe2c715407e07f32709acabca2dfcc5a9c174f9a3b80b876d6",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/probe/composition/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n",
+      "seconds": 1.6599785830000005
+    }
+  ]
+}

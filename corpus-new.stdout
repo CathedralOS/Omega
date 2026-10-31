@@ -1,0 +1,2 @@
+corpus_gate: recorded 11 fixture outcomes to /Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/tests/omega/corpus_both_macos_arm64.txt; 0 unimplemented rows remain, 0 rows record a lost success
+corpus_gate: measured at jobs=runner default, golden jobs=2

@@ -1,0 +1,354 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "f482ff56d451ed09a00f4d8a4288a79d5070368e",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 21865
+  },
+  "subset": true,
+  "filter": "nested_machine_joint_rank_declared_call_",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 24,
+    "by_status": {
+      "checked": 11,
+      "rejected": 13
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4685,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_composition_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3631,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3148,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3723,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3763,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5879,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3132,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7523,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4834,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_probe_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4278,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "pass/facts/nested_machine_joint_rank_declared_call_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6065,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_declared_call_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2046,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_declared_call_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2234,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_declared_call_crash_ceiling_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3644,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "specification call `rank` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route"
+      ],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_declared_call_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4756,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_declared_call_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4196,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_declared_call_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2427,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_declared_call_nonterminating_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2572,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "specification call `rank` is not denotational: the selected machine is not unconditionally terminating"
+      ],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_declared_call_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3312,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_declared_call_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3444,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_declared_call_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2635,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_declared_call_precondition_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1736,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view",
+        "machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_declared_call_self_establishment_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1922,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view",
+        "machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    },
+    {
+      "fixture": "fail/facts/nested_machine_joint_rank_declared_call_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1899,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle"
+      ],
+      "regressed_from": null,
+      "recorded_at": "f482ff56d451"
+    }
+  ],
+  "fixtures": []
+}

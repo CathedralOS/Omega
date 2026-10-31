@@ -1,0 +1,26 @@
+{
+  "revision": "6ed8c4bb9c5421d28c8caa07d61a2776439a1c40",
+  "applicable_candidate": "f482ff56d451ed09a00f4d8a4288a79d5070368e",
+  "executable": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-producer/omega",
+  "sha256": "9069059b9335b01d1550137f4d0a15893f84d83bf7dcb2307a13ec17ce47c730",
+  "profile": {
+    "schema": "omega-compiler-build-profile-v1",
+    "opt_level": "1"
+  },
+  "inputs": {
+    "omega-rust": "05a829452bae7e877499102ce04fe4eacff161dd",
+    "source/library": "da4874962247958f1a949e1dd4d13bd8451dbe87",
+    "Cargo.toml": "2e3a2bcd27f2e7fdda48c885f2c48d6b6803e40a",
+    "Cargo.lock": "15189e48ff99e162ec8fcda46c1fb927fd647834",
+    "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929"
+  },
+  "build_command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "omega",
+    "--message-format=json"
+  ],
+  "build_stderr_sha256": "d2602663d05a5e57196be50308e034409c4ef1b789ca3c9b925e5d20610aa5d0"
+}

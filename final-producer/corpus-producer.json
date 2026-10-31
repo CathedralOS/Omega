@@ -1,0 +1,13 @@
+{
+  "revision": "6ed8c4bb9c5421d28c8caa07d61a2776439a1c40",
+  "applicable_candidate": "f482ff56d451ed09a00f4d8a4288a79d5070368e",
+  "inputs": {
+    "omega-rust": "05a829452bae7e877499102ce04fe4eacff161dd",
+    "source/library": "da4874962247958f1a949e1dd4d13bd8451dbe87",
+    "Cargo.toml": "2e3a2bcd27f2e7fdda48c885f2c48d6b6803e40a",
+    "Cargo.lock": "15189e48ff99e162ec8fcda46c1fb927fd647834",
+    "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929"
+  },
+  "executable": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/final-producer/corpus_runner",
+  "sha256": "5a509bf9b35602af9f33c50811c790e27596548608b4ef1694dc7a8bbce3ccd9"
+}

@@ -1,0 +1,297 @@
+{
+  "producer": {
+    "base": "3f42f4745a73e2698ac030712ec62323d3ca5c66",
+    "dirty": true,
+    "diff_sha256": "e3b2cddcd19d1c4fcb3995465e7e84ac6f5f2b2dc25afec352fc5814e651bc0f",
+    "untracked": {
+      "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls/source.rs": "51825dd6e4d46efe40211408740cf71cb4b2f9b17c601340a3df91d486d47034"
+    },
+    "executable": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+    "sha256": "0025d9f61b39554f7869098cf265fda5a26ae6ef9226213515a99af2ae6045c5",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "results": [
+    {
+      "place": "local",
+      "invalid": false,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/local/computed_measure/call/main.omg",
+      "source_sha256": "3903f004730c275a6243b1350163187017c10dade620baeea4e8f82892eb7cc0",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/local/computed_measure/call/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n",
+      "seconds": 1.7212025
+    },
+    {
+      "place": "local",
+      "invalid": true,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/local/computed_measure/call/invalid/main.omg",
+      "source_sha256": "a47bd8ac417c5541d5f530e7a8561a120367bee2610aa52159849e1729ed454f",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "--check",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/local/computed_measure/call/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 1 diagnostic(s)\n  error: machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.0729867080000002
+    },
+    {
+      "place": "field",
+      "invalid": false,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/field/computed_measure/call/main.omg",
+      "source_sha256": "02d648e40fec71999a24c1c17e334c2b8c52a08e2b81cc3e066c463bf08c7a1a",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/field/computed_measure/call/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n",
+      "seconds": 1.795914959
+    },
+    {
+      "place": "field",
+      "invalid": true,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/field/computed_measure/call/invalid/main.omg",
+      "source_sha256": "4cab314c4657ede58b9bd1878417cbcee3b911dd90969c4a97b9baa3515279f3",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "--check",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/field/computed_measure/call/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 1 diagnostic(s)\n  error: machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.083357458
+    },
+    {
+      "place": "parameter",
+      "invalid": false,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/main.omg",
+      "source_sha256": "61e846db44838273c0828a0efcb50133c27ce8af7b7c1f630ca316a3ab1e03be",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n",
+      "seconds": 1.644338125
+    },
+    {
+      "place": "parameter",
+      "invalid": true,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/invalid/main.omg",
+      "source_sha256": "95d496d0f1d948145ae8122d504bd03e5752fdbe73878d51c931cbae587ea828",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "--check",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/parameter/computed_measure/call/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 1 diagnostic(s)\n  error: machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.0813783330000009
+    },
+    {
+      "place": "call_result",
+      "invalid": false,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/call_result/computed_measure/call/main.omg",
+      "source_sha256": "dc731b32bc316bbb8135fc82056976cdd5bd0630d69dc3dbd3d5fb3c0842f765",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/call_result/computed_measure/call/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n",
+      "seconds": 1.7675646250000003
+    },
+    {
+      "place": "call_result",
+      "invalid": true,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/call_result/computed_measure/call/invalid/main.omg",
+      "source_sha256": "04dc58f26c1e4fb18b86159c77eb02ccdc79179eadfa40f3c8a0a936f54ee861",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "--check",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/call_result/computed_measure/call/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 1 diagnostic(s)\n  error: machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.4511642499999997
+    },
+    {
+      "place": "match_join",
+      "invalid": false,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/match_join/computed_measure/call/main.omg",
+      "source_sha256": "ca197b14ec6ae530e059835088c6d1bc5fbb5f86d8b90ab5d230a2ee3f755895",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/match_join/computed_measure/call/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n",
+      "seconds": 1.6553595000000012
+    },
+    {
+      "place": "match_join",
+      "invalid": true,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/match_join/computed_measure/call/invalid/main.omg",
+      "source_sha256": "f0ac35fffb224d78756b45bdfbb9a01479789ac735f05215eb4e406df56d22fd",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "--check",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/match_join/computed_measure/call/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 1 diagnostic(s)\n  error: machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.179009958
+    },
+    {
+      "place": "const_name",
+      "invalid": false,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/const_name/computed_measure/call/main.omg",
+      "source_sha256": "668d577bcf35e484492ba33799c696557e931a72622f5994589206a2e125bbc6",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/const_name/computed_measure/call/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n",
+      "seconds": 1.7073262499999977
+    },
+    {
+      "place": "const_name",
+      "invalid": true,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/const_name/computed_measure/call/invalid/main.omg",
+      "source_sha256": "a298b2fa07c2fd76c7b38885353ed046b04afe807d70928f8b96e1958bf880ed",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "--check",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/const_name/computed_measure/call/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 1 diagnostic(s)\n  error: machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.092798208999998
+    },
+    {
+      "place": "other_state",
+      "invalid": false,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/other_state/computed_measure/call/main.omg",
+      "source_sha256": "251048e8cddb75207013003a305f578e3daf0becb793f67a04547d45910d8b3d",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/other_state/computed_measure/call/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n",
+      "seconds": 1.6573405
+    },
+    {
+      "place": "other_state",
+      "invalid": true,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/other_state/computed_measure/call/invalid/main.omg",
+      "source_sha256": "2c9699b04847a35c4d5b333317a6387aaa7891715ea16cb220e836df482ef203",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "--check",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/other_state/computed_measure/call/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 1 diagnostic(s)\n  error: machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.0764680830000017
+    },
+    {
+      "place": "other_machine",
+      "invalid": false,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/computed_measure/call/main.omg",
+      "source_sha256": "08e7fad8984a08f944e0d78c9e66ba573f67a34378408efd279c9784dcea1f46",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/computed_measure/call/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n",
+      "seconds": 1.7479263329999988
+    },
+    {
+      "place": "other_machine",
+      "invalid": true,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/computed_measure/call/invalid/main.omg",
+      "source_sha256": "1ed054fa8f48e734306e27fb26c7194e7ab5e46251c4cb3e7377a4fa05b5d9c9",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "--check",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/other_machine/computed_measure/call/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 1 diagnostic(s)\n  error: machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.0788161669999994
+    },
+    {
+      "place": "target_body",
+      "invalid": false,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/target_body/computed_measure/call/main.omg",
+      "source_sha256": "8fc0d2ba38d482ae368667e712d93a15591c7582929d692257e38fbc2fa1282f",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "run",
+        "--both",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/target_body/computed_measure/call/main.omg"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "native exit 0\ninterp exit: 0\n",
+      "seconds": 1.7241422909999997
+    },
+    {
+      "place": "target_body",
+      "invalid": true,
+      "source": "samples/cli/facts/nested_machine_invocation/joint_rank/target_body/computed_measure/call/invalid/main.omg",
+      "source_sha256": "ad2a82faf92a4580ca3c57a337bdc9cf051183dfb0a3b7551dffed683ec9c4a6",
+      "command": [
+        "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/header-base/build/call-rank/core6-producer/omega",
+        "--check",
+        "samples/cli/facts/nested_machine_invocation/joint_rank/target_body/computed_measure/call/invalid/main.omg"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "cannot compile admitted project: checked compilation failed for package `joint_rank_remainder_view` with 1 diagnostic(s)\n  error: machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle\n",
+      "seconds": 1.1134446659999995
+    }
+  ]
+}
