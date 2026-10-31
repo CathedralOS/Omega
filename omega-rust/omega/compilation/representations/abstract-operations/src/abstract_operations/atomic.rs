@@ -51,6 +51,7 @@ use terminal_psi::{
 };
 
 use crate::{AbstractOperation, AbstractResult};
+use scalar_owned_storage::contains_only_scalars;
 
 mod scalar_owned_storage;
 
@@ -225,10 +226,7 @@ pub fn atomic_projections_may_alias<'parameters, 'types>(
                     && match place.kind {
                         StructuralPlaceKind::OperationResult {
                             structural_type, ..
-                        } => scalar_owned_storage::contains_only_scalars(
-                            types.clone(),
-                            structural_type,
-                        ),
+                        } => contains_only_scalars(types.clone(), structural_type),
                         _ => false,
                     }
             })
