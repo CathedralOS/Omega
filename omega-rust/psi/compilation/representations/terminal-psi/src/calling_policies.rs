@@ -13,6 +13,14 @@ use semantic_vocabulary::{
 pub struct CallingSignatureDeclaration {
     pub boundary: BoundaryMachineId,
     pub requirement_identity: TerminalIdentityIndex,
+    /// Unsupported source projections remain deferred until this exact
+    /// declaration is requested. Inventory publication cannot reject an unused
+    /// declaration merely because its native calling surface is unsupported.
+    pub telescope: Result<CallingSignatureTelescope, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallingSignatureTelescope {
     pub parameters: Vec<CallingRuntimeFormal>,
     pub binders: Vec<CallingCallbackBinder>,
     pub direct_callbacks: Vec<CallingDirectCallback>,
@@ -28,6 +36,7 @@ pub struct CallingRuntimeFormal {
 pub struct CallingCallbackBinder {
     pub binder: StaticMachineBinderId,
     pub requirement: CallbackRequirementId,
+    pub requirement_identity: TerminalIdentityIndex,
     pub static_machine_ordinal: u32,
     pub invokes_synchronously: bool,
 }
@@ -37,4 +46,5 @@ pub struct CallingDirectCallback {
     pub identity: NativeParameterId,
     pub native_ordinal: u32,
     pub binder: StaticMachineBinderId,
+    pub requirement: CallbackRequirementId,
 }

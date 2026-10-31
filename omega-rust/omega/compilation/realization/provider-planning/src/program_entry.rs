@@ -259,6 +259,51 @@ struct SelectedEntryDeclaration {
     signature: program_entry_plan::SelectedProgramEntrySignature,
 }
 
+/// The source judgment for an exact target entry, before any calling policy
+/// runs. Retaining it does not imply that physical arrival has been settled.
+/// The source producer can issue this judgment independently of ABI placement;
+/// completing it below consumes the subsequently evaluated calling plans.
+pub struct PreparedCompilerProgramEntry<'source> {
+    services: ServiceCatalog<'source>,
+    declaration: SelectedEntryDeclaration,
+    slot: target::ProgramEntrySlotDeclaration,
+}
+
+impl PreparedCompilerProgramEntry<'_> {
+    pub fn source_signature(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
+        &self.declaration.signature
+    }
+
+    pub fn settle_calling_plans(
+        self,
+        realizations: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
+        package_inputs: Option<&package_compilation::PackageCompilationInputs>,
+    ) -> Result<SelectedCompilerProgramEntry, Vec<Diagnostic>> {
+        let selected = SelectedProgramEntry {
+            machine_name: self.declaration.signature.machine_name(),
+            machine_symbol: self.declaration.machine,
+            slot: self.slot,
+        };
+        let accepted_entry_binding = self
+            .slot
+            .physical_contract_package
+            .map(package_compilation::program_entry_semantic_binding_role)
+            .and_then(|role| {
+                package_inputs.and_then(|inputs| inputs.accepted_semantic_binding(role))
+            });
+        let calling_plans = validate_selected_program_entry_calling_plan(
+            self.services,
+            selected,
+            realizations,
+            accepted_entry_binding,
+        )?;
+        Ok(SelectedCompilerProgramEntry::new(
+            self.declaration,
+            calling_plans,
+        ))
+    }
+}
+
 /// Retain both authored applications: their source/signature commitments are
 /// distinct from the validated ABI plans' own structural commitments.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -444,22 +489,15 @@ fn check_unrequested_program_entry_rows(
     }
 }
 
-/// Resolve and validate the complete realization-owned `ProgramEntry` input.
-/// Diagnostic order is intentional: exact target-slot selection precedes
-/// source-shape validation, which precedes optional physical/semantic calling-
-/// plan validation.
-pub fn select_compiler_program_entry(
-    services: ServiceCatalog<'_>,
+/// Issue the exact selected entry's source contract without evaluating or
+/// consuming a calling policy. Slot selection and source-shape refusals retain
+/// their order; physical/semantic calling validation belongs to settlement.
+pub fn prepare_compiler_program_entry<'source>(
+    services: ServiceCatalog<'source>,
     root_bindings: &[RootBinding],
     selected_profile: Option<target::TargetProfile>,
-    realizations: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
-    package_inputs: Option<&package_compilation::PackageCompilationInputs>,
-) -> Result<Option<SelectedCompilerProgramEntry>, Vec<Diagnostic>> {
-    if services.context().scope != source::DependencyScope::Product {
-        return Err(vec![Diagnostic::error(
-            "program-entry selection requires the Product service catalog",
-        )]);
-    }
+) -> Result<Option<PreparedCompilerProgramEntry<'source>>, Vec<Diagnostic>> {
+    require_product_services(services)?;
     let typed = services.context().typed;
     let selected = selected_program_entry_machine(root_bindings, selected_profile)?;
     check_unrequested_program_entry_rows(typed, root_bindings, selected_profile)?;
@@ -490,26 +528,22 @@ pub fn select_compiler_program_entry(
             })?;
         selected.machine_symbol = member.machine;
     }
-    let source_signature = validate_selected_program_entry_shape(typed, selected)?;
-    // Only an exact selected target activates an entry. Resolve its physical
-    // contract's accepted package role here, never from the host or a caller-
-    // chosen binding for another target. Calling-plan validation still rejoins
-    // the accepted nominal and schema independently.
-    let accepted_entry_binding = selected
-        .slot
-        .physical_contract_package
-        .map(package_compilation::program_entry_semantic_binding_role)
-        .and_then(|role| package_inputs.and_then(|inputs| inputs.accepted_semantic_binding(role)));
-    let calling_plans = validate_selected_program_entry_calling_plan(
+    let declaration = validate_selected_program_entry_shape(typed, selected)?;
+    Ok(Some(PreparedCompilerProgramEntry {
         services,
-        selected,
-        realizations,
-        accepted_entry_binding,
-    )?;
-    Ok(Some(SelectedCompilerProgramEntry::new(
-        source_signature,
-        calling_plans,
-    )))
+        declaration,
+        slot: selected.slot,
+    }))
+}
+
+fn require_product_services(services: ServiceCatalog<'_>) -> Result<(), Vec<Diagnostic>> {
+    if services.context().scope == source::DependencyScope::Product {
+        Ok(())
+    } else {
+        Err(vec![Diagnostic::error(
+            "program-entry selection requires the Product service catalog",
+        )])
+    }
 }
 
 fn validate_selected_program_entry_calling_plan(

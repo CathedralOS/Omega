@@ -85,19 +85,33 @@ impl<'module> TerminalBoundaryRecipes<'module> {
         if self.visiting.contains(&structural_type) {
             return Err("recursive by-value Terminal data has no finite boundary shape".into());
         }
+        self.visiting.push(structural_type);
+        let result = self.value_recipe(structural_type);
+        self.visiting.pop();
+        let recipe = result?;
+        self.closed.push((structural_type, recipe));
+        Ok(recipe)
+    }
+
+    fn value_recipe(
+        &mut self,
+        structural_type: StructuralTypeId,
+    ) -> Result<Handle<BoundaryValueRecipe>, String> {
         let declaration = self
             .module
             .structural_type(structural_type)
             .ok_or("boundary value has no canonical storage declaration")?;
-        self.visiting.push(structural_type);
+        if declaration.quotient_carrier.is_some() {
+            return Err(
+                "nominally opaque boundary value requires retained selected-carrier custody".into(),
+            );
+        }
         let recipe =
             match &declaration.shape {
                 StructuralTypeShape::PrimitiveScalar(scalar) => {
-                    self.visiting.pop();
                     return self.scalar(*scalar);
                 }
                 StructuralTypeShape::Reference { referent, .. } => {
-                    self.visiting.pop();
                     return self.reference(*referent);
                 }
                 StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::ElementView { .. } => {
@@ -122,10 +136,7 @@ impl<'module> TerminalBoundaryRecipes<'module> {
                     return Err("routed binding has no selected boundary storage".into());
                 }
             };
-        self.visiting.pop();
-        let recipe = self.recipes.values.insert(recipe);
-        self.closed.push((structural_type, recipe));
-        Ok(recipe)
+        Ok(self.recipes.values.insert(recipe))
     }
 
     fn record(
@@ -188,6 +199,16 @@ impl<'module> TerminalBoundaryRecipes<'module> {
                     _ => return Err("boundary field has no executable storage recipe".into()),
                 },
             };
+            if storage
+                .as_ref()
+                .and_then(|storage| storage.element_stride())
+                .is_some()
+            {
+                return Err(
+                    "foreign calling recipes do not yet retain authored repeated-field stride"
+                        .into(),
+                );
+            }
             let byte_offset = storage
                 .as_ref()
                 .map(|storage| {

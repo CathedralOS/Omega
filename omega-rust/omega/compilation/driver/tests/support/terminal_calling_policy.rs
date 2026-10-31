@@ -1,5 +1,6 @@
 //! Execute authored calling code after external canonical artifact ingress.
 
+use calling_conventions::{MachineRegister, ValueLocation};
 use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
     TerminalStorageScheduleIdentity,
@@ -9,7 +10,6 @@ use provider_planning::calling_policy_plans::{
     evaluate_terminal_calling_policy,
 };
 use terminal_codec::CanonicalTerminalArtifact;
-use terminal_psi::CallingSignatureDeclaration;
 
 pub(super) fn observe(
     artifact: &CanonicalTerminalArtifact,
@@ -36,28 +36,52 @@ pub(super) fn observe(
             if matching.next().is_some() {
                 return Err("calling fixture selector is ambiguous".into());
             }
-            Ok::<_, String>(CallingSignatureDeclaration {
-                boundary: declaration.id,
-                requirement_identity: declaration.identity,
-                parameters: Vec::new(),
-                binders: Vec::new(),
-                direct_callbacks: Vec::new(),
-            })
+            Ok::<_, String>(declaration.id)
         };
         let accepted = description(accepted)?;
         let rejected = description(rejected)?;
         let description = accepted;
-        let mut substituted = description.clone();
-        substituted.requirement_identity = terminal_psi::TerminalIdentityIndex::ABSENT;
-        let error = MaterializedBoundarySignature::from_terminal(module, &substituted, target)
+        let mut substituted = module.clone();
+        substituted
+            .calling_signatures
+            .iter_mut()
+            .find(|signature| signature.boundary == description)
+            .ok_or("calling fixture lost its published source telescope")?
+            .requirement_identity = terminal_psi::TerminalIdentityIndex::ABSENT;
+        let encoded =
+            terminal_codec::encode_module(&substituted).map_err(|error| error.to_string())?;
+        let error = terminal_codec::decode_module(&encoded)
             .err()
             .ok_or("calling signature accepted a substituted requirement identity")?;
-        if !error.contains("substitutes another requirement identity") {
+        if !error.to_string().contains("requirement identity") {
             return Err(format!(
                 "calling identity control reached an unrelated refusal: {error}"
             ));
         }
-        let signature = MaterializedBoundarySignature::from_terminal(module, &description, target)?;
+        let mut substituted = module.clone();
+        let telescope = substituted
+            .calling_signatures
+            .iter_mut()
+            .find(|signature| signature.boundary == description)
+            .ok_or("calling fixture lost its published source telescope")?
+            .telescope
+            .as_mut()
+            .map_err(|error| error.to_owned())?;
+        let [left, right] = telescope.parameters.as_mut_slice() else {
+            return Err("calling fixture did not retain its two distinct native formals".into());
+        };
+        right.identity = left.identity;
+        let encoded =
+            terminal_codec::encode_module(&substituted).map_err(|error| error.to_string())?;
+        let error = terminal_codec::decode_module(&encoded)
+            .err()
+            .ok_or("calling telescope accepted duplicate native formal identity")?;
+        if !error.to_string().contains("native formal identity") {
+            return Err(format!(
+                "calling formal control reached an unrelated refusal: {error}"
+            ));
+        }
+        let signature = MaterializedBoundarySignature::from_terminal(module, description, target)?;
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
             fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
@@ -80,7 +104,19 @@ pub(super) fn observe(
             signature: &signature,
             account,
         })?;
-        if !plan.plan().call.parameters.is_empty()
+        let expected_locations = [0, 1].map(|index| ValueLocation::Register {
+            register: MachineRegister::Aarch64X(index),
+            value_byte_offset: 0,
+            byte_size: 8,
+        });
+        if plan.plan().call.parameters.len() != 2
+            || plan
+                .plan()
+                .call
+                .parameters
+                .iter()
+                .zip(&expected_locations)
+                .any(|(parameter, expected)| parameter.locations.as_slice() != [*expected])
             || plan
                 .plan()
                 .call
@@ -94,9 +130,9 @@ pub(super) fn observe(
             return Err("calling fixture recorded no execution fuel".into());
         }
         for (control, description, fuel) in [
-            ("rejection", &rejected, 1_000_000),
-            ("fuel", &description, 1),
-            ("target", &description, 1_000_000),
+            ("rejection", rejected, 1_000_000),
+            ("fuel", description, 1),
+            ("target", description, 1_000_000),
         ] {
             let signature =
                 MaterializedBoundarySignature::from_terminal(module, description, target)?;

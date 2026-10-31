@@ -3,9 +3,9 @@
 use omega_language_std::calling;
 
 public boundary trait LocalEntry: Calling<RetainedCalling> {
-    machine value() -> u64 reaches;
+    machine value(left: u64, right: u64) -> u64 reaches;
 }
-LocalMap satisfies LocalEntry { machine value() -> u64 { 73 } }
+LocalMap satisfies LocalEntry { machine value(left: u64, right: u64) -> u64 { right } }
 public boundary trait NoResult { machine value() reaches; }
 NoResultMap satisfies NoResult { machine value() {} }
 public RetainedCalling satisfies CallingPolicy {
@@ -15,16 +15,43 @@ public RetainedCalling satisfies CallingPolicy {
 }
 
 machine retained_plan(signature: BoundarySignature) -> BoundaryPlanResult {
-    transition signature.parameter_count == 0 && signature.has_result {
-        true -> select_result(signature, signature.result)
+    transition signature.parameter_count == 2 && signature.has_result {
+        true -> select_result(signature, signature.parameters[0], signature.parameters[1], signature.result)
         _ -> reject()
     }
-    machine select_result(signature: BoundarySignature, result: u64) -> BoundaryPlanResult {
-        transition result < 256 { true -> accept(signature, result) _ -> reject() }
+    machine select_result(signature: BoundarySignature, left: u64, right: u64, result: u64) -> BoundaryPlanResult {
+        transition left < 256 && right < 256 && result < 256 {
+            true -> select_formals(signature, left, right, result)
+            _ -> reject()
+        }
     }
-    machine accept(signature: BoundarySignature, result: u64) -> BoundaryPlanResult {
+    machine select_formals(signature: BoundarySignature, left: u64, right: u64, result: u64) -> BoundaryPlanResult {
+        transition signature.native_parameter_count == 2
+            && signature.native_parameters[0].identity != signature.native_parameters[1].identity
+            && signature.native_parameters[0].native_ordinal == 0
+            && signature.native_parameters[1].native_ordinal == 1 {
+            true -> accept(signature, left, right, result)
+            _ -> reject()
+        }
+    }
+    machine accept(signature: BoundarySignature, left: u64, right: u64, result: u64) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
         plan.call.convention = CallingConvention::Aapcs64;
+        plan.call.parameter_count = 2;
+        plan.call.parameters[0].shape.class = AbiValueClass::Integer;
+        plan.call.parameters[0].shape.byte_size = signature.shapes[left].byte_size;
+        plan.call.parameters[0].shape.alignment = signature.shapes[left].alignment;
+        plan.call.parameters[0].location_count = 1;
+        plan.call.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::Aarch64X { index: 0 }, value_byte_offset: 0, byte_size: 8
+        };
+        plan.call.parameters[1].shape.class = AbiValueClass::Integer;
+        plan.call.parameters[1].shape.byte_size = signature.shapes[right].byte_size;
+        plan.call.parameters[1].shape.alignment = signature.shapes[right].alignment;
+        plan.call.parameters[1].location_count = 1;
+        plan.call.parameters[1].locations[0] = ValueLocation::Register {
+            register: MachineRegister::Aarch64X { index: 1 }, value_byte_offset: 0, byte_size: 8
+        };
         plan.call.has_result = true;
         plan.call.result.shape.class = AbiValueClass::Integer;
         plan.call.result.shape.byte_size = signature.shapes[result].byte_size;
@@ -48,8 +75,9 @@ machine retained_plan(signature: BoundarySignature) -> BoundaryPlanResult {
 }
 
 machine main() reaches LocalEntry crashes Trap {
-    let value: u64 = LocalEntry::value();
-    transition value == 73 { true -> done() _ -> bad() }
+    let first: u64 = LocalEntry::value(11u64, 73u64);
+    let second: u64 = LocalEntry::value(91u64, 29u64);
+    transition first == 73 && second == 29 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

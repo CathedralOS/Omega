@@ -14,6 +14,7 @@ mod build_protocol;
 mod build_provider;
 mod build_queries;
 mod build_requests;
+mod calling_signatures;
 mod composition_admission;
 mod custody;
 mod observation;
