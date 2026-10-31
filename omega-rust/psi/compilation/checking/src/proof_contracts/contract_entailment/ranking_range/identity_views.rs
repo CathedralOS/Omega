@@ -185,9 +185,7 @@ pub(super) fn computed_measure_value(
     {
         return None;
     }
-    engine.with_formal_arguments(owner, &[(parameter, input.clone())], |engine| {
-        engine.normalize(body)
-    })
+    engine.declared_application_value(owner, input.clone())
 }
 
 /// Classify only bodies whose projection is justified by resolved declarations.
