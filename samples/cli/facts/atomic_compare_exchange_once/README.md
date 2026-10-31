@@ -74,7 +74,7 @@ All programs are pinned under `tests/omega/{pass,fail}/facts/`.
 
 | Obligation Class | How This Fact Row Establishes It |
 |---|---|
-| **Establishment** | `compare_exchange_once(expected, replacement, ReceivePublish, Receive)` on an exact `AtomicU32`/`AtomicU64` cell establishes the canonical sealed `AtomicCompareExchangeOnceOutcome<T>` (`Exchanged`, `Mismatched { observed }`, `Uncommitted { observed }`) with exact resident type and ordering obligations ([concurrency](../../../../wiki/spec/language/concurrency.md), [placed access](../../../../wiki/spec/resources/placed_access.md#atomic-compare-exchange-outcomes)). |
+| **Establishment** | `compare_exchange_once(expected, replacement, ReceivePublish, Receive)` on an exact `AtomicU32`/`AtomicU64` cell establishes the canonical sealed `AtomicCompareExchangeOnceOutcome<T>` (`Exchanged`, `Mismatched { observed }`, `Uncommitted { observed }`) with exact resident type and ordering obligations ([concurrency](../../../../wiki/spec/language/concurrency.md), [access policies](../../../../wiki/spec/resources/access.md#atomic-compare-exchange-outcomes)). |
 | **Identity and lifetime** | The `AtomicCompareExchangeOnceOutcome<T>` value carrier is copyable (`copyable`) and independent of the borrowed `Cells` storage lifetime; writes to `cells.selected` never disturb `cells.untouched` ([ownership](../../../../wiki/spec/language/ownership.md), [structural access](../../../../wiki/spec/terminal-psi/structural_access.md)). |
 | **Composition** | Across all nine standard transport places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`), the tagged outcome payload preserves its discriminant and observed scalar value through calls, record fields, branch joins, and state/machine transitions ([expressions](../../../../wiki/spec/language/expressions.md)). |
 | **Soundness boundaries** | Each `<place>/invalid/main.omg` changes only the failure ordering to `Publish` and rejects with `failure cannot publish or be stronger than success`; `stronger_failure`, `forged_outcome`, and `wrong_resident` reject invalid ordering pairs and unsealed/mismatched outcome carriers. |
@@ -92,7 +92,7 @@ evaluation point; scalar-only owned outcomes do not lend separate atomic
 backing merely because disposal authority permits descriptor retirement.
 
 Governing contracts are [concurrency](../../../../wiki/spec/language/concurrency.md),
-[canonical result/custody](../../../../wiki/spec/resources/placed_access.md#atomic-compare-exchange-outcomes),
+[canonical result/custody](../../../../wiki/spec/resources/access.md#atomic-compare-exchange-outcomes),
 [evaluation order](../../../../wiki/spec/language/expressions.md),
 [declared copyability](../../../../wiki/spec/language/ownership.md), and
 [structural storage/descriptor authority](../../../../wiki/spec/terminal-psi/structural_access.md).

@@ -426,7 +426,7 @@ not synthesized service fields on an application record. Provider roots come fro
 actual calls and callback demand. Selected entries, private native derivation
 records and runtime provisions carry no synthetic field-establishment roster;
 older private records reject at their schema boundary. Ordinary provider
-admission, placed-view inputs and physical entry adapters remain independent.
+admission, access-view inputs and physical entry adapters remain independent.
 
 Component publication prepares its exported calling applications before Terminal
 production. The retained product carries those complete applications to the

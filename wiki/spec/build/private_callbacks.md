@@ -74,7 +74,7 @@ source-visible fields or addresses: they have no source projection, read/write,
 serialization, or runtime topology. The cited conformance binds the layout owner;
 visible conformance enumeration and layout ownership do not grant an exception.
 Every private demand must be supplied exactly once before layout is complete,
-including for a `Placed` view. Physical offset ownership remains in layout, not
+including for an `Access` view. Physical offset ownership remains in layout, not
 the binding or calling plan.
 
 ## Plan and occurrence validation

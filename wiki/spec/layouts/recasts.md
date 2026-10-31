@@ -104,9 +104,9 @@ for independently initialized resource-bearing fields and restoring any original
 source obligations. There is no implicit byte rollback or resource leak exemption.
 This differs from discarding an already-established value with a broken invariant.
 
-Shared casts remain strict. Placed-view recasts remain prohibited; this rule does
-not bypass placement admission or add atomic/concurrent access. Successful ordinary
-initialization and explicit placed initialization remain valid alternatives.
+Shared casts remain strict. Access-view recasts remain prohibited; this rule does
+not bypass access establishment or add atomic/concurrent access. Successful ordinary
+initialization and explicit access initialization remain valid alternatives.
 
 ## Access authority and concurrent observation
 
@@ -146,14 +146,14 @@ representation-access permit. It does not establish a mutex protocol: retaining
 atomic access does not by itself prove exclusive custody of a separate payload,
 and domain minting alone does not restrict every operation on an existing value.
 
-## Placed storage
+## Access views
 
 This representation judgment applies to ordinary values/storage, not
-`Placed<P, T>` or its accessors. A recast could otherwise reveal a field denied
-by the source access plan even while preserving its observation class. Placed
+`Access<P, T>` or its accessors. A recast could otherwise reveal a field denied
+by the source access plan even while preserving its observation class. Access
 view-to-view recasts reject. Detached snapshots may be recast as ordinary
 values; a retained underlying extent loan may be submitted for another
-[placement admission](../resources/placed_access.md).
+[access establishment](../resources/access.md).
 
 The [implementation note](../../../omega-rust/psi/compilation/checking/recasts.md)
 records supported shapes and source positions separately from this contract.

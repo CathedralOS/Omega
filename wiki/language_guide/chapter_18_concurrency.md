@@ -387,7 +387,7 @@ stores cannot receive. Compare-exchange has separate success/failure orderings;
 failure is read-only and cannot exceed success's ordering.
 
 Generic code selects one sealed requirement per operation, not a universal
-atomic trait. Ordinary atomics and admitted placed accessors expose only their
+atomic trait. Ordinary atomics and admitted accessors expose only their
 supported operations. Width, alignment, representation, and resident-custody
 conditions remain separate from arithmetic capability or shareability.
 
@@ -399,7 +399,7 @@ an outcome value proves no atomic event occurred.
 
 The [concurrency specification](../spec/language/concurrency.md) owns orderings,
 observation guarantees, fences, and protocol requirements;
-[placed access](../spec/resources/placed_access.md#atomic-compare-exchange-outcomes)
+[access policies](../spec/resources/access.md#atomic-compare-exchange-outcomes)
 owns exact outcome types and operation-specific custody. Current support is
 recorded in the [atomic implementation note](../../omega-rust/psi/foundation/language-core/atomic_operations.md).
 
