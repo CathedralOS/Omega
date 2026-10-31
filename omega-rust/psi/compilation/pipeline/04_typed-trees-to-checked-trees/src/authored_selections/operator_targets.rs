@@ -8,10 +8,11 @@ use crate::authored_selections::member_targets::{
     expression_is_contextual_statement_primitive, expression_is_intrinsic_primitive_without_origin,
 };
 use crate::flow::expressions;
-use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
+use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus as ResolutionStatus};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
-    AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionOccurrenceId,
+    AuthoredDeclarationSelectionIntrinsic as SelectionIntrinsic,
+    AuthoredDeclarationSelectionOccurrenceId,
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
@@ -178,7 +179,7 @@ fn checked_operator_target(
             )
     ) {
         return Some(AuthoredSelectionResolutionTarget::Intrinsic(
-            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+            SelectionIntrinsic::BuiltinOperator,
         ));
     }
 
@@ -193,15 +194,15 @@ fn checked_operator_target(
 
     uses.iter()
         .find_map(|operator_use| {
-            (operator_use.status == CheckedOperatorResolutionStatus::Resolved)
+            (operator_use.status == ResolutionStatus::Resolved)
                 .then(|| declaration_target(operator_use.selected_operator_symbol))
                 .flatten()
         })
         .or_else(|| {
             uses.iter()
                 .any(|operator_use| {
-                    operator_use.status == CheckedOperatorResolutionStatus::BuiltinFallback
-                        || (operator_use.status == CheckedOperatorResolutionStatus::Missing
+                    operator_use.status == ResolutionStatus::BuiltinFallback
+                        || (operator_use.status == ResolutionStatus::Missing
                             && intrinsic_operator_operand_is_primitive(
                                 program,
                                 node,
@@ -209,7 +210,7 @@ fn checked_operator_target(
                             ))
                 })
                 .then_some(AuthoredSelectionResolutionTarget::Intrinsic(
-                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                    SelectionIntrinsic::BuiltinOperator,
                 ))
         })
         .or_else(|| {
@@ -226,7 +227,7 @@ fn checked_operator_target(
                 }
                 contract_resolution::CheckedContractOperatorResolution::Builtin => {
                     Some(AuthoredSelectionResolutionTarget::Intrinsic(
-                        AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                        SelectionIntrinsic::BuiltinOperator,
                     ))
                 }
             })
@@ -264,14 +265,12 @@ fn checked_operator_target(
                     owner_index,
                 ))
             .then_some(AuthoredSelectionResolutionTarget::Intrinsic(
-                AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                SelectionIntrinsic::BuiltinOperator,
             ))
         })
         .or_else(|| {
             operator_has_no_authored_spelling_candidate(program, expression, node).then_some(
-                AuthoredSelectionResolutionTarget::Intrinsic(
-                    AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
-                ),
+                AuthoredSelectionResolutionTarget::Intrinsic(SelectionIntrinsic::BuiltinOperator),
             )
         })
 }
@@ -329,7 +328,7 @@ fn checked_operator_expression_is_intrinsic_primitive(
         .operators
         .for_each_expression_use(expression, |_, operator_use| {
             if operator_use.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-                && operator_use.status == CheckedOperatorResolutionStatus::BuiltinFallback
+                && operator_use.status == ResolutionStatus::BuiltinFallback
             {
                 is_fallback = true;
             }
