@@ -29,6 +29,11 @@ use crate::{
     IntegerCastChainWitnessError, IntegerCorrelatedForbiddenRootConversionError,
     IntegerCorrelatedForbiddenRootWitnessError, KernelError,
 };
+use equality_rules::check_equality_transitivity;
+use integer_order_rules::{
+    check_integer_add_order, check_integer_order_weakening, check_integer_subtract_order,
+};
+use propositional_rules::check_conjunction_introduction;
 
 /// Proof-rule families exercised by one accepted certificate. The set is a
 /// deterministic review projection, not a second proof checker.
@@ -398,9 +403,7 @@ fn check_node_locally(
         ProofRule::Assumption { .. } => {
             propositional_rules::check_assumption(&scope, proof, acceptance)
         }
-        ProofRule::ConjunctionIntroduction(_) => {
-            propositional_rules::check_conjunction_introduction(proof, acceptance)
-        }
+        ProofRule::ConjunctionIntroduction(_) => check_conjunction_introduction(proof, acceptance),
         ProofRule::ConjunctionElimination { .. } => {
             propositional_rules::check_conjunction_elimination(proof, acceptance)
         }
@@ -425,24 +428,16 @@ fn check_node_locally(
         ProofRule::ValueEqualityTransport { .. } => {
             equality_rules::check_value_equality_transport(&scope, proof, acceptance)
         }
-        ProofRule::EqualityTransitivity { .. } => {
-            equality_rules::check_equality_transitivity(proof, acceptance)
-        }
-        ProofRule::IntegerSubtractOrder { .. } => {
-            integer_order_rules::check_integer_subtract_order(proof, acceptance)
-        }
-        ProofRule::IntegerAddOrder { .. } => {
-            integer_order_rules::check_integer_add_order(proof, acceptance)
-        }
+        ProofRule::EqualityTransitivity { .. } => check_equality_transitivity(proof, acceptance),
+        ProofRule::IntegerSubtractOrder { .. } => check_integer_subtract_order(proof, acceptance),
+        ProofRule::IntegerAddOrder { .. } => check_integer_add_order(proof, acceptance),
         ProofRule::IntegerSubtractAntitone { .. } => {
             integer_order_rules::check_integer_subtract_antitone(proof, acceptance)
         }
         ProofRule::IntegerOrderDiscreteness { .. } => {
             integer_order_rules::check_integer_order_discreteness(proof, acceptance)
         }
-        ProofRule::IntegerOrderWeakening { .. } => {
-            integer_order_rules::check_integer_order_weakening(proof, acceptance)
-        }
+        ProofRule::IntegerOrderWeakening { .. } => check_integer_order_weakening(proof, acceptance),
         ProofRule::IntegerLessOrEqualTransitivity { .. } => {
             integer_order_rules::check_integer_less_or_equal_transitivity(proof, acceptance)
         }

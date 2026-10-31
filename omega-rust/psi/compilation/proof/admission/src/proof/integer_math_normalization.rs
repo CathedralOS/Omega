@@ -183,10 +183,12 @@ pub fn lift_exact_integer_order(proposition: &Proposition) -> Option<Proposition
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::check_certificate;
     use semantic_vocabulary::{
         IntegerSign, IntegerValue, PlaceId, PropositionContext, ScalarType, StructuralFieldId,
         StructuralPlaceKind, ValueId,
     };
+    use std::slice::from_ref;
     use terminal_psi::{ProofNode, ProofRule};
 
     #[test]
@@ -228,14 +230,7 @@ mod tests {
                     conclusion: goal.clone(),
                     rule: ProofRule::Assumption { index: 0 },
                 };
-                crate::check_certificate(
-                    &context,
-                    &goal,
-                    std::slice::from_ref(&requirement),
-                    &[],
-                    &proof,
-                )
-                .unwrap();
+                check_certificate(&context, &goal, from_ref(&requirement), &[], &proof).unwrap();
                 crate::verify_bounded_certificate(
                     &context,
                     &goal,
@@ -254,9 +249,7 @@ mod tests {
                 conclusion: wrong.clone(),
                 rule: ProofRule::Assumption { index: 0 },
             };
-            assert!(
-                crate::check_certificate(&context, &wrong, &[mathematical], &[], &proof).is_err()
-            );
+            assert!(check_certificate(&context, &wrong, &[mathematical], &[], &proof).is_err());
         }
         let other = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
         let mixed = Proposition::IntegerMathLessThan(
