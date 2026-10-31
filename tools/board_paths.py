@@ -31,6 +31,10 @@ Citation forms it understands, because the boards use all three:
 
 A citation broken across lines by paragraph wrapping is rejoined before
 matching, and one carrying a `*` glob is skipped rather than guessed at.
+
+A repeated top-level item heading fails the same way. A merge that pastes
+an edited item at a conflict and leaves the old heading further down the
+file is two copies of one outcome, and the next session edits one of them.
 """
 
 import argparse
@@ -83,6 +87,40 @@ def completed_items(text):
             continue
         finished.append(name)
     return finished
+
+
+def item_headings(text):
+    """Top-level outcome headings, in file order, with 1-based line numbers.
+
+    A heading is a line that opens `- **IDENTIFIER.**`. A bold name inside
+    an item body, including an `also covers` alias, is not another outcome.
+    """
+    found = []
+    for index, line in enumerate(text.splitlines(), 1):
+        match = re.match(r"- \*\*([A-Z][A-Z0-9-]*)\.\*\*", line)
+        if match:
+            found.append((match.group(1), index))
+    return found
+
+
+def duplicate_headings(text):
+    """Headings that name the same outcome more than once.
+
+    Each result is the identifier and the line numbers of its copies, in
+    the order the first copy appears.
+    """
+    lines_by_name = {}
+    order = []
+    for name, index in item_headings(text):
+        if name not in lines_by_name:
+            order.append(name)
+            lines_by_name[name] = []
+        lines_by_name[name].append(index)
+    return [
+        (name, lines_by_name[name])
+        for name in order
+        if len(lines_by_name[name]) > 1
+    ]
 
 
 def cited_links(text):
@@ -280,6 +318,7 @@ def main():
     stale_total = 0
     broken_total = 0
     finished_total = 0
+    repeated_total = 0
     cited_total = 0
     skipped_total = 0
     for board in options.boards or BOARDS:
@@ -323,6 +362,13 @@ def main():
                 dead.append((citation, missing))
         dead_total += len(dead)
         stale_total += len(stale)
+        repeated = duplicate_headings(board_text)
+        repeated_total += len(repeated)
+        if repeated and not options.quiet:
+            print(f"{board}: {len(repeated)} repeated heading(s)")
+            for name, indexes in repeated:
+                where = ", ".join(str(index) for index in indexes)
+                print(f"  {name} at {where}")
         if options.quiet:
             continue
         print(
@@ -379,9 +425,13 @@ def main():
         f"{stale_total} stale stage prefix, "
         f"{broken_total} broken link(s), "
         f"{finished_total} completed item(s), "
+        f"{repeated_total} repeated heading(s), "
         f"{skipped_total} glob citation(s) skipped"
     )
-    return 1 if dead_total or stale_total or broken_total or finished_total else 0
+    return 1 if (
+        dead_total or stale_total or broken_total or finished_total
+        or repeated_total
+    ) else 0
 
 
 if __name__ == "__main__":
