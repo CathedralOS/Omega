@@ -12,13 +12,18 @@ pub(super) struct Application {
     pub(super) primitive: typed_trees::types::PrimitiveType,
 }
 
+pub(super) struct ObservedApplication {
+    pub(super) value: ScopedArithmeticValue,
+    pub(super) formation: validation::IntegerApplicationFormation,
+}
+
 impl Application {
     pub(super) fn observe(
         self,
         values: &CurrentScalarValues<'_>,
         machine: &typed_trees::machine::Machine,
         input: ScopedArithmeticValue,
-    ) -> Option<ScopedArithmeticValue> {
+    ) -> Option<ObservedApplication> {
         let expression = ScopedArithmeticExpression {
             owner: self.measure,
             expression: self.body,
@@ -27,17 +32,19 @@ impl Application {
                 value: input,
             }],
         };
-        if !values.forms_declared_integer_application(machine, &expression, self.primitive) {
-            return None;
-        }
+        let formation =
+            values.declared_integer_application_formation(machine, &expression, self.primitive)?;
         let (minimum, maximum) = self.primitive.integer_bounds()?;
         // The child-first application proof established these bounds. A later
         // relation query must not lose them when normalizing a polynomial such
         // as (count-1)^2. These facts never justify the application's formation.
-        Some(ScopedArithmeticValue::BoundedInteger {
-            value: Box::new(ScopedArithmeticValue::Term(expression)),
-            minimum: Some(numerics::bignum::BigInt::from_i128(minimum)),
-            maximum: Some(numerics::bignum::BigInt::from_i128(maximum)),
+        Some(ObservedApplication {
+            formation,
+            value: ScopedArithmeticValue::BoundedInteger {
+                value: Box::new(ScopedArithmeticValue::Term(expression)),
+                minimum: Some(numerics::bignum::BigInt::from_i128(minimum)),
+                maximum: Some(numerics::bignum::BigInt::from_i128(maximum)),
+            },
         })
     }
 }

@@ -12,6 +12,17 @@ pub(in crate::checks::termination) fn prove(
     measure: RankingRangeMeasure,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
+    prove_with_formation(program, machine, range, measure, frames)
+        .map(|proof| proof.membership_and_pinning)
+}
+
+pub(in crate::checks::termination) fn prove_with_formation(
+    program: &dyn validation::CheckingInput,
+    machine: &Machine,
+    range: ExpressionHandle,
+    measure: RankingRangeMeasure,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<validation::RankingRangeEntryProof> {
     if validation::proof_only_classification(program).is_proof_machine(program, machine) {
         return None;
     }
@@ -88,7 +99,7 @@ pub(in crate::checks::termination) fn prove(
                     })
                 })
                 .collect();
-            Some(validation::prove_captured_ranking_range_entry(
+            validation::prove_captured_ranking_range_entry_with_formation(
                 program,
                 machine,
                 range,
@@ -101,9 +112,12 @@ pub(in crate::checks::termination) fn prove(
                     hypotheses: prepared.values.captured_hypotheses().to_vec(),
                     inputs,
                 },
-            ))
+            )
         })()
-        .unwrap_or(false),
+        .unwrap_or(validation::RankingRangeEntryProof {
+            membership_and_pinning: false,
+            application: None,
+        }),
     )
 }
 

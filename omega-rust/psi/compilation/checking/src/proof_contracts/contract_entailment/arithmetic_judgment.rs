@@ -6,6 +6,7 @@ use crate::frozen_program::expression_table;
 use crate::proof_integer_expression;
 use typed_trees::expression::UnaryOperator;
 mod application_formation;
+pub use application_formation::IntegerApplicationFormation;
 #[cfg(test)]
 mod denotation_tests;
 mod denotations;

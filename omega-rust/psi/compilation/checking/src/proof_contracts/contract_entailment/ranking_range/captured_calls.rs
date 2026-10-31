@@ -22,6 +22,11 @@ pub(crate) struct CapturedScalarRank {
     pub measure: SymbolHandle,
 }
 
+pub(crate) struct CapturedRankCallProgress {
+    pub progress: RankingRangeCallProgress,
+    pub source_application: Option<crate::IntegerApplicationFormation>,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn prove_captured_scalar_rank_call(
     program: &dyn crate::CheckingInput,
@@ -33,7 +38,7 @@ pub(crate) fn prove_captured_scalar_rank_call(
     statement_index: usize,
     target: typed_trees::statement::TransitionTargetHandle,
     arguments: &[ExpressionHandle],
-) -> Result<RankingRangeCallProgress, &'static str> {
+) -> Result<CapturedRankCallProgress, &'static str> {
     let transition = program
         .statement_table
         .statements(state.statement_nodes)
@@ -109,10 +114,13 @@ pub(crate) fn prove_captured_scalar_rank_call(
     if !observation.seen {
         return Err("the scalar rank call has no reached operand observation");
     }
-    Ok(if observation.strict {
-        RankingRangeCallProgress::Strict
-    } else {
-        RankingRangeCallProgress::NonIncreasing
+    Ok(CapturedRankCallProgress {
+        progress: if observation.strict {
+            RankingRangeCallProgress::Strict
+        } else {
+            RankingRangeCallProgress::NonIncreasing
+        },
+        source_application: observation.source.application,
     })
 }
 

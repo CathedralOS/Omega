@@ -31,6 +31,7 @@ use projection::RankProjection;
 /// transient query results, not another executable representation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedRuntimeNaturalState {
+    pub application: Option<crate::IntegerApplicationFormation>,
     /// Exact declared application, or ZII for a normalized primitive view.
     pub measure: SymbolHandle,
     pub state: SymbolHandle,
@@ -695,7 +696,7 @@ fn admit_ranked_edge(
         .first()
         .is_some_and(|entry| entry.symbol == state.symbol)
     {
-        strict = match prove_captured_scalar_rank_call(
+        let progress = prove_captured_scalar_rank_call(
             program,
             caller,
             state,
@@ -705,7 +706,29 @@ fn admit_ranked_edge(
             statement_ordinal,
             transition_target,
             arguments,
-        )? {
+        )?;
+        if let (Some(component), Some(application)) =
+            (natural.as_mut(), progress.source_application)
+        {
+            if let Some(row) = component
+                .states
+                .iter_mut()
+                .find(|row| row.state == state.symbol)
+            {
+                if row.measure != application.measure()
+                    || row
+                        .application
+                        .as_ref()
+                        .is_some_and(|previous| previous != &application)
+                {
+                    return Err(
+                        "the captured rank formation does not match its exact state application",
+                    );
+                }
+                row.application = Some(application);
+            }
+        }
+        strict = match progress.progress {
             RankingRangeCallProgress::Strict => true,
             RankingRangeCallProgress::NonIncreasing => false,
         };

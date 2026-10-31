@@ -113,7 +113,7 @@ pub(super) fn prepare(
         } else {
             None
         };
-        let entry_value = if let Some(application) = view.application {
+        let (entry_value, formation) = if let Some(application) = view.application {
             if application.primitive != carrier {
                 return Some(Err(
                     "a computed natural rank has incompatible input and result carriers",
@@ -125,15 +125,16 @@ pub(super) fn prepare(
                     "a computed natural rank application has no independent entry formation",
                 ));
             };
-            value
+            (value.value, Some(value.formation))
         } else {
-            selected.entry_value.clone()
+            (selected.entry_value.clone(), None)
         };
         candidates.push(vec![Rank {
             coordinate: selected,
             bound,
             application: view.application,
             entry_value,
+            formation,
         }]);
     }
     let (order, primitive, _) = selected_order?;
@@ -161,7 +162,7 @@ pub(super) fn prepare(
             .filter(|coordinate| coordinate.primitive == primitive)
         {
             if order == Order::Descending {
-                let entry_value = if let Some(application) = application {
+                let (entry_value, formation) = if let Some(application) = application {
                     let Some(value) = application.observe(
                         &entry_values[position],
                         machine,
@@ -169,15 +170,16 @@ pub(super) fn prepare(
                     ) else {
                         continue;
                     };
-                    value
+                    (value.value, Some(value.formation))
                 } else {
-                    coordinate.entry_value.clone()
+                    (coordinate.entry_value.clone(), None)
                 };
                 candidates.push(Rank {
                     coordinate: coordinate.clone(),
                     bound: None,
                     application,
                     entry_value,
+                    formation,
                 });
                 continue;
             }
@@ -203,6 +205,7 @@ pub(super) fn prepare(
                     bound: Some(bound),
                     application: None,
                     entry_value: coordinate.entry_value.clone(),
+                    formation: None,
                 });
             }
         }

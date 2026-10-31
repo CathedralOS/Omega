@@ -606,6 +606,20 @@ pub struct ExactIntegerCastFact {
     pub maximum: numerics::bignum::BigInt,
 }
 
+impl Default for ExactIntegerCastFact {
+    /// Arena's dummy has no source occurrence and no integer carriers. It
+    /// cannot supply a partial conversion decision to a live application.
+    fn default() -> Self {
+        Self {
+            expression: ExpressionHandle::invalid(),
+            source_type: typed_trees::types::PrimitiveType::Bool,
+            target_type: typed_trees::types::PrimitiveType::Bool,
+            minimum: numerics::bignum::BigInt::zero(),
+            maximum: numerics::bignum::BigInt::zero(),
+        }
+    }
+}
+
 #[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedOperatorFacts {
     pub uses: Arena<CheckedOperatorUseFact>,

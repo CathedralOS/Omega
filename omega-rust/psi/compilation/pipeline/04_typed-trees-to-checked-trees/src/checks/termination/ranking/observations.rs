@@ -72,6 +72,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
         if rows.next().is_some() {
             return None;
         }
+        let application_facts = row.application;
         let selected = validation::RankStateBindings::from_checked(admitted, row)?;
         let destination = selected.destination(&entry)?;
         let parameter_position = typed_trees::signature::state_parameter_position(
@@ -134,7 +135,29 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                     })
                     .collect::<Option<Vec<_>>>()?;
                 let bindings = admitted.bindings.insert_many(bindings);
+                let formation = if application_facts.definition_body.is_valid() {
+                    if application_facts.measure != *measure
+                        || program
+                            .expression_table
+                            .expression_handles(declaration.body)
+                            != [application_facts.definition_body]
+                    {
+                        return None;
+                    }
+                    admitted.application_formations.insert(
+                        checked_trees::CheckedRankApplicationFormation {
+                            machine: machine.symbol,
+                            machine_body: machine.states,
+                            state: state.symbol,
+                            application: application_facts,
+                            bindings,
+                        },
+                    )
+                } else {
+                    Default::default()
+                };
                 CheckedNaturalRankMeasure::DeclaredMeasure {
+                    formation,
                     measure: *measure,
                     bindings,
                     primitive_type: program.primitive_type_reference(declaration.return_type)?,

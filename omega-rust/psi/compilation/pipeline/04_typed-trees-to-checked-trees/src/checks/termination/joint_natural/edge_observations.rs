@@ -98,7 +98,9 @@ pub(super) fn compare(
         edge.arguments,
     )?;
     let next = if let Some(application) = destination.application {
-        application.observe(&edge.values, machines[edge.source], next)?
+        application
+            .observe(&edge.values, machines[edge.source], next)?
+            .value
     } else {
         next
     };
