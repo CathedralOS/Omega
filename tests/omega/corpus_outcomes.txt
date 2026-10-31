@@ -104,6 +104,42 @@ fail/facts/domain_predicate_call_through_target_body_rejected rejected 1643ms ex
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/generic_requirement_statement_call_through_call_result_rejected rejected 1731ms expected @d58d8c534048
+	argument `value` for state `record` expects `&T`, got `named value`
+	argument `value` for state `record` expects `&i32`, got `named value`
+	argument `value` for state `record` expects `&u8`, got `named value`
+fail/facts/generic_requirement_statement_call_through_const_name_rejected rejected 1713ms expected @d58d8c534048
+	argument `value` for state `record` expects `&T`, got `named value`
+	argument `value` for state `record` expects `&i32`, got `named value`
+	argument `value` for state `record` expects `&u8`, got `named value`
+fail/facts/generic_requirement_statement_call_through_field_rejected rejected 3959ms expected @d58d8c534048
+	argument `value` for state `record` expects `&T`, got `named value`
+	argument `value` for state `record` expects `&i32`, got `named value`
+	argument `value` for state `record` expects `&u8`, got `named value`
+fail/facts/generic_requirement_statement_call_through_local_rejected rejected 2302ms expected @d58d8c534048
+	argument `value` for state `record` expects `&T`, got `named value`
+	argument `value` for state `record` expects `&i32`, got `named value`
+	argument `value` for state `record` expects `&u8`, got `named value`
+fail/facts/generic_requirement_statement_call_through_match_join_rejected rejected 1379ms expected @d58d8c534048
+	argument `value` for state `record` expects `&T`, got `named value`
+	argument `value` for state `record` expects `&i32`, got `named value`
+	argument `value` for state `record` expects `&u8`, got `named value`
+fail/facts/generic_requirement_statement_call_through_other_machine_rejected rejected 2356ms expected @d58d8c534048
+	argument `value` for state `record` expects `&T`, got `named value`
+	argument `value` for state `record` expects `&i32`, got `named value`
+	argument `value` for state `record` expects `&u8`, got `named value`
+fail/facts/generic_requirement_statement_call_through_other_state_rejected rejected 1800ms expected @d58d8c534048
+	argument `value` for state `record` expects `&T`, got `named value`
+	argument `value` for state `record` expects `&i32`, got `named value`
+	argument `value` for state `record` expects `&u8`, got `named value`
+fail/facts/generic_requirement_statement_call_through_parameter_rejected rejected 2172ms expected @d58d8c534048
+	argument `value` for state `record` expects `&T`, got `named value`
+	argument `value` for state `record` expects `&i32`, got `named value`
+	argument `value` for state `record` expects `&u8`, got `named value`
+fail/facts/generic_requirement_statement_call_through_target_body_rejected rejected 1416ms expected @d58d8c534048
+	argument `value` for state `record` expects `&T`, got `named value`
+	argument `value` for state `record` expects `&i32`, got `named value`
+	argument `value` for state `record` expects `&u8`, got `named value`
 fail/facts/induction_call_guarantee_through_call_result_rejected rejected 808ms expected @961147032a93+wt
 	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
 fail/facts/induction_call_guarantee_through_const_name_rejected rejected 622ms expected @961147032a93+wt
@@ -2486,8 +2522,9 @@ pass/core/scoped_integer_call_exact_actual_requires_formation checked 10878ms ch
 pass/core/scoped_integer_call_guarantees_composed_exit checked 10178ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/scoped_integer_call_unrelated_trait_operator_requires_formation checked 15156ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/self_read_only_receiver_compile checked 2360ms @ccdb99ca2214
-pass/core/task_lifecycle_operations rejected 4031ms check-target:macos_arm64 @ccdb99ca2214
-	no provider is selected for boundary requirement `Task::finish$specialized$f1a34b3b312b5f65$0`, which the program entry reaches on target `macos_arm64`
+pass/core/task_lifecycle_operations rejected 9239ms check-target:macos_arm64 @d58d8c534048
+	no provider is selected for boundary requirement `TaskLifecycle::finish`, which the program entry reaches on target `macos_arm64`
+	no provider is selected for boundary requirement `TaskLifecycle::request_cancel`, which the program entry reaches on target `macos_arm64`
 pass/core/vacant_extent_partition_endpoints checked 3255ms @ccdb99ca2214
 pass/core/zii_default_composite_exit checked 17344ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/case_first_payload_zero_established checked 2600ms @ccdb99ca2214
@@ -5404,6 +5441,15 @@ pass/facts/generic_content_transfer_through_other_machine_exit checked 1305ms ch
 pass/facts/generic_content_transfer_through_other_state_exit checked 1385ms check-target:macos_arm64 @29b6d7aad7f6
 pass/facts/generic_content_transfer_through_parameter_exit checked 1307ms check-target:macos_arm64 @29b6d7aad7f6
 pass/facts/generic_content_transfer_through_target_body_exit checked 1435ms check-target:macos_arm64 @29b6d7aad7f6
+pass/facts/generic_requirement_statement_call_through_call_result_exit checked 7030ms check-target:macos_arm64 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_const_name_exit checked 9364ms check-target:macos_arm64 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_field_exit checked 9285ms check-target:macos_arm64 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_local_exit checked 8162ms check-target:macos_arm64 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_match_join_exit checked 11752ms check-target:macos_arm64 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_other_machine_exit checked 6505ms check-target:macos_arm64 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_other_state_exit checked 11079ms check-target:macos_arm64 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_parameter_exit checked 7406ms check-target:macos_arm64 @d58d8c534048
+pass/facts/generic_requirement_statement_call_through_target_body_exit checked 9998ms check-target:macos_arm64 @d58d8c534048
 pass/facts/guarded_line_loan_through_call_result_exit checked 3534ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/guarded_line_loan_through_const_name_exit checked 3653ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/guarded_line_loan_through_field_exit checked 2604ms check-target:macos_arm64 @ccdb99ca2214
