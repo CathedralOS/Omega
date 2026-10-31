@@ -42,7 +42,8 @@ pub(super) enum RankOrder {
     /// measure and carrier, never an inferred global monotonicity property.
     DeclaredComputation {
         measure: SymbolHandle,
-        primitive: PrimitiveType,
+        input_primitive: PrimitiveType,
+        result_primitive: PrimitiveType,
         computation: ScalarViewComputation,
     },
     /// A declared measure whose body projects a `u64` field of its record
@@ -205,7 +206,8 @@ impl RankProjection {
                 },
                 Some(computation) => RankOrder::DeclaredComputation {
                     measure: view.measure,
-                    primitive,
+                    input_primitive: primitive,
+                    result_primitive: PrimitiveType::from_builtin_atom(view.result_carrier)?,
                     computation,
                 },
             };
@@ -215,7 +217,7 @@ impl RankProjection {
                     subject: *subject,
                     parameter: computation.parameter,
                     body: computation.body,
-                    carrier: view.carrier,
+                    carrier: view.result_carrier,
                 },
             };
             return Some(Self::for_subject(
@@ -397,10 +399,12 @@ impl RankProjection {
     ) -> Option<crate::proof_contracts::contract_entailment::CapturedScalarRank> {
         let (primitive, measure) = match self.order {
             RankOrder::Natural(primitive) => (primitive, SymbolHandle::invalid()),
-            RankOrder::DeclaredIdentity { measure, primitive }
-            | RankOrder::DeclaredComputation {
-                measure, primitive, ..
-            } => (primitive, measure),
+            RankOrder::DeclaredIdentity { measure, primitive } => (primitive, measure),
+            RankOrder::DeclaredComputation {
+                measure,
+                input_primitive,
+                ..
+            } => (input_primitive, measure),
             _ => return None,
         };
         Some(

@@ -92,13 +92,19 @@ pub(super) fn select(
             measure,
             parameter,
             body,
-            carrier,
+            input_carrier,
+            result_carrier,
         } if subjects.len() == 1 => {
             application = Some(Application {
                 measure,
                 parameter,
                 body,
-                primitive: typed_trees::types::PrimitiveType::from_builtin_atom(carrier)?,
+                input_primitive: typed_trees::types::PrimitiveType::from_builtin_atom(
+                    input_carrier,
+                )?,
+                result_primitive: typed_trees::types::PrimitiveType::from_builtin_atom(
+                    result_carrier,
+                )?,
             });
             (
                 Order::Descending,
@@ -109,7 +115,7 @@ pub(super) fn select(
                     subject,
                     parameter,
                     body,
-                    carrier,
+                    carrier: result_carrier,
                 },
             )
         }

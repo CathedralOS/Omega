@@ -188,7 +188,7 @@ fn admit_complete(
             RankingOrder::CustomScalarView {
                 parameter,
                 body,
-                carrier,
+                result_carrier,
                 ..
             },
             DecreaseMeasure::Single(subject),
@@ -196,7 +196,7 @@ fn admit_complete(
             subject,
             parameter: *parameter,
             body: *body,
-            carrier: *carrier,
+            carrier: *result_carrier,
         },
         (RankingOrder::SliceLength, DecreaseMeasure::Single(subject)) => {
             validation::RankingRangeMeasure::SliceLength(subject)

@@ -50,13 +50,14 @@ pub struct ProjectionStep {
 
 /// A declared scalar view applied to one exact subject. The produced rank is
 /// the subject itself (`computation` is `None`) or the measure body with its
-/// parameter bound to the subject; either way the subject and the measure
-/// share `carrier`, and the rank is a natural of that carrier once the range
-/// judgment proves its formation.
+/// parameter bound to the subject. The input coordinate and produced rank
+/// have independent carriers; formation checks the input domain and the entire
+/// body before the result can supply facts in its own carrier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DeclaredScalarView {
     pub measure: SymbolHandle,
-    pub carrier: BuiltinTypeAtom,
+    pub input_carrier: BuiltinTypeAtom,
+    pub result_carrier: BuiltinTypeAtom,
     pub computation: Option<ScalarViewComputation>,
 }
 
@@ -72,7 +73,8 @@ pub struct ScalarViewComputation {
 /// body node and its output under the actual captured values. No syntactic
 /// operator family or global monotonicity stands in for that judgment.
 pub struct ComputationBodyShape {
-    pub carrier: BuiltinTypeAtom,
+    pub input_carrier: BuiltinTypeAtom,
+    pub result_carrier: BuiltinTypeAtom,
     pub parameter: SymbolHandle,
     pub body: ExpressionHandle,
 }
@@ -97,11 +99,9 @@ pub fn computation_body_shape(
     }
     let (carrier, _) = unsigned_carrier(program, parameter.type_reference)?;
     let (result, _) = unsigned_carrier(program, measure.return_type)?;
-    if result != carrier {
-        return None;
-    }
     Some(ComputationBodyShape {
-        carrier,
+        input_carrier: carrier,
+        result_carrier: result,
         parameter: parameter.symbol,
         body: *body,
     })
@@ -133,20 +133,23 @@ pub fn declared_scalar_view(
             && measure_constraints_cover_subject(program, state, subject, &constraints))
         .then_some(DeclaredScalarView {
             measure: measure.symbol,
-            carrier,
+            input_carrier: carrier,
+            result_carrier: carrier,
             computation: None,
         }),
         Some(MeasureBodyShape::FieldProjection { .. }) => None,
         None => {
             let ComputationBodyShape {
-                carrier,
+                input_carrier,
+                result_carrier,
                 parameter,
                 body,
             } = computation_body_shape(program, measure)?;
-            identity_subject_matches(program, state, subject, carrier).then_some(
+            identity_subject_matches(program, state, subject, input_carrier).then_some(
                 DeclaredScalarView {
                     measure: measure.symbol,
-                    carrier,
+                    input_carrier,
+                    result_carrier,
                     computation: Some(ScalarViewComputation { parameter, body }),
                 },
             )

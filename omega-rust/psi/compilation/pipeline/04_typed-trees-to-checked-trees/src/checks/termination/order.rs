@@ -41,18 +41,16 @@ pub(super) enum RankingOrder {
     IncreasingTo(ExpressionHandle),
     /// A declared `measure` whose body forwards the (already numeric) parameter.
     CustomNatDescending { measure: symbols::SymbolHandle },
-    /// A declared `measure` whose body computes over its parameter with `+`
-    /// and `*` (`{ value * 2 }`), admitted by validation's
-    /// `declared_scalar_view` as strictly increasing on the naturals with
-    /// builtin operator meaning. The produced rank is `body` with `parameter`
-    /// bound to the subject; strict monotonicity is the only reason the
-    /// subject's descent stands for that rank's descent, and the range
-    /// judgment still proves membership and formation inside `carrier`.
+    /// A declared scalar computation over the exact captured input. Its
+    /// input carrier authenticates the source coordinate; independent body
+    /// formation establishes a value in the result carrier. Comparisons use
+    /// produced values, never an assumed monotonicity of the input.
     CustomScalarView {
         measure: symbols::SymbolHandle,
         parameter: symbols::SymbolHandle,
         body: ExpressionHandle,
-        carrier: symbols::BuiltinTypeAtom,
+        input_carrier: symbols::BuiltinTypeAtom,
+        result_carrier: symbols::BuiltinTypeAtom,
     },
     /// A declared `measure` whose body projects a field of a struct parameter,
     /// e.g. `measure Card::PowerOrder(card: Card) -> u64 { card.power }`, or a
@@ -269,7 +267,8 @@ impl RankingOrder {
                 measure: measure.symbol,
                 parameter: computation.parameter,
                 body: computation.body,
-                carrier: view.carrier,
+                input_carrier: view.input_carrier,
+                result_carrier: view.result_carrier,
             });
         };
         match shape {
