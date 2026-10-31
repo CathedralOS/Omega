@@ -4,6 +4,8 @@ use symbols::{SymbolKind, SymbolTable};
 use crate::symbols::top_level::{SignatureSymbolTables, next_child_of_kind};
 
 pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
+    let (_, trait_proposition_slots, trait_machine_identity_slots) =
+        crate::symbols::top_level::trait_parameter_tables(program);
     let type_constraints = &program.tables.types.constraints;
     let data_type_parameters = &mut program.tables.declarations.data_type_parameters;
     let data_members = &mut program.tables.declarations.data_members;
@@ -28,6 +30,9 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
                 data_type_parameters.span_mut_or_empty(data_definition.type_parameters)
             {
                 let kind = match type_parameter.kind {
+                    symbol_resolved_trees::data::TypeParameterKind::Implementation => {
+                        SymbolKind::ConformanceParameter
+                    }
                     symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
                         SymbolKind::MachineParameter
                     }
@@ -38,6 +43,28 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
             let local_type_parameters = data_type_parameters
                 .span_or_empty(data_definition.type_parameters)
                 .to_vec();
+
+            for bound in &mut data_definition.conformance_bounds {
+                bound.binder = local_type_parameters
+                    .iter()
+                    .find(|parameter| {
+                        parameter.name == bound.binder_name
+                            && parameter.kind
+                                == symbol_resolved_trees::data::TypeParameterKind::Implementation
+                    })
+                    .map_or(symbols::SymbolHandle::invalid(), |parameter| {
+                        parameter.symbol
+                    });
+            }
+            crate::symbols::top_level::assign_conformance_bound_symbols(
+                symbols,
+                child_type_references,
+                type_constraints,
+                &local_type_parameters,
+                &mut data_definition.conformance_bounds,
+                &trait_proposition_slots,
+                &trait_machine_identity_slots,
+            );
 
             // N7: data-family machine contracts participate in symbol identity
             // exactly like machine-template contracts. Their value parameters

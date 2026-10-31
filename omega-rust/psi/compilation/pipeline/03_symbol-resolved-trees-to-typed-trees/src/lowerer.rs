@@ -712,6 +712,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         plan_laid_layouts: _,
         plan_laid_target_layouts: _,
         plan_laid_schema_fields: _,
+        plan_laid_retired_field_identities: _,
         placed_view_plans: _,
         placement_lifecycle_plans: _,
         placement_policy_invocations: _,
@@ -724,6 +725,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         captured_machine_applications: _,
         captured_machine_states: _,
         trait_implementation_applications: _,
+        data_implementation_applications: _,
         // Checking instantiates selector slots after specialization.
         dynamic_slots: _,
         // Family records are produced after all typed bodies settle.

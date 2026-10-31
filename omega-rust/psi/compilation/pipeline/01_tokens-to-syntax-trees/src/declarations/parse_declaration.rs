@@ -100,7 +100,7 @@ pub(crate) fn starts_boundary_item(input: Input<'_, '_>) -> bool {
 /// binder validity and diagnostics. Parenthesized/array type operands may
 /// contain comparisons or shifts, so their punctuation does not close the
 /// outer telescope. No syntax nodes are allocated during contract lookahead.
-fn named_implementation_prefix<'tokens, 'source>(
+pub(crate) fn named_implementation_prefix<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Option<(Identifier, Input<'tokens, 'source>)> {
     let (name, rest) = input.take_identifier().ok()?;

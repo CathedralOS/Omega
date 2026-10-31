@@ -73,6 +73,10 @@ pub fn provider_selection_roots<'selection>(
 pub struct TargetProviderPreparationRequest<'program> {
     pub context: ProviderPlanningContext<'program>,
     pub exact_toolchain_sources: &'program [(source::SourceId, [u8; 32])],
+    /// None is reusable Source checking; Some is the complete Build deployment
+    /// entry roster, with provider-only deployments represented by an empty slice.
+    pub application_roots: Option<&'program [(String, SymbolHandle)]>,
+    pub application_scopes: &'program [String],
     pub overrides: &'program [ProviderSelection],
     pub assumed_bindings: &'program [effects::AssumedBindingContractSelection],
     pub independent_components:
@@ -98,7 +102,12 @@ impl TargetProviderPreparationRequest<'_> {
                 (target.clone(), prepared)
             })
             .collect();
-        PreparedTargetProviderPublication::new(targets, self.assumed_bindings.to_vec())
+        PreparedTargetProviderPublication::new(
+            targets,
+            self.assumed_bindings.to_vec(),
+            self.application_roots.is_some(),
+            self.application_scopes.to_vec(),
+        )
     }
 
     fn prepare_target(
@@ -121,6 +130,11 @@ impl TargetProviderPreparationRequest<'_> {
             .defaults()
             .iter()
             .chain(self.overrides)
+            .filter(|choice| {
+                choice
+                    .target
+                    .is_none_or(|selected| selected.canonical_name() == target)
+            })
             .map(|choice| {
                 crate::provider_planning::selection_declarations::project_declaration(
                     choice,
@@ -171,7 +185,21 @@ impl TargetProviderPreparationRequest<'_> {
                 explicitly_selected,
             });
         }
+        let application_roots = self
+            .application_roots
+            .map(|roots| {
+                roots
+                    .iter()
+                    .filter(|(scope, _)| scope == target)
+                    .map(|(_, root)| {
+                        self.canonical_declaration(*root)
+                            .map_err(|reason| vec![Diagnostic::error(reason)])
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()?;
         Ok(PreparedTargetChoices {
+            application_roots,
             profile,
             independent_components: self.independent_components.to_vec(),
             candidates: prepared,

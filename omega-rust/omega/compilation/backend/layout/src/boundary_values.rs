@@ -44,6 +44,7 @@ pub struct BoundaryTypeBinding {
 pub struct BoundaryValueLayout<'input> {
     typed: &'input TypedTrees,
     target: NativeTarget,
+    layout_profile: Option<target::TargetProfile>,
     bindings: &'input [BoundaryTypeBinding],
     selections: &'input [OpaqueRepresentationSelection],
     visiting: Vec<DataApplicationKey>,
@@ -63,13 +64,15 @@ impl<'input> BoundaryValueLayout<'input> {
     /// evaluation occurs here. Sizes and offsets in the output are bytes.
     pub fn new(
         typed: &'input TypedTrees,
-        target: NativeTarget,
+        target: impl Into<crate::LayoutTarget>,
         bindings: &'input [BoundaryTypeBinding],
         selections: &'input [OpaqueRepresentationSelection],
     ) -> Self {
+        let (target, layout_profile) = target.into().into_parts();
         Self {
             typed,
             target,
+            layout_profile,
             bindings,
             selections,
             visiting: Vec::new(),
@@ -301,10 +304,20 @@ impl<'input> BoundaryValueLayout<'input> {
                 "recursive by-value data `{name}` has no finite boundary shape"
             ));
         }
-        let application = typed.plan_laid_layout(definition.symbol);
+        let application = typed.plan_laid_layout_for_data(definition);
+        if application.is_none()
+            && definition
+                .generic_instance
+                .is_some_and(|reference| typed.layout_storage_arguments(reference).is_some())
+        {
+            return Err(format!(
+                "boundary data `{name}` requires its exact admitted fixed representation"
+            ));
+        }
         let planned_layout = application.map(|layout| {
-            layout.invariant_geometry().ok_or_else(|| format!(
-                "plan-laid data `{name}` retains an unresolved target-family layout; native boundary classification requires an invariant layout or a target-closed Terminal view"
+            layout.geometry_for_target(typed, self.layout_profile.map(target::TargetProfile::target_name)).ok_or_else(|| format!(
+                "fixed representation data `{name}` has no admitted layout for boundary target `{}`",
+                self.layout_profile.map(target::TargetProfile::target_name).unwrap_or("<unselected>")
             ))
         }).transpose()?;
         let runtime_field_symbols = typed

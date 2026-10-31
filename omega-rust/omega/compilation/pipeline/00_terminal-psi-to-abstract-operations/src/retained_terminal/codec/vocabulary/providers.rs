@@ -361,6 +361,8 @@ record_fields!(backend_plan::TerminalTargetProviderProposal {
     target,
     terminal_psi,
     optimization_selection,
+    application_roots,
+    application_required,
     selection
 });
 

@@ -41,14 +41,17 @@ mod const_predicates;
 mod constraint_validation;
 mod formation;
 mod generic_arguments;
+mod implementation_arguments;
 mod open_index_expressions;
 mod static_argument_scope;
 
 use constraint_validation::validate_type_constraints_node;
 pub(crate) use generic_arguments::{
-    AppliedValueCarrier, const_argument_matches_parameter, const_integer_value_fits_primitive,
+    AppliedValueCarrier, check_closed_const_expression_in_carrier,
+    const_argument_matches_parameter, const_integer_value_fits_primitive,
     exact_const_carrier_is_eligible, validate_const_binder_carriers, validate_exact_const_identity,
-    validate_exact_const_identity_in_carrier, validate_exact_typed_structured_const_argument,
+    validate_exact_const_identity_in_carrier, validate_exact_const_value_encoding_in_carrier,
+    validate_exact_typed_structured_const_argument,
 };
 pub use generic_arguments::{check_closed_const_expression, normalize_closed_const_expression};
 use generic_arguments::{
@@ -749,15 +752,6 @@ fn validate_type_reference_node(
                     )));
                 }
                 let parameters = program.data_type_parameters(definition);
-                // A zero-parameter data declaration can still appear in the
-                // `Policy<Schema>` layout-application form. Its argument is a
-                // schema, not a data-generic argument.
-                if parameters.is_empty() {
-                    for argument in argument_handles {
-                        validate_generic_argument(*argument, diagnostics, formation_obligations);
-                    }
-                    return;
-                }
                 if parameters.len() != argument_handles.len() {
                     diagnostics.push(Diagnostic::error(format!(
                         "generic data `{base_name}` expected {} arguments but got {}",
@@ -765,13 +759,37 @@ fn validate_type_reference_node(
                         argument_handles.len()
                     )));
                 }
+                crate::declarations::traits::validate_implementation_application(
+                    program,
+                    definition.symbol,
+                    parameters,
+                    &definition.lifetime_parameters,
+                    &definition.conformance_bounds,
+                    argument_handles,
+                    lifetime_arguments,
+                    // The complete tuple belongs to its retained supplier,
+                    // including regions nested below this constructor. A
+                    // specialization's receiving machine cannot bind them.
+                    if type_parameter_scope.operand_lifetime_owner.is_valid() {
+                        type_parameter_scope.operand_lifetime_owner
+                    } else {
+                        type_parameter_scope.lexical_owner
+                    },
+                    &format!("data `{base_name}`"),
+                    diagnostics,
+                );
                 for (parameter, argument) in parameters.iter().zip(argument_handles) {
                     match &parameter.kind {
                         TypeParameterKind::Implementation => {
-                            diagnostics.push(Diagnostic::error(format!(
-                                "data `{base_name}` declares implementation binder `{}`; implementation parameters belong to trait or machine contracts, not stored data",
-                                parameter.name
-                            )));
+                            implementation_arguments::validate_operand_formation(
+                                program,
+                                *argument,
+                                symbols,
+                                owner.generic_argument(),
+                                type_parameter_scope,
+                                diagnostics,
+                                formation_obligations,
+                            );
                         }
                         TypeParameterKind::Const { type_reference }
                         | TypeParameterKind::Value { type_reference } => {

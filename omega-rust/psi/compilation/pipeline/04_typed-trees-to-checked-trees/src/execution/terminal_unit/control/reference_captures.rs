@@ -77,8 +77,10 @@ pub(in crate::execution::terminal_unit) fn plan(
     ) {
         return None;
     }
-    // Primitive homes have their own existing local producer. A structural
-    // capture must not steal those bindings merely because it can name a leaf.
-    super::super::types::base_type_identity(program, capture.backing_type, &[], &[])?;
+    // The captured endpoint may be primitive even when its original home is
+    // an aggregate or fixed byte region. Its declaration remains with that
+    // home; this operation establishes only the new reference descriptor.
+    // Primitive local and ingress homes are published by the same source-home
+    // owner during emission, so endpoint shape cannot choose a silent alias.
     Some(capture)
 }

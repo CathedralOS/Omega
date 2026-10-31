@@ -23,6 +23,8 @@ fn optional_identity(identity: Option<u64>) -> BuildTimeValue {
 }
 
 fn padded_identities(identities: &[u64]) -> Vec<BuildTimeValue> {
+    let mut identities = identities.to_vec();
+    identities.sort_unstable();
     (0..SCHEMA_FIELD_CAPACITY)
         .map(|index| BuildTimeValue::Int(identities.get(index).copied().unwrap_or_default() as i64))
         .collect()
@@ -79,9 +81,10 @@ pub(crate) fn build_selected_schema_value(
     schema_fields: &[SchemaFieldInfo],
 ) -> Result<BuildTimeValue, String> {
     let schema_data = data.name.as_str();
+    let schema_fields = super::canonical_schema_fields(schema_fields);
     let mut fields = Vec::with_capacity(SCHEMA_FIELD_CAPACITY);
     for index in 0..SCHEMA_FIELD_CAPACITY {
-        fields.push(build_schema_field_value(schema_fields.get(index)));
+        fields.push(build_schema_field_value(schema_fields.get(index).copied()));
     }
     let variants = typed
         .data_members(data)
@@ -155,10 +158,20 @@ pub(crate) fn build_selected_schema_value(
                 (field.name.to_string(), key)
             }),
         )?;
+        let payload_intervals = validation::case_where_field_intervals(typed, variant);
         let payload_fields = (0..SCHEMA_FIELD_CAPACITY)
             .map(|payload_index| {
                 let info = payload.get(payload_index).map(|field| {
-                    let reflected = reflected_field_layout(typed, field.type_reference);
+                    let reflected = reflected_field_layout(
+                        typed,
+                        field.type_reference,
+                        None,
+                        payload_intervals.as_deref().and_then(|rows| {
+                            rows.iter()
+                                .find(|(symbol, _, _)| *symbol == field.symbol)
+                                .map(|(_, low, high)| (*low, *high))
+                        }),
+                    );
                     let (size, align, source_bits, primitive, kind, declared_range, repeated) =
                         reflected.unwrap_or((0, 1, 0, None, "Nested", None, None));
                     SchemaFieldInfo {

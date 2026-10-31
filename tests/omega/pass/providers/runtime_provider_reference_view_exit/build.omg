@@ -1,22 +1,6 @@
 machine build(builder: &mut Build) {
  Build::application(builder, "runtime_provider_reference_view_exit");
- Build::select_provider<Version, NativeVersion>(builder, linux_arm64);
  Build::select_provider<Version, NativeVersion>(builder, linux_x86_64);
- Build::select_provider<Version, NativeVersion>(builder, macos_arm64);
- Build::select_provider<Version, NativeVersion>(builder, macos_x86_64);
- Build::select_provider<Version, NativeVersion>(builder, windows_x86_64);
- Build::select_provider<Version, NativeVersion>(builder, uefi_x86_64);
- Build::select_provider<Version, NativeVersion>(builder, cross_platform_cli);
- Build::select_provider<Version, NativeVersion>(builder, local_unchecked);
- Build::select_provider<Version, NativeVersion>(builder, alpha_bootstrap);
- Build::select_provider<WideVersion, WideProvider>(builder, linux_arm64);
  Build::select_provider<WideVersion, WideProvider>(builder, linux_x86_64);
- Build::select_provider<WideVersion, WideProvider>(builder, macos_arm64);
- Build::select_provider<WideVersion, WideProvider>(builder, macos_x86_64);
- Build::select_provider<WideVersion, WideProvider>(builder, windows_x86_64);
- Build::select_provider<WideVersion, WideProvider>(builder, uefi_x86_64);
- Build::select_provider<WideVersion, WideProvider>(builder, cross_platform_cli);
- Build::select_provider<WideVersion, WideProvider>(builder, local_unchecked);
- Build::select_provider<WideVersion, WideProvider>(builder, alpha_bootstrap);
  Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }

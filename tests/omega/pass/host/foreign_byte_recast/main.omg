@@ -4,8 +4,9 @@ use omega::language::core::layout;
 // `value as &mut ForeignByte` hands `&mut SignedByte<PortableByte>` storage
 // to the `i8` view `bzero`/`memcmp` consume — `reaches A + B` unions both
 // service ceilings.
-public data SignedByte2 {}
-machine SignedByte2::plan(schema: Schema) -> Plan {
+
+public SignedByte2 satisfies FixedLayout<PortableByte> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -23,8 +24,9 @@ machine SignedByte2::plan(schema: Schema) -> Plan {
         align: 1,
     }
 }
+}
 public data PortableByte [copy] { value: i64; }
-public data RawView { value: SignedByte2<PortableByte>; }
+public data RawView { value: LayoutStorage<PortableByte, SignedByte2>; }
 public data ForeignByte { value: i8; }
 public boundary trait ClearByte {
     machine clear(value: &mut ForeignByte, count: u64) reaches;

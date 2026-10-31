@@ -322,8 +322,9 @@ pub use declarations::operators::{
 };
 pub use declarations::traits::{
     DynamicImplementationSelection, DynamicSlotDemand, collect_dynamic_implementation_selections,
-    collect_dynamic_slot_demands, compose_forwarded_trait_arguments, dynamic_call_demand,
-    dynamic_expression_call_demand, generic_bound_operator_requirement, qualified_trait_scope,
+    collect_dynamic_slot_demands, compose_forwarded_trait_arguments, describe_dynamic_conformances,
+    dynamic_call_demand, dynamic_expression_call_demand, generic_bound_operator_requirement,
+    normalized_dynamic_row_identities, qualified_trait_scope,
     resolve_closed_requirement_application, resolve_dynamic_call_targets,
     resolve_selected_dynamic_call_targets, revalidate_machine_trait_conformances,
     revalidate_named_implementation, revalidate_top_level_requirement_realization,
@@ -544,7 +545,9 @@ pub(crate) use optimization::digest_encoder;
 pub mod expression_traversal;
 mod frozen_program;
 mod layout_checking;
-pub use layout_checking::{LayoutCheckingContext, layout_checking_targets};
+pub use layout_checking::{
+    LayoutCheckingContext, layout_checking_targets, pending_layout_geometry,
+};
 mod machine_calls;
 mod program_validation;
 mod proof_contracts;

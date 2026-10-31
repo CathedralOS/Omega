@@ -40,7 +40,7 @@ pub enum TypeReference {
     /// const binders. Unlike ordinary const-generic arithmetic, this survives
     /// pre-resolution so exact operand and operator symbols can participate in
     /// PDI3 semantic identity.
-    ConstExpression(crate::expression::ExpressionHandle),
+    ConstExpression(ConstExpressionTypeReference),
     /// `dyn Trait<Args>`: a runtime selector of one named implementation of
     /// this exact trait application. `symbol` is the trait; the arguments are
     /// ordinary type positions, resolved like a generic application's.
@@ -57,6 +57,25 @@ pub enum TypeReference {
     },
     #[default]
     Unit,
+}
+
+/// A const recipe retains the source declaration that supplies its leaves.
+/// Copied syntax uses its existing pre-allocation owner receipt; pristine
+/// lexical resolution establishes the symbol once. Neither is a receiver.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct ConstExpressionTypeReference {
+    pub expression: crate::expression::ExpressionHandle,
+    pub supplied_operand_owner: OperandLifetimeOwnerHandle,
+    pub lexical_owner: SymbolHandle,
+}
+
+impl ConstExpressionTypeReference {
+    pub fn new(expression: crate::expression::ExpressionHandle) -> Self {
+        Self {
+            expression,
+            ..Self::default()
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -187,6 +206,7 @@ pub struct TypeReferenceTable {
 struct SuppliedOperandOwner {
     reference: TypeReferenceHandle,
     owner: OperandLifetimeOwnerHandle,
+    lexical_owner: SymbolHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -225,6 +245,13 @@ impl TypeReferenceTable {
         self.supplied_operand_owners
             .iter()
             .find_map(|(_, row)| (row.reference == reference).then_some(row.owner))
+            .unwrap_or_default()
+    }
+
+    pub fn operand_lexical_owner(&self, reference: TypeReferenceHandle) -> SymbolHandle {
+        self.supplied_operand_owners
+            .iter()
+            .find_map(|(_, row)| (row.reference == reference).then_some(row.lexical_owner))
             .unwrap_or_default()
     }
 
@@ -475,7 +502,7 @@ impl TypeReferenceTable {
                 })
             }
             TypeReference::ConstExpression(expression) => {
-                let expression = source_expressions.copy_into(expressions, *expression);
+                let expression = source_expressions.copy_into(expressions, expression.expression);
                 self.insert(TypeReferenceNode::ConstExpression(expression))
             }
             TypeReference::DynamicTrait {
@@ -504,9 +531,13 @@ impl TypeReferenceTable {
             TypeReference::Unit => self.insert(TypeReferenceNode::Unit),
         };
         let owner = type_reference.supplied_operand_owner();
-        if owner.is_valid() {
-            self.supplied_operand_owners
-                .insert(SuppliedOperandOwner { reference, owner });
+        let lexical_owner = type_reference.operand_lexical_owner();
+        if owner.is_valid() || lexical_owner.is_valid() {
+            self.supplied_operand_owners.insert(SuppliedOperandOwner {
+                reference,
+                owner,
+                lexical_owner,
+            });
         }
         reference
     }
@@ -528,7 +559,15 @@ impl TypeReference {
                 supplied_operand_owner,
                 ..
             } => *supplied_operand_owner,
-            Self::ConstExpression(_) | Self::Unit => OperandLifetimeOwnerHandle::invalid(),
+            Self::ConstExpression(expression) => expression.supplied_operand_owner,
+            Self::Unit => OperandLifetimeOwnerHandle::invalid(),
+        }
+    }
+
+    pub fn operand_lexical_owner(&self) -> SymbolHandle {
+        match self {
+            Self::ConstExpression(expression) => expression.lexical_owner,
+            _ => SymbolHandle::invalid(),
         }
     }
 
@@ -547,7 +586,8 @@ impl TypeReference {
                 supplied_operand_owner,
                 ..
             } => *supplied_operand_owner = owner,
-            Self::ConstExpression(_) | Self::Unit => {}
+            Self::ConstExpression(expression) => expression.supplied_operand_owner = owner,
+            Self::Unit => {}
         }
     }
 }

@@ -46,6 +46,27 @@ impl TypedTrees {
             .unwrap_or_else(|| self.state_signature_type_parameters(signature))
     }
 
+    /// The produced Source admission view retains the complete substituted
+    /// telescope and contracts. Executable instances erase only generic arity;
+    /// this view restores its producer-owned parameter span without consulting
+    /// another logical-signature cache or reconstructing source operands.
+    pub fn closed_requirement_admission_signature(
+        &self,
+        instance: SymbolHandle,
+    ) -> Option<signature::StateSignature> {
+        let prepared = self.closed_requirement_signature(instance)?;
+        let AppliedCallableOwner::RequirementInstance {
+            invocation_contract_parameters,
+            ..
+        } = prepared.owner
+        else {
+            return None;
+        };
+        let mut admission = prepared.signature.clone();
+        admission.type_parameters = invocation_contract_parameters;
+        Some(admission)
+    }
+
     pub fn closed_requirement_applications(
         &self,
     ) -> impl Iterator<Item = ClosedRequirementApplication<'_>> {

@@ -107,6 +107,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
                 supply_mode: language_core::DataSupplyMode::CheckedShape,
                 lifetime_parameters,
                 type_parameters,
+                conformance_bounds: generic_parameters.conformance_bounds,
                 generic_instance: None,
                 properties,
                 cleanup_selection,
@@ -171,6 +172,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             supply_mode: language_core::DataSupplyMode::CheckedShape,
             lifetime_parameters,
             type_parameters,
+            conformance_bounds: generic_parameters.conformance_bounds,
             generic_instance: None,
             properties,
             cleanup_selection,
@@ -197,7 +199,7 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
         ));
     }
     let (generic_parameters, input) =
-        parse_generic_parameters(syntax_trees, input, GenericParameterSyntax::StaticBinders)?;
+        parse_generic_parameters(syntax_trees, input, GenericParameterSyntax::DataDeclaration)?;
     let type_parameters = generic_parameters.type_parameters;
     let lifetime_parameters = generic_parameters.lifetime_parameters;
     let (properties, input) = parse_property_brackets(input)?;
@@ -230,6 +232,7 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
             supply_mode: language_core::DataSupplyMode::BoundaryOpaque,
             lifetime_parameters,
             type_parameters,
+            conformance_bounds: generic_parameters.conformance_bounds,
             generic_instance: None,
             properties,
             quotient: None,

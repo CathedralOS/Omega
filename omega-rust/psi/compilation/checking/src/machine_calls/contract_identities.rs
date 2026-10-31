@@ -311,8 +311,22 @@ pub fn prepare_specialization_contract_identities(
     );
     for (_, capture) in program.captured_machine_applications.iter() {
         super::calls::capture_binding_is_exact(program, capture).map_err(|reason| {
+            let supplying_owner = capture.supplying_application.is_valid().then(|| {
+                let source = program
+                    .expression_table
+                    .static_machine_application(capture.supplying_application);
+                program.symbols.display_path(source.lexical_owner, "::").to_string()
+            }).unwrap_or_else(|| "<missing>".into());
+            let declaration_occurrences = program
+                .closed_conformance_application_sites()
+                .iter()
+                .filter(|(_, _, supplying, _)| *supplying == capture.supplying_application)
+                .count();
             vec![Diagnostic::error(format!(
-                "capture application does not replay its complete supplying substitution: {reason}"
+                "capture application does not replay its complete supplying substitution: {reason}; implementation `{}`, body `{}`, supplying owner `{}`, retained source occurrences {declaration_occurrences}",
+                program.symbols.display_path(capture.conformance_application.declaration, "::"),
+                program.symbols.display_path(capture.template, "::"),
+                supplying_owner,
             ))]
         })?;
         if program

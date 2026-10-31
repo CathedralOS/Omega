@@ -24,8 +24,8 @@ pub use typed_trees::constant_recipes;
 pub use typed_trees::control_flow::{machine, state, statement};
 pub use typed_trees::declaration_index;
 pub use typed_trees::declarations::{
-    boundary_completions, calling_vocabulary, constant, data, domain, invocations, measure,
-    operator, product_operand, trait_definition, visibility, wire,
+    boundary_completions, calling_vocabulary, constant, data, domain, invocations, layout_storage,
+    measure, operator, product_operand, trait_definition, visibility, wire,
 };
 pub use typed_trees::evidence::{
     byte_predicates, dependent_ranges, mathematical, proof_only, proposition, ranking,
@@ -48,8 +48,8 @@ pub use typed_trees::{
     BoundaryCompletionDeclaration, DataDefinitionTable, FrozenTypedTrees,
     PlacedScalarAccessorDeclaration, PlacedScalarAccessorOperation, PlanLaidBitField,
     PlanLaidBitFragment, PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout,
-    PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidSchemaArgument, PlanLaidSchemaField,
-    PlanLaidSchemaFieldKind, PlanLaidTargetLayout, ProgramIdentity, TypedTreeRoots,
-    TypedTreeTables, TypedTrees, closed_conformance_applications_of,
-    machine_specialization_matches_template_identity,
+    PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidRetiredFieldIdentity,
+    PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
+    ProgramIdentity, TypedTreeRoots, TypedTreeTables, TypedTrees,
+    closed_conformance_applications_of, machine_specialization_matches_template_identity,
 };

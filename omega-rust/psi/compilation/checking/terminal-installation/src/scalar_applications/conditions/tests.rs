@@ -117,6 +117,7 @@ fn scalar_condition_scope_uses_selected_edges_not_available_candidates() {
             false,
             [(boundary, MachineId::new(body).unwrap())],
             &[],
+            None,
         )
         .unwrap();
         assert_eq!(selected.ranges(), ranges);
@@ -126,8 +127,9 @@ fn scalar_condition_scope_uses_selected_edges_not_available_candidates() {
             [ScalarApplicationId::new(7).unwrap()]
         );
     }
-    let none = ScalarConditionSelection::select(&scope, &conditions, "macos_arm64", false, [], &[])
-        .unwrap();
+    let none =
+        ScalarConditionSelection::select(&scope, &conditions, "macos_arm64", false, [], &[], None)
+            .unwrap();
     assert_eq!(none.ranges(), [0, 5]);
     assert!(
         ScalarConditionSelection::select(
@@ -136,7 +138,8 @@ fn scalar_condition_scope_uses_selected_edges_not_available_candidates() {
             "macos_arm64",
             false,
             [(boundary, MachineId::new(99).unwrap())],
-            &[]
+            &[],
+            None
         )
         .is_err()
     );
@@ -146,9 +149,16 @@ fn scalar_condition_scope_uses_selected_edges_not_available_candidates() {
 fn scalar_condition_scope_keeps_primary_formation_and_explicit_entry_demands_separate() {
     let (scope, conditions) = fixture();
     let pending = ScalarApplicationId::new(7).unwrap();
-    let secondary =
-        ScalarConditionSelection::select(&scope, &conditions, "windows_x86_64", false, [], &[])
-            .unwrap();
+    let secondary = ScalarConditionSelection::select(
+        &scope,
+        &conditions,
+        "windows_x86_64",
+        false,
+        [],
+        &[],
+        None,
+    )
+    .unwrap();
     assert_eq!(secondary.ranges(), [5]);
     assert_eq!(secondary.predicates(), [5]);
     let primary = ScalarConditionSelection::select(
@@ -158,6 +168,7 @@ fn scalar_condition_scope_keeps_primary_formation_and_explicit_entry_demands_sep
         true,
         [],
         &[pending],
+        None,
     )
     .unwrap();
     // The untargeted selected machines are primary seeds; declaration 5 owes
@@ -197,7 +208,8 @@ fn scalar_condition_scope_selects_family_members_without_rooting_other_targets()
     });
     for (target, predicate) in [("macos_arm64", 1), ("windows_x86_64", 2)] {
         let selected =
-            ScalarConditionSelection::select(&scope, &conditions, target, true, [], &[]).unwrap();
+            ScalarConditionSelection::select(&scope, &conditions, target, true, [], &[], None)
+                .unwrap();
         assert_eq!(selected.predicates(), [predicate, 5]);
         assert!(
             !selected.predicates().contains(&0),
@@ -205,7 +217,7 @@ fn scalar_condition_scope_selects_family_members_without_rooting_other_targets()
         );
     }
     let unavailable =
-        ScalarConditionSelection::select(&scope, &conditions, "linux_arm64", false, [], &[])
+        ScalarConditionSelection::select(&scope, &conditions, "linux_arm64", false, [], &[], None)
             .unwrap();
     assert_eq!(unavailable.predicates(), [5]);
     assert_eq!(unavailable.ranges(), [5]);

@@ -97,7 +97,7 @@ pub(crate) fn validate_data_properties(
         }
 
         if properties.multiplicity == language_semantics::Multiplicity::Unrestricted {
-            validate_structural_property(program, data_definition, "copy", diagnostics);
+            validate_copy_property(program, data_definition, diagnostics);
         }
         if let Some(carry) = properties.carry {
             validate_carry_policy(program, data_definition, carry, diagnostics);
@@ -111,22 +111,22 @@ pub(crate) fn validate_data_properties(
 /// (`data Box<T [copy]> [copy]`). Shared references copy the loan carrier,
 /// not the referent; qualification, provenance and lifetime checking still
 /// apply to every copy. Exclusive references and bare slices do not qualify.
-fn validate_structural_property(
+fn validate_copy_property(
     program: &dyn crate::CheckingInput,
     data_definition: &DataDefinition,
-    property: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let property = "copy";
     let type_parameters = program.data_type_parameters(data_definition);
     for_each_stored_field(
         program,
         data_definition,
         &mut |field, case: Option<&str>| {
-            if type_satisfies_structural_property(
+            if type_satisfies_declared_property(
                 program,
                 type_parameters,
                 field.type_reference,
-                property,
+                DeclaredPropertyRequirement::Copy,
             ) {
                 return;
             }
@@ -334,6 +334,14 @@ pub fn type_satisfies_declared_property(
     type_reference: typed_trees::types::TypeReferenceHandle,
     property: DeclaredPropertyRequirement,
 ) -> bool {
+    if let Some(storage) = program.layout_storage_arguments(type_reference) {
+        return type_satisfies_declared_property(
+            program,
+            type_parameters,
+            storage.semantic_type,
+            property,
+        );
+    }
     match property {
         DeclaredPropertyRequirement::Carry(required) => {
             CarryDerivation::new(program, type_parameters)

@@ -44,7 +44,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 /// carrier as the semantic source type.
 pub fn build_layout_plan(
     program: &TypedTrees,
-    target: NativeTarget,
+    target: impl Into<crate::LayoutTarget>,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<LayoutPlan, Diagnostic> {
     build_layout_plan_for_roots(
@@ -65,14 +65,14 @@ pub fn build_layout_plan(
 /// view; unrelated declarations never acquire a physical layout demand.
 pub fn build_layout_plan_for_roots(
     program: &TypedTrees,
-    target: NativeTarget,
+    target: impl Into<crate::LayoutTarget>,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     roots: impl IntoIterator<Item = SymbolHandle>,
 ) -> Result<LayoutPlan, Diagnostic> {
     let roots = roots.into_iter().collect::<Vec<_>>();
     let mut builder = LayoutBuilder::new(
         program,
-        target,
+        target.into(),
         opaque_representation_selections,
         OpaqueRepresentationDemand::CatalogConstruction,
     );
@@ -113,13 +113,13 @@ pub fn build_layout_plan_for_roots(
 /// representation.
 pub fn layout_type_reference(
     program: &TypedTrees,
-    target: NativeTarget,
+    target: impl Into<crate::LayoutTarget>,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     type_reference: TypeReferenceHandle,
 ) -> Result<TypeLayout, Diagnostic> {
     LayoutBuilder::new(
         program,
-        target,
+        target.into(),
         opaque_representation_selections,
         OpaqueRepresentationDemand::ByValue,
     )
@@ -131,13 +131,13 @@ pub fn layout_type_reference(
 /// not closed. A fresh builder owns each query; no provisional geometry escapes.
 pub fn try_layout_type_reference(
     program: &TypedTrees,
-    target: NativeTarget,
+    target: impl Into<crate::LayoutTarget>,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     type_reference: TypeReferenceHandle,
 ) -> Result<Option<TypeLayout>, Diagnostic> {
     let mut builder = LayoutBuilder::new(
         program,
-        target,
+        target.into(),
         opaque_representation_selections,
         OpaqueRepresentationDemand::ByValue,
     );
@@ -180,6 +180,7 @@ struct LayoutBuilder<'program> {
     trait_definitions: &'program [TraitDefinition],
     program: &'program TypedTrees,
     target: NativeTarget,
+    layout_profile: Option<target::TargetProfile>,
     variants: Arena<VariantLayout>,
 }
 
@@ -236,10 +237,11 @@ impl LayoutVisitStack {
 impl<'program> LayoutBuilder<'program> {
     fn new(
         program: &'program TypedTrees,
-        target: NativeTarget,
+        target: crate::LayoutTarget,
         opaque_representation_selections: &'program [OpaqueRepresentationSelection],
         opaque_representation_demand: OpaqueRepresentationDemand,
     ) -> Self {
+        let (target, layout_profile) = target.into_parts();
         let data_definitions = program.data_definitions();
         let field_capacity = data_definitions
             .iter()
@@ -279,6 +281,7 @@ impl<'program> LayoutBuilder<'program> {
             trait_definitions: program.traits(),
             program,
             target,
+            layout_profile,
             variants: Arena::with_capacity(variant_capacity),
         }
     }

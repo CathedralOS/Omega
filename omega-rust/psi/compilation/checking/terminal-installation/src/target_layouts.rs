@@ -11,20 +11,19 @@
 //! consumers must resolve those markers before using geometry; ordinary packing
 //! is never a replacement for an unavailable member. Pure logical field values
 //! need no physical geometry, so this is not a blanket interpreter type gate.
-use crate::{AdmittedTargetMachineSelections, TargetMachineSelectionError};
-use semantic_vocabulary::{MachineId, StructuralTypeId};
+use crate::AdmittedTargetMachineSelections;
+use semantic_vocabulary::StructuralTypeId;
 use terminal_codec::TerminalArtifactView;
 use terminal_psi::{
     LayoutApplicationId, StructuralRecordStorage, StructuralTypeDeclaration, StructuralTypeShape,
-    TargetMachineCallable, TargetMachineSupply, TerminalPsiIdentity,
+    TerminalIdentityIndex, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetLayoutClosure {
     application: LayoutApplicationId,
     record: StructuralTypeId,
-    head: TargetMachineCallable,
-    member: MachineId,
+    policy: TerminalIdentityIndex,
 }
 impl TargetLayoutClosure {
     pub const fn application(&self) -> LayoutApplicationId {
@@ -33,11 +32,8 @@ impl TargetLayoutClosure {
     pub const fn record(&self) -> StructuralTypeId {
         self.record
     }
-    pub const fn head(&self) -> TargetMachineCallable {
-        self.head
-    }
-    pub const fn member(&self) -> MachineId {
-        self.member
+    pub const fn policy(&self) -> TerminalIdentityIndex {
+        self.policy
     }
 }
 
@@ -111,10 +107,12 @@ pub enum TargetLayoutSelectionError {
         target: String,
     },
     StaleApplication(LayoutApplicationId),
+    InvalidTargetInput(String),
 }
 impl std::fmt::Display for TargetLayoutSelectionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidTargetInput(reason) => write!(formatter, "layout target input: {reason}"),
             Self::ArtifactIdentityMismatch => write!(
                 formatter,
                 "layout selections belong to a different Terminal artifact"
@@ -140,33 +138,40 @@ impl std::error::Error for TargetLayoutSelectionError {}
 pub fn admit_target_layouts(
     artifact: TerminalArtifactView<'_>,
     selections: &AdmittedTargetMachineSelections,
+    target: &layout_plans::LayoutTargetFacts,
 ) -> Result<AdmittedTargetLayouts, TargetLayoutSelectionError> {
     if artifact.identity() != selections.terminal_psi() {
         return Err(TargetLayoutSelectionError::ArtifactIdentityMismatch);
     }
+    target
+        .validate()
+        .map_err(|reason| TargetLayoutSelectionError::InvalidTargetInput(reason.into()))?;
+    if target.profile != selections.target() {
+        return Err(TargetLayoutSelectionError::InvalidTargetInput(
+            "receiving catalog and selected target disagree".into(),
+        ));
+    }
     let mut records = Vec::new();
     let mut closures = Vec::new();
     for application in &artifact.module().target_layout_applications {
-        let missing = || TargetLayoutSelectionError::MissingMember {
-            application: application.id,
-            target: selections.target().to_owned(),
-        };
         let stale = || TargetLayoutSelectionError::StaleApplication(application.id);
-        let selected = match selections.member(application.family) {
-            Ok(selected) => selected,
-            // Like callable-family selection, retain unrelated alternatives
-            // without turning every catalog row into an execution demand.
-            Err(TargetMachineSelectionError::MissingMember { .. }) => continue,
-            Err(_) => return Err(missing()),
-        };
-        let realization = application
+        let Some(realization) = application
             .realizations
             .binary_search_by(|row| row.target.as_str().cmp(selections.target()))
             .ok()
             .map(|position| &application.realizations[position])
-            .ok_or_else(missing)?;
-        if selected.callable() != TargetMachineCallable::Machine(realization.member)
-            || selected.supply() != TargetMachineSupply::CheckedBody
+        else {
+            // Catalog custody is not a physical application. The original
+            // pending record marker remains; a physical consumer cannot
+            // obtain ordinary packing or a geometry receipt from absence.
+            continue;
+        };
+        // Internal roster consistency is checked by the codec. A receiving
+        // target must independently rejoin its real catalog facts: self-
+        // consistent forged pointer geometry is not a deployment receipt.
+        if realization.pointer_size != target.pointer_size
+            || realization.pointer_alignment != target.pointer_alignment
+            || realization.little_endian != target.little_endian
         {
             return Err(stale());
         }
@@ -197,8 +202,7 @@ pub fn admit_target_layouts(
         closures.push(TargetLayoutClosure {
             application: application.id,
             record: application.record,
-            head: application.family,
-            member: realization.member,
+            policy: application.policy_identity,
         });
         records.push(record);
     }

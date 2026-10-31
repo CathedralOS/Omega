@@ -132,6 +132,7 @@ mod selection_exclusions;
 pub use selection_exclusions::AuthoredSelectionExclusions;
 mod trait_and_machine_tables;
 mod type_reference_queries;
+pub use type_reference_queries::ApplicationValueIndices;
 pub mod type_system;
 pub mod values;
 mod wire_schema_queries;
@@ -139,9 +140,9 @@ mod wire_schema_queries;
 pub use commitments::{
     CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,
     ClosedConformanceApplicationCommitment, ClosedConformanceApplicationSite,
-    ClosedConformanceConstArgument, ClosedConformanceRowIdentity, MachineSpecialization,
-    MachineSpecializationCommitment, MachineTemplateCommitment, StaticRequirementDispatch,
-    TraitImplementationApplication, closed_conformance_applications_of,
+    ClosedConformanceConstArgument, ClosedConformanceRowIdentity, DataImplementationApplication,
+    MachineSpecialization, MachineSpecializationCommitment, MachineTemplateCommitment,
+    StaticRequirementDispatch, TraitImplementationApplication, closed_conformance_applications_of,
     machine_specialization_matches_template_identity,
 };
 pub use placed_plans::{
@@ -150,8 +151,8 @@ pub use placed_plans::{
     PlacedScalarAccessorOperation, PlacedViewPlan, PlacementExecutionDeclaration,
     PlacementLifecycleOperation, PlacementLifecyclePlan, PlanLaidBitField, PlanLaidBitFragment,
     PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout, PlanLaidRealizations,
-    PlanLaidRepeatedField, PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind,
-    PlanLaidTargetLayout,
+    PlanLaidRepeatedField, PlanLaidRetiredFieldIdentity, PlanLaidSchemaArgument,
+    PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
 };
 
 use crate::{
@@ -244,6 +245,7 @@ pub struct TypedTrees {
     pub plan_laid_target_layouts: Arena<PlanLaidTargetLayout>,
     /// Exact active Schema argument rows retained by family applications.
     pub plan_laid_schema_fields: Arena<PlanLaidSchemaField>,
+    pub plan_laid_retired_field_identities: Arena<PlanLaidRetiredFieldIdentity>,
     /// Canonical source `Placed<P, T>` derivations. Each record binds the
     /// synthetic view/accessor types to the validated placement plan that
     /// selected them, so checking and lowering never reconstruct permissions
@@ -271,6 +273,7 @@ pub struct TypedTrees {
     pub captured_machine_states: Arena<CapturedMachineState>,
     /// Source trait implementation slots demand map captures before checking.
     pub trait_implementation_applications: Arena<TraitImplementationApplication>,
+    pub data_implementation_applications: Arena<DataImplementationApplication>,
     /// Requirements instantiated under the `dyn Trait<Args>` applications
     /// that select or call them. Checking appends one record per
     /// (selector application, requirement) after specialization converges.
@@ -528,12 +531,6 @@ impl TypedTrees {
         self.product_declaration_frontier.as_deref().unwrap_or(self)
     }
 
-    pub fn plan_laid_layout(&self, data_symbol: symbols::SymbolHandle) -> Option<&PlanLaidLayout> {
-        self.plan_laid_layouts
-            .iter()
-            .find(|layout| layout.data_symbol == data_symbol)
-    }
-
     pub fn machine_specialization(
         &self,
         instance: symbols::SymbolHandle,
@@ -607,6 +604,7 @@ impl TypedTrees {
             plan_laid_layouts: Vec::new(),
             plan_laid_target_layouts: Arena::new(),
             plan_laid_schema_fields: Arena::new(),
+            plan_laid_retired_field_identities: Arena::new(),
             placed_view_plans: Vec::new(),
             placement_lifecycle_plans: Arena::new(),
             placement_policy_invocations: Arena::new(),
@@ -618,6 +616,7 @@ impl TypedTrees {
             captured_machine_applications: Arena::new(),
             captured_machine_states: Arena::new(),
             trait_implementation_applications: Arena::new(),
+            data_implementation_applications: Arena::new(),
             dynamic_slots: Vec::new(),
             target_machine_families: Vec::new(),
             boundary_completion_declarations: Arena::default(),
@@ -700,9 +699,7 @@ pub fn static_const_argument_spelling(
     program: &TypedTrees,
     argument: &expression::StaticMachineArgument,
 ) -> Option<String> {
-    use language_semantics::const_value::{
-        CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
-    };
+    use language_semantics::const_value::{CanonicalConstValue, boolean_literal_spelling};
 
     if argument.type_reference.is_valid()
         || argument.application.is_some()
@@ -721,13 +718,7 @@ pub fn static_const_argument_spelling(
     }
     if argument.symbol.is_valid() {
         let value = canonical_const_declaration_value(program, argument.symbol)?;
-        return Some(match value.decode_encoding()? {
-            DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
-            DecodedCanonicalConstValue::Boolean(value) => {
-                CanonicalConstValue::boolean(value).atom()
-            }
-            _ => value.atom(),
-        });
+        return canonical_static_const_spelling(value);
     }
     let [name] = argument.path.as_ref() else {
         return None;
@@ -736,7 +727,31 @@ pub fn static_const_argument_spelling(
         return Some(CanonicalConstValue::boolean(value).atom());
     }
     // A previous specialization may forward a compiler-created atom.
-    CanonicalConstValue::from_atom(name.as_str()).map(|value| value.atom())
+    CanonicalConstValue::from_atom(name.as_str()).and_then(canonical_static_const_spelling)
+}
+
+/// Completed source values and their literal/name transport share one Const
+/// namespace. Carrier and formation admission stay with the Source checker.
+pub fn static_const_value_identity(
+    identity: &language_semantics::const_value::CanonicalConstIdentity,
+) -> Option<String> {
+    canonical_static_const_spelling(language_semantics::const_value::CanonicalConstValue::new(
+        identity.type_name.clone(),
+        identity.encoding.clone(),
+        "",
+    ))
+    .map(|spelling| static_const_identity_from_spelling(&spelling))
+}
+
+fn canonical_static_const_spelling(
+    value: language_semantics::const_value::CanonicalConstValue,
+) -> Option<String> {
+    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+    Some(match value.decode_encoding()? {
+        DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
+        DecodedCanonicalConstValue::Boolean(value) => CanonicalConstValue::boolean(value).atom(),
+        _ => value.atom(),
+    })
 }
 
 /// Wrap one static const spelling in the normalized `Named` type identity the

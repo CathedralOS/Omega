@@ -1,1 +1,1 @@
-public interface selects private data `HiddenPolicy<RecordSchema>`
+public interface selects private conformance `HiddenPolicy`

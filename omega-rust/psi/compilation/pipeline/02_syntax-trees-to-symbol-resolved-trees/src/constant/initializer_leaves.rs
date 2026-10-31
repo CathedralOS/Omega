@@ -207,6 +207,14 @@ pub(crate) fn pending_const_initializer_leaves(
                 lifetime_arguments,
                 arguments,
             } => {
+                // A produced aggregate is checked against its exact typed
+                // application. Its fields need no second syntax-level view,
+                // and imported declaration bodies need not be copied here.
+                if closed_leaf_carrier(syntax, type_reference, substitution)
+                    && structured_leaf(syntax, selection, expression) {
+                    push_structured_leaf(leaves, expression, type_reference);
+                    return Ok(());
+                }
                 // A closed application `Base<args..>` stands in for its
                 // synthesized instance: the selected template keeps exact
                 // declaration custody while its parameter bindings map each

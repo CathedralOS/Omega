@@ -259,6 +259,11 @@ fn lower_data_definition_with_argument_origins(
             supply_mode: data_definition.supply_mode,
             lifetime_parameters: lower_names(syntax_trees, &data_definition.lifetime_parameters),
             type_parameters,
+            conformance_bounds: crate::lowering::machine::lower_generic_conformance_bounds(
+                lowerer,
+                syntax_trees,
+                &data_definition.conformance_bounds,
+            )?,
             generic_instance: data_definition
                 .generic_instance
                 .map(|origin| {

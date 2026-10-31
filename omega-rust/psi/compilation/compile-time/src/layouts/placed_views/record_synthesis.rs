@@ -159,6 +159,7 @@ pub(super) fn synthesize_exact_records(
                 supply_mode: DataSupplyMode::BoundaryOpaque,
                 lifetime_parameters: Vec::new(),
                 type_parameters: HandleSpan::empty(),
+                conformance_bounds: Vec::new(),
                 generic_instance: None,
                 properties: DataProperties::default(),
                 where_facts: HandleSpan::empty(),
@@ -458,6 +459,7 @@ fn push_record(
         supply_mode: DataSupplyMode::CheckedShape,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
         generic_instance: Some(origin),
         properties: DataProperties {
             multiplicity: Multiplicity::Linear,

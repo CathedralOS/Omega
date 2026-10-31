@@ -372,7 +372,7 @@ impl Capture<'_> {
                 arguments: self.types(*arguments)?,
             },
             Source::ConstExpression(value) => {
-                ProductOperandType::ConstExpression(self.expression(*value)?)
+                ProductOperandType::ConstExpression(self.expression(value.expression)?)
             }
         };
         Ok(self.graph.types.insert(value))

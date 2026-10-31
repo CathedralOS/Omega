@@ -70,7 +70,6 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
     let mut layouts = BTreeSet::new();
     for layout in &bundle.target_layout_applications {
         if !layouts.insert(layout.id)
-            || layout.realizations.is_empty()
             || !bundle.structural_types.iter().any(|row| {
                 row.id == layout.record
                     && matches!(row.shape, StructuralTypeShape::Record {

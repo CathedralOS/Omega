@@ -353,3 +353,20 @@ pub(crate) fn same_type_identity(
 ) -> bool {
     program.normalized_type_identity(left) == program.normalized_type_identity(right)
 }
+
+/// Const proposals can retain a literal-name tuple or an expression-valued
+/// source operand. The existing canonical Const owner compares their values;
+/// open operands retain the ordinary exact symbolic identity fallback.
+pub(crate) fn same_const_identity(
+    program: &dyn ::validation::CheckingInput,
+    left: TypeReferenceHandle,
+    right: TypeReferenceHandle,
+) -> bool {
+    program
+        .static_const_type_reference_identity(left)
+        .zip(program.static_const_type_reference_identity(right))
+        .map_or_else(
+            || same_type_identity(program, left, right),
+            |(left, right)| left == right,
+        )
+}

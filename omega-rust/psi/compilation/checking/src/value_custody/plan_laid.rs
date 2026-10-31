@@ -19,19 +19,17 @@ pub(crate) fn validate_plans(
                 )))
             };
         }
-        if data_symbols.contains(&plan.data_symbol) {
+        if data_symbols.contains(&program.normalized_type_identity(plan.application)) {
             laid!("repeats its exact synthesized data identity");
             continue;
         }
-        data_symbols.push(plan.data_symbol);
+        data_symbols.push(program.normalized_type_identity(plan.application));
         if !crate::layout_checking::layout_family_is_complete(program, plan) {
             laid!("lost its complete exact target-family application roster");
             continue;
         }
 
-        let Some(data) =
-            crate::declarations::data_queries::data_definition_by_symbol(program, plan.data_symbol)
-        else {
+        let Some(data) = program.closed_data_definition(plan.application) else {
             laid!("no longer names its exact synthesized data identity");
             continue;
         };
@@ -49,10 +47,7 @@ pub(crate) fn validate_plans(
             continue;
         }
 
-        let Some(schema) = crate::declarations::data_queries::data_definition_by_symbol(
-            program,
-            plan.schema_symbol,
-        ) else {
+        let Some(schema) = program.closed_data_field_definition(plan.semantic_type) else {
             laid!("no longer names its exact source schema identity");
             continue;
         };
@@ -74,12 +69,10 @@ pub(crate) fn validate_plans(
             .iter()
             .zip(&schema_fields)
             .any(|(data_field, schema_field)| {
-                data_field.identity != schema_field.identity
-                    || (schema_field.identity.is_none()
-                        && data_field.name.as_str() != schema_field.name.as_str())
-                    || program.display_type_reference_with_constraints(data_field.type_reference)
-                        != program
-                            .display_type_reference_with_constraints(schema_field.type_reference)
+                data_field.symbol != schema_field.symbol
+                    || data_field.identity != schema_field.identity
+                    || program.normalized_type_identity(data_field.type_reference)
+                        != program.normalized_type_identity(schema_field.type_reference)
             })
         {
             laid!("changed its exact schema-to-synthesized field correspondence");
@@ -106,24 +99,38 @@ pub(crate) fn validate_plans(
             continue;
         }
 
-        let Some(policy) = crate::declarations::data_queries::data_definition_by_symbol(
-            program,
-            plan.policy_symbol,
-        ) else {
-            laid!("no longer names its exact nominal policy identity");
+        let Some(storage) = program.layout_storage_arguments(plan.application) else {
+            diagnostics.push(Diagnostic::error(
+                "fixed representation lost its core constructor application",
+            ));
             continue;
         };
-        let Some(machine) = program.machine(plan.policy_plan_machine_symbol) else {
-            laid!("no longer names its exact policy plan machine");
-            continue;
-        };
-        if machine
-            .attached_data
-            .as_ref()
-            .is_none_or(|attached| attached.as_str() != policy.name.as_str())
-            || machine.name.as_str() != format!("{}::plan", policy.name.as_str())
-        {
-            laid!("changed its exact nominal policy binding");
+        let reclosed = program.static_operand_from_type_reference(storage.policy)
+            .map_err(|reason| reason.to_owned())
+            .and_then(|operand| crate::declarations::traits::conformance_applications::close_conformance_application(program, &operand)
+                .map_err(|error| error.to_string()));
+        match reclosed {
+            Ok(application)
+                if application == plan.policy_application
+                    && application.declaration == plan.policy_symbol
+                    && application.trait_definition == storage.contract
+                    && application.rows.iter().any(|row| {
+                        row.realization_machine == plan.policy_plan_machine_symbol
+                            || program
+                                .captured_machine_applications
+                                .iter()
+                                .any(|(_, captured)| {
+                                    captured.instance == plan.policy_plan_machine_symbol
+                                        && captured.template == row.realization_machine
+                                        && captured.conformance_application == application
+                                })
+                    }) => {}
+            Ok(_) => diagnostics.push(Diagnostic::error(
+                "fixed representation changed its exact selected implementation application",
+            )),
+            Err(reason) => diagnostics.push(Diagnostic::error(format!(
+                "fixed representation policy reclosure: {reason}"
+            ))),
         }
     }
 }
@@ -136,13 +143,52 @@ fn schema_argument_matches(
     plan: &typed_trees::PlanLaidLayout,
     schema_fields: &[&typed_trees::data::DataField],
 ) -> bool {
-    let Some(argument) = plan.schema_argument else {
-        return matches!(
-            plan.realizations,
-            typed_trees::PlanLaidRealizations::Invariant(_)
-        );
+    let Some(schema) = program.closed_data_field_definition(plan.semantic_type) else {
+        return false;
     };
-    if argument.abi_version != 1 {
+    let mut retired_identities = schema.retired_identities.clone();
+    retired_identities.sort_unstable();
+    let matches = |argument: typed_trees::PlanLaidSchemaArgument| {
+        program
+            .plan_laid_retired_field_identities
+            .span(argument.retired_field_identities)
+            .is_some_and(|rows| {
+                rows.iter()
+                    .map(|row| row.identity)
+                    .eq(retired_identities.iter().copied())
+            })
+            && schema_argument_rows_match(program, argument, schema_fields)
+    };
+    let arguments = match plan.realizations {
+        typed_trees::PlanLaidRealizations::Invariant(_) => {
+            return plan
+                .schema_argument
+                .is_none_or(|argument| matches(argument));
+        }
+        typed_trees::PlanLaidRealizations::TargetInputs(span) => {
+            let Some(targets) = program.plan_laid_target_layouts.span(span) else {
+                return false;
+            };
+            if plan.schema_argument.is_some() {
+                return false;
+            }
+            targets
+                .iter()
+                .map(|target| target.schema_argument)
+                .collect::<Vec<_>>()
+        }
+    };
+    arguments
+        .iter()
+        .all(|argument| argument.is_some_and(matches))
+}
+
+fn schema_argument_rows_match(
+    program: &dyn crate::CheckingInput,
+    argument: typed_trees::PlanLaidSchemaArgument,
+    schema_fields: &[&typed_trees::data::DataField],
+) -> bool {
+    if argument.abi_version != 3 {
         return false;
     }
     let Some(rows) = program.plan_laid_schema_fields.span(argument.fields) else {
@@ -151,8 +197,33 @@ fn schema_argument_matches(
     if rows.len() != schema_fields.len() || rows.len() > 32 {
         return false;
     }
+    let Some(retired) = program
+        .plan_laid_retired_field_identities
+        .span(argument.retired_field_identities)
+    else {
+        return false;
+    };
+    if retired.len() > 32
+        || retired.iter().enumerate().any(|(index, row)| {
+            retired[..index]
+                .iter()
+                .any(|previous| previous.identity == row.identity)
+                || schema_fields
+                    .iter()
+                    .any(|field| field.identity == Some(row.identity))
+        })
+    {
+        return false;
+    }
+    let mut canonical_fields = schema_fields.to_vec();
+    if canonical_fields
+        .iter()
+        .any(|field| field.identity.is_some())
+    {
+        canonical_fields.sort_unstable_by_key(|field| field.identity);
+    }
     rows.iter()
-        .zip(schema_fields)
+        .zip(canonical_fields)
         .enumerate()
         .all(|(index, (row, field))| {
             row.schema_field == field.symbol
@@ -169,6 +240,15 @@ fn schema_argument_matches(
                         .is_some()
                     {
                         typed_trees::PlanLaidSchemaFieldKind::Scalar
+                    } else if matches!(
+                        program.type_reference_table.type_reference(
+                            program
+                                .type_reference_table
+                                .unconstrained_type_reference(field.type_reference)
+                        ),
+                        typed_trees::types::TypeReferenceNode::FixedArray { .. }
+                    ) {
+                        typed_trees::PlanLaidSchemaFieldKind::Repeated
                     } else {
                         typed_trees::PlanLaidSchemaFieldKind::Nested
                     }

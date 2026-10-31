@@ -199,10 +199,7 @@ fn erased_attached_machine_record_is_admitted(
             DataDefinition::shape_kind_from_members(program.data_members(definition)),
             DataShapeKind::Record | DataShapeKind::Enum | DataShapeKind::Mixed
         )
-        || program
-            .plan_laid_layouts
-            .iter()
-            .any(|plan| plan.data_symbol == definition.symbol)
+        || program.plan_laid_layout_for_data(definition).is_some()
         || program
             .placed_view_plans
             .iter()

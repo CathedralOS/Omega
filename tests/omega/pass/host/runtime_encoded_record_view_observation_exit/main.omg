@@ -1,39 +1,12 @@
+use omega::language::core::layout;
 // Expected exit: 0. Expected output contains: A.
 // A foreign scalar snapshot checks the original signed
 // predicate through its captured codec, not against the observed u8 carrier.
 use omega::language::core::external_binding;
-data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField
-where
-    size <= 4096,
-    1 <= align,
-    align <= 16,
-{
-    key: u64;
-    size: u64;
-    align: u64;
-    number: i64;
-    kind: FieldKind;
-}
-data Schema
-where
-    field_count <= 32,
-{ fields: [SchemaField; 32]; field_count: u64; }
-data IntegerInterpretation { case Signed; case Unsigned; }
-data FieldPlan {
-    case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
-}
-data FieldEntry { key: u64; placement: FieldPlan; }
-data Plan {
-    entries: [FieldEntry; 64];
-    entry_count: u64;
-    size_fixed: u64;
-    size_is_dynamic: bool;
-    align: u64;
-}
 
-data SignedByte { }
-machine SignedByte::plan(schema: Schema) -> Plan {
+
+SignedByte satisfies FixedLayout<NarrowByte> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -50,6 +23,7 @@ machine SignedByte::plan(schema: Schema) -> Plan {
         size_is_dynamic: false,
         align: 1,
     }
+}
 }
 
 
@@ -71,7 +45,7 @@ linux_x86_64 boundary machine ByteImports::write(descriptor: i32, value: &u8, co
 linux_arm64 boundary machine ByteImports::write(descriptor: i32, value: &u8, count: u64) -> i64
     satisfies ByteOutput::write via ForeignBinding::Syscall(64);
 
-data Main { encoded: SignedByte<NarrowByte>; }
+data Main { encoded: LayoutStorage<NarrowByte, SignedByte>; }
 
 machine read(value: &u8) -> u8 { value }
 machine identity(value: &u8) -> &u8 { value }

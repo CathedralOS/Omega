@@ -5,10 +5,19 @@ use super::{
 };
 
 pub(super) fn encode(value: &DecodedCanonicalConstValue) -> Option<String> {
-    node(value, 0, &mut 0)
+    node(value, 0, &mut 0, false)
 }
 
-fn node(value: &DecodedCanonicalConstValue, depth: usize, nodes: &mut usize) -> Option<String> {
+pub(super) fn encode_declaration(value: &DecodedCanonicalConstValue) -> Option<String> {
+    node(value, 0, &mut 0, true)
+}
+
+fn node(
+    value: &DecodedCanonicalConstValue,
+    depth: usize,
+    nodes: &mut usize,
+    declaration: bool,
+) -> Option<String> {
     if depth >= MAX_DECODE_DEPTH || *nodes >= MAX_DECODED_NODES {
         return None;
     }
@@ -18,17 +27,24 @@ fn node(value: &DecodedCanonicalConstValue, depth: usize, nodes: &mut usize) -> 
             framed("integer", [type_name.as_str(), value.to_string().as_str()])
         }
         DecodedCanonicalConstValue::Boolean(value) => framed("boolean", [value.to_string()]),
+        DecodedCanonicalConstValue::Float { format, bits } if declaration => match format {
+            numerics::literals::FloatFormat::F32 if *bits <= u64::from(u32::MAX) => {
+                format!("float:f32:{bits:08x}")
+            }
+            numerics::literals::FloatFormat::F64 => format!("float:f64:{bits:016x}"),
+            _ => return None,
+        },
         DecodedCanonicalConstValue::Float { .. } => return None,
         DecodedCanonicalConstValue::Array { type_name, values } => {
             let mut pieces = vec![type_name.clone()];
             for value in values {
-                pieces.push(node(value, depth + 1, nodes)?);
+                pieces.push(node(value, depth + 1, nodes, declaration)?);
             }
             framed("array", pieces)
         }
         DecodedCanonicalConstValue::Record { type_name, fields } => framed(
             "record",
-            fields_encoding(vec![type_name.clone()], fields, depth, nodes)?,
+            fields_encoding(vec![type_name.clone()], fields, depth, nodes, declaration)?,
         ),
         DecodedCanonicalConstValue::Variant {
             type_name,
@@ -41,6 +57,7 @@ fn node(value: &DecodedCanonicalConstValue, depth: usize, nodes: &mut usize) -> 
                 fields,
                 depth,
                 nodes,
+                declaration,
             )?,
         ),
     };
@@ -52,10 +69,11 @@ fn fields_encoding(
     fields: &[(String, DecodedCanonicalConstValue)],
     depth: usize,
     nodes: &mut usize,
+    declaration: bool,
 ) -> Option<Vec<String>> {
     for (name, value) in fields {
         pieces.push(name.clone());
-        pieces.push(node(value, depth + 1, nodes)?);
+        pieces.push(node(value, depth + 1, nodes, declaration)?);
     }
     Some(pieces)
 }

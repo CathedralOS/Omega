@@ -32,6 +32,7 @@ pub struct ScalarScopeInputs {
     layouts: AdmittedTargetLayouts,
     address_model: Option<ScalarAddressModel>,
     carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
+    application_machines: Option<Vec<terminal_psi::ProofDeclarationId>>,
 }
 
 impl ScalarScopeInputs {
@@ -49,6 +50,27 @@ impl ScalarScopeInputs {
     }
     pub fn carrier_layout(&self) -> Option<semantic_vocabulary::TargetCarrierLayout> {
         self.carrier_layout
+    }
+
+    /// A deployed closure cannot be reused to start another ordinary entry.
+    /// Unknown synthetic roots are not declarations; their authored callees
+    /// remain independently selected by the consumer's existing execution scope.
+    pub fn admits_machine(
+        &self,
+        module: &terminal_psi::TerminalModule,
+        machine: semantic_vocabulary::MachineId,
+    ) -> bool {
+        if module.scalar_applications.conditions.is_empty() {
+            return true;
+        }
+        let Some(members) = &self.application_machines else {
+            return true;
+        };
+        module
+            .scalar_applications
+            .proof_scope
+            .callable_declaration(terminal_psi::TargetMachineCallable::Machine(machine))
+            .is_some_and(|owner| members.contains(&owner))
     }
 }
 
@@ -100,6 +122,7 @@ pub struct ScalarApplicationClosure<'artifact> {
     completions: Vec<bool>,
     primary_result: Option<CompletedScalarScope>,
     supplemental: Vec<ScalarScopeInputs>,
+    deployed: bool,
 }
 
 impl<'artifact> ScalarApplicationClosure<'artifact> {
@@ -152,7 +175,19 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             completions: vec![false; catalog.conditions.completions().len()],
             primary_result: None,
             supplemental: Vec::new(),
+            deployed: false,
         }
+    }
+
+    /// Additional scopes belong to actual Build rows, never Source family tags.
+    pub fn with_deployment_scopes(mut self, scopes: &[String]) -> Self {
+        self.deployed = true;
+        for scope in scopes {
+            if !self.scopes.iter().any(|(target, _)| target == scope) {
+                self.scopes.push((scope.clone(), false));
+            }
+        }
+        self
     }
 
     pub fn scopes(&self) -> impl Iterator<Item = &str> {
@@ -172,6 +207,11 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
         {
             return Err(
                 "scalar closure selection differs from its artifact or scope inputs".into(),
+            );
+        }
+        if self.deployed != conditions.application_machines().is_some() {
+            return Err(
+                "scalar closure deployment roots differ from its selected conditions".into(),
             );
         }
         let target = observations.targets().target();
@@ -285,6 +325,7 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             layouts: observations.layouts().clone(),
             address_model,
             carrier_layout: observations.carrier_layout(),
+            application_machines: conditions.application_machines().map(<[_]>::to_vec),
         };
         if target == self.primary {
             self.primary_result = Some(CompletedScalarScope {
@@ -308,25 +349,32 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             let ScalarCompletionCondition::Complete { subject, .. } = condition else {
                 return Err("scalar closure has an absent completion condition".into());
             };
-            if !matches!(subject, ScalarConditionSubject::Application(_))
+            if !self.deployed
+                && !matches!(subject, ScalarConditionSubject::Application(_))
                 && !self.completions[position]
             {
                 return Err("retained scalar completion has no target application".into());
             }
         }
-        // Generated entry debt exists only when that job is demanded. Every
-        // authored or module obligation still needs an actual applicable scope.
+        // A reusable declaration judgment owes every retained owner. A deployed
+        // judgment owes exactly the applications reached from its complete Build
+        // rows: each selected debt was discharged by close_scope. Dormant bodies
+        // do not acquire physical applicability; both engines independently bind
+        // their reached authored bodies to the completed membership above.
         for (position, condition) in conditions.ranges().iter().enumerate() {
             let ScalarRangeCondition::Range { subject, .. } = condition else {
                 return Err("scalar closure has an absent range condition".into());
             };
-            if !matches!(subject, ScalarConditionSubject::Application(_)) && !self.ranges[position]
+            if !self.deployed
+                && !matches!(subject, ScalarConditionSubject::Application(_))
+                && !self.ranges[position]
             {
                 return Err("retained scalar range has no target application".into());
             }
         }
         for (position, condition) in conditions.predicates().iter().enumerate() {
-            if !matches!(condition.subject, ScalarConditionSubject::Application(_))
+            if !self.deployed
+                && !matches!(condition.subject, ScalarConditionSubject::Application(_))
                 && !self.predicates[position]
             {
                 return Err("retained scalar predicate has no target application".into());

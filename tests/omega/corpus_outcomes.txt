@@ -235,6 +235,20 @@ fail/facts/target_family_callback_guarantee/evaluation_once rejected 973ms expec
 fail/facts/target_family_callback_guarantee/repeated_application rejected 883ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/layouts/fixed_layout_closed_requirement_policy_rejected rejected 604ms expected @2ba727eefb59+wt
+	demanded premise closure checking failed: machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible; machine `DefaultRead::read` state `read`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 24]` are not representation-compatible
+fail/layouts/fixed_layout_computed_const_policy_rejected rejected 592ms expected @2ba727eefb59+wt
+	demanded premise closure checking failed: exact arithmetic in value argument `Marker` of `Policy` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/layouts/fixed_layout_dormant_invalid_policy_rejected rejected 464ms expected @2ba727eefb59+wt
+	policy `Policy::plan` produced an invalid plan: alignment 0 is not a positive power of two
+fail/layouts/fixed_layout_finite_dynamic_policy_rejected rejected 462ms expected @2ba727eefb59+wt
+	policy `Policy::plan` produced an invalid plan: alignment 0 is not a positive power of two
+fail/layouts/fixed_layout_overridden_invalid_policy_rejected rejected 462ms expected @2ba727eefb59+wt
+	policy `Policy::plan` produced an invalid plan: alignment 0 is not a positive power of two
+fail/layouts/fixed_layout_unbounded_policy_geometry_rejected rejected 818ms expected @2ba727eefb59+wt
+	recast has no complete exact layout alternative roster
+fail/layouts/fixed_layout_uncalled_policy_member_rejected rejected 566ms expected @2ba727eefb59+wt
+	policy `Policy::plan$specialized$d6370627ca0e1e1b$0` produced an invalid plan: alignment 0 is not a positive power of two
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
 fail/providers/applied_calling_surface_incomplete_result rejected 8128ms expected @d9073fc2214b
@@ -4768,6 +4782,24 @@ pass/facts/fixed_array_value_through_other_machine_exit checked 3352ms check-tar
 pass/facts/fixed_array_value_through_other_state_exit checked 3741ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_value_through_parameter_exit checked 3566ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_value_through_target_body_exit checked 3352ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/fixed_layout_bit_observation_through_call_result_exit checked 3003ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_const_name_exit checked 3103ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_field_exit checked 2902ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_local_exit checked 2904ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_match_join_exit checked 2943ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_other_machine_exit checked 2956ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_other_state_exit checked 2909ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_parameter_exit checked 2871ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_bit_observation_through_target_body_exit checked 3026ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_call_result_exit checked 2891ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_const_name_exit checked 3053ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_field_exit checked 2977ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_local_exit checked 2949ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_match_join_exit checked 2997ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_other_machine_exit checked 2922ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_other_state_exit checked 2877ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_parameter_exit checked 2940ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_storage_through_target_body_exit checked 3009ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/float_comparison_route_through_call_result_exit checked 6521ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_comparison_route_through_const_name_exit checked 7524ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_comparison_route_through_field_exit checked 5960ms check-target:macos_arm64 @ccdb99ca2214
@@ -11193,6 +11225,13 @@ pass/layouts/extent_view_external_write rejected 2012ms terminal-inspections:fai
 	provider choice must supply the declaration's complete static application
 	inspection attempt admission: [Diagnostic { severity: Error, message: "provider choice must supply the declaration's complete static application", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(2), span: Span { start: 107, end: 122 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "tests/omega/pass/layouts/extent_view_external_write/build.omg", line: 3, column: 12 }) }]
 pass/layouts/five_element_array_layout_compile checked 2622ms @ccdb99ca2214
+pass/layouts/fixed_layout_closed_requirement_policy_exit checked 2539ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_computed_const_policy_exit checked 2288ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_finite_dynamic_policy_exit checked 2087ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_overridden_valid_policy_exit checked 1871ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_semantic_only_policy_exit checked 2134ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_unbounded_invariant_policy_exit checked 2277ms check-target:macos_arm64 @2ba727eefb59+wt
+pass/layouts/fixed_layout_unmentioned_valid_policy_exit checked 1937ms check-target:macos_arm64 @2ba727eefb59+wt
 pass/layouts/float_member_layout_queries_compile checked 6914ms @ccdb99ca2214
 pass/layouts/generic_constant_layout_contract_exit checked 3740ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/guarded_policy_state_premise checked 6243ms @ccdb99ca2214
@@ -11234,8 +11273,9 @@ pass/layouts/placed_view_call_custody checked 8787ms terminal-inspections:match 
 pass/layouts/placed_view_source_access_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_data_layout_queries checked 3615ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_layout_constant_composition_exit checked 4656ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/private_callback_slot_demand_compile checked 3632ms @ccdb99ca2214
-pass/layouts/private_callback_slot_untaken_compile checked 3280ms @ccdb99ca2214
+pass/layouts/private_callback_slot_demand_compile checked 1678ms @2ba727eefb59+wt
+pass/layouts/private_callback_slot_standalone_source checked 1047ms @2ba727eefb59+wt
+pass/layouts/private_callback_slot_untaken_compile checked 1058ms @2ba727eefb59+wt
 pass/layouts/reference_layout_carrier_exit checked 4468ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/resident_aggregate_extraction rejected 1883ms terminal-inspections:failed regressed-from:checked @ccdb99ca2214
 	provider choice must supply the declaration's complete static application
@@ -11313,7 +11353,6 @@ pass/layouts/runtime_target_layout_forwarded_integer_exit checked 3265ms check-t
 pass/layouts/runtime_target_layout_queries_exit rejected 3897ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("pending layout query has no checked structural subject"))
 pass/layouts/runtime_transition_scalar_reference_codec_exit checked 3084ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/schema_identity_payload_within_predicate checked 2566ms @ccdb99ca2214
 pass/layouts/single_bool_array_layout_compile checked 2950ms @ccdb99ca2214
 pass/layouts/single_byte_member_layout_compile checked 2755ms @ccdb99ca2214
 pass/layouts/single_float_member_layout_compile checked 7395ms @ccdb99ca2214
@@ -34430,6 +34469,42 @@ fail/facts/zero_byte_erased_carrier_unproved_target_body rejected 3208ms expecte
 	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/fixed_layout_bit_observation_through_call_result_rejected rejected 663ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_const_name_rejected rejected 147ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_field_rejected rejected 670ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_local_rejected rejected 666ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_match_join_rejected rejected 674ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_other_machine_rejected rejected 674ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_other_state_rejected rejected 670ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_parameter_rejected rejected 659ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_bit_observation_through_target_body_rejected rejected 683ms expected @2ba727eefb59+wt
+	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_storage_through_call_result_rejected rejected 664ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_const_name_rejected rejected 141ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_field_rejected rejected 662ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_local_rejected rejected 669ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_match_join_rejected rejected 694ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_other_machine_rejected rejected 700ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_other_state_rejected rejected 660ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_parameter_rejected rejected 669ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
+fail/facts/fixed_layout_storage_through_target_body_rejected rejected 684ms expected @2ba727eefb59+wt
+	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
 fail/filesystem/windows_directory_nth_requires_metadata rejected 26559ms expected @ccdb99ca2214
 	machine `Main::main` publishes service reach `DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/filesystem/windows_read_link_requires_metadata rejected 22326ms expected @ccdb99ca2214
@@ -35811,15 +35886,13 @@ fail/layouts/plan_laid_policy_without_plan_machine rejected 7440ms expected @ccd
 	data `NotAPolicy` takes no type parameters and has no attached `plan` machine, so `NotAPolicy<...>` is neither a generic instantiation nor a layout-policy application
 fail/layouts/portable_layout_constant_composition rejected 3854ms expected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call require_layout from main: size_of() + align_of() == 24
-fail/layouts/private_callback_slot_standalone_source_rejected checked 2985ms @ccdb99ca2214
-fail/layouts/private_callback_slot_wrong_layout rejected 434ms expected @ccdb99ca2214
-	plan-laid value type `Spread<ForeignRecord>`: error: policy `Spread::plan` selected private slot `WrongLayoutSlot` for layout `OtherLayout`, but the active layout producer is attached to `Spread`
+fail/layouts/private_callback_slot_wrong_layout rejected 237ms expected @2ba727eefb59+wt
+	policy `Spread::plan` selected private slot `WrongLayoutSlot` for a different exact fixed-layout implementation application
 fail/layouts/public_layout_keeps_private_schema rejected 168ms expected @ccdb99ca2214
 	plan-laid value type `LayoutPolicy<HiddenSchema>`: error: demanded premise closure checking failed: public interface selects private data `LayoutPolicy<HiddenSchema>`
 fail/layouts/public_schema_keeps_private_layout rejected 181ms expected @ccdb99ca2214
 	plan-laid value type `HiddenPolicy<RecordSchema>`: error: demanded premise closure checking failed: public interface selects private data `HiddenPolicy<RecordSchema>`
 fail/layouts/qualified_record_layout_requires_alignment checked 3781ms @ccdb99ca2214
-fail/layouts/qualified_record_reference_is_not_inline checked 3762ms @ccdb99ca2214
 fail/layouts/recast_integer_at_store_requires_fit rejected 1481ms expected @ccdb99ca2214
 	IntegerAt store in machine `Main::main` state `main` assignment requires a value proven to fit 8-bit signed storage
 fail/layouts/recursive_integer_at_requires_all_arrivals_fit rejected 1861ms expected @ccdb99ca2214
@@ -35855,8 +35928,6 @@ fail/layouts/runtime_restricted_shared_unbounded rejected 2149ms expected @ccdb9
 	cannot prove index `position` is within length 4 in inspect::entry
 fail/layouts/runtime_value_is_not_layout_constant rejected 3002ms expected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call required from forward state entry statement 0
-fail/layouts/schema_identity_payload_predicate rejected 264ms expected @ccdb99ca2214
-	plan-laid value type `Contiguous<Payload>`: error: supplied policy arguments failed value establishment: data `Identity` case `Some` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/layouts/schema_key_read_after_move rejected 8860ms expected @ccdb99ca2214
 	cannot use `schema.fields[0].key` in machine `main` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
 fail/layouts/size_of_uninstantiated_plan_laid rejected 15075ms unexpected @ccdb99ca2214
@@ -35869,8 +35940,8 @@ fail/layouts/target_layout_invalid_unselected_member rejected 1111ms expected @c
 	plan-laid value type `Policy<Payload>` target `linux_x86_64` member `Policy::plan::linux_x86_64`: error: policy `Policy::plan` produced an invalid plan: field `value` ends at bit 64, past the fixed size 32 bits
 fail/layouts/target_layout_recast_checks_all_extents rejected 1809ms expected @ccdb99ca2214
 	machine `program` state `entry`: the recast target needs 8 bytes at offset 0, but the region holds 4 -- the view would read past the buffer
-fail/layouts/unselected_target_callback_layout_underflow rejected 3423ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("pending layout query has no checked structural subject"))
+fail/layouts/unselected_target_callback_layout_underflow rejected 1307ms expected @2ba727eefb59+wt
+	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]
 fail/layouts/unselected_target_helper_layout_underflow rejected 3490ms unexpected @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("pending layout query has no checked structural subject"))
 fail/layouts/unselected_target_layout_contract rejected 4334ms unexpected @ccdb99ca2214

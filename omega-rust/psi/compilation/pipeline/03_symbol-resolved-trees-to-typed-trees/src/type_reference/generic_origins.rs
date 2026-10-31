@@ -565,7 +565,7 @@ impl Equality<'_, '_> {
                     && self.arguments(*left_arguments, *right_arguments)
             }
             (TypeReference::ConstExpression(left), TypeReference::ConstExpression(right)) => {
-                left.is_valid() && left == right
+                left.expression.is_valid() && left == right
             }
             (TypeReference::Unit, TypeReference::Unit) => true,
             _ => false,

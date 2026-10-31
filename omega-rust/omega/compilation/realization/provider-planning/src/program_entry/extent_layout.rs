@@ -25,7 +25,12 @@ pub(super) fn capture(
                 .into(),
         );
     }
-    let mut values = BoundaryValueLayout::new(typed, slot.owner.native_target(), &[], &[]);
+    let mut values = BoundaryValueLayout::new(
+        typed,
+        layout::LayoutTarget::for_profile(slot.owner)?,
+        &[],
+        &[],
+    );
     let (shape, root) = values.value_type(type_reference)?;
     let (shapes, fields, _) = values.into_parts();
     let mut base_type = type_reference;

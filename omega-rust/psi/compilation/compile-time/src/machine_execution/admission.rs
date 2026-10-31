@@ -877,7 +877,7 @@ impl BuildTimeAdmissionPlan {
                 },
             )
             .map(BuildTimeOperationEvaluation::into_value)
-            .map_err(BuildTimeAdmissionRejection::from)
+            .map_err(|error| BuildTimeAdmissionRejection::from(error.to_string()))
     }
 
     /// Admit and evaluate the exact result-bearing machine selected by a
@@ -907,6 +907,7 @@ impl BuildTimeAdmissionPlan {
                 },
             )
             .map(BuildTimeOperationEvaluation::into_measured)
+            .map_err(String::from)
     }
 
     /// Return the exact checked-machine closure admitted for one compiler

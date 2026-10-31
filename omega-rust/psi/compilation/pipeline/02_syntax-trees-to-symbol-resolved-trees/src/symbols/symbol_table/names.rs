@@ -55,6 +55,9 @@ pub(in crate::symbols::symbol_table) fn type_parameter_seed<'name>(
     has_sources: bool,
 ) -> SymbolSeed<'name> {
     let kind = match parameter.kind {
+        symbol_resolved_trees::data::TypeParameterKind::Implementation => {
+            SymbolKind::ConformanceParameter
+        }
         symbol_resolved_trees::data::TypeParameterKind::Machine { .. } => {
             SymbolKind::MachineParameter
         }

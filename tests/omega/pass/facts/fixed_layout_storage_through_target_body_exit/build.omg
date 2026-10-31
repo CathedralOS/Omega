@@ -1,0 +1,13 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "fixed_layout_storage_target_body");
+    Build::select_provider<Delivery, SecondDelivery>(builder, windows_x86_64);
+    Build::select_provider<Delivery, SecondDelivery>(builder, linux_x86_64);
+    Build::select_provider<Delivery, FirstDelivery>(builder, macos_arm64);
+    Build::select_provider<Delivery, SecondDelivery>(builder, linux_arm64);
+    Build::select_provider<Delivery, SecondDelivery>(builder, macos_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main_other);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main_other);
+    Build::bind(builder, macos_arm64::ProgramEntry, main_arm);
+    Build::bind(builder, linux_arm64::ProgramEntry, main_other);
+    Build::bind(builder, macos_x86_64::ProgramEntry, main_other);
+}

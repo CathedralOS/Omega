@@ -151,12 +151,36 @@ pub(super) fn validate_trait_implementation_application(
     label: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let parameters = program.trait_type_parameters(definition);
+    validate_implementation_application(
+        program,
+        definition.symbol,
+        program.trait_type_parameters(definition),
+        &definition.lifetime_parameters,
+        &definition.conformance_bounds,
+        arguments,
+        lifetime_arguments,
+        owner,
+        label,
+        diagnostics,
+    );
+}
+
+pub(crate) fn validate_implementation_application(
+    program: &dyn crate::CheckingInput,
+    declaration: SymbolHandle,
+    parameters: &[typed_trees::data::TypeParameter],
+    declared_lifetimes: &[typed_trees::name::Identifier],
+    bounds: &[GenericConformanceBound],
+    arguments: &[TypeReferenceHandle],
+    lifetime_arguments: &[typed_trees::name::Identifier],
+    owner: SymbolHandle,
+    label: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     if parameters.len() != arguments.len() {
         return; // The declaration validator owns ordinary arity diagnostics.
     }
-    let lifetimes = definition
-        .lifetime_parameters
+    let lifetimes = declared_lifetimes
         .iter()
         .zip(lifetime_arguments)
         .map(|(parameter, argument)| (parameter.as_str().to_owned(), argument.as_str().to_owned()))
@@ -179,11 +203,7 @@ pub(super) fn validate_trait_implementation_application(
         if parameter.kind != TypeParameterKind::Implementation {
             continue;
         }
-        let Some(bound) = definition
-            .conformance_bounds
-            .iter()
-            .find(|bound| bound.binder == parameter.symbol)
-        else {
+        let Some(bound) = bounds.iter().find(|bound| bound.binder == parameter.symbol) else {
             diagnostics.push(Diagnostic::error(format!(
                 "{label} implementation slot `{}` has no declared evidence contract",
                 parameter.name
@@ -194,10 +214,10 @@ pub(super) fn validate_trait_implementation_application(
             program,
             bound,
             *argument,
-            definition.symbol,
+            declaration,
             owner,
             &[AppliedTypeIdentityScope {
-                declaration: definition.symbol,
+                declaration: declaration,
                 arguments: &substitutions,
                 lifetimes: &lifetimes,
             }],
@@ -228,7 +248,11 @@ fn validate_binding(
     let expected_arguments =
         applied_bound_argument_identities(program, bound, receiving_owner, owner, scopes)
             .ok_or_else(|| {
-                "implementation slot has incomplete applied argument identity".to_owned()
+                format!(
+                    "implementation slot has incomplete applied argument identity in `{}` for `{}`",
+                    program.symbols.display_path(owner, "::"),
+                    program.display_type_reference(argument)
+                )
             })?;
     if program.symbols.get(selected.symbol).kind == SymbolKind::ConformanceParameter {
         return super::conformance_applications::validate_forwarded_argument(
@@ -319,6 +343,50 @@ fn validate_retained_implementation_arguments(
 ) -> Result<(), String> {
     use typed_trees::static_applications::StaticMachineBindingValue;
     let typed = program.typed_program();
+    if !typed.data_implementation_applications.is_empty() {
+        let live = typed_trees::references::collect_program_type_occurrences(typed);
+        for (_, selected) in typed.data_implementation_applications.iter() {
+            if !live.iter().any(|occurrence| {
+                occurrence.reference == selected.source_application
+                    && occurrence.lexical_owner == selected.lexical_owner
+            }) {
+                return Err(
+                    "data implementation demand lost its live authored constructor occurrence"
+                        .into(),
+                );
+            }
+            let storage = typed
+                .layout_storage_arguments(selected.source_application)
+                .ok_or("data implementation demand lost its exact fixed constructor")?;
+            if storage.policy != selected.argument {
+                return Err("data implementation demand changed its actual code operand".into());
+            }
+            let operand = typed
+                .static_operand_from_type_reference(storage.policy)
+                .map_err(str::to_owned)?;
+            let reclosed =
+                close_conformance_application(program, &operand).map_err(|error| error.message)?;
+            let source = typed
+                .expression_table
+                .static_machine_application(selected.supplying_application);
+            let bindings = typed
+                .expression_table
+                .static_machine_application_bindings(selected.supplying_application);
+            if reclosed != selected.application
+                || source.lexical_owner != selected.lexical_owner
+                || bindings
+                    != [typed_trees::static_applications::StaticMachineBinding {
+                        parameter: selected.parameter,
+                        value: StaticMachineBindingValue::Conformance(operand),
+                    }]
+            {
+                return Err(
+                    "data implementation demand changed its complete supplied map application"
+                        .into(),
+                );
+            }
+        }
+    }
     // This census is only consumed by retained selections; ordinary authored
     // implementation arguments are checked separately by the caller.
     if typed.trait_implementation_applications.is_empty() {

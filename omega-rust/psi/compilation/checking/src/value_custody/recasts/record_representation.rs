@@ -1,12 +1,13 @@
 use super::scalar_representation::{
     MutableScalarRepresentationFacts, mutable_scalar_representation_facts,
-    mutable_scalar_representation_facts_equivalent, narrow_by_field_representation_bounds,
-    scalar_representation_facts_imply,
+    narrow_by_field_representation_bounds, scalar_representation_facts_imply,
 };
 use std::collections::HashSet;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
-type SymbolIdentity = (u32, u32);
+mod initialized_storage;
+
+type SymbolIdentity = (symbols::SymbolHandle, Option<TypeReferenceHandle>);
 
 const MAX_RECAST_REPRESENTATION_DEPTH: usize = 256;
 const MAX_RECAST_REPRESENTATION_WORK: usize = 16384;
@@ -46,6 +47,53 @@ impl MutableRecordRepresentation {
     }
 }
 
+/// Observation protocols belong to semantic fields even when this retained
+/// application has no physical target. Policy evidence and layout offsets do
+/// not create or remove an atomic leaf.
+pub(super) fn type_has_atomic_storage(
+    program: &dyn crate::CheckingInput,
+    root: TypeReferenceHandle,
+) -> bool {
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(reference) = pending.pop() {
+        let Some(index) = program.normalized_type_identity(reference).storage_index() else {
+            return false;
+        };
+        if visited.len() <= index {
+            visited.resize(index + 1, false);
+        }
+        if std::mem::replace(&mut visited[index], true) {
+            continue;
+        }
+        if let Some(storage) = program.layout_storage_arguments(reference) {
+            pending.push(storage.semantic_type);
+            continue;
+        }
+        if super::representation_types::scalar_is_atomic(program, reference) == Some(true) {
+            return true;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. }
+            | TypeReferenceNode::FixedArray {
+                element_type: base_type,
+                ..
+            } => pending.push(*base_type),
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
+                if let Some(data) = program.closed_data_definition(reference) {
+                    pending.extend(
+                        program
+                            .live_data_fields(program.data_members(data))
+                            .map(|field| field.type_reference),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 #[derive(Debug, Clone)]
 struct MutableRecordLeaf {
     offset: usize,
@@ -55,6 +103,7 @@ struct MutableRecordLeaf {
     primitive: typed_trees::types::PrimitiveType,
     stored_integer: Option<(u16, layout_plans::IntegerInterpretation)>,
     byte_projection: bool,
+    bit_fragments: Vec<typed_trees::PlanLaidBitFragment>,
     arrays: Vec<NormalizedArrayStep>,
 }
 
@@ -243,10 +292,7 @@ fn unique_record_field<'program>(
     carrier: TypeReferenceHandle,
     select: impl Fn(&typed_trees::data::DataField) -> bool,
 ) -> Option<&'program typed_trees::data::DataField> {
-    let owner = crate::declarations::data_queries::data_definition_by_symbol(
-        program,
-        program.type_reference_symbol(carrier),
-    )?;
+    let owner = program.closed_data_field_definition(carrier)?;
     let mut fields = program
         .data_members(owner)
         .iter()
@@ -619,10 +665,21 @@ fn mutable_record_representation_inner(
     budget: &mut RepresentationBudget,
     allow_lifetime_shell: bool,
 ) -> Option<MutableRecordRepresentation> {
+    let data = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
+    mutable_record_representation_for_data(program, data, visiting, budget, allow_lifetime_shell)
+}
+
+fn mutable_record_representation_for_data(
+    program: &dyn crate::CheckingInput,
+    data: &typed_trees::data::DataDefinition,
+    visiting: &mut HashSet<SymbolIdentity>,
+    budget: &mut RepresentationBudget,
+    allow_lifetime_shell: bool,
+) -> Option<MutableRecordRepresentation> {
     budget.enter()?;
     let representation = mutable_record_representation_inner_body(
         program,
-        symbol,
+        data,
         visiting,
         budget,
         allow_lifetime_shell,
@@ -633,28 +690,32 @@ fn mutable_record_representation_inner(
 
 fn mutable_record_representation_inner_body(
     program: &dyn crate::CheckingInput,
-    symbol: symbols::SymbolHandle,
+    data: &typed_trees::data::DataDefinition,
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
     allow_lifetime_shell: bool,
 ) -> Option<MutableRecordRepresentation> {
-    if !symbol.is_valid() {
+    if !data.symbol.is_valid() {
         return None;
     }
-    let symbol_identity = (symbol.arena_index(), symbol.generation());
+    let symbol_identity = (data.symbol, data.generic_instance);
     if !visiting.insert(symbol_identity) {
         return None;
     }
-    let data = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
-    let layout = program.plan_laid_layout(data.symbol);
+    let layout = program.plan_laid_layout_for_data(data);
+    if layout.is_none()
+        && data
+            .generic_instance
+            .is_some_and(|reference| program.layout_storage_arguments(reference).is_some())
+    {
+        visiting.remove(&symbol_identity);
+        return None;
+    }
     // The synthesized layout owns geometry, while its retained schema owns
     // authored validity. Copying fields into a physical declaration must not
     // erase the schema's where facts at an alias or foreign-write boundary.
     let semantic_data = match layout {
-        Some(plan) => crate::declarations::data_queries::data_definition_by_symbol(
-            program,
-            plan.schema_symbol,
-        )?,
+        Some(plan) => program.closed_data_field_definition(plan.semantic_type)?,
         None => data,
     };
     let Some(where_bounds) =
@@ -736,7 +797,7 @@ fn mutable_record_representation_inner_body(
         field_symbols.push(field.symbol);
     }
 
-    let (size, align, offsets) = if let Some(plan) = program.plan_laid_layout(data.symbol) {
+    let (size, align, offsets) = if let Some(plan) = program.plan_laid_layout_for_data(data) {
         if plan.field_symbols != field_symbols {
             return None;
         }
@@ -765,9 +826,45 @@ fn mutable_record_representation_inner_body(
         }
         // An offset and width cannot replace a fragmented bit recipe.
         for bit_field in &plan.bit_fields {
-            for leaf in &mut fields.get_mut(bit_field.field_index)?.leaves {
-                leaf.byte_projection = false;
-            }
+            let field = fields.get_mut(bit_field.field_index)?;
+            let [leaf] = field.leaves.as_mut_slice() else {
+                return None;
+            };
+            leaf.byte_projection = false;
+            leaf.bit_fragments = bit_field
+                .fragments
+                .iter()
+                .map(|fragment| {
+                    let mut fragment = *fragment;
+                    fragment.container_byte_offset = fragment
+                        .container_byte_offset
+                        .checked_sub(plan.offsets[bit_field.field_index])?;
+                    Some(fragment)
+                })
+                .collect::<Option<Vec<_>>>()?;
+            leaf.bit_fragments.sort_by_key(|fragment| {
+                (
+                    fragment.container_byte_offset,
+                    fragment.container_width_bits,
+                    fragment.destination_lsb,
+                    fragment.source_lsb,
+                    fragment.width,
+                )
+            });
+            // The selected containers own storage, independently of the wider
+            // logical scalar whose facts these fragments encode.
+            let stored_size = leaf
+                .bit_fragments
+                .iter()
+                .try_fold(0usize, |extent, fragment| {
+                    (fragment.container_width_bits % 8 == 0).then_some(())?;
+                    let end = fragment
+                        .container_byte_offset
+                        .checked_add(usize::from(fragment.container_width_bits / 8))?;
+                    Some(extent.max(end))
+                })?;
+            field.size = stored_size;
+            leaf.size = stored_size;
         }
         for repeated_field in &plan.repeated_fields {
             let field_type = *field_types.get(repeated_field.field_index)?;
@@ -876,6 +973,7 @@ fn mutable_record_type_representation_body(
             primitive,
             stored_integer: None,
             byte_projection: true,
+            bit_fragments: Vec::new(),
             arrays: Vec::new(),
         });
         return Some(MutableRecordRepresentation {
@@ -913,6 +1011,10 @@ fn mutable_record_type_representation_body(
             budget,
             allow_lifetime_shell,
         ),
+        TypeReferenceNode::Generic { .. } if program.closed_data_definition(type_reference).is_some() => {
+            mutable_record_representation_for_data(program,
+                program.closed_data_definition(type_reference)?, visiting, budget, allow_lifetime_shell)
+        }
         TypeReferenceNode::Generic { .. }
             if allow_lifetime_shell
                 && budget.lifetime_shell_depth > 0
@@ -949,31 +1051,77 @@ fn checked_align_up(value: usize, alignment: usize) -> Option<usize> {
     }
 }
 
-/// Layout equivalence shared by the record-representation comparisons:
-/// same size/alignment and positionally equal leaves, with the caller's
-/// facts predicate applied per leaf pair.
-fn record_layouts_match(
+/// Borrowed backing must satisfy the target's alignment. Representation facts
+/// compare encoded storage below, independently of the scalar partition used
+/// to describe those bytes.
+fn compatible_backing_geometry(
+    source: &MutableRecordRepresentation,
+    target: &MutableRecordRepresentation,
+) -> bool {
+    source.size == target.size && target.align != 0 && source.align % target.align == 0
+}
+
+/// Every encoded scalar bit pattern must be a valid target value. Fragments
+/// select their logical bit width independently of the extent of their physical
+/// containers; validated plans already prove that those logical bits tile.
+/// Atomic protocols and named predicates remain separate obligations.
+fn leaf_accepts_all_bits(leaf: &MutableRecordLeaf) -> bool {
+    if leaf.facts.atomic || !leaf.facts.domains.is_empty() {
+        return false;
+    }
+    let bits = if leaf.byte_projection {
+        leaf.size.checked_mul(8)
+    } else {
+        leaf.bit_fragments
+            .iter()
+            .try_fold(0usize, |width, fragment| {
+                (fragment.width != 0).then_some(())?;
+                Some(width.max(
+                    usize::from(fragment.source_lsb).checked_add(usize::from(fragment.width))?,
+                ))
+            })
+    };
+    let Some(bits @ 1..=64) = bits else {
+        return false;
+    };
+    let maximum = u64::MAX >> (64 - bits);
+    matches!(&leaf.facts.values,
+        super::scalar_representation::ScalarRepresentationSet::ExactBitPatterns(patterns)
+        if patterns.as_slice() == [(0, maximum)])
+}
+
+fn representation_values_imply(
     program: &dyn crate::CheckingInput,
     source: &MutableRecordRepresentation,
     target: &MutableRecordRepresentation,
-    leaf_facts: impl Fn(
-        &dyn crate::CheckingInput,
-        &MutableScalarRepresentationFacts,
-        &MutableScalarRepresentationFacts,
-    ) -> bool,
 ) -> bool {
-    source.size == target.size
-        && source.align == target.align
-        && source.leaves.len() == target.leaves.len()
-        && source
+    // Observation of unrestricted bits depends on established physical coverage,
+    // independently of the logical scalar partition or fragment encoding.
+    let initialized = initialized_storage::InitializedStorageBits::prepare(source);
+    target.leaves.iter().all(|target| {
+        // Both inventories are already sorted by physical offset. Reuse that
+        // association rather than rebuilding a byte map or expanding bit sets.
+        let first = source
             .leaves
-            .iter()
-            .zip(&target.leaves)
-            .all(|(source, target)| {
-                source.offset == target.offset
-                    && source.size == target.size
-                    && leaf_facts(program, &source.facts, &target.facts)
-            })
+            .partition_point(|source| source.offset < target.offset);
+        let end = source
+            .leaves
+            .partition_point(|source| source.offset <= target.offset);
+        if source.leaves[first..end].iter().any(|source_leaf| {
+            source_leaf.size == target.size
+                && source_leaf.byte_projection == target.byte_projection
+                && source_leaf.bit_fragments == target.bit_fragments
+                && scalar_representation_facts_imply(program, &source_leaf.facts, &target.facts)
+        }) {
+            return true;
+        }
+        if !leaf_accepts_all_bits(target) {
+            return false;
+        }
+        initialized
+            .as_ref()
+            .is_some_and(|coverage| coverage.contains_leaf(target))
+    })
 }
 
 pub(super) fn mutable_record_representations_equivalent(
@@ -981,12 +1129,9 @@ pub(super) fn mutable_record_representations_equivalent(
     source: &MutableRecordRepresentation,
     target: &MutableRecordRepresentation,
 ) -> bool {
-    record_layouts_match(
-        program,
-        source,
-        target,
-        mutable_scalar_representation_facts_equivalent,
-    )
+    compatible_backing_geometry(source, target)
+        && representation_values_imply(program, source, target)
+        && representation_values_imply(program, target, source)
 }
 
 /// Whether an admitted re-view writes exactly the source's valid encoded bytes.
@@ -1080,5 +1225,141 @@ pub(super) fn record_representation_implies(
     source: &MutableRecordRepresentation,
     target: &MutableRecordRepresentation,
 ) -> bool {
-    record_layouts_match(program, source, target, scalar_representation_facts_imply)
+    compatible_backing_geometry(source, target)
+        && representation_values_imply(program, source, target)
+}
+
+#[cfg(test)]
+mod representation_implication_tests {
+    use super::super::scalar_representation::ScalarRepresentationSet;
+    use super::*;
+    use typed_trees::types::PrimitiveType;
+
+    fn leaf(offset: usize, size: usize, values: (u64, u64)) -> MutableRecordLeaf {
+        MutableRecordLeaf {
+            offset,
+            size,
+            facts: MutableScalarRepresentationFacts {
+                atomic: false,
+                domains: Vec::new(),
+                values: ScalarRepresentationSet::ExactBitPatterns(vec![values]),
+            },
+            path: Vec::new(),
+            primitive: PrimitiveType::U64,
+            stored_integer: None,
+            byte_projection: true,
+            bit_fragments: Vec::new(),
+            arrays: Vec::new(),
+        }
+    }
+
+    fn bytes(count: usize) -> MutableRecordRepresentation {
+        MutableRecordRepresentation {
+            size: count,
+            align: 1,
+            leaves: (0..count).map(|offset| leaf(offset, 1, (0, 255))).collect(),
+        }
+    }
+
+    #[test]
+    fn established_words_allow_byte_observation_but_not_arbitrary_restoration() {
+        let program = typed_trees::TypedTrees::default();
+        let mut source = MutableRecordRepresentation {
+            size: 16,
+            align: 8,
+            leaves: vec![leaf(0, 8, (0, u64::MAX)), leaf(8, 8, (42, 42))],
+        };
+        assert!(record_representation_implies(&program, &source, &bytes(16)));
+        assert!(!mutable_record_representations_equivalent(
+            &program,
+            &source,
+            &bytes(16)
+        ));
+        source.leaves[1].facts.values =
+            ScalarRepresentationSet::ExactBitPatterns(vec![(0, u64::MAX)]);
+        assert!(mutable_record_representations_equivalent(
+            &program,
+            &source,
+            &bytes(16)
+        ));
+        assert!(!record_representation_implies(
+            &program,
+            &bytes(16),
+            &source
+        ));
+    }
+
+    #[test]
+    fn regrouping_initialized_storage_preserves_alignment_and_validity() {
+        let program = typed_trees::TypedTrees::default();
+        let source = MutableRecordRepresentation {
+            size: 4,
+            align: 4,
+            leaves: vec![leaf(0, 2, (0, 65535)), leaf(2, 2, (0, 65535))],
+        };
+        let mut target = MutableRecordRepresentation {
+            size: 4,
+            align: 4,
+            leaves: vec![leaf(0, 4, (0, u64::from(u32::MAX)))],
+        };
+        assert!(mutable_record_representations_equivalent(
+            &program, &source, &target
+        ));
+        target.leaves[0].facts.values = ScalarRepresentationSet::ExactBitPatterns(vec![(0, 1)]);
+        assert!(!record_representation_implies(&program, &source, &target));
+    }
+
+    #[test]
+    fn equal_logical_facts_require_the_same_fragment_encoding() {
+        let program = typed_trees::TypedTrees::default();
+        let mut source = MutableRecordRepresentation {
+            size: 8,
+            align: 8,
+            leaves: vec![leaf(0, 8, (1, 1))],
+        };
+        source.leaves[0].byte_projection = false;
+        source.leaves[0].bit_fragments = vec![
+            typed_trees::PlanLaidBitFragment {
+                container_byte_offset: 0,
+                container_width_bits: 64,
+                destination_lsb: 0,
+                source_lsb: 0,
+                width: 32,
+            },
+            typed_trees::PlanLaidBitFragment {
+                container_byte_offset: 0,
+                container_width_bits: 64,
+                destination_lsb: 32,
+                source_lsb: 32,
+                width: 32,
+            },
+        ];
+        let mut target = source.clone();
+        target.align = 1;
+        assert!(record_representation_implies(&program, &source, &target));
+        target.leaves[0].bit_fragments[0].source_lsb = 32;
+        target.leaves[0].bit_fragments[1].source_lsb = 0;
+        assert!(!record_representation_implies(&program, &source, &target));
+    }
+
+    #[test]
+    fn padding_atomic_protocol_and_fragmented_encodings_are_not_raw_observations() {
+        let program = typed_trees::TypedTrees::default();
+        let padded = MutableRecordRepresentation {
+            size: 3,
+            align: 1,
+            leaves: vec![leaf(0, 1, (0, 255)), leaf(2, 1, (0, 255))],
+        };
+        assert!(!record_representation_implies(&program, &padded, &bytes(3)));
+        let mut source = MutableRecordRepresentation {
+            size: 8,
+            align: 8,
+            leaves: vec![leaf(0, 8, (0, u64::MAX))],
+        };
+        source.leaves[0].facts.atomic = true;
+        assert!(!record_representation_implies(&program, &source, &bytes(8)));
+        source.leaves[0].facts.atomic = false;
+        source.leaves[0].byte_projection = false;
+        assert!(!record_representation_implies(&program, &source, &bytes(8)));
+    }
 }

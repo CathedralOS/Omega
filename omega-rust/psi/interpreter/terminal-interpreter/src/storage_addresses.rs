@@ -118,7 +118,15 @@ impl TerminalExecution<'_> {
             )?;
             if let Some(view) = view {
                 return self
-                    .aggregate_view_primitive_access(&carrier, view, field_path)
+                    .aggregate_view_primitive_access(
+                        &carrier,
+                        view,
+                        field_path,
+                        self.aggregate_argument_backings
+                            .get(&source.place)
+                            .and_then(|backing| backing.collection_home.as_ref()),
+                        false,
+                    )
                     .map(|(storage, _, _)| storage.endpoint);
             }
             if let Some(observed) =
@@ -172,6 +180,21 @@ impl TerminalExecution<'_> {
         endpoint: PrimitiveStorageEndpoint,
     ) -> Result<(Option<u64>, u64, Vec<Coordinate>), TerminalInterpretError> {
         let selected = match endpoint {
+            PrimitiveStorageEndpoint::Projection {
+                fragments, stored, ..
+            } => {
+                let [first] = fragments.as_slice() else {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "composed scalar observations have no single storage-address endpoint",
+                    ));
+                };
+                let endpoint = first.contiguous_address_endpoint(stored).ok_or(
+                    TerminalInterpretError::UnsupportedSemanticVariant(
+                        "storage-address exposure requires a contiguous original scalar endpoint",
+                    ),
+                )?;
+                return self.endpoint_identity(endpoint);
+            }
             PrimitiveStorageEndpoint::Scalar(place) => place,
             PrimitiveStorageEndpoint::ScalarField(field) => {
                 // Inline scalar fields share the same terminated path grammar

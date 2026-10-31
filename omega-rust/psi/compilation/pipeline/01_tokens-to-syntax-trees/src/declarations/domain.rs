@@ -287,7 +287,8 @@ fn parse_domain_requires<'tokens, 'source>(
 }
 
 fn domain_requires_terminator(input: Input<'_, '_>) -> bool {
-    input.at_contextual("established")
+    super::parse_declaration::named_implementation_prefix(input).is_some()
+        || input.at_contextual("established")
         || input.at_contextual("satisfies")
         || input.at_punctuation(PunctuationKind::LeftBrace)
         || input.tokens.is_empty()

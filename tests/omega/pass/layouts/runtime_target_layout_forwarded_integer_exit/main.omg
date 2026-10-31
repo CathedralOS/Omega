@@ -1,45 +1,33 @@
-data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField where size <= 4096, 1 <= align, align <= 16 {
-    key: u64;
-    size: u64;
-    align: u64;
-    number: i64;
-    kind: FieldKind;
-}
-data Schema where field_count <= 32 {
-    fields: [SchemaField; 32];
-    field_count: u64;
-}
-data IntegerInterpretation { case Signed; case Unsigned; }
-data FieldPlan {
-    case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
-    case At(offset: u64);
-    case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64);
-    case Varint(tag: u64);
-    case LengthPrefixed(tag: u64);
-}
-data FieldEntry { key: u64; placement: FieldPlan; }
-data Plan {
-    entries: [FieldEntry; 64];
-    entry_count: u64;
-    size_fixed: u64;
-    size_is_dynamic: bool;
-    align: u64;
-}
+use omega::language::core::layout;
 
-data Policy {}
+
 data Payload [copy] { value: u32; }
-data View { payload: Policy<Payload>; }
-macos_arm64 machine Policy::plan(schema: Schema) -> Plan {
+data View { payload: LayoutStorage<Payload, Policy>; }
+Policy satisfies FixedLayout<Payload> {
+    machine plan(schema: Schema, target: LayoutTarget) -> Plan reaches terminates; {
+        let facts: LayoutTargetFacts = layout_target_facts(&target);
+        transition {
+            facts.profile == "macos_arm64" -> on_macos_arm64(schema)
+            facts.profile == "linux_x86_64" -> on_linux_x86_64(schema)
+            _ -> unsupported_target()
+        }
+        machine on_macos_arm64(schema: Schema) -> Plan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::IntegerAt { offset: 0, stored_width: 8, interpretation: IntegerInterpretation::Unsigned } };
     Plan { entries: entries, entry_count: 1, size_fixed: 1, size_is_dynamic: false, align: 1 }
 }
-linux_x86_64 machine Policy::plan(schema: Schema) -> Plan {
+        machine on_linux_x86_64(schema: Schema) -> Plan reaches terminates; {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::IntegerAt { offset: 0, stored_width: 16, interpretation: IntegerInterpretation::Unsigned } };
     Plan { entries: entries, entry_count: 1, size_fixed: 2, size_is_dynamic: false, align: 2 }
 }
+        machine unsupported_target() -> Plan reaches terminates; {
+            let entries: [FieldEntry; 64];
+            Plan { entries: entries, entry_count: 0, size_fixed: 0, size_is_dynamic: false, align: 0 }
+        }
+    }
+}
+
 machine write(out: &mut u32, value: u32) { out = value; }
 machine forward(out: &mut u32, value: u32) { write(out, value); }
 machine program() crashes Trap {

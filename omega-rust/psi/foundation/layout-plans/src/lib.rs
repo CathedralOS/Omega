@@ -109,3 +109,6 @@ mod tests;
 
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
+
+mod target_facts;
+pub use target_facts::LayoutTargetFacts;
