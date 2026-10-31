@@ -398,10 +398,8 @@ retired-syntax deletions to completion.
   `source/{psi,omega}/` under the
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
-  - Migrate the remaining 65 std raw platform, 2 interrupt, and 126 float rows
-    plus 70 test files to boundary traits with explicit reach clauses, lift stage
-    04's template-dependent result borrow-elision fence for `core/task.omg`'s
-    generic `request_cancel` and `finish`, and preserve source-selected trait
+  - Migrate the remaining 65 std raw platform rows and 70 test files to boundary
+    traits with explicit reach clauses, and preserve source-selected trait
     tokens (`samples/cli/probes/operator_requires_effects`).
   - Delete the standalone declaration kind from parsing, AST/IR representations,
     checking, Terminal codec, provider planning, and both compilers, keeping one
