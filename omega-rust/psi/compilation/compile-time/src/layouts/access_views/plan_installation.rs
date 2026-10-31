@@ -9,6 +9,10 @@ use language_semantics::Multiplicity;
 use typed_trees::TypedTrees;
 
 use super::{AccessViewRecord, accessor_operations};
+use symbols::SymbolHandle;
+use typed_trees::data::DataMember;
+use typed_trees::typed_trees::{AccessAtomicResidentContract, AccessViewPlan};
+use validation::access_atomic_observing_results;
 
 fn observing_result_contracts(
     operations: AtomicPermissions,
@@ -21,9 +25,7 @@ fn observing_result_contracts(
     if multiplicity != Multiplicity::Unrestricted {
         return Err(multiplicity);
     }
-    Ok(Some(validation::access_atomic_observing_results(
-        operations,
-    )))
+    Ok(Some(access_atomic_observing_results(operations)))
 }
 
 pub(super) fn install_access_view_plan(
@@ -87,8 +89,8 @@ pub(super) fn install_access_view_plan(
         .data_members(schema)
         .iter()
         .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => Some(field),
-            typed_trees::data::DataMember::Variant(_) => None,
+            DataMember::Field(field) => Some(field),
+            DataMember::Variant(_) => None,
         })
         .map(|field| (field.name.as_str().to_owned(), field))
         .collect::<BTreeMap<_, _>>();
@@ -104,10 +106,8 @@ pub(super) fn install_access_view_plan(
         .data_members(view)
         .iter()
         .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => {
-                Some((field.name.as_str().to_owned(), field))
-            }
-            typed_trees::data::DataMember::Variant(_) => None,
+            DataMember::Field(field) => Some((field.name.as_str().to_owned(), field)),
+            DataMember::Variant(_) => None,
         })
         .collect::<BTreeMap<_, _>>();
     let templates = typed
@@ -121,9 +121,7 @@ pub(super) fn install_access_view_plan(
         .collect::<Vec<_>>();
     let template_symbol = match templates.as_slice() {
         [template] => template.symbol,
-        _ if typed.symbols.source_file(record.template_source).is_none() => {
-            symbols::SymbolHandle::default()
-        }
+        _ if typed.symbols.source_file(record.template_source).is_none() => SymbolHandle::default(),
         _ => {
             return Err(vec![
                 Diagnostic::error("access view lost its unique canonical template declaration")
@@ -278,17 +276,15 @@ pub(super) fn install_access_view_plan(
                 let multiplicity = typed.type_multiplicity(schema_field.type_reference);
                 match observing_result_contracts(*operations, multiplicity) {
                     Ok(None) => None,
-                    Ok(Some(observing_results)) => {
-                        Some(typed_trees::typed_trees::AccessAtomicResidentContract {
-                            field_symbol: schema_field.symbol,
-                            resident_type: schema_field.type_reference,
-                            multiplicity,
-                            transfer_width_bits: *transfer_width_bits,
-                            compare_exchange: operations.compare_exchange,
-                            compare_exchange_once: operations.compare_exchange_once,
-                            observing_results,
-                        })
-                    }
+                    Ok(Some(observing_results)) => Some(AccessAtomicResidentContract {
+                        field_symbol: schema_field.symbol,
+                        resident_type: schema_field.type_reference,
+                        multiplicity,
+                        transfer_width_bits: *transfer_width_bits,
+                        compare_exchange: operations.compare_exchange,
+                        compare_exchange_once: operations.compare_exchange_once,
+                        observing_results,
+                    }),
                     Err(multiplicity) => {
                         return Err(vec![Diagnostic::error(format!(
                             "access view `{}` field `{}` cannot admit observing compare-exchange for a {multiplicity:?} resident; failure exposes the resident and requires unrestricted copyability",
@@ -315,19 +311,17 @@ pub(super) fn install_access_view_plan(
             atomic_resident,
         });
     }
-    typed
-        .access_view_plans
-        .push(typed_trees::typed_trees::AccessViewPlan {
-            template_symbol,
-            data_name: record.synthetic_name.clone(),
-            data_symbol,
-            policy_name: policy_name.to_owned(),
-            policy_symbol,
-            policy_plan_machine_symbol,
-            schema_name: record.schema_data.clone(),
-            schema_symbol,
-            placement: placement.clone(),
-            fields,
-        });
+    typed.access_view_plans.push(AccessViewPlan {
+        template_symbol,
+        data_name: record.synthetic_name.clone(),
+        data_symbol,
+        policy_name: policy_name.to_owned(),
+        policy_symbol,
+        policy_plan_machine_symbol,
+        schema_name: record.schema_data.clone(),
+        schema_symbol,
+        placement: placement.clone(),
+        fields,
+    });
     Ok(())
 }

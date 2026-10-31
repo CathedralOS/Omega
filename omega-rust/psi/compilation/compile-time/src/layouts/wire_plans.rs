@@ -31,7 +31,7 @@
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
-use typed_trees::wire::WirePlacement;
+use typed_trees::wire::{WireEncodeOutputCapacityObligation, WirePlacement, WireScalarEncoding};
 
 mod policy_value;
 
@@ -42,15 +42,11 @@ const WIRE_GRAMMAR_POLICY: &str = "CompactBinary::plan";
 /// A schema field's shape fact, mirrored to the std `FieldKind` cases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FieldShape {
-    Scalar {
-        byte_size: u64,
-    },
+    Scalar { byte_size: u64 },
     Text,
     Nested,
     Repeated,
-    BorrowedScalarSlice {
-        element: typed_trees::wire::WireScalarEncoding,
-    },
+    BorrowedScalarSlice { element: WireScalarEncoding },
 }
 
 impl FieldShape {
@@ -182,8 +178,7 @@ pub(crate) fn compute_wire_plans_in(
                     element,
                     length: typed_trees::wire::WireEncodeLengthObligation::RuntimeElementCount,
                     work: typed_trees::wire::WireEncodeWorkObligation::TwoPassesPerElement,
-                    output_capacity:
-                        typed_trees::wire::WireEncodeOutputCapacityObligation::ExactPackedPayload,
+                    output_capacity: WireEncodeOutputCapacityObligation::ExactPackedPayload,
                 })
             })
             .collect::<Vec<_>>();
