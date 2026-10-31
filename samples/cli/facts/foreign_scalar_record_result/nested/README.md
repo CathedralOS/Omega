@@ -37,8 +37,12 @@ layout, operation, comparisons and branch markers are unchanged. The nine
 positive/twin pairs are copied exactly into
 `tests/omega/{pass,fail}/facts/foreign_nested_scalar_record_result_through_*`.
 Every positive declares `Expected exit: 0` and all four hosted `ProgramEntry`
-bindings. External leaves and their locator-producing helpers are public;
-terminal helpers use nested `machine` declarations and explicit arguments.
+bindings. Each package's Build activation binds `IntegerDivision::divide` and
+`IntegerDivision::verify` to the four fixture locators, so no place declares a
+per-symbol binding helper or a bodyless realizing `boundary machine`. The
+target-body place selects one `Observation` implementation with four Build rows
+because its four target-prefixed bodies were identical. Terminal helpers use
+nested `machine` declarations and explicit arguments.
 
 ## Real portable provider
 
@@ -126,6 +130,8 @@ canonical artifact and native identity before publication.
 Raw compiler profiles, C provider identities, frozen inputs, engine outputs,
 canonical artifacts and qualification are retained in
 `build/foreign-frontier-evidence` and `build/owned-host-evidence`.
+Both records describe the original `via` sources and their producers; they are
+not runs of the Build-bound sources above.
 
 The flat record row's earlier observations do not establish recursive owned
 result publication. [Fixed-array descendants](../arrays/README.md) have their own
