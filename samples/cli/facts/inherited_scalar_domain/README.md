@@ -4,9 +4,10 @@ Nested domain `Nested` requires `self in Small`, and inherited domain
 `Nested::Inherited` establishes `self < 5`, so `5 - held` is exact.
 
 Parent: `DOMAIN-DEFAULT-PREDICATE-UNIFICATION` in
-[TASKS.md](../../../../../TASKS.md). The qualified constant, and the same
-value carried through the other eight places, is the destination that must
-establish the nested parent predicate.
+[TASKS.md](../../../../../TASKS.md). The qualified constant and the same
+value carried through the other eight places establish the nested parent
+predicate. `const HELD: u64 in Nested::Inherited = 3` exits 0. Initializer
+`9` rejects.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -33,11 +34,8 @@ establish the nested parent predicate.
 - Psi through native: `omega run --both` requires Terminal and native
   agreement on exit 0. This host executes `linux_x86_64`.
 
-`const_name` is not closed. A qualified constant destination still fails
-in the private `@const-qualification` probe with `cannot prove scalar
-result domain` for both a member (`3`) and a non-member (`9`). The other
-eight places establish the same nested inherited bound on an ordinary value.
+This host executed all nine places with `omega run --both`: native and
+Terminal Psi both exited 0. Each initializer-`9` twin rejected.
 
-Still open on the parent item: qualified constant destinations, and one
-general predicate representation through formation, construction, calls,
-matching, coverage, writes, and erasure.
+Still open on the parent item: one general predicate representation through
+formation, construction, calls, matching, coverage, writes, and erasure.
