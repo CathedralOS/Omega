@@ -26,6 +26,7 @@ use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use syntax_trees::identifier::JoinedSyntaxPath;
 
+use super::facts::prove_const_data_predicates;
 use crate::preparation::declaration_selection::{
     ConstantSelection, GenericApplicationSubstitution, resolved_generic_argument,
     substituted_generic_arguments,
@@ -37,6 +38,7 @@ use crate::preparation::generic_data::arguments::{
 };
 use crate::preparation::generic_data::integer_literal_value;
 use crate::preparation::generic_data::qualified_const_name;
+use crate::preparation::generic_data::type_reference_slug;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::literals::LandedIntegerType;
 use syntax_trees::item::TypeParameterKind;
@@ -575,9 +577,7 @@ fn closed_application_argument_labels(
             if matches!(parameter.kind, TypeParameterKind::Implementation) {
                 return selected_implementation_label(syntax, *argument, selection);
             }
-            if let Some(slug) =
-                crate::preparation::generic_data::type_reference_slug(syntax, *argument, selection)
-            {
+            if let Some(slug) = type_reference_slug(syntax, *argument, selection) {
                 return Ok(slug);
             }
             let label = selected_type_label(syntax, *argument, selection)?;
@@ -1806,13 +1806,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
         _ => Err(format!("expected a `{type_name}` structural literal")),
     }?;
     if admission == ConstPredicateAdmission::ProveSyntax {
-        super::facts::prove_const_data_predicates(
-            syntax,
-            definition,
-            &value,
-            substitution,
-            selection,
-        )?;
+        prove_const_data_predicates(syntax, definition, &value, substitution, selection)?;
     }
     Ok(value)
 }

@@ -273,8 +273,7 @@ pub(crate) fn lower_state_signature_parts(
     let service_reaches = lower_service_reach_names(syntax_trees, service_reaches);
     let invokes = lower_signature_invokes(lowerer, syntax_trees, invokes);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
-    let where_facts =
-        crate::lowering::domain::lower_proof_facts(lowerer, syntax_trees, where_facts)?;
+    let where_facts = lower_proof_facts(lowerer, syntax_trees, where_facts)?;
 
     Ok(LoweredStateSignature {
         signature: StateSignature {

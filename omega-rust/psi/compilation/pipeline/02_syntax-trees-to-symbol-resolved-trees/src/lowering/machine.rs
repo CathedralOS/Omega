@@ -19,11 +19,13 @@ pub(crate) use token_bindings::{
 
 use crate::lowering::data::lower_type_parameters;
 use crate::lowering::expression::lower_expression_into_table;
+use crate::lowering::name::lower_name;
 use crate::lowering::name::lower_names;
 use crate::lowering::state::{
     lower_machine_signature_contracts, lower_service_reach_names, lower_signature_invokes,
     lower_state_body, lower_state_node,
 };
+use crate::lowering::type_reference::lower_child_type_references;
 use crate::resolution::lowerer::Lowerer;
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
@@ -226,7 +228,7 @@ fn lower_lexical_machine_parts(
     let sibling_target = machine
         .target
         .as_ref()
-        .map(|name| crate::lowering::name::lower_name(syntax_trees, name));
+        .map(|name| lower_name(syntax_trees, name));
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies)?;
     let conformance_bounds =
         lower_generic_conformance_bounds(lowerer, syntax_trees, &machine.conformance_bounds)?;
@@ -249,7 +251,7 @@ fn lower_lexical_machine_parts(
     let invokes = lower_signature_invokes(lowerer, syntax_trees, machine.invokes);
     let contracts =
         lower_machine_signature_contracts(lowerer, syntax_trees, machine.contracts, states)?;
-    let machine_name = crate::lowering::name::lower_name(syntax_trees, &machine.name);
+    let machine_name = lower_name(syntax_trees, &machine.name);
     // A member keeps its authored family path and has a distinct
     // `<path>::<target>` symbol. The independent head occupies the portable
     // path; same-target calls bind exact member symbols during resolution.
@@ -263,7 +265,7 @@ fn lower_lexical_machine_parts(
     let attached_data = machine
         .attached_data
         .as_ref()
-        .map(|name| crate::lowering::name::lower_name(syntax_trees, name));
+        .map(|name| lower_name(syntax_trees, name));
     let termination_plan =
         build_termination_plan(lowerer, syntax_trees, machine, states, type_parameters);
 
@@ -349,17 +351,11 @@ fn lower_lexical_machine_parts(
         lexical_parent,
         name: machine_name,
         generic_data_origin: GenericDataMachineOrigin {
-            template_source: crate::lowering::name::lower_name(
-                syntax_trees,
-                &machine.generic_data_template,
-            ),
+            template_source: lower_name(syntax_trees, &machine.generic_data_template),
             ..Default::default()
         },
         trait_default_origin: TraitDefaultOrigin {
-            trait_source: crate::lowering::name::lower_name(
-                syntax_trees,
-                &machine.default_body_trait,
-            ),
+            trait_source: lower_name(syntax_trees, &machine.default_body_trait),
             ..Default::default()
         },
         attached_data,
@@ -374,7 +370,7 @@ fn lower_lexical_machine_parts(
         authored_target: machine
             .authored_target
             .as_ref()
-            .map(|name| crate::lowering::name::lower_name(syntax_trees, name)),
+            .map(|name| lower_name(syntax_trees, name)),
         target_family: SymbolHandle::invalid(),
         target_family_interface: machine.target_family_interface,
         target_family_contracts_prepared: false,
@@ -583,14 +579,10 @@ pub(crate) fn lower_generic_conformance_bounds(
         .map(|bound| {
             Ok(GenericConformanceBound {
                 binder: SymbolHandle::invalid(),
-                binder_name: crate::lowering::name::lower_name(syntax_trees, &bound.binder),
+                binder_name: lower_name(syntax_trees, &bound.binder),
                 trait_symbol: SymbolHandle::invalid(),
-                trait_name: crate::lowering::name::lower_name(syntax_trees, &bound.trait_name),
-                arguments: crate::lowering::type_reference::lower_child_type_references(
-                    lowerer,
-                    syntax_trees,
-                    bound.arguments,
-                )?,
+                trait_name: lower_name(syntax_trees, &bound.trait_name),
+                arguments: lower_child_type_references(lowerer, syntax_trees, bound.arguments)?,
             })
         })
         .collect()
@@ -886,11 +878,7 @@ fn lower_machine_trait_conformances(
     let mut span = HandleSpan::empty();
 
     for clause in syntax_trees.items.satisfies_clauses(satisfies) {
-        let arguments = crate::lowering::type_reference::lower_child_type_references(
-            lowerer,
-            syntax_trees,
-            clause.arguments,
-        )?;
+        let arguments = lower_child_type_references(lowerer, syntax_trees, clause.arguments)?;
         let external_binding = clause.via.as_ref().map(|binding| {
             lowerer
                 .symbol_resolved_trees
@@ -912,17 +900,17 @@ fn lower_machine_trait_conformances(
                 &mut span,
                 TraitConformance {
                     symbol: SymbolHandle::invalid(),
-                    name: crate::lowering::name::lower_name(syntax_trees, &clause.trait_name),
+                    name: lower_name(syntax_trees, &clause.trait_name),
                     lifetime_arguments: lower_names(syntax_trees, &clause.lifetime_arguments),
                     arguments,
                     requirement: clause
                         .requirement
                         .as_ref()
-                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name)),
+                        .map(|name| lower_name(syntax_trees, name)),
                     alias: clause
                         .alias
                         .as_ref()
-                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name)),
+                        .map(|name| lower_name(syntax_trees, name)),
                     external_binding,
                     via_expression,
                     external_binding_source_span: clause.via_keyword_source_span,

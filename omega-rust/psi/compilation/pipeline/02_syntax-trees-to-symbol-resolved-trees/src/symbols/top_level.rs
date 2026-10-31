@@ -52,6 +52,7 @@ use super::top_level::mathematical::assign_mathematical_symbols;
 use super::top_level::operators::assign_root_operator_symbols;
 use super::top_level::propositions::assign_proposition_symbols;
 use super::top_level::traits::assign_trait_symbols;
+use crate::symbols::lookup::top_level_symbol_for_source;
 use std::collections::HashSet;
 use symbol_resolved_trees::data::MachineParameterContract;
 use symbol_resolved_trees::data::PropositionParameterSignature;
@@ -432,11 +433,8 @@ pub(super) fn assign_conformance_bound_symbols(
     trait_machine_identity_slots: &[(SymbolHandle, Vec<bool>)],
 ) {
     for bound in bounds {
-        bound.trait_symbol = crate::symbols::lookup::top_level_symbol_for_source(
-            symbols,
-            SymbolKind::Trait,
-            &bound.trait_name,
-        );
+        bound.trait_symbol =
+            top_level_symbol_for_source(symbols, SymbolKind::Trait, &bound.trait_name);
         crate::symbols::type_references::assign_type_reference_argument_symbols_with_constraints(
             symbols,
             child_type_references,

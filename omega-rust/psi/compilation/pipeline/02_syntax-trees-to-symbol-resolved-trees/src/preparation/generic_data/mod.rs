@@ -51,6 +51,7 @@ mod work_domain;
 
 pub(crate) use uses::{statement_call_inputs, statement_type_inputs};
 
+use crate::preparation::module_normalization::validate_with_const_resolution_mode;
 pub(crate) use arguments::{
     DomainCarrier, DomainHead, closed_argument_identity, domain_application_head,
     domain_index_telescope, monomorphizable_argument_slugs, normalize_domain_head_positions,
@@ -728,9 +729,7 @@ fn normalize_generic_data_in_mode(
     // Module constant admission replays domain obligations too. Bind lexical
     // carrier heads before that admission, not only before data substitution.
     domain_heads::normalize(&mut syntax, Some(&selection))?;
-    crate::preparation::module_normalization::validate_with_const_resolution_mode(
-        &syntax, &selection, mode,
-    )?;
+    validate_with_const_resolution_mode(&syntax, &selection, mode)?;
     let mut warnings = Vec::new();
     synthesis::desugar_generic_data_instances_in(
         &mut syntax,
@@ -818,9 +817,7 @@ fn normalize_generic_data_with_warnings(
 ) -> Result<(SyntaxTrees, Vec<Diagnostic>), Vec<Diagnostic>> {
     domain_heads::normalize(&mut syntax, None)?;
     let selection = declaration_selection::ConstantSelection::new(&syntax, None, Vec::new())?;
-    crate::preparation::module_normalization::validate_with_const_resolution_mode(
-        &syntax, &selection, mode,
-    )?;
+    validate_with_const_resolution_mode(&syntax, &selection, mode)?;
     let mut warnings = Vec::new();
     match domain {
         GenericDataWorkDomain::All { .. } => {

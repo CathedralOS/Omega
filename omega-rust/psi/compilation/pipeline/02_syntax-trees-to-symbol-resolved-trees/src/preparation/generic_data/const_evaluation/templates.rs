@@ -13,6 +13,7 @@ use crate::tables::syntax_type_references;
 
 use crate::preparation::generic_data::EvaluatedConst;
 
+use super::super::uses::concrete_machine_declarations;
 use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::generic_const_integer_types;
 use arena::HandleSpan;
@@ -722,7 +723,7 @@ fn collect_owned_type_reference_positions(
     if !include_machines {
         return positions;
     }
-    for machine in super::super::uses::concrete_machine_declarations(syntax, declarations) {
+    for machine in concrete_machine_declarations(syntax, declarations) {
         // Satisfier arguments and signatures select the same closed carrier.
         // All states, including inline conformance states, own their type uses.
         for conformance in syntax.items.satisfies_clauses(machine.satisfies) {
@@ -761,9 +762,7 @@ pub(in crate::preparation::generic_data) fn collect_machine_type_reference_posit
 ) -> (Vec<TypeReferenceHandle>, Vec<TypeReferenceHandle>) {
     let mut positions = Vec::new();
     let mut public_positions = Vec::new();
-    for machine in
-        super::super::uses::concrete_machine_declarations(syntax, syntax.root_item_handles())
-    {
+    for machine in concrete_machine_declarations(syntax, syntax.root_item_handles()) {
         for (ordinal, state_handle) in syntax_items(&syntax)
             .state_handles(machine.states)
             .iter()

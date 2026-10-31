@@ -27,6 +27,7 @@ use crate::selection::signature_free_requirements::{
     SignatureFreeMachineResolutionError, SignatureFreeRequirementResolutionError,
     resolve_signature_free_machine, resolve_signature_free_requirement,
 };
+use crate::symbols::prefer_module_local_domain;
 use symbol_resolved_trees::data::DataMember;
 use symbol_resolved_trees::expression::ExpressionHandle;
 
@@ -492,11 +493,9 @@ fn collect_type_reference_domain_symbols<'program>(
             })
             .map(|domain| domain.symbol)
             .collect::<Vec<_>>();
-        for matching in crate::symbols::prefer_module_local_domain(
-            &program.symbols,
-            matched,
-            name.name.source_span(),
-        ) {
+        for matching in
+            prefer_module_local_domain(&program.symbols, matched, name.name.source_span())
+        {
             for atom in atomic_domain_symbols(program, matching) {
                 if !domains.contains(&atom) {
                     domains.push(atom);

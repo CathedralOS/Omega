@@ -19,7 +19,12 @@ pub(crate) mod lowerer;
 pub(crate) mod operand_owners;
 pub(crate) mod type_inputs;
 
+use crate::constant::initializer_dependencies::restore_const_call_targets;
+use crate::lowering::state::LexicalInputDemand;
 use crate::preparation::declaration_selection::ConstantSelection;
+use crate::symbols::assign_lexical_inputs;
+use crate::symbols::target_siblings::bind_sibling_calls;
+use crate::symbols::type_predicates::retain_operands;
 use crate::tables::body_expressions;
 use crate::{constant, lowering, preparation, selection};
 pub use body_completion::{
@@ -313,11 +318,7 @@ pub fn resolve_const_argument_selection(
 ) -> Result<ConstArgumentSelection, Vec<Diagnostic>> {
     let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
     index_declarations(&mut lowerer, &syntax)?;
-    crate::symbols::assign_lexical_inputs(
-        &mut lowerer,
-        &syntax,
-        crate::lowering::state::LexicalInputDemand::TypeOperands,
-    )?;
+    assign_lexical_inputs(&mut lowerer, &syntax, LexicalInputDemand::TypeOperands)?;
     let expressions: Vec<_> = lowerer
         .pending_authored_expressions
         .iter()
@@ -656,10 +657,7 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
         .iter()
         .map(|pending| pending.expression)
         .collect::<Vec<_>>();
-    crate::symbols::type_predicates::retain_operands(
-        &mut lowerer.symbol_resolved_trees,
-        &expressions,
-    )?;
+    retain_operands(&mut lowerer.symbol_resolved_trees, &expressions)?;
 
     constant::finalize_operator_obligations(lowerer)?;
     selection::finalize(lowerer)?;
@@ -675,11 +673,7 @@ fn finish_resolved_tables(
     route_conformance_requirement_calls(&mut lowerer.symbol_resolved_trees, inputs, machines)?;
     route_named_implementation_calls(&mut lowerer.symbol_resolved_trees, inputs, machines);
     crate::symbols::target_machine_families::bind(&mut lowerer.symbol_resolved_trees)?;
-    crate::symbols::target_siblings::bind_sibling_calls(
-        &mut lowerer.symbol_resolved_trees,
-        inputs,
-        machines,
-    );
+    bind_sibling_calls(&mut lowerer.symbol_resolved_trees, inputs, machines);
     crate::symbols::recursive_tail_calls::normalize(&mut lowerer.symbol_resolved_trees, machines);
     crate::symbols::target_machine_families::prepare_premises(&mut lowerer.symbol_resolved_trees)?;
     // Rejoin declaration-owned initializer targets after ordinary source
@@ -702,10 +696,7 @@ fn finish_resolved_tables(
         })
         .map(|(handle, _)| handle)
         .collect::<Vec<_>>();
-    crate::constant::initializer_dependencies::restore_const_call_targets(
-        &mut lowerer.symbol_resolved_trees,
-        &expressions,
-    );
+    restore_const_call_targets(&mut lowerer.symbol_resolved_trees, &expressions);
     Ok(())
 }
 
@@ -719,11 +710,7 @@ pub fn resolve_call_result_selection(
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
     index_declarations(&mut lowerer, &syntax)?;
-    let inputs = crate::symbols::assign_lexical_inputs(
-        &mut lowerer,
-        &syntax,
-        crate::lowering::state::LexicalInputDemand::CallResults,
-    )?;
+    let inputs = assign_lexical_inputs(&mut lowerer, &syntax, LexicalInputDemand::CallResults)?;
     finish_resolution(&mut lowerer, &syntax, &inputs, &[])?;
     Ok(lowerer.into_trees())
 }

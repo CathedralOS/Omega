@@ -89,6 +89,8 @@ pub(crate) use selections::{
 };
 pub(crate) use substitution::{semantic_const_name, substitute_resolved_constants};
 
+use crate::resolution::lowerer::Lowerer;
+use crate::symbols::assign_constant_expression_symbols;
 use crate::tables::syntax_expressions;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
@@ -175,9 +177,7 @@ pub fn requires_const_initializer_evaluation(
 /// Constant-expression symbol and selection passes run inside because they
 /// consume only these pending values. Selections already name exact declaration
 /// handles, including retained constants; no cohort-relative ordinal is rebased.
-pub(crate) fn finalize(
-    lowerer: &mut crate::resolution::lowerer::Lowerer,
-) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     let program = &mut lowerer.symbol_resolved_trees;
     finalize_const_argument_selections(
         program,
@@ -192,10 +192,7 @@ pub(crate) fn finalize(
         .copied()
         .chain(lowerer.pending_const_argument_expressions.iter().copied())
         .collect::<Vec<_>>();
-    crate::symbols::assign_constant_expression_symbols(
-        program,
-        const_expression_roots.iter().copied(),
-    );
+    assign_constant_expression_symbols(program, const_expression_roots.iter().copied());
     // Selection recording reads the call target. A named-implementation call
     // in a constant initializer has no machine-body route yet, so bind the
     // owned realization entry before that recording. Later requirement
@@ -237,9 +234,7 @@ pub(crate) fn finalize(
 
 /// Close duplicate declaration-side operator obligations once the authored
 /// selection ledger has recorded every ordinary selection.
-pub(crate) fn finalize_operator_obligations(
-    lowerer: &mut crate::resolution::lowerer::Lowerer,
-) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn finalize_operator_obligations(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     initializer_normalization::finalize_operator_obligations(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_const_initializers,

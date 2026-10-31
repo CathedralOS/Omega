@@ -2,6 +2,10 @@
 
 use crate::constant::initializer_normalization;
 use crate::constant::substitution::semantic_const_name;
+use crate::lowering::expression::lower_expression_into_table;
+use crate::preparation::generic_data::canonicalize_declared_const_definition;
+use crate::preparation::generic_data::canonicalize_selected_declared_const_definition;
+use crate::preparation::generic_data::prove_const_literal_predicates;
 use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
@@ -158,10 +162,8 @@ pub(crate) fn public_declaration_value_encoding(
     definition: &ConstDefinition,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<String, String> {
-    crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
-        syntax, definition, selection,
-    )
-    .map(|value| value.encoding)
+    canonicalize_selected_declared_const_definition(syntax, definition, selection)
+        .map(|value| value.encoding)
 }
 
 pub(crate) fn validate_scalar_initializer(
@@ -210,10 +212,7 @@ pub(crate) fn validate_scalar_initializer(
                 ))
             }
         }
-        _ => crate::preparation::generic_data::canonicalize_declared_const_definition(
-            syntax, constant,
-        )
-        .map(|_| ()),
+        _ => canonicalize_declared_const_definition(syntax, constant).map(|_| ()),
     }
 }
 
@@ -272,23 +271,19 @@ pub(crate) fn validate_const_definition(
             .iter()
             .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)))
     {
-        crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
-            syntax, definition, selection,
-        )
-        .map_err(|reason| {
-            Diagnostic::error(format!(
-                "constrained const `{}` is invalid: {reason}",
-                semantic_const_name(syntax, definition)
-            ))
-            .with_source_span(definition.name.source_span())
-        })?;
+        canonicalize_selected_declared_const_definition(syntax, definition, selection).map_err(
+            |reason| {
+                Diagnostic::error(format!(
+                    "constrained const `{}` is invalid: {reason}",
+                    semantic_const_name(syntax, definition)
+                ))
+                .with_source_span(definition.name.source_span())
+            },
+        )?;
     } else {
         // Literal initializers owe data, active-case and qualified-member
         // predicates even without a use site or an evaluation request.
-        crate::preparation::generic_data::prove_const_literal_predicates(
-            syntax, definition, selection,
-        )
-        .map_err(|reason| {
+        prove_const_literal_predicates(syntax, definition, selection).map_err(|reason| {
             Diagnostic::error(format!(
                 "constant `{}` is invalid: {reason}",
                 semantic_const_name(syntax, definition)
@@ -317,10 +312,7 @@ pub(crate) fn retain_const_initializer(
     {
         if crate::preparation::module_normalization::module_literal_constant(syntax, definition) {
             // Unused private arrays still owe declaration shape and landing.
-            crate::preparation::generic_data::canonicalize_declared_const_definition(
-                syntax, definition,
-            )
-            .map_err(|reason| {
+            canonicalize_declared_const_definition(syntax, definition).map_err(|reason| {
                 Diagnostic::error(format!(
                     "array constant `{}` is invalid: {reason}",
                     semantic_const_name(syntax, definition)
@@ -333,11 +325,7 @@ pub(crate) fn retain_const_initializer(
             }
         }
     }
-    let initializer = crate::lowering::expression::lower_expression_into_table(
-        lowerer,
-        syntax,
-        definition.value,
-    )?;
+    let initializer = lower_expression_into_table(lowerer, syntax, definition.value)?;
     lowerer.pending_const_values.push(initializer);
     initializer_normalization::retain(lowerer, syntax, definition, initializer)?;
     Ok(initializer)

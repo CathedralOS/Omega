@@ -34,6 +34,8 @@ use syntax_trees::{
 
 mod argument_types;
 mod completion;
+use super::generic_data::canonicalize_selected_declared_const_definition;
+use super::generic_data::closed_argument_identity;
 pub(crate) use argument_types::DeclaredTypeOrigin;
 use completion::complete_arguments;
 use numerics::arithmetic::ArithmeticDomain;
@@ -550,12 +552,9 @@ fn scalar_const_argument(
         reject("requires an unambiguous selected scalar const argument")
             .with_source_span(name.source_span())
     })?;
-    let value = super::generic_data::canonicalize_selected_declared_const_definition(
-        syntax,
-        &definition,
-        Some(selection),
-    )
-    .map_err(|reason| reject(&reason).with_source_span(name.source_span()))?;
+    let value =
+        canonicalize_selected_declared_const_definition(syntax, &definition, Some(selection))
+            .map_err(|reason| reject(&reason).with_source_span(name.source_span()))?;
     Ok((value, definition.type_reference))
 }
 
@@ -612,12 +611,8 @@ fn application_argument_reference(
                 // canonical Boolean leaf. Its encoded payload is no authority
                 // to change carriers: compare the selected declaration first.
                 if declared_type.is_valid()
-                    && super::generic_data::closed_argument_identity(
-                        syntax,
-                        Some(selection),
-                        declared_type,
-                        false,
-                    ) != required_carrier
+                    && closed_argument_identity(syntax, Some(selection), declared_type, false)
+                        != required_carrier
                 {
                     return Err(reject(
                         "has a constructor argument with a different declared carrier",

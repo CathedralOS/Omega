@@ -70,11 +70,8 @@ pub(crate) fn finalize_authored_selections(lowerer: &mut Lowerer) -> Result<(), 
         .collect::<Vec<_>>();
     // Substitution may copy an initializer after the pre-selection bind.
     // Rebind those copies before this ledger records a late call for the token.
-    crate::constant::initializer_dependencies::bind_named_implementation_const_calls(
-        &mut lowerer.symbol_resolved_trees,
-        &const_roots,
-    )
-    .map_err(|message| vec![Diagnostic::error(message)])?;
+    bind_named_implementation_const_calls(&mut lowerer.symbol_resolved_trees, &const_roots)
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     authored_selections::normalize_case_membership_facts(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_authored_proof_memberships,
@@ -214,4 +211,5 @@ macro_rules! leaf_carrier_type_reference_pattern {
             | symbol_resolved_trees::types::TypeReference::Unit
     };
 }
+use crate::constant::initializer_dependencies::bind_named_implementation_const_calls;
 pub(super) use leaf_carrier_type_reference_pattern;

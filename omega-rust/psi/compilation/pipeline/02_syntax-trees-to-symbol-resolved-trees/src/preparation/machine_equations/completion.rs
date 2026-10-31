@@ -1,5 +1,6 @@
 //! Complete the selected machine application without changing static binder kinds.
 
+use super::super::generic_data::closed_argument_identity;
 use super::*;
 use crate::tables::syntax_items;
 
@@ -184,13 +185,7 @@ pub(super) fn complete_arguments(
             _ => return Err(Diagnostic::error("machine equation argument mixes type and value kinds or retains an open static argument").with_source_span(target.source_span())),
         };
         if matches!(parameter.kind, TypeParameterKind::Type)
-            && super::super::generic_data::closed_argument_identity(
-                syntax,
-                Some(selection),
-                reference,
-                false,
-            )
-            .is_none()
+            && closed_argument_identity(syntax, Some(selection), reference, false).is_none()
         {
             return Err(Diagnostic::error(
                 "machine equation requires a closed explicit type argument",

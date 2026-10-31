@@ -1,3 +1,4 @@
+use super::lookup::child_symbol_by_kinds;
 use arena::{Arena, OrderedRootArena};
 use language_core::is_self_receiver;
 use symbol_resolved_trees::data::{DataDefinition, DataMember, TypeParameter};
@@ -417,12 +418,7 @@ impl LexicalRequirements<'_> {
         if !self.owner.is_valid() {
             return SymbolHandle::invalid();
         }
-        let own = super::lookup::child_symbol_by_kinds(
-            symbols,
-            self.owner,
-            &[symbols::SymbolKind::State],
-            name,
-        );
+        let own = child_symbol_by_kinds(symbols, self.owner, &[symbols::SymbolKind::State], name);
         if own.is_valid() {
             return own;
         }

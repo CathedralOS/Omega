@@ -11,6 +11,7 @@ use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use std::sync::Arc;
 
+use crate::symbols::constructor_type;
 use diagnostics::Diagnostic;
 use source::SourceMap;
 use std::path::Path;
@@ -865,17 +866,15 @@ impl<'base> ConstantSelection<'base> {
         syntax: &'syntax SyntaxTrees,
         name: &Identifier,
     ) -> Result<(&'syntax DataDefinition, Option<Identifier>), String> {
-        let (selected, case) = crate::symbols::constructor_type(
-            &self.symbols,
-            name.as_str(syntax),
-            name.source_span(),
-        )?
-        .ok_or_else(|| {
-            format!(
-                "`{name}` does not select one declared constructor carrier",
-                name = name.as_str(syntax)
-            )
-        })?;
+        let (selected, case) =
+            constructor_type(&self.symbols, name.as_str(syntax), name.source_span())?.ok_or_else(
+                || {
+                    format!(
+                        "`{name}` does not select one declared constructor carrier",
+                        name = name.as_str(syntax)
+                    )
+                },
+            )?;
         let definition = self.data_declaration(syntax, name, selected)?;
         let case = case.map(|case| Identifier::new(case, name.trailing_span(case.len())));
         Ok((definition, case))

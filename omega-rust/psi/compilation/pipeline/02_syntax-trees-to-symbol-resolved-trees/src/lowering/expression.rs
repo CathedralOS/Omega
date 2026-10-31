@@ -5,6 +5,9 @@
 //! recorded as pending module calls for `symbols` to normalize.
 
 use crate::lowering::name::lower_name;
+use crate::lowering::statement::hoist_temps::reference_temp;
+use crate::lowering::type_reference::lower_child_type_references;
+use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
 use crate::tables::syntax_expressions;
 use arena::HandleSpan;
@@ -40,10 +43,7 @@ pub(crate) fn lower_expression_into_table(
     // syntax handle. Once that occurrence has a capture, every later use reads
     // the capture, never a new evaluation of its collection or selector.
     let lowered = if let Some((name, _)) = lowerer.match_subject_temp(expression) {
-        crate::lowering::statement::hoist_temps::reference_temp(
-            lowerer,
-            DiagnosticName::generated(name),
-        )
+        reference_temp(lowerer, DiagnosticName::generated(name))
     } else {
         lower_expression_node_into_table(
             lowerer,
@@ -147,11 +147,7 @@ fn lower_nonbinary_expression_node_into_table(
 ) -> Result<ExpressionHandle, Diagnostic> {
     match expression {
         syntax::expression::ExpressionNode::TypeExpression(reference) => {
-            let reference = crate::lowering::type_reference::lower_type_reference_handle(
-                lowerer,
-                syntax_trees,
-                *reference,
-            )?;
+            let reference = lower_type_reference_handle(lowerer, syntax_trees, *reference)?;
             let reference = lowerer
                 .declaration_child_type_references()
                 .append(reference);
@@ -226,11 +222,7 @@ fn lower_nonbinary_expression_node_into_table(
         }
         syntax::expression::ExpressionNode::Cast(cast) => {
             let value = lower_expression_into_table(lowerer, syntax_trees, cast.value)?;
-            let target_type = crate::lowering::type_reference::lower_type_reference_handle(
-                lowerer,
-                syntax_trees,
-                cast.target_type,
-            )?;
+            let target_type = lower_type_reference_handle(lowerer, syntax_trees, cast.target_type)?;
             let target_type = lowerer
                 .declaration_child_type_references()
                 .append(target_type);
@@ -249,11 +241,7 @@ fn lower_nonbinary_expression_node_into_table(
                     .push_name_path_member(&mut semantic_domain, lower_name(syntax_trees, member));
             }
             let semantic_domain_arguments =
-                crate::lowering::type_reference::lower_child_type_references(
-                    lowerer,
-                    syntax_trees,
-                    cast.semantic_domain_arguments,
-                )?;
+                lower_child_type_references(lowerer, syntax_trees, cast.semantic_domain_arguments)?;
             Ok(
                 expression_table(lowerer).insert(ExpressionNode::Cast(TableCastExpression {
                     value,
@@ -450,11 +438,8 @@ fn lower_nonbinary_expression_node_into_table(
             )
         }
         syntax::expression::ExpressionNode::ZeroValue(type_reference) => {
-            let type_reference = crate::lowering::type_reference::lower_type_reference_handle(
-                lowerer,
-                syntax_trees,
-                *type_reference,
-            )?;
+            let type_reference =
+                lower_type_reference_handle(lowerer, syntax_trees, *type_reference)?;
             let type_reference = lowerer
                 .declaration_child_type_references()
                 .append(type_reference);
@@ -527,11 +512,7 @@ fn lower_applied_requirement_qualifier(
         },
     ));
     expression_table(lowerer).set_source_span(receiver, base_name.source_span());
-    let reference = crate::lowering::type_reference::lower_type_reference_handle(
-        lowerer,
-        syntax_trees,
-        application,
-    )?;
+    let reference = lower_type_reference_handle(lowerer, syntax_trees, application)?;
     let application = lowerer
         .declaration_child_type_references()
         .append(reference);
@@ -544,11 +525,8 @@ pub(crate) fn lower_static_machine_argument(
     argument: &syntax::expression::StaticMachineArgument,
 ) -> Result<StaticMachineArgument, Diagnostic> {
     let type_reference = if argument.type_reference.is_valid() {
-        let reference = crate::lowering::type_reference::lower_type_reference_handle(
-            lowerer,
-            syntax_trees,
-            argument.type_reference,
-        )?;
+        let reference =
+            lower_type_reference_handle(lowerer, syntax_trees, argument.type_reference)?;
         lowerer
             .declaration_child_type_references()
             .append(reference)

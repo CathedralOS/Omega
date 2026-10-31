@@ -19,6 +19,8 @@ use language_semantics::declaration_selection::{
 use source::SourceSpan;
 /// Handle-keyed maps take the integer hasher; none is iterated for output order.
 type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
+use crate::symbols::qualified_payload_free_case_type;
+use crate::symbols::type_predicates::type_operand_nodes;
 use std::collections::HashSet;
 use symbol_resolved_trees::domain::ProofFact;
 use symbol_resolved_trees::name::DiagnosticName;
@@ -1268,12 +1270,8 @@ fn expression_candidates(
             if !path.head_symbol.is_valid() && members.len() > 1 {
                 let name = members.joined_path();
                 let reference = path_span(members, expression_span);
-                let _ = crate::symbols::qualified_payload_free_case_type(
-                    &program.symbols,
-                    &name,
-                    reference,
-                )
-                .map_err(|message| Diagnostic::error(message).with_source_span(reference))?;
+                let _ = qualified_payload_free_case_type(&program.symbols, &name, reference)
+                    .map_err(|message| Diagnostic::error(message).with_source_span(reference))?;
             }
             let symbols = expressions.name_path_member_symbols(path.member_symbols);
             for (offset, member) in members.iter().enumerate() {
@@ -1516,16 +1514,8 @@ fn finalize_expression_groups(
             && let ExpressionNode::Binary(binary) =
                 program.tables.bodies.expressions.expression(expression)
         {
-            crate::symbols::type_predicates::type_operand_nodes(
-                program,
-                binary.left,
-                &mut operand_nodes,
-            );
-            crate::symbols::type_predicates::type_operand_nodes(
-                program,
-                binary.right,
-                &mut operand_nodes,
-            );
+            type_operand_nodes(program, binary.left, &mut operand_nodes);
+            type_operand_nodes(program, binary.right, &mut operand_nodes);
         }
     }
     let type_operands = operand_nodes.into_iter().collect();

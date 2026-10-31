@@ -3,6 +3,7 @@ use arena::{Arena, Handle, HandleSpan};
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
+use super::super::scope::evidence_type_parameters;
 use crate::symbols::lookup::{
     diagnostic_path_source_span, top_level_symbol_for_source, top_level_type_symbol_for_source,
 };
@@ -136,9 +137,7 @@ pub(crate) fn assign_nominal_machine_requirement_arguments(
                 program.data_type_parameters(data.type_parameters)
             });
         let mut inherited = declaration_type_scope(captures.parameters(machine.symbol), attached);
-        inherited.extend(super::super::scope::evidence_type_parameters(
-            &machine.conformance_bounds,
-        ));
+        inherited.extend(evidence_type_parameters(&machine.conformance_bounds));
         collect(
             program,
             program.machine_type_parameters(machine),

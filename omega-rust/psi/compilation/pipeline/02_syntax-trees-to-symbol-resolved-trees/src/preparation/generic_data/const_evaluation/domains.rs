@@ -14,6 +14,7 @@ use crate::preparation::generic_data::canonicalize_selected_const_definition;
 use crate::preparation::generic_data::collect_data_type_reference_positions;
 use crate::preparation::generic_data::const_integer_type;
 use crate::preparation::generic_data::evaluate_const_argument_expression;
+use crate::preparation::generic_data::module_constants::module_path;
 use crate::preparation::generic_data::syntax_type_identity;
 use crate::preparation::generic_data::validate_const_index_type;
 use crate::preparation::generic_data::validate_syntax_integer_range;
@@ -183,10 +184,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         // The logical path is unique only within a checked package. Retain
         // declaration custody for the selector's exact family join below;
         // rendering its path again would collapse equal foreign paths.
-        let family_path = match crate::preparation::generic_data::module_constants::module_path(
-            syntax,
-            definition.name.source_span().source_id,
-        ) {
+        let family_path = match module_path(syntax, definition.name.source_span().source_id) {
             Some(module) => format!("{module}::{}", definition.name.as_str(syntax)),
             None => definition.name.as_str(syntax).to_owned(),
         };

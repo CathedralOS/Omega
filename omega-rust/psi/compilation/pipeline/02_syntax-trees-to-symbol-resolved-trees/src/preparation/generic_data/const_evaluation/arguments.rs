@@ -13,6 +13,7 @@ use crate::preparation::generic_data::ConstScalarSpelling;
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::discovery::ClosedApplication;
 
+use super::anonymous::evaluate_anonymous_integer_argument;
 use crate::preparation::generic_data::canonicalize_monomorphizable_argument_handles;
 use crate::preparation::generic_data::closed_argument_identity;
 use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
@@ -409,9 +410,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
     integer_type: Option<LandedIntegerType>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<EvaluatedConst, String> {
-    if let Some(value) =
-        super::anonymous::evaluate_anonymous_integer_argument(syntax, expression, warnings)?
-    {
+    if let Some(value) = evaluate_anonymous_integer_argument(syntax, expression, warnings)? {
         return Ok(EvaluatedConst::Concrete(value));
     }
     match syntax.expressions.expression(expression) {

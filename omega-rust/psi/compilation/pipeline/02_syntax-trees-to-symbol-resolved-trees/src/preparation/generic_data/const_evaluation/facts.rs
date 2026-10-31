@@ -10,7 +10,7 @@
 use super::super::{
     ConstDefinition, Diagnostic, ExpressionHandle, ExpressionNode, HashMap, HashSet, Item,
     ProofFact, SyntaxTrees, TypeConstraintNode, TypeParameterKind, TypeReferenceHandle,
-    TypeReferenceNode,
+    TypeReferenceNode, canonicalize_selected_declared_const_definition,
 };
 use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
@@ -23,12 +23,20 @@ use syntax_trees::identifier::JoinedSyntaxPath;
 use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
 use crate::preparation::generic_data::evaluate_const_fact_binary;
 use crate::preparation::generic_data::integer_literal_value;
-use crate::preparation::generic_data::{ConstFactValue, ConstScalarSpelling, ConstScalarValue};
+use crate::preparation::generic_data::{
+    ConstFactValue, ConstScalarSpelling, ConstScalarValue, domain_index_parameters,
+    syntax_type_identity,
+};
 
 use super::anonymous::{
     authored_operator_can_bind, evaluate_anonymous_numeric_expression, has_builtin_const_operator,
 };
 use super::arguments::validate_declared_integer;
+use super::values::CanonicalConstNode;
+use super::values::canonicalize_selected_declaration_value;
+use crate::preparation::generic_data::module_constants::lexical_integer_const_values;
+use crate::preparation::generic_data::module_constants::module_path;
+use crate::preparation::generic_data::module_constants::reject_module_constant_selection;
 use numerics::literals::LandedIntegerType;
 use syntax_trees::item::DataMember;
 use syntax_trees::item::DomainDefinition;
@@ -148,18 +156,16 @@ fn evaluate_const_fact_expression_at(
                 // Canonicalization preserves declared carrier and policy. An
                 // opaque declaration remains the ordinary validator's obligation;
                 // it supplies no scalar proof here, including on probe failure.
-                let Ok(value) = super::values::canonicalize_selected_declaration_value(
-                    syntax,
-                    &definition,
-                    Some(selection),
-                ) else {
+                let Ok(value) =
+                    canonicalize_selected_declaration_value(syntax, &definition, Some(selection))
+                else {
                     return Ok(None);
                 };
                 return Ok(
                     ConstScalarValue::from_canonical(&value).map(ConstScalarValue::into_fact_value)
                 );
             }
-            crate::preparation::generic_data::module_constants::reject_module_constant_selection(
+            reject_module_constant_selection(
                 syntax,
                 &name,
                 members
@@ -367,7 +373,7 @@ enum ConstFactSubject<'a> {
     },
     /// Bare lexical fields in a data or active-case predicate. The complete
     /// nodes retain shadowing and compositional member/index projections.
-    Fields(&'a [(&'a str, &'a super::values::CanonicalConstNode)]),
+    Fields(&'a [(&'a str, &'a CanonicalConstNode)]),
 }
 
 impl<'a> ConstFactSubject<'a> {
@@ -405,19 +411,14 @@ impl<'a> ConstFactSubject<'a> {
     }
 }
 
-fn node_subject_leaf(value: &super::values::CanonicalConstNode) -> Option<ConstScalarValue> {
+fn node_subject_leaf(value: &CanonicalConstNode) -> Option<ConstScalarValue> {
     match value {
-        super::values::CanonicalConstNode::Integer { type_name, value } => {
-            LandedIntegerType::from_name(type_name).map(|integer_type| {
-                ConstScalarValue::DeclaredInteger {
-                    value: *value,
-                    integer_type,
-                }
-            })
-        }
-        super::values::CanonicalConstNode::Boolean(value) => {
-            Some(ConstScalarValue::Boolean(*value))
-        }
+        CanonicalConstNode::Integer { type_name, value } => LandedIntegerType::from_name(type_name)
+            .map(|integer_type| ConstScalarValue::DeclaredInteger {
+                value: *value,
+                integer_type,
+            }),
+        CanonicalConstNode::Boolean(value) => Some(ConstScalarValue::Boolean(*value)),
         _ => None,
     }
 }
@@ -428,9 +429,9 @@ fn node_subject_leaf(value: &super::values::CanonicalConstNode) -> Option<ConstS
 fn const_field_projection<'value>(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
-    fields: &[(&str, &'value super::values::CanonicalConstNode)],
+    fields: &[(&str, &'value CanonicalConstNode)],
     evaluate_index: &mut impl FnMut(ExpressionHandle) -> Result<Option<ConstFactValue>, String>,
-) -> Result<Option<Option<&'value super::values::CanonicalConstNode>>, String> {
+) -> Result<Option<Option<&'value CanonicalConstNode>>, String> {
     use super::values::CanonicalConstNode;
     match syntax.expressions.expression(expression) {
         ExpressionNode::Name(path) => {
@@ -511,7 +512,7 @@ fn const_field_projection<'value>(
 pub(super) fn prove_const_data_predicates(
     syntax: &SyntaxTrees,
     definition: &syntax_trees::item::DataDefinition,
-    value: &super::values::CanonicalConstNode,
+    value: &CanonicalConstNode,
     substitution: &crate::preparation::declaration_selection::GenericApplicationSubstitution,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<(), String> {
@@ -539,8 +540,7 @@ pub(super) fn prove_const_data_predicates(
     {
         return Ok(());
     }
-    let const_values =
-        crate::preparation::generic_data::module_constants::lexical_integer_const_values(syntax);
+    let const_values = lexical_integer_const_values(syntax);
     let mut parameter_values = HashMap::<String, ConstScalarValue>::new();
     let mut warnings = Vec::new();
     for parameter in syntax.items.type_parameters(definition.type_parameters) {
@@ -816,9 +816,7 @@ fn evaluate_named_const_domain(
         }
         return Ok(None);
     };
-    let Some(index_parameters) =
-        crate::preparation::generic_data::domain_index_parameters(syntax, domain)
-    else {
+    let Some(index_parameters) = domain_index_parameters(syntax, domain) else {
         return Ok(None);
     };
     if !index_parameters.is_empty() {
@@ -848,10 +846,7 @@ fn evaluate_named_const_domain(
 /// declared name. This label alone is not declaration identity: distinct
 /// packages can publish identical logical paths.
 fn module_domain_key(syntax: &SyntaxTrees, domain: &DomainDefinition) -> String {
-    match crate::preparation::generic_data::module_constants::module_path(
-        syntax,
-        domain.name.source_span().source_id,
-    ) {
+    match module_path(syntax, domain.name.source_span().source_id) {
         Some(module) => format!("{module}::{}", domain.name.as_str(syntax)),
         None => domain.name.as_str(syntax).to_owned(),
     }
@@ -966,10 +961,7 @@ fn evaluate_selected_domain_facts(
             // A fixed-array target's normalized identity matches the canonical
             // carrier label `[element; length]` byte for byte.
             TypeReferenceNode::FixedArray { .. } => {
-                match crate::preparation::generic_data::syntax_type_identity(
-                    syntax,
-                    domain.target_type,
-                ) {
+                match syntax_type_identity(syntax, domain.target_type) {
                     Ok(identity) => identity,
                     Err(_) => return Ok(None),
                 }
@@ -1133,11 +1125,7 @@ fn evaluate_indexed_const_domain(
                 Some(domain)
                     if matches.next().is_none()
                         && !domain.type_parameters.is_empty()
-                        && crate::preparation::generic_data::module_constants::module_path(
-                            syntax,
-                            domain.name.source_span().source_id,
-                        )
-                        .is_none() =>
+                        && module_path(syntax, domain.name.source_span().source_id).is_none() =>
                 {
                     Some(domain)
                 }
@@ -1149,9 +1137,7 @@ fn evaluate_indexed_const_domain(
         return Ok(None);
     };
     let domain_key = module_domain_key(syntax, domain);
-    let Some(index_parameters) =
-        crate::preparation::generic_data::domain_index_parameters(syntax, domain)
-    else {
+    let Some(index_parameters) = domain_index_parameters(syntax, domain) else {
         return Ok(None);
     };
     let arguments = syntax.type_references.type_reference_handles(argument_span);
@@ -1188,8 +1174,7 @@ fn evaluate_indexed_const_domain(
         else {
             return Ok(None);
         };
-        let required =
-            crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
+        let required = syntax_type_identity(syntax, parameter_type)?;
         let bound = match bound {
             ConstScalarValue::Integer(bound) => {
                 if required == "bool" {
@@ -1279,10 +1264,7 @@ fn evaluate_domain_index_argument(
         TypeReferenceNode::Named(name) => {
             match ConstScalarSpelling::from_bare_name(name.as_str(syntax)) {
                 Some(ConstScalarSpelling::Canonical(atom)) => {
-                    let required = crate::preparation::generic_data::syntax_type_identity(
-                        syntax,
-                        parameter_type,
-                    )?;
+                    let required = syntax_type_identity(syntax, parameter_type)?;
                     if atom.type_name != required {
                         return Err(format!(
                             "index argument for `{family_name}::{parameter_name}` has canonical type `{}`, expected `{required}`",
@@ -1321,10 +1303,8 @@ fn evaluate_domain_index_argument(
                     | TypeParameterKind::Value { type_reference } => *type_reference,
                     _ => return Ok(None),
                 };
-                let actual =
-                    crate::preparation::generic_data::syntax_type_identity(syntax, type_reference)?;
-                let required =
-                    crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
+                let actual = syntax_type_identity(syntax, type_reference)?;
+                let required = syntax_type_identity(syntax, parameter_type)?;
                 if actual != required {
                     return Err(format!(
                         "index argument for `{family_name}::{parameter_name}` has carrier `{actual}`, expected `{required}`"
@@ -1357,11 +1337,7 @@ fn evaluate_domain_index_argument(
                 }
             }
             if let Some(value) = const_values.get(name.as_str(syntax)) {
-                crate::preparation::generic_data::module_constants::reject_module_constant_selection(
-                    syntax,
-                    name.as_str(syntax),
-                    name.source_span(),
-                )?;
+                reject_module_constant_selection(syntax, name.as_str(syntax), name.source_span())?;
                 return Ok(Some(ConstScalarValue::Integer(*value)));
             }
             // Without source-aware selection, a non-literal scoped const
@@ -1386,11 +1362,7 @@ fn evaluate_domain_index_argument(
             if definitions.next().is_some() {
                 return Ok(None);
             }
-            crate::preparation::generic_data::module_constants::reject_module_constant_selection(
-                syntax,
-                name.as_str(syntax),
-                name.source_span(),
-            )?;
+            reject_module_constant_selection(syntax, name.as_str(syntax), name.source_span())?;
             let value = crate::preparation::generic_data::canonicalize_const_definition(
                 syntax,
                 definition,
@@ -1429,8 +1401,7 @@ fn evaluate_domain_index_argument(
             .map_err(|reason| {
                 format!("index argument expression for `{family_name}` is invalid: {reason}")
             })?;
-            let required =
-                crate::preparation::generic_data::syntax_type_identity(syntax, parameter_type)?;
+            let required = syntax_type_identity(syntax, parameter_type)?;
             crate::preparation::generic_data::validate_syntax_integer_range(&required, value)?;
             Ok(Some(ConstScalarValue::Integer(value)))
         }
@@ -1490,7 +1461,7 @@ fn prove_const_domain_constraint(
 pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
     syntax: &SyntaxTrees,
     constraints: &[TypeConstraintNode],
-    value: &super::values::CanonicalConstNode,
+    value: &CanonicalConstNode,
     selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<(), String> {
     use super::values::CanonicalConstNode;
@@ -1555,8 +1526,7 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
         }
         _ => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
     };
-    let const_values =
-        crate::preparation::generic_data::module_constants::lexical_integer_const_values(syntax);
+    let const_values = lexical_integer_const_values(syntax);
     let mut warnings = Vec::new();
     for constraint in constraints {
         prove_const_domain_constraint(
@@ -1674,10 +1644,8 @@ pub(crate) fn prove_const_literal_predicates(
         return Ok(());
     }
     if super::super::qualification_names_itself(definition) {
-        return super::super::canonicalize_selected_declared_const_definition(
-            syntax, definition, selection,
-        )
-        .map(|_| ());
+        return canonicalize_selected_declared_const_definition(syntax, definition, selection)
+            .map(|_| ());
     }
     if !const_type_requires_declaration_proof(
         syntax,

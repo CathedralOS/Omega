@@ -10,6 +10,7 @@ use symbol_resolved_trees::{
 };
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
+use crate::symbols::expressions::lexical_value_head;
 use crate::symbols::{expressions::assign_statement_expression_symbols, scope::MachineScope};
 use symbol_resolved_trees::data::DataMember;
 use symbol_resolved_trees::name::DiagnosticName;
@@ -352,12 +353,8 @@ fn resolve_index_subject(
     let lexical = if payload_subject {
         declared
     } else {
-        let frontier = crate::symbols::expressions::lexical_value_head(
-            machine,
-            parameters,
-            head_name.as_str(),
-            !suffix.is_empty(),
-        );
+        let frontier =
+            lexical_value_head(machine, parameters, head_name.as_str(), !suffix.is_empty());
         if frontier.is_valid() {
             frontier
         } else {

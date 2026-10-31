@@ -50,6 +50,7 @@ use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::closed_argument_identity;
 use crate::preparation::generic_data::closed_name_identity;
 use crate::preparation::generic_data::evaluate_const_fact_expression;
+use crate::preparation::generic_data::selected_data_item;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{
     CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
@@ -286,9 +287,7 @@ pub(crate) fn validate_materialized_type_equations(
     else {
         return Ok(());
     };
-    let Some(declaration) =
-        crate::preparation::generic_data::selected_data_item(syntax, selection, base_name)
-    else {
+    let Some(declaration) = selected_data_item(syntax, selection, base_name) else {
         return Ok(());
     };
     let Some(definition) = syntax.root_item(declaration).as_data() else {

@@ -5,6 +5,7 @@ use super::references::{
     assign_call_symbol, assign_member_symbol, assign_membership_symbol, assign_name_symbol,
     assign_struct_literal_symbols,
 };
+use crate::symbols::expression_paths::pattern_field_symbol;
 use crate::symbols::scope::MachineScope;
 use symbol_resolved_trees::expression::ExpressionHandle;
 use symbol_resolved_trees::expression::ExpressionNode;
@@ -195,11 +196,7 @@ impl ExpressionSymbolContext<'_, '_> {
                                 [position as usize]
                                 .member
                                 .as_str();
-                            let selected = crate::symbols::expression_paths::pattern_field_symbol(
-                                self.symbols,
-                                head,
-                                spelling,
-                            );
+                            let selected = pattern_field_symbol(self.symbols, head, spelling);
                             self.expression_table.match_field_mut(field).field_symbol = selected;
                         }
                     }

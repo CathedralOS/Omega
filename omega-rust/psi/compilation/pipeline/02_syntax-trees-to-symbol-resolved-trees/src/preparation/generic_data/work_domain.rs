@@ -11,6 +11,8 @@
 //! default domains, not a requirement that every named application be inhabited.
 //! Typed elaboration owns the later field views of identity-only applications.
 
+use super::const_evaluation::collect_selected_type_reference_positions;
+use super::const_evaluation::collect_stored_type_reference_positions;
 use syntax_trees::expression::ExpressionFrontier;
 use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::{SyntaxTrees, item::ItemHandle, types::TypeReferenceHandle};
@@ -89,17 +91,12 @@ impl<'input> SynthesisWork<'input> {
                 GenericDataWorkDomain::Selected { declarations, .. } => declarations.to_vec(),
             }
         };
-        let mut positions = super::const_evaluation::collect_selected_type_reference_positions(
-            syntax,
-            &declarations,
-        );
+        let mut positions = collect_selected_type_reference_positions(syntax, &declarations);
         if purpose == TypePositionPurpose::Materialization {
-            positions.extend(
-                super::const_evaluation::collect_stored_type_reference_positions(
-                    syntax,
-                    &syntax.root_item_handles()[self.declaration_frontier..],
-                ),
-            );
+            positions.extend(collect_stored_type_reference_positions(
+                syntax,
+                &syntax.root_item_handles()[self.declaration_frontier..],
+            ));
         }
         let roots = match self.domain {
             GenericDataWorkDomain::All {

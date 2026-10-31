@@ -4,6 +4,7 @@
 //! Dynamic trait references and fixed array lengths lower here as well.
 
 use crate::lowering::expression::lower_expression_into_table;
+use crate::lowering::name::lower_name;
 use crate::lowering::name::lower_names;
 use crate::resolution::lowerer::Lowerer;
 use crate::tables::syntax_type_references;
@@ -196,9 +197,7 @@ fn lower_type_reference_node(
                 supplied_operand_owner: Default::default(),
                 referee: lower_type_reference_child(lowerer, syntax_trees, *referee)?,
                 access: *access,
-                lifetime: lifetime
-                    .as_ref()
-                    .map(|name| crate::lowering::name::lower_name(syntax_trees, name)),
+                lifetime: lifetime.as_ref().map(|name| lower_name(syntax_trees, name)),
             },
         })),
         TypeReferenceNode::Constrained {
@@ -244,7 +243,7 @@ fn lower_type_reference_node(
                 storage: GenericTypeReferenceStorage {
                     supplied_operand_owner: Default::default(),
                     base_symbol: SymbolHandle::invalid(),
-                    base_name: crate::lowering::name::lower_name(syntax_trees, base_name),
+                    base_name: lower_name(syntax_trees, base_name),
                     lifetime_arguments: lower_names(syntax_trees, &lifetime_arguments),
                     arguments: lowered_arguments,
                 },
@@ -262,13 +261,13 @@ fn lower_type_reference_node(
         } => Ok(TypeReference::DynamicTrait {
             supplied_operand_owner: Default::default(),
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(syntax_trees, trait_name),
+            name: lower_name(syntax_trees, trait_name),
             arguments: lower_child_type_references(lowerer, syntax_trees, *trait_arguments)?,
         }),
         TypeReferenceNode::Named(name) => Ok(TypeReference::Named {
             supplied_operand_owner: Default::default(),
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(syntax_trees, name),
+            name: lower_name(syntax_trees, name),
         }),
         TypeReferenceNode::Unit => Ok(TypeReference::Unit),
     }?;
@@ -310,11 +309,11 @@ pub(crate) fn lower_fixed_array_length(
         syntax::types::FixedArrayLength::Literal(value) => FixedArrayLength::Literal(*value),
         syntax::types::FixedArrayLength::ConstParameter(name) => FixedArrayLength::ConstParameter {
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(syntax_trees, name),
+            name: lower_name(syntax_trees, name),
         },
         syntax::types::FixedArrayLength::ConstCall(name) => FixedArrayLength::ConstCall {
             machine: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(syntax_trees, name),
+            name: lower_name(syntax_trees, name),
         },
     })
 }
@@ -388,14 +387,14 @@ fn lower_type_constraint_handle(
     constraint: &syntax::types::TypeConstraintNode,
 ) -> Result<TypeConstraint, Diagnostic> {
     match constraint {
-        syntax::types::TypeConstraintNode::Named(name) => Ok(TypeConstraint::Named(
-            crate::lowering::name::lower_name(syntax_trees, name),
-        )),
+        syntax::types::TypeConstraintNode::Named(name) => {
+            Ok(TypeConstraint::Named(lower_name(syntax_trees, name)))
+        }
         syntax::types::TypeConstraintNode::Domain(domain) => {
             let arguments =
                 lower_indexed_application_arguments(lowerer, syntax_trees, domain.arguments)?;
             Ok(TypeConstraint::Domain(DomainConstraint {
-                name: crate::lowering::name::lower_name(syntax_trees, &domain.name),
+                name: lower_name(syntax_trees, &domain.name),
                 arguments,
             }))
         }

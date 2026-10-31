@@ -330,9 +330,7 @@ pub(crate) use lookup::{
 /// Build the symbol table and give every reference its identity, then settle
 /// the static module calls and outcome-specific contracts that need it. A
 /// seeded lowerer extends its base's table in place.
-pub(crate) fn assign(
-    lowerer: &mut crate::resolution::lowerer::Lowerer,
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
+pub(crate) fn assign(lowerer: &mut Lowerer) -> Result<(), Vec<diagnostics::Diagnostic>> {
     assign_declarations(lowerer)?;
     let machines = lowerer
         .symbol_resolved_trees
@@ -346,7 +344,7 @@ pub(crate) fn assign(
 /// Allocate and resolve declaration identities before any body-local symbol
 /// batch. Both eager resolution and retained-body completion use this boundary.
 pub(crate) fn assign_declarations(
-    lowerer: &mut crate::resolution::lowerer::Lowerer,
+    lowerer: &mut Lowerer,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let seeded_roots = lowerer.seed.as_ref().map(|seed| seed.roots);
     match seeded_roots {
@@ -399,7 +397,7 @@ pub(crate) fn assign_declarations(
 /// locals and synthetic state signatures append; retained bodies and headers
 /// never have their symbols reallocated.
 pub(crate) fn assign_body_symbols(
-    lowerer: &mut crate::resolution::lowerer::Lowerer,
+    lowerer: &mut Lowerer,
     selected_machines: &[symbols::SymbolHandle],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     symbol_table::append_body_symbols(&mut lowerer.symbol_resolved_trees, selected_machines)?;
@@ -436,7 +434,7 @@ pub(crate) fn assign_body_symbols(
 }
 
 pub(crate) fn assign_lexical_inputs(
-    lowerer: &mut crate::resolution::lowerer::Lowerer,
+    lowerer: &mut Lowerer,
     syntax: &syntax_trees::SyntaxTrees,
     demand: crate::lowering::state::LexicalInputDemand,
 ) -> Result<Vec<crate::selection::body_calls::CallSelectionInput>, Vec<diagnostics::Diagnostic>> {
@@ -481,4 +479,5 @@ pub(crate) fn assign_lexical_inputs(
     Ok(calls)
 }
 
+use crate::resolution::lowerer::Lowerer;
 pub(crate) use type_references::assign_nominal_machine_requirement_arguments;

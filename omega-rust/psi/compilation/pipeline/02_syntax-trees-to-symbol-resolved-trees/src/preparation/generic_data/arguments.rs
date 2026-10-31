@@ -9,6 +9,7 @@ use crate::preparation::generic_data::ClosedConstraintIdentity;
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::selected_data_item;
 use crate::preparation::type_equations::{EquationTemplate, complete_equation_arguments};
+use crate::symbols::builtin_type_atom_by_symbol_name;
 use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -524,9 +525,7 @@ pub(crate) fn closed_argument_identity(
             }
         }
         TypeReferenceNode::Named(name) => {
-            if let Some(atom) =
-                crate::symbols::builtin_type_atom_by_symbol_name(name.as_str(syntax))
-            {
+            if let Some(atom) = builtin_type_atom_by_symbol_name(name.as_str(syntax)) {
                 return Some(ClosedArgumentIdentity::Builtin(atom));
             }
             if let Some(declaration) = selected_data_item(syntax, selection, name) {

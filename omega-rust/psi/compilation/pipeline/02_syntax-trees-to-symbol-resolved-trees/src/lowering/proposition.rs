@@ -1,6 +1,7 @@
 //! Proposition definitions: binders, parameters, and primitive, witness, or
 //! transparent bodies.
 
+use crate::lowering::expression::lower_expression_into_table;
 use crate::lowering::state::lower_state_parameters;
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
@@ -29,11 +30,7 @@ pub(crate) fn lower_proposition_definition(
         },
         syntax::item::PropositionBody::Transparent { proposition } => {
             PropositionBody::Transparent {
-                proposition: crate::lowering::expression::lower_expression_into_table(
-                    lowerer,
-                    syntax_trees,
-                    proposition,
-                )?,
+                proposition: lower_expression_into_table(lowerer, syntax_trees, proposition)?,
             }
         }
     };

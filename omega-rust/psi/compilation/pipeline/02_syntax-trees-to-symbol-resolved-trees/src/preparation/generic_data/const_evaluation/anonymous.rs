@@ -1,5 +1,6 @@
 //! Exact anonymous values, independent of their eventual const landing.
 
+use super::fact_values::ConstFactValue;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
@@ -303,8 +304,8 @@ fn machine_parameter_names(syntax: &SyntaxTrees, machine: &Machine) -> Vec<Optio
 pub(super) fn authored_operator_can_bind(
     syntax: &SyntaxTrees,
     operator: BinaryOperator,
-    left: &super::fact_values::ConstFactValue,
-    right: &super::fact_values::ConstFactValue,
+    left: &ConstFactValue,
+    right: &ConstFactValue,
 ) -> bool {
     let Some(spelling) = binary_operator_spelling(operator) else {
         return false;
@@ -323,10 +324,7 @@ pub(super) fn authored_operator_can_bind(
 /// parameters, never `Nat`); an anonymous or bare integer binds only builtin
 /// integer carriers — never a nominal `Nat`, `f32` or `Quantity`; a Boolean
 /// binds `bool`.
-fn parameter_binds(
-    parameter_name: Option<&str>,
-    operand: &super::fact_values::ConstFactValue,
-) -> bool {
+fn parameter_binds(parameter_name: Option<&str>, operand: &ConstFactValue) -> bool {
     let Some(name) = parameter_name else {
         return true;
     };

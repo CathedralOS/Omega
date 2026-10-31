@@ -7,6 +7,8 @@
 //! drives it; nothing here decides phase order. Seeding fills the same
 //! sidecars from a retained base so an extension resolves against it.
 
+use crate::preparation::declaration_selection::ConstantSelection;
+use crate::selection::service_reaches::PendingAuthoredServiceReach;
 use crate::tables::resolved_declarations;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
@@ -108,8 +110,7 @@ pub(crate) struct Lowerer {
     /// Constant values may be normalized before structural equations have
     /// their canonical range inputs. Only the complete route clears this.
     pub(crate) structural_type_equations_pending: bool,
-    pub(crate) constant_selection:
-        Option<crate::preparation::declaration_selection::ConstantSelection<'static>>,
+    pub(crate) constant_selection: Option<ConstantSelection<'static>>,
     pub(crate) namespace_declarations: crate::symbols::NamespaceDeclarations,
     pub(crate) pending_static_module_calls: Vec<(ExpressionHandle, Vec<DiagnosticName>)>,
     pub(crate) pending_static_module_statement_calls:
@@ -120,8 +121,7 @@ pub(crate) struct Lowerer {
     pub(crate) bound_generic_application_origins: usize,
     /// Authored machine `reaches` clauses retained until symbol assignment
     /// binds every member occurrence to its exact boundary-trait identity.
-    pub(crate) pending_machine_service_reaches:
-        Vec<crate::selection::service_reaches::PendingAuthoredServiceReach>,
+    pub(crate) pending_machine_service_reaches: Vec<PendingAuthoredServiceReach>,
     pub(crate) pending_signature_service_reaches: Vec<PendingSignatureServiceReach>,
     /// Authored expressions whose exact declaration selections are collected
     /// after symbol assignment. Expressions absent from this list are either
@@ -348,7 +348,7 @@ impl Lowerer {
         }
         let retained_reach =
             |owner: symbols::SymbolHandle, row: language_semantics::ServiceReachRowId| {
-                crate::selection::service_reaches::PendingAuthoredServiceReach::Resolved {
+                PendingAuthoredServiceReach::Resolved {
                     row,
                     authored: authored_by_owner.get(&owner).copied().cloned(),
                 }
@@ -453,10 +453,7 @@ impl Lowerer {
     /// The constant selector lowering ran under, handed back before finishing.
     pub(crate) fn take_constant_selection(
         &mut self,
-    ) -> Result<
-        crate::preparation::declaration_selection::ConstantSelection<'static>,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<ConstantSelection<'static>, Vec<Diagnostic>> {
         self.constant_selection.take().ok_or_else(|| {
             vec![Diagnostic::error(
                 "constant preparation lost its source-aware selector",
@@ -507,10 +504,7 @@ impl Lowerer {
         &self,
     ) -> Result<
         (
-            Vec<(
-                symbols::SymbolHandle,
-                crate::selection::service_reaches::PendingAuthoredServiceReach,
-            )>,
+            Vec<(symbols::SymbolHandle, PendingAuthoredServiceReach)>,
             Vec<crate::selection::service_reaches::PendingSignatureServiceReach>,
         ),
         Vec<Diagnostic>,
@@ -586,5 +580,5 @@ pub(crate) enum PendingSignatureOwner {
 pub(crate) struct PendingSignatureServiceReach {
     pub(crate) location: PendingSignatureLocation,
     pub(crate) owner: PendingSignatureOwner,
-    pub(crate) reaches: crate::selection::service_reaches::PendingAuthoredServiceReach,
+    pub(crate) reaches: PendingAuthoredServiceReach,
 }

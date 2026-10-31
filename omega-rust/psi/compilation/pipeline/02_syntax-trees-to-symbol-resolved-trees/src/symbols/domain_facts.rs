@@ -9,7 +9,9 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expressions::assign_membership_symbol;
+use super::expressions::assign_struct_literal_symbols;
 use super::lookup::diagnostic_path_source_span;
+use super::lookup::domain_name_reaches;
 use super::targets::resolve_free_call_target_symbol;
 use language_semantics::declaration_selection::CollectionMeasure;
 use std::iter::once;
@@ -702,11 +704,7 @@ impl ProofExpressionContext<'_> {
                 {
                     self.assign(field.value);
                 }
-                super::expressions::assign_struct_literal_symbols(
-                    self.symbols,
-                    self.expression_table,
-                    expression,
-                );
+                assign_struct_literal_symbols(self.symbols, self.expression_table, expression);
             }
             ExpressionNode::Name(path) => {
                 // Lexical subjects keep their exact local identity: an
@@ -830,9 +828,7 @@ fn resolve_domain_symbol(
             symbols.source_reference_can_see_symbol(reference, *symbol)
                 && (*symbol == selected
                     || (!(name.contains("::") && symbols.display_path(*symbol, "::") == name)
-                        && super::lookup::domain_name_reaches(
-                            symbols, *symbol, candidate, name, reference,
-                        )))
+                        && domain_name_reaches(symbols, *symbol, candidate, name, reference)))
         })
         .map(|(name, symbol, semantic_id)| (name.as_str(), *symbol, *semantic_id))
         .collect::<Vec<_>>();

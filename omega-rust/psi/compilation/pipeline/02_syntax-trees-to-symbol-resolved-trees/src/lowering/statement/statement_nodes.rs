@@ -1,7 +1,10 @@
 //! One-to-one lowering of statement nodes, transition guards and targets.
 
+use super::assembly::lower;
 use crate::lowering::expression::expression_table;
 use crate::lowering::expression::lower_private_expression_into_table;
+use crate::lowering::expression::lower_static_machine_argument;
+use crate::lowering::name::lower_name;
 use crate::lowering::name::lower_names;
 use crate::lowering::statement::hoist_temps::hoist_into_temp;
 use crate::lowering::statement::indexed_read_hoisting::{
@@ -47,10 +50,8 @@ pub(crate) fn lower_statement_node(
     has_preceding_transition: bool,
 ) -> Result<Vec<Statement>, Diagnostic> {
     match statement {
-        StatementNode::Assembly(handle) => {
-            super::assembly::lower(lowerer, syntax_trees, *handle, statement_index)
-                .map(|handle| vec![Statement::Assembly(handle)])
-        }
+        StatementNode::Assembly(handle) => lower(lowerer, syntax_trees, *handle, statement_index)
+            .map(|handle| vec![Statement::Assembly(handle)]),
         StatementNode::RootBinding(binding) => Ok(vec![Statement::RootBinding(RootBinding {
             receiver: lower_statement_expression(lowerer, syntax_trees, binding.receiver)?,
             slot: lower_names(syntax_trees, &binding.slot).into_boxed_slice(),
@@ -117,8 +118,8 @@ pub(crate) fn lower_statement_node(
                         machine_symbol: SymbolHandle::invalid(),
                         state_symbol: SymbolHandle::invalid(),
                         statement_index,
-                        target: crate::lowering::name::lower_name(syntax_trees, target),
-                        source: crate::lowering::name::lower_name(syntax_trees, source),
+                        target: lower_name(syntax_trees, target),
+                        source: lower_name(syntax_trees, source),
                         source_conformance: None,
                     });
                 return Ok(Vec::new());
@@ -157,10 +158,7 @@ pub(crate) fn lower_statement_node(
                     .statement_path_members
                     .span_or_empty(receiver)
                     .to_vec();
-                path.push(crate::lowering::name::lower_name(
-                    syntax_trees,
-                    &call.target,
-                ));
+                path.push(lower_name(syntax_trees, &call.target));
                 lowerer
                     .pending_static_module_statement_calls
                     .push((call.target.source_span(), path));
@@ -185,7 +183,7 @@ pub(crate) fn lower_statement_node(
             let lowered_call = Call {
                 receiver_symbol: SymbolHandle::invalid(),
                 target_symbol: SymbolHandle::invalid(),
-                target: crate::lowering::name::lower_name(syntax_trees, &call.target),
+                target: lower_name(syntax_trees, &call.target),
                 storage: CallStorage {
                     receiver_root_symbol: SymbolHandle::invalid(),
                     receiver,
@@ -193,11 +191,7 @@ pub(crate) fn lower_statement_node(
                         .machine_arguments
                         .iter()
                         .map(|argument| {
-                            crate::lowering::expression::lower_static_machine_argument(
-                                lowerer,
-                                syntax_trees,
-                                argument,
-                            )
+                            lower_static_machine_argument(lowerer, syntax_trees, argument)
                         })
                         .collect::<Result<Vec<_>, _>>()?
                         .into_boxed_slice(),
@@ -255,11 +249,8 @@ pub(crate) fn lower_statement_node(
                             .push(binding.binding.as_str(syntax_trees).to_owned());
                     }
                     ProofOutputSelector {
-                        output_field: crate::lowering::name::lower_name(
-                            syntax_trees,
-                            &binding.output_field,
-                        ),
-                        binding: crate::lowering::name::lower_name(syntax_trees, &binding.binding),
+                        output_field: lower_name(syntax_trees, &binding.output_field),
+                        binding: lower_name(syntax_trees, &binding.binding),
                     }
                 })
                 .collect::<Vec<_>>()
@@ -272,7 +263,7 @@ pub(crate) fn lower_statement_node(
                 // local enters the typed runtime statement stream.
                 lowered.push(Statement::LocalData(LocalData {
                     symbol: SymbolHandle::invalid(),
-                    name: crate::lowering::name::lower_name(syntax_trees, &runtime_value.binding),
+                    name: lower_name(syntax_trees, &runtime_value.binding),
                     storage: LocalDataStorage {
                         role: language_core::LocalBindingRole::Value,
                         type_reference: TypeReference::Unit,
@@ -468,11 +459,8 @@ pub(crate) fn lower_statement_node(
                     .outcome_proof_selectors(transition.proof_selectors)
                     .iter()
                     .map(|selector| OutcomeProofSelector {
-                        output_field: crate::lowering::name::lower_name(
-                            syntax_trees,
-                            &selector.output_field,
-                        ),
-                        binding: crate::lowering::name::lower_name(syntax_trees, &selector.binding),
+                        output_field: lower_name(syntax_trees, &selector.output_field),
+                        binding: lower_name(syntax_trees, &selector.binding),
                     })
                     .collect::<Vec<_>>()
                     .into_boxed_slice(),
@@ -722,10 +710,7 @@ fn lower_statement_path_members(
             .tables
             .declarations
             .statement_path_members
-            .append_to_span(
-                &mut span,
-                crate::lowering::name::lower_name(syntax_trees, member),
-            );
+            .append_to_span(&mut span, lower_name(syntax_trees, member));
     }
 
     span

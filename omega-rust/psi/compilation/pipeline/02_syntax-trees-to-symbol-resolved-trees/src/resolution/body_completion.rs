@@ -12,6 +12,7 @@ use crate::constant::initializer_dependencies::{
 use crate::lowering::machine::{PendingMachineBody, complete_machine_body};
 use crate::preparation::declaration_selection::ConstantSelection;
 use crate::preparation::machine_equations::{self, SourceLinks};
+use crate::symbols::assign_constant_expression_symbols;
 use diagnostics::Diagnostic;
 use std::mem::take;
 use std::sync::Arc;
@@ -41,10 +42,7 @@ pub(super) fn complete_initializer_receipt_dependencies(
     if roots.is_empty() {
         return Ok(());
     }
-    crate::symbols::assign_constant_expression_symbols(
-        &mut lowerer.symbol_resolved_trees,
-        roots.iter().copied(),
-    );
+    assign_constant_expression_symbols(&mut lowerer.symbol_resolved_trees, roots.iter().copied());
     loop {
         let demand = collect_machine_body_demand(&lowerer.symbol_resolved_trees, &[], &roots)
             .map_err(|message| vec![Diagnostic::error(message)])?;
