@@ -99,7 +99,7 @@ class CompilerPilotTests(unittest.TestCase):
             with self.subTest(rows=rows, code=code), tempfile.TemporaryDirectory() as temporary:
                 output = Path(temporary)
                 def consume(arguments, **kwargs):
-                    self.assertEqual(arguments[1:4], ["tools/sample_native_gate.py", "--cli", "/retained/omega"])
+                    self.assertEqual(arguments[1:4], ["tools/sample_native_gate.py", "--cli", str(producer.cli)])
                     self.assertIn("--facts", arguments)
                     self.assertEqual(arguments[arguments.index("--jobs") + 1], "2")
                     self.assertEqual(arguments[arguments.index("--target") + 1], producer.target)
