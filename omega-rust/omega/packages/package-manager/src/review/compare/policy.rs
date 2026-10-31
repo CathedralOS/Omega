@@ -1,5 +1,6 @@
 //! Complete normalized policy deltas; neither decisions nor publication.
 
+use package_compilation::build_execution::RestrictedBuildRequest;
 mod assembly;
 mod error;
 mod fingerprints;
@@ -223,7 +224,7 @@ pub(crate) struct PackagePolicyPackageChange {
     /// package's build machine asks of the host before it may run. They are
     /// admission intent surfaced beside, never inside, this package's
     /// product-authority rows; accepting the rows does not accept host reach.
-    restricted_build_requests: Vec<package_compilation::build_execution::RestrictedBuildRequest>,
+    restricted_build_requests: Vec<RestrictedBuildRequest>,
     /// The occurrences the accepted baseline consented to, joined from the
     /// source-graph roster; empty when the package has no baseline.
     baseline_occurrence_contexts: Vec<PackageCheckedContext>,
@@ -262,9 +263,7 @@ impl PackagePolicyPackageChange {
     /// (wiki/spec/packages/acceptance.md#restricted-build-acceptance). Empty
     /// when the package has no build machine or its build asks nothing of
     /// the host.
-    pub fn restricted_build_requests(
-        &self,
-    ) -> &[package_compilation::build_execution::RestrictedBuildRequest] {
+    pub fn restricted_build_requests(&self) -> &[RestrictedBuildRequest] {
         &self.restricted_build_requests
     }
     /// Exact retained checked occurrences; empty when the package has no baseline.
