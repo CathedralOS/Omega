@@ -5,9 +5,11 @@
 
 use super::super::scalar_call_custody::{expected_argument_bytes, validate_source};
 use crate::ObjectError;
-use machine_code::{SemanticCodeSite, StructuralReturnRecord};
+use machine_code::{
+    InternalUnitScalarCallArgumentRecord, SemanticCodeSite, StructuralReturnRecord,
+};
 use target::Architecture;
-use target_operations::{CallSiteOwner, MixedStructuralScalarFunctionAbi};
+use target_operations::{CallSiteOwner, MixedStructuralScalarFunctionAbi, ScalarAbiValue};
 
 use super::InternalUnitCallCustody;
 use super::call_facts::{CallInputs, CallSpan, StackFacts};
@@ -100,6 +102,22 @@ pub(super) fn validate_argument_free_call(
     Ok(())
 }
 
+/// Whether any scalar argument diverges from its indexed parameter's placement or type.
+fn scalar_arguments_mismatch(
+    arguments: &[InternalUnitScalarCallArgumentRecord],
+    parameters: &[ScalarAbiValue],
+) -> bool {
+    arguments
+        .iter()
+        .zip(parameters)
+        .enumerate()
+        .any(|(index, (argument, parameter))| {
+            usize::try_from(argument.parameter_index) != Ok(index)
+                || argument.destination != parameter.placement
+                || argument.source.scalar_type() != parameter.scalar_type
+        })
+}
+
 /// A scalar parameter ABI: the plan matches, there is no result, each
 /// scalar argument sits in its parameter's placement, and each Unit
 /// argument matches its parameter's type, access, shape and placement
@@ -121,16 +139,7 @@ pub(super) fn validate_parameter_abi(
         || custody.structural_result.is_some()
         || custody.scalar_arguments.len() != abi.parameters.len()
         || custody.arguments.len() != callee_unit_parameters.len()
-        || custody
-            .scalar_arguments
-            .iter()
-            .zip(&abi.parameters)
-            .enumerate()
-            .any(|(index, (argument, parameter))| {
-                usize::try_from(argument.parameter_index) != Ok(index)
-                    || argument.destination != parameter.placement
-                    || argument.source.scalar_type() != parameter.scalar_type
-            })
+        || scalar_arguments_mismatch(&custody.scalar_arguments, &abi.parameters)
         || custody
             .arguments
             .iter()
@@ -168,16 +177,7 @@ pub(super) fn validate_mixed_abi(
         || custody.result != Some(abi.result.scalar_type)
         || custody.scalar_arguments.len() != abi.scalar_parameters.len()
         || custody.arguments.len() != abi.structural_parameters.len()
-        || custody
-            .scalar_arguments
-            .iter()
-            .zip(&abi.scalar_parameters)
-            .enumerate()
-            .any(|(index, (argument, parameter))| {
-                usize::try_from(argument.parameter_index) != Ok(index)
-                    || argument.destination != parameter.placement
-                    || argument.source.scalar_type() != parameter.scalar_type
-            })
+        || scalar_arguments_mismatch(&custody.scalar_arguments, &abi.scalar_parameters)
         || custody
             .arguments
             .iter()
@@ -225,16 +225,7 @@ pub(super) fn validate_mixed_structural_return(
         || expected_plan.result.as_ref() != Some(&returned.result_placement)
         || custody.scalar_arguments.len() != returned.scalar_parameters.len()
         || custody.arguments.len() != returned.parameters.len()
-        || custody
-            .scalar_arguments
-            .iter()
-            .zip(&returned.scalar_parameters)
-            .enumerate()
-            .any(|(index, (argument, parameter))| {
-                usize::try_from(argument.parameter_index) != Ok(index)
-                    || argument.destination != parameter.placement
-                    || argument.source.scalar_type() != parameter.scalar_type
-            })
+        || scalar_arguments_mismatch(&custody.scalar_arguments, &returned.scalar_parameters)
         || custody
             .arguments
             .iter()
