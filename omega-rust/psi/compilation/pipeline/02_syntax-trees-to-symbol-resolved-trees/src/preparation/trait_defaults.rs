@@ -27,6 +27,7 @@
 //! inside the declaration's package instead of falling back to a same-leaf
 //! competitor.
 
+use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use arena::HandleSpan;
@@ -861,8 +862,7 @@ fn substitute_expression_static_arguments(
                     .replace_expression(expression, ExpressionNode::Call(call.clone()));
             }
             substitute_expression_static_arguments(syntax, call.receiver, substitution, seen);
-            for argument in syntax
-                .expressions
+            for argument in syntax_expressions(&syntax)
                 .expression_handles(call.arguments)
                 .to_vec()
             {
@@ -873,8 +873,7 @@ fn substitute_expression_static_arguments(
             substitute_expression_static_arguments(syntax, dispatch.subject, substitution, seen);
             let arms = syntax.expressions.match_arms(dispatch.arms).to_vec();
             for arm in arms {
-                let patterns = syntax
-                    .expressions
+                let patterns = syntax_expressions(&syntax)
                     .match_pattern_dependencies(arm.pattern)
                     .collect::<Vec<_>>();
                 for pattern in patterns {

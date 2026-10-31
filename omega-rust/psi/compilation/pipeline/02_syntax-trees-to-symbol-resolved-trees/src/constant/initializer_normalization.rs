@@ -7,6 +7,7 @@
 //! becomes public index exposure just because its constant is public.
 
 use crate::tables::body_expressions;
+use crate::tables::syntax_expressions;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionExposure as Exposure,
@@ -171,9 +172,7 @@ pub(crate) fn retain(
         return Ok(());
     };
     let reference = syntax.expressions.source_span(definition.value);
-    if !syntax
-        .expressions
-        .contains_expression(receipt.authored_expression)
+    if !syntax_expressions(&syntax).contains_expression(receipt.authored_expression)
         || receipt.authored_expression == definition.value
         || syntax.expressions.source_span(receipt.authored_expression) != reference
     {
@@ -265,8 +264,7 @@ pub(crate) fn retain(
             }
             ExpressionNode::ArrayLiteral(elements) => {
                 pending.extend(
-                    syntax
-                        .expressions
+                    syntax_expressions(&syntax)
                         .expression_handles(*elements)
                         .iter()
                         .rev()

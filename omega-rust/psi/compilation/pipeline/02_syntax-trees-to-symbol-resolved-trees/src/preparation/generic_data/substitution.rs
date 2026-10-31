@@ -6,6 +6,7 @@ use crate::preparation::generic_data::EvaluatedConst;
 use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::generic_const_integer_types;
 use crate::preparation::generic_data::selected_data_item;
+use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use arena::Handle;
@@ -808,10 +809,7 @@ pub(crate) fn variant_fact_verdict(
             if self_member.as_str(syntax) != "self" {
                 return Undecided;
             }
-            match syntax
-                .expressions
-                .identifier_path_members(membership.domain)
-            {
+            match syntax_expressions(&syntax).identifier_path_members(membership.domain) {
                 [head, case] if head.as_str(syntax) == type_name => {
                     if case.as_str(syntax) == variant_name {
                         Holds

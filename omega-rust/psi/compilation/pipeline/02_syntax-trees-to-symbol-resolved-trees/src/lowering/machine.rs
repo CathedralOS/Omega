@@ -7,6 +7,7 @@
 //! operator-token bindings once every selection has settled.
 
 use crate::lowering::expression::expression_table;
+use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use syntax_trees::identifier::JoinedSyntaxPath;
 mod token_bindings;
@@ -615,9 +616,7 @@ fn build_termination_plan(
         TerminationInterface::InternalDerived
     };
 
-    let subjects = syntax_trees
-        .expressions
-        .expression_handles(machine.ranking_subjects);
+    let subjects = syntax_expressions(&syntax_trees).expression_handles(machine.ranking_subjects);
     let implementation_witness = (!subjects.is_empty()).then(|| {
         let (ranking_view, view_path) = elaborate_ranking_view(
             lowerer,
@@ -636,8 +635,7 @@ fn build_termination_plan(
             view_path,
             // TPR3: an argumented view's arguments, rendered source-like in
             // order (`Nat::IncreasingTo(limit)` carries `["limit"]`).
-            view_arguments: syntax_trees
-                .expressions
+            view_arguments: syntax_expressions(&syntax_trees)
                 .expression_handles(machine.ranking_view_arguments)
                 .iter()
                 .map(|argument| render_ranked_subject(syntax_trees, *argument))
@@ -676,8 +674,7 @@ fn render_ranked_subject(
     match syntax_trees.expressions.expression(subject) {
         // Range endpoints are commonly literals (`in 0..=capacity`).
         syntax::expression::ExpressionNode::Integer(literal) => literal.to_string(),
-        syntax::expression::ExpressionNode::Name(path) => syntax_trees
-            .expressions
+        syntax::expression::ExpressionNode::Name(path) => syntax_expressions(&syntax_trees)
             .identifier_path_members(*path)
             .joined_path_with_in(syntax_trees, "."),
         syntax::expression::ExpressionNode::Member(member) => format!(
@@ -780,8 +777,7 @@ fn elaborate_single_subject_default(
     };
     let trees = &lowerer.symbol_resolved_trees;
     let pending = (RankingViewId::NULL, String::new());
-    let Some(subject_name) = syntax_trees
-        .expressions
+    let Some(subject_name) = syntax_expressions(&syntax_trees)
         .identifier_path_members(*path)
         .last()
     else {
@@ -867,10 +863,7 @@ fn lower_ranking_expressions(
 ) -> Result<HandleSpan<symbol_resolved_trees::expression::ExpressionHandle>, Diagnostic> {
     let mut lowered = Vec::new();
 
-    for expression in syntax_trees
-        .expressions
-        .expression_handles(source_expressions)
-    {
+    for expression in syntax_expressions(&syntax_trees).expression_handles(source_expressions) {
         let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
         lowered.push(expression);
     }

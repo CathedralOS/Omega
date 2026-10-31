@@ -19,6 +19,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::ExpressionTable;
 use symbol_resolved_trees::statement::StatementTable;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionTable as SyntaxExpressionTable;
 use syntax_trees::item::ItemTable;
 use syntax_trees::types::TypeReferenceTable;
 
@@ -47,4 +48,9 @@ pub(crate) fn resolved_declarations(
     program: &SymbolResolvedTrees,
 ) -> &SymbolResolvedDeclarationStorage {
     &program.tables.declarations
+}
+
+/// The expressions a syntax forest parses.
+pub(crate) fn syntax_expressions(syntax: &SyntaxTrees) -> &SyntaxExpressionTable {
+    &syntax.tables.expressions
 }

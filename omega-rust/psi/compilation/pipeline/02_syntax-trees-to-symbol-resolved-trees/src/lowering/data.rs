@@ -8,6 +8,7 @@
 use crate::lowering::name::lower_names;
 use crate::lowering::type_reference::{lower_child_type_references, lower_type_reference_handle};
 use crate::resolution::lowerer::Lowerer;
+use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use arena::HandleSpan;
@@ -765,8 +766,7 @@ fn case_fact_expression_mentions(
         };
     }
     match syntax_trees.expressions.expression(expression) {
-        ExpressionNode::Name(path) => syntax_trees
-            .expressions
+        ExpressionNode::Name(path) => syntax_expressions(&syntax_trees)
             .identifier_path_members(*path)
             .iter()
             .any(|member| {
@@ -782,15 +782,13 @@ fn case_fact_expression_mentions(
             mention_child!(indexed.collection) || mention_child!(indexed.index)
         }
         ExpressionNode::Range(range) => mention_child!(range.start) || mention_child!(range.end),
-        ExpressionNode::ArrayLiteral(elements) => syntax_trees
-            .expressions
+        ExpressionNode::ArrayLiteral(elements) => syntax_expressions(&syntax_trees)
             .expression_handles(*elements)
             .iter()
             .any(|element| mention_child!(*element)),
         ExpressionNode::Membership(membership) => {
             case_fact_expression_mentions(syntax_trees, membership.value, gate, false)
-                || syntax_trees
-                    .expressions
+                || syntax_expressions(&syntax_trees)
                     .identifier_path_members(membership.domain)
                     .iter()
                     .any(|member| gate.mentions(member.as_str(syntax_trees)))
@@ -798,8 +796,7 @@ fn case_fact_expression_mentions(
         ExpressionNode::Cast(cast) => {
             mention_child!(cast.value)
                 || case_fact_type_mentions(syntax_trees, cast.target_type, gate)
-                || syntax_trees
-                    .expressions
+                || syntax_expressions(&syntax_trees)
                     .identifier_path_members(cast.semantic_domain)
                     .iter()
                     .any(|member| gate.mentions(member.as_str(syntax_trees)))
@@ -822,8 +819,7 @@ fn case_fact_expression_mentions(
                 .split("::")
                 .any(|name| gate.mentions(name))
                 || (call.receiver.is_valid() && mention_child!(call.receiver))
-                || syntax_trees
-                    .expressions
+                || syntax_expressions(&syntax_trees)
                     .expression_handles(call.arguments)
                     .iter()
                     .any(|argument| mention_child!(*argument))

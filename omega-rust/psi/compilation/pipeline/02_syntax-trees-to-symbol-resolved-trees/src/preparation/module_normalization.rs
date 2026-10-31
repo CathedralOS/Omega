@@ -27,6 +27,7 @@
 //! declaring source at this boundary; unselected or nongeneric spellings
 //! reject here rather than drifting to a later stage's weaker error.
 
+use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
@@ -245,8 +246,7 @@ fn scalar_literal_tree(
         | ExpressionNode::Float(_)
         | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::String(_) => true,
-        ExpressionNode::ArrayLiteral(elements) => syntax
-            .expressions
+        ExpressionNode::ArrayLiteral(elements) => syntax_expressions(&syntax)
             .expression_handles(*elements)
             .iter()
             .all(|element| scalar_literal_tree(syntax, *element)),

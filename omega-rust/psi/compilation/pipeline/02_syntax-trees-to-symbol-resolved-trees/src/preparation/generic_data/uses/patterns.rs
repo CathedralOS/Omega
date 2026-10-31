@@ -7,6 +7,7 @@ use crate::preparation::generic_data::uses::{
     closed_constructor_carrier, collect_statement_expression_handles, concrete_state_local_types,
     constructor_carrier_span, constructor_path_name, expected_instance, selected_constructor,
 };
+use crate::tables::syntax_expressions;
 
 use crate::preparation::generic_data::Instantiation;
 
@@ -60,9 +61,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
                 }
                 let instance = expected_instance(syntax, instances, selection, closed)?;
                 // Destructure lowering currently retains the two-part case path.
-                let [_, _] = syntax
-                    .expressions
-                    .identifier_path_members(membership.domain)
+                let [_, _] = syntax_expressions(&syntax).identifier_path_members(membership.domain)
                 else {
                     return None;
                 };

@@ -16,6 +16,7 @@
 
 use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::uses::concrete_machine_expression_handles;
+use crate::tables::syntax_expressions;
 use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -441,9 +442,7 @@ fn collect_closed_const_arguments(
             if cast.semantic_domain_arguments.is_empty() {
                 continue;
             }
-            let members = syntax
-                .expressions
-                .identifier_path_members(cast.semantic_domain);
+            let members = syntax_expressions(&syntax).identifier_path_members(cast.semantic_domain);
             let Some(first) = members.first() else {
                 continue;
             };

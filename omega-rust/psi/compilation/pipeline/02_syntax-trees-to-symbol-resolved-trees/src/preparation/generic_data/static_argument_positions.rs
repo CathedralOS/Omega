@@ -8,6 +8,7 @@ use super::{
     HashSet, Identifier, SyntaxTrees, TypeReferenceHandle, TypeReferenceNode,
     declaration_selection::ConstantSelection,
 };
+use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use syntax_trees::expression::{ExpressionNode, StaticMachineArgument};
@@ -36,8 +37,7 @@ pub(super) fn collect(
                 else {
                     continue;
                 };
-                let prefix = syntax
-                    .expressions
+                let prefix = syntax_expressions(&syntax)
                     .identifier_path_members(*path)
                     .iter()
                     .map(|part| part.as_str(syntax))

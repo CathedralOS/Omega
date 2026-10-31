@@ -7,6 +7,7 @@ use crate::preparation::generic_data::uses::{
     ConstructorFrontier, collect_expression_handles, collect_statement_expression_handles,
     visit_expression_type_inputs, visit_static_argument_type_inputs,
 };
+use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 
@@ -328,8 +329,7 @@ fn replace_uncaptured_const_names(
     const_expressions: &HashMap<String, ExpressionNode>,
     captured: &HashSet<ExpressionHandle>,
 ) {
-    let replacements = syntax
-        .expressions
+    let replacements = syntax_expressions(&syntax)
         .iter_expressions()
         .filter(|(handle, _)| expression_watermark.contains(*handle))
         .filter(|(handle, _)| !captured.contains(handle))

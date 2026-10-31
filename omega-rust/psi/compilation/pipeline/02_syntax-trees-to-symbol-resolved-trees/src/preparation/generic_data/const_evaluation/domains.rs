@@ -3,6 +3,7 @@ use super::super::{
     CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionNode, HashMap, HashSet, Identifier,
     IntegerLiteral, SyntaxTrees, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
 };
+use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use syntax_trees::identifier::JoinedSyntaxPath;
@@ -258,9 +259,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
             if cast.semantic_domain.is_empty() {
                 return None;
             }
-            let members = syntax
-                .expressions
-                .identifier_path_members(cast.semantic_domain);
+            let members = syntax_expressions(&syntax).identifier_path_members(cast.semantic_domain);
             let name = members.joined_path_in(syntax);
             let mut reference = members.first()?.source_span();
             for member in members.iter().skip(1) {

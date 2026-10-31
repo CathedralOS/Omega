@@ -12,6 +12,7 @@ use super::super::{
     ProofFact, SyntaxTrees, TypeConstraintNode, TypeParameterKind, TypeReferenceHandle,
     TypeReferenceNode,
 };
+use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use arena::HandleSpan;
@@ -1743,9 +1744,7 @@ fn evaluate_const_domain_expression(
             else {
                 return Ok(None);
             };
-            let members = syntax
-                .expressions
-                .identifier_path_members(membership.domain);
+            let members = syntax_expressions(&syntax).identifier_path_members(membership.domain);
             let path = members.joined_path_in(syntax);
             evaluate_named_const_domain(
                 syntax,

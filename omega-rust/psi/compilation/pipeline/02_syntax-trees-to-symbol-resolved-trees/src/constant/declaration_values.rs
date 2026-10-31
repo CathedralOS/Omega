@@ -2,6 +2,7 @@
 
 use crate::constant::initializer_normalization;
 use crate::constant::substitution::semantic_const_name;
+use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
@@ -463,8 +464,7 @@ fn invalid_literal_initializer(
          -- richer const expressions arrive with build-time evaluation",
         definition.scope.as_str(syntax_trees),
         definition.name.as_str(syntax_trees),
-        syntax_trees
-            .expressions
+        syntax_expressions(&syntax_trees)
             .expression(value)
             .display_name(syntax_trees),
     )))
