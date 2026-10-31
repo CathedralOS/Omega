@@ -7,6 +7,11 @@ use checked_trees::{
     CheckedBoundaryBodyCandidate as BodyCandidate, CheckedBoundaryOperatorApplicationDemand,
     CheckedBoundaryOperatorDeclaration, CheckedTrees,
 };
+use language_semantics::BoundaryBodySelection;
+use language_semantics::MachineSupplyMode;
+use typed_trees::operator::boundary_operator_requirement_identity;
+use typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance;
+use validation::checked_operator_application_matches_realization;
 
 pub(crate) fn retain_boundary_body_candidates(
     checked: &mut CheckedTrees,
@@ -75,11 +80,7 @@ fn declarations(
             .filter(|edge| edge.external_binding.is_none())
         {
             let Some(operator) =
-                typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
-                    typed,
-                    machine,
-                    conformance,
-                )
+                resolve_satisfied_boundary_operator_for_conformance(typed, machine, conformance)
             else {
                 continue;
             };
@@ -99,10 +100,8 @@ fn declarations(
             declarations.append(CheckedBoundaryOperatorDeclaration {
                 requirement: operator.symbol,
                 machine: machine.symbol,
-                selection: language_semantics::BoundaryBodySelection {
-                    requirement: typed_trees::operator::boundary_operator_requirement_identity(
-                        typed, operator,
-                    ),
+                selection: BoundaryBodySelection {
+                    requirement: boundary_operator_requirement_identity(typed, operator),
                     requirement_package: typed.symbols.symbol_package_identity(operator.symbol),
                     callable,
                     package: typed.symbols.symbol_package_identity(machine.symbol),
@@ -130,7 +129,7 @@ fn candidates_for_application(
     let typed = &checked.typed;
     let mut candidates = Vec::new();
     for machine in typed.machines().iter().filter(|machine| {
-        machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+        machine.supply_mode == MachineSupplyMode::CheckedBody
             && typed.machine_type_parameters(machine).is_empty()
             && machine.lifetime_parameters.is_empty()
     }) {
@@ -141,9 +140,7 @@ fn candidates_for_application(
         let selection = if let Some(specialization) = specialization {
             if !specialization.operator_realizations.iter().any(|row| {
                 row.requirement_symbol == demand.requirement_symbol
-                    && validation::checked_operator_application_matches_realization(
-                        typed, demand, row,
-                    )
+                    && checked_operator_application_matches_realization(typed, demand, row)
             }) {
                 continue;
             }
