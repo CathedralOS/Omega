@@ -1861,8 +1861,19 @@ fn term_has_complete_substitution(
             Some(element) => *length > 0 && term_has_complete_substitution(program, element),
             None => *length == 0,
         },
-        StructuralTerm::BoundValue(_)
-        | StructuralTerm::CapturedValue { .. }
+        StructuralTerm::BoundValue(symbol) => program
+            .data_type_parameter_by_symbol(*symbol)
+            .is_some_and(|parameter| match parameter.kind {
+                // A declared static integer has an exact binder identity even
+                // while its value remains symbolic. Application validation
+                // still owes the complete actual telescope before substitution.
+                typed_trees::data::TypeParameterKind::Const { type_reference }
+                | typed_trees::data::TypeParameterKind::Value { type_reference } => program
+                    .primitive_type_reference(type_reference)
+                    .is_some_and(|primitive| primitive.is_fixed_integer()),
+                _ => false,
+            }),
+        StructuralTerm::CapturedValue { .. }
         | StructuralTerm::BoundProjection { .. }
         | StructuralTerm::MathematicalBinary { .. }
         | StructuralTerm::IntegerEmbedding { .. }
