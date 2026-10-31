@@ -63,10 +63,6 @@ impl FieldShape {
             Self::BorrowedScalarSlice { .. } => "Repeated",
         }
     }
-
-    fn is_varint(self) -> bool {
-        matches!(self, Self::Scalar { .. })
-    }
 }
 
 pub(crate) fn compute_wire_plans_in(
@@ -139,7 +135,7 @@ pub(crate) fn compute_wire_plans_in(
             .iter()
             .map(|&(number, shape)| {
                 let tag = number;
-                if shape.is_varint() {
+                if matches!(shape, FieldShape::Scalar { .. }) {
                     WirePlacement::Varint { tag }
                 } else {
                     WirePlacement::LengthPrefixed { tag }
