@@ -2,7 +2,7 @@
 //! runtime tuple operands. Even an unused provider lifetime consumes one
 //! authored argument; no borrow occurrence may guess away that telescope.
 
-use super::{Diagnostic, StaticMachineArgument, SymbolHandle, TypedTrees};
+use super::{Diagnostic, StaticMachineArgument, SymbolHandle, TypedTrees, failed};
 use typed_trees::static_applications::{
     StaticMachineApplicationHandle, StaticMachineLifetimeBinding,
 };
@@ -24,11 +24,7 @@ pub(super) fn bind(
         .machines()
         .iter()
         .find(|machine| program.machine_or_state_symbol(machine, selected))
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "nested lifetime application lost its selected declaration",
-            )]
-        })?;
+        .ok_or_else(|| failed("nested lifetime application lost its selected declaration"))?;
     if machine.lifetime_parameters.len() != explicit.lifetime_arguments.len() {
         return Err(vec![Diagnostic::error(
             "nested machine lifetime arguments do not match its complete declared telescope",

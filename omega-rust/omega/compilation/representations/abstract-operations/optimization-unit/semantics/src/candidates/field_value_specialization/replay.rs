@@ -115,9 +115,7 @@ pub(super) fn validate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    let PsiRewritePatch::SpecializeFieldValue(patch) = candidate.patch() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    candidate_patch!(patch, SpecializeFieldValue, candidate);
     if candidate.node_decision_point() != patch.reads.first().map(|row| row.site) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }

@@ -156,8 +156,9 @@ retired-syntax deletions to completion.
     obligations, with the complete callee
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
-    restoration, cleanup, linear custody, and declared-view or
-    dependent-distance joint SCC measures without ambient parent entry facts).
+    restoration, cleanup, linear custody, and joint SCC measures using
+    computed or nonscalar declared views or dependent distances without ambient
+    parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
     live backing accounted for.
@@ -202,11 +203,10 @@ retired-syntax deletions to completion.
 - **DOMAIN-DEFAULT-PREDICATE-UNIFICATION.** Implement the owner-ratified
   [predicate subject](wiki/spec/language/domains.md#declaration-and-membership)
   and [case-dependent default domains](wiki/spec/language/data_and_literals.md#case-constraints).
-  - Complete fixed logical `self` parsing/resolution and retire authored domain
-    subject binders in the Omega-written Psi producer, including data-`requires self`
-    resolution. Remove case-local predicate clauses and their parallel internal paths; migrate their library,
-    sample and fixture users in the same change. Repair nested/inherited scalar
-    domain result establishment, including qualified constant destinations.
+  - Repair nested/inherited scalar domain result establishment, including
+    qualified constant destinations. Apply a data declaration's own generic
+    arguments to `requires self` in the Omega-written producer when the subject
+    is a generic carrier.
   - Carry one general predicate representation through formation, construction,
     calls, matching, coverage, writes, and erasure so case membership plus the
     established domain recovers type equality and guarded payload bounds while
@@ -300,13 +300,8 @@ retired-syntax deletions to completion.
       requirement's public contract independently of stronger implementation
       guarantees (preserving `samples/cli/facts/dynamic_float_refinement` across
       all nine places).
-    - Complete suspending requirements with borrowed values and remaining
-      operational envelope refinement, retaining the scalar/Unit-call,
-      live-value, and exact selector-envelope witnesses in
-      `samples/cli/facts/dynamic_suspension`; finish crash-refinement
-      rows when operands lead with the selector and ranked recursion cycles
-      crossing a dispatch edge
-      (`fail/traits/dyn_selector_{reentry,self_reentry}_unranked` until ranked).
+    - Complete remaining operational envelope refinement for suspending
+      dynamic requirements beyond suspension and blocking.
     - Extend public slot metadata with returned-borrow origins and parameter
       qualification preconditions, consume the new records in package review,
       and implement `source/psi/` and `source/omega/` producer/consumer parity.
@@ -403,8 +398,8 @@ retired-syntax deletions to completion.
   `source/{psi,omega}/` under the
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
-  - Migrate the remaining 84 std raw platform, 2 interrupt, and 126 float rows
-    plus 78 test files to boundary traits with explicit reach clauses, lift stage
+  - Migrate the remaining 65 std raw platform, 2 interrupt, and 126 float rows
+    plus 76 test files to boundary traits with explicit reach clauses, lift stage
     04's template-dependent result borrow-elision fence for `core/task.omg`'s
     generic `request_cancel` and `finish`, and preserve source-selected trait
     tokens (`samples/cli/probes/operator_requires_effects`).
@@ -424,8 +419,6 @@ retired-syntax deletions to completion.
   - Admit complete machine-valued static callable tuples through generic dispatch.
   - Preserve exact cross-module const-alias selection in callable/evidence arguments.
   - Admit open-Const callable families through their declaration-owned scopes.
-  - Complete generic abstract-signature premise substitution under exact actuals in `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls.rs` and `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/evidence.rs`.
-  - Complete declaration-owned call formation in domain/default predicates.
   - Complete declaration-owned call formation for receiver/projection terms.
   - Complete citation/induction call guarantees with their transitive assumptions.
   - Extend `OpenIndexOperationSelection` in
@@ -452,11 +445,8 @@ retired-syntax deletions to completion.
   stage 04 scalar checking, stage 05 expression preparation, and
   `omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/trapping_integer.rs`
   with its interpreter and native consumers.
-  - Qualify the 16 `pass/core/numeric_*` fixtures reaching all 170 public
-    machines of `source/library/core/numeric_conversion.omg` on Linux x86-64.
   - **IMPLICIT-STORE-CONVERSION:** migrate remaining cross-carrier/policy stores
-    in maintained pass fixtures, samples (**SAMPLE-CORPUS**), bundled libraries,
-    and `source/omega/main.omg` with `source/psi/{lex,parse,source}` to explicit
+    in maintained pass fixtures and samples (**SAMPLE-CORPUS**) to explicit
     conversions (`as` requires unchanged denotation and representability;
     wrapping/clamping use `core/numeric_conversion.omg`), producing one
     actionable diagnostic per authored conversion error.
@@ -467,28 +457,6 @@ retired-syntax deletions to completion.
   `tests/omega/fail/arithmetic/implicit_{store_conversion,store_widening,store_call_result_conversion,call_operand_conversion,call_result_policy_change,integer_policy_erasure}_rejected`
   and `fail/slices/signed_slice_index_upper_only` each report their intended
   refusal.
-
-- **CHECKED-PACKAGE-REUSE.** (new-scope) Consume checked dependency judgments
-  through compiler-private checked package reuse bound to exact source,
-  dependency, and compiler identities (`std` is checked once at package review
-  and reused in dependents at the same precision).
-  - Share immutable declaration pages and their fact-context index across
-    independent flow groups while keeping local facts, fixed-point joins, and
-    unknown-input fallback per-group; require matching typed input and complete
-    preparation admission for whole-program reuse.
-  - Keep frozen dependency bodies available to `CallFrameResolver`
-    (returned-reference origins and binding stability), denotational admission
-    (observation freedom), and `return_ranges::infer_return_interval` (captured
-    arrivals under the caller's actual intervals) over one
-    declaration/state/expression correspondence.
-  - Complete cross-consumer checked dependency admission bound to full producer
-    dependency context. Exact-program source/check graphs and native Terminal
-    products persist across invocations with fresh source, dependency, compiler
-    and invocation admission; body hashes alone do not admit a dependency
-    judgment into another consumer.
-  Acceptance: fixture median under 2 s and a 10-line `std` probe check under 3 s,
-  with `corpus_gate --compare` over the touched groups losing nothing and
-  `tests/omega/fail/proofs/structural_ensures_unjudged_rejected` still rejecting.
 
 ## Pipeline route
 
@@ -1075,38 +1043,6 @@ helper that passes does not close an item.
   without staging caller storage. Missing repair, early return, stale reads,
   overlapping loans, wrong-place repair, repeated extraction, and whole-owner
   cleanup reject (`fail/ownership/{whole_borrowed_*,borrowed_window_*,borrowed_storage_*}`).
-
-- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (also covers
-  **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**)
-  Complete runtime selection of named implementations (`dyn`) with separated
-  selector and data lanes under
-  [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md) end to end
-  across Psi checking/lowering/interpretation, package review, Omega 8-byte
-  dispatch-table realization, and `source/psi/` + `source/omega/` product parity.
-  - Extend requirement-contract checking at selector calls beyond exact fact
-    correspondence to transparent proposition aliases, supported integer
-    arithmetic, and literal IEEE-bound weakening while preserving the
-    requirement's public contract independently of stronger implementation
-    guarantees.
-  - Support suspending requirements at planning, crash-refinement rows when
-    operands lead with the selector, and ranked recursion cycles crossing a
-    dispatch edge (`fail/traits/dyn_selector_{reentry,self_reentry}_unranked`
-    until ranked).
-  - Extend public slot metadata with returned-borrow origins and parameter
-    qualification preconditions, consume the new records in package review, and
-    implement `source/psi/` and `source/omega/` producer/consumer parity.
-  - Preserve complete 8-byte tables, zero trap slots, exact private callable
-    identities, and patched image targets across all supported hosts, including
-    matching-host Windows x86-64 execution.
-  Acceptance: `python3 tools/corpus_gate.py --both --filter traits/` (including
-  `runtime_dyn_rebound_selector_forwarded_exit`,
-  `runtime_dyn_two_impl_dispatch_exit`,
-  `runtime_dyn_{structural,nested,array,guarded,linear}_result_exit`,
-  `runtime_dyn_data_argument_counts_exit`, `runtime_dyn_joined_selector_exit`,
-  and `runtime_dyn_selector_record_field_exit`) passes with Terminal and native
-  agreement on all matching supported hosts (including Windows and macOS), and
-  copying or rebinding a selector neither captures data nor changes its borrow
-  lifetime.
 
 Prioritize unchanged customer programs reaching native execution over
 additional evidence without an exercising program. The

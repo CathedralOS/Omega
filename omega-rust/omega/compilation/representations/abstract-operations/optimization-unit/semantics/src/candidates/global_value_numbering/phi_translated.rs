@@ -44,10 +44,11 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
     if !candidate.substitutions().is_empty() {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
-    let PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) = candidate.patch()
-    else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    candidate_patch!(
+        patch,
+        EliminatePhiTranslatedScalarCommonSubexpression,
+        candidate
+    );
     if candidate.node_decision_point() != Some(patch.redundant) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }

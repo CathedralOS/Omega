@@ -98,13 +98,8 @@ pub(crate) fn provider_requirement_identity(
             callable_requirement_identity(compilation, machine)
         }
         provider_planning::ProviderSchemaDeclaration::BoundaryOperator(_) => {
-            let operators = compilation.operators().iter().chain(
-                compilation
-                    .domain_definitions()
-                    .iter()
-                    .flat_map(|domain| compilation.domain_operators(domain)),
-            );
-            let matches = operators
+            let matches = compilation
+                .all_operators()
                 .filter(|candidate| candidate.symbol == requirement_symbol && candidate.is_boundary)
                 .collect::<Vec<_>>();
             let [operator] = matches.as_slice() else {

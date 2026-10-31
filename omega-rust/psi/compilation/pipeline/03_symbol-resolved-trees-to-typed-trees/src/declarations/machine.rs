@@ -2,6 +2,7 @@ use crate::contracts::invocations::lower_authored_invocations;
 use crate::declarations::state::{complete_state_body, lower_state_declaration};
 use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
+use crate::lowerer::name::lower_names;
 use crate::signatures::type_parameters::lower_type_parameters;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
@@ -221,11 +222,7 @@ fn lower_machine_contents(
         admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
         suspends_keyword_source_spans: machine.suspends_keyword_source_spans.clone(),
         blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
-        lifetime_parameters: machine
-            .lifetime_parameters
-            .iter()
-            .map(crate::lowerer::name::lower_name)
-            .collect(),
+        lifetime_parameters: lower_names(&machine.lifetime_parameters),
         type_parameters: arena::HandleSpan::empty(),
         declared_type_equations: arena::HandleSpan::empty(),
         declared_type_predicates: arena::HandleSpan::empty(),

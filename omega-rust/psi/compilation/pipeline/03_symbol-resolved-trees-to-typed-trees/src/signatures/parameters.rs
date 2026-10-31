@@ -14,12 +14,20 @@ pub(crate) fn lower_state_parameter(
         &mut lowerer.typed_trees,
         type_reference,
     )?;
-    Ok(typed::signature::StateParameter {
+    Ok(state_parameter(parameter, type_reference))
+}
+
+/// The typed shape of an authored state parameter once its written type is interned.
+pub(crate) fn state_parameter(
+    parameter: &resolved::signature::StateParameter,
+    type_reference: typed::types::TypeReferenceHandle,
+) -> typed::signature::StateParameter {
+    typed::signature::StateParameter {
         symbol: parameter.symbol,
         name: crate::lowerer::name::lower_name(&parameter.name),
         type_reference,
         is_const: parameter.is_const,
         is_mutable: parameter.is_mutable,
         relevance: parameter.relevance,
-    })
+    }
 }

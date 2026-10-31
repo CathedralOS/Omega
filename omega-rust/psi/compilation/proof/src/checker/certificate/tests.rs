@@ -11,7 +11,7 @@ use crate::test_program::{bounded_value, program};
 use numerics::bignum::BigInt;
 use proof_admission::{
     AcceptedFactRoute, AcceptedProofRule, EvidenceRoute, Obligation, ObligationClass,
-    PrimitiveJudgment, ProofRule, verify_obligation,
+    PrimitiveJudgment, ProofNode, ProofRule, verify_obligation,
 };
 use semantic_vocabulary::{
     IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType, ObligationId, Proposition,
@@ -28,6 +28,36 @@ fn literal_term(value: i64) -> IntegerMathTerm {
 
 fn u8_type() -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, 8).expect("u8")
+}
+
+/// The declared-`u8` certificate the forgery tests tamper with: premises
+/// `0 <= atom` and `atom <= 300` claimed against the `[0, 255]` target.
+fn declared_u8_certificate(seed: u64) -> super::BoundedValueCertificate {
+    declared_interval_certificate(
+        &integer_range(0, 255),
+        u8_type(),
+        math_literal(0),
+        math_literal(300),
+        seed,
+    )
+    .expect("certificate")
+}
+
+/// The forged certificate's `middle <= right` premise: the conjunction root and
+/// the lower transitivity leg are asserted here, so each forgery below only
+/// names the field it tampers with.
+fn middle_leg(certificate: &mut super::BoundedValueCertificate) -> &mut ProofNode {
+    let ProofRule::ConjunctionIntroduction(conjuncts) = &mut certificate.envelope.proof.rule else {
+        panic!("conjunction root");
+    };
+    let ProofRule::IntegerLessOrEqualTransitivity {
+        middle_less_or_equal_right,
+        ..
+    } = &mut conjuncts[0].rule
+    else {
+        panic!("transitivity leg");
+    };
+    middle_less_or_equal_right
 }
 
 #[test]
@@ -60,39 +90,15 @@ fn closed_arithmetic_term_outside_target_is_rejected() {
 
 #[test]
 fn declared_interval_certificate_rejects_an_uncited_premise() {
-    let mut certificate = declared_interval_certificate(
-        &integer_range(0, 255),
-        u8_type(),
-        math_literal(0),
-        math_literal(300),
-        12,
-    )
-    .expect("certificate");
+    let mut certificate = declared_u8_certificate(12);
     // Forge: cite an assumption index that was never supplied.
-    let ProofRule::ConjunctionIntroduction(conjuncts) = &mut certificate.envelope.proof.rule else {
-        panic!("conjunction root");
-    };
-    let ProofRule::IntegerLessOrEqualTransitivity {
-        middle_less_or_equal_right,
-        ..
-    } = &mut conjuncts[0].rule
-    else {
-        panic!("transitivity leg");
-    };
-    middle_less_or_equal_right.rule = ProofRule::Assumption { index: 9 };
+    middle_leg(&mut certificate).rule = ProofRule::Assumption { index: 9 };
     assert!(certificate.verify().is_err());
 }
 
 #[test]
 fn declared_interval_certificate_rejects_a_withheld_premise() {
-    let mut certificate = declared_interval_certificate(
-        &integer_range(0, 255),
-        u8_type(),
-        math_literal(0),
-        math_literal(300),
-        13,
-    )
-    .expect("certificate");
+    let mut certificate = declared_u8_certificate(13);
     // Forge: drop the lower premise from the roster the kernel sees. The
     // certificate still cites it; verification must fail.
     certificate.assumptions.remove(0);
@@ -101,14 +107,7 @@ fn declared_interval_certificate_rejects_a_withheld_premise() {
 
 #[test]
 fn declared_interval_certificate_rejects_a_false_premise_swap() {
-    let mut certificate = declared_interval_certificate(
-        &integer_range(0, 255),
-        u8_type(),
-        math_literal(0),
-        math_literal(300),
-        14,
-    )
-    .expect("certificate");
+    let mut certificate = declared_u8_certificate(14);
     // Forge: swap the roster so index 0 states `atom <= declared_upper`
     // instead of `declared_lower <= atom`. Citation matching must fail.
     certificate.assumptions.swap(0, 1);
@@ -131,14 +130,7 @@ fn tampered_obligation_conclusion_is_rejected() {
 
 #[test]
 fn transitivity_middle_mismatch_is_rejected() {
-    let mut certificate = declared_interval_certificate(
-        &integer_range(0, 255),
-        u8_type(),
-        math_literal(0),
-        math_literal(300),
-        16,
-    )
-    .expect("certificate");
+    let mut certificate = declared_u8_certificate(16);
     // Forge: the lower leg's closed step now ends at `200` while the premise
     // still starts from the declared lower bound, so the two children no
     // longer share the middle the transitivity chain requires.
@@ -251,17 +243,7 @@ fn guarded_argument_certificate_rejects_a_miscited_premise() {
     let mut certificate = guarded_argument_certificate(33);
     // Forge: the lower leg cites index 0 (`0 <= pending`) where it derived
     // `1 <= pending` -- the transitivity middle no longer matches.
-    let ProofRule::ConjunctionIntroduction(conjuncts) = &mut certificate.envelope.proof.rule else {
-        panic!("conjunction root");
-    };
-    let ProofRule::IntegerLessOrEqualTransitivity {
-        middle_less_or_equal_right,
-        ..
-    } = &mut conjuncts[0].rule
-    else {
-        panic!("transitivity leg");
-    };
-    middle_less_or_equal_right.rule = ProofRule::Assumption { index: 0 };
+    middle_leg(&mut certificate).rule = ProofRule::Assumption { index: 0 };
     assert!(certificate.verify().is_err());
 }
 
@@ -329,26 +311,15 @@ fn affine_refold_rejects_a_wrong_mapped_endpoint() {
     let mut certificate = fuel_decrement_certificate(42);
     // Forge: claim `5 <= fuel - 1` where the cited premise `2 <= fuel` maps
     // only to `1 <= fuel - 1`; the kernel's affine map must refuse it.
-    let ProofRule::ConjunctionIntroduction(conjuncts) = &mut certificate.envelope.proof.rule else {
-        panic!("conjunction root");
-    };
-    let ProofRule::IntegerLessOrEqualTransitivity {
-        middle_less_or_equal_right,
-        ..
-    } = &mut conjuncts[0].rule
-    else {
-        panic!("transitivity leg");
-    };
-    let ProofRule::IntegerAffineBound { .. } = middle_less_or_equal_right.rule else {
+    let step = middle_leg(&mut certificate);
+    let ProofRule::IntegerAffineBound { .. } = step.rule else {
         panic!("affine leg");
     };
-    let Proposition::IntegerMathLessOrEqual(_, argument) = &middle_less_or_equal_right.conclusion
-    else {
+    let Proposition::IntegerMathLessOrEqual(_, argument) = &step.conclusion else {
         panic!("integer <= conclusion");
     };
     let argument = argument.clone();
-    middle_less_or_equal_right.conclusion =
-        Proposition::IntegerMathLessOrEqual(literal_term(5), argument);
+    step.conclusion = Proposition::IntegerMathLessOrEqual(literal_term(5), argument);
     assert!(certificate.verify().is_err());
 }
 
@@ -357,17 +328,8 @@ fn affine_refold_rejects_a_foreign_witness_root() {
     let mut certificate = fuel_decrement_certificate(43);
     // Forge: repoint the affine witness at a different atom, so the cited
     // `2 <= fuel` premise no longer binds the witness's root.
-    let ProofRule::ConjunctionIntroduction(conjuncts) = &mut certificate.envelope.proof.rule else {
-        panic!("conjunction root");
-    };
-    let ProofRule::IntegerLessOrEqualTransitivity {
-        middle_less_or_equal_right,
-        ..
-    } = &mut conjuncts[0].rule
-    else {
-        panic!("transitivity leg");
-    };
-    let ProofRule::IntegerAffineBound { witness, .. } = &mut middle_less_or_equal_right.rule else {
+    let step = middle_leg(&mut certificate);
+    let ProofRule::IntegerAffineBound { witness, .. } = &mut step.rule else {
         panic!("affine leg");
     };
     let foreign = ValueId::new(999).expect("value id");
@@ -526,14 +488,7 @@ fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
 
     // A dependency change — here a different resolved owner — produces a
     // different key: the stale row is never consulted, not even to reject.
-    let moved = bounded_value(
-        program.machine,
-        "Main",
-        program.data[1],
-        "count",
-        base,
-        arena::HandleSpan::empty(),
-    );
+    let moved = program.data_value(1, "count", base);
     assert!(
         DerivationConsultation::new(&plan, &moved, &mut cache)
             .recheck()
@@ -544,14 +499,7 @@ fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
     // key-granularity invalidate reclaims it; neighbors survive untouched.
     // `total` on `data[1]` is a distinct row — `moved` consulted earlier
     // before anything was retained under its key, so it stayed a miss.
-    let total = bounded_value(
-        program.machine,
-        "Main",
-        program.data[1],
-        "total",
-        base,
-        arena::HandleSpan::empty(),
-    );
+    let total = program.data_value(1, "total", base);
     let neighbor =
         closed_bounds_certificate(literal_term(3), math_literal(0), math_literal(10), 67)
             .expect("certificate");
@@ -603,14 +551,7 @@ fn dependency_invalidation_drops_affected_entries_and_is_tallied() {
     let plan = ProofPlan::new(&program.typed_trees);
     let mut cache = ProofDerivationCache::new();
 
-    let total_obligation = bounded_value(
-        program.machine,
-        "Main",
-        program.data[1],
-        "total",
-        base,
-        arena::HandleSpan::empty(),
-    );
+    let total_obligation = program.data_value(1, "total", base);
     DerivationConsultation::new(&plan, &count_obligation, &mut cache).retain(
         closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 66)
             .expect("certificate"),
@@ -651,14 +592,7 @@ fn dependency_invalidation_drops_affected_entries_and_is_tallied() {
     );
 
     // The unaffected row still discharges its obligation.
-    let total_again = bounded_value(
-        program.machine,
-        "Main",
-        program.data[1],
-        "total",
-        base,
-        arena::HandleSpan::empty(),
-    );
+    let total_again = program.data_value(1, "total", base);
     assert!(
         DerivationConsultation::new(&plan, &total_again, &mut cache)
             .recheck()

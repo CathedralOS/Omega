@@ -2,8 +2,8 @@ use super::{
     GitCommitId, GitObjectIdAlgorithm, GitSourceRequest, GitTransportProfile, GitTreeId,
     ImmutableSourceResolution, LocalSourceLimits, PendingResolvedGitSource, SourceResolveError,
     create_git_source, local_git_request, make_tree_owner_writable, parse_git_remote_object_format,
-    resolve_git_source_from_hardened_base, run_test_git, temp_root, validate_pending_git_request,
-    validate_pending_git_source_custody, verify_pending_git_snapshot,
+    remove_fixture, resolve_git_source_from_hardened_base, run_test_git, temp_root,
+    validate_pending_git_request, validate_pending_git_source_custody, verify_pending_git_snapshot,
 };
 #[test]
 fn git_source_resolves_exact_commit_and_local_identity() {
@@ -102,9 +102,7 @@ fn git_resolution_issuance_rejects_final_snapshot_drift() {
 
     assert!(verify_pending_git_snapshot(&pending, LocalSourceLimits::default()).is_err());
 
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }
 
 #[test]
@@ -161,7 +159,5 @@ fn git_tree_authentication_matches_git_prefix_ordering() {
 
     assert!(resolved.snapshot_root.join("name/child.omg").is_file());
     assert!(resolved.snapshot_root.join("name.ext").is_file());
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }

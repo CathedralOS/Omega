@@ -415,10 +415,7 @@ impl TerminalExecution<'_> {
                         structural_type,
                     } => (depth, place, structural_type),
                     ArrayStorageHome::Runtime => {
-                        let payload = self
-                            .structural_byte_storage
-                            .get(&array.referent)
-                            .ok_or_else(malformed)?;
+                        let payload = self.structural_byte_storage.require(&array.referent)?;
                         if *index >= payload.len() {
                             return Err(malformed());
                         }
@@ -526,8 +523,7 @@ impl TerminalExecution<'_> {
             Some(ArrayCell::Structural { array, index }) => {
                 if self
                     .structural_byte_storage
-                    .get(&array)
-                    .ok_or_else(malformed)?
+                    .require(&array)?
                     .capture_scalar(index)?
                     .1
                     .is_none()
@@ -556,9 +552,7 @@ impl TerminalExecution<'_> {
     ) -> Result<PrimitiveLoan, TerminalInterpretError> {
         let terminal_psi::StructuralTypeShape::PrimitiveScalar(expected) = self
             .program
-            .structural_types()
-            .get(&parameter.structural_type)
-            .ok_or_else(malformed)?
+            .structural_declaration(parameter.structural_type)?
             .shape
         else {
             return Err(malformed());
@@ -577,10 +571,7 @@ impl TerminalExecution<'_> {
         if argument.path.is_empty()
             && let Some(loan) = self.primitive_loan_values.get(&argument.place)
         {
-            let value = self
-                .structural_values
-                .get(&argument.place)
-                .ok_or_else(malformed)?;
+            let value = self.structural_value(argument.place)?;
             if *value != loan.referent
                 || value.structural_type != parameter.structural_type
                 || (parameter.access != StructuralAccess::SharedBorrow
@@ -967,11 +958,7 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
     ) -> Result<ScalarType, TerminalInterpretError> {
         if matches!(
-            self.program
-                .structural_types()
-                .get(&structural_type)
-                .ok_or_else(malformed)?
-                .shape,
+            self.program.structural_declaration(structural_type)?.shape,
             terminal_psi::StructuralTypeShape::ByteSequence(_)
         ) {
             return Ok(ScalarType::Integer(
@@ -1396,7 +1383,7 @@ impl TerminalExecution<'_> {
         }
         if path.contains(&StructuralPathSegment::Referent) {
             self.primitive_home_contract(home, writing, path)?;
-            let owner = structural_values.get(&place).ok_or_else(malformed)?;
+            let owner = structural_values.require(&place)?;
             if owner.structural_type != home.structural_type {
                 return Err(malformed());
             }
@@ -1406,7 +1393,7 @@ impl TerminalExecution<'_> {
         }
         if let Some(loan) = element_view_values.get(&place) {
             self.primitive_home_contract(home, writing, path)?;
-            let owner = structural_values.get(&place).ok_or_else(malformed)?;
+            let owner = structural_values.require(&place)?;
             if owner.structural_type != home.structural_type || !loan.matches_descriptor_home(owner)
             {
                 return Err(malformed());
@@ -1465,7 +1452,7 @@ impl TerminalExecution<'_> {
         // Reuse the same endpoint judgment without interpreting that PlaceId
         // in the current callee's frame.
         if let Some(binding) = byte_sequence_values.get(&place) {
-            let descriptor = structural_values.get(&place).ok_or_else(malformed)?;
+            let descriptor = structural_values.require(&place)?;
             let [StructuralPathSegment::FixedIndex(index)] = path else {
                 return Err(malformed());
             };
@@ -1529,25 +1516,14 @@ impl TerminalExecution<'_> {
                 let terminal_psi::StructuralTypeShape::FixedArray {
                     element,
                     length: terminal_psi::ArrayExtent::Literal(length),
-                } = self
-                    .program
-                    .structural_types()
-                    .get(&carrier)
-                    .ok_or_else(malformed)?
-                    .shape
+                } = self.program.structural_declaration(carrier)?.shape
                 else {
                     return Err(malformed());
                 };
                 if *index >= length {
                     return Err(malformed());
                 }
-                let leaf_count = match self
-                    .program
-                    .structural_types()
-                    .get(&element)
-                    .ok_or_else(malformed)?
-                    .shape
-                {
+                let leaf_count = match self.program.structural_declaration(element)?.shape {
                     terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => 1,
                     _ => {
                         terminal_semantics::scalar_array_leaf_shape(
@@ -1656,11 +1632,7 @@ impl TerminalExecution<'_> {
         let mut carrier = view.structural_type;
         let mut selected_case = None;
         for (position, segment) in path.iter().enumerate() {
-            let declaration = self
-                .program
-                .structural_types()
-                .get(&carrier)
-                .ok_or_else(malformed)?;
+            let declaration = self.program.structural_declaration(carrier)?;
             match (segment, &declaration.shape) {
                 (
                     semantic_vocabulary::CanonicalStructuralPathSegment::Case(case),
@@ -1859,11 +1831,7 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)?;
         let parent =
             resolve_structural_path_type(&self.program.structural_types(), root, parent_path)?;
-        let declaration = self
-            .program
-            .structural_types()
-            .get(&parent)
-            .ok_or_else(malformed)?;
+        let declaration = self.program.structural_declaration(parent)?;
         let parent_place = StructuralRuntimePlace {
             opaque_identity: view.opaque_identity,
             path: parent_path.to_vec(),
@@ -1880,10 +1848,7 @@ impl TerminalExecution<'_> {
         let payload = match &declaration.shape {
             terminal_psi::StructuralTypeShape::Sum { cases }
             | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => {
-                let stored = self
-                    .structural_cases
-                    .get(&parent_place)
-                    .ok_or_else(malformed)?;
+                let stored = self.structural_cases.require(&parent_place)?;
                 if stored.structural_type != parent {
                     return Err(malformed());
                 }
@@ -1906,7 +1871,7 @@ impl TerminalExecution<'_> {
             // checked by Psi; storage identity does not require manufacturing
             // an owned restricted scalar declaration for a bare formal.
             let types = self.program.structural_types();
-            let expected = types.get(&view.structural_type).ok_or_else(malformed)?;
+            let expected = types.declaration(&view.structural_type)?;
             let selected = field
                 .field_type
                 .borrowed_presentation_type(StructuralAccess::MutableBorrow, Some(expected))
@@ -2200,13 +2165,10 @@ impl TerminalExecution<'_> {
             {
                 // Select this role from the actual declaration, before resolving
                 // storage. A failed home/loan query never falls back to metadata.
-                let current = self
-                    .structural_values
-                    .get(&argument.place)
-                    .ok_or_else(malformed)?;
+                let current = self.structural_value(argument.place)?;
                 if current != completed
                     || current.structural_type != parameter.structural_type
-                    || !matches!(self.program.structural_types().get(&parameter.structural_type).ok_or_else(malformed)?.shape,
+                    || !matches!(self.program.structural_declaration(parameter.structural_type)?.shape,
                         terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) if scalar == expected)
                 {
                     return Err(malformed());

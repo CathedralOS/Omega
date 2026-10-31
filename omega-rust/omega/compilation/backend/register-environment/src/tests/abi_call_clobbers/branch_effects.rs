@@ -1,8 +1,9 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
     assert_faulting_trap, assert_storage_free, baseline_target_register_environment,
-    binds_catalog_provenance, declaration_mut, encoded_mut, flags_view, named_view,
-    produced_effects, scalar_abi_cases, stack_pointer_view, validate_effects,
+    binds_catalog_provenance, declaration_mut, declared_pairs, encoded_mut, flags_view, named_view,
+    produced_effects, row_and_declaration, scalar_abi_cases, sole_alternative, stack_pointer_view,
+    validate_effects,
 };
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -111,44 +112,32 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
         // rules: no selected rule may lack a branch declaration and no other
         // declaration may claim a branch semantic or a relative-branch
         // encoding.
-        let declared_branches = catalog
-            .catalog()
-            .declarations
-            .iter()
-            .filter(|declaration| {
-                matches!(
-                    declaration.semantic,
-                    MachineSemanticKind::ConditionalBranchNonZero
-                        | MachineSemanticKind::ConditionalBranchU64LessThan
-                        | MachineSemanticKind::ConditionalBranchI64LessThan
-                        | MachineSemanticKind::Jump
-                )
-            })
-            .map(|declaration| (declaration.constraint, declaration.semantic))
-            .collect::<BTreeSet<_>>();
+        let declared = declared_pairs(&catalog, |declaration| {
+            matches!(
+                declaration.semantic,
+                MachineSemanticKind::ConditionalBranchNonZero
+                    | MachineSemanticKind::ConditionalBranchU64LessThan
+                    | MachineSemanticKind::ConditionalBranchI64LessThan
+                    | MachineSemanticKind::Jump
+            )
+        });
         assert_eq!(
-            declared_branches,
+            declared,
             branch_rules.iter().copied().collect::<BTreeSet<_>>(),
             "{}",
             case.convention
         );
-        let encoded_branches = catalog
-            .catalog()
-            .declarations
-            .iter()
-            .filter(|declaration| {
-                declaration.alternatives.iter().any(|alternative| {
-                    matches!(
-                        alternative.encoded.control,
-                        MachineEncodedControlEffect::ConditionalRelativeBranchV1
-                            | MachineEncodedControlEffect::UnconditionalRelativeBranchV1
-                    )
-                })
+        let encoded = declared_pairs(&catalog, |declaration| {
+            declaration.alternatives.iter().any(|alternative| {
+                matches!(
+                    alternative.encoded.control,
+                    MachineEncodedControlEffect::ConditionalRelativeBranchV1
+                        | MachineEncodedControlEffect::UnconditionalRelativeBranchV1
+                )
             })
-            .map(|declaration| (declaration.constraint, declaration.semantic))
-            .collect::<BTreeSet<_>>();
+        });
         assert_eq!(
-            encoded_branches,
+            encoded,
             branch_rules.iter().copied().collect::<BTreeSet<_>>(),
             "{}",
             case.convention
@@ -187,13 +176,7 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
 
         for (key, semantic) in &branch_rules {
             let contract = branch_contract(*semantic);
-            let row = environment
-                .constraint(*key)
-                .unwrap_or_else(|| panic!("environment missing selected branch row {key:?}"));
-            let declaration = catalog
-                .catalog()
-                .declaration(*key)
-                .unwrap_or_else(|| panic!("effect catalog missing branch declaration {key:?}"));
+            let (row, declaration) = row_and_declaration(&environment, &catalog, *key);
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::ControlFlow, "{key:?}");
             assert_eq!(declaration.call, MachineCallEffect::NoneV1, "{key:?}");
@@ -234,15 +217,7 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
 
             // One canonical alternative replays the exact ABI branch
             // mechanism for this target.
-            assert_eq!(declaration.alternatives.len(), 1, "{key:?}");
-            let alternative = &declaration.alternatives[0];
-            assert_eq!(alternative.key.family, (*semantic).into(), "{key:?}");
-            assert_eq!(alternative.key.variant, 0, "{key:?}");
-            assert_eq!(
-                alternative.applicability,
-                MachineAlternativeApplicability::Always,
-                "{key:?}"
-            );
+            let alternative = sole_alternative(declaration, *semantic, *key);
             assert_eq!(
                 alternative.size,
                 expected_size(*semantic, case.target.architecture),

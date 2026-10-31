@@ -5,6 +5,7 @@
 //! checked authority permits reference-descriptor retirement; receiving custody
 //! still proves the exact resident roster and child closure at that store. Bounds, qualifications,
 //! absence of overlapping debt and active loan authority remain separate.
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
@@ -83,15 +84,10 @@ fn disposable_storage<'types>(
     if visiting.contains(&identity) {
         return false;
     }
-    let mut matching = types
-        .clone()
-        .filter(|declaration| declaration.id == identity);
-    let Some(declaration) = matching.next() else {
+    let Some(declaration) = exactly_one(types.clone(), |declaration| declaration.id == identity)
+    else {
         return false;
     };
-    if matching.next().is_some() {
-        return false;
-    }
     visiting.push(identity);
     let valid = match &declaration.shape {
         StructuralTypeShape::PrimitiveScalar(_) => true,

@@ -36,7 +36,7 @@ pub(super) fn construct(
             &method.entry_claims[0],
             &boundary.plan().call.parameters[0],
             source.identities(),
-            &schema.identities,
+            &schema.declaration.identities,
             identities,
         )?,
         semantic_root(
@@ -44,7 +44,7 @@ pub(super) fn construct(
             &method.entry_claims[1],
             &boundary.plan().call.parameters[1],
             source.identities(),
-            &schema.identities,
+            &schema.declaration.identities,
             identities,
         )?,
     ];

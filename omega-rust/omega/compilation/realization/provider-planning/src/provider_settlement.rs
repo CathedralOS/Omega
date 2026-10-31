@@ -74,7 +74,7 @@ fn resolve_canonical_host_binding<'trees>(
                 calling_plans,
                 definition,
             )?;
-            (schema.trait_package_identity == Some(binding.package())
+            (schema.declaration.trait_package_identity == Some(binding.package())
                 && package_compilation::accepted_service_schema_digest(binding.role(), &schema)
                     == binding.normalized_schema_digest())
             .then_some((definition, schema))
@@ -140,8 +140,9 @@ fn mint_toolchain_settled_plan(
         .map_err(|error| vec![error])?;
     let signatures = typed.trait_machine_signatures(definition);
     if already_selected.iter().any(|selected| {
-        selected.schema.trait_package_identity == schema.trait_package_identity
-            && selected.schema.trait_name == schema.trait_name
+        selected.schema.declaration.trait_package_identity
+            == schema.declaration.trait_package_identity
+            && selected.schema.declaration.trait_name == schema.declaration.trait_name
     }) {
         return Ok(None);
     }
@@ -150,6 +151,7 @@ fn mint_toolchain_settled_plan(
     let mut identities = ProviderIdentityTable::default();
     for leaf in leaves {
         let Some(method) = schema
+            .declaration
             .methods
             .iter()
             .find(|method| method.name == leaf.method)
@@ -185,7 +187,7 @@ fn mint_toolchain_settled_plan(
     let plan = ProviderPlan {
         name: crate::satisfies_plan_name(
             target_name,
-            schema.identity_text(schema.trait_name),
+            schema.identity_text(schema.declaration.trait_name),
             provider,
         ),
         provider_type: provider.to_owned(),
@@ -409,6 +411,7 @@ fn demanded_provider_plans(
 /// slots. Unselected exported implementations remain checked review content.
 pub fn settle_checked_providers(
     checked: &checked_trees::CheckedTrees,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     provider_uses: &std::collections::HashSet<symbols::SymbolHandle>,
     body_declarations: &DirectCallDeclarations<SymbolHandle>,
     settled_target_machines: SettledTargetMachineDeclarations,
@@ -422,6 +425,13 @@ pub fn settle_checked_providers(
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
     synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
+    if !std::ptr::eq(services.context().typed, &*checked.typed)
+        || services.context().scope != source::DependencyScope::Product
+    {
+        return Err(vec![Diagnostic::error(
+            "provider settlement service catalog belongs to another Product program",
+        )]);
+    }
     let typed = &checked.typed;
     // Every Product body has already been checked. This target chooses only
     // realization rows; it never narrows the source program.
@@ -442,7 +452,7 @@ pub fn settle_checked_providers(
     )?;
     let authored_providers =
         std::sync::Arc::new(crate::target_machines::AuthoredTargetProviders::derive(
-            context,
+            services,
             body_declarations,
             &boundary_calling_plan_realizations,
             &evaluated_via_bindings,

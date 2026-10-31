@@ -22,6 +22,18 @@ use optimization_unit::{
 
 use crate::OptimizationUnitValidationError;
 
+/// Extract the one patch body a family validator accepts from the candidate it
+/// was handed, or reject the candidate: a patch of another family is an
+/// unmatched claim, not a validation failure of the unit, so every validator
+/// answers it identically.
+macro_rules! candidate_patch {
+    ($patch:ident, $variant:ident, $subject:ident) => {
+        let PsiRewritePatch::$variant($patch) = $subject.patch() else {
+            return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+        };
+    };
+}
+
 pub(crate) mod case_membership_specialization;
 pub(crate) mod constant_installation;
 pub(crate) mod contract;

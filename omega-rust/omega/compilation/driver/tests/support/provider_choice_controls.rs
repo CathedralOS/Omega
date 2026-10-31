@@ -48,7 +48,12 @@ pub(super) fn prepare(
             .inventory()
             .direct_calls(),
         origins: checked.execution().provider_source.inventory().origins(),
-        context,
+        services: checked
+            .execution()
+            .provider_source
+            .inventory()
+            .services_for(checked.execution().provider_source.program())
+            .map_err(|error| format!("provider choice source catalog: {error:?}"))?,
         defaults: checked.provider_defaults(),
         settlement: checked.providers(),
     };

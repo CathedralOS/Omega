@@ -129,7 +129,7 @@ impl ValueImageDecoder<'_, '_> {
         }
         self.active.push(root);
         let types = self.execution.program.structural_types();
-        let declaration = types.get(&root).ok_or_else(malformed)?;
+        let declaration = types.declaration(&root)?;
         let (size, alignment) = terminal_semantics::reference_storage_layout(types.values(), root)
             .ok_or_else(malformed)?;
         if u64::try_from(bytes.len()).ok() != Some(size) {

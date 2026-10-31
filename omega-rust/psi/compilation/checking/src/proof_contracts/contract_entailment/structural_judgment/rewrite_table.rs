@@ -196,6 +196,7 @@ fn rewrite_key(term: &StructuralTerm) -> (u8, u64) {
         StructuralTerm::CapturedValue { expression, .. } => (3, handle_key(*expression)),
         StructuralTerm::BoundProjection { subject, .. } => (4, handle_key(*subject)),
         StructuralTerm::Integer(_) => (5, 0),
+        StructuralTerm::RepeatedArray { length, .. } => (20, *length),
         StructuralTerm::Float(_) => (6, 0),
         StructuralTerm::Constructor { data, case, .. } => {
             (7, string_key(data) ^ string_key(case).rotate_left(32))
@@ -263,80 +264,18 @@ fn term_has_mathematical_or_integer_embedding(term: &StructuralTerm) -> bool {
         StructuralTerm::MathematicalBinary { .. }
         | StructuralTerm::IntegerEmbedding { .. }
         | StructuralTerm::CollectionMeasure { .. } => true,
-        StructuralTerm::ObservedValue {
-            value, descriptor, ..
-        } => {
-            term_has_mathematical_or_integer_embedding(value)
-                || descriptor
-                    .as_deref()
-                    .is_some_and(term_has_mathematical_or_integer_embedding)
-        }
-        StructuralTerm::Constructor { fields, .. } => fields
-            .iter()
-            .any(|(_, value)| term_has_mathematical_or_integer_embedding(value)),
-        StructuralTerm::Application { arguments, .. }
-        | StructuralTerm::CallProjection { arguments, .. } => arguments
-            .iter()
-            .any(term_has_mathematical_or_integer_embedding),
-        StructuralTerm::IndexedValue {
-            collection, index, ..
-        } => {
-            term_has_mathematical_or_integer_embedding(collection)
-                || term_has_mathematical_or_integer_embedding(index)
-        }
-        StructuralTerm::Projection { subject, .. }
-        | StructuralTerm::ScalarRepresentation { value: subject, .. } => {
-            term_has_mathematical_or_integer_embedding(subject)
-        }
-        StructuralTerm::ScalarBinary { left, right, .. } => {
-            term_has_mathematical_or_integer_embedding(left)
-                || term_has_mathematical_or_integer_embedding(right)
-        }
-        StructuralTerm::Variable(_)
-        | StructuralTerm::BoundValue(_)
-        | StructuralTerm::CapturedValue { .. }
-        | StructuralTerm::BoundProjection { .. }
-        | StructuralTerm::Integer(_)
-        | StructuralTerm::Float(_)
-        | StructuralTerm::Opaque(_) => false,
+        other => other.any_child(term_has_mathematical_or_integer_embedding),
     }
 }
 
 fn max_captured_occurrence(term: &StructuralTerm) -> usize {
     match term {
         StructuralTerm::CapturedValue { occurrence, .. } => *occurrence,
-        StructuralTerm::ObservedValue {
-            value, descriptor, ..
-        } => max_captured_occurrence(value)
-            .max(descriptor.as_deref().map_or(0, max_captured_occurrence)),
-        StructuralTerm::Constructor { fields, .. } => fields
-            .iter()
-            .map(|(_, value)| max_captured_occurrence(value))
-            .max()
-            .unwrap_or(0),
-        StructuralTerm::Application { arguments, .. }
-        | StructuralTerm::CallProjection { arguments, .. } => arguments
-            .iter()
-            .map(max_captured_occurrence)
-            .max()
-            .unwrap_or(0),
-        StructuralTerm::IndexedValue {
-            collection, index, ..
-        } => max_captured_occurrence(collection).max(max_captured_occurrence(index)),
-        StructuralTerm::CollectionMeasure { collection, .. } => max_captured_occurrence(collection),
-        StructuralTerm::Projection { subject, .. } => max_captured_occurrence(subject),
-        StructuralTerm::ScalarBinary { left, right, .. }
-        | StructuralTerm::MathematicalBinary { left, right, .. } => {
-            max_captured_occurrence(left).max(max_captured_occurrence(right))
+        other => {
+            let mut maximum = 0;
+            other.for_each_child(|child| maximum = maximum.max(max_captured_occurrence(child)));
+            maximum
         }
-        StructuralTerm::IntegerEmbedding { value, .. }
-        | StructuralTerm::ScalarRepresentation { value, .. } => max_captured_occurrence(value),
-        StructuralTerm::Variable(_)
-        | StructuralTerm::BoundValue(_)
-        | StructuralTerm::BoundProjection { .. }
-        | StructuralTerm::Integer(_)
-        | StructuralTerm::Float(_)
-        | StructuralTerm::Opaque(_) => 0,
     }
 }
 

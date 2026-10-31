@@ -706,12 +706,54 @@ fn concrete_transfer<'program>(
     program: &'program dyn crate::CheckingInput,
     invocation: CompletingInvocation<'program>,
 ) -> Option<CompletingTransfer<'program>> {
+    if let Some(slot) = program.dynamic_slot_by_symbol(invocation.target) {
+        // A tail selector call enters one of the slot's implementations.
+        // One implementation has one entry, so the transfer is that entry
+        // and the data operands after the selector. Several implementations
+        // stay a runtime dispatch, not a single jump.
+        let state = unique_dispatched_entry(program, slot)?;
+        let arguments = invocation.arguments.get(1..)?;
+        if arguments.len() != program.state_parameters(state).len() {
+            return None;
+        }
+        return Some(CompletingTransfer {
+            state,
+            target: state.symbol,
+            arguments,
+            expression: invocation.expression,
+        });
+    }
     Some(CompletingTransfer {
         state: call_target_state(program, invocation.target)?,
         target: invocation.target,
         arguments: invocation.arguments,
         expression: invocation.expression,
     })
+}
+
+/// The entry a selector call reaches when exactly one implementation is
+/// selected for the slot. Zero or several implementations are not a jump.
+pub fn unique_dispatched_entry<'program>(
+    program: &'program dyn crate::CheckingInput,
+    slot: &typed_trees::dynamic_traits::DynamicSlotSignature,
+) -> Option<&'program typed_trees::state::State> {
+    let selections = crate::collect_dynamic_implementation_selections(program).ok()?;
+    let mut entries = selections
+        .iter()
+        .filter(|selection| {
+            program.normalized_type_identity(selection.selector_type) == slot.interface_identity
+        })
+        .filter_map(|selection| {
+            let row = program
+                .conformance_by_symbol(selection.implementation)?
+                .rows
+                .iter()
+                .find(|row| row.requirement == slot.requirement)?;
+            let machine = program.machine_by_symbol(row.realization_machine)?;
+            program.machine_states(machine).first()
+        });
+    let entry = entries.next()?;
+    entries.next().is_none().then_some(entry)
 }
 
 pub fn completing_call_transfer(

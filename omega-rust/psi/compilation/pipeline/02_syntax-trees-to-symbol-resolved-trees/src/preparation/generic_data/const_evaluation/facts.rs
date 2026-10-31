@@ -1685,14 +1685,7 @@ pub(crate) fn prove_const_literal_predicates(
     if crate::constant::requires_const_initializer_evaluation(syntax, definition) {
         return Ok(());
     }
-    if definition
-        .qualification
-        .as_ref()
-        .is_some_and(|qualification| {
-            qualification.destination == definition.type_reference
-                && qualification.initializer == definition.value
-        })
-    {
+    if super::super::qualification_names_itself(definition) {
         return super::super::canonicalize_selected_declared_const_definition(
             syntax, definition, selection,
         )

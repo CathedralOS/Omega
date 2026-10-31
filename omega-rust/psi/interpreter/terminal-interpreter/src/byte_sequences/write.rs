@@ -6,6 +6,7 @@ use terminal_psi::{
 };
 
 use crate::byte_sequences::binding::{ByteOwnerHome, ByteSequenceBinding};
+use crate::custody::whole_path_discard;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::StructuralByteSequenceRuntimeField;
@@ -60,11 +61,7 @@ impl TerminalExecution<'_> {
                     || !result.claims.is_empty()
                     || !self
                         .live_affine_frontier
-                        .contains(&terminal_psi::StructuralAffineDiscard {
-                            place,
-                            path: Vec::new(),
-                            structural_type,
-                        })
+                        .contains(&whole_path_discard(place, structural_type))
                 {
                     return Err(malformed());
                 }
@@ -106,17 +103,14 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let value = self.structural_values.get(&place).ok_or_else(malformed)?;
+        let value = self.structural_value(place)?;
         if value.structural_type != structural_type
             || !matches!(self.program.structural_types().get(&structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_carrier() || bounded_owner)
         {
             return Err(malformed());
         }
-        let binding = self
-            .byte_sequence_values
-            .get(&place)
-            .ok_or_else(malformed)?;
+        let binding = self.byte_sequence_values.require(&place)?;
         binding.validate_mutable_referent(self, value)?;
         if let ByteSequenceBinding::MutableArray {
             array,
@@ -204,7 +198,7 @@ impl TerminalExecution<'_> {
                     result.multiplicity,
                 )
             };
-        let value = self.structural_values.get(&place).ok_or_else(malformed)?;
+        let value = self.structural_value(place)?;
         if multiplicity != StructuralMultiplicity::Unrestricted
             || !projected_qualifications.is_empty()
             || value.structural_type != structural_type
@@ -223,20 +217,11 @@ impl TerminalExecution<'_> {
         }
         let terminal_psi::StructuralTypeShape::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
-        ) = self
-            .program
-            .structural_types()
-            .get(&structural_type)
-            .ok_or_else(malformed)?
-            .shape
+        ) = self.program.structural_declaration(structural_type)?.shape
         else {
             return Err(malformed());
         };
-        let bytes = self
-            .byte_sequence_values
-            .get(&place)
-            .ok_or_else(malformed)?
-            .immutable()?;
+        let bytes = self.byte_sequence_values.require(&place)?.immutable()?;
         let length = u64::try_from(bytes.len()).map_err(|_| malformed())?;
         if length > capacity {
             return Err(malformed());
@@ -272,11 +257,7 @@ impl TerminalExecution<'_> {
         source: PlaceId,
         index: usize,
     ) -> Result<u8, TerminalInterpretError> {
-        match self
-            .byte_sequence_values
-            .get(&source)
-            .ok_or_else(malformed)?
-        {
+        match self.byte_sequence_values.require(&source)? {
             ByteSequenceBinding::Immutable(view) => view.get(index).copied().ok_or_else(malformed),
             ByteSequenceBinding::MutableArray { .. }
             | ByteSequenceBinding::MutableField { .. }
@@ -295,8 +276,7 @@ impl TerminalExecution<'_> {
                     }
                     MutableByteSequenceStorage::Field(field) => self
                         .structural_byte_sequence_fields
-                        .get(&field)
-                        .ok_or_else(malformed)?
+                        .require(&field)?
                         .immutable()?
                         .get(index)
                         .copied()

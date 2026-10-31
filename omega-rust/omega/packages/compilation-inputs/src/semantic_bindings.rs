@@ -288,10 +288,5 @@ pub fn accepted_service_schema_digest(
     ) {
         return schema.identity_digest();
     }
-    let mut semantic = schema.clone();
-    for method in &mut semantic.methods {
-        method.calling_plan_report_fingerprint = None;
-        method.calling_plan_commitment = None;
-    }
-    semantic.identity_digest()
+    schema.declaration_identity_digest()
 }

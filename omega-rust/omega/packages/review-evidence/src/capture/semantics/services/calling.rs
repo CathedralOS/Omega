@@ -3,7 +3,7 @@ use crate::capture::PackageReviewInput;
 use crate::capture::semantics::services::rejected;
 use crate::record::PackagePolicyCallingPlan;
 use diagnostics::Diagnostic;
-use effects::provider_plan::ServiceMethod;
+use effects::provider_plan::ServiceCallingPlan;
 use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
@@ -12,11 +12,11 @@ pub(super) fn project(
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
-    method: &ServiceMethod,
+    calling: Option<&ServiceCallingPlan>,
 ) -> Result<Option<PackagePolicyCallingPlan>, Vec<Diagnostic>> {
     let ProviderSchemaDeclaration::BoundaryTrait(schema_symbol) = schema else {
-        return if method.calling_plan_report_fingerprint.is_none()
-            && method.calling_plan_commitment.is_none()
+        return if calling.map(|plan| plan.report_fingerprint).is_none()
+            && calling.map(|plan| plan.commitment).is_none()
         {
             Ok(None)
         } else {
@@ -40,8 +40,8 @@ pub(super) fn project(
         })
         .collect::<Vec<_>>();
     if candidates.is_empty()
-        && method.calling_plan_report_fingerprint.is_none()
-        && method.calling_plan_commitment.is_none()
+        && calling.map(|plan| plan.report_fingerprint).is_none()
+        && calling.map(|plan| plan.commitment).is_none()
     {
         return Ok(None);
     }
@@ -51,8 +51,8 @@ pub(super) fn project(
         ));
     };
     if candidates.iter().any(|other| *other != candidate)
-        || Some(candidate.report_fingerprint) != method.calling_plan_report_fingerprint
-        || Some(candidate.commitment) != method.calling_plan_commitment
+        || Some(candidate.report_fingerprint) != calling.map(|plan| plan.report_fingerprint)
+        || Some(candidate.commitment) != calling.map(|plan| plan.commitment)
     {
         return Err(rejected(
             "service method has ambiguous or stale calling realization",

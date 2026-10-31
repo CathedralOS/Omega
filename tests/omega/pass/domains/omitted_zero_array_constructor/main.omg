@@ -1,0 +1,41 @@
+// Expected exit: 0
+// An omitted zero array remains a complete constructor operand without
+// hiding independent scalar predicates or expanding every zero element.
+data Locator
+    requires ((self in Locator::Absolute) && self.length == 0)
+       || ((self in Locator::Module) && self.length <= 256)
+{
+    case Absolute(bytes: [u8; 256], length: u64);
+    case Module(bytes: [u8; 256], length: u64);
+}
+data Holder { locator: Locator; }
+machine read(locator: &Locator) -> u64 crashes Trap {
+    transition locator {
+        Locator::Absolute { bytes, length } -> absolute(&bytes, length)
+        Locator::Module { bytes, length } -> module(&bytes, length)
+    }
+    machine absolute(bytes: &[u8; 256], length: u64) -> u64 {
+        transition bytes[0] == 0 && bytes[255] == 0 && length == 0 {
+            true -> (11)
+            false -> bad()
+        }
+    }
+    machine module(bytes: &[u8; 256], length: u64) -> u64 {
+        transition bytes[0] == 0 && bytes[255] == 0 && length == 256 {
+            true -> (23)
+            false -> bad()
+        }
+    }
+    machine bad() -> u64 { crash Trap; }
+}
+machine main() crashes Trap {
+    let absolute: Locator = Locator::Absolute { length: 0 };
+    let module: Locator = Locator::Module { length: 256 };
+    let default: Holder;
+    transition read(&absolute) == 11 && read(&module) == 23 && read(&default.locator) == 11 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

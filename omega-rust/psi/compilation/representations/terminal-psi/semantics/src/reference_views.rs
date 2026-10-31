@@ -5,6 +5,7 @@
 //! primitive views additionally require a total storage interpretation here.
 //! Geometry is not source authority, lifetime or qualification evidence.
 
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 
 /// Materialize a shared element descriptor without copying its backing.
@@ -241,11 +242,7 @@ pub fn representation_view_declaration<'types>(
     view: StructuralTypeId,
     stored: Option<ScalarType>,
 ) -> Option<&'types StructuralTypeDeclaration> {
-    let mut matching = types.filter(|declaration| declaration.id == view);
-    let declaration = matching.next()?;
-    if matching.next().is_some() {
-        return None;
-    }
+    let declaration = exactly_one(types, |declaration| declaration.id == view)?;
     match (stored, &declaration.shape) {
         (Some(stored), StructuralTypeShape::PrimitiveScalar(logical))
             if reference_storage_view_is_compatible(stored, *logical) => {}

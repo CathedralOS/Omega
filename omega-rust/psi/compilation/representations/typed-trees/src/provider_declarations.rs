@@ -1,5 +1,8 @@
 //! Authored provider coordinates, before checking or target selection.
 
+mod context;
+pub use context::ProviderPlanningContext;
+
 /// Retain every authored target origin in one exact dependency-purpose scope.
 /// Target choice remains outside this source query, including for early Build.
 pub fn provider_target_declarations(

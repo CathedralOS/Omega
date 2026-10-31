@@ -5,6 +5,7 @@
 //! application while their members lower. Case facts on generic data pass a
 //! narrow support gate before they are retained.
 
+use crate::lowering::name::lower_names;
 use crate::lowering::type_reference::{lower_child_type_references, lower_type_reference_handle};
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
@@ -181,12 +182,12 @@ fn lower_data_definition_with_argument_origins(
         .map(|quotient| {
             Ok::<_, Diagnostic>(QuotientDefinition {
                 carrier: lower_type_reference_handle(lowerer, syntax_trees, quotient.carrier)?,
-                relation: syntax_trees
-                    .items
-                    .identifier_path_members(quotient.relation)
-                    .iter()
-                    .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                    .collect(),
+                relation: lower_names(
+                    syntax_trees,
+                    syntax_trees
+                        .items
+                        .identifier_path_members(quotient.relation),
+                ),
                 relation_symbol: SymbolHandle::invalid(),
                 equivalence: quotient
                     .equivalence
@@ -256,11 +257,7 @@ fn lower_data_definition_with_argument_origins(
             predicate_subject_symbol: SymbolHandle::invalid(),
             predicate_subject_type: symbol_resolved_trees::types::TypeReference::Unit,
             supply_mode: data_definition.supply_mode,
-            lifetime_parameters: data_definition
-                .lifetime_parameters
-                .iter()
-                .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                .collect(),
+            lifetime_parameters: lower_names(syntax_trees, &data_definition.lifetime_parameters),
             type_parameters,
             conformance_bounds: crate::lowering::machine::lower_generic_conformance_bounds(
                 lowerer,
@@ -388,12 +385,10 @@ where_facts: contract.where_facts })?;
                     } => (
                         TypeParameterKind::Machine {
                             contract: symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
-                                requirement: syntax_trees
-                                    .items
-                                    .identifier_path_members(*requirement)
-                                    .iter()
-                                    .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                                    .collect(),
+                                requirement: lower_names(
+                                    syntax_trees,
+                                    syntax_trees.items.identifier_path_members(*requirement),
+                                ),
                                 trait_arguments: crate::lowering::type_reference::lower_child_type_references(
                                     lowerer,
                                     syntax_trees,

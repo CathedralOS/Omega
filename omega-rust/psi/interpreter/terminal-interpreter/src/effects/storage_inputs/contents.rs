@@ -254,11 +254,7 @@ fn collect(
     path: &mut Vec<Path>,
     leaves: &mut Vec<StorageLeaf>,
 ) -> Result<(), TerminalInterpretError> {
-    let declaration = execution
-        .program
-        .structural_types()
-        .get(&root)
-        .ok_or_else(malformed)?;
+    let declaration = execution.program.structural_declaration(root)?;
     match &declaration.shape {
         StructuralTypeShape::PrimitiveScalar(scalar) => leaves.push(StorageLeaf {
             path: path.clone(),
@@ -351,10 +347,7 @@ fn collect(
                 };
                 case
             } else {
-                let contents = execution
-                    .structural_cases
-                    .get(destination)
-                    .ok_or_else(malformed)?;
+                let contents = execution.structural_cases.require(destination)?;
                 if contents.structural_type != root {
                     return Err(malformed());
                 }

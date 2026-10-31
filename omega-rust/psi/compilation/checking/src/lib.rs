@@ -563,12 +563,16 @@ pub use frozen_program::{
 };
 pub use machine_calls::effect_inference::PreparedEffectPlans;
 pub use machine_calls::reference_result_custody;
+pub(crate) use program_validation::{note_dependency_body_read, DependencyBodyRead};
 pub use program_validation::{
-    DependencyBodyJudgment, ExactIntegerCastFact, ExpressionInterval, OpaquePropertyValidation,
+    DependencyBodyJudgment, ExactIntegerCastFact, ExpressionInterval, FrozenDependencyBody,
+    OpaquePropertyValidation,
     ProgramValidation, ProgramValidationFacts, ProvenContractExpressions,
-    admit_prepared_program_effects, checking_thread_pool, expression_interval,
-    prepare_specialized_program, validate_checked_operator_realization_contract,
-    validate_generic_machine_contract_entailment, validate_program,
+    admit_prepared_program_effects, checking_thread_pool, dependency_body_read_totals,
+    dependency_entailment_totals,
+    expression_interval, prepare_specialized_program,
+    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
+    validate_program,
 };
 
 pub use proof_contracts::scalar_boundary_guarantees::derive_scalar_boundary_guarantees;
@@ -594,7 +598,7 @@ pub use machine_calls::calls::{
     resolve_name_path_member_symbol, resolve_state_call_target,
     statement_call_can_dispatch_to_machine, statement_call_receiver_members,
     statement_call_receiver_path, terminal_callable_target, trait_machine_signature_symbol,
-    transition_call_target,
+    transition_call_target, unique_dispatched_entry,
 };
 pub use value_custody::places::{
     CanonicalPlace, RuntimeFieldSubject, StorageObservationTypePath,

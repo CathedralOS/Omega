@@ -453,6 +453,7 @@ pub(super) fn build(
                             state,
                             structural,
                             entry_claims,
+                            operations,
                             &mut count,
                             ordinal,
                             *expression,

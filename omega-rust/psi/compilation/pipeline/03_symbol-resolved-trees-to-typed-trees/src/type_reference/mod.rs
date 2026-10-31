@@ -91,6 +91,18 @@ pub(crate) fn lower_type_reference_into_table(
     )
 }
 
+/// An authored return type is optional in source and mandatory in typed trees:
+/// an unwritten one types as the invalid handle rather than as an absent one.
+pub(crate) fn lower_return_type(
+    lowerer: &mut Lowerer,
+    written: &Option<resolved::types::TypeReference>,
+) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
+    match written {
+        Some(type_reference) => lower_type_reference_into_table(lowerer, type_reference),
+        None => Ok(typed::types::TypeReferenceHandle::invalid()),
+    }
+}
+
 pub(super) fn lower_type_reference_into_trees_with_exposure(
     source_trees: &resolved::SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,

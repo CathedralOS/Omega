@@ -4,6 +4,7 @@ use crate::descriptor_lifetimes::{
     DescriptorFlowBinding, DescriptorFlowEdge, DescriptorFlowSource, descriptor_location,
     descriptor_location_type,
 };
+use crate::exactly_one::exactly_one;
 
 /// Ordinary edges transport evaluated SSA operands. A case edge instead births
 /// scalar values by reading the selected payload before edge cleanup; those
@@ -1164,9 +1165,8 @@ pub(super) fn adapt(
                         scalar_arrival: ScalarArrival<'_>,
                         arguments: &[StructuralArgument]|
          -> Option<()> {
-            let mut matching = machine.blocks.iter().filter(|block| block.id == target);
-            let block = matching.next()?;
-            if matching.next().is_some() || arguments.len() != block.structural_parameters.len() {
+            let block = exactly_one(machine.blocks.iter(), |block| block.id == target)?;
+            if arguments.len() != block.structural_parameters.len() {
                 return None;
             }
             let scalar_bindings = match scalar_arrival {

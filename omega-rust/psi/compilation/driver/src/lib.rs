@@ -30,10 +30,13 @@ mod source_parsing;
 pub use source_checking::{
     CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductRepresentationInput,
     ProductSelections, RetainedCheck, SelectedCheckedSource, SourceAdmission,
+    whole_program_reuse_hits,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
 };
+pub use typed_trees_to_checked_trees::declaration_page_fork_totals;
+pub use validation::{dependency_body_read_totals, dependency_entailment_totals};
 
 pub use source_compilation::{
     AdmittedProductPolicy, BuildSourceInput, CompletedSource, PreparedSource, ProductPolicyRequest,

@@ -525,6 +525,18 @@ pub(crate) fn const_destination_requires_proof(
     )
 }
 
+/// Whether the definition's retained qualification names its own destination
+/// and initializer: the qualification the definition itself already satisfies.
+pub(super) fn qualification_names_itself(definition: &ConstDefinition) -> bool {
+    definition
+        .qualification
+        .as_ref()
+        .is_some_and(|qualification| {
+            qualification.destination == definition.type_reference
+                && qualification.initializer == definition.value
+        })
+}
+
 pub(crate) fn canonicalize_pending_initializer_payload(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
@@ -556,13 +568,7 @@ pub(crate) fn canonicalize_pending_initializer_payload(
             // A private input may expose only the carrier while its original
             // full destination remains owed. Preserve that debt verbatim.
             Some(obligation.clone())
-        } else if !definition
-            .qualification
-            .as_ref()
-            .is_some_and(|qualification| {
-                qualification.destination == definition.type_reference
-                    && qualification.initializer == definition.value
-            })
+        } else if !qualification_names_itself(definition)
             && const_destination_requires_proof(syntax, definition, selection)
         {
             Some(crate::resolution::ConstDestinationObligation {
@@ -614,15 +620,7 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
             .constraints(*constraints)
             .iter()
             .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)));
-        if has_domain
-            && !definition
-                .qualification
-                .as_ref()
-                .is_some_and(|qualification| {
-                    qualification.destination == definition.type_reference
-                        && qualification.initializer == definition.value
-                })
-        {
+        if has_domain && !qualification_names_itself(definition) {
             return Err(
                 "constant qualification requires a checked declaration-site result judgment"
                     .to_owned(),
@@ -635,14 +633,7 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
             payload.type_reference = *base_type;
         }
     }
-    if definition
-        .qualification
-        .as_ref()
-        .is_some_and(|qualification| {
-            qualification.destination == definition.type_reference
-                && qualification.initializer == definition.value
-        })
-    {
+    if qualification_names_itself(definition) {
         canonicalize_selected_declaration_value_with_admission(
             syntax,
             &payload,

@@ -104,7 +104,12 @@ impl ContractExpressionEvaluator<'_, '_> {
         symbol: SymbolHandle,
         name: Option<&str>,
     ) -> Option<ExpressionHandle> {
-        let arguments = validation::call_site_argument_expressions(self.program, self.call_site);
+        let arguments = crate::call_formals::arguments_aligned_to_formals(
+            self.program,
+            self.call_site.target_symbol(self.program),
+            self.target_parameters.len(),
+            validation::call_site_argument_expressions(self.program, self.call_site),
+        );
         let mut argument_index = 0usize;
 
         for parameter in self.target_parameters {

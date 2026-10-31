@@ -45,5 +45,5 @@ pub use fact_plan::places::{
 };
 pub use fact_plan::{
     FactContextHandle, FactHandle, FactPlan, PlaceHandle, QualificationCorrespondenceHandle,
-    contexts, evidence, places,
+    contexts, declaration_page_fork_totals, evidence, note_declaration_page_fork, places,
 };

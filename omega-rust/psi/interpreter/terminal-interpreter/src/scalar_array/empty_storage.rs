@@ -132,7 +132,7 @@ impl EmptyArrayStorage {
             let StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
-            } = types.get(&structural_type).ok_or_else(malformed)?.shape
+            } = types.declaration(&structural_type)?.shape
             else {
                 return Err(malformed());
             };

@@ -24,8 +24,11 @@ pub fn select_checked_body<'candidate, Body>(
         let declaration = candidate.declaration;
         candidate.is_product
             && declaration.is_product
-            && declaration.requirement == plan.schema.identity_text(plan.schema.trait_name)
-            && declaration.requirement_package == plan.schema.trait_package_identity
+            && declaration.requirement
+                == plan
+                    .schema
+                    .identity_text(plan.schema.declaration.trait_name)
+            && declaration.requirement_package == plan.schema.declaration.trait_package_identity
             && declaration.requirement == plan.identities.text(row.requirement_identity)
             && selection.matches(&declaration.callable, declaration.package, candidate.target)
             && declaration.provider == plan.provider_type

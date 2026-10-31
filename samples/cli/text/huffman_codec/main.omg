@@ -23,14 +23,16 @@ domain u8::HuffmanSymbol
 requires
     self == 65 || self == 66 || self == 67 || self == 68 || self == 82;
 
-data TreeNode [copy] {
+data TreeNode [copy] 
+    requires (self in TreeNode::Empty) || (self in TreeNode::Leaf) || ((self in TreeNode::Branch) && (self.left < 9 && self.right < 9))
+{
     weight: u32 in Wrapping;
     parent: u64 in Wrapping;
     parent_bit: u8 in Wrapping;
     active: bool;
     case Empty;
     case Leaf(symbol: u8);
-    case Branch(left: u64, right: u64) where left < 9 && right < 9;
+    case Branch(left: u64, right: u64);
 }
 
 data Main {

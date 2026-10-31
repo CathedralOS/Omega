@@ -1,9 +1,8 @@
 use super::{
     GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CONFIG_SHA1, LocalSourceLimits,
     ProvisionalCacheDirectory, SourceResolveError, create_private_cache_directory,
-    git_cache_entry_root, make_tree_owner_writable, open_absolute_directory_nofollow,
-    open_verified_git_repository, primed_git_cache, resolve_git_source_from_hardened_base,
-    temp_root,
+    git_cache_entry_root, open_absolute_directory_nofollow, open_verified_git_repository,
+    primed_git_cache, remove_fixture, resolve_git_source_from_hardened_base, temp_root,
 };
 #[cfg(unix)]
 use super::{first_regular_descendant, invalidate_git_cache_entry_from_retained_parent};
@@ -87,9 +86,7 @@ fn verified_git_repository_rejects_replaced_repository_path() {
         .expect_err("repository replacement must reject");
     assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
 
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }
 
 #[test]
@@ -110,9 +107,7 @@ fn verified_git_repository_rejects_replaced_objects_path() {
         .expect_err("object-store replacement must reject");
     assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
 
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }
 
 #[test]
@@ -128,9 +123,7 @@ fn git_cache_forbidden_record_probe_rejects_non_not_found_errors() {
             .expect_err("NotADirectory must not prove a forbidden record absent");
     assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
 
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }
 
 #[cfg(unix)]
@@ -150,9 +143,7 @@ fn git_cache_rejects_symlinks_in_owned_repository_namespaces() {
                 .expect_err("repository symlink must reject");
         assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
 
-        let _ = std::fs::remove_dir_all(&repo);
-        make_tree_owner_writable(&cache);
-        let _ = std::fs::remove_dir_all(&cache);
+        remove_fixture(&repo, &cache);
     }
 
     let (repo, cache, request) = primed_git_cache("git-symlink-object");
@@ -167,9 +158,7 @@ fn git_cache_rejects_symlinks_in_owned_repository_namespaces() {
             .expect_err("object-store symlink must reject");
     assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
 
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }
 
 #[cfg(unix)]
@@ -186,9 +175,7 @@ fn git_cache_rejects_multiply_linked_regular_files() {
             .expect_err("multiply-linked repository file must reject");
     assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
 
-    let _ = std::fs::remove_dir_all(&repo);
-    make_tree_owner_writable(&cache);
-    let _ = std::fs::remove_dir_all(&cache);
+    remove_fixture(&repo, &cache);
 }
 
 #[cfg(unix)]

@@ -360,12 +360,7 @@ fn expression_is_owned_by_package(
     let ownership_span = if span.span.start >= span.span.end {
         let expected_kind = authored_application_selection_kind(use_kind);
         let has_authored_selection = compilation
-            .authored_selection_occurrences(expression)
-            .filter_map(|occurrence| {
-                compilation
-                    .authored_declaration_selections()
-                    .get(occurrence)
-            })
+            .authored_selections(expression)
             .any(|selection| selection.kind() == expected_kind);
         if !has_authored_selection {
             return Ok(false);
@@ -441,12 +436,7 @@ pub(super) fn authored_application_source_span(
 
     let expected_kind = authored_application_selection_kind(use_kind);
     let selections = compilation
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            compilation
-                .authored_declaration_selections()
-                .get(occurrence)
-        })
+        .authored_selections(expression)
         .filter(|selection| selection.kind() == expected_kind)
         .collect::<Vec<_>>();
     let [selection] = selections.as_slice() else {
@@ -523,12 +513,7 @@ pub(super) fn token_authored_use_kind(
     };
 
     let authored_token = compilation
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            compilation
-                .authored_declaration_selections()
-                .get(occurrence)
-        })
+        .authored_selections(expression)
         .any(|selection| {
             selection.kind() == AuthoredDeclarationSelectionKind::Operator
                 && matches!(

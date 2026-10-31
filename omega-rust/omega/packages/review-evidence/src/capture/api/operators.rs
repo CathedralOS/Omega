@@ -59,12 +59,7 @@ pub(crate) fn project_public_operators<'a>(
         ))]);
     }
     let mut rows = Vec::new();
-    let operators = compilation.operators().iter().chain(
-        compilation
-            .domain_definitions()
-            .iter()
-            .flat_map(|domain| compilation.domain_operators(domain)),
-    );
+    let operators = compilation.all_operators();
     for declaration in operators.filter(|declaration| declaration.is_public) {
         if !is_product_scope_instance(compilation, declaration.symbol)? {
             continue;

@@ -8,9 +8,10 @@ use psi::syntax::syntax;
 use psi::tokens::tokens;
 
 // `[public] data Name [<generic parameters>] [properties] [where facts]
-// { members }`, entered at the `data` keyword. Members are fields
-// `[#N] name: Type;` and cases `case [#N] Name [(payload fields)] [where
-// facts];`, in any order; `case: Type;` is a field named `case`. Payload
+// [requires facts] { members }`, entered at the `data` keyword. Members are
+// fields `[#N] name: Type;` and cases `[#N] case Name [(payload fields)];`,
+// in any order; `case: Type;` is a field named `case`. A case has no
+// predicate clause. Payload
 // fields are `[#N] name: Type`. `#N` is a stable schema identity. Every
 // completed member is retained at once, so a rejection keeps each member
 // before it; the item and its root are retained at the closing `}`.

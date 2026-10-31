@@ -582,10 +582,10 @@ fn prepare_target_provider_publication(
     let inventory = provider_planning::target_machines::TargetProviderInventoryRequest {
         body_declarations: source.provider_inventory.direct_calls(),
         origins: source.provider_inventory.origins(),
-        context: provider_planning::ProviderPlanningContext::new(
-            &source.program.typed,
-            source::DependencyScope::Product,
-        ),
+        services: source
+            .provider_inventory
+            .services_for(source.program)
+            .map_err(|error| vec![error])?,
         defaults: source.provider_defaults,
         settlement: source.provider_settlement,
     };

@@ -46,13 +46,7 @@ impl TerminalExecution<'_> {
                 operation.kind,
                 terminal_psi::OperationKind::ElementViewRead { .. }
             ) {
-                match self
-                    .program
-                    .structural_types()
-                    .get(&root_type)
-                    .ok_or_else(malformed)?
-                    .shape
-                {
+                match self.program.structural_declaration(root_type)?.shape {
                     StructuralTypeShape::ElementView { element, .. } => element,
                     _ => return Err(malformed()),
                 }
@@ -91,13 +85,7 @@ impl TerminalExecution<'_> {
                 // coordinates, not new static bounds on a descriptor.
                 &declared_path[..position],
             )?;
-            let length = match self
-                .program
-                .structural_types()
-                .get(&array)
-                .ok_or_else(malformed)?
-                .shape
-            {
+            let length = match self.program.structural_declaration(array)?.shape {
                 StructuralTypeShape::FixedArray {
                     length: terminal_psi::ArrayExtent::Literal(length),
                     ..

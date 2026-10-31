@@ -1,15 +1,15 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
-    baseline_target_register_environment, binds_catalog_provenance, declaration_mut, encoded_mut,
-    flags_view, produced_effects, scalar_abi_cases, stack_pointer_view, validate_effects,
-    validated_effects,
+    baseline_target_register_environment, binds_catalog_provenance, declaration_mut,
+    declared_pairs, encoded_mut, flags_view, produced_effects, row_and_declaration,
+    scalar_abi_cases, sole_alternative, stack_pointer_view, validate_effects, validated_effects,
 };
 use register_model::{RegisterOperandAccess, RegisterViewId};
 use selected_instructions::{
-    MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectCatalogValidationError, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectCatalogValidationError,
+    MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineTrapBehavior,
 };
 
 #[test]
@@ -432,25 +432,19 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
         // Plain storage footprints belong exactly to ordinary memory rules
         // and the separately checked control envelopes above. Hosted I/O has
         // its own memory shapes; no other declaration may claim this storage.
-        let declared_memory = catalog
-            .catalog()
-            .declarations
-            .iter()
-            .filter(|declaration| {
-                matches!(
-                    declaration.memory,
-                    MachineMemoryEffect::CopyBytesV1
-                        | MachineMemoryEffect::ZeroBytesV1
-                        | MachineMemoryEffect::ReadPointerV1
-                        | MachineMemoryEffect::WritePointerV1
-                        | MachineMemoryEffect::WriteFrameStorageV1
-                        | MachineMemoryEffect::ReadFrameStorageV1
-                )
-            })
-            .map(|declaration| (declaration.constraint, declaration.semantic))
-            .collect::<BTreeSet<_>>();
+        let declared = declared_pairs(&catalog, |declaration| {
+            matches!(
+                declaration.memory,
+                MachineMemoryEffect::CopyBytesV1
+                    | MachineMemoryEffect::ZeroBytesV1
+                    | MachineMemoryEffect::ReadPointerV1
+                    | MachineMemoryEffect::WritePointerV1
+                    | MachineMemoryEffect::WriteFrameStorageV1
+                    | MachineMemoryEffect::ReadFrameStorageV1
+            )
+        });
         assert_eq!(
-            declared_memory,
+            declared,
             memory_rules
                 .iter()
                 .copied()
@@ -482,13 +476,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
 
         for (key, semantic) in &memory_rules {
             let contract = memory_contract(*semantic);
-            let row = environment
-                .constraint(*key)
-                .unwrap_or_else(|| panic!("environment missing selected memory row {key:?}"));
-            let declaration = catalog
-                .catalog()
-                .declaration(*key)
-                .unwrap_or_else(|| panic!("effect catalog missing memory declaration {key:?}"));
+            let (row, declaration) = row_and_declaration(&environment, &catalog, *key);
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::None, "{key:?}");
             assert_eq!(declaration.call, MachineCallEffect::NoneV1, "{key:?}");
@@ -561,15 +549,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
 
             // One canonical alternative replays the exact ABI memory
             // mechanism for this target.
-            assert_eq!(declaration.alternatives.len(), 1, "{key:?}");
-            let alternative = &declaration.alternatives[0];
-            assert_eq!(alternative.key.family, (*semantic).into(), "{key:?}");
-            assert_eq!(alternative.key.variant, 0, "{key:?}");
-            assert_eq!(
-                alternative.applicability,
-                MachineAlternativeApplicability::Always,
-                "{key:?}"
-            );
+            let alternative = sole_alternative(declaration, *semantic, *key);
             assert_eq!(
                 alternative.size,
                 expected_size(*semantic, case.target.architecture),

@@ -20,15 +20,24 @@ pub(super) fn require_classified_tail_occurrences(
             .enumerate()
     {
         let target = call.target_symbol(program);
-        // Selector topology includes every possible implementation. Direct
-        // tail ranking has no evidence for a runtime selector occurrence.
-        if dispatched.iter().any(|(slot, implementations)| {
-            *slot == target
-                && implementations
-                    .iter()
-                    .any(|callee| component.contains(callee))
-        }) {
-            return Err("an internal selector occurrence has no direct tail ranking evidence");
+        // A selector call is one occurrence that can enter every selected
+        // implementation. It owes the same tail classification as a direct
+        // call into this component; the rank judgment then reads the data
+        // operands after the selector.
+        if let Some((_, implementations)) = dispatched.iter().find(|(slot, _)| *slot == target)
+            && implementations
+                .iter()
+                .any(|callee| component.contains(callee))
+        {
+            let Some(target_handle) =
+                transition_call_target(program, machine, state, statement_ordinal, call_ordinal)
+            else {
+                return Err("an internal call occurrence lacks a classified tail edge");
+            };
+            if !target_handle.is_valid() || !call.completes_transition(program, target_handle) {
+                return Err("an internal call occurrence lacks a classified tail edge");
+            }
+            continue;
         }
         let Some(callee) = super::target_machine(program, target) else {
             continue;

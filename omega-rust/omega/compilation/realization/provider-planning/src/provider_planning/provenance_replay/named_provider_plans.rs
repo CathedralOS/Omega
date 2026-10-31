@@ -14,11 +14,12 @@ use build_time_evaluation::provider_declarations::{
 use effects::provider_plan::ProviderIdentityTable;
 
 pub(super) fn derive(
-    context: ProviderPlanningContext<'_>,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&str>,
     candidates: &[DerivedProviderPlan],
 ) -> Vec<DerivedProviderPlan> {
+    let context = services.context();
     let typed = context.typed;
     prepared_named_provider_applications(context)
         .into_iter()
@@ -30,15 +31,12 @@ pub(super) fn derive(
                     && definition.is_boundary
                     && context.contains(definition.symbol)
             })?;
-            let arguments = typed
-                .type_reference_table
-                .type_reference_handles(implementation.arguments);
-            let schema = crate::service_schema::from_typed_application(
-                context,
-                calling_plans,
-                application.scope.clone(),
-                arguments,
+            let prepared = services.named_application(
+                implementation.symbol,
+                application.capture,
+                definition.symbol,
             )?;
+            let schema = crate::service_schema::attach_calling(&prepared, calling_plans);
             let provider_type = typed.symbols.display_path(implementation.symbol, "::");
             let package = typed.symbols.symbol_package_identity(implementation.symbol);
             let origin_package = typed
@@ -48,7 +46,7 @@ pub(super) fn derive(
             let mut plan = ProviderPlan {
                 name: satisfies_plan_name(
                     &target,
-                    schema.identity_text(schema.trait_name),
+                    schema.identity_text(schema.declaration.trait_name),
                     &provider_type,
                 ),
                 provider_type,

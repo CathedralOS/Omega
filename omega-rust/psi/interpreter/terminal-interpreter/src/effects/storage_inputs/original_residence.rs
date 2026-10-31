@@ -563,8 +563,7 @@ impl TerminalExecution<'_> {
                 ArrayCell::Structural { array, .. } => {
                     let structural_type = self
                         .structural_byte_storage
-                        .get(&array)
-                        .ok_or_else(malformed)?
+                        .require(&array)?
                         .structural_type;
                     let mut source = TerminalStructuralValue::minted(
                         array.opaque_identity,
@@ -688,10 +687,7 @@ impl TerminalExecution<'_> {
             let (home, index) = match cell {
                 ArrayCell::Frame { home, index } => (home, index),
                 ArrayCell::Structural { array, index } => {
-                    let payload = self
-                        .structural_byte_storage
-                        .get(&array)
-                        .ok_or_else(malformed)?;
+                    let payload = self.structural_byte_storage.require(&array)?;
                     let (selected, mut path) = self.actual_storage_projection(original, &array)?;
                     if selected != payload.structural_type {
                         return Err(malformed());
@@ -761,7 +757,7 @@ impl TerminalExecution<'_> {
             PrimitiveStorageEndpoint::Scalar(home) => self.structural_primitive_storage.get(home),
             PrimitiveStorageEndpoint::ScalarField(field) => {
                 if field.namespace == StructuralFieldNamespace::CasePayload {
-                    let active = self.structural_cases.get(parent).ok_or_else(malformed)?;
+                    let active = self.structural_cases.require(parent)?;
                     if active.structural_type != selected {
                         return Err(malformed());
                     }
@@ -881,12 +877,7 @@ fn capture_graph(
         let StorageLeafKind::Opaque { declaration, .. } = leaf.kind else {
             continue;
         };
-        let shape = &execution
-            .program
-            .structural_types()
-            .get(&declaration)
-            .ok_or_else(malformed)?
-            .shape;
+        let shape = &execution.program.structural_declaration(declaration)?.shape;
         let StructuralTypeShape::Reference {
             referent: child_type,
             access: child_access,

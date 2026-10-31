@@ -127,7 +127,7 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
             matches.len(),
         ))]);
     };
-    let [method] = plan.schema.methods.as_slice() else {
+    let [method] = plan.schema.declaration.methods.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
             "selected top-level-requirement ProviderPlan `{}` must contain exactly one schema method",
             plan.name,

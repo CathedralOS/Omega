@@ -6,7 +6,9 @@ use physical_instructions::PostAllocationMachineIdentity;
 
 use physical_instructions::PostAllocationMachineOptimizationCustody;
 
-use crate::machine_code::identity_encoding::{encode_nested_identity, encode_views};
+use crate::machine_code::identity_encoding::{
+    encode_invocation_site, encode_nested_identity, encode_views,
+};
 
 use super::{
     DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodedRowStore,
@@ -79,22 +81,10 @@ fn encode_encoding_row(
                     hasher.byte(form.machine_payload());
                     hasher.raw(&contract);
                 }
-                Address::HostedReadByte { slot } => {
-                    hasher.byte(9);
-                    encode_nested_identity(hasher, |out| slot.encode_identity(out));
-                }
-                Address::SaveFloatingControl { slot } => {
-                    hasher.byte(14);
-                    encode_nested_identity(hasher, |out| slot.encode_identity(out));
-                }
-                Address::RestoreFloatingControl { slot } => {
-                    hasher.byte(15);
-                    encode_nested_identity(hasher, |out| slot.encode_identity(out));
-                }
-                Address::HostedWriteByteI32 { slot } => {
-                    hasher.byte(5);
-                    encode_nested_identity(hasher, |out| slot.encode_identity(out));
-                }
+                Address::HostedReadByte { slot } => encode_slot_arm(hasher, 9, slot),
+                Address::SaveFloatingControl { slot } => encode_slot_arm(hasher, 14, slot),
+                Address::RestoreFloatingControl { slot } => encode_slot_arm(hasher, 15, slot),
+                Address::HostedWriteByteI32 { slot } => encode_slot_arm(hasher, 5, slot),
                 Address::Store {
                     base_operand,
                     byte_offset,
@@ -178,25 +168,11 @@ fn encode_encoding_row(
                                 selected_instructions::OutgoingArgumentSlotRole::Argument => 0,
                                 selected_instructions::OutgoingArgumentSlotRole::ValueCopy => 3,
                             });
-                            match slot.invocation_site {
-                                semantic_vocabulary::InvocationSite::Operation(operation) => {
-                                    hasher.byte(0);
-                                    hasher.raw(&operation.get().to_le_bytes());
-                                }
-                                semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
-                                    hasher.byte(2);
-                                    hasher.raw(&edge.get().to_le_bytes());
-                                }
-                                semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
-                                    hasher.byte(1);
-                                    hasher.raw(&edge.get().to_le_bytes());
-                                }
-                            }
+                            encode_invocation_site(hasher, slot.invocation_site);
                             hasher.raw(&slot.argument_index.to_le_bytes());
                         }
                         selected_instructions::FrameStorageSlotId::Local(slot) => {
-                            hasher.byte(1);
-                            encode_nested_identity(hasher, |out| slot.encode_identity(out));
+                            encode_slot_arm(hasher, 1, slot)
                         }
                     }
                     hasher.raw(&byte_offset.to_le_bytes());
@@ -365,6 +341,17 @@ fn encode_base_byte_offset(
     hasher.byte(tag);
     hasher.raw(&base_operand.to_le_bytes());
     hasher.raw(&byte_offset.to_le_bytes());
+}
+
+/// One nested local-slot arm: its own discriminant, then the slot's identity
+/// hashed whole and unframed, in the order every such arm writes them.
+fn encode_slot_arm(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    tag: u8,
+    slot: selected_instructions::LocalStorageSlotId,
+) {
+    hasher.byte(tag);
+    encode_nested_identity(hasher, |out| slot.encode_identity(out));
 }
 
 fn encode_machine_disposition(

@@ -12,6 +12,59 @@ fail/contracts/case_requirement_constructed_array_wrong_tag rejected 871ms expec
 	cannot prove requires contract for call consume from exercise: items[slot] == constructor:78:package:15da86fb44407d53f7ef1b34e99f42239b2095b2bbbf8f19fc64c76c42030c65::Item10:name:Ready (needs fact `items[slot] == Item::Ready` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/case_requirement_referent_selector_changed rejected 593ms expected @00e93f641615+wt
 	cannot prove requires contract for call observe from exercise: choices[position.index] == constructor:80:package:3884cf29bbc499ae23326de981390bca3ecfd1be16754dcea9e4ae6adb248f3b::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/abstract_signature_call_generic_actual_through_call_result_rejected rejected 746ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_const_name_rejected rejected 736ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_field_rejected rejected 628ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_local_rejected rejected 764ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_match_join_rejected rejected 572ms expected @3caadfad789f+wt
+	machine `main` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_other_machine_rejected rejected 693ms expected @3caadfad789f+wt
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_other_state_rejected rejected 726ms expected @3caadfad789f+wt
+	machine `check` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_parameter_rejected rejected 607ms expected @3caadfad789f+wt
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/abstract_signature_call_generic_actual_through_target_body_rejected rejected 609ms expected @3caadfad789f+wt
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_field_rejected rejected 1812ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_local_rejected rejected 1620ms expected @8515a99cf21b+wt
+	cannot prove initializer of `kept` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_match_join_rejected rejected 1651ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_other_machine_rejected rejected 1780ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_other_state_rejected rejected 1427ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in check is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_parameter_rejected rejected 1409ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_target_body_rejected rejected 1643ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/nested_machine_joint_rank_copied_payload_call_result_rejected rejected 850ms expected @e6f74b4c381f
 	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
 fail/facts/nested_machine_joint_rank_copied_payload_const_name_rejected rejected 770ms expected @e6f74b4c381f
@@ -45,6 +98,32 @@ fail/calls/retired_where_machine_requirement rejected 5ms expected @45fb2a705c96
 	tests/omega/fail/calls/retired_where_machine_requirement/main.omg:3:1: `where machine` is retired; write `requires machine` with its complete contract and terminating semicolon
 fail/concurrency/suspend_live_value_rejected rejected 1715ms expected @a92f16431042
 	call to `park` may suspend while `message` remains live, but its effective policy is `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`; consume the value before the call or use a suspension-safe carrier; missing retained-loan obligation: the referent has no retained enclosing-activation lifetime
+fail/facts/nested_machine_joint_rank_declared_identity_non_decreasing_rejected rejected 861ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_call_result_rejected rejected 774ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_const_name_rejected rejected 750ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_field_rejected rejected 788ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_local_rejected rejected 771ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_match_join_rejected rejected 768ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_other_machine_rejected rejected 762ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_other_state_rejected rejected 791ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_parameter_rejected rejected 810ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_measure_target_body_rejected rejected 772ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_rank_floor_rejected rejected 760ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- an authored natural rank range has no independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_scalar_helper_non_decreasing_rejected rejected 788ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_declared_wrong_field_rejected rejected 711ms expected @b22c0a34ea0d
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_indexed_payload_call_result_rejected rejected 764ms expected @00e93f641615+wt
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_indexed_payload_const_name_rejected rejected 767ms expected @00e93f641615+wt
@@ -72,7 +151,13 @@ fail/facts/target_family_callback_guarantee/repeated_application rejected 883ms 
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
+fail/providers/applied_calling_surface_incomplete_result rejected 8128ms expected @d9073fc2214b
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/termination/forwarding_state_in_ranked_loop rejected 1682ms expected @a9ae30e1c334+wt
+fail/traits/dyn_selector_leading_crash_uncovered rejected 2077ms expected @3caadfad789f+wt
+	call from `observe` to `pass` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/traits/dyn_suspending_borrowed_parameter_precondition rejected 1636ms expected @60879b0bca31+wt
+	cannot prove requires contract for call dyn Read::current from main: cell.value == 100 (needs fact `cell.value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/anonymous_integer_arith checked 3485ms @ccdb99ca2214
@@ -2608,6 +2693,15 @@ pass/facts/abstract_signature_call_constant_initializer_through_parameter_exit c
 pass/facts/abstract_signature_call_constant_initializer_through_target_body_exit checked 3507ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/abstract_signature_call_constant_initializer_unexecuted_body_dependency_exit rejected 444ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	constant initializer: constant call lost its exact authored target selection: owner witness, call TableCallExpression { authored_call_selection: None, authored_call_binding: None, build_selection: Handle { arena_index: 0, generation: 0 }, authored_machine_application: Handle { arena_index: 0, generation: 0 }, exact_coercion_target: Handle { arena_index: 0, generation: 0 }, requirement_application: Handle { arena_index: 0, generation: 0 }, receiver: Handle { arena_index: 0, generation: 0 }, target_symbol: Handle { arena_index: 1638, generation: 1 }, static_machine_parameter: Handle { arena_index: 0, generation: 0 }, target: "unexecuted", static_requirement_dispatch: None, machine_arguments: [], quotient_operation: None, private_layout_operation: None, layout_query: None, native_code_layout: None, arguments: HandleSpan { start: Handle { arena_index: 383, generation: 1 }, count: 1 }, evidence_arguments: [], operational_acknowledgement: CallOperationalAcknowledgement { origin: Source, acknowledges_suspend: false, acknowledges_block: false } }, retained [(AuthoredDeclarationSelectionOccurrenceId(1210), Some((Call, SourceSpan { source_id: SourceId(24), span: Span { start: 407, end: 417 } }, Resolved(ResolvedAuthoredDeclarationSelection { selected_symbol: Handle { arena_index: 1638, generation: 1 } }))))]
+pass/facts/abstract_signature_call_generic_actual_through_call_result_exit checked 2718ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_const_name_exit checked 2652ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_field_exit checked 2586ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_local_exit checked 2947ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_match_join_exit checked 2898ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_other_machine_exit checked 2788ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_other_state_exit checked 2432ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_parameter_exit checked 2505ms check-target:macos_arm64 @3caadfad789f+wt
+pass/facts/abstract_signature_call_generic_actual_through_target_body_exit checked 2852ms check-target:macos_arm64 @3caadfad789f+wt
 pass/facts/abstract_signature_call_through_call_result_exit checked 3978ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/abstract_signature_call_through_const_name_exit checked 3998ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/abstract_signature_call_through_field_exit checked 3917ms check-target:macos_arm64 @ccdb99ca2214
@@ -4124,6 +4218,15 @@ pass/facts/domain_pattern_match_bound_through_other_machine_exit checked 3846ms 
 pass/facts/domain_pattern_match_bound_through_other_state_exit checked 3496ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/domain_pattern_match_bound_through_parameter_exit checked 3480ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/domain_pattern_match_bound_through_target_body_exit checked 4091ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/facts/domain_predicate_call_through_call_result_exit checked 2777ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_const_name_exit checked 2778ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_field_exit checked 2782ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_local_exit checked 2776ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_match_join_exit checked 2476ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_other_machine_exit checked 2855ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_other_state_exit checked 2859ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_parameter_exit checked 2936ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_target_body_exit checked 3084ms check-target:macos_arm64 @8515a99cf21b+wt
 pass/facts/domain_selected_cleanup_erased_predicates_exit checked 4010ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/domain_selected_cleanup_indexed_inherited_computed_exit rejected 3346ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: keeper does not establish release_keeper$specialized$9346d865f1ff1699$0 clause `keeper.code == 7`
@@ -6226,6 +6329,18 @@ pass/facts/nested_machine_joint_rank_copied_payload_other_machine_exit checked 1
 pass/facts/nested_machine_joint_rank_copied_payload_other_state_exit checked 1122ms check-target:macos_arm64 @e6f74b4c381f
 pass/facts/nested_machine_joint_rank_copied_payload_parameter_exit checked 1050ms check-target:macos_arm64 @e6f74b4c381f
 pass/facts/nested_machine_joint_rank_copied_payload_target_body_exit checked 1122ms check-target:macos_arm64 @e6f74b4c381f
+pass/facts/nested_machine_joint_rank_declared_identity_view_exit checked 1208ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_call_result_exit checked 1228ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_const_name_exit checked 1060ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_field_exit checked 1041ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_local_exit checked 1081ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_match_join_exit checked 1013ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_other_machine_exit checked 1067ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_other_state_exit checked 998ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_parameter_exit checked 1076ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_measure_target_body_exit checked 1013ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_rank_range_exit checked 1069ms check-target:macos_arm64 @b22c0a34ea0d
+pass/facts/nested_machine_joint_rank_declared_scalar_helper_exit checked 1006ms check-target:macos_arm64 @b22c0a34ea0d
 pass/facts/nested_machine_joint_rank_descriptor_field_call_result_exit checked 4229ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_descriptor_field_const_name_exit checked 3897ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_descriptor_field_element_write_exit checked 4257ms check-target:macos_arm64 @ccdb99ca2214
@@ -11752,6 +11867,7 @@ pass/proofs/structural_application_premise_reentry_exit checked 3276ms check-tar
 pass/proofs/structural_mathematical_predicate_polarity_exit checked 3680ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/applied_binding_field_telescopes_exit rejected 731ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	compiler-derived copies of one authored Call selection resolved inconsistently: `Main::main::done::entry` versus `Main<u64>::main::done::entry`
+pass/providers/applied_calling_surface_exit checked 8862ms check-target:macos_arm64 @d9073fc2214b
 pass/providers/applied_entry_nested_binding_context_exit checked 3583ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/applied_header_dependent_const_carrier_exit rejected 1202ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	const parameter `Count` of `Parent` requires an integer literal argument
@@ -12891,16 +13007,20 @@ pass/traits/runtime_dyn_mutable_byte_result checked 3783ms check-target:macos_ar
 pass/traits/runtime_dyn_nested_result_exit checked 2658ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_post_write_alternatives_exit checked 3951ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_qualified_byte_result checked 3393ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/runtime_dyn_ranked_dispatch_cycle_exit checked 2941ms check-target:macos_arm64 @3caadfad789f+wt
+pass/traits/runtime_dyn_ranked_self_dispatch_exit checked 2702ms check-target:macos_arm64 @3caadfad789f+wt
 pass/traits/runtime_dyn_rebound_selector_forwarded_exit checked 11240ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_requirement_contract_exit checked 13627ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_and_literal_addresses_exit checked 12212ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_beside_scalar_field_variants_exit checked 11285ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_beside_u64_field_store_exit checked 12171ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/runtime_dyn_selector_crash_refined_exit checked 3124ms check-target:macos_arm64 @3caadfad789f+wt
 pass/traits/runtime_dyn_selector_record_field_exit checked 12666ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_record_post_write_exit checked 4282ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_stored_byte_input incomplete 3835ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a statement of it yet (call operation: structural arguments: retained temporary); in state `Main::main::main`, statement 3
 pass/traits/runtime_dyn_structural_result_exit checked 3964ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/runtime_dyn_suspending_borrowed_parameter_exit checked 2062ms check-target:macos_arm64 @60879b0bca31+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit checked 12466ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_exact_requirement_edge_exit checked 12334ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_explicit_implementation_arguments_exit checked 3576ms check-target:macos_arm64 @ccdb99ca2214
@@ -17554,6 +17674,8 @@ fail/domains/refinement_chain_routed_provenance_forge rejected 1599ms expected @
 fail/domains/result_domain_overload_duplicate_predicate rejected 815ms expected @ccdb99ca2214
 	duplicate named machine overload `convert` with parameter signature `parameter(mutable(no),const(no),named(name(i32)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 	machine `convert` cannot prove ensures contract proof fact `result >= 0 && result <= 100` on the transition arm guarded by `<always>`
+fail/domains/retired_case_predicate rejected 4ms expected @3caadfad789f+wt
+	tests/omega/fail/domains/retired_case_predicate/main.omg:2:34: case-local predicate clauses are retired; write the predicate in the data declaration's default-domain `requires`
 fail/domains/retired_empty_body rejected 3ms expected @ccdb99ca2214
 	tests/omega/fail/domains/retired_empty_body/main.omg:1:20: empty domain bodies are retired; end the declaration with `;`
 fail/domains/retired_empty_predicate_body rejected 4ms expected @ccdb99ca2214

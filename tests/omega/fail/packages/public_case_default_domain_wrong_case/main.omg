@@ -1,0 +1,11 @@
+// Absolute cannot borrow Module's permission for a nonzero same-named field.
+public data Locator
+    requires ((self in Locator::Absolute) && self.length == 0)
+       || ((self in Locator::Module) && self.length <= 2)
+{
+    case Absolute(length: u64);
+    case Module(length: u64);
+}
+machine main() {
+    let value: Locator = Locator::Absolute { length: 2 };
+}

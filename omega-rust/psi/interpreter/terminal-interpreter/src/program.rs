@@ -215,6 +215,16 @@ impl AdmittedTerminalProgram<'_> {
         )
     }
 
+    /// The structural type keyed `structural_type`, refusing a miss as a
+    /// malformed state: every live structural identity was admitted from this
+    /// catalog, so absence is a defect rather than an input error.
+    pub(crate) fn structural_declaration(
+        &self,
+        structural_type: StructuralTypeId,
+    ) -> Result<&StructuralTypeDeclaration, TerminalInterpretError> {
+        self.structural_types().declaration(&structural_type)
+    }
+
     pub(crate) fn boundary_machines(&self) -> ProgramDeclarations<'_, BoundaryMachineDeclaration> {
         ProgramDeclarations::new(&self.catalogs.boundary_machines)
     }

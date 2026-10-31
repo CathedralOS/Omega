@@ -19,9 +19,7 @@ pub(super) fn validate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    let PsiRewritePatch::ThreadLinearEmptyBlock(patch) = candidate.patch() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    candidate_patch!(patch, ThreadLinearEmptyBlock, candidate);
     if candidate.node_decision_point() != Some(patch.predecessor)
         || patch.empty.node != 0
         || patch.empty.machine != patch.predecessor.machine

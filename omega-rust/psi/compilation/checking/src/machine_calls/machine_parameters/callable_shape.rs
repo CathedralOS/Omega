@@ -387,6 +387,7 @@ fn validate_callable_formation(
         required_parameters,
         actual_parameters,
         actual.contract_owner,
+        &substitutions,
         diagnostics,
     );
 }

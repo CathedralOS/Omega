@@ -23,9 +23,7 @@ pub(super) fn validate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    let PsiRewritePatch::FuseSharedTerminalJump(patch) = candidate.patch() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    candidate_patch!(patch, FuseSharedTerminalJump, candidate);
     if candidate.node_decision_point() != Some(patch.predecessor) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }

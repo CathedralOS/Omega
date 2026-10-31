@@ -33,10 +33,11 @@ pub use evaluated_bindings::{
 pub use identity_table::{ProviderIdentityId, ProviderIdentityTable};
 pub use service_schemas::BoundaryCallingPlanCommitment;
 pub use service_schemas::{
-    ProviderPlanDigest, ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
-    ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
-    ServiceProgressPremise, ServiceProgressSubject, ServiceReceiverApplication, ServiceResultClaim,
-    ServiceSchema, ServiceSchemaDigest,
+    ProviderPlanDigest, ServiceCallingApplication, ServiceCallingPlan, ServiceEntryAuthorityFlow,
+    ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
+    ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
+    ServiceReceiverApplication, ServiceResultClaim, ServiceSchema, ServiceSchemaDigest,
+    ServiceSurface,
 };
 
 use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
@@ -136,7 +137,7 @@ pub struct ProviderPlan {
     /// The schema served.
     pub schema: ServiceSchema,
     /// Interned canonical identities this plan's binding fields point into.
-    /// Schema-owned identities intern into `schema.identities` instead.
+    /// Schema-owned identities intern into `schema.declaration.identities` instead.
     pub identities: ProviderIdentityTable,
     /// One row per bound method.
     pub rows: Vec<ProviderPlanRow>,
@@ -312,11 +313,14 @@ impl ProviderPlan {
         encoder.string(self.identity_text(self.provider_application));
         encoder.package_identity(self.provider_type_package_identity);
         encoder.string(&self.target);
-        encoder.string(self.schema.identity_text(self.schema.trait_name));
-        encoder.package_identity(self.schema.trait_package_identity);
+        encoder.string(
+            self.schema
+                .identity_text(self.schema.declaration.trait_name),
+        );
+        encoder.package_identity(self.schema.declaration.trait_package_identity);
         encoder.receiver_applications(&self.schema);
 
-        let mut methods = self.schema.methods.iter().collect::<Vec<_>>();
+        let mut methods = self.schema.declaration.methods.iter().collect::<Vec<_>>();
         methods.sort_by(|left, right| {
             left.name.cmp(&right.name).then_with(|| {
                 self.schema
@@ -326,7 +330,11 @@ impl ProviderPlan {
         });
         encoder.len(methods.len());
         for method in methods {
-            encoder.service_method(method, &self.schema.identities);
+            encoder.service_method(
+                method,
+                &self.schema.declaration.identities,
+                self.schema.calling_plan(method.requirement_identity),
+            );
         }
 
         let mut rows = self.rows.iter().collect::<Vec<_>>();
@@ -371,7 +379,8 @@ impl ProviderPlan {
             self.name,
             self.provider_type,
             self.target,
-            self.schema.identity_text(self.schema.trait_name)
+            self.schema
+                .identity_text(self.schema.declaration.trait_name)
         );
         push_package_identity(
             &mut rendered,
@@ -381,7 +390,7 @@ impl ProviderPlan {
         push_package_identity(
             &mut rendered,
             "schema-package",
-            self.schema.trait_package_identity,
+            self.schema.declaration.trait_package_identity,
         );
         rendered.push_str("\npackage:");
         match self.origin_package_identity {
@@ -392,7 +401,7 @@ impl ProviderPlan {
             }
             None => rendered.push_str("<unbound>"),
         }
-        let mut methods: Vec<&ServiceMethod> = self.schema.methods.iter().collect();
+        let mut methods: Vec<&ServiceMethod> = self.schema.declaration.methods.iter().collect();
         methods.sort_by(|left, right| {
             left.name
                 .cmp(&right.name)
@@ -452,7 +461,7 @@ impl ProviderPlan {
             }
             for parameter in &method.parameter_type_identities {
                 rendered.push_str("\nmp:");
-                rendered.push_str(self.schema.identities.text(*parameter));
+                rendered.push_str(self.schema.declaration.identities.text(*parameter));
             }
             let mut entry_claims = method.entry_claims.iter().collect::<Vec<_>>();
             entry_claims.sort_by(|left, right| {
@@ -465,7 +474,10 @@ impl ProviderPlan {
                 rendered.push_str(&format!(
                     "\nmc:{}/{}/{}/{}/{}/{}",
                     claim.parameter_index,
-                    self.schema.identities.text(claim.carrier_identity),
+                    self.schema
+                        .declaration
+                        .identities
+                        .text(claim.carrier_identity),
                     claim.domain,
                     claim.predicate_presence.as_str(),
                     claim.authority_flow.as_str(),
@@ -474,14 +486,20 @@ impl ProviderPlan {
             }
             if method.result_type_identity.is_valid() {
                 rendered.push_str("\nmr:");
-                rendered.push_str(self.schema.identities.text(method.result_type_identity));
+                rendered.push_str(
+                    self.schema
+                        .declaration
+                        .identities
+                        .text(method.result_type_identity),
+                );
             }
             let mut result_claims = method.result_claims.iter().collect::<Vec<_>>();
             result_claims.sort_by(|left, right| left.domain.cmp(&right.domain));
             for claim in result_claims {
                 rendered.push_str(&format!("\nmrc:{}/{}", claim.domain, claim.effective_carry,));
             }
-            if let Some(fingerprint) = method.calling_plan_report_fingerprint {
+            if let Some(calling) = self.schema.calling_plan(method.requirement_identity) {
+                let fingerprint = calling.report_fingerprint;
                 rendered.push_str(&format!("/calling:{fingerprint:016x}"));
             }
         }
@@ -558,8 +576,9 @@ impl ProviderPlan {
             })
             .then_with(|| {
                 self.schema
+                    .declaration
                     .trait_package_identity
-                    .cmp(&other.schema.trait_package_identity)
+                    .cmp(&other.schema.declaration.trait_package_identity)
             })
             .then_with(|| self.report_fingerprint().cmp(&other.report_fingerprint()))
     }
@@ -569,7 +588,7 @@ impl ProviderPlan {
     /// structurally valid.
     pub fn validate_against_schema(&self) -> Vec<String> {
         let mut errors = self.validate_candidate_against_schema();
-        for method in &self.schema.methods {
+        for method in &self.schema.declaration.methods {
             let count = self
                 .rows
                 .iter()
@@ -579,7 +598,8 @@ impl ProviderPlan {
                 errors.push(format!(
                     "plan `{}` does not bind `{}::{}`",
                     self.name,
-                    self.schema.identity_text(self.schema.trait_name),
+                    self.schema
+                        .identity_text(self.schema.declaration.trait_name),
                     method.name
                 ));
             }
@@ -603,13 +623,17 @@ impl ProviderPlan {
         if self.name.is_empty() {
             errors.push("provider plan has no exact selection name".to_owned());
         }
-        if self.schema.identity_text(self.schema.trait_name).is_empty() {
+        if self
+            .schema
+            .identity_text(self.schema.declaration.trait_name)
+            .is_empty()
+        {
             errors.push(format!(
                 "plan `{}` schema has no exact boundary-slot identity",
                 self.name
             ));
         }
-        for (method_index, method) in self.schema.methods.iter().enumerate() {
+        for (method_index, method) in self.schema.declaration.methods.iter().enumerate() {
             // One rendering of the coordinate every diagnostic in this loop
             // opens with -- plan, boundary-slot identity, method -- so a new
             // coordinate joins all of them at once instead of at whichever
@@ -618,18 +642,15 @@ impl ProviderPlan {
                 format!(
                     "plan `{}` schema method `{}::{}`",
                     self.name,
-                    self.schema.identity_text(self.schema.trait_name),
+                    self.schema
+                        .identity_text(self.schema.declaration.trait_name),
                     method.name
                 )
             };
-            if method.calling_plan_report_fingerprint.is_some()
-                != method.calling_plan_commitment.is_some()
-            {
-                errors.push(format!("{} must retain its calling-plan report coordinate and strong commitment together", context()));
-            }
-            if method
-                .calling_plan_commitment
-                .is_some_and(BoundaryCallingPlanCommitment::is_zero)
+            if self
+                .schema
+                .calling_plan(method.requirement_identity)
+                .is_some_and(|plan| plan.commitment.is_zero())
             {
                 errors.push(format!(
                     "{} retains an empty calling-plan commitment",
@@ -640,7 +661,8 @@ impl ProviderPlan {
                 errors.push(format!(
                     "plan `{}` schema `{}` has a method with no readable drift name",
                     self.name,
-                    self.schema.identity_text(self.schema.trait_name),
+                    self.schema
+                        .identity_text(self.schema.declaration.trait_name),
                 ));
             }
             if method.requirement_owner.is_empty() {
@@ -648,7 +670,7 @@ impl ProviderPlan {
             }
             if !method.requirement_identity.is_valid() {
                 errors.push(format!("{} has no exact requirement identity", context()));
-            } else if let Some(previous_index) = self.schema.methods[..method_index]
+            } else if let Some(previous_index) = self.schema.declaration.methods[..method_index]
                 .iter()
                 .position(|previous| previous.requirement_identity == method.requirement_identity)
             {
@@ -781,12 +803,18 @@ impl ProviderPlan {
             for (index, pair) in method.entry_claims.windows(2).enumerate() {
                 let left = (
                     pair[0].parameter_index,
-                    self.schema.identities.text(pair[0].carrier_identity),
+                    self.schema
+                        .declaration
+                        .identities
+                        .text(pair[0].carrier_identity),
                     pair[0].domain.as_str(),
                 );
                 let right = (
                     pair[1].parameter_index,
-                    self.schema.identities.text(pair[1].carrier_identity),
+                    self.schema
+                        .declaration
+                        .identities
+                        .text(pair[1].carrier_identity),
                     pair[1].domain.as_str(),
                 );
                 if left >= right {
@@ -817,6 +845,7 @@ impl ProviderPlan {
             if method.has_result
                 && self
                     .schema
+                    .declaration
                     .identities
                     .text(method.result_type_identity)
                     .is_empty()
@@ -911,7 +940,7 @@ impl ProviderPlan {
                     if u32::try_from(*number).is_err() {
                         errors.push(format!(
                             "provider binding `{}::{}` has syscall number {number}, but the target syscall plan requires a value in 0..={}",
-                            self.schema.identity_text(self.schema.trait_name),
+                            self.schema.identity_text(self.schema.declaration.trait_name),
                             row.method,
                             u32::MAX,
                         ));
@@ -938,9 +967,9 @@ impl ProviderPlan {
                     if table.is_empty() {
                         errors.push(format!(
                             "external leaf for `{}::{}` uses a table field without a table data owner; declare it as `machine TableType::leaf(...) satisfies {}::{} via ForeignBinding::...`",
-                            self.schema.identity_text(self.schema.trait_name),
+                            self.schema.identity_text(self.schema.declaration.trait_name),
                             row.method,
-                            self.schema.identity_text(self.schema.trait_name),
+                            self.schema.identity_text(self.schema.declaration.trait_name),
                             row.method,
                         ));
                     } else if self.provider_type.is_empty() {
@@ -974,9 +1003,9 @@ impl ProviderPlan {
                         errors.push(format!(
                             "checked adapter `{}` for `{}::{}` has no nominal provider type; attach it as an ordinary checked machine satisfying {}::{}` and select that provider for the boundary slot",
                             self.identity_text(*machine_identity),
-                            self.schema.identity_text(self.schema.trait_name),
+                            self.schema.identity_text(self.schema.declaration.trait_name),
                             row.method,
-                            self.schema.identity_text(self.schema.trait_name),
+                            self.schema.identity_text(self.schema.declaration.trait_name),
                             row.method,
                         ));
                     }
@@ -989,7 +1018,7 @@ impl ProviderPlan {
                 }
             }
         }
-        for method in &self.schema.methods {
+        for method in &self.schema.declaration.methods {
             let count = self
                 .rows
                 .iter()
@@ -999,7 +1028,8 @@ impl ProviderPlan {
                 errors.push(format!(
                     "plan `{}` binds `{}::{}` {count} times; one row per method",
                     self.name,
-                    self.schema.identity_text(self.schema.trait_name),
+                    self.schema
+                        .identity_text(self.schema.declaration.trait_name),
                     method.name
                 ));
             }
@@ -1007,6 +1037,7 @@ impl ProviderPlan {
         for row in &self.rows {
             if !self
                 .schema
+                .declaration
                 .methods
                 .iter()
                 .any(|method| self.schema.row_binds_method(row, method, &self.identities))
@@ -1015,7 +1046,8 @@ impl ProviderPlan {
                     "plan `{}` binds `{}`, which is not a `{}` method",
                     self.name,
                     row.method,
-                    self.schema.identity_text(self.schema.trait_name)
+                    self.schema
+                        .identity_text(self.schema.declaration.trait_name)
                 ));
             }
         }
@@ -1026,7 +1058,7 @@ impl ProviderPlan {
     /// every schema method has exactly one row and every row names a
     /// schema method.
     pub fn covers_schema(&self) -> bool {
-        self.schema.methods.iter().all(|method| {
+        self.schema.declaration.methods.iter().all(|method| {
             self.rows
                 .iter()
                 .filter(|row| self.schema.row_binds_method(row, method, &self.identities))
@@ -1034,6 +1066,7 @@ impl ProviderPlan {
                 == 1
         }) && self.rows.iter().all(|row| {
             self.schema
+                .declaration
                 .methods
                 .iter()
                 .any(|method| self.schema.row_binds_method(row, method, &self.identities))

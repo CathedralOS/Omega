@@ -50,15 +50,19 @@ impl Program {
     /// test opens with.
     pub(crate) fn count_value(&mut self) -> (TypeReferenceHandle, ProofObligation) {
         let base = self.int_reference();
-        let obligation = bounded_value(
-            self.machine,
-            "Main",
-            self.data[0],
-            "count",
-            base,
-            arena::HandleSpan::empty(),
-        );
+        let obligation = main_owned_value(self.machine, self.data[0], "count", base);
         (base, obligation)
+    }
+
+    /// A `Main`-owned bounded-value obligation over one of the fixture's data
+    /// symbols, carrying the `Int` reference the caller already resolved.
+    pub(crate) fn data_value(
+        &self,
+        data: usize,
+        name: &str,
+        base: TypeReferenceHandle,
+    ) -> ProofObligation {
+        main_owned_value(self.machine, self.data[data], name, base)
     }
 
     pub(crate) fn int_reference(&mut self) -> TypeReferenceHandle {
@@ -69,6 +73,24 @@ impl Program {
                 name: Identifier::generated("Int"),
             })
     }
+}
+
+/// A bounded-value obligation owned by the fixture's `Main` machine: the only
+/// place the empty constraint span and the machine's display name are spelled.
+pub(crate) fn main_owned_value(
+    machine: SymbolHandle,
+    data_symbol: SymbolHandle,
+    data_name: &str,
+    base: TypeReferenceHandle,
+) -> ProofObligation {
+    bounded_value(
+        machine,
+        "Main",
+        data_symbol,
+        data_name,
+        base,
+        arena::HandleSpan::empty(),
+    )
 }
 
 pub(crate) fn bounded_value(

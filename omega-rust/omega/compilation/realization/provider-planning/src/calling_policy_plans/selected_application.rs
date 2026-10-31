@@ -27,11 +27,16 @@ pub(crate) fn selected_source_calling_application(
         ));
     }
     let provider_plan_name = plan.name.as_str();
-    if plan.schema.identity_text(plan.schema.trait_name) != trait_name {
+    if plan
+        .schema
+        .identity_text(plan.schema.declaration.trait_name)
+        != trait_name
+    {
         return Err(Diagnostic::error(format!(
             "selected source boundary entry ProviderPlan `{}` serves schema `{}`, not exact requested schema `{trait_name}`",
             plan.name,
-            plan.schema.identity_text(plan.schema.trait_name)
+            plan.schema
+                .identity_text(plan.schema.declaration.trait_name)
         )));
     }
     if requirement_identity.is_empty() {
@@ -42,6 +47,7 @@ pub(crate) fn selected_source_calling_application(
 
     let matching_methods = plan
         .schema
+        .declaration
         .methods
         .iter()
         .filter(|method| {
@@ -78,7 +84,8 @@ pub(crate) fn selected_source_calling_application(
         let [operator] = schema_operators.as_slice() else {
             return Err(Diagnostic::error(format!(
                 "selected source boundary entry schema `{}` resolves to {} exact typed boundary operators",
-                plan.schema.identity_text(plan.schema.trait_name),
+                plan.schema
+                    .identity_text(plan.schema.declaration.trait_name),
                 schema_operators.len()
             )));
         };
@@ -94,12 +101,9 @@ pub(crate) fn selected_source_calling_application(
                 "selected source boundary entry ProviderPlan `{provider_plan_name}` does not bind exact boundary operator `{operator_identity}`"
             )));
         }
-        return match (
-            method.calling_plan_report_fingerprint,
-            method.calling_plan_commitment,
-        ) {
-            (None, None) => Ok(None),
-            _ => Err(Diagnostic::error(format!(
+        return match plan.schema.calling_plan(method.requirement_identity) {
+            None => Ok(None),
+            Some(_) => Err(Diagnostic::error(format!(
                 "selected source boundary operator `{operator_identity}` retains a trait calling-plan fingerprint"
             ))),
         };
@@ -122,7 +126,8 @@ pub(crate) fn selected_source_calling_application(
         let [requirement] = top_level_requirements.as_slice() else {
             return Err(Diagnostic::error(format!(
                 "selected source boundary entry schema `{}` resolves to {} exact typed top-level boundary requirements",
-                plan.schema.identity_text(plan.schema.trait_name),
+                plan.schema
+                    .identity_text(plan.schema.declaration.trait_name),
                 top_level_requirements.len(),
             )));
         };
@@ -137,7 +142,10 @@ pub(crate) fn selected_source_calling_application(
                 requirement.name,
             )));
         };
-        if requirement_path != plan.schema.identity_text(plan.schema.trait_name)
+        if requirement_path
+            != plan
+                .schema
+                .identity_text(plan.schema.declaration.trait_name)
             || requirement_method != method_name
             || method.requirement_owner != requirement_owner
             || plan.schema.identity_text(method.requirement_identity) != exact_requirement_identity
@@ -148,12 +156,9 @@ pub(crate) fn selected_source_calling_application(
                 requirement.name,
             )));
         }
-        return match (
-            method.calling_plan_report_fingerprint,
-            method.calling_plan_commitment,
-        ) {
-            (None, None) => Ok(None),
-            _ => Err(Diagnostic::error(format!(
+        return match plan.schema.calling_plan(method.requirement_identity) {
+            None => Ok(None),
+            Some(_) => Err(Diagnostic::error(format!(
                 "selected source top-level boundary requirement `{}` retains a trait calling-plan fingerprint",
                 requirement.name,
             ))),
@@ -174,7 +179,8 @@ pub(crate) fn selected_source_calling_application(
     let [schema_owner] = schema_owners.as_slice() else {
         return Err(Diagnostic::error(format!(
             "selected source boundary entry schema `{}` resolves to {} exact typed boundary traits",
-            plan.schema.identity_text(plan.schema.trait_name),
+            plan.schema
+                .identity_text(plan.schema.declaration.trait_name),
             schema_owners.len()
         )));
     };
@@ -220,20 +226,11 @@ pub(crate) fn selected_source_calling_application(
         )));
     };
 
-    let (Some(fingerprint), Some(commitment)) = (
-        method.calling_plan_report_fingerprint,
-        method.calling_plan_commitment,
-    ) else {
-        return if method.calling_plan_report_fingerprint.is_none()
-            && method.calling_plan_commitment.is_none()
-        {
-            Ok(None)
-        } else {
-            Err(Diagnostic::error(format!(
-                "selected source boundary entry `{trait_name}::{method_name}` does not retain its calling-plan report coordinate and commitment together"
-            )))
-        };
+    let Some(calling) = plan.schema.calling_plan(method.requirement_identity) else {
+        return Ok(None);
     };
+    let fingerprint = calling.report_fingerprint;
+    let commitment = calling.commitment;
     if fingerprint == 0 {
         return Err(Diagnostic::error(format!(
             "selected source boundary entry `{trait_name}::{method_name}` has a zero calling-plan fingerprint"
@@ -317,7 +314,9 @@ pub fn component_calling_applications(
             ) {
                 continue;
             }
-            let trait_name = plan.schema.identity_text(plan.schema.trait_name);
+            let trait_name = plan
+                .schema
+                .identity_text(plan.schema.declaration.trait_name);
             let requirement = plan.identities.text(row.requirement_identity);
             let application = selected_source_calling_application(
                 typed,
@@ -331,7 +330,7 @@ pub fn component_calling_applications(
             let application = match application {
                 Some(application) => application,
                 None => super::plan_computation::evaluate_default_calling_application(
-                    typed, layout_target, trait_name, plan.schema.trait_package_identity,
+                    typed, layout_target, trait_name, plan.schema.declaration.trait_package_identity,
                     &row.method, requirement,
                     calling_conventions::CallingPolicy::native_for_target(native_target),
                     0, representations,

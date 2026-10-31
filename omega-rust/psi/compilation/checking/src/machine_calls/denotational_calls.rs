@@ -223,6 +223,11 @@ fn has_observation_free_closure(
     if requirements_in_flight.contains(&machine_symbol) {
         return false;
     }
+    crate::note_dependency_body_read(
+        program,
+        machine_symbol,
+        crate::DependencyBodyRead::ObservationFreedom,
+    );
     let mut path = requirements_in_flight.to_vec();
     path.push(machine_symbol);
     let frames = crate::CallFrameResolver::new(program);

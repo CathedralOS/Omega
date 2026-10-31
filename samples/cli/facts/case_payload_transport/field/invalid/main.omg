@@ -1,8 +1,10 @@
 // A multi-variant Outcome sum carries its active payload value <= 50 across the place so matching Outcome::Ready adds 10 within result <= 60.
 
-data Outcome [copy] {
+data Outcome [copy] 
+    requires (self in Outcome::Empty) || ((self in Outcome::Ready) && (self.value <= 80))
+{
     case Empty;
-    case Ready(value: u64) where value <= 80;
+    case Ready(value: u64);
 }
 
 data Holder [copy] {

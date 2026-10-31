@@ -1,0 +1,3 @@
+array_sum: overflow-safe reduction -- i32 elements widened to an i64 accumulator
+PASS: sum == 2200000000 -- past i32 max, correct in i64 (exit 70)
+[press Enter to close]

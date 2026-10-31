@@ -20,6 +20,7 @@ mod type_declarations;
 mod witnesses;
 
 pub(crate) use paths::structural_projection_type;
+pub(crate) use storage_projection::shared_view_declaration;
 pub use storage_projection::{
     StructuralStorageProjection, structural_borrowed_storage_projection,
     structural_storage_projection,

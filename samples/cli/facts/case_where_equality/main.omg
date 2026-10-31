@@ -10,9 +10,11 @@
 //     arm's contributed equality.
 //   * `hits` records the reached arm.
 
-data Interval {
+data Interval 
+    requires (self in Interval::Empty) || ((self in Interval::Point) && (self.lo == self.hi))
+{
     case Empty;
-    case Point(lo: u64, hi: u64) where lo == hi;
+    case Point(lo: u64, hi: u64);
 }
 
 data Main {

@@ -315,9 +315,7 @@ impl TerminalExecution<'_> {
         {
             let scalar_loan = matches!(
                 self.program
-                    .structural_types()
-                    .get(&parameter.structural_type)
-                    .ok_or_else(malformed)?
+                    .structural_declaration(parameter.structural_type)?
                     .shape,
                 StructuralTypeShape::PrimitiveScalar(_)
             ) && parameter.access != StructuralAccess::Owned;
@@ -354,9 +352,7 @@ impl TerminalExecution<'_> {
             if original
                 && matches!(
                     self.program
-                        .structural_types()
-                        .get(&parameter.structural_type)
-                        .ok_or_else(malformed)?
+                        .structural_declaration(parameter.structural_type)?
                         .shape,
                     StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
                 )
@@ -381,9 +377,7 @@ impl TerminalExecution<'_> {
             if parameter.access == StructuralAccess::Owned
                 || !matches!(
                     self.program
-                        .structural_types()
-                        .get(&parameter.structural_type)
-                        .ok_or_else(malformed)?
+                        .structural_declaration(parameter.structural_type)?
                         .shape,
                     StructuralTypeShape::PrimitiveScalar(_)
                 )
@@ -424,9 +418,7 @@ impl TerminalExecution<'_> {
                     let parameter = &parameters[argument_index];
                     let declaration = self
                         .program
-                        .structural_types()
-                        .get(&parameter.structural_type)
-                        .ok_or_else(malformed)?;
+                        .structural_declaration(parameter.structural_type)?;
                     let scope = match declaration.shape {
                         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                             ..
@@ -471,9 +463,7 @@ impl TerminalExecution<'_> {
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if matches!(
                 self.program
-                    .structural_types()
-                    .get(&parameter.structural_type)
-                    .ok_or_else(malformed)?
+                    .structural_declaration(parameter.structural_type)?
                     .shape,
                 StructuralTypeShape::PrimitiveScalar(_)
             ) && parameter.access != StructuralAccess::Owned
@@ -598,9 +588,7 @@ impl TerminalExecution<'_> {
         }
         let declaration = self
             .program
-            .structural_types()
-            .get(&parameter.structural_type)
-            .ok_or_else(malformed)?;
+            .structural_declaration(parameter.structural_type)?;
         if declaration.shape.is_bounded_owned_byte_sequence()
             && matches!(
                 parameter.access,
@@ -677,8 +665,7 @@ impl TerminalExecution<'_> {
             };
             let bytes = self
                 .structural_byte_sequence_fields
-                .get(destination)
-                .ok_or_else(malformed)?
+                .require(destination)?
                 .immutable()?
                 .bytes();
             if bytes.len() as u128 > u128::from(*capacity) {
@@ -1005,8 +992,7 @@ impl TerminalExecution<'_> {
         };
         let bytes = self
             .structural_byte_sequence_fields
-            .get(&source)
-            .ok_or_else(malformed)?
+            .require(&source)?
             .immutable()?;
         let bytes = match carrier {
             ByteSequenceCarrier::BorrowedView { .. } => bytes.clone(),

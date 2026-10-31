@@ -1,9 +1,11 @@
 // Case Point(lo, hi) where lo == hi makes hi - lo exact in u64, without a guard or Wrapping.
 // Compile-checked only; no runtime oracle.
 // The named constant selects a static binder; its generic body needs the case fact.
-data Interval [copy] {
+data Interval [copy] 
+    requires (self in Interval::Empty) || ((self in Interval::Point) && (self.lo == self.hi))
+{
     case Empty;
-    case Point(lo: u64, hi: u64) where lo == hi;
+    case Point(lo: u64, hi: u64);
 }
 data Main { interval: Interval; width: u64; flag: bool; }
 

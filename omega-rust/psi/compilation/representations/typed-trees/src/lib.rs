@@ -14,6 +14,7 @@
 pub mod direct_calls;
 pub mod provider_declarations;
 pub mod references;
+pub mod service_declarations;
 pub mod typed_trees;
 
 pub use typed_trees::calls::{

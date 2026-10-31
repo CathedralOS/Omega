@@ -140,6 +140,7 @@ pub(super) fn project_field(value: StructuralTerm, field_name: &str) -> Option<S
             path: field_name.to_owned(),
         }),
         StructuralTerm::CollectionMeasure { .. }
+        | StructuralTerm::RepeatedArray { .. }
         | StructuralTerm::Integer(_)
         | StructuralTerm::Float(_)
         | StructuralTerm::ScalarRepresentation { .. }

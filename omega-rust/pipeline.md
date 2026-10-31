@@ -198,6 +198,26 @@ family coordinates remain complete and unavailable targets retain refusal rows.
 Preparation is application-local: a source cohort does not establish equality of
 Build defaults, overrides or assumptions. This removes late source reconstruction
 from publication, not all source dependencies from provider planning.
+Psi owns the target-neutral service surface: inherited applications, signatures,
+completion, claims, reach and progress premises. Its projection consumes the
+original simultaneous type/region scopes and retains exact ordered requirement
+correspondence and supplying ownership. Omega's
+`ServiceSchema` shares that declaration and attaches paired calling-report and
+commitment evidence by requirement coordinate; inherited receiver comparison
+still includes the complete target calling contract. The final immutable Product
+owner prepares the complete source census once, before target planning; early
+Build prepares a separate census for its unchanged provisional projection.
+Abstract generic declarations, live applied roots, retained named applications,
+operators, top-level requirements and sealed accessor declarations remain distinct
+origins. Unsupported surfaces and exact trait-requirement-closure refusals stay
+deferred data, not preparation failures. Target provider derivation and declaration
+custody query those records without projecting source schemas again. Candidate
+eligibility and capture coalescing remain separate operations; catalog presence
+grants neither selection nor execution. Independent package-review candidates
+prepare their own source census rather than borrowing custody coordinates.
+Other source-schema consumers, selected-calling replay, default ABI signature
+materialization and canonical Terminal publication of the full catalog remain
+unfinished source dependencies.
 Compiler-private native component retention stores the canonical description
 and complete source-free derivation inputs together. Package admission supplies
 an exact compiler/library, source/dependency, purpose/target and snapshot key;
@@ -235,11 +255,14 @@ Build admission are reacquired. Invalid, truncated or obsolete records are
 optional misses. Terminal values inside the graph use the canonical Terminal
 codec and rejoin companion receipts through their original producers.
 
-This implements cross-invocation exact-program reuse. It does not admit checked
-dependency judgments into a different consumer from body hashes: cross-consumer
-reuse still needs complete producer-dependency context admission. In-memory
-shared declaration pages, local flow facts and conservative unknown-input
-fallback retain their existing ownership.
+This implements cross-invocation exact-program reuse. A dependency judgment
+enters another consumer only when the producer dependency context matches:
+package identity, dependency scope, and callee body hashes. A body hash alone
+does not admit it. Persisted source/check graphs and native Terminal products
+still require fresh source, dependency, compiler, and invocation admission
+before a recorded judgment is used. In-memory shared declaration pages, local
+flow facts and conservative unknown-input fallback retain their existing
+ownership.
 
 | Input → output | Owner |
 | --- | --- |

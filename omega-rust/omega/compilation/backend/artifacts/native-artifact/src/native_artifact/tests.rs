@@ -160,18 +160,20 @@ fn selected_plan_projection_retains_closed_and_unspecialized_requirements() {
             name: name.into(),
             provider_type: format!("{name}Provider"),
             target: "macos_arm64".into(),
-            schema: ServiceSchema {
-                trait_name,
-                identities: schema_identities,
-                methods: vec![ServiceMethod {
-                    completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
-                    name: "read".into(),
-                    requirement_owner: name.into(),
-                    requirement_identity,
-                    ..ServiceMethod::default()
-                }],
-                ..ServiceSchema::default()
-            },
+            schema: ServiceSchema::from_declaration(std::sync::Arc::new(
+                effects::provider_plan::ServiceSurface {
+                    trait_name,
+                    identities: schema_identities,
+                    methods: vec![ServiceMethod {
+                        completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                        name: "read".into(),
+                        requirement_owner: name.into(),
+                        requirement_identity,
+                        ..ServiceMethod::default()
+                    }],
+                    ..effects::provider_plan::ServiceSurface::default()
+                },
+            )),
             identities,
             rows: vec![ProviderPlanRow {
                 method: "read".into(),

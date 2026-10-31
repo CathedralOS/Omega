@@ -4,7 +4,7 @@
 //! names cannot infer a missing map application.
 
 use super::requirement_applications::selected_applications;
-use super::{CallSite, Diagnostic, SymbolHandle, TypedTrees};
+use super::{CallSite, Diagnostic, SymbolHandle, TypedTrees, failed};
 use crate::expression_roots::append_statement_roots;
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
@@ -223,11 +223,7 @@ fn call_capture(
     };
     let conformance = program
         .conformance_by_symbol(application.declaration)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "selected capture application lost its map declaration",
-            )]
-        })?;
+        .ok_or_else(|| failed("selected capture application lost its map declaration"))?;
     let owned = conformance.rows.iter().any(|row| {
         row.source.owns_realization()
             && row.realization_machine == dispatch.realization_machine
@@ -248,11 +244,7 @@ fn call_capture(
             .machine_specialization(owner)
             .map(|receipt| receipt.binding_application)
             .filter(|application| application.is_valid())
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "selected capture lost its supplying source invocation",
-                )]
-            })?
+            .ok_or_else(|| failed("selected capture lost its supplying source invocation"))?
     };
     Ok(Some((
         (*application).clone(),

@@ -9,7 +9,9 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::JoinedPath;
 use typed_trees::data::DataDefinition;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableStructLiteral,
+};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
@@ -438,6 +440,16 @@ pub(super) fn validate_literal_default_domain(
     if data_definition.where_facts.is_empty() {
         return;
     }
+    // A case disjunction is the active case's own conjuncts. The selected
+    // literal supplies that case, so the other disjuncts are not obligations
+    // of this construction. Their payload facts stay on the case span.
+    if literal
+        .case_symbol
+        .is_some_and(|case_symbol| case_symbol.is_valid())
+        && default_domain_is_case_disjunction(program, data_definition)
+    {
+        return;
+    }
     // The logical subject retains its active case. Bare field binders remain
     // common-only; guarded payload projections use the complete subject.
     let declared = common_field_symbols(program, data_definition);
@@ -522,6 +534,140 @@ pub(super) fn validate_literal_case_constraints(
         "case",
         diagnostics,
     );
+}
+
+/// Every default-domain fact is a disjunction of `self in Data::Case` conjuncts.
+/// Construction of one case proves that disjunction by the case tag; the
+/// selected case's remaining conjuncts are the projected case facts.
+fn default_domain_is_case_disjunction(
+    program: &dyn crate::CheckingInput,
+    data_definition: &DataDefinition,
+) -> bool {
+    let subject = data_definition.predicate_subject_symbol;
+    if !subject.is_valid() {
+        return false;
+    }
+    let facts = program
+        .proof_facts
+        .span_or_empty(data_definition.where_facts);
+    !facts.is_empty()
+        && facts.iter().all(|fact| {
+            fact.as_expression().is_some_and(|expression| {
+                is_case_disjunction(program, data_definition, subject, *expression)
+            })
+        })
+}
+
+fn is_case_disjunction(
+    program: &dyn crate::CheckingInput,
+    data_definition: &DataDefinition,
+    subject: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> bool {
+    let mut disjuncts = Vec::new();
+    flatten_operator(program, expression, BinaryOperator::Or, &mut disjuncts);
+    !disjuncts.is_empty()
+        && disjuncts.into_iter().all(|disjunct| {
+            let mut atoms = Vec::new();
+            flatten_operator(program, disjunct, BinaryOperator::And, &mut atoms);
+            let mut saw_case = false;
+            for atom in atoms {
+                match case_membership_symbol(program, subject, atom) {
+                    Some(case_symbol) if variant_of(program, data_definition, case_symbol) => {
+                        if saw_case {
+                            return false;
+                        }
+                        saw_case = true;
+                    }
+                    Some(_) => return false,
+                    None => {}
+                }
+            }
+            saw_case
+        })
+}
+
+fn flatten_operator(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    operator: BinaryOperator,
+    out: &mut Vec<ExpressionHandle>,
+) {
+    if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+        && binary.operator == operator
+    {
+        flatten_operator(program, binary.left, operator, out);
+        flatten_operator(program, binary.right, operator, out);
+        return;
+    }
+    out.push(expression);
+}
+
+fn case_membership_symbol(
+    program: &dyn crate::CheckingInput,
+    subject: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<symbols::SymbolHandle> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::CaseMembership
+    ) {
+        return None;
+    }
+    let case_expression = if names_predicate_subject(program, subject, binary.left) {
+        binary.right
+    } else if names_predicate_subject(program, subject, binary.right) {
+        binary.left
+    } else {
+        return None;
+    };
+    let ExpressionNode::Name(path) = program.expression_table.expression(case_expression) else {
+        return None;
+    };
+    if program
+        .expression_table
+        .name_path_members(path.members)
+        .len()
+        != 2
+    {
+        return None;
+    }
+    path.symbol.is_valid().then_some(path.symbol)
+}
+
+fn names_predicate_subject(
+    program: &dyn crate::CheckingInput,
+    subject: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            path.symbol == subject
+                && program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    == 1
+        }
+        _ => false,
+    }
+}
+
+fn variant_of(
+    program: &dyn crate::CheckingInput,
+    data_definition: &DataDefinition,
+    case_symbol: symbols::SymbolHandle,
+) -> bool {
+    program
+        .data_members(data_definition)
+        .iter()
+        .any(|member| match member {
+            typed_trees::data::DataMember::Variant(variant) => variant.symbol == case_symbol,
+            _ => false,
+        })
 }
 
 /// The identities of `data`'s common (non-case) fields.

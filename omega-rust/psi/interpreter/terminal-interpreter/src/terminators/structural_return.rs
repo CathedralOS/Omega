@@ -462,11 +462,7 @@ impl TerminalExecution<'_> {
         if !value.qualifications.is_empty() || !value.projected_qualifications.is_empty() {
             return Ok(None);
         }
-        let declaration = self
-            .program
-            .structural_types()
-            .get(&value.structural_type)
-            .ok_or_else(malformed)?;
+        let declaration = self.program.structural_declaration(value.structural_type)?;
         let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
             return Ok(None);
         };

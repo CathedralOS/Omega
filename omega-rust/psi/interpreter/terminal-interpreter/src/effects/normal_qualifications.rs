@@ -159,7 +159,7 @@ impl TerminalExecution<'_> {
                     .ok_or_else(malformed)?
                     .value;
                 let home = StructuralRuntimePlace::from(&carrier);
-                let actual = self.structural_cases.get(&home).ok_or_else(malformed)?;
+                let actual = self.structural_cases.require(&home)?;
                 if actual.structural_type != carrier.structural_type {
                     return Err(malformed());
                 }

@@ -4,6 +4,7 @@ use symbol_resolved_trees as resolved;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees as typed;
 
+use crate::lowerer::name::lower_names;
 use crate::type_reference::constraints::lower_type_constraint_node_span_from_table;
 use crate::type_reference::direct::lower_fixed_array_type;
 
@@ -137,10 +138,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                 .insert(typed::types::TypeReferenceNode::Generic {
                     base_symbol: *base_symbol,
                     base_name: crate::lowerer::name::lower_name(base_name),
-                    lifetime_arguments: lifetime_arguments
-                        .iter()
-                        .map(crate::lowerer::name::lower_name)
-                        .collect(),
+                    lifetime_arguments: lower_names(&lifetime_arguments),
                     arguments: lowered_arguments,
                 }))
         }

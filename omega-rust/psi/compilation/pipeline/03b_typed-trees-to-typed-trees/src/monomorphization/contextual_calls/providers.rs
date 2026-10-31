@@ -208,23 +208,7 @@ pub(super) fn close(
     // Admission consumes the complete determined symbolic tuple, not the
     // original universal declaration. Executable instances still require closed
     // operands; a caller's const binder is not a cache key or a concrete value.
-    if provider
-        .type_bindings
-        .iter()
-        .chain(&provider.const_bindings)
-        .flatten()
-        .any(|reference| super::static_operands::is_open(program, *reference))
-        || provider.machine_bindings.iter().flatten().any(|argument| {
-            matches!(
-                program.symbols.get(argument.symbol).kind,
-                symbols::SymbolKind::MachineParameter
-            ) || argument.application.is_some()
-        })
-        || provider.evidence_bindings.iter().flatten().any(|argument| {
-            validation::conformance_applications::close_conformance_application(program, argument)
-                .is_err()
-        })
-    {
+    if super::super::provider_tuple_closure::operands_are_open(program, &provider) {
         provider.binding_application = super::applications::retain_provider(
             program,
             &provider,

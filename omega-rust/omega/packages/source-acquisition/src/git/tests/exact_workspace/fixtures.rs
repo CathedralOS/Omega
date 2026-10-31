@@ -1,13 +1,12 @@
 use super::super::{
     GitCommitId, GitSourceRequest, GitTreeId, GitWorkspaceProjectionResult, LocalSourceLimits,
-    PathBuf, SourceResolver, create_git_source, local_git_request, make_tree_owner_writable,
-    run_test_git, run_test_git_with_input, temp_root, test_system_git_executor,
+    PathBuf, SourceResolver, create_git_source, fixture_storage, local_git_request, remove_fixture,
+    run_test_git, run_test_git_with_input, temp_root,
 };
 use super::{
     GitExactRevisionAcquisition, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError,
     Planner, resolve_git_workspace_member_at_revision_in_lanes,
 };
-use crate::PrimaryGitChoices;
 pub(super) struct Fixture {
     pub(super) repository: PathBuf,
     storage_base: PathBuf,
@@ -54,20 +53,8 @@ impl Fixture {
         let member_tree =
             run_test_git_with_input(&repository, ["rev-parse", "HEAD:packages/member"], b"");
         let request = local_git_request(&repository, "HEAD");
-        let executable = test_system_git_executor(request.execution_transport())
-            .unwrap()
-            .execution_backend
-            .executable()
-            .to_path_buf();
         let storage_base = temp_root(name);
-        let storage = SourceResolver::for_hardened_base(
-            &storage_base,
-            PrimaryGitChoices {
-                explicit_git: Some(executable.as_ref()),
-                ..PrimaryGitChoices::default()
-            },
-        )
-        .unwrap();
+        let storage = fixture_storage(&storage_base, &request);
         Self {
             repository,
             storage_base,
@@ -162,8 +149,6 @@ impl Fixture {
 
 impl Drop for Fixture {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.repository);
-        make_tree_owner_writable(&self.storage_base);
-        let _ = std::fs::remove_dir_all(&self.storage_base);
+        remove_fixture(&self.repository, &self.storage_base);
     }
 }

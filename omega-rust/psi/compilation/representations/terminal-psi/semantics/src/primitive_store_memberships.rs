@@ -4,6 +4,7 @@
 //! access are independent of this receiving restriction.
 mod scalar;
 
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{
     BoundedIntegerType, IntegerSign, IntegerType, IntegerValue, StructuralDomainId,
     StructuralTypeId,
@@ -234,16 +235,10 @@ pub fn primitive_store_preserves_scalar_memberships<'types, 'domain>(
     let actual = if value.qualifications.is_empty() {
         &[][..]
     } else {
-        let mut matching = catalog
-            .sets
-            .iter()
-            .filter(|set| set.id == value.qualifications);
-        let Some(set) = matching.next() else {
+        let Some(set) = exactly_one(catalog.sets.iter(), |set| set.id == value.qualifications)
+        else {
             return false;
         };
-        if matching.next().is_some() {
-            return false;
-        }
         set.domains.as_slice()
     };
     required.into_iter().all(|required| {
@@ -306,12 +301,8 @@ pub fn primitive_scalar_memberships<'types, 'domain>(
     }
     let mut memberships = Vec::with_capacity(actual.len());
     for identity in actual {
-        let mut declarations = catalog
-            .domains
-            .iter()
-            .filter(|domain| domain.id == *identity);
-        let declaration = declarations.next()?;
-        if declarations.next().is_some() || declaration.carrier != value.scalar_type {
+        let declaration = exactly_one(catalog.domains.iter(), |domain| domain.id == *identity)?;
+        if declaration.carrier != value.scalar_type {
             return None;
         }
         let mut matching = domains.clone().filter(|domain| {

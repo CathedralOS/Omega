@@ -905,6 +905,44 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
 }
 
 #[test]
+fn provider_derivation_consumes_the_prepared_service_census() {
+    let inventory = include_str!(
+        "../../../../psi/compilation/representations/checked-trees/src/provider_inventory.rs"
+    );
+    assert!(inventory.contains("PreparedServiceCatalog::prepare("));
+    assert!(inventory.contains("self.require_owner(checked)?"));
+    let derivation = include_str!(
+        "../../realization/provider-planning/src/provider_planning/provenance_replay/plan_derivation.rs"
+    );
+    let named = include_str!(
+        "../../realization/provider-planning/src/provider_planning/provenance_replay/named_provider_plans.rs"
+    );
+    let service_catalog =
+        include_str!("../../realization/provider-planning/src/service_declarations.rs");
+    for consumer in [derivation, named, service_catalog] {
+        for forbidden in [
+            "projection::from_typed",
+            "service_schema::from_typed",
+            "service_schema::from_sealed_placed_accessor",
+        ] {
+            assert!(
+                !consumer.contains(forbidden),
+                "provider census consumer reopens {forbidden}"
+            );
+        }
+    }
+    assert!(named.contains("services.named_application("));
+    assert!(service_catalog.contains("catalog.declared_traits()"));
+    let build = include_str!("../../build-evaluation/src/admission/checking.rs");
+    assert!(
+        build
+            .find("PreparedServiceCatalog::prepare(context)")
+            .unwrap()
+            < build.find("derive_satisfies_plans(").unwrap()
+    );
+}
+
+#[test]
 fn product_coordinator_has_no_native_stage_dependency() {
     let manifest = include_str!("../Cargo.toml")
         .split("[dev-dependencies]")
@@ -1654,4 +1692,28 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
     );
     assert!(admission.contains("entry.chain(callbacks).chain(adapter)"));
     assert!(admission.contains("roots.retained_roots(&lowered.semantic_module)"));
+}
+
+#[test]
+fn service_surface_projection_is_psi_owned_and_calling_is_an_omega_attachment() {
+    let surface =
+        include_str!("../../../../psi/foundation/language-semantics/src/service_surface.rs");
+    assert!(!surface.contains("BoundaryCallingPlanCommitment"));
+    assert!(!surface.contains("calling_plan_report_fingerprint"));
+    let projection = include_str!(
+        "../../../../psi/compilation/representations/typed-trees/src/service_declarations/projection.rs"
+    );
+    assert!(projection.contains("requirements.push(ServiceRequirementSource"));
+    assert!(projection.contains("scope.type_identity("));
+    assert!(!projection.contains("BoundaryCallingPlanRealization"));
+    let attachment = include_str!("../../realization/provider-planning/src/service_schema/mod.rs");
+    assert!(attachment.contains("application.argument_owner() == argument_owner"));
+    assert!(attachment.contains("application.boundary_arguments == boundary_arguments"));
+    assert!(attachment.contains("prepared.argument_owner,"));
+    assert!(attachment.contains("prepared.boundary_arguments,"));
+    assert!(!attachment.contains("ServiceMethod {"));
+    assert!(!attachment.contains("fn collect_service_methods("));
+    let catalog = include_str!("../../realization/provider-planning/src/service_declarations.rs");
+    assert!(catalog.contains("projected.exact_requirements()?"));
+    assert!(!catalog.contains("trait_requirements("));
 }

@@ -1,5 +1,6 @@
 use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
+use crate::signatures::parameters::state_parameter;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 
@@ -13,12 +14,7 @@ pub(crate) fn lower_measure_definition(
         .map(|parameter| lower_measure_parameter(lowerer, parameter))
         .transpose()?;
 
-    let return_type = measure
-        .return_type
-        .as_ref()
-        .map(|type_reference| lower_type_reference_into_table(lowerer, type_reference))
-        .transpose()?
-        .unwrap_or_else(typed_trees::types::TypeReferenceHandle::invalid);
+    let return_type = crate::type_reference::lower_return_type(lowerer, &measure.return_type)?;
 
     let mut typed_measure = typed_trees::measure::MeasureDefinition {
         symbol: measure.symbol,
@@ -58,12 +54,5 @@ fn lower_measure_parameter(
     parameter: &symbol_resolved_trees::signature::StateParameter,
 ) -> Result<typed_trees::signature::StateParameter, Diagnostic> {
     let type_reference = lower_type_reference_into_table(lowerer, &parameter.type_reference)?;
-    Ok(typed_trees::signature::StateParameter {
-        symbol: parameter.symbol,
-        name: crate::lowerer::name::lower_name(&parameter.name),
-        type_reference,
-        is_const: parameter.is_const,
-        is_mutable: parameter.is_mutable,
-        relevance: parameter.relevance,
-    })
+    Ok(state_parameter(parameter, type_reference))
 }

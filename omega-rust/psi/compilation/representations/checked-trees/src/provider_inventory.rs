@@ -16,20 +16,43 @@ pub struct PreparedProviderInventory {
     uses: OnceLock<HashSet<SymbolHandle>>,
     origins: OnceLock<Vec<language_semantics::provider_declarations::SelectedTargetMachineOrigin>>,
     direct_calls: OnceLock<DirectCallDeclarations<SymbolHandle>>,
+    services: typed_trees::service_declarations::PreparedServiceCatalog,
 }
 
 impl PreparedProviderInventory {
     pub fn new(checked: Arc<CheckedTrees>) -> Self {
+        // The Product projection has reached its final immutable Arc before
+        // source-owned service formation. No target can extend this census.
+        let services = typed_trees::service_declarations::PreparedServiceCatalog::prepare(
+            typed_trees::provider_declarations::ProviderPlanningContext::new(
+                &checked.typed,
+                source::DependencyScope::Product,
+            ),
+        );
         Self {
             checked,
             uses: OnceLock::new(),
             origins: OnceLock::new(),
             direct_calls: OnceLock::new(),
+            services,
         }
     }
 
     pub fn program(&self) -> &Arc<CheckedTrees> {
         &self.checked
+    }
+
+    pub fn services_for(
+        &self,
+        checked: &CheckedTrees,
+    ) -> Result<typed_trees::service_declarations::ServiceCatalog<'_>, Diagnostic> {
+        self.require_owner(checked)?;
+        self.services.bind(
+            typed_trees::provider_declarations::ProviderPlanningContext::new(
+                &self.checked.typed,
+                source::DependencyScope::Product,
+            ),
+        )
     }
 
     pub fn direct_calls_for(

@@ -19,8 +19,8 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact) -> Result<(), String>
     let selected_index = plans.iter().position(|plan| {
         matches!(plan.rows.as_slice(), [row] if matches!(row.binding, ProviderBinding::CheckedAdapter { .. }))
             && loaded.semantic_module().boundary_application_demands.iter().any(|demand| {
-                plan.schema.identity_text(plan.schema.trait_name) == demand.requirement().overload()
-                    && plan.schema.trait_package_identity == demand.requirement().package()
+                plan.schema.identity_text(plan.schema.declaration.trait_name) == demand.requirement().overload()
+                    && plan.schema.declaration.trait_package_identity == demand.requirement().package()
             })
     }).ok_or("boundary provider controls require a demanded checked body")?;
 

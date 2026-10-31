@@ -6,6 +6,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) struct PreparedTypedProgram<'program> {
     pub(crate) dependency_body_judgments: Vec<validation::DependencyBodyJudgment>,
+    pub(crate) frozen_dependency_bodies: Vec<validation::FrozenDependencyBody>,
     pub(crate) integer_assignments: Vec<proof::checker::CheckedIntegerAssignment>,
     /// Comparisons the proof pass established against retained constant
     /// recipes, for the target closure to discharge.
@@ -21,6 +22,7 @@ pub(crate) fn prepare_typed_program<'program>(
     opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
     allow_pending_opaque_copy: bool,
     prior_dependency_bodies: &[validation::DependencyBodyJudgment],
+    prior_frozen_bodies: &[validation::FrozenDependencyBody],
     record_dependency_bodies: bool,
 ) -> Result<PreparedTypedProgram<'program>, Vec<Diagnostic>> {
     let opaque_properties = if allow_pending_opaque_copy {
@@ -36,6 +38,7 @@ pub(crate) fn prepare_typed_program<'program>(
             program,
             opaque_properties,
             prior_dependency_bodies,
+            prior_frozen_bodies,
             record_dependency_bodies,
         )
     })?;
@@ -56,8 +59,10 @@ pub(crate) fn prepare_typed_program<'program>(
     })?;
 
     let dependency_body_judgments = validated.dependency_body_judgments;
+    let frozen_dependency_bodies = validated.frozen_dependency_bodies;
     Ok(PreparedTypedProgram {
         dependency_body_judgments,
+        frozen_dependency_bodies,
         integer_assignments,
         constant_recipe_obligations,
         proof_plan,

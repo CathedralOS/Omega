@@ -4,6 +4,7 @@
 //! Dynamic trait references and fixed array lengths lower here as well.
 
 use crate::lowering::expression::lower_expression_into_table;
+use crate::lowering::name::lower_names;
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -251,10 +252,7 @@ fn lower_type_reference_node(
                     supplied_operand_owner: Default::default(),
                     base_symbol: SymbolHandle::invalid(),
                     base_name: crate::lowering::name::lower_name(syntax_trees, base_name),
-                    lifetime_arguments: lifetime_arguments
-                        .iter()
-                        .map(|name| crate::lowering::name::lower_name(syntax_trees, name))
-                        .collect(),
+                    lifetime_arguments: lower_names(syntax_trees, &lifetime_arguments),
                     arguments: lowered_arguments,
                 },
             }))

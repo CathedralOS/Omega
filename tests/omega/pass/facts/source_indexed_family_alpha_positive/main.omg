@@ -1,12 +1,13 @@
 // Expected exit: 0
 // Chain constructors bind their exact length and sum. Induction proves the
 // sum bound used by the executing consumer; proof payloads remain erased.
-data Chain<Count: u64, Weight: u64> {
-    case Empty where Count == 0 && Weight == 0;
+data Chain<Count: u64, Weight: u64> 
+    requires ((self in Chain::Empty) && (Count == 0 && Weight == 0)) || ((self in Chain::Link) && (self.item <= 10 && embed(self.prior) + 1 == embed(Count)
+              && embed(self.prior_weight) + embed(self.item) == embed(Weight)))
+{
+    case Empty;
     case Link(prior: u64, prior_weight: u64, item: u64,
-              rest [erased]: Chain<prior, prior_weight>)
-        where item <= 10 && embed(prior) + 1 == embed(Count)
-              && embed(prior_weight) + embed(item) == embed(Weight);
+              rest [erased]: Chain<prior, prior_weight>);
 }
 let preserve<Count: u64, Weight: u64>(value: Chain<Count, Weight>): Chain<Count, Weight> = value;
 

@@ -19,14 +19,8 @@ impl TerminalExecution<'_> {
         }
         // Replacing a whole loaned owner requires no read of its prior live
         // extent. Write-only formals retain that distinction from indexed writes.
-        let binding = self
-            .byte_sequence_values
-            .get(destination)
-            .ok_or_else(malformed)?;
-        let value = self
-            .structural_values
-            .get(destination)
-            .ok_or_else(malformed)?;
+        let binding = self.byte_sequence_values.require(destination)?;
+        let value = self.structural_value(*destination)?;
         let (owner, capacity) = match binding {
             ByteSequenceBinding::MutableField {
                 field, capacity, ..
@@ -46,9 +40,7 @@ impl TerminalExecution<'_> {
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
                 ) = self
                     .program
-                    .structural_types()
-                    .get(&value.structural_type)
-                    .ok_or_else(malformed)?
+                    .structural_declaration(value.structural_type)?
                     .shape
                 else {
                     return Err(malformed());
@@ -66,8 +58,7 @@ impl TerminalExecution<'_> {
         };
         let bytes = self
             .byte_sequence_values
-            .get(source)
-            .ok_or_else(malformed)?
+            .require(source)?
             .immutable()?
             .clone();
         if bytes.len() as u128 != *length || *length > u128::from(capacity) {

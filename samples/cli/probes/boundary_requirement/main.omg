@@ -1,16 +1,8 @@
-// `boundary requirement` declarations: a bodyless boundary
-// contract on data — the consuming contract other machines (or a
-// provider) must satisfy. Three shapes sit side by side:
-// `boundary trait` (named service), `boundary machine` (named
-// operation), `boundary requirement` (attached obligation).
-//
-//   * `boundary requirement ReceiptState::settle(state)` —
-//     consuming-contract decl on an affine sum carrying a linear
-//     payload (`Live(receipt: Receipt)` with `Receipt [linear]`).
-//   * `hits` records the reached arm.
-//
-// Compile-checked only: requirement decls are provider-satisfiable
-// contracts — no provider is realized here.
+// ReceiptSettlement consumes the linear receipt carried by ReceiptState::Live.
+// The caller matches the sum. Empty has no claim. Live moves the receipt into
+// the trait, and the selected abs provider returns its absolute code.
+// Expected exit: 0.
+use omega::language::core::external_binding;
 
 data Receipt [linear] {
     code: i32;
@@ -21,18 +13,77 @@ data ReceiptState {
     case Live(receipt: Receipt);
 }
 
-boundary requirement ReceiptState::settle(state: ReceiptState);
-
-data Main {
-    hits: i32 in Wrapping;
+boundary trait ReceiptSettlement {
+    machine settle(receipt: Receipt) -> i32
+    reaches;
 }
 
-machine Main::main(main: &mut Main) {
-    main.hits = 1;
+data ReceiptSink {}
+
+linux_x86_64 machine linux_x86_64_receipt_sink_binding() -> ForeignBinding<9, 3, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.2.5",
+        },
+    }
 }
 
-// The entry owns ordinary local state; selection supplies no context.
-machine entry_start() {
-    let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+linux_arm64 machine linux_arm64_receipt_sink_binding() -> ForeignBinding<9, 3, 10> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.17",
+        },
+    }
+}
+
+macos_arm64 machine macos_arm64_receipt_sink_binding() -> ForeignBinding<17, 4, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "_abs",
+        },
+    }
+}
+
+windows_x86_64 machine windows_x86_64_receipt_sink_binding() -> ForeignBinding<10, 3, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "abs",
+        },
+    }
+}
+
+linux_x86_64 machine ReceiptSink::settle(receipt: Receipt) -> i32
+satisfies ReceiptSettlement::settle via linux_x86_64_receipt_sink_binding();
+linux_arm64 machine ReceiptSink::settle(receipt: Receipt) -> i32
+satisfies ReceiptSettlement::settle via linux_arm64_receipt_sink_binding();
+macos_arm64 machine ReceiptSink::settle(receipt: Receipt) -> i32
+satisfies ReceiptSettlement::settle via macos_arm64_receipt_sink_binding();
+windows_x86_64 machine ReceiptSink::settle(receipt: Receipt) -> i32
+satisfies ReceiptSettlement::settle via windows_x86_64_receipt_sink_binding();
+
+machine entry_start() crashes Trap {
+    let empty: ReceiptState = ReceiptState::Empty;
+    let live: ReceiptState = ReceiptState::Live { receipt: Receipt { code: -4 } };
+    transition empty {
+        ReceiptState::Empty -> settle_live(live)
+        _ -> bad()
+    }
+    machine settle_live(state: ReceiptState) crashes Trap {
+        transition state {
+            ReceiptState::Live { receipt } -> finish(receipt)
+            _ -> bad()
+        }
+    }
+    machine finish(receipt: Receipt) crashes Trap {
+        let code: i32 = ReceiptSettlement::settle(receipt);
+        transition code == 4 { true -> done() _ -> bad() }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

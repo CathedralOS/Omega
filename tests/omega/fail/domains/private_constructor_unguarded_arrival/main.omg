@@ -1,0 +1,15 @@
+// The same private constructor has both a justified and an unjustified arrival.
+data Bounded requires self.length <= 2 { length: u64; }
+machine rebuild(source: &Bounded, guarded: bool, unchecked: u64) -> Bounded {
+    transition guarded {
+        true -> construct(source.length)
+        false -> construct(unchecked)
+    }
+    machine construct(length: u64) -> Bounded {
+        (Bounded { length: length })
+    }
+}
+machine main() {
+    let source: Bounded = Bounded { length: 2 };
+    let result: Bounded = rebuild(&source, false, 3);
+}

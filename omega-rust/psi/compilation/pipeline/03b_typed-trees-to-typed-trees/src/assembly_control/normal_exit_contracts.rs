@@ -19,6 +19,21 @@ use typed_trees::signature::{SignatureContract, SignatureContractKind};
 use typed_trees::state::State;
 use typed_trees::statement::{AssemblyControlFlow, AssemblyExit, AssemblyFactKind};
 
+/// An obligation the normalization pass derives carries the provider's own fact
+/// roster; no authored keyword span or clause binding exists for it.
+pub(super) fn derived_contract(
+    kind: SignatureContractKind,
+    facts: HandleSpan<ProofFact>,
+) -> SignatureContract {
+    SignatureContract {
+        kind,
+        keyword_source_span: None,
+        binding: None,
+        facts,
+        token_count: 0,
+    }
+}
+
 pub(super) fn append(
     program: &mut TypedTrees,
     source: &TypedTrees,
@@ -121,16 +136,7 @@ pub(super) fn append(
         };
         for kind in kinds {
             let facts = program.proof_facts.insert_many([fact.clone()]);
-            program.push_machine_contract(
-                helper,
-                SignatureContract {
-                    kind: kind.clone(),
-                    keyword_source_span: None,
-                    binding: None,
-                    facts,
-                    token_count: 0,
-                },
-            );
+            program.push_machine_contract(helper, derived_contract(kind.clone(), facts));
         }
     }
 }

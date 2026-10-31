@@ -82,6 +82,7 @@ pub(super) fn resolve_services<'a>(
                 ));
             }
             let matches = schema
+                .declaration
                 .methods
                 .iter()
                 .zip(&requirements)

@@ -84,7 +84,7 @@ pub(crate) fn validate_paired_calling_plans(
             semantic_method
                 .parameter_type_identities
                 .iter()
-                .map(|identity| storage.schema().identities.text(*identity))
+                .map(|identity| storage.schema().declaration.identities.text(*identity))
                 .eq(source.visible_parameters().iter().map(|parameter| {
                     source
                         .identities()
@@ -134,7 +134,8 @@ pub(crate) fn validate_paired_calling_plans(
             .iter()
             .zip(physical_method.parameter_type_identities.iter())
             .all(|(left, right)| {
-                contract.identities().text(*left) == Some(storage.schema().identities.text(*right))
+                contract.identities().text(*left)
+                    == Some(storage.schema().declaration.identities.text(*right))
             })
         || contract.parameter_type_identities().len()
             != physical_method.parameter_type_identities.len()
@@ -142,6 +143,7 @@ pub(crate) fn validate_paired_calling_plans(
         || Some(
             storage
                 .schema()
+                .declaration
                 .identities
                 .text(physical_method.result_type_identity),
         ) != contract.identities().text(contract.result_type_identity())
@@ -206,6 +208,7 @@ fn selected_method<'schema>(
     })?;
     let mut methods = storage
         .schema()
+        .declaration
         .methods
         .iter()
         .filter(|method| method.requirement_owner == owner && method.name == name);
@@ -228,9 +231,13 @@ fn join_application<'application>(
 ) -> Result<&'application ValidatedBoundaryEntryPlan, String> {
     if application.target != target
         || application.requirement_identity != schema.identity_text(method.requirement_identity)
-        || method.calling_plan_report_fingerprint != Some(application.report_fingerprint)
-        || method
-            .calling_plan_commitment
+        || schema
+            .calling_plan(method.requirement_identity)
+            .map(|plan| plan.report_fingerprint)
+            != Some(application.report_fingerprint)
+        || schema
+            .calling_plan(method.requirement_identity)
+            .map(|plan| plan.commitment)
             .map(|commitment| commitment.as_bytes())
             != Some(application.commitment)
     {

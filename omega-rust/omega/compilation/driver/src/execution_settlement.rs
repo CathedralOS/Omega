@@ -429,6 +429,10 @@ fn prepare_target_provider_selection(
         &source.program,
         source
             .provider_inventory
+            .services_for(&source.program)
+            .map_err(|error| vec![error])?,
+        source
+            .provider_inventory
             .uses_for(&source.program)
             .map_err(|error| vec![error])?,
         source

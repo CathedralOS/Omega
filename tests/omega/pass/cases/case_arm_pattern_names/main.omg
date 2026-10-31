@@ -1,8 +1,10 @@
 domain i32::Step requires 0 <= self && self <= 50;
 
-data Msg {
+data Msg 
+    requires (self in Msg::Move) || ((self in Msg::Stop) && (self.code >= -100 && self.code <= 100))
+{
     case Move(dx: i32 in Step, dy: i32 in Step);
-    case Stop(code: i32) where code >= -100 && code <= 100;
+    case Stop(code: i32);
 }
 
 machine apply(m: Msg) -> i32 ensures result >= -100 && result <= 140 {

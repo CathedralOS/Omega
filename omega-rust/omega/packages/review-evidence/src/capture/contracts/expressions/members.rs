@@ -53,12 +53,7 @@ pub(crate) fn contract_member_collection_measure(
     };
 
     compilation
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            compilation
-                .authored_declaration_selections()
-                .get(occurrence)
-        })
+        .authored_selections(expression)
         .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess)
         .find_map(|selection| {
             [CollectionMeasure::Length, CollectionMeasure::Capacity]
@@ -97,12 +92,7 @@ pub(crate) fn exact_checked_contract_nominal_member(
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
 
     let selections = compilation
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            compilation
-                .authored_declaration_selections()
-                .get(occurrence)
-        })
+        .authored_selections(expression)
         .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess)
         .collect::<Vec<_>>();
     let [selection] = selections.as_slice() else {
@@ -143,12 +133,7 @@ pub(crate) fn require_exact_checked_contract_collection_measure(
     };
 
     let selections = compilation
-        .authored_selection_occurrences(expression)
-        .filter_map(|occurrence| {
-            compilation
-                .authored_declaration_selections()
-                .get(occurrence)
-        })
+        .authored_selections(expression)
         .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess)
         .collect::<Vec<_>>();
     let [selection] = selections.as_slice() else {
@@ -228,18 +213,25 @@ pub(crate) fn project_computed_contract_member_expression(
 
 pub(crate) fn contract_member_path_source(
     compilation: &PackageReviewInput<'_>,
+    context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
-) -> Option<(
-    typed_trees::expression::ExpressionHandle,
-    Vec<typed_trees::name::Identifier>,
-)> {
+) -> Result<Option<(typed_trees::expression::ExpressionHandle, Vec<SymbolHandle>)>, Vec<Diagnostic>>
+{
     use typed_trees::expression::ExpressionNode;
 
     match compilation.expression_table.expression(expression) {
         ExpressionNode::Member(member) => {
-            let (root, mut members) = contract_member_path_source(compilation, member.receiver)?;
-            members.push(member.member.clone());
-            Some((root, members))
+            let Some((root, mut members)) =
+                contract_member_path_source(compilation, context, member.receiver)?
+            else {
+                return Ok(None);
+            };
+            members.push(exact_checked_contract_nominal_member(
+                compilation,
+                context,
+                expression,
+            )?);
+            Ok(Some((root, members)))
         }
         ExpressionNode::Name(path)
             if compilation
@@ -248,9 +240,9 @@ pub(crate) fn contract_member_path_source(
                 .len()
                 == 1 =>
         {
-            Some((expression, Vec::new()))
+            Ok(Some((expression, Vec::new())))
         }
-        _ => None,
+        _ => Ok(None),
     }
 }
 
@@ -287,6 +279,12 @@ pub(crate) fn contract_member_path_root(
         is_data_subject_field_expression(compilation, data_symbol, expression)
     }) {
         return context.data_symbol.map(facts::PlaceRoot::Symbol);
+    }
+    if let Some(subject) = context
+        .data_symbol
+        .and_then(|data_symbol| data_predicate_subject(compilation, data_symbol, expression))
+    {
+        return Some(facts::PlaceRoot::Symbol(subject));
     }
     if context.domain_symbol.is_none()
         && compilation
@@ -355,6 +353,27 @@ pub(crate) fn is_data_subject_field_expression(
     })
 }
 
+/// The whole-data predicate binder is declaration-owned, not a spelling of a
+/// receiver. Rejoin its exact resolved symbol before projecting a public fact.
+pub(crate) fn data_predicate_subject(
+    compilation: &PackageReviewInput<'_>,
+    data_symbol: SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let path = compilation.expression_table.name_path_node(expression)?;
+    let data = compilation.data_definition_by_symbol(data_symbol)?;
+    let subject = data.predicate_subject_symbol;
+    (subject.is_valid()
+        && path.symbol == subject
+        && path.head_symbol == subject
+        && compilation
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            == 1)
+        .then_some(subject)
+}
+
 pub(crate) fn data_subject_binder_position(
     compilation: &PackageReviewInput<'_>,
     data_symbol: SymbolHandle,
@@ -397,13 +416,13 @@ pub(crate) fn checked_contract_member_path(
     context: &ContractProjectionContext<'_>,
     checked_fact: arena::Handle<typed_trees::domain::ProofFact>,
     root: facts::PlaceRoot,
-    source_members: &[typed_trees::name::Identifier],
+    source_members: &[SymbolHandle],
 ) -> Result<Vec<(Option<SymbolHandle>, SymbolHandle)>, Vec<Diagnostic>> {
     use facts::FactPayload;
 
     // Definition facts, like machine facts, retain complete operand reads.
     // An indexed operand's dependency expression is not its member receiver.
-    // Join within this exact owner/fact by root and checked member prefix;
+    // Join within this exact owner/fact by root and checked member identities;
     // requiring expression equality here would discard that receiver's proof.
     if let Some(domain_symbol) = context.domain_symbol {
         return select_checked_dependency_member(
@@ -466,6 +485,7 @@ pub(crate) fn checked_contract_member_path(
                 contract_subjects.push(handle);
                 push_checked_member_candidate(
                     compilation,
+                    context,
                     semantic_fact.place,
                     root,
                     source_members,
@@ -484,6 +504,7 @@ pub(crate) fn checked_contract_member_path(
         if contract_subjects.contains(&dependent) {
             push_checked_member_candidate(
                 compilation,
+                context,
                 facts::FactPlace::Place(place),
                 root,
                 source_members,
@@ -505,9 +526,10 @@ pub(crate) fn checked_contract_member_path(
 
 fn push_checked_member_candidate(
     compilation: &PackageReviewInput<'_>,
+    context: &ContractProjectionContext<'_>,
     place: facts::FactPlace,
     root: facts::PlaceRoot,
-    source_members: &[typed_trees::name::Identifier],
+    source_members: &[SymbolHandle],
     candidates: &mut Vec<Vec<(Option<SymbolHandle>, SymbolHandle)>>,
 ) {
     let Some(place_handle) = place.as_place() else {
@@ -517,7 +539,9 @@ fn push_checked_member_candidate(
     if place.root != root {
         return;
     }
-    let Some(selected) = checked_member_prefix(compilation, place.segments, source_members) else {
+    let Some(selected) =
+        checked_member_prefix(compilation, context, place.segments, source_members)
+    else {
         return;
     };
     if !candidates.contains(&selected) {
@@ -529,7 +553,7 @@ fn select_checked_dependency_member(
     compilation: &PackageReviewInput<'_>,
     context: &ContractProjectionContext<'_>,
     root: facts::PlaceRoot,
-    source_members: &[typed_trees::name::Identifier],
+    source_members: &[SymbolHandle],
     places: impl Iterator<Item = facts::PlaceHandle>,
 ) -> Result<Vec<(Option<SymbolHandle>, SymbolHandle)>, Vec<Diagnostic>> {
     let mut candidates = Vec::new();
@@ -546,7 +570,9 @@ fn select_checked_dependency_member(
         if place.root != root {
             continue;
         }
-        if let Some(selected) = checked_member_prefix(compilation, place.segments, source_members) {
+        if let Some(selected) =
+            checked_member_prefix(compilation, context, place.segments, source_members)
+        {
             if !candidates.contains(&selected) {
                 candidates.push(selected);
             }
@@ -570,8 +596,9 @@ fn select_checked_dependency_member(
 /// member neither replaces that prefix nor adds another copy of its identity.
 fn checked_member_prefix(
     compilation: &PackageReviewInput<'_>,
+    context: &ContractProjectionContext<'_>,
     segments: arena::HandleSpan<facts::PlaceSegment>,
-    source_members: &[typed_trees::name::Identifier],
+    source_members: &[SymbolHandle],
 ) -> Option<Vec<(Option<SymbolHandle>, SymbolHandle)>> {
     use facts::PlaceSegment;
 
@@ -602,7 +629,11 @@ fn checked_member_prefix(
     if selected
         .iter()
         .zip(source_members)
-        .any(|((_, symbol), name)| compilation.symbols.name(*symbol) != name.as_str())
+        .any(|((_, symbol), expected)| {
+            !expected.is_valid()
+                || (symbol != expected
+                    && !aliases::attached_field(compilation, context, *symbol, *expected))
+        })
     {
         return None;
     }

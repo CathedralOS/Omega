@@ -8,8 +8,10 @@ type ProviderSelectionKey =
 
 fn provider_slot_key(plan: &ProviderPlan) -> ProviderSelectionKey {
     (
-        plan.schema.trait_package_identity,
-        plan.schema.identity_text(plan.schema.trait_name).to_owned(),
+        plan.schema.declaration.trait_package_identity,
+        plan.schema
+            .identity_text(plan.schema.declaration.trait_name)
+            .to_owned(),
         plan.schema.root_application_identity().map(str::to_owned),
     )
 }
@@ -101,13 +103,13 @@ impl language_semantics::declaration_selection::provider_choices::Candidate
         &self.plan.target
     }
     fn has_requirements(&self) -> bool {
-        !self.plan.schema.methods.is_empty()
+        !self.plan.schema.declaration.methods.is_empty()
     }
     fn covers_requirements(&self) -> bool {
         self.plan.covers_schema()
     }
     fn receiver_count(&self) -> usize {
-        self.plan.schema.receiver_applications.len()
+        self.plan.schema.declaration.receiver_applications.len()
     }
     fn supplies_receiver(&self, demanded: &Self) -> Option<bool> {
         Some(
@@ -221,7 +223,7 @@ pub(crate) fn select_provider_plan_indices<Declaration: Clone + Eq, Origin: Clon
             Error::PartialChoice { tier, declaration: index, candidate } => {
                 let declaration = declaration(tier, index);
                 let plan = &plans[candidate];
-                format!("{} selects provider `{}` for slot `{}`, but candidate `{}` is partial ({}/{}) and cannot be selected", owner(tier), declaration.provider_type.authored_path, provider_slot_key(plan).1, plan.name, plan.rows.len(), plan.schema.methods.len())
+                format!("{} selects provider `{}` for slot `{}`, but candidate `{}` is partial ({}/{}) and cannot be selected", owner(tier), declaration.provider_type.authored_path, provider_slot_key(plan).1, plan.name, plan.rows.len(), plan.schema.declaration.methods.len())
             }
             Error::MissingChoice { tier, declaration: index, slot, wrong_target } => format!(
                 "{} selects provider `{}` for slot `{}`, but no {}candidate exists in the loaded dependency closure",

@@ -1,2 +1,2 @@
-cannot prove default-domain field requirement for call consume
-frames[1]::Ready.value requires u64::PositiveSmall
+reading `frames` crosses an open default-domain invariant window
+the zeroed representation is not yet a value of `[Frame; 2]`

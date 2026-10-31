@@ -477,24 +477,15 @@ fn parse_case_member<'tokens, 'source>(
         (HandleSpan::empty(), Vec::new())
     };
 
-    // CASE-CONSTRAINTS: a case-local `where` clause after the payload list --
-    // `case Range(lo: u64, hi: u64) where lo <= hi;` -- names payload and
-    // common fields; the fact list ends at the case's `;`. The
-    // case-constraints-through-default-domain migration spells the same
-    // proposition in the data's `requires` disjunction; both views land on
-    // this `where_facts` span (see `project_case_predicate_facts`).
-    let mut where_facts = HandleSpan::empty();
-    if input.at_contextual("where") {
-        input = input.take_contextual("where")?;
-        let ((facts, _token_count), rest) =
-            crate::contracts::facts::parse_logical_proof_facts_until(
-                syntax_trees,
-                input,
-                |input| input.at_punctuation(PunctuationKind::Semicolon) || input.tokens.is_empty(),
-            )?;
-        where_facts = facts;
-        input = rest;
+    // Case-local predicates are retired. The same proposition is a conjunct of
+    // the data declaration's default-domain `requires`, and
+    // `project_case_predicate_facts` derives this span from that disjunction.
+    if input.at_contextual("where") || input.at_contextual("requires") {
+        return Err(input.error_here(
+            "case-local predicate clauses are retired; write the predicate in the data declaration's default-domain `requires`",
+        ));
     }
+    let where_facts = HandleSpan::empty();
 
     input = if input.at_punctuation(PunctuationKind::Semicolon) {
         input.take_punctuation(PunctuationKind::Semicolon, ";")?
@@ -628,20 +619,6 @@ fn project_case_predicate_facts(
             continue;
         };
         let mut facts = crate::handle_spans::HandleSpanBuilder::new();
-        // An authored clause and a projected branch may coexist while the
-        // surface retires; the union preserves both.
-        let authored: Vec<ProofFact> = match &syntax_trees.items.data_members(members)[member_index]
-        {
-            DataMember::Variant(variant) => variant
-                .where_facts
-                .handles()
-                .map(|handle| syntax_trees.items.proof_fact(handle).clone())
-                .collect(),
-            _ => Vec::new(),
-        };
-        for fact in authored {
-            facts.push(syntax_trees.items.append_proof_fact(fact));
-        }
         for handle in fact_handles {
             facts.push(
                 syntax_trees

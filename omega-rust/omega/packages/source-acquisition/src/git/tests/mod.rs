@@ -9,6 +9,7 @@ use super::snapshot::*;
 #[cfg(unix)]
 use super::snapshot_metadata::*;
 use super::workspace::*;
+use crate::PrimaryGitChoices;
 use crate::SourceResolver;
 use crate::error::SourceResolveError;
 use crate::identity::*;
@@ -30,3 +31,17 @@ mod snapshot;
 mod tree_session;
 mod validation;
 mod workspace;
+
+/// Hardened resolver storage bound to the fixture's selected system Git.
+pub(super) fn fixture_storage(storage_base: &Path, request: &GitSourceRequest) -> SourceResolver {
+    let executor =
+        test_system_git_executor(request.execution_transport()).expect("select fixture Git");
+    SourceResolver::for_hardened_base(
+        storage_base,
+        PrimaryGitChoices {
+            explicit_git: Some(executor.execution_backend.executable()),
+            ..PrimaryGitChoices::default()
+        },
+    )
+    .expect("retain resolver storage")
+}

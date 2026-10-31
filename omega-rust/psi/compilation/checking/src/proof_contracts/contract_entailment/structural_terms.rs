@@ -205,6 +205,10 @@ pub(super) fn term_spelling(program: &dyn crate::CheckingInput, term: &Structura
             .join(", ")
     };
     match term {
+        StructuralTerm::RepeatedArray { length, element } => match element {
+            Some(element) => format!("[{}; {length}]", term_spelling(program, element)),
+            None => "[]".to_owned(),
+        },
         StructuralTerm::Variable(name) => name.clone(),
         StructuralTerm::ObservedValue { value, .. } => term_spelling(program, value),
         StructuralTerm::BoundValue(symbol) => program.symbols.name(*symbol).to_owned(),

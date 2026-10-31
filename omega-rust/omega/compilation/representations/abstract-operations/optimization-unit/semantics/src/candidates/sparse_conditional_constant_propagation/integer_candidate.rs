@@ -31,9 +31,7 @@ pub(crate) fn validate_integer_evaluation_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
-    let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch() else {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    };
+    candidate_patch!(patch, ReplaceIntegerOperationWithConstant, candidate);
     if candidate.node_decision_point() != Some(patch.location) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }

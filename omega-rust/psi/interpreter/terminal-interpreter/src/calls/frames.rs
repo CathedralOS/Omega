@@ -161,9 +161,7 @@ impl TerminalExecution<'_> {
         {
             let declaration = self
                 .program
-                .structural_types()
-                .get(&parameter.structural_type)
-                .ok_or(malformed())?;
+                .structural_declaration(parameter.structural_type)?;
             let StructuralTypeShape::ByteSequence(carrier) = &declaration.shape else {
                 continue;
             };
@@ -264,9 +262,7 @@ impl TerminalExecution<'_> {
         {
             let declaration = self
                 .program
-                .structural_types()
-                .get(&parameter.structural_type)
-                .ok_or(malformed())?;
+                .structural_declaration(parameter.structural_type)?;
             if !matches!(declaration.shape, StructuralTypeShape::ElementView { .. }) {
                 continue;
             }

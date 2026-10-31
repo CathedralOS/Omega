@@ -9,6 +9,7 @@ use super::{
     descriptor_machine,
 };
 use crate::descriptor_lifetimes::{DescriptorFlowStep, DescriptorLocation, DescriptorPosition};
+use crate::exactly_one::exactly_one;
 use semantic_vocabulary::MachineId;
 use std::collections::{BTreeMap, VecDeque};
 use terminal_psi::StructuralTypeDeclaration;
@@ -754,12 +755,8 @@ fn direct_owned_storage(
     machine: &DescriptorMachine,
     location: &DescriptorLocation,
 ) -> Option<DescriptorLocation> {
-    let mut places = machine
-        .places
-        .iter()
-        .filter(|row| row.place == location.root);
-    let place = places.next()?;
-    if places.next().is_some() || !matches!(place.definition, super::DescriptorDefinition::Local) {
+    let place = exactly_one(machine.places.iter(), |row| row.place == location.root)?;
+    if !matches!(place.definition, super::DescriptorDefinition::Local) {
         return None;
     }
     let ty = *machine.place_types.get(&location.root)?;

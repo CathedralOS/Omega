@@ -1,7 +1,9 @@
 // Expected exit: 0
 // Sibling applications have identical payload layouts but different case facts.
-data Mark<const Limit: u64> [copy] {
-    case Value(value: u64) where value <= Limit;
+data Mark<const Limit: u64> [copy] 
+    requires ((self in Mark::Value) && (self.value <= Limit)) || (self in Mark::Empty)
+{
+    case Value(value: u64);
     case Empty;
 }
 const LIMIT: u64 = 10;

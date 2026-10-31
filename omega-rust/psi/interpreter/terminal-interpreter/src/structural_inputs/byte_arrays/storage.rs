@@ -370,7 +370,7 @@ impl TerminalExecution<'_> {
         let mut offset = 0usize;
         for segment in &storage.referent.path {
             let (element, index, _) = fixed_index_step(&types, selected, segment)?;
-            let child_count = match types.get(&element).ok_or_else(malformed)?.shape {
+            let child_count = match types.declaration(&element)?.shape {
                 terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => 1,
                 _ => {
                     terminal_semantics::scalar_array_leaf_shape(types.values(), element)
@@ -424,8 +424,7 @@ impl TerminalExecution<'_> {
         match storage.home {
             ArrayStorageHome::Runtime => self
                 .structural_byte_storage
-                .get(&storage.referent)
-                .ok_or_else(malformed)?
+                .require(&storage.referent)?
                 .read(index),
             ArrayStorageHome::Frame { depth, place, .. } => {
                 let (start, end) = self.frame_byte_array_window(storage)?;
@@ -500,10 +499,7 @@ impl TerminalExecution<'_> {
                     self.account.as_ref(),
                 )?));
             }
-            let array = self
-                .structural_byte_storage
-                .get(&storage.referent)
-                .ok_or_else(malformed)?;
+            let array = self.structural_byte_storage.require(&storage.referent)?;
             if start > end || end > array.len() {
                 return Err(malformed());
             }

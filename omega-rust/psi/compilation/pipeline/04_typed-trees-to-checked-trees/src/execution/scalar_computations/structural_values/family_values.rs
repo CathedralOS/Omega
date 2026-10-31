@@ -246,7 +246,11 @@ impl Builder<'_, '_> {
             });
         }
         for field in omitted {
-            fields.push(self.zeroed_constructor_field(expression, field)?);
+            fields.push(self.zeroed_constructor_field(
+                expression,
+                field.symbol,
+                field.type_reference,
+            )?);
         }
         Some(CheckedStructuralValueKind::Record {
             data_symbol,
@@ -260,9 +264,9 @@ impl Builder<'_, '_> {
     fn zeroed_constructor_field(
         &mut self,
         expression: ExpressionHandle,
-        field: &typed_trees::data::DataField,
+        field: symbols::SymbolHandle,
+        declared: TypeReferenceHandle,
     ) -> Option<checked_trees::CheckedStructuralRecordField> {
-        let declared = field.type_reference;
         if zeroed_scalar_array_parts(self.program, declared).is_none()
             && !validation::zeroed_structural_parts(self.program, declared)
         {
@@ -309,7 +313,7 @@ impl Builder<'_, '_> {
             )?
         };
         Some(checked_trees::CheckedStructuralRecordField {
-            field: field.symbol,
+            field,
             expression,
             type_reference: declared,
             value: checked_trees::CheckedStructuralRecordFieldValue::Structural(node),
@@ -368,27 +372,11 @@ impl Builder<'_, '_> {
                 value,
             });
         }
-        // Common fields exist for every active case. Their omitted operands
-        // use the record's recursive zero route rather than a scalar-only
-        // late lowering loop; payload completeness remains with the classifier.
-        let common = self
-            .program
-            .data_members(
-                self.program
-                    .closed_data_definition(constructor.type_reference)?,
-            )
-            .iter()
-            .filter_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
-                    Some(field)
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        for field in common {
-            if fields.iter().all(|operand| operand.field != field.symbol) {
-                fields.push(self.zeroed_constructor_field(expression, field)?);
-            }
+        // Common and selected payload fields obey the same omission rule.
+        // Materialize the classifier's entire roster through the record's
+        // zero producer, retaining each carrier's checking obligations.
+        for (field, declared) in constructor.omitted_fields {
+            fields.push(self.zeroed_constructor_field(expression, field, declared)?);
         }
         Some(CheckedStructuralValueKind::StructuralCase {
             data_symbol,
