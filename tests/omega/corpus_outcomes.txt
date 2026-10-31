@@ -2497,8 +2497,7 @@ pass/drops/result_cleanup_original_exit checked 4041ms check-target:macos_arm64 
 pass/drops/result_cleanup_replacement_exit checked 3371ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_abandoned_record_construction_prefix_exit checked 3448ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_affine_record_conditional_result_exit checked 18050ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_borrowed_ingress_no_nominal_disposal_exit rejected 4038ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
+pass/drops/runtime_borrowed_ingress_no_nominal_disposal_exit checked 1393ms check-target:linux_x86_64 @e5a7f19e3929
 pass/drops/runtime_borrowed_nominal_replacement_exit checked 3045ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit checked 9115ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_borrowed_temporary_deferred_child_cleanup_exit checked 3631ms check-target:macos_arm64 @ccdb99ca2214
@@ -2546,14 +2545,12 @@ pass/drops/runtime_nominal_array_replacement_exit checked 3253ms check-target:ma
 pass/drops/runtime_nominal_case_observation_exit incomplete 4804ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`main` calls `replace_after_observation`; `replace_after_observation` has no executable body: this compiler does not lower a state of it yet (cleanup cannot reconstruct its remaining region partition); in state `replace_after_observation::entry`
 pass/drops/runtime_nominal_cleanup_compound_contract_exit checked 3940ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_nominal_state_loan_alias_exit rejected 3428ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
+pass/drops/runtime_nominal_state_loan_alias_exit checked 1299ms check-target:macos_arm64 @e5a7f19e3929
 pass/drops/runtime_nominal_state_loan_cleanup_order_exit rejected 3727ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
 pass/drops/runtime_nominal_state_loan_crash_exit rejected 3702ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/drops/runtime_nominal_state_loan_nonlending_branch_exit rejected 3892ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
+pass/drops/runtime_nominal_state_loan_nonlending_branch_exit checked 1285ms check-target:macos_arm64 @e5a7f19e3929
 pass/drops/runtime_nominal_successor_argument_order_exit checked 4249ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_nominal_temporary_helper_closure_exit checked 3711ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_owned_nominal_replacement_exit checked 3268ms check-target:macos_arm64 @ccdb99ca2214
@@ -2583,22 +2580,20 @@ pass/drops/runtime_selected_case_mutation_complement_exit incomplete 4051ms chec
 pass/drops/runtime_selected_linear_residual_death_exit incomplete 4192ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`main` calls `scenario`; `scenario` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `scenario::entry`, statement 1
 pass/drops/runtime_selected_nominal_owner_cleanup_exit checked 4884ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_selected_partial_owner_cleanup_exit checked 3382ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_selected_projected_sibling_cleanup_exit checked 4660ms check-target:macos_arm64 @ccdb99ca2214
+pass/drops/runtime_selected_partial_owner_cleanup_exit checked 1539ms check-target:macos_arm64 @e5a7f19e3929
+pass/drops/runtime_selected_projected_sibling_cleanup_exit checked 1611ms check-target:macos_arm64 @e5a7f19e3929
 pass/drops/runtime_selected_projected_state_cleanup_exit checked 4912ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_selected_transfer_fieldwise_construction_exit checked 4003ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_selected_transfer_incomplete_construction_exit checked 4357ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_selected_transfer_nested_construction_exit checked 3576ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_shared_nominal_state_loan_exit rejected 4949ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
+pass/drops/runtime_selected_transfer_fieldwise_construction_exit checked 1340ms check-target:macos_arm64 @e5a7f19e3929
+pass/drops/runtime_selected_transfer_incomplete_construction_exit checked 1376ms check-target:macos_arm64 @e5a7f19e3929
+pass/drops/runtime_selected_transfer_nested_construction_exit checked 1325ms check-target:macos_arm64 @e5a7f19e3929
+pass/drops/runtime_shared_nominal_state_loan_exit checked 1288ms check-target:linux_x86_64 @e5a7f19e3929
 pass/drops/runtime_sibling_constructor_source_frontier_exit checked 3475ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_sibling_exit_source_frontier_exit checked 4089ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_temporary_integer_capture_cleanup_exit checked 4011ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_temporary_nominal_integer_contract_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_temporary_nominal_prerequisite_exit checked 4227ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_three_field_projected_transition_cleanup_exit checked 13181ms check-target:macos_arm64 @ccdb99ca2214
-pass/drops/runtime_two_nominal_parameter_loans_cleanup_order_exit rejected 3607ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
+pass/drops/runtime_two_nominal_parameter_loans_cleanup_order_exit checked 1306ms check-target:linux_x86_64 @e5a7f19e3929
 pass/drops/runtime_unit_temporary_nominal_continuation_exit checked 3932ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/runtime_unobserved_owned_state_transfer_exit checked 3349ms check-target:macos_arm64 @ccdb99ca2214
 pass/drops/skipped_claim_temporary checked 3723ms @ccdb99ca2214
@@ -7147,24 +7142,15 @@ pass/facts/nominal_declaration_owner_through_other_machine checked 4172ms check-
 pass/facts/nominal_declaration_owner_through_other_state checked 3495ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nominal_declaration_owner_through_parameter checked 4220ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nominal_declaration_owner_through_target_body checked 3880ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nominal_loan_backing_cleanup_through_call_result_exit rejected 4644ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_const_name_exit rejected 4391ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_field_exit rejected 3941ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_local_exit rejected 3461ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_match_join_exit rejected 3954ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_other_machine_exit rejected 3632ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_other_state_exit rejected 8925ms check-target:macos_arm64 terminal-inspections:match regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_parameter_exit rejected 3454ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
-pass/facts/nominal_loan_backing_cleanup_through_target_body_exit rejected 3859ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	selected provider requirement `named-callable(path(Console::write_byte),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
+pass/facts/nominal_loan_backing_cleanup_through_call_result_exit checked 1321ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_const_name_exit checked 1307ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_field_exit checked 1340ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_local_exit checked 1395ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_match_join_exit checked 1316ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_other_machine_exit checked 1381ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_other_state_exit checked 2592ms check-target:macos_arm64 terminal-inspections:match @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_parameter_exit checked 1306ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/nominal_loan_backing_cleanup_through_target_body_exit checked 1318ms check-target:macos_arm64 @e5a7f19e3929
 pass/facts/nominal_reference_cleanup_through_call_result_exit checked 3517ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nominal_reference_cleanup_through_const_name_exit checked 3876ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nominal_reference_cleanup_through_field_exit checked 3705ms check-target:macos_arm64 @ccdb99ca2214
@@ -7579,9 +7565,9 @@ pass/facts/recoverable_replacement_window_through_target_body_exit rejected 3960
 	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair::windows_x86_64` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
 	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair::windows_x86_64` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
 pass/facts/reference_arrival_handoff_cleanup_receiver_exit checked 3690ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/reference_arrival_handoff_cleanup_receiver_order_exit checked 4803ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit checked 4602ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_exit checked 4517ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/reference_arrival_handoff_cleanup_receiver_order_exit checked 1639ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit checked 1652ms check-target:macos_arm64 @e5a7f19e3929
+pass/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_exit checked 1686ms check-target:macos_arm64 @e5a7f19e3929
 pass/facts/reference_arrival_handoff_through_call_result_exit checked 3531ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/reference_arrival_handoff_through_const_name_exit checked 4195ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/reference_arrival_handoff_through_field_exit checked 4159ms check-target:macos_arm64 @ccdb99ca2214
@@ -15096,12 +15082,12 @@ fail/borrows/scalar_operand_consumes_reference_carrier_once rejected 1635ms unex
 	cannot use `held`: this selected region was transferred or has not been established in machine `main` state `entry`
 fail/borrows/selected_primitive_reference_live_backing_write rejected 2169ms expected @ccdb99ca2214
 	statement 3 mutates `second` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
-fail/borrows/selected_projected_sibling_keeps_residual_loan rejected 6252ms expected @ccdb99ca2214
+fail/borrows/selected_projected_sibling_keeps_residual_loan rejected 1210ms expected @e5a7f19e3929
 	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8)
 	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8)
 	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8)
 	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8)
-fail/borrows/selected_projected_state_keeps_residual_loan rejected 3717ms expected @ccdb99ca2214
+fail/borrows/selected_projected_state_keeps_residual_loan rejected 1197ms expected @e5a7f19e3929
 	statement 6 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8 and it is released at state exit)
 	statement 6 reads `output.value` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 8 and it is released at state exit)
 	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8 and it is released at state exit)
@@ -18164,9 +18150,9 @@ fail/drops/selected_partial_replacement_old_cleanup_prerequisite rejected 1864ms
 	cannot prove automatic cleanup requires at selected edge from choose state entry after statement 2: missing pair.first.ready == true required by Token::drop clause `token.ready`
 fail/drops/selected_partial_requires_disposition rejected 1568ms expected @ccdb99ca2214
 	cannot automatically dispose retained selected owner region: every live linear obligation requires an eligible disposition
-fail/drops/selected_projected_sibling_cleanup_prerequisite rejected 3824ms expected @ccdb99ca2214
+fail/drops/selected_projected_sibling_cleanup_prerequisite rejected 1201ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 4: Keeper does not establish Keeper::drop clause `keeper.code == 41`
-fail/drops/selected_projected_state_cleanup_prerequisite rejected 3763ms expected @ccdb99ca2214
+fail/drops/selected_projected_state_cleanup_prerequisite rejected 1326ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from finish state entry after statement 0: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/drops/selected_replacement_old_cleanup_prerequisite rejected 2095ms expected @ccdb99ca2214
 	cannot prove automatic cleanup requires at selected edge from choose state entry after statement 2: missing token.ready == true required by Token::drop clause `token.ready`
@@ -28097,28 +28083,25 @@ fail/facts/nominal_declaration_owner_through_target_body rejected 1332ms expecte
 	argument `token` for state `read::entry` expects the `library::Token` data type but got `copied::Token` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 	argument `token` for state `read::entry` expects the `library::Token` data type but got `copied::Token` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 	argument `token` for state `read::entry` expects the `library::Token` data type but got `copied::Token` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
-fail/facts/nominal_loan_backing_cleanup_through_call_result_cleanup_prerequisite rejected 3335ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_call_result_cleanup_prerequisite rejected 967ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_const_name_cleanup_prerequisite rejected 2898ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_const_name_cleanup_prerequisite rejected 959ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_field_cleanup_prerequisite rejected 3541ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_field_cleanup_prerequisite rejected 951ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: holder.room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_local_cleanup_prerequisite rejected 3781ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_local_cleanup_prerequisite rejected 976ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_match_join_cleanup_prerequisite rejected 2863ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_match_join_cleanup_prerequisite rejected 934ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_other_machine_cleanup_prerequisite rejected 3618ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_other_machine_cleanup_prerequisite rejected 1051ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_other_state_cleanup_prerequisite rejected 3662ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_other_state_cleanup_prerequisite rejected 932ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from prepare state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_parameter_cleanup_prerequisite rejected 3314ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_parameter_cleanup_prerequisite rejected 946ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 0: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_through_target_body_cleanup_prerequisite rejected 2989ms expected @ccdb99ca2214
-	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
-fail/facts/nominal_loan_backing_cleanup_unequal_match_cleanup_prerequisite rejected 3938ms expected @ccdb99ca2214
+fail/facts/nominal_loan_backing_cleanup_through_target_body_cleanup_prerequisite rejected 944ms expected @e5a7f19e3929
+	cannot prove automatic cleanup requires at selected edge from CheckedScope::scope state scope after statement 1: room does not establish Room::drop clause `room.count == 10`
+fail/facts/nominal_loan_backing_cleanup_unequal_match_cleanup_prerequisite rejected 928ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from scope state entry after statement 1: room does not establish Room::drop clause `room.count == 10`
 fail/facts/nominal_reference_cleanup_through_call_result_prerequisite rejected 3471ms expected @ccdb99ca2214
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: Keeper does not establish Keeper::drop clause `keeper.code == 7`
@@ -28889,18 +28872,18 @@ fail/facts/recoverable_replacement_window_through_target_body_rejected rejected 
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
-fail/facts/reference_arrival_handoff_cleanup_receiver_order_held_residual rejected 4617ms expected @ccdb99ca2214
+fail/facts/reference_arrival_handoff_cleanup_receiver_order_held_residual rejected 1213ms expected @e5a7f19e3929
 	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8)
 	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8)
 	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8)
 	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8)
-fail/facts/reference_arrival_handoff_cleanup_receiver_order_prerequisite rejected 3454ms expected @ccdb99ca2214
+fail/facts/reference_arrival_handoff_cleanup_receiver_order_prerequisite rejected 1355ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 4: Keeper does not establish Keeper::drop clause `keeper.code == 41`
-fail/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_prerequisite rejected 4503ms expected @ccdb99ca2214
+fail/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_prerequisite rejected 1195ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 3: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/reference_arrival_handoff_cleanup_receiver_prerequisite rejected 2893ms expected @ccdb99ca2214
 	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 5: Keeper does not establish Keeper::drop clause `keeper.code == 41`
-fail/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_prerequisite rejected 4308ms expected @ccdb99ca2214
+fail/facts/reference_arrival_handoff_cleanup_receiver_rebound_source_prerequisite rejected 1203ms expected @e5a7f19e3929
 	cannot prove automatic cleanup requires at selected edge from select_and_cleanup state entry after statement 5: Keeper does not establish Keeper::drop clause `keeper.code == 41`
 fail/facts/reference_arrival_handoff_through_call_result_rejected rejected 3289ms expected @ccdb99ca2214
 	statement 3 mutates `original` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 5)
@@ -39371,8 +39354,7 @@ run/slices/computed_record_window rejected 2451ms check-target:macos_arm64 regre
 	machine `tail` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 run/slices/disjoint_local_state_windows checked 9954ms check-target:macos_arm64 @ccdb99ca2214
 run/slices/edge_window_owned_backing checked 3548ms check-target:macos_arm64 @ccdb99ca2214
-run/slices/folded_window_endpoint_effects rejected 2850ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 6544, generation: 1 }), established: StructuralArgument { place: PlaceId(44), path: [], access: Owned }, established_type: StructuralTypeId(10), requested: StructuralArgument { place: PlaceId(49), path: [], access: Owned }, requested_type: StructuralTypeId(10), producer_file: "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
+run/slices/folded_window_endpoint_effects checked 1208ms check-target:macos_arm64 @e5a7f19e3929
 run/slices/matched_computed_window_end checked 3476ms check-target:macos_arm64 @ccdb99ca2214
 run/slices/matched_record_window_lower_bound checked 2924ms check-target:macos_arm64 @ccdb99ca2214
 run/slices/mutable_window_call_argument checked 2693ms check-target:macos_arm64 @ccdb99ca2214
