@@ -326,27 +326,9 @@ pub(crate) fn refuted_case(
     subject_type: typed_trees::types::TypeReferenceHandle,
     case: SymbolHandle,
 ) -> bool {
-    // A retained template symbol maps to the instance's own variant; a symbol
-    // already naming the instance's variant is found among its members.
+    // Accepts a retained template symbol or the instance's own variant symbol.
     program
         .closed_data_constructor_case(subject_type, case)
-        .or_else(|| {
-            program
-                .closed_data_definition(subject_type)
-                .and_then(|data| {
-                    program
-                        .data_members(data)
-                        .iter()
-                        .find_map(|member| match member {
-                            typed_trees::data::DataMember::Variant(variant)
-                                if variant.symbol == case =>
-                            {
-                                Some(variant)
-                            }
-                            _ => None,
-                        })
-                })
-        })
         .is_some_and(|variant| ::validation::impossible_variant(program, variant))
 }
 
