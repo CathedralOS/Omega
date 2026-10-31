@@ -360,6 +360,103 @@ pub(crate) fn retain_constructed_result_types(
     Ok(unavailable)
 }
 
+/// Select only a field of this exact constructor and selected case. Inference
+/// and literal-copy observations consume the same resolved declaration edge.
+fn selected_constructor_field<'program>(
+    program: &'program TypedTrees,
+    literal: &typed_trees::expression::TableStructLiteral,
+    field: symbols::SymbolHandle,
+) -> Option<&'program typed_trees::data::DataField> {
+    let owner = program.unique_data_definition_by_symbol(literal.type_symbol)?;
+    program
+        .data_members(owner)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(declared) if declared.symbol == field => {
+                Some(declared)
+            }
+            typed_trees::data::DataMember::Variant(case)
+                if Some(case.symbol) == literal.case_symbol =>
+            {
+                program
+                    .data_payload_fields(case)
+                    .iter()
+                    .find(|declared| declared.symbol == field)
+            }
+            _ => None,
+        })
+}
+
+/// A literal's ordinary value remains a shared byte view. An owned fixed-u8
+/// array field supplies a distinct constant/result-copy constraint: its byte
+/// count observes cooked literal octets, with no terminator or encoding claim.
+/// These rows are inference proposals only. Immutable field formation still
+/// proves the actual copy, exact width and all required qualifications.
+fn constructor_byte_literal_observations(
+    program: &mut TypedTrees,
+    expression: ExpressionHandle,
+) -> Vec<(symbols::SymbolHandle, ExpressionHandle, TypeReferenceHandle)> {
+    let observations = (|| {
+        let literal = program.expression_table.struct_literal_node(expression)?;
+        Some(
+            program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .filter_map(|field| {
+                    let ExpressionNode::String(bytes) =
+                        program.expression_table.expression(field.value)
+                    else {
+                        return None;
+                    };
+                    let declared =
+                        selected_constructor_field(program, literal, field.field_symbol)?;
+                    let required = program
+                        .type_reference_table
+                        .unconstrained_type_reference(declared.type_reference);
+                    let TypeReferenceNode::FixedArray { element_type, .. } =
+                        program.type_reference_table.type_reference(required)
+                    else {
+                        return None;
+                    };
+                    // Literal bytes establish no domain predicate. Keep only their
+                    // exact builtin u8 carrier, even when the destination is refined.
+                    let element = program
+                        .type_reference_table
+                        .unconstrained_type_reference(*element_type);
+                    let TypeReferenceNode::Named { symbol, .. } =
+                        program.type_reference_table.type_reference(element)
+                    else {
+                        return None;
+                    };
+                    (program.symbols.builtin_type_atom(*symbol)
+                        == Some(symbols::BuiltinTypeAtom::U8))
+                    .then_some((field.field_symbol, field.value, element, bytes.len()))
+                })
+                .collect::<Vec<_>>(),
+        )
+    })()
+    .unwrap_or_default();
+    observations
+        .into_iter()
+        .map(|(field, value, element_type, length)| {
+            let node = TypeReferenceNode::FixedArray {
+                element_type,
+                length: FixedArrayLength::Literal(length),
+            };
+            let existing = program
+                .type_reference_table
+                .type_reference_rows()
+                .find_map(|(reference, candidate)| (candidate == &node).then_some(reference));
+            (
+                field,
+                value,
+                existing.unwrap_or_else(|| program.type_reference_table.insert(node)),
+            )
+        })
+        .collect()
+}
+
 /// A constructor's selected declaration supplies its telescope; completed
 /// child types supply the arguments. Incomplete or conflicting tuples stay
 /// unresolved. This establishes a type, never a resource claim or field proof.
@@ -368,6 +465,32 @@ fn retain_constructor_result_type(
     scope: ValueTypeOwner,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
+    let byte_copies = constructor_byte_literal_observations(program, expression);
+    let defaults = program
+        .expression_table
+        .struct_literal_node(expression)
+        .and_then(|literal| {
+            validation::native_locators::unused_coordinate_widths(
+                program,
+                literal.type_symbol,
+                literal.case_symbol?,
+            )
+        });
+    let zero = if defaults.is_some_and(|defaults| defaults.into_iter().any(|unused| unused)) {
+        let retained = program.type_reference_table.named_references().find_map(
+            |(reference, symbol, name)| (!symbol.is_valid() && name == "0").then_some(reference),
+        );
+        retained.unwrap_or_else(|| {
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: symbols::SymbolHandle::invalid(),
+                    name: typed_trees::name::Identifier::generated("0"),
+                })
+        })
+    } else {
+        TypeReferenceHandle::invalid()
+    };
     let literal = program.expression_table.struct_literal_node(expression)?;
     let owner = program.unique_data_definition_by_symbol(literal.type_symbol)?;
     let parameters = program.data_type_parameters(owner);
@@ -404,26 +527,15 @@ fn retain_constructor_result_type(
     for field in program.expression_table.struct_fields(literal.fields) {
         // Inference reads an open declaration, not concrete construction
         // obligations. Select by the authored member handle inside this owner.
-        let required = program
-            .data_members(owner)
+        let required = selected_constructor_field(program, literal, field.field_symbol)?;
+        let Some(actual) = byte_copies
             .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(declared)
-                    if declared.symbol == field.field_symbol =>
-                {
-                    Some(declared)
-                }
-                typed_trees::data::DataMember::Variant(case)
-                    if Some(case.symbol) == literal.case_symbol =>
-                {
-                    program
-                        .data_payload_fields(case)
-                        .iter()
-                        .find(|declared| declared.symbol == field.field_symbol)
-                }
-                _ => None,
-            })?;
-        let Some(actual) = scope.result_type(program, field.value) else {
+            .find_map(|(selected_field, value, reference)| {
+                (*selected_field == field.field_symbol && *value == field.value)
+                    .then_some(*reference)
+            })
+            .or_else(|| scope.result_type(program, field.value))
+        else {
             continue;
         };
         crate::monomorphization::infer_static_bindings(
@@ -494,6 +606,16 @@ fn retain_constructor_result_type(
             }
             _ => return None,
         };
+        if proposals.is_empty()
+            && let Some(defaults) = defaults
+            && const_parameters
+                .iter()
+                .position(|(symbol, _, _)| *symbol == parameter.symbol)
+                .is_some_and(|ordinal| defaults[ordinal])
+        {
+            arguments.push(zero);
+            continue;
+        }
         let first = *proposals.first()?;
         let identity =
             typed_trees::type_identity::applied_type_identity(program, first, scope.symbol(), &[])?;
