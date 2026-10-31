@@ -1,5 +1,6 @@
 //! Resolve and normalize temporary syntax with the originating loader's custody.
 
+use crate::build_time_evaluation::type_references;
 use crate::unique::push_unique;
 use std::sync::Arc;
 
@@ -30,23 +31,20 @@ pub(crate) fn defer_pending_const_qualifications(
         let TypeReferenceNode::Constrained {
             base_type,
             constraints,
-        } = probe
-            .type_references
+        } = type_references(probe)
             .type_reference(definition.type_reference)
             .clone()
         else {
             continue;
         };
-        let retained = probe
-            .type_references
+        let retained = type_references(probe)
             .constraints(constraints)
             .iter()
             .filter(|constraint| {
                 let TypeConstraintNode::Domain(domain) = constraint else {
                     return true;
                 };
-                !probe
-                    .type_references
+                !type_references(probe)
                     .type_reference_handles(domain.arguments)
                     .iter()
                     .any(|argument| arguments.contains(argument))

@@ -22,6 +22,7 @@
 //! route; the synthesized placed record contains opaque accessor fields and is
 //! linear.
 
+use crate::build_time_evaluation::type_references;
 use crate::unique::push_unique;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -163,8 +164,7 @@ pub fn desugar_placed_views(
     let mut selected_arguments = applied_results::retain_applied_results(syntax, &context)?;
     // Header selection retains nominal custody without executing a body.
     // Generated result demands already carry their selected template identity.
-    let requests = syntax
-        .type_references
+    let requests = type_references(syntax)
         .generic_nodes()
         .into_iter()
         .filter_map(|reference| {
@@ -179,8 +179,7 @@ pub fn desugar_placed_views(
             Some((
                 reference,
                 base_name.clone(),
-                syntax
-                    .type_references
+                type_references(syntax)
                     .type_reference_handles(*arguments)
                     .to_vec(),
             ))
@@ -565,10 +564,7 @@ fn discover_applications(
             ));
             continue;
         }
-        let argument_handles = syntax
-            .tables
-            .type_references
-            .type_reference_handles(*arguments);
+        let argument_handles = type_references(&syntax.tables).type_reference_handles(*arguments);
         let [policy_handle, schema_handle] = argument_handles else {
             diagnostics.push(Diagnostic::error(
                 "`Placed` takes exactly a nominal placement policy and a plain schema",

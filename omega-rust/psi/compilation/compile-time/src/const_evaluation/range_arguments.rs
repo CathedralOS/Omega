@@ -7,6 +7,7 @@
 //! proof-integer predecessor. Only structured values return to syntax; original
 //! bounds remain available to declaration checking and application custody.
 
+use crate::build_time_evaluation::type_references;
 use crate::build_time_evaluation::{expression_table, type_reference_table};
 use diagnostics::Diagnostic;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
@@ -54,8 +55,7 @@ pub(crate) fn evaluate(
                 constraints,
             } => {
                 pending.push(*base_type);
-                if syntax
-                    .type_references
+                if type_references(&syntax)
                     .constraints(*constraints)
                     .iter()
                     .any(|constraint| matches!(constraint, TypeConstraintNode::Range { .. }))
@@ -147,8 +147,7 @@ pub(crate) fn evaluate(
         };
         let mut bounds = Vec::new();
         let mut eligible = true;
-        for (ordinal, constraint) in syntax
-            .type_references
+        for (ordinal, constraint) in type_references(&syntax)
             .constraints(constraints)
             .iter()
             .enumerate()
