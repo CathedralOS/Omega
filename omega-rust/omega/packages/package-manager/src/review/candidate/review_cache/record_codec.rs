@@ -567,13 +567,6 @@ fn recover_candidate(cursor: &mut ObservationCursor<'_>) -> Option<SemanticBindi
     Some(SemanticBindingReviewCandidate::new(binding, service_schema))
 }
 
-fn encode_dependency_binding(binding: &PackageDependencyBinding, out: &mut Vec<u8>) {
-    encode_identity(binding.requester(), out);
-    encode_string(binding.alias(), out);
-    encode_identity(binding.target(), out);
-    out.push(purpose_tag(binding.purpose()));
-}
-
 fn recover_dependency_binding(
     cursor: &mut ObservationCursor<'_>,
 ) -> Option<PackageDependencyBinding> {
@@ -603,7 +596,10 @@ fn encode_build_handoff(bundle: &PackageBuildHandoff, out: &mut Vec<u8>) {
     }
     crate::codec_bytes::push_count_u64(out, closure.dependencies().len());
     for binding in closure.dependencies() {
-        encode_dependency_binding(binding, out);
+        encode_identity(binding.requester(), out);
+        encode_string(binding.alias(), out);
+        encode_identity(binding.target(), out);
+        out.push(purpose_tag(binding.purpose()));
     }
     out.extend_from_slice(&bundle.source_consumption_commitment().digest());
     crate::codec_bytes::push_count_u64(out, bundle.sources().len());
