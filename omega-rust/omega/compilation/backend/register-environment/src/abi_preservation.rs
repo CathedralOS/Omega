@@ -6,6 +6,8 @@
 use register_model::{PreservationConvention, ValidatedPreservationStorageCatalog};
 
 use crate::ValidatedTargetRegisterEnvironment;
+use isa_x86_64::x86_64_preservation_convention_for_target;
+use target::{Architecture, ObjectFormat};
 
 pub use register_model::FrameAbiPreservationConvention;
 
@@ -25,24 +27,19 @@ pub fn selected_abi_preservation(
 ) -> Result<SelectedAbiPreservation<'_>, AbiPreservationSelectionError> {
     let target = environment.target();
     let (kind, convention) = match (target.architecture, target.object_format) {
-        (target::Architecture::X86_64, target::ObjectFormat::Elf | target::ObjectFormat::MachO) => {
-            (
-                FrameAbiPreservationConvention::SystemVAMD64,
-                isa_x86_64::x86_64_preservation_convention_for_target(
-                    environment.physical(),
-                    target,
-                ),
-            )
-        }
-        (target::Architecture::X86_64, target::ObjectFormat::Coff) => (
-            FrameAbiPreservationConvention::MicrosoftX64,
-            isa_x86_64::x86_64_preservation_convention_for_target(environment.physical(), target),
+        (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::MachO) => (
+            FrameAbiPreservationConvention::SystemVAMD64,
+            x86_64_preservation_convention_for_target(environment.physical(), target),
         ),
-        (target::Architecture::Aarch64, target::ObjectFormat::Elf) => (
+        (Architecture::X86_64, ObjectFormat::Coff) => (
+            FrameAbiPreservationConvention::MicrosoftX64,
+            x86_64_preservation_convention_for_target(environment.physical(), target),
+        ),
+        (Architecture::Aarch64, ObjectFormat::Elf) => (
             FrameAbiPreservationConvention::Aapcs64,
             isa_aarch64::aarch64_preservation_convention_for_target(environment.physical(), target),
         ),
-        (target::Architecture::Aarch64, target::ObjectFormat::MachO) => (
+        (Architecture::Aarch64, ObjectFormat::MachO) => (
             FrameAbiPreservationConvention::DarwinAapcs64,
             isa_aarch64::aarch64_preservation_convention_for_target(environment.physical(), target),
         ),
@@ -61,12 +58,12 @@ pub fn selected_preservation_storage_catalog(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedPreservationStorageCatalog, AbiPreservationSelectionError> {
     match environment.target().architecture {
-        target::Architecture::X86_64 => isa_x86_64::x86_64_preservation_storage_catalog(
+        Architecture::X86_64 => isa_x86_64::x86_64_preservation_storage_catalog(
             environment.physical(),
             environment.target(),
         )
         .map_err(|_| AbiPreservationSelectionError::UnsupportedTargetConvention),
-        target::Architecture::Aarch64 => isa_aarch64::aarch64_preservation_storage_catalog(
+        Architecture::Aarch64 => isa_aarch64::aarch64_preservation_storage_catalog(
             environment.physical(),
             environment.target(),
         )
