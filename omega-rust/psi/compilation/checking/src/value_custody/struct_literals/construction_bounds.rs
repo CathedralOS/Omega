@@ -865,7 +865,7 @@ fn validate_literal_facts(
                         "{subject} literal cannot prove {fact_adjective} fact: \
                          field `{}` is not known to satisfy domain `{}` at construction",
                         field_name.unwrap_or("<unknown>"),
-                        membership_domain_label(program, membership.domain),
+                        program.domain_path_members(membership.domain).joined_path(),
                     )));
                 }
             }
@@ -883,11 +883,4 @@ fn validate_literal_facts(
             .into_iter()
             .map(|diagnostic| diagnostic.with_source_span(source_span)),
     );
-}
-
-fn membership_domain_label(
-    program: &dyn crate::CheckingInput,
-    domain: arena::HandleSpan<typed_trees::name::Identifier>,
-) -> String {
-    program.domain_path_members(domain).joined_path()
 }
