@@ -396,6 +396,26 @@ impl RankProjection {
         }
     }
 
+    pub(super) fn captured_scalar(
+        &self,
+    ) -> Option<crate::proof_contracts::contract_entailment::CapturedScalarRank> {
+        let (primitive, measure) = match self.order {
+            RankOrder::Natural(primitive) => (primitive, SymbolHandle::invalid()),
+            RankOrder::DeclaredIdentity { measure, primitive }
+            | RankOrder::DeclaredComputation {
+                measure, primitive, ..
+            } => (primitive, measure),
+            _ => return None,
+        };
+        Some(
+            crate::proof_contracts::contract_entailment::CapturedScalarRank {
+                subject: self.subject,
+                primitive,
+                measure,
+            },
+        )
+    }
+
     pub(super) fn same_order(&self, other: &Self) -> bool {
         self.order == other.order
     }

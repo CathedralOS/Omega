@@ -10,6 +10,7 @@ use typed_trees::types::TypeReferenceHandle;
 mod cases;
 mod domain_premises;
 mod integer_predicates;
+pub(super) use integer_predicates::CapturedIntegerRank;
 mod invocation_entry;
 mod licenses;
 pub(super) mod normal_returns;

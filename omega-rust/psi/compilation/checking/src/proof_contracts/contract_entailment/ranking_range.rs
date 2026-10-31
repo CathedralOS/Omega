@@ -47,6 +47,8 @@ pub use requirements::{
     ArithmeticCallObservation, arithmetic_entry_requirement_is_covered,
     prove_arithmetic_call_requirement, prove_captured_arithmetic_call_requirement,
 };
+mod captured_calls;
+pub(crate) use captured_calls::{CapturedScalarRank, prove_captured_scalar_rank_call};
 mod captured_entry;
 mod identity_views;
 mod rank_value;

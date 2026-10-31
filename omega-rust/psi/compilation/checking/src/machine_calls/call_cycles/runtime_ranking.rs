@@ -21,7 +21,7 @@ use crate::RankingRangeMeasure;
 use crate::machine_calls::graph_components::strongly_connected_components;
 use crate::proof_contracts::contract_entailment::{
     RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, prove_ranking_range_call,
+    call_member_premise_symbols, prove_captured_scalar_rank_call, prove_ranking_range_call,
 };
 use comparison::Comparison;
 use projection::RankProjection;
@@ -351,6 +351,7 @@ pub(super) fn project_component(
             // Whether every earlier statement in this state preserved the
             // entry-relative frame the call-site comparison reads.
             let mut entry_relative = true;
+            let captured_scalar = ranks[position].captured_scalar().is_some();
             for (statement_ordinal, statement) in program
                 .statement_table
                 .indexed_statements(state.statement_nodes)
@@ -359,6 +360,12 @@ pub(super) fn project_component(
                     continue;
                 }
                 let Some(transition) = statement.as_transition() else {
+                    // Captured scalar comparisons execute this complete prefix
+                    // through the ordinary value ledger. They never reuse a
+                    // retired entry-relative storage reading after a write.
+                    if captured_scalar {
+                        continue;
+                    }
                     if prefix::preserves_rank(
                         program,
                         machine,
@@ -428,15 +435,17 @@ pub(super) fn project_component(
                     }
                 };
                 let mut site_guards = guards.clone();
-                if !prefix::preserves_rank(
-                    program,
-                    machine,
-                    state,
-                    member_premises[position].as_deref(),
-                    &mappings[state_position],
-                    statement,
-                    frames,
-                ) {
+                if !captured_scalar
+                    && !prefix::preserves_rank(
+                        program,
+                        machine,
+                        state,
+                        member_premises[position].as_deref(),
+                        &mappings[state_position],
+                        statement,
+                        frames,
+                    )
+                {
                     return Err("call operands invalidate the exact entry-relative ranking frame");
                 }
                 if guard.is_valid() {
@@ -670,7 +679,25 @@ fn admit_ranked_edge(
     };
     observed.push(callee);
     let strict;
-    if !entry_relative {
+    if let (Some(source), Some(destination)) = (
+        ranks[caller_rank_index].captured_scalar(),
+        ranks[callee_position].captured_scalar(),
+    ) {
+        strict = match prove_captured_scalar_rank_call(
+            program,
+            caller,
+            state,
+            source,
+            callee_machine,
+            destination,
+            statement_ordinal,
+            transition_target,
+            arguments,
+        )? {
+            RankingRangeCallProgress::Strict => true,
+            RankingRangeCallProgress::NonIncreasing => false,
+        };
+    } else if !entry_relative {
         // The store before this arrival leaves no entry-relative operand to
         // compare. A self-invocation keeps the strict decrease its body's
         // source judgment proved over current values at this exact occurrence.

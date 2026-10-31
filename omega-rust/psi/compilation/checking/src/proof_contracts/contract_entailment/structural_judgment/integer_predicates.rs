@@ -18,6 +18,9 @@ use std::ops::Range;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::types::PrimitiveType;
 
+mod rank_comparison;
+pub(in crate::proof_contracts::contract_entailment) use rank_comparison::CapturedIntegerRank;
+
 type Comparison = (BinaryOperator, Polynomial, Polynomial);
 
 /// A noninteger predicate has not entered numeric projection. A selected

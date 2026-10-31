@@ -150,8 +150,8 @@ pub(crate) use proof_integer::{
 };
 
 pub(crate) use ranking_range::{
-    RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
-    call_member_premise_symbols, prove_ranking_range_call,
+    CapturedScalarRank, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
+    call_member_premise_symbols, prove_captured_scalar_rank_call, prove_ranking_range_call,
 };
 
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;
