@@ -1,7 +1,7 @@
 //! Validate each retained span and byte against the admitted frame and ISA codec.
 //! No producer arena packing or function-row construction participates here.
 
-use crate::frame_layout::frame_unwind_policy;
+use crate::frame_layout::{committed_extent, frame_unwind_policy};
 
 use super::codec::frame_protocol_codec;
 use super::{
@@ -44,8 +44,7 @@ pub(super) fn validate_bytes(
         // ISA encoding is the shared primitive. The submitted row, role,
         // offsets, lengths, ordering and exact arena extent are checked here.
         // Only the non-red-zone extent commits.
-        let committed_bytes =
-            crate::frame_layout::committed_extent(function).ok_or(Error::NonCanonicalEncoding)?;
+        let committed_bytes = committed_extent(function).ok_or(Error::NonCanonicalEncoding)?;
         // The recorded return-address custody must be an instance of the
         // mechanism the pair's declared unwind row continues through; a
         // foreign custody fails closed before the codec runs.

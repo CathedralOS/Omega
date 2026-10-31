@@ -5,7 +5,9 @@ use crate::interpreter::evaluator::{
     expression_table, trap, unsupported,
 };
 use language_semantics::declaration_selection::CollectionMeasure;
+use numerics::float_semantics_catalog::FloatSemanticOperation;
 use symbols::BuiltinFunction;
+use typed_trees::byte_predicates::byte_predicate_call;
 
 impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
     /// Hand a call route's value to this state pass's transition guard subject.
@@ -125,9 +127,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         // A byte-sequence predicate (`valid_utf8`, `no_nul`, `ascii_only`,
         // `non_empty`) owns no executable callee: its contract evaluates the
         // argument's live bytes directly.
-        if let Some((predicate, argument)) =
-            typed_trees::byte_predicates::byte_predicate_call(self.program, handle)
-        {
+        if let Some((predicate, argument)) = byte_predicate_call(self.program, handle) {
             let value = self.eval_expression(argument, frame)?;
             let bytes = byte_sequence_operand_bytes(&value)?;
             let value = Value::Bool(predicate.holds_for(&bytes));
@@ -577,9 +577,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let arguments = expression_table(self.program)
             .expression_handles(call.arguments)
             .to_vec();
-        let Some(expected_arity) =
-            numerics::float_semantics_catalog::FloatSemanticOperation::named_call_arity(target)
-        else {
+        let Some(expected_arity) = FloatSemanticOperation::named_call_arity(target) else {
             return Ok(None);
         };
         if arguments.len() != expected_arity {

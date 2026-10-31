@@ -4,6 +4,7 @@
 //! producer cannot join its new value to a surviving old snapshot.
 use super::*;
 use crate::descriptor_lifetimes::{DescriptorFlowEdge, DescriptorPathSegment};
+use terminal_psi::StructuralFieldType;
 
 /// Normalized current equivalence classes. Every exact member belongs to one
 /// roster; the derived index is rebuilt from those rosters after a change. Class
@@ -344,9 +345,7 @@ fn contains_case(
         return false;
     };
     let mut child = |field: &terminal_psi::StructuralFieldDeclaration| match field.field_type {
-        terminal_psi::StructuralFieldType::Structural(child) => {
-            contains_case(replay, child, complete, active)
-        }
+        StructuralFieldType::Structural(child) => contains_case(replay, child, complete, active),
         _ => false,
     };
     let result = match &declaration.shape {
@@ -385,9 +384,7 @@ fn ordinary_type(
         return false;
     };
     let mut child = |field: &terminal_psi::StructuralFieldDeclaration| match field.field_type {
-        terminal_psi::StructuralFieldType::Structural(child) => {
-            ordinary_type(replay, child, active)
-        }
+        StructuralFieldType::Structural(child) => ordinary_type(replay, child, active),
         _ => true,
     };
     let ordinary = match &declaration.shape {

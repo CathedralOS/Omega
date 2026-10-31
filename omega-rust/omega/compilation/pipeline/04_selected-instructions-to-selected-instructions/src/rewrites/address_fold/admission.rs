@@ -13,6 +13,7 @@ use selected_instructions::{
 use super::AddressFoldError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::member_position;
+use crate::rewrites::carrier_pair;
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -113,9 +114,7 @@ pub(super) fn admit<'source>(
     // silently keep on a malformed shape.
     let (scale, second_access) =
         consumer_shape(consumer.kind).ok_or(AddressFoldError::UnsupportedInstruction)?;
-    let Some((pointer_operand, second_operand)) =
-        crate::rewrites::carrier_pair(consumer, second_access)
-    else {
+    let Some((pointer_operand, second_operand)) = carrier_pair(consumer, second_access) else {
         return Err(AddressFoldError::UnsupportedInstruction);
     };
     let pointer = pointer_operand.virtual_register;
@@ -158,8 +157,7 @@ pub(super) fn admit<'source>(
     else {
         return Err(AddressFoldError::UnsupportedProducer);
     };
-    let Some((base_operand, result_operand)) =
-        crate::rewrites::carrier_pair(producer, RegisterOperandAccess::Def)
+    let Some((base_operand, result_operand)) = carrier_pair(producer, RegisterOperandAccess::Def)
     else {
         return Err(AddressFoldError::UnsupportedProducer);
     };

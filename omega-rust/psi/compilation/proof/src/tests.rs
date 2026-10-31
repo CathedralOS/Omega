@@ -10,6 +10,7 @@ use syntax_trees::item::{
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
 use crate::build_proof_surface_report;
+use language_semantics::DomainPredicatePresence;
 
 #[test]
 fn collects_domain_surface() {
@@ -28,7 +29,7 @@ fn collects_domain_surface() {
         cleanup_selection: None,
         authored_routes: Vec::new(),
         classification: None,
-        predicate_presence: language_semantics::DomainPredicatePresence::Absent,
+        predicate_presence: DomainPredicatePresence::Absent,
         facts: HandleSpan::empty(),
         operators: HandleSpan::empty(),
         semantic_clause_token_count: 3,
@@ -40,10 +41,7 @@ fn collects_domain_surface() {
     let (_, domain) = report.domains.iter().next().expect("domain surface");
     assert_eq!(domain.name, "NonEmpty");
     assert_eq!(domain.target_type, "String");
-    assert_eq!(
-        domain.predicate_presence,
-        language_semantics::DomainPredicatePresence::Absent
-    );
+    assert_eq!(domain.predicate_presence, DomainPredicatePresence::Absent);
     assert_eq!(domain.fact_count, 0);
     assert_eq!(domain.membership_fact_count, 0);
     assert_eq!(domain.semantic_clause_token_count, 3);

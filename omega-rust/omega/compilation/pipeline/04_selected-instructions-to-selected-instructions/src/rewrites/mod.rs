@@ -249,13 +249,12 @@ pub(crate) use address_fold::{AddressFoldError, ValidatedAddressFold};
 pub(crate) use address_fold::{
     fold_selected_address, measured_steps as address_fold_measured_steps,
 };
-pub(crate) use allocation_recovery::materialize_fixed_view_copies;
-pub(crate) use allocation_recovery::pressure_rematerialization_identity;
 pub(crate) use allocation_recovery::{
     ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry, FixedViewCopyError,
     FixedViewCopyValidationReceipt, FunctionPressureRematerialization,
     PressureRematerializationAction, PressureRematerializationPlan,
     PressureRematerializationRewrite, PressureRematerializationValidationReceipt,
+    materialize_fixed_view_copies, pressure_rematerialization_identity,
 };
 pub use allocation_recovery::{
     AllocationRecoveryRuleCatalogError, FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan,
@@ -274,9 +273,9 @@ pub(crate) use constant_branch::{
     fold_selected_constant_branch, measured_steps as constant_branch_measured_steps,
     surface_sizes as constant_branch_surface_sizes,
 };
-pub(crate) use copied_call_operand::{CopiedCallOperandError, ValidatedCopiedCallOperand};
 pub(crate) use copied_call_operand::{
-    copied_call_operand_measured_steps, fold_selected_copied_call_operand,
+    CopiedCallOperandError, ValidatedCopiedCallOperand, copied_call_operand_measured_steps,
+    fold_selected_copied_call_operand,
 };
 // Reached as `crate::rewrites::<name>` by the catalog's own tests and by
 // `selected_optimization`'s admission decision.
@@ -341,9 +340,9 @@ pub use runtime_spill::{
     spill_selected_runtime_value_with_span_policy,
 };
 pub use runtime_split::{RuntimeSplitError, ValidatedRuntimeSplit, split_selected_runtime_value};
-pub(crate) use selected_lowering::enabled_pair_rules;
-pub(crate) use selected_lowering::fold_selected_incoming_literal;
-pub(crate) use selected_lowering::literal_fold_identity;
+pub(crate) use selected_lowering::{
+    enabled_pair_rules, fold_selected_incoming_literal, literal_fold_identity,
+};
 // Reached as `crate::rewrites::validate_literal_fold` by the literal-fold
 // test corpus.
 pub(crate) use selected_lowering::{

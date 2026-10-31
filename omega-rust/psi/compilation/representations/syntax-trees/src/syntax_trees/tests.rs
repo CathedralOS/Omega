@@ -12,14 +12,16 @@ use crate::snapshot::ItemSnapshot;
 use crate::statement::{StatementNode, TableAssignment, TableCall};
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use arena::HandleSpan;
+use numerics::literals::IntegerLiteral;
+use source::{SourceId, SourceSpan, Span};
 
 fn shared_case_subject_syntax() -> (SyntaxTrees, ExpressionHandle, ExpressionHandle) {
     use crate::expression::{TableIndexedExpression, TableMembershipExpression};
     let mut source = SyntaxTrees::new(Default::default());
     let collection = source.expressions.insert(ExpressionNode::Boolean(false));
-    let selector = source.expressions.insert(ExpressionNode::Integer(
-        numerics::literals::IntegerLiteral::from_value(1),
-    ));
+    let selector = source
+        .expressions
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
     let subject = source
         .expressions
         .insert(ExpressionNode::Indexed(TableIndexedExpression {
@@ -39,10 +41,7 @@ fn shared_case_subject_syntax() -> (SyntaxTrees, ExpressionHandle, ExpressionHan
     let payload = source
         .expressions
         .insert(ExpressionNode::Member(TableMemberExpression {
-            access_source_span: source::SourceSpan::new(
-                source::SourceId(7),
-                source::Span::new(11, 15),
-            ),
+            access_source_span: SourceSpan::new(SourceId(7), Span::new(11, 15)),
             receiver: subject,
             member: Identifier::generated("a"),
             case_variant: Some(Identifier::generated("Both")),
@@ -65,7 +64,7 @@ fn copied_case_subject(
     assert_eq!(membership.value, payload.receiver);
     assert_eq!(
         payload.access_source_span,
-        source::SourceSpan::new(source::SourceId(7), source::Span::new(11, 15))
+        SourceSpan::new(SourceId(7), Span::new(11, 15))
     );
     membership.value
 }
@@ -82,10 +81,7 @@ fn expression_copy_preserves_shared_subject_and_isolates_transactions() {
         source
             .expressions
             .insert(ExpressionNode::Member(TableMemberExpression {
-                access_source_span: source::SourceSpan::new(
-                    source::SourceId(7),
-                    source::Span::new(11, 15),
-                ),
+                access_source_span: SourceSpan::new(SourceId(7), Span::new(11, 15)),
                 receiver: independent,
                 member: Identifier::generated("a"),
                 case_variant: Some(Identifier::generated("Both")),
@@ -168,9 +164,9 @@ fn item_copy_preserves_shared_body_subject_and_isolates_instances() {
 
 #[test]
 fn adopts_parser_pages_without_remapping_roots() {
-    let mut first = SyntaxTrees::new_with_generation(source::SourceId(10), 1);
+    let mut first = SyntaxTrees::new_with_generation(SourceId(10), 1);
     let first_root = first.push_root_item(Item::Module(ModuleDeclaration::default()));
-    let mut second = SyntaxTrees::new_with_generation(source::SourceId(20), 2);
+    let mut second = SyntaxTrees::new_with_generation(SourceId(20), 2);
     let second_root = second.push_root_item(Item::Module(ModuleDeclaration::default()));
 
     first.adopt_page(second);
@@ -461,8 +457,7 @@ fn integer_range_normalization_rejects_nonrange_owners_and_stale_constraint_span
 
 #[test]
 fn constant_initializer_normalization_survives_copy_and_clone() {
-    let span =
-        |start| source::SourceSpan::new(source::SourceId(3), source::Span::new(start, start + 4));
+    let span = |start| SourceSpan::new(SourceId(3), Span::new(start, start + 4));
     let mut source = SyntaxTrees::new(Default::default());
     let operand = source.expressions.insert(ExpressionNode::Boolean(false));
     source.expressions.set_source_span(operand, span(24));
@@ -642,7 +637,7 @@ fn normalized_structural_expression_copy_remaps_children_and_preserves_source() 
     let expression = source
         .expressions
         .insert(ExpressionNode::ArrayLiteral(children));
-    let source_span = source::SourceSpan::new(source::SourceId(3), source::Span::new(10, 16));
+    let source_span = SourceSpan::new(SourceId(3), Span::new(10, 16));
     source.expressions.set_source_span(expression, source_span);
     let argument = source
         .type_references
@@ -695,12 +690,7 @@ fn normalized_structural_expression_copy_remaps_children_and_preserves_source() 
 
 #[test]
 fn constant_argument_origin_survives_deep_copy_and_root_extension() {
-    let span = |source_id, start| {
-        source::SourceSpan::new(
-            source::SourceId(source_id),
-            source::Span::new(start, start + 4),
-        )
-    };
+    let span = |source_id, start| SourceSpan::new(SourceId(source_id), Span::new(start, start + 4));
     let origin = crate::types::ConstArgumentOrigin {
         reference: span(1, 40),
         declaration: span(2, 12),
@@ -865,10 +855,7 @@ fn copying_nested_generic_origins_remaps_handles_and_preserves_occurrence_tokens
     let token = |name: &str, start| {
         Identifier::new(
             name,
-            source::SourceSpan::new(
-                Default::default(),
-                source::Span::new(start, start + name.len()),
-            ),
+            SourceSpan::new(Default::default(), Span::new(start, start + name.len())),
         )
     };
     let mut source = SyntaxTrees::new(Default::default());
@@ -1060,10 +1047,8 @@ fn syntax_trees_extend_from_preserves_trait_and_data_visibility() {
 #[test]
 fn syntax_trees_extend_from_preserves_root_payload_handles() {
     let mut file = SyntaxTrees::new(Default::default());
-    let suspends_keyword_source_span =
-        source::SourceSpan::new(Default::default(), source::Span::new(10, 18));
-    let blocks_keyword_source_span =
-        source::SourceSpan::new(Default::default(), source::Span::new(20, 26));
+    let suspends_keyword_source_span = SourceSpan::new(Default::default(), Span::new(10, 18));
+    let blocks_keyword_source_span = SourceSpan::new(Default::default(), Span::new(20, 26));
     let return_type = file
         .type_references
         .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
@@ -1152,10 +1137,8 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
 #[test]
 fn syntax_signature_copy_preserves_operational_keyword_sources() {
     let mut source = SyntaxTrees::new(Default::default());
-    let suspends_keyword_source_span =
-        source::SourceSpan::new(Default::default(), source::Span::new(30, 38));
-    let blocks_keyword_source_span =
-        source::SourceSpan::new(Default::default(), source::Span::new(40, 46));
+    let suspends_keyword_source_span = SourceSpan::new(Default::default(), Span::new(30, 38));
+    let blocks_keyword_source_span = SourceSpan::new(Default::default(), Span::new(40, 46));
     let signature = source.items.insert_state_signature(&StateSignature {
         name: Identifier::generated("wait"),
         spelling: None,
@@ -1205,7 +1188,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
     let argument = file
         .expressions
         .insert(crate::expression::ExpressionNode::Integer(
-            numerics::literals::IntegerLiteral::from_value(0),
+            IntegerLiteral::from_value(0),
         ));
     let argument = file.statements.append_expression_handle(argument);
     let call = file.statements.insert(StatementNode::Call(TableCall {
@@ -1261,10 +1244,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
     let player_level = file
         .expressions
         .insert(ExpressionNode::Member(TableMemberExpression {
-            access_source_span: source::SourceSpan::new(
-                source::SourceId(7),
-                source::Span::new(11, 15),
-            ),
+            access_source_span: SourceSpan::new(SourceId(7), Span::new(11, 15)),
             receiver: player,
             member: Identifier::generated("level"),
             case_variant: None,
@@ -1283,9 +1263,9 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
             operational_acknowledgement: Default::default(),
         }));
 
-    let zero = file.expressions.insert(ExpressionNode::Integer(
-        numerics::literals::IntegerLiteral::from_value(0),
-    ));
+    let zero = file
+        .expressions
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(0)));
     let max_arguments = file
         .expressions
         .insert_expression_handles([zero, nested_call]);
@@ -1421,9 +1401,9 @@ fn constant_destination_debt_is_remapped_without_settling_or_refreshing_stale_in
     let destination_type = source
         .type_references
         .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
-    let value = source.expressions.insert(ExpressionNode::Integer(
-        numerics::literals::IntegerLiteral::from_value(7),
-    ));
+    let value = source
+        .expressions
+        .insert(ExpressionNode::Integer(IntegerLiteral::from_value(7)));
     let other = source.expressions.insert(ExpressionNode::Boolean(false));
     let name = Identifier::generated("PENDING");
     let obligation = crate::item::ConstDestinationObligation {

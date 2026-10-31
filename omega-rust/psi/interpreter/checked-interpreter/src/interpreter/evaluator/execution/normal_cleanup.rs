@@ -7,6 +7,9 @@ use crate::interpreter::evaluator::{
     Cell, EvalResult, EvaluatedArgument, Evaluator, Frame, Halt, Machine, State, Value,
     statement_table, trap, unsupported,
 };
+use checked_trees::CheckedUnitStructuralArgumentSourcePlan::{
+    Parameter, StructuralLocal, StructuralResult,
+};
 use checked_trees::{
     CheckedNormalCleanupAction, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitStructuralParameterPlan,
@@ -77,9 +80,7 @@ impl<'program> Evaluator<'program> {
         operations: &[checked_trees::CheckedUnitEffectOperationPlan],
     ) -> EvalResult<symbols::SymbolHandle> {
         Ok(match &action.source {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index,
-            } => {
+            Parameter { parameter_index } => {
                 let parameter = parameters
                     .get(*parameter_index as usize)
                     .filter(|parameter| {
@@ -94,12 +95,8 @@ impl<'program> Evaluator<'program> {
                     .ok_or_else(|| Halt::Unsupported("normal cleanup parameter is absent".into()))?
                     .symbol
             }
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                *symbol
-            }
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal,
-            } => {
+            StructuralLocal { symbol } => *symbol,
+            StructuralResult { binding_ordinal } => {
                 let result = operations
                     .iter()
                     .filter_map(|operation| operation.structural_result_binding())

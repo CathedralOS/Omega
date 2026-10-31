@@ -1,8 +1,7 @@
 //! Exact physical-view legality, compressed into constant candidate spans.
 //! The producer keeps each live fragment's coverage and every constraint
 //! boundary; consumers intersect and authenticate spans without expanding them.
-use crate::ValidatedAllocatorAvailability;
-use crate::ValidatedLiveRanges;
+use crate::{ValidatedAllocatorAvailability, ValidatedLiveRanges};
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,

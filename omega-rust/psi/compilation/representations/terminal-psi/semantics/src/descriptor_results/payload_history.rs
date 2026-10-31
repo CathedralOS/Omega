@@ -5,9 +5,15 @@
 
 mod entry_snapshots;
 
+use super::PayloadScalarObservation;
 use super::contents::select_payload_memberships;
+use super::payload_predicates;
+use super::payload_predicates::observation_type;
+use super::payload_reachability;
+use super::payload_reachability::incoming_flow;
 use super::*;
 use crate::descriptor_lifetimes::descriptor_path;
+use crate::qualification_path_carrier;
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -171,7 +177,7 @@ impl State {
             );
             // Executable expressions and entry identities meet independently.
             // Losing one component can change a row without changing its count.
-            changed |= super::PayloadScalarObservation::intersect(
+            changed |= PayloadScalarObservation::intersect(
                 &mut contract.scalar_observations,
                 &incoming.scalar_observations,
             );
@@ -195,7 +201,7 @@ impl State {
 }
 
 struct CachedHistory {
-    relevant: super::payload_reachability::Reachability,
+    relevant: payload_reachability::Reachability,
     snapshots: BTreeMap<DescriptorPosition, State>,
 }
 
@@ -247,12 +253,12 @@ pub struct PayloadMembershipHistory<'input> {
     sources: PayloadSources<'input>,
     // Queries and payload transfers share this immutable pre-operation replay.
     // Normal-completion queries use their separate borrowed-slot replay below.
-    incoming: Option<Option<super::payload_reachability::IncomingFlow>>,
+    incoming: Option<Option<payload_reachability::IncomingFlow>>,
     analysis: Option<DescriptorAnalysis<'input>>,
     cached: Option<CachedHistory>,
     /// Materialized only for an exact scalar-snapshot query. Ordinary numeric
     /// membership sweeps keep their existing input and allocation profile.
-    entry_snapshots: Option<Vec<(PlaceId, Vec<super::PayloadScalarObservation>)>>,
+    entry_snapshots: Option<Vec<(PlaceId, Vec<PayloadScalarObservation>)>>,
 }
 impl<'input> PayloadMembershipHistory<'input> {
     pub fn new(
@@ -345,10 +351,7 @@ impl<'input> PayloadMembershipHistory<'input> {
         let descriptor = self.descriptor;
         let incoming = self
             .incoming
-            .get_or_insert_with(|| {
-                descriptor
-                    .and_then(|machine| super::payload_reachability::incoming_flow(&machine.flow))
-            })
+            .get_or_insert_with(|| descriptor.and_then(|machine| incoming_flow(&machine.flow)))
             .as_ref();
         let mut failure = None;
         let entry_snapshots = self.entry_snapshots.as_deref().unwrap_or(&[]);
@@ -399,10 +402,7 @@ impl<'input> PayloadMembershipHistory<'input> {
         let descriptor = self.descriptor;
         let incoming = self
             .incoming
-            .get_or_insert_with(|| {
-                descriptor
-                    .and_then(|machine| super::payload_reachability::incoming_flow(&machine.flow))
-            })
+            .get_or_insert_with(|| descriptor.and_then(|machine| incoming_flow(&machine.flow)))
             .as_ref();
         current_payload_contract_reusing(
             self.types,
@@ -426,7 +426,7 @@ impl<'input> PayloadMembershipHistory<'input> {
         position: DescriptorPosition,
         root: PlaceId,
         path: &[crate::descriptor_lifetimes::DescriptorPathSegment],
-    ) -> Result<super::PayloadScalarObservation, &'static str> {
+    ) -> Result<PayloadScalarObservation, &'static str> {
         if self.entry_snapshots.is_none() {
             self.entry_snapshots = Some(entry_snapshots::collect(
                 self.types,
@@ -435,9 +435,8 @@ impl<'input> PayloadMembershipHistory<'input> {
             self.cached = None;
         }
         let contract = self.current_payload_contract(position, root)?;
-        let expected =
-            super::payload_predicates::observation_type(self.types, contract.carrier, path)
-                .ok_or("snapshot subject is not an exact primitive value")?;
+        let expected = observation_type(self.types, contract.carrier, path)
+            .ok_or("snapshot subject is not an exact primitive value")?;
         let mut observations = contract
             .scalar_observations
             .iter()
@@ -483,8 +482,7 @@ pub fn current_selected_payload_contract(
         .payload_targets(identity, position, &query)
         .ok_or("selected payload backing is unresolved")?;
     let descriptor = descriptor_machine(graph, identity);
-    let incoming =
-        descriptor.and_then(|machine| super::payload_reachability::incoming_flow(&machine.flow));
+    let incoming = descriptor.and_then(|machine| incoming_flow(&machine.flow));
     let mut cached = None;
     let mut history_failure = None;
     let contract = payload_memberships(types, domains, targets, |place| {
@@ -521,8 +519,7 @@ pub fn current_payload_contract(
 ) -> Result<PayloadMembershipContract, &'static str> {
     let mut analysis = DescriptorAnalysis::new(types, graph);
     let descriptor = descriptor_machine(graph, identity);
-    let incoming =
-        descriptor.and_then(|machine| super::payload_reachability::incoming_flow(&machine.flow));
+    let incoming = descriptor.and_then(|machine| incoming_flow(&machine.flow));
     current_payload_contract_reusing(
         types,
         domains,
@@ -559,8 +556,7 @@ pub(crate) fn completed_payload_contract(
 ) -> Result<PayloadMembershipContract, &'static str> {
     let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(types, graph);
     let descriptor = descriptor_machine(graph, identity);
-    let incoming =
-        descriptor.and_then(|machine| super::payload_reachability::incoming_flow(&machine.flow));
+    let incoming = descriptor.and_then(|machine| incoming_flow(&machine.flow));
     payload_contract_at_cut(
         types,
         domains,
@@ -580,12 +576,12 @@ fn current_payload_contract_reusing(
     types: &[StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
     descriptor: Option<&DescriptorMachine>,
-    incoming: Option<&super::payload_reachability::IncomingFlow>,
+    incoming: Option<&payload_reachability::IncomingFlow>,
     analysis: &mut DescriptorAnalysis<'_>,
     position: DescriptorPosition,
     root: PlaceId,
     source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
-    entry_snapshots: &[(PlaceId, Vec<super::PayloadScalarObservation>)],
+    entry_snapshots: &[(PlaceId, Vec<PayloadScalarObservation>)],
     cached: &mut Option<CachedHistory>,
 ) -> Result<PayloadMembershipContract, &'static str> {
     payload_contract_at_cut(
@@ -608,12 +604,12 @@ fn payload_contract_at_cut(
     types: &[StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
     descriptor: Option<&DescriptorMachine>,
-    incoming: Option<&super::payload_reachability::IncomingFlow>,
+    incoming: Option<&payload_reachability::IncomingFlow>,
     analysis: &mut DescriptorAnalysis<'_>,
     position: DescriptorPosition,
     root: PlaceId,
     source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
-    entry_snapshots: &[(PlaceId, Vec<super::PayloadScalarObservation>)],
+    entry_snapshots: &[(PlaceId, Vec<PayloadScalarObservation>)],
     cached: &mut Option<CachedHistory>,
     cut: PayloadMembershipCut,
 ) -> Result<PayloadMembershipContract, &'static str> {
@@ -623,10 +619,10 @@ fn payload_contract_at_cut(
         let identity = machine.id;
         failure = "payload query reachability is invalid or exceeds its finite budget";
         let mut relevant = match incoming {
-            Some(incoming) => super::payload_reachability::predecessors_with_incoming(
-                machine, incoming, position,
-            )?,
-            None => super::payload_reachability::predecessors(machine, position)?,
+            Some(incoming) => {
+                payload_reachability::predecessors_with_incoming(machine, incoming, position)?
+            }
+            None => payload_reachability::predecessors(machine, position)?,
         };
         let previous = cached.take();
         let frontier = previous
@@ -813,7 +809,7 @@ fn payload_contract_at_cut(
                 };
                 failure = "structural store carrier does not match its actual source";
                 let destination_carrier =
-                    crate::qualification_path_carrier(types.iter(), contract.carrier, &path)?;
+                    qualification_path_carrier(types.iter(), contract.carrier, &path)?;
                 let incoming = incoming.presented(types, domains, destination_carrier)?;
                 if path.is_empty() {
                     *contract = incoming;
@@ -850,11 +846,8 @@ fn payload_contract_at_cut(
                         select_payload_memberships(types, domains, contract, &actual.path)
                     }) {
                         let path = descriptor_path(types, produced.carrier, &destination.path)?;
-                        let destination_carrier = crate::qualification_path_carrier(
-                            types.iter(),
-                            produced.carrier,
-                            &path,
-                        )?;
+                        let destination_carrier =
+                            qualification_path_carrier(types.iter(), produced.carrier, &path)?;
                         let Some(incoming) =
                             incoming.presented(types, domains, destination_carrier)
                         else {
@@ -910,11 +903,8 @@ fn payload_contract_at_cut(
                     let Some(contract) = after.values.get_mut(&destination.root) else {
                         continue;
                     };
-                    if super::payload_predicates::observation_type(
-                        types,
-                        contract.carrier,
-                        &destination.path,
-                    ) != Some(value.scalar_type())
+                    if observation_type(types, contract.carrier, &destination.path)
+                        != Some(value.scalar_type())
                     {
                         continue;
                     }
@@ -922,13 +912,11 @@ fn payload_contract_at_cut(
                         !observation.path.starts_with(&destination.path)
                             && !destination.path.starts_with(&observation.path)
                     });
-                    contract
-                        .scalar_observations
-                        .push(super::PayloadScalarObservation {
-                            path: destination.path.clone(),
-                            value: Some(value.clone()),
-                            entry: None,
-                        });
+                    contract.scalar_observations.push(PayloadScalarObservation {
+                        path: destination.path.clone(),
+                        value: Some(value.clone()),
+                        entry: None,
+                    });
                 }
             }
             if let Some(reads) = machine.scalar_payload_reads.get(&current) {
@@ -951,10 +939,10 @@ fn payload_contract_at_cut(
             canonicalize_snapshot(&mut after.scalar_requirements);
             after.publish_requirements();
             for contract in after.values.values_mut() {
-                if !super::payload_predicates::closure_may_change(types, domains, contract) {
+                if !payload_predicates::closure_may_change(types, domains, contract) {
                     continue;
                 }
-                super::payload_predicates::close_with_shared_requirements(
+                payload_predicates::close_with_shared_requirements(
                     types,
                     domains,
                     Arc::make_mut(contract),
@@ -1001,11 +989,10 @@ fn payload_contract_at_cut(
                     );
                     canonicalize_snapshot(&mut arrival.scalar_requirements);
                     for contract in arrival.values.values_mut() {
-                        if !super::payload_predicates::closure_may_change(types, domains, contract)
-                        {
+                        if !payload_predicates::closure_may_change(types, domains, contract) {
                             continue;
                         }
-                        super::payload_predicates::close_with_shared_requirements(
+                        payload_predicates::close_with_shared_requirements(
                             types,
                             domains,
                             Arc::make_mut(contract),
@@ -1147,10 +1134,10 @@ fn payload_contract_at_cut(
                 }
                 arrival.publish_requirements();
                 for contract in arrival.values.values_mut() {
-                    if !super::payload_predicates::closure_may_change(types, domains, contract) {
+                    if !payload_predicates::closure_may_change(types, domains, contract) {
                         continue;
                     }
-                    super::payload_predicates::close_with_shared_requirements(
+                    payload_predicates::close_with_shared_requirements(
                         types,
                         domains,
                         Arc::make_mut(contract),
@@ -1214,7 +1201,7 @@ fn payload_contract_at_cut(
         );
         current.projected_qualifications.extend(
             declared.projected_qualifications.into_iter().filter(|row| {
-                crate::qualification_path_carrier(types.iter(), declared.carrier, &row.path)
+                qualification_path_carrier(types.iter(), declared.carrier, &row.path)
                     .is_some_and(|carrier| byte_domain(carrier, row.domain))
             }),
         );
@@ -1452,13 +1439,11 @@ fn observe_scalar(
     contract
         .scalar_observations
         .retain(|observation| observation.path != path);
-    contract
-        .scalar_observations
-        .push(super::PayloadScalarObservation {
-            path: path.to_vec(),
-            value: Some(value.clone()),
-            entry: None,
-        });
+    contract.scalar_observations.push(PayloadScalarObservation {
+        path: path.to_vec(),
+        value: Some(value.clone()),
+        entry: None,
+    });
     None
 }
 
@@ -1498,7 +1483,7 @@ fn append_scalar_observations(
             .retain(|previous| previous.path != path);
         destination
             .scalar_observations
-            .push(super::PayloadScalarObservation {
+            .push(PayloadScalarObservation {
                 path,
                 value: observation.value.clone(),
                 entry: observation.entry.clone(),

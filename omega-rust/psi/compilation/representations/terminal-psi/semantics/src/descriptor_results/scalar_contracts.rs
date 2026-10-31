@@ -3,6 +3,9 @@
 //! the payload owner resolves backing and invalidates them after mutation.
 //! Call adapters supply exact typed formal/result bindings from the current
 //! checked signature, never implementation-private facts or receiving domains.
+use crate::runtime_structural_path_tip;
+use crate::substitution;
+use crate::substitution::substitute_proposition_values;
 use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
@@ -40,13 +43,13 @@ pub(super) fn arrival_requirements<Requirement: Borrow<Proposition>>(
         .iter()
         .map(Borrow::<Proposition>::borrow)
         .filter(|premise| !premise.any_value_id(|value| !surviving(value)))
-        .map(|premise| crate::substitution::substitute_proposition_values(premise, &substitutions))
+        .map(|premise| substitute_proposition_values(premise, &substitutions))
         .collect::<Vec<_>>();
     for (parameter, actual) in bindings {
         if actual.any_value_id(|value| !surviving(value)) {
             continue;
         }
-        let value = crate::substitution::substitute_scalar_term_values(actual, &substitutions);
+        let value = substitution::substitute_scalar_term_values(actual, &substitutions);
         result.push(Proposition::Equal(
             ScalarTerm::value(*parameter, value.scalar_type()),
             value,
@@ -83,9 +86,7 @@ pub fn instantiate_payload_scalar_guarantees(
         .filter_map(|proposition| {
             let mut bound = true;
             proposition.visit_value_ids(|value| bound &= substitutions.contains_key(&value));
-            bound.then(|| {
-                crate::substitution::substitute_proposition_values(&proposition, &substitutions)
-            })
+            bound.then(|| substitute_proposition_values(&proposition, &substitutions))
         })
         .collect()
 }
@@ -174,11 +175,8 @@ pub(super) fn terminal_postconditions(
         .zip(structural_arguments)
     {
         let root_type = machine.structural_place_type(actual.place)?;
-        let selected = crate::runtime_structural_path_tip(
-            module.structural_types.iter(),
-            root_type,
-            &actual.path,
-        );
+        let selected =
+            runtime_structural_path_tip(module.structural_types.iter(), root_type, &actual.path);
         if actual.access != formal.access
             || (!selected.is_some_and(|selected| selected.id == formal.structural_type)
                 && crate::borrowed_primitive_projection_declaration(
@@ -294,7 +292,7 @@ pub(super) fn terminal_postconditions(
             destination.path.extend(selected.path);
             postconditions.stored.push((
                 destination,
-                crate::substitution::substitute_scalar_term_values(value, &substitutions),
+                substitution::substitute_scalar_term_values(value, &substitutions),
             ));
         }
     }
@@ -311,7 +309,7 @@ pub fn case_payload_scalar_types(
     case: semantic_vocabulary::StructuralCaseId,
     fields: &[semantic_vocabulary::StructuralFieldId],
 ) -> Option<Vec<semantic_vocabulary::ScalarType>> {
-    let carrier = crate::runtime_structural_path_tip(types.iter(), root, path)?;
+    let carrier = runtime_structural_path_tip(types.iter(), root, path)?;
     terminal_psi::find_structural_case(carrier.shape.sum_cases()?, case)?;
     let mut selected = path.to_vec();
     selected.push(terminal_psi::StructuralPathSegment::Case(case));

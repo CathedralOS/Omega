@@ -3,6 +3,7 @@
 //! caller-owed requirements. Copies and writes use ordinary payload history;
 //! a receiving annotation never participates in this entry judgment.
 use super::*;
+use proof_admission::check_certificate;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Segment, Proposition};
 use terminal_psi::{ProofNode, ProofRule, StructuralDomainDeclaration};
 
@@ -349,7 +350,7 @@ mod tests {
         ])];
         let goal = Proposition::Disjunction(mathematical[..2].to_vec());
         let proof = prove(&context, &goal, &requirements, 0).unwrap();
-        proof_admission::check_certificate(&context, &goal, &requirements, &[], &proof).unwrap();
+        check_certificate(&context, &goal, &requirements, &[], &proof).unwrap();
         proof_admission::verify_bounded_certificate(
             &context,
             &goal,
@@ -426,22 +427,11 @@ mod tests {
             finite.clone(),
         ])];
         let proof = prove(&context, &goal, &requirements, 0).unwrap();
-        assert!(
-            proof_admission::check_certificate(&context, &goal, &requirements, &[], &proof).is_ok()
-        );
+        assert!(check_certificate(&context, &goal, &requirements, &[], &proof).is_ok());
         assert!(prove(&context, &goal, &[], 0).is_none());
         let reverse_requirements = [goal];
         let reverse = prove(&context, &finite, &reverse_requirements, 0).unwrap();
-        assert!(
-            proof_admission::check_certificate(
-                &context,
-                &finite,
-                &reverse_requirements,
-                &[],
-                &reverse
-            )
-            .is_ok()
-        );
+        assert!(check_certificate(&context, &finite, &reverse_requirements, &[], &reverse).is_ok());
         let wrong = Proposition::LessThan(
             ScalarTerm::value(other, ScalarType::Integer(integer)),
             ScalarTerm::integer(integer, IntegerValue::Unsigned(10)).unwrap(),

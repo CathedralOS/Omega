@@ -25,33 +25,7 @@
 use crate::{StoredLoadForwardingError, forward_selected_stored_load};
 use std::collections::BTreeSet;
 
-use crate::AddressFoldError;
-use crate::ConstantBooleanError;
-use crate::ConstantBranchError;
-use crate::CopiedCallOperandError;
-use crate::CopyRemovalError;
-use crate::DeadCompareError;
-use crate::EquivalentCompareError;
-use crate::OptimizedPreAllocationCustodyError;
-use crate::PreAllocationPolicy;
-use crate::RedundantCompareError;
-use crate::RedundantExtensionError;
-use crate::SelectedProgramRef;
-use crate::StagedOptimizedAllocationLegality;
-use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
-use crate::StagedOptimizedPreAllocationAttempt;
-use crate::StagedOptimizedPreAllocationAttemptReceipt;
-use crate::StagedOptimizedPreAllocationIterationReceipt;
-use crate::StagedOptimizedPreAllocationStep;
-use crate::StagedPreAllocationOptimizationCustodyReceipt;
-use crate::StagedPreAllocationOptimizationRun;
-use crate::ValidatedPreAllocationTransformation;
-use crate::ValidatedSelectedAnalysis;
 use crate::analyses::validated_machine_effect_catalog;
-use crate::analyze_allocation_legality;
-use crate::analyze_live_ranges;
-use crate::analyze_liveness;
-use crate::resolve_pre_allocation_rules;
 use crate::rewrites::condition_state::adjacency;
 use crate::rewrites::{
     SelectedFunction, address_fold_measured_steps, constant_boolean_measured_steps,
@@ -63,15 +37,28 @@ use crate::rewrites::{
     remove_equivalent_compare, remove_redundant_compare, remove_selected_copy,
     remove_selected_redundant_extension,
 };
+use crate::{
+    AddressFoldError, ConstantBooleanError, ConstantBranchError, CopiedCallOperandError,
+    CopyRemovalError, DeadCompareError, EquivalentCompareError, OptimizedPreAllocationCustodyError,
+    PreAllocationPolicy, RedundantCompareError, RedundantExtensionError, SelectedProgramRef,
+    StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
+    StagedOptimizedPreAllocationAttempt, StagedOptimizedPreAllocationAttemptReceipt,
+    StagedOptimizedPreAllocationIterationReceipt, StagedOptimizedPreAllocationStep,
+    StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
+    ValidatedPreAllocationTransformation, ValidatedSelectedAnalysis,
+};
+use crate::{
+    analyze_allocation_legality, analyze_live_ranges, analyze_liveness,
+    resolve_pre_allocation_rules,
+};
 use optimization_core::{
     OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
     PreAllocationOptimizationCompletionIdentity,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
-use selected_instructions::terminator_instruction;
 use selected_instructions::{
-    SelectedInstruction, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedInstruction, SelectedInstructionKind, SelectedInstructionPlan, terminator_instruction,
 };
 
 use super::PRE_ALLOCATION_RULE_CATALOG;

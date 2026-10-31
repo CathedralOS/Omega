@@ -18,6 +18,7 @@
 //! declared type name instead of the private marker name, so it can never
 //! satisfy `described_output_obligation` or name a table row.
 use super::paths::OUTPUT_ROOT_FACET_TYPE;
+use crate::BuildOutputObligationState::Completed;
 use crate::MAX_BUILD_OUTPUT_OBLIGATIONS;
 use crate::interpreter::evaluator::{
     BTreeMap, EvalResult, Evaluator, ExpressionHandle, FilesystemGrantRootIdentity,
@@ -220,7 +221,7 @@ impl<'program> Evaluator<'program> {
         let declared = self.output_obligations[index].relative_path.clone();
         match self.output_obligations[index].state {
             crate::BuildOutputObligationState::Pending => {}
-            crate::BuildOutputObligationState::Completed { .. } => {
+            Completed { .. } => {
                 return Err(Halt::Trap(
                     "required output obligation is already completed".to_owned(),
                 ));
@@ -278,7 +279,7 @@ impl<'program> Evaluator<'program> {
             sealed_at,
             completed_at,
         });
-        self.output_obligations[index].state = crate::BuildOutputObligationState::Completed {
+        self.output_obligations[index].state = Completed {
             completed_at,
             receipt: receipt_index,
         };
@@ -298,7 +299,7 @@ impl<'program> Evaluator<'program> {
         let index = self.described_output_obligation(&obligation)?;
         match self.output_obligations[index].state {
             crate::BuildOutputObligationState::Pending => {}
-            crate::BuildOutputObligationState::Completed { .. } => {
+            Completed { .. } => {
                 return Err(Halt::Trap(
                     "required output obligation is already completed".to_owned(),
                 ));
@@ -464,10 +465,7 @@ impl<'program> Evaluator<'program> {
         }
         for key in mutated {
             if let Some(index) = self.output_obligation_paths.get(&key).copied()
-                && matches!(
-                    self.output_obligations[index].state,
-                    crate::BuildOutputObligationState::Completed { .. }
-                )
+                && matches!(self.output_obligations[index].state, Completed { .. })
             {
                 self.output_obligations[index]
                     .post_completion_mutations

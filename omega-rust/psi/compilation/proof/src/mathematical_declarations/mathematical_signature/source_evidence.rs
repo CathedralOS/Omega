@@ -8,8 +8,16 @@ use super::{
 };
 use crate::typed_expressions::{expression_table, statement_table, type_reference_table};
 use diagnostics::Diagnostic;
+use proof_admission::{
+    Level, Signature, Sort, Term, check_type, infer_sort, infer_type, judgment_assumption_closure,
+    substitute,
+};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::types::TypeReferenceHandle;
+use typed_trees::statement::StatementNode;
+use typed_trees::static_applications::StaticMachineBindingValue;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use validation::expression_owners::{OwnerEnvironmentIndex, source_declaration_owner};
+use validation::mathematical_applications::{PreparedIndexedTheorem, operand_type_reference};
 use validation::mathematical_applications::{PreparedSourceCarrier, PreparedSourceEvidence};
 
 impl Elaborator<'_> {
@@ -28,10 +36,9 @@ impl Elaborator<'_> {
         if domains.is_empty() {
             return domains;
         }
-        let context = Context::empty().with_signature(
-            proof_admission::Signature::from_declarations(self.declarations.clone()),
-        );
-        if proof_admission::infer_sort(
+        let context = Context::empty()
+            .with_signature(Signature::from_declarations(self.declarations.clone()));
+        if infer_sort(
             &mut self.arena,
             &context,
             ty,
@@ -99,9 +106,7 @@ impl Elaborator<'_> {
                                 .statements(state.statement_nodes)
                                 .iter()
                                 .filter_map(|statement| {
-                                    if let typed_trees::statement::StatementNode::LocalData(local) =
-                                        statement
-                                    {
+                                    if let StatementNode::LocalData(local) = statement {
                                         Some(local.type_reference)
                                     } else {
                                         None
@@ -130,16 +135,15 @@ impl Elaborator<'_> {
                 continue;
             }
             for binder in &binders {
-                let domain =
-                    match binder.kind {
-                        TypeParameterKind::Type => self.arena.insert(proof_admission::Term::Sort(
-                            proof_admission::Sort::Type(proof_admission::Level::Constant(0)),
-                        )),
-                        TypeParameterKind::Value { type_reference } => {
-                            self.elaborate_type_reference(type_reference)?
-                        }
-                        _ => unreachable!(),
-                    };
+                let domain = match binder.kind {
+                    TypeParameterKind::Type => self
+                        .arena
+                        .insert(Term::Sort(Sort::Type(Level::Constant(0)))),
+                    TypeParameterKind::Value { type_reference } => {
+                        self.elaborate_type_reference(type_reference)?
+                    }
+                    _ => unreachable!(),
+                };
                 self.push_scope(Some(binder.symbol), binder.name.clone(), domain);
             }
             let machine_depth = self.scope.len();
@@ -150,8 +154,7 @@ impl Elaborator<'_> {
                         .program
                         .primitive_type_reference(parameter.type_reference)
                         .is_some_and(|primitive| {
-                            primitive == typed_trees::types::PrimitiveType::Bool
-                                || primitive.integer_bounds().is_some()
+                            primitive == PrimitiveType::Bool || primitive.integer_bounds().is_some()
                         })
                     {
                         let domain =
@@ -196,7 +199,7 @@ impl Elaborator<'_> {
                     .statements(state.statement_nodes)
                     .iter()
                     .filter_map(|statement| match statement {
-                        typed_trees::statement::StatementNode::LocalData(local)
+                        StatementNode::LocalData(local)
                             if local.relevance == language_core::BindingRelevance::Erased
                                 && self.known_source_family(local.type_reference)
                                 && matches!(
@@ -238,17 +241,15 @@ impl Elaborator<'_> {
         expression: ExpressionHandle,
         term: TermHandle,
         context: &Context,
-        signature: &proof_admission::Signature,
+        signature: &Signature,
     ) -> Result<(), Vec<Diagnostic>> {
-        let Some(reference) =
-            validation::mathematical_applications::operand_type_reference(self.program, expression)
-        else {
+        let Some(reference) = operand_type_reference(self.program, expression) else {
             return Ok(());
         };
         if !self.known_source_family(reference) || !self.scope.is_empty() {
             return Ok(());
         }
-        let ty = proof_admission::infer_type(
+        let ty = infer_type(
             &mut self.arena,
             context,
             term,
@@ -401,7 +402,7 @@ impl Elaborator<'_> {
                         })
                         || !self.program.primitive_type_reference(parameter.type_reference)
                             .is_some_and(|primitive| {
-                                primitive == typed_trees::types::PrimitiveType::Bool
+                                primitive == PrimitiveType::Bool
                                     || primitive.integer_bounds().is_some()
                             })
                     {
@@ -419,12 +420,10 @@ impl Elaborator<'_> {
                     let TypeParameterKind::Value { type_reference } = binder.kind else {
                         continue;
                     };
-                    let Some(
-                        typed_trees::static_applications::StaticMachineBindingValue::RuntimeValue {
-                            type_reference: realized_carrier,
-                            ..
-                        },
-                    ) = self
+                    let Some(StaticMachineBindingValue::RuntimeValue {
+                        type_reference: realized_carrier,
+                        ..
+                    }) = self
                         .program
                         .specialization_binding(specialization, binder.symbol)
                     else {
@@ -473,9 +472,7 @@ impl Elaborator<'_> {
                     self.elaborate_type_reference(*reference)?
                 } else {
                     self.arena
-                        .insert(proof_admission::Term::Sort(proof_admission::Sort::Type(
-                            proof_admission::Level::Constant(0),
-                        )))
+                        .insert(Term::Sort(Sort::Type(Level::Constant(0))))
                 };
                 self.push_scope(Some(*symbol), name.clone(), domain);
             }
@@ -550,7 +547,7 @@ impl Elaborator<'_> {
                     let Term::Lambda { body, .. } = self.arena.get(proposition) else {
                         unreachable!("constructed source invariant telescope")
                     };
-                    proposition = proof_admission::substitute(&mut self.arena, body, projection);
+                    proposition = substitute(&mut self.arena, body, projection);
                 }
                 let invariant = self.arena.insert(Term::Lambda {
                     domain: family.description.index,
@@ -564,8 +561,9 @@ impl Elaborator<'_> {
                     &signature,
                     &[theorem.theorem, theorem.ty],
                 );
-                self.prepared.indexed_theorems.append(
-                    validation::mathematical_applications::PreparedIndexedTheorem {
+                self.prepared
+                    .indexed_theorems
+                    .append(PreparedIndexedTheorem {
                         machine: machine.symbol,
                         expression,
                         ensure_ordinal: ensure_ordinal as u32,
@@ -574,17 +572,14 @@ impl Elaborator<'_> {
                         theorem: theorem.theorem,
                         ty: theorem.ty,
                         assumption_closure: closure.into_iter().collect(),
-                    },
-                );
+                    });
                 // Restore the exact scalar telescope for another authored clause.
                 for (symbol, name, type_reference) in &telescope {
                     let domain = if let Some(reference) = type_reference {
                         self.elaborate_type_reference(*reference)?
                     } else {
                         self.arena
-                            .insert(proof_admission::Term::Sort(proof_admission::Sort::Type(
-                                proof_admission::Level::Constant(0),
-                            )))
+                            .insert(Term::Sort(Sort::Type(Level::Constant(0))))
                     };
                     self.push_scope(Some(*symbol), name.clone(), domain);
                 }
@@ -598,7 +593,7 @@ impl Elaborator<'_> {
 impl Elaborator<'_> {
     pub(super) fn bind_source_evidence_types(
         &mut self,
-        signature: &proof_admission::Signature,
+        signature: &Signature,
     ) -> Result<(), Vec<Diagnostic>> {
         let accepted = self
             .integer_theory
@@ -620,7 +615,7 @@ impl Elaborator<'_> {
                 .source_constructors
                 .iter()
                 .find_map(|(_, constructor)| {
-                    let closure = proof_admission::judgment_assumption_closure(
+                    let closure = judgment_assumption_closure(
                         &self.arena,
                         signature,
                         &[constructor.schema, constructor.ty],
@@ -657,7 +652,7 @@ impl Elaborator<'_> {
                     "source evidence has no independently formed closed source carrier".into(),
                 ));
             };
-            proof_admission::check_type(
+            check_type(
                 &mut self.arena,
                 &Context::empty().with_signature(signature.clone()),
                 term,
@@ -669,11 +664,7 @@ impl Elaborator<'_> {
                     "source evidence changed its independently formed carrier: {error:?}"
                 ))
             })?;
-            let closure = proof_admission::judgment_assumption_closure(
-                &self.arena,
-                signature,
-                &[term, carrier],
-            );
+            let closure = judgment_assumption_closure(&self.arena, signature, &[term, carrier]);
             if closure
                 .iter()
                 .any(|position| !self.prepared.safety_assumptions.contains(position))
@@ -694,10 +685,7 @@ impl Elaborator<'_> {
         {
             return Ok(());
         }
-        let owners = validation::expression_owners::OwnerEnvironmentIndex::new(
-            self.program,
-            &arena::Arena::default(),
-        );
+        let owners = OwnerEnvironmentIndex::new(self.program, &arena::Arena::default());
         let mut pending = expression_table(self.program)
             .iter_expressions()
             .filter_map(|(expression, node)| {
@@ -743,12 +731,7 @@ impl Elaborator<'_> {
                 let [(machine, state, ordinal, local)] = locals.as_slice() else {
                     return false;
                 };
-                if validation::expression_owners::source_declaration_owner(
-                    self.program,
-                    *expression,
-                    &owners,
-                ) != Some(*machine)
-                {
+                if source_declaration_owner(self.program, *expression, &owners) != Some(*machine) {
                     return false;
                 }
                 let sites = owners.containing_statement_sites(*expression);

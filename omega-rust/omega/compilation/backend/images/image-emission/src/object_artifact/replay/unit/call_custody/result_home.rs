@@ -1,5 +1,8 @@
 //! Independent reconstruction of a direct ordinary structural result store.
 
+use super::projected_copy::aarch64_stack_store;
+use crate::object_artifact::replay::unit::scalar_call_custody::entry_spills::storage_end;
+use crate::object_artifact::replay::unit::scalar_call_custody::scalar_home_shape;
 use calling_conventions::{ValueClass, ValueLocation};
 use machine_code::{InternalUnitCallRecord, UnitParameterHomeRecord, UnitScalarHomeRecord};
 use target::{Architecture, NativeTarget};
@@ -73,7 +76,7 @@ pub(crate) fn expected_store_bytes(
                 byte_size,
             )?,
             Architecture::Aarch64 => bytes.extend_from_slice(
-                &super::projected_copy::aarch64_stack_store(
+                &aarch64_stack_store(
                     super::aarch64_terminal_register(register)?,
                     offset,
                     byte_size,
@@ -95,10 +98,7 @@ pub(crate) fn parameter_storage_end(
     let scalar_shapes = scalar_parameters
         .iter()
         .map(|parameter| {
-            let shape =
-                crate::object_artifact::replay::unit::scalar_call_custody::scalar_home_shape(
-                    parameter.scalar_type,
-                )?;
+            let shape = scalar_home_shape(parameter.scalar_type)?;
             (parameter.placement.shape == shape).then_some(shape)
         })
         .collect::<Option<Vec<_>>>()?;
@@ -182,13 +182,7 @@ pub(crate) fn exact_storage(
     return_link: Option<u32>,
     has_continuations: bool,
 ) -> bool {
-    let Some(entry_end) =
-        crate::object_artifact::replay::unit::scalar_call_custody::entry_spills::storage_end(
-            target,
-            parameter_homes,
-            scalar_abi,
-            has_continuations,
-        )
+    let Some(entry_end) = storage_end(target, parameter_homes, scalar_abi, has_continuations)
     else {
         return false;
     };

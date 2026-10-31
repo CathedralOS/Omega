@@ -5,7 +5,14 @@
 //! ordinary call or constructor: both consume its exact whole snapshot, while
 //! later changes to the original backing cannot change the copied contents.
 
+use crate::UnchangedScalarOrigin;
+use crate::runtime_structural_path_tip;
+use semantic_vocabulary::StructuralTypeId;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
+use terminal_psi::Operation;
+use terminal_psi::StructuralMultiplicity;
+use terminal_psi::StructuralPathSegment;
+use terminal_psi::call_structural_pair_pattern;
 use terminal_psi::{
     ByteSequencePredicate, ByteSequencePredicateSet, OperationKind, StructuralAccess,
     StructuralParameterDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
@@ -54,7 +61,7 @@ pub fn byte_predicate_requirement(
 pub fn byte_field_root(
     machine: &TerminalMachine,
     source: PlaceId,
-) -> Option<(semantic_vocabulary::StructuralTypeId, StructuralAccess)> {
+) -> Option<(StructuralTypeId, StructuralAccess)> {
     if machine
         .entry_claims
         .iter()
@@ -81,8 +88,7 @@ pub fn byte_field_root(
                 && result.structural_type == structural_type
                 && matches!(
                     result.multiplicity,
-                    terminal_psi::StructuralMultiplicity::Unrestricted
-                        | terminal_psi::StructuralMultiplicity::Affine
+                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
                 )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
@@ -94,8 +100,7 @@ pub fn byte_field_root(
     };
     (matches!(
         parameter.multiplicity,
-        terminal_psi::StructuralMultiplicity::Unrestricted
-            | terminal_psi::StructuralMultiplicity::Affine
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
     ) && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty())
     .then_some((parameter.structural_type, parameter.access))
@@ -135,7 +140,7 @@ pub fn byte_parameter_predicates_in<'domain>(
 /// parameter. The caller retains its own result or parameter custody checks.
 pub fn byte_qualification_predicates_in<'domain>(
     domains: impl Iterator<Item = &'domain terminal_psi::StructuralDomainDeclaration> + Clone,
-    carrier: semantic_vocabulary::StructuralTypeId,
+    carrier: StructuralTypeId,
     qualifications: &[semantic_vocabulary::StructuralDomainId],
 ) -> Option<ByteSequencePredicateSet> {
     if qualifications.windows(2).any(|pair| pair[0] >= pair[1]) {
@@ -160,7 +165,7 @@ pub fn byte_qualification_predicates_in<'domain>(
 /// on another carrier cannot grant primitive byte-predicate implication.
 pub fn byte_predicate_carrier<'types>(
     types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
-    carrier: semantic_vocabulary::StructuralTypeId,
+    carrier: StructuralTypeId,
 ) -> bool {
     let Some(declaration) = crate::structural_declaration(types.clone(), carrier) else {
         return false;
@@ -185,7 +190,7 @@ pub fn byte_predicate_carrier<'types>(
 pub fn pure_byte_qualifications<'types, 'domain>(
     types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
     domains: impl Iterator<Item = &'domain terminal_psi::StructuralDomainDeclaration> + Clone,
-    root: semantic_vocabulary::StructuralTypeId,
+    root: StructuralTypeId,
     whole: &[semantic_vocabulary::StructuralDomainId],
     projected: &[terminal_psi::StructuralPathQualification],
 ) -> bool {
@@ -213,10 +218,7 @@ pub fn pure_byte_qualifications<'types, 'domain>(
 fn operation_producer<'machine>(
     machine: &'machine TerminalMachine,
     source: PlaceId,
-) -> Option<(
-    &'machine terminal_psi::Operation,
-    semantic_vocabulary::StructuralTypeId,
-)> {
+) -> Option<(&'machine Operation, StructuralTypeId)> {
     machine.producing_operation(source)
 }
 
@@ -227,7 +229,7 @@ fn authenticated_call_result<'machine>(
 ) -> Option<&'machine terminal_psi::StructuralOperationResult> {
     let (operation, structural_type) = operation_producer(machine, source)?;
     let callee = match operation.kind {
-        terminal_psi::call_structural_pair_pattern!(callee, ..) => callee,
+        call_structural_pair_pattern!(callee, ..) => callee,
         _ => return None,
     };
     let result = operation.result.structural()?;
@@ -235,7 +237,7 @@ fn authenticated_call_result<'machine>(
     (result.place == source
         && result.structural_type == structural_type
         && signature.structural_type == structural_type
-        && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && result.multiplicity == StructuralMultiplicity::Unrestricted
         && signature.multiplicity == result.multiplicity
         && signature.qualifications == result.qualifications
         && signature.projected_qualifications.is_empty()
@@ -320,16 +322,13 @@ fn byte_result_predicates(
     source: PlaceId,
 ) -> Option<ByteSequencePredicateSet> {
     let (operation, structural_type) = operation_producer(machine, source)?;
-    let result = if matches!(
-        operation.kind,
-        terminal_psi::call_structural_pair_pattern!(..)
-    ) {
+    let result = if matches!(operation.kind, call_structural_pair_pattern!(..)) {
         authenticated_call_result(module, machine, source)?
     } else {
         let result = operation.result.structural()?;
         (result.place == source
             && result.structural_type == structural_type
-            && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && result.multiplicity == StructuralMultiplicity::Unrestricted
             && result.projected_qualifications.is_empty()
             && result.qualification_establishments.is_empty()
             && result.claims.is_empty())
@@ -353,14 +352,13 @@ fn byte_result_predicates(
 /// Replacing the original slot does not change this copied descriptor's bytes.
 pub fn shared_byte_field_copy_predicates<'a>(
     types: impl Iterator<Item = &'a terminal_psi::StructuralTypeDeclaration> + Clone,
-    root: semantic_vocabulary::StructuralTypeId,
-    path: &[terminal_psi::StructuralPathSegment],
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
 ) -> Option<ByteSequencePredicateSet> {
-    let (terminal_psi::StructuralPathSegment::Field(identity), parent_path) = path.split_last()?
-    else {
+    let (StructuralPathSegment::Field(identity), parent_path) = path.split_last()? else {
         return None;
     };
-    let parent = crate::runtime_structural_path_tip(types.clone(), root, parent_path)?;
+    let parent = runtime_structural_path_tip(types.clone(), root, parent_path)?;
     let Some(fields) = parent.shape.record_fields() else {
         return None;
     };
@@ -380,7 +378,7 @@ pub fn shared_byte_field_copy_predicates<'a>(
 pub fn byte_sequence_concatenation_predicates(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    operation: &terminal_psi::Operation,
+    operation: &Operation,
 ) -> Option<ByteSequencePredicateSet> {
     let OperationKind::EstablishByteSequenceConcatenation { left, right, .. } = &operation.kind
     else {
@@ -419,7 +417,7 @@ pub fn byte_copied_field_predicates_at_transfer(
     };
     if result.place != source
         || result.structural_type != structural_type
-        || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || result.multiplicity != StructuralMultiplicity::Unrestricted
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.qualification_establishments.is_empty()
@@ -444,8 +442,7 @@ pub fn byte_copied_field_predicates_at_transfer(
     ) {
         return None;
     }
-    let (terminal_psi::StructuralPathSegment::Field(identity), parent_path) = path.split_last()?
-    else {
+    let (StructuralPathSegment::Field(identity), parent_path) = path.split_last()? else {
         return None;
     };
     // Crossing a reference requires its own referent access proof. This
@@ -453,13 +450,12 @@ pub fn byte_copied_field_predicates_at_transfer(
     if parent_path.iter().any(|segment| {
         !matches!(
             segment,
-            terminal_psi::StructuralPathSegment::Field(_)
-                | terminal_psi::StructuralPathSegment::FixedIndex(_)
+            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
         )
     }) {
         return None;
     }
-    let parent = crate::runtime_structural_path_tip(
+    let parent = runtime_structural_path_tip(
         module.structural_types.iter(),
         parameter.structural_type,
         parent_path,
@@ -551,11 +547,8 @@ fn concatenation_operand_predicates(
                 return resolve_whole(source.place);
             }
             let (root, _) = byte_field_root(machine, source.place)?;
-            let selected = crate::runtime_structural_path_tip(
-                module.structural_types.iter(),
-                root,
-                &source.path,
-            )?;
+            let selected =
+                runtime_structural_path_tip(module.structural_types.iter(), root, &source.path)?;
             if !matches!(selected.shape, StructuralTypeShape::ByteSequence(_)) {
                 return None;
             }
@@ -580,7 +573,7 @@ fn concatenation_operand_predicates(
             {
                 return None;
             }
-            let declaration = crate::runtime_structural_path_tip(
+            let declaration = runtime_structural_path_tip(
                 module.structural_types.iter(),
                 structural_type,
                 &source.path,
@@ -598,7 +591,7 @@ fn concatenation_operand_predicates(
 /// A timeless query cannot retain initializer-specific byte classes after a
 /// possible mutation. Call access matters even when another machine performs
 /// the write; this classification grants no call or mutation authority.
-fn may_change_owned_source(operation: &terminal_psi::Operation, source: PlaceId) -> bool {
+fn may_change_owned_source(operation: &Operation, source: PlaceId) -> bool {
     match &operation.kind {
         OperationKind::ByteSequenceWrite { destination, .. }
         | OperationKind::ByteSequenceStore { destination, .. }
@@ -695,7 +688,7 @@ pub fn byte_sequence_source_predicates(
                     source: backing, ..
                 } = &operation.kind
                 {
-                    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                    if result.multiplicity != StructuralMultiplicity::Unrestricted
                         || !result.qualifications.is_empty()
                         || !result.projected_qualifications.is_empty()
                         || !result.qualification_establishments.is_empty()
@@ -839,7 +832,7 @@ pub fn indexed_byte_store_goal(
 /// trusted annotations. Unsupported nominal qualifications cannot be minted.
 pub fn byte_literal_qualifications_hold(
     domains: &[terminal_psi::StructuralDomainDeclaration],
-    carrier: semantic_vocabulary::StructuralTypeId,
+    carrier: StructuralTypeId,
     qualifications: &[semantic_vocabulary::StructuralDomainId],
     bytes: &[u8],
 ) -> bool {
@@ -848,7 +841,7 @@ pub fn byte_literal_qualifications_hold(
 
 pub fn byte_literal_qualifications_hold_in<'domain>(
     domains: impl Iterator<Item = &'domain terminal_psi::StructuralDomainDeclaration> + Clone,
-    carrier: semantic_vocabulary::StructuralTypeId,
+    carrier: StructuralTypeId,
     qualifications: &[semantic_vocabulary::StructuralDomainId],
     bytes: &[u8],
 ) -> bool {
@@ -875,7 +868,7 @@ pub fn byte_literal_qualifications_hold_in<'domain>(
 pub fn scalar_array_qualifications_hold<'row>(
     types: impl Iterator<Item = &'row terminal_psi::StructuralTypeDeclaration> + Clone,
     domains: impl Iterator<Item = &'row terminal_psi::StructuralDomainDeclaration> + Clone,
-    carrier: semantic_vocabulary::StructuralTypeId,
+    carrier: StructuralTypeId,
     qualifications: &[semantic_vocabulary::StructuralDomainId],
     elements: &[semantic_vocabulary::ValueId],
     mut literal: impl FnMut(
@@ -948,12 +941,8 @@ pub fn scalar_constant_value(
 )> {
     crate::unchanged_scalar_identity(value, |value| {
         Some(match origin(value)? {
-            ScalarConstantOrigin::Literal(ty, value) => {
-                crate::UnchangedScalarOrigin::Known((ty, value))
-            }
-            ScalarConstantOrigin::Incoming(values) => {
-                crate::UnchangedScalarOrigin::Incoming(values)
-            }
+            ScalarConstantOrigin::Literal(ty, value) => UnchangedScalarOrigin::Known((ty, value)),
+            ScalarConstantOrigin::Incoming(values) => UnchangedScalarOrigin::Incoming(values),
         })
     })
 }

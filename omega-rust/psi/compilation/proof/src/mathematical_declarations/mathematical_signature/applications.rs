@@ -9,8 +9,14 @@ use super::{
 };
 use crate::typed_expressions::{expression_table, type_reference_table};
 use diagnostics::Diagnostic;
+use numerics::bignum::BigInt;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use validation::expression_owners::{OwnerEnvironmentIndex, source_declaration_owner};
+use validation::expression_traversal::children;
+use validation::mathematical_applications::{
+    MathematicalBinderKind, expression_nodes, operand_type_reference, source_generic_argument_plan,
+};
 
 impl Elaborator<'_> {
     /// Form applications demanded outside mathematical declaration bodies.
@@ -45,7 +51,7 @@ impl Elaborator<'_> {
         if candidate_calls.is_empty() {
             return Ok(Vec::new());
         }
-        let owned = validation::mathematical_applications::expression_nodes(self.program);
+        let owned = expression_nodes(self.program);
         let calls = candidate_calls
             .into_iter()
             .filter(|(expression, _)| !owned.contains(expression))
@@ -53,10 +59,7 @@ impl Elaborator<'_> {
         if calls.is_empty() {
             return Ok(Vec::new());
         }
-        let owners = validation::expression_owners::OwnerEnvironmentIndex::new(
-            self.program,
-            &arena::Arena::default(),
-        );
+        let owners = OwnerEnvironmentIndex::new(self.program, &arena::Arena::default());
         let mut applications = Vec::with_capacity(calls.len());
         for (expression, call) in calls {
             self.span = Some(self.program.expression_table.source_span(expression));
@@ -66,12 +69,7 @@ impl Elaborator<'_> {
             self.source_owner = if retained_owner.is_valid() {
                 retained_owner
             } else {
-                validation::expression_owners::source_declaration_owner(
-                    self.program,
-                    expression,
-                    &owners,
-                )
-                .unwrap_or_default()
+                source_declaration_owner(self.program, expression, &owners).unwrap_or_default()
             };
             self.scope.clear();
             self.level_binders.clear();
@@ -98,11 +96,7 @@ impl Elaborator<'_> {
                         || self.program.symbols.builtin_type_atom(path.symbol).is_some());
                 if !mathematical
                     && !declaration_description
-                    && let Some(reference) =
-                        validation::mathematical_applications::operand_type_reference(
-                            self.program,
-                            operand,
-                        )
+                    && let Some(reference) = operand_type_reference(self.program, operand)
                 {
                     // Capture the complete evaluated value. Splitting a fixed
                     // Wrapping computation into source leaves would silently
@@ -124,9 +118,7 @@ impl Elaborator<'_> {
                         source_type: reference,
                     });
                 } else {
-                    validation::expression_traversal::children(self.program, node, |child| {
-                        pending.push(child)
-                    });
+                    children(self.program, node, |child| pending.push(child));
                 }
             }
             let term = self.elaborate_expression(expression)?;
@@ -185,12 +177,7 @@ impl Elaborator<'_> {
             .program
             .data_type_parameters
             .span_or_empty(definition.binders);
-        let plan = validation::mathematical_applications::source_generic_argument_plan(
-            self.program,
-            binders,
-            arguments,
-            &self.fixed_core,
-        );
+        let plan = source_generic_argument_plan(self.program, binders, arguments, &self.fixed_core);
         let Some(plan) = plan else {
             let levels = binders
                 .iter()
@@ -204,11 +191,7 @@ impl Elaborator<'_> {
         let level_binders = plan
             .iter()
             .filter_map(|slot| {
-                matches!(
-                    slot.kind,
-                    validation::mathematical_applications::MathematicalBinderKind::Level
-                )
-                .then_some(slot.binder)
+                matches!(slot.kind, MathematicalBinderKind::Level).then_some(slot.binder)
             })
             .collect::<Vec<_>>();
         let omit_levels = plan.iter().any(|slot| slot.argument.is_none());
@@ -456,9 +439,7 @@ impl Elaborator<'_> {
             self.refuse("mathematical generic literal has no exact integer value".into())
         })?;
         let (minimum, maximum) = expected.bounds();
-        if value < numerics::bignum::BigInt::from_i128(minimum)
-            || value > numerics::bignum::BigInt::from_i128(maximum)
-        {
+        if value < BigInt::from_i128(minimum) || value > BigInt::from_i128(maximum) {
             return Err(self.refuse(format!(
                 "mathematical generic literal `{}` does not fit `{}`",
                 literal,

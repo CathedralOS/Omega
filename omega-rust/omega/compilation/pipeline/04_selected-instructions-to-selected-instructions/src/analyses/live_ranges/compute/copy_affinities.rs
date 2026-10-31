@@ -2,8 +2,7 @@
 //! same-home preference for placement and never impose a constraint.
 
 use crate::LiveRangeError;
-use selected_instructions::CopyAffinity;
-use selected_instructions::{SelectedFunction, SelectedInstructionKind};
+use selected_instructions::{CopyAffinity, SelectedFunction, SelectedInstructionKind};
 
 pub(super) fn derive(
     function_index: usize,

@@ -1,5 +1,6 @@
 use machine_emission::FunctionRelativeOptimizationRealizationError;
 use register_homes_to_post_allocation_machine::OptimizedPostAllocationMachinePipelineError;
+use selected_instructions_to_selected_instructions::SelectedInstructionOptimizationError;
 use target_operations_to_selected_instructions::OptimizedSelectionPipelineError;
 
 pub(crate) enum TargetLoweringError {
@@ -11,9 +12,7 @@ pub(crate) enum TargetLoweringError {
 /// coordinator carries the stage's own error and adds no selection policy.
 #[derive(Debug)]
 pub(crate) enum OptimizedVerifiedPhysicalPipelineError {
-    SelectedOptimization(
-        selected_instructions_to_selected_instructions::SelectedInstructionOptimizationError,
-    ),
+    SelectedOptimization(SelectedInstructionOptimizationError),
     RegisterEnvironment(register_environment::TargetRegisterEnvironmentValidationError),
     Selection(OptimizedSelectionPipelineError),
     RegisterAllocation(selected_instructions_to_register_homes::RegisterAllocationError),

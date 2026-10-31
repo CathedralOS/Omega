@@ -10,6 +10,7 @@
 //! unknown writable storage keep the conservative escape treatment. This
 //! storage summary grants no access: ordinary argument, bounds, completion and
 //! loan checks still apply.
+use super::plain_owned_shape;
 use super::{
     Operation, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
     TerminalModule,
@@ -92,10 +93,7 @@ pub fn boundary_completion_preserves_descriptor_storage<'types>(
             (
                 BoundaryMachineResult::Structural(expected),
                 BoundaryCompletionResult::Structural(actual),
-            ) => {
-                expected.structural_type == actual
-                    && super::plain_owned_shape(types.clone(), actual)
-            }
+            ) => expected.structural_type == actual && plain_owned_shape(types.clone(), actual),
             _ => false,
         }
     {
@@ -128,11 +126,11 @@ pub fn boundary_completion_preserves_descriptor_storage<'types>(
                         return true;
                     }
                     StructuralTypeShape::ElementView { element, .. } => {
-                        return super::plain_owned_shape(types.clone(), *element);
+                        return plain_owned_shape(types.clone(), *element);
                     }
                     _ => {}
                 }
             }
-            super::plain_owned_shape(types.clone(), selected.id)
+            plain_owned_shape(types.clone(), selected.id)
         })
 }

@@ -6,6 +6,8 @@
 //! In particular, passing a firmware pointer through this bridge grants no
 //! storage authority. The body and all ordinary calls retain their original ABI.
 
+use crate::callable_entry_transport::native_entry_request;
+use crate::object_artifact::stack_demand::derive_body_stack_demand;
 use calling_conventions::BoundaryEntryPlan;
 use diagnostics::Diagnostic;
 use machine_emission::native_entry_bridge::{NativeEntryBridge, emit_native_entry_bridge};
@@ -134,17 +136,12 @@ pub fn bind_physical_entry(
             "explicit physical arrival currently requires x86-64 PE",
         ));
     }
-    let request = crate::callable_entry_transport::native_entry_request(
-        artifact,
-        &physical.call,
-        inbound_ordinals,
-    )
-    .map_err(|error| invalid(&error.to_string()))?;
+    let request = native_entry_request(artifact, &physical.call, inbound_ordinals)
+        .map_err(|error| invalid(&error.to_string()))?;
     let bridge = emit_native_entry_bridge(request).map_err(|error| invalid(&error.to_string()))?;
     let stack_switch = stack_switch::emit(&bridge)?;
-    let body_demand =
-        crate::object_artifact::stack_demand::derive_body_stack_demand(artifact, artifact.entry)
-            .map_err(|error| invalid(&format!("ordinary body stack demand: {error}")))?;
+    let body_demand = derive_body_stack_demand(artifact, artifact.entry)
+        .map_err(|error| invalid(&format!("ordinary body stack demand: {error}")))?;
     // The prefix writes image storage, not firmware stack. The incoming
     // return address and argument area remain governed by the selected ABI.
     if !arrival_stack.admits_demand(0, u64::from(physical.call.stack_alignment)) {
@@ -178,12 +175,8 @@ pub(crate) fn validate_binding(artifact: &ObjectArtifact) -> Result<(), Diagnost
         .iter()
         .map(|(_, parameter)| parameter.inbound_ordinal)
         .collect::<Vec<_>>();
-    let request = crate::callable_entry_transport::native_entry_request(
-        artifact,
-        &binding.plan.call,
-        &ordinals,
-    )
-    .map_err(|error| invalid(&error.to_string()))?;
+    let request = native_entry_request(artifact, &binding.plan.call, &ordinals)
+        .map_err(|error| invalid(&error.to_string()))?;
     if request != *binding.bridge.request() {
         return Err(invalid(
             "physical plan differs from the retained body transport",
@@ -191,9 +184,8 @@ pub(crate) fn validate_binding(artifact: &ObjectArtifact) -> Result<(), Diagnost
     }
     machine_emission::native_entry_bridge::validate_native_entry_bridge(&binding.bridge)
         .map_err(|error| invalid(&error.to_string()))?;
-    let demand =
-        crate::object_artifact::stack_demand::derive_body_stack_demand(artifact, artifact.entry)
-            .map_err(|error| invalid(&format!("ordinary body stack demand: {error}")))?;
+    let demand = derive_body_stack_demand(artifact, artifact.entry)
+        .map_err(|error| invalid(&format!("ordinary body stack demand: {error}")))?;
     if demand != binding.body_demand
         || !binding
             .arrival_stack

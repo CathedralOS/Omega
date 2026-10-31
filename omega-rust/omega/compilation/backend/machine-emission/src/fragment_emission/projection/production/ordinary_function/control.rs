@@ -1,3 +1,4 @@
+use crate::fragment_emission::projection::ResolvedFragmentEmissionError;
 use machine_code::{
     FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance,
     FunctionFragmentSuccessorProvenance,
@@ -10,22 +11,19 @@ pub(super) fn provenance(
     function: &selected_instructions::SelectedFunction,
     block: &SelectedBlock,
     instruction: &SelectedInstruction,
-) -> Result<
-    FunctionFragmentControlProvenance,
-    crate::fragment_emission::projection::ResolvedFragmentEmissionError,
-> {
+) -> Result<FunctionFragmentControlProvenance, ResolvedFragmentEmissionError> {
     if let selected_instructions::selected_call_pattern!(target, ..) = instruction.kind {
         let mut rows = function
             .calls
             .iter()
             .filter(|row| row.instruction == instruction.id);
-        let row = rows.next().ok_or(
-            crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch,
-        )?;
+        let row = rows
+            .next()
+            .ok_or(ResolvedFragmentEmissionError::ArtifactMismatch)?;
         if rows.next().is_some()
             || selected_instructions::SelectedCallTarget::from_native(row.call.target) != target
         {
-            return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
+            return Err(ResolvedFragmentEmissionError::ArtifactMismatch);
         }
         if matches!(
             instruction.kind,
@@ -36,18 +34,18 @@ pub(super) fn provenance(
                 psi_edge,
             } = &block.terminator
             else {
-                return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
+                return Err(ResolvedFragmentEmissionError::ArtifactMismatch);
             };
             if terminal.id != instruction.id
                 || row.owner != target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge)
             {
-                return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
+                return Err(ResolvedFragmentEmissionError::ArtifactMismatch);
             }
         } else if matches!(
             row.owner,
             target_operations::CallSiteOwner::InvokeNoNormal(_)
         ) {
-            return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
+            return Err(ResolvedFragmentEmissionError::ArtifactMismatch);
         }
         return Ok(FunctionFragmentControlProvenance::InternalCall {
             target,
@@ -58,11 +56,9 @@ pub(super) fn provenance(
         let row = function
             .normalized_foreign_calls
             .get(ordinal as usize)
-            .ok_or(
-            crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch,
-        )?;
+            .ok_or(ResolvedFragmentEmissionError::ArtifactMismatch)?;
         if row.instruction != instruction.id || row.call.boundary != boundary {
-            return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
+            return Err(ResolvedFragmentEmissionError::ArtifactMismatch);
         }
         return Ok(FunctionFragmentControlProvenance::NormalizedForeignCall {
             invocation_site: row.invocation_site,

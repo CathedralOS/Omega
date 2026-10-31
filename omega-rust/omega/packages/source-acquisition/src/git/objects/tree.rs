@@ -3,7 +3,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use crate::error::{GitSubmoduleEdge, SourceResolveError, git_tree_invalid};
+use crate::error::{
+    GitSubmoduleEdge, SourceResolveError, git_tree_invalid, too_many_bytes, too_many_files,
+};
 use crate::limits::{GIT_TREE_GRAPH_ENTRY_LIMIT, LocalSourceLimits, SOURCE_DEPTH_ABSOLUTE_LIMIT};
 
 use super::identity::is_object_id;
@@ -139,30 +141,21 @@ fn parse_git_tree_entries_with_policy(
         {
             return Err(git_tree_invalid(path, "duplicate path"));
         }
-        let identity_entry_count =
-            entries
-                .len()
-                .checked_add(1)
-                .ok_or(SourceResolveError::TooManyFiles {
-                    limit: limits.max_entries,
-                })?;
+        let identity_entry_count = entries
+            .len()
+            .checked_add(1)
+            .ok_or(too_many_files(limits.max_entries))?;
         if identity_entry_count > limits.max_entries {
-            return Err(SourceResolveError::TooManyFiles {
-                limit: limits.max_entries,
-            });
+            return Err(too_many_files(limits.max_entries));
         }
         if inspection_scope == GitTreeInspectionScope::WholeTree
             && !matches!(&kind, GitTreeEntryKind::Tree)
         {
             blob_bytes = blob_bytes
                 .checked_add(size)
-                .ok_or(SourceResolveError::TooManyBytes {
-                    limit: limits.max_bytes,
-                })?;
+                .ok_or(too_many_bytes(limits.max_bytes))?;
             if blob_bytes > limits.max_bytes {
-                return Err(SourceResolveError::TooManyBytes {
-                    limit: limits.max_bytes,
-                });
+                return Err(too_many_bytes(limits.max_bytes));
             }
         }
         entries.push(GitTreeEntry {
