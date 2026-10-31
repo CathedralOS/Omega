@@ -58,42 +58,49 @@ pub(crate) fn selected_source_calling_application(
     .ok_or_else(|| {
         Diagnostic::error("selected source boundary entry lost its exact prepared declaration")
     })?;
-    if prepared.declaration.as_ref() != plan.schema.declaration.as_ref() {
+    if prepared.declaration != &plan.schema.declaration {
         return Err(Diagnostic::error(
             "selected source boundary entry changed its exact prepared service surface",
         ));
     }
-    let matching_methods = plan
+    let source_symbol = provenance.row_requirements.get(row_index);
+    let source_symbol = source_symbol.ok_or_else(|| {
+        Diagnostic::error("selected source boundary entry lost its provider requirement")
+    })?;
+    let mut matching_sources = prepared
+        .requirements
+        .iter()
+        .enumerate()
+        .filter(|(_, requirement)| &requirement.source.symbol == source_symbol);
+    let Some((method_index, source)) = matching_sources.next() else {
+        return Err(Diagnostic::error(
+            "selected source boundary entry lost its ordered requirement correspondence",
+        ));
+    };
+    if matching_sources.next().is_some() {
+        return Err(Diagnostic::error(
+            "selected source boundary entry has ambiguous requirement correspondence",
+        ));
+    }
+    let method = plan
         .schema
         .declaration
         .methods
-        .iter()
-        .enumerate()
-        .filter(|(_, method)| {
-            method.name == method_name
-                && plan.schema.identity_text(method.requirement_identity) == requirement_identity
-        })
-        .collect::<Vec<_>>();
-    let [(method_index, method)] = matching_methods.as_slice() else {
+        .get(method_index)
+        .ok_or_else(|| {
+            Diagnostic::error("selected source boundary entry lost its corresponding public method")
+        })?;
+    if method.name != method_name
+        || plan.schema.identity_text(method.requirement_identity) != requirement_identity
+    {
         return Err(Diagnostic::error(format!(
-            "selected source boundary entry ProviderPlan `{provider_plan_name}` binds {} exact schema methods for `{trait_name}::{method_name}` / `{requirement_identity}`",
-            matching_methods.len()
+            "selected source boundary entry ProviderPlan `{provider_plan_name}` does not bind exact schema method `{trait_name}::{method_name}` / `{requirement_identity}`"
         )));
-    };
+    }
     if method.requirement_owner.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected source boundary entry ProviderPlan `{provider_plan_name}` method `{method_name}` has an empty exact requirement owner"
         )));
-    }
-    let source = prepared.requirements.get(*method_index).ok_or_else(|| {
-        Diagnostic::error(
-            "selected source boundary entry lost its ordered requirement correspondence",
-        )
-    })?;
-    if provenance.row_requirements.get(row_index) != Some(&source.source.symbol) {
-        return Err(Diagnostic::error(
-            "selected source boundary entry substituted its exact provider requirement",
-        ));
     }
     if !matches!(
         prepared.schema,

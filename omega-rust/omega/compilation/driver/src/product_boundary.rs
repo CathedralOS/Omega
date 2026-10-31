@@ -968,6 +968,8 @@ fn selected_calling_consumes_source_correspondence_without_ast_search() {
         );
     }
     assert!(selection.contains("provenance.row_requirements.get(row_index)"));
+    assert!(selection.contains("requirement.source.symbol"));
+    assert!(!selection.contains("matching_methods"));
     assert!(selection.contains("source.require_calling_owner()?"));
     assert!(selection.contains("realization.commitment == commitment"));
     let owners = include_str!(
