@@ -7,6 +7,7 @@ use super::{
     satisfies_plan_name,
 };
 use crate::ProviderPlanningContext;
+use crate::provider_planning::entry_state;
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, trait_name_text};
 use build_time_evaluation::provider_declarations::{
     prepared_named_provider_applications, prepared_named_provider_member,
@@ -79,7 +80,7 @@ pub(super) fn derive(
                 // The row binds the entry of the machine resolution named; a
                 // family head's entry stands for every member's.
                 let named = typed.machine_by_symbol(row.realization_machine)?;
-                if typed.machine_states(named).first()?.symbol != row.realization_state {
+                if entry_state(typed, named)?.symbol != row.realization_state {
                     return None;
                 }
                 let realization = if application.capture.is_valid() {

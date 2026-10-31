@@ -3,6 +3,7 @@
 //! require its exact referent, then resolve the field within that declaration.
 //! Neither a same-spelled foreign record nor a numeric slot can supply it.
 
+use crate::provider_planning::entry_state;
 use crate::provider_planning::type_reference_node;
 use checked_trees::typed_trees::{
     TypedTrees,
@@ -30,10 +31,7 @@ pub(super) fn field_offset(
     let definition = typed
         .data_definition_by_symbol(table)
         .ok_or("table leaf must be attached to its data declaration")?;
-    let entry = typed
-        .machine_states(machine)
-        .first()
-        .ok_or("table leaf has no entry signature")?;
+    let entry = entry_state(typed, machine).ok_or("table leaf has no entry signature")?;
     let first = typed
         .state_parameters(entry)
         .first()

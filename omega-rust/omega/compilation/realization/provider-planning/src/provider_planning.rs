@@ -115,3 +115,11 @@ pub(crate) fn type_reference_node(
 pub(crate) fn is_unit_type(typed: &TypedTrees, handle: TypeReferenceHandle) -> bool {
     matches!(type_reference_node(typed, handle), TypeReferenceNode::Unit)
 }
+
+/// The entry state of one machine, when its checked state list has one.
+pub(crate) fn entry_state<'typed>(
+    typed: &'typed TypedTrees,
+    machine: &checked_trees::typed_trees::machine::Machine,
+) -> Option<&'typed checked_trees::state::State> {
+    typed.machine_states(machine).first()
+}
