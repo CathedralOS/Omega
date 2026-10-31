@@ -50,7 +50,8 @@ invocations, instruction service contributions, crash causes, and nominal
 cleanup calls. These are typed operation relationships, not a producer's
 policy verdict. The consumer reconstructs the selected closure against the
 provider catalog and conservative opaque contracts. Historical sites may no
-longer be executable after optimization; missing history supplies no absence
+longer be executable after optimization, including when a whole machine is
+deleted; its historical graph node remains. Missing history supplies no absence
 evidence. Canonical ingress checks referenced declarations and ensures retained
 history covers the executable body's contributions. This structural check does
 not independently establish the producer's historical lowering correctness.

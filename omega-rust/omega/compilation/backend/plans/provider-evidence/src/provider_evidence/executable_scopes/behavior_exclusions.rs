@@ -599,11 +599,11 @@ fn enqueue_callee<'module>(
     report: &mut BehaviorExclusionReport,
     pending: &mut VecDeque<&'module UnoptimizedMachineBehavior>,
 ) {
-    let kind = if module.machine(callee).is_none() {
-        EvidenceGapKind::UnknownCallee(callee)
-    } else if let Some(target) = module.unoptimized_machine_behavior(callee) {
+    let kind = if let Some(target) = module.unoptimized_machine_behavior(callee) {
         pending.push_back(target);
         return;
+    } else if module.machine(callee).is_none() {
+        EvidenceGapKind::UnknownCallee(callee)
     } else {
         EvidenceGapKind::MissingUnoptimizedBehavior(callee)
     };

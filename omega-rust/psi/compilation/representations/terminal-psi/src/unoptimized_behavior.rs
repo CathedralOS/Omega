@@ -3,7 +3,8 @@
 //! These are calls, service contributions and outcomes, not a producer's
 //! assertion that a policy passed. A composition consumer still follows the
 //! selected bodies and opaque contracts. Historical sites need not remain
-//! executable after optimization; their namespaces and semantic targets remain
+//! executable after optimization, and whole dead machines can disappear. Their
+//! graph nodes, namespaces and semantic targets remain
 //! explicit so optimization selection cannot erase an admission obligation.
 
 use crate::{OperationKind, TerminalMachine, Terminator};

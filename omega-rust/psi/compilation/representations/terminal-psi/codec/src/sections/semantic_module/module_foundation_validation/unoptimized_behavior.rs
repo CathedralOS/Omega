@@ -10,16 +10,17 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
         "unoptimized semantic bodies",
     )?;
     for body in &module.unoptimized_behavior {
-        let machine =
-            module
-                .machine(body.machine)
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "unoptimized behavior names an unknown machine",
-                ))?;
+        // A historical node survives deletion of its executable machine.
+        // Its calls must still resolve in the historical or executable roster;
+        // preserving this graph must not pin dead executable code in place.
+        let known_machine = |machine| {
+            module.machine(machine).is_some()
+                || module.unoptimized_machine_behavior(machine).is_some()
+        };
         for operation in &body.operations {
             match operation {
                 Operation::Invocation { site, callee, .. } => {
-                    if module.machine(*callee).is_none()
+                    if !known_machine(*callee)
                         || matches!(site, InvocationSite::ExternalCompletion(_))
                     {
                         return malformed(
@@ -27,7 +28,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                         );
                     }
                 }
-                Operation::NominalCleanup { callee, .. } if module.machine(*callee).is_none() => {
+                Operation::NominalCleanup { callee, .. } if !known_machine(*callee) => {
                     return malformed("unoptimized cleanup has an unknown callee");
                 }
                 Operation::BoundaryInvocation { site, boundary, .. } => {
@@ -51,6 +52,9 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
         // contribution the retained source operation roster did not cover.
         // Missing rows supply no policy evidence; a supplied empty row cannot
         // hide an executable call, service instruction or crash.
+        let Some(machine) = module.machine(body.machine) else {
+            continue;
+        };
         for current in terminal_psi::UnoptimizedMachineBehavior::capture(machine).operations {
             if !body
                 .operations
