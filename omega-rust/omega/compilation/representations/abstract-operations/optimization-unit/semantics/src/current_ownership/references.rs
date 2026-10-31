@@ -38,7 +38,18 @@ pub enum CallRegion {
 mod access_paths;
 pub(super) mod call_effects;
 mod windows;
+use crate::unit_validation::references::access_covers;
 use access_paths::{access_reference_custody, call_dependency_conflict};
+use semantic_vocabulary::StructuralFieldId;
+use terminal_psi::ReferenceOriginProjection;
+use terminal_psi::ReferenceOriginSource;
+use terminal_psi::StructuralOperationResult;
+use terminal_psi::StructuralPathSegment;
+use terminal_psi::StructuralReferenceResultSource;
+use terminal_semantics::ReferenceCallResult;
+use terminal_semantics::ReferenceCallSource;
+use terminal_semantics::reference_origin_paths_may_overlap;
+use terminal_semantics::reference_origin_type;
 
 fn origin_place(origin: &ReferenceOrigin) -> PlaceId {
     match origin {
@@ -51,16 +62,13 @@ fn origin_place(origin: &ReferenceOrigin) -> PlaceId {
 
 /// Interpretation is a coordinate over the same original storage. Carrier
 /// identities and immediate parents never acquire these origin-only steps.
-fn projected_origin(
-    origin: &ReferenceOrigin,
-    suffix: &[terminal_psi::StructuralPathSegment],
-) -> ReferenceOrigin {
+fn projected_origin(origin: &ReferenceOrigin, suffix: &[StructuralPathSegment]) -> ReferenceOrigin {
     projected_origin_family(
         origin,
         &suffix
             .iter()
             .cloned()
-            .map(terminal_psi::ReferenceOriginProjection::Exact)
+            .map(ReferenceOriginProjection::Exact)
             .collect::<Vec<_>>(),
         semantic_vocabulary::ReferenceOriginExtent::Projected,
     )
@@ -68,7 +76,7 @@ fn projected_origin(
 
 fn projected_origin_family(
     origin: &ReferenceOrigin,
-    suffix: &[terminal_psi::ReferenceOriginProjection],
+    suffix: &[ReferenceOriginProjection],
     extent: semantic_vocabulary::ReferenceOriginExtent,
 ) -> ReferenceOrigin {
     // Projected origins can narrow to a region at a call. Further operations
@@ -143,14 +151,14 @@ fn origins_overlap(left: &ReferenceOrigin, right: &ReferenceOrigin) -> bool {
     }
     // Distinct runtime selector identities may select the same element. Origin
     // replay retains their coordinates but cannot infer disjointness from them.
-    let overlaps_path = |path: &[terminal_psi::ReferenceOriginProjection]| match right {
+    let overlaps_path = |path: &[ReferenceOriginProjection]| match right {
         ReferenceOrigin::Invocation { .. } | ReferenceOrigin::Primitive(_) => true,
         ReferenceOrigin::IngressLeaf(identity) => {
-            terminal_semantics::reference_origin_paths_may_overlap(path, &identity.path)
+            reference_origin_paths_may_overlap(path, &identity.path)
         }
         ReferenceOrigin::Alternatives { origins, .. } => origins
             .iter()
-            .any(|other| terminal_semantics::reference_origin_paths_may_overlap(path, &other.path)),
+            .any(|other| reference_origin_paths_may_overlap(path, &other.path)),
     };
     match left {
         ReferenceOrigin::Invocation { .. } | ReferenceOrigin::Primitive(_) => true,
@@ -178,15 +186,14 @@ fn invalid(
 /// Whether a selected carrier owns this resident; crossing a pointer selects
 /// external storage whose descriptors do not move or retire with that carrier.
 pub(super) fn owned_resident(
-    path: &[terminal_psi::StructuralPathSegment],
-    prefix: &[terminal_psi::StructuralPathSegment],
+    path: &[StructuralPathSegment],
+    prefix: &[StructuralPathSegment],
 ) -> bool {
     path.strip_prefix(prefix).is_some_and(|suffix| {
         !suffix.iter().any(|segment| {
             matches!(
                 segment,
-                terminal_psi::StructuralPathSegment::Referent
-                    | terminal_psi::StructuralPathSegment::RepresentationView { .. }
+                StructuralPathSegment::Referent | StructuralPathSegment::RepresentationView { .. }
             )
         })
     })
@@ -216,11 +223,7 @@ pub(super) fn borrows_owned_storage(
             })
             // The interpretation has no owned residence of its own, but a
             // live view still prevents moving the original owned backing.
-            .is_none_or(|cursor| {
-                !cursor
-                    .path
-                    .contains(&terminal_psi::StructuralPathSegment::Referent)
-            })
+            .is_none_or(|cursor| !cursor.path.contains(&StructuralPathSegment::Referent))
     };
     match &reference.root {
         ReferenceOrigin::Invocation { .. } => false,
@@ -248,9 +251,9 @@ fn storage_cursor(
             || identity.path.iter().any(|segment| {
                 !matches!(
                     segment,
-                    terminal_psi::StructuralPathSegment::Field(_)
-                        | terminal_psi::StructuralPathSegment::Case(_)
-                        | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                    StructuralPathSegment::Field(_)
+                        | StructuralPathSegment::Case(_)
+                        | StructuralPathSegment::FixedIndex(_)
                 )
             })
             || !matches!(types.get(&selected).map(|declaration| &declaration.shape),
@@ -258,9 +261,7 @@ fn storage_cursor(
         {
             return None;
         }
-        identity
-            .path
-            .push(terminal_psi::StructuralPathSegment::Referent);
+        identity.path.push(StructuralPathSegment::Referent);
     }
     Some(identity)
 }
@@ -332,11 +333,11 @@ pub(super) fn window_hole(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     place: PlaceId,
     root: StructuralTypeId,
-    path: &[terminal_psi::StructuralPathSegment],
-    field: Option<semantic_vocabulary::StructuralFieldId>,
+    path: &[StructuralPathSegment],
+    field: Option<StructuralFieldId>,
     required_access: StructuralAccess,
-) -> Option<Vec<terminal_psi::StructuralPathSegment>> {
-    let (geometry_root, suffix) = if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
+) -> Option<Vec<StructuralPathSegment>> {
+    let (geometry_root, suffix) = if path.contains(&StructuralPathSegment::Referent) {
         crate::unit_validation::references::record_field_destination(
             function,
             types,
@@ -377,7 +378,7 @@ pub(super) fn check_region_access(
     node: u32,
     live: &[LiveReference],
     place: PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
+    path: &[StructuralPathSegment],
 ) -> Result<(), OptimizationUnitValidationError> {
     check_region_access_with(function, block, node, live, place, path, |_| false)
 }
@@ -390,19 +391,19 @@ fn check_region_access_with(
     node: u32,
     live: &[LiveReference],
     place: PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
+    path: &[StructuralPathSegment],
     compatible_origin: impl Fn(&LiveReference) -> bool,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let overlaps = |other: &[terminal_psi::StructuralPathSegment]| {
+    let overlaps = |other: &[StructuralPathSegment]| {
         terminal_semantics::structural_paths_may_overlap(path, other)
     };
     let origin_path = path
         .iter()
         .cloned()
-        .map(terminal_psi::ReferenceOriginProjection::Exact)
+        .map(ReferenceOriginProjection::Exact)
         .collect::<Vec<_>>();
-    let overlaps_origin = |other: &[terminal_psi::ReferenceOriginProjection]| {
-        terminal_semantics::reference_origin_paths_may_overlap(&origin_path, other)
+    let overlaps_origin = |other: &[ReferenceOriginProjection]| {
+        reference_origin_paths_may_overlap(&origin_path, other)
     };
     if live.iter().any(|reference| {
         (reference.carrier == place && overlaps(&reference.carrier_path))
@@ -433,11 +434,11 @@ fn check_record_field_access(
     node: u32,
     live: &[LiveReference],
     place: PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
-    field: Option<semantic_vocabulary::StructuralFieldId>,
+    path: &[StructuralPathSegment],
+    field: Option<StructuralFieldId>,
     required_access: StructuralAccess,
 ) -> Result<(), OptimizationUnitValidationError> {
-    if !path.contains(&terminal_psi::StructuralPathSegment::Referent) {
+    if !path.contains(&StructuralPathSegment::Referent) {
         let region = super::storage_regions::projected(function, types, place, path, field);
         return check_region_access(function, block, node, live, place, region.direct_path());
     }
@@ -466,7 +467,7 @@ fn check_observation_access(
     node: u32,
     live: &[LiveReference],
     place: PlaceId,
-    region: &[terminal_psi::StructuralPathSegment],
+    region: &[StructuralPathSegment],
     compatible_origin: impl Fn(&LiveReference) -> bool,
 ) -> Result<(), OptimizationUnitValidationError> {
     let access = structural_source_contract(function, place)
@@ -555,7 +556,7 @@ pub(super) fn copy_reference_carriers(
     node: u32,
     live: &[LiveReference],
     source: PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
+    path: &[StructuralPathSegment],
     selected_type: StructuralTypeId,
     destination: PlaceId,
 ) -> Result<Vec<LiveReference>, OptimizationUnitValidationError> {
@@ -589,7 +590,7 @@ pub(super) fn copy_reference_carriers(
         let mut selected = path.to_vec();
         selected.extend_from_slice(relative);
         let mut observation = selected.clone();
-        observation.push(terminal_psi::StructuralPathSegment::Referent);
+        observation.push(StructuralPathSegment::Referent);
         access_reference_custody(
             function,
             types,
@@ -630,7 +631,7 @@ pub(super) fn copy_reference_carriers(
                 .carrier_path
                 .strip_prefix(path)
                 .is_some_and(|relative| {
-                    !relative.contains(&terminal_psi::StructuralPathSegment::Referent)
+                    !relative.contains(&StructuralPathSegment::Referent)
                         && !paths.iter().any(|expected| expected == relative)
                 })
     }) {
@@ -719,7 +720,7 @@ fn normalized_direct_source(
     if let Some(crossing) = source
         .path
         .iter()
-        .rposition(|segment| *segment == terminal_psi::StructuralPathSegment::Referent)
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)
     {
         let carrier_path = &source.path[..crossing];
         let suffix = &source.path[crossing + 1..];
@@ -743,11 +744,7 @@ fn normalized_direct_source(
         // source place rather than continuing a live parent loan.
         let leaf = structural_source_contract(function, source.place)
             .and_then(|contract| {
-                crate::unit_validation::references::leaf_type(
-                    structural_types,
-                    contract.structural_type,
-                    carrier_path,
-                )
+                leaf_type(structural_types, contract.structural_type, carrier_path)
             })
             .ok_or_else(|| fail("projected reference custody is not yet supported"))?;
         if structural_types.get(&leaf).is_some_and(|declaration| {
@@ -808,7 +805,7 @@ pub(super) fn release(
     node: Option<u32>,
     live: &mut Vec<LiveReference>,
     source: PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
+    path: &[StructuralPathSegment],
 ) -> Result<(), OptimizationUnitValidationError> {
     if !access_paths::descriptor_storage_available(
         function,
@@ -872,7 +869,7 @@ pub(super) fn discard_subtree(
     block: BlockId,
     live: &mut Vec<LiveReference>,
     source: PlaceId,
-    prefix: &[terminal_psi::StructuralPathSegment],
+    prefix: &[StructuralPathSegment],
 ) -> Result<(), OptimizationUnitValidationError> {
     let Some(signature) = structural_source_contract(function, source) else {
         return Ok(());
@@ -935,7 +932,7 @@ fn establish_record(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     block: BlockId,
     node: u32,
-    result: &terminal_psi::StructuralOperationResult,
+    result: &StructuralOperationResult,
     fields: &[terminal_psi::RecordFieldInitializer],
     live: &mut [LiveReference],
 ) -> Result<(), OptimizationUnitValidationError> {
@@ -969,9 +966,7 @@ fn establish_record(
             return None;
         };
         Some((
-            vec![terminal_psi::StructuralPathSegment::Field(
-                declaration.identity.clone(),
-            )],
+            vec![StructuralPathSegment::Field(declaration.identity.clone())],
             argument,
         ))
     });
@@ -991,13 +986,8 @@ fn establish_constructor<'a>(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     block: BlockId,
     node: u32,
-    result: &terminal_psi::StructuralOperationResult,
-    operands: impl Iterator<
-        Item = (
-            Vec<terminal_psi::StructuralPathSegment>,
-            &'a StructuralArgument,
-        ),
-    >,
+    result: &StructuralOperationResult,
+    operands: impl Iterator<Item = (Vec<StructuralPathSegment>, &'a StructuralArgument)>,
     live: &mut [LiveReference],
 ) -> Result<(), OptimizationUnitValidationError> {
     let refusal = |reason| invalid(function, block, Some(node), reason);
@@ -1092,12 +1082,9 @@ pub(super) fn apply_operation(
             if let Some(location) = event.location() {
                 // Atomic identity grants shared access to the cell; every
                 // stored pointer still owes its current readable loan.
-                if location
-                    .path
-                    .contains(&terminal_psi::StructuralPathSegment::Referent)
-                {
+                if location.path.contains(&StructuralPathSegment::Referent) {
                     let path = match location.path.split_last() {
-                        Some((terminal_psi::StructuralPathSegment::Case(_), prefix)) => prefix,
+                        Some((StructuralPathSegment::Case(_), prefix)) => prefix,
                         _ => &location.path,
                     };
                     access_reference_custody(
@@ -1165,9 +1152,7 @@ pub(super) fn apply_operation(
                 result,
                 elements.iter().enumerate().map(|(index, argument)| {
                     (
-                        vec![terminal_psi::StructuralPathSegment::FixedIndex(
-                            index as u64,
-                        )],
+                        vec![StructuralPathSegment::FixedIndex(index as u64)],
                         argument,
                     )
                 }),
@@ -1206,7 +1191,7 @@ pub(super) fn apply_operation(
             );
         }
         O::StorageAddress { source, path, .. } | O::PrimitiveScalarRead { source, path, .. }
-            if path.contains(&terminal_psi::StructuralPathSegment::Referent) =>
+            if path.contains(&StructuralPathSegment::Referent) =>
         {
             access_reference_custody(
                 function,
@@ -1338,7 +1323,7 @@ pub(super) fn apply_operation(
         O::WriteOnlyPrimitiveStore {
             destination, path, ..
         } => {
-            if path.contains(&terminal_psi::StructuralPathSegment::Referent) {
+            if path.contains(&StructuralPathSegment::Referent) {
                 access_reference_custody(
                     function,
                     structural_types,
@@ -1529,10 +1514,7 @@ pub(super) fn apply_operation(
     let mut moved = BTreeSet::new();
     let arguments = operation_structural_arguments(operation);
     for (argument_position, argument) in arguments.iter().enumerate() {
-        if argument
-            .path
-            .contains(&terminal_psi::StructuralPathSegment::Referent)
-        {
+        if argument.path.contains(&StructuralPathSegment::Referent) {
             let custody =
                 access_reference_custody(function, structural_types, block, node, live, argument)?;
             if arguments.iter().enumerate().any(|(position, other)| {
@@ -1562,8 +1544,7 @@ pub(super) fn apply_operation(
             }
             let signature = structural_source_contract(function, argument.place)
                 .ok_or_else(|| refusal("owned reference argument has no source"))?;
-            if !crate::unit_validation::references::access_covers(signature.access, argument.access)
-            {
+            if !access_covers(signature.access, argument.access) {
                 return Err(refusal("carrier borrow exceeds source authority"));
             }
             // Ownership moves the selected subtree's entire leaf roster, not
@@ -1572,7 +1553,7 @@ pub(super) fn apply_operation(
             let projected_type = argument
                 .path
                 .iter()
-                .all(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Field(_)))
+                .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
                 .then(|| {
                     terminal_semantics::runtime_structural_path_tip(
                         structural_types.values().copied(),
@@ -1649,10 +1630,7 @@ pub(super) fn apply_operation(
                 }
                 normalized_arguments.push((
                     vec![reference.root.clone()],
-                    if crate::unit_validation::references::access_covers(
-                        argument.access,
-                        permission,
-                    ) {
+                    if access_covers(argument.access, permission) {
                         permission
                     } else {
                         argument.access
@@ -1752,9 +1730,9 @@ pub(super) fn apply_operation(
             if let Some(identity) = &transferred {
                 moved.insert(identity.clone());
             }
-            vec![terminal_semantics::ReferenceCallResult {
+            vec![ReferenceCallResult {
                 path: Vec::new(),
-                sources: vec![terminal_semantics::ReferenceCallSource {
+                sources: vec![ReferenceCallSource {
                     origin: terminal_semantics::ReferenceCallOrigin::Parameter {
                         source: source.clone(),
                         transfers_existing: transferred.is_some(),
@@ -1828,7 +1806,7 @@ pub(super) fn apply_operation(
         let mut established = Vec::with_capacity(sources.len());
         let mut roots = Vec::new();
         let mut identities = BTreeSet::new();
-        for terminal_semantics::ReferenceCallResult {
+        for ReferenceCallResult {
             path,
             sources: candidates,
         } in sources
@@ -1839,7 +1817,7 @@ pub(super) fn apply_operation(
                 .and_then(|leaf| reference_access(structural_types, leaf))
                 .ok_or_else(|| refusal("reference call result access is absent"))?;
             let mut alternatives = Vec::with_capacity(candidates.len());
-            for terminal_semantics::ReferenceCallSource {
+            for ReferenceCallSource {
                 origin,
                 suffix,
                 extent,
@@ -1894,11 +1872,7 @@ pub(super) fn apply_operation(
                         if suffix.is_empty() {
                             Some(root)
                         } else {
-                            terminal_semantics::reference_origin_type(
-                                structural_types.values().copied(),
-                                root,
-                                &suffix,
-                            )
+                            reference_origin_type(structural_types.values().copied(), root, &suffix)
                         }
                     })
                     .is_some_and(|actual| match operation {
@@ -1942,7 +1916,7 @@ pub(super) fn apply_operation(
                     return Err(refusal("reference result changes its mapped source type"));
                 }
                 let reference = if transfers_existing {
-                    let Some((terminal_psi::StructuralPathSegment::Referent, carrier_path)) =
+                    let Some((StructuralPathSegment::Referent, carrier_path)) =
                         source.path.split_last()
                     else {
                         return Err(refusal("owned result mapping has no incoming leaf"));
@@ -2011,7 +1985,7 @@ pub(super) fn apply_operation(
                         }
                         let interpreted = projected_origin(
                             &root,
-                            &[terminal_psi::StructuralPathSegment::RepresentationView {
+                            &[StructuralPathSegment::RepresentationView {
                                 structural_type: expected,
                                 stored_scalar: storage.stored_scalar,
                             }],
@@ -2084,7 +2058,7 @@ pub(super) fn transferred_ingress_leaf(
     ) {
         return None;
     }
-    let (terminal_psi::StructuralPathSegment::Referent, path) = source.path.split_last()? else {
+    let (StructuralPathSegment::Referent, path) = source.path.split_last()? else {
         return None;
     };
     let paths = leaf_paths(types, parameter.structural_type, live.len())?;
@@ -2194,7 +2168,7 @@ pub(super) fn transfer_return(
     block: BlockId,
     source: PlaceId,
     live: &mut Vec<LiveReference>,
-    observed: &mut Vec<terminal_psi::StructuralReferenceResultSource>,
+    observed: &mut Vec<StructuralReferenceResultSource>,
     cleanup_actions: &[terminal_psi::TerminalAffineCleanupAction],
 ) -> Result<bool, OptimizationUnitValidationError> {
     let Some(signature) = structural_source_contract(function, source) else {
@@ -2286,7 +2260,7 @@ pub(super) fn transfer_return(
                 || live.iter().any(|child| matches!(&child.parent, ReferenceParent::Reference(identity) if identity == &reference.identity)) {
                 return Err(invalid(function, block, None, "invocation reference return differs from completed call custody"));
             }
-            observed.push(terminal_psi::StructuralReferenceResultSource {
+            observed.push(StructuralReferenceResultSource {
                 path: mapping.path.clone(),
                 sources: vec![source],
             });
@@ -2315,10 +2289,10 @@ pub(super) fn transfer_return(
             // access while preserving the whole declared origin geometry.
             let supplying = mapping.sources.iter()
                 .filter_map(terminal_psi::StructuralReferenceOrigin::parameter)
-                .filter(|allowed| crate::unit_validation::references::access_covers(
+                .filter(|allowed| access_covers(
                     allowed.access, source.access,
                 ))
-                .map(|allowed| terminal_psi::ReferenceOriginSource {
+                .map(|allowed| ReferenceOriginSource {
                     access: source.access,
                     ..allowed.clone()
                 })
@@ -2337,7 +2311,7 @@ pub(super) fn transfer_return(
                 "reference return escapes local custody or differs from its formal source",
             ));
         }
-        observed.push(terminal_psi::StructuralReferenceResultSource {
+        observed.push(StructuralReferenceResultSource {
             path: mapping.path.clone(),
             sources: sources
                 .into_iter()
@@ -2390,7 +2364,7 @@ fn return_origin_family(
     origin: &ReferenceOrigin,
     expected: StructuralTypeId,
     access: StructuralAccess,
-) -> Option<Vec<terminal_psi::ReferenceOriginSource>> {
+) -> Option<Vec<ReferenceOriginSource>> {
     use terminal_psi::ReferenceOriginProjection::{Element, Exact};
     use terminal_psi::StructuralPathSegment::{Referent, RuntimeIndex};
     let primitive = ReferenceOriginIdentity {
@@ -2415,23 +2389,20 @@ fn return_origin_family(
                 _ => segment.clone(),
             })
             .collect::<Vec<_>>();
-        let endpoint = terminal_semantics::reference_origin_type(
-            types.values().copied(),
-            parameter.structural_type,
-            &path,
-        )?;
+        let endpoint =
+            reference_origin_type(types.values().copied(), parameter.structural_type, &path)?;
         if origin.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
             && endpoint != expected
         {
             if !matches!(types.get(&endpoint).map(|declaration| &declaration.shape),
                 Some(terminal_psi::StructuralTypeShape::Reference { referent, access: supplied })
-                    if *referent == expected && crate::unit_validation::references::access_covers(*supplied, access))
+                    if *referent == expected && access_covers(*supplied, access))
             {
                 return None;
             }
             path.push(Exact(Referent));
         }
-        sources.push(terminal_psi::ReferenceOriginSource {
+        sources.push(ReferenceOriginSource {
             place: origin.place,
             path,
             extent: origin.extent,
@@ -2448,7 +2419,7 @@ fn return_origin_family(
 /// supplies only reachable returns.
 pub(super) fn validate_return_coverage(
     function: &PsiOptimizationFunction,
-    observed: &[terminal_psi::StructuralReferenceResultSource],
+    observed: &[StructuralReferenceResultSource],
 ) -> Result<(), OptimizationUnitValidationError> {
     let Some(result) = function.result.structural() else {
         return Ok(());

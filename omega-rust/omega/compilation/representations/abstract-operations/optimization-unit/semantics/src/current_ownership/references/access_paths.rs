@@ -2,6 +2,7 @@
 //! Each stored pointer is a live permission; origin alternatives are never
 //! fabricated descriptors or a choice of runtime addresses.
 
+use super::ReferenceOriginIdentity;
 use super::{
     BlockId, LiveReference, OptimizationUnitValidationError, PlaceId, PsiOptimizationFunction,
     ReferenceIdentity, ReferenceOrigin, ReferenceParent, StructuralAccess, StructuralArgument,
@@ -9,6 +10,7 @@ use super::{
     leaf_type, origin_place, origins_overlap, shared_source_compatible, structural_source_contract,
 };
 use std::collections::BTreeMap;
+use terminal_psi::StructuralPathSegment;
 
 /// An observation or synchronous borrow retains every final origin and protects the
 /// descriptor storage read along the way. It creates no persistent child loan.
@@ -71,7 +73,7 @@ pub(super) fn access_reference_custody(
     let mut dependencies = Vec::new();
     let mut prefix_start = 0;
     for (position, segment) in argument.path.iter().enumerate() {
-        if !matches!(segment, terminal_psi::StructuralPathSegment::Referent) {
+        if !matches!(segment, StructuralPathSegment::Referent) {
             continue;
         }
         let prefix = &argument.path[prefix_start..position];
@@ -85,7 +87,7 @@ pub(super) fn access_reference_custody(
             })
             .ok_or_else(invalid_path)?;
         let further_crossing =
-            argument.path[position + 1..].contains(&terminal_psi::StructuralPathSegment::Referent);
+            argument.path[position + 1..].contains(&StructuralPathSegment::Referent);
         let mut origins = Vec::new();
         let mut next_cursors = Vec::new();
         for (place, mut selected_path, ancestors) in cursors {
@@ -147,7 +149,7 @@ pub(super) fn access_reference_custody(
                     dependencies.push(carrier.root.clone());
                     let candidates = match &carrier.root {
                         ReferenceOrigin::Invocation { .. } => return Err(invalid_opaque()),
-                        ReferenceOrigin::Primitive(place) => vec![super::ReferenceOriginIdentity {
+                        ReferenceOrigin::Primitive(place) => vec![ReferenceOriginIdentity {
                             place: *place,
                             path: Vec::new(),
                             extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
@@ -204,9 +206,9 @@ fn descriptor_candidates(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     mut current: StructuralTypeId,
-    path: &[terminal_psi::StructuralPathSegment],
+    path: &[StructuralPathSegment],
     maximum: usize,
-) -> Option<Vec<Vec<terminal_psi::StructuralPathSegment>>> {
+) -> Option<Vec<Vec<StructuralPathSegment>>> {
     if maximum == 0 {
         return None;
     }
@@ -219,10 +221,7 @@ fn descriptor_candidates(
         path,
     );
     for segment in &path {
-        if matches!(
-            segment,
-            terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
-        ) {
+        if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
             let terminal_psi::StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
@@ -240,7 +239,7 @@ fn descriptor_candidates(
             for candidate in candidates {
                 for element_index in 0..length {
                     let mut selected = candidate.clone();
-                    selected.push(terminal_psi::StructuralPathSegment::FixedIndex(
+                    selected.push(StructuralPathSegment::FixedIndex(
                         u64::try_from(element_index).ok()?,
                     ));
                     expanded.push(selected);
@@ -267,7 +266,7 @@ pub(super) fn descriptor_storage_available(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     live: &[LiveReference],
     place: PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
+    path: &[StructuralPathSegment],
     ancestors: &[ReferenceIdentity],
     requested: StructuralAccess,
 ) -> bool {
@@ -316,7 +315,7 @@ pub(super) fn descriptor_storage_available(
                         )
                     }) == Some(referent))
                     && origins_overlap(
-                        &ReferenceOrigin::IngressLeaf(super::ReferenceOriginIdentity {
+                        &ReferenceOrigin::IngressLeaf(ReferenceOriginIdentity {
                             place: root_place,
                             path: root_path.to_vec(),
                             extent,
@@ -349,9 +348,7 @@ pub(super) fn call_dependency_conflict(
     argument: &StructuralArgument,
 ) -> bool {
     if argument.access == StructuralAccess::SharedBorrow
-        || argument
-            .path
-            .contains(&terminal_psi::StructuralPathSegment::Referent)
+        || argument.path.contains(&StructuralPathSegment::Referent)
     {
         return false;
     }
