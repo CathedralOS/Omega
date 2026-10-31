@@ -472,7 +472,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
             parts.extend(self.hypothesis_parts(binary.right, true));
             return parts;
         }
-        if self.hypothesis_is_admitted(expression) {
+        if self.comparison_is_admitted(expression, true) {
             vec![(expression, holds)]
         } else {
             Vec::new()
@@ -695,10 +695,6 @@ impl<'program, 'facts> Header<'program, 'facts> {
     /// since `x < y` on wrapped atoms reads the residues exactly while
     /// `x + y == z` would claim an integer equality stronger than the wrapped
     /// congruence the program established.
-    fn hypothesis_is_admitted(&self, expression: ExpressionHandle) -> bool {
-        self.comparison_is_admitted(expression, true)
-    }
-
     fn comparison_is_admitted(&self, expression: ExpressionHandle, leaf_only: bool) -> bool {
         if !self
             .program
