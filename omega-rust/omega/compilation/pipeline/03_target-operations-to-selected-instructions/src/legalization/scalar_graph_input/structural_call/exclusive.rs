@@ -11,6 +11,10 @@ use super::{
     TargetOperationPlan, TargetStructuralArgument, ValueShape,
 };
 use crate::LegalizationError;
+use crate::structural_inputs::structural_reference_input::{
+    bounded_byte_field_owner, bounded_byte_view, fixed_byte_array_view, fixed_element_array_view,
+    parameter_shape, runtime_projection,
+};
 use semantic_vocabulary::StructuralPlaceKind;
 use target_operations::TargetStructuralArgumentSource;
 use terminal_psi::{StructuralMultiplicity, StructuralParameterDeclaration};
@@ -29,47 +33,21 @@ pub(super) fn argument(
         .arrival_parameter(semantic.place)
         .ok_or(LegalizationError::custody())?;
     let types = &plan.structural_types;
-    let source_shape =
-        crate::structural_inputs::structural_reference_input::parameter_shape(source, types)
-            .ok_or(LegalizationError::custody())?;
+    let source_shape = parameter_shape(source, types).ok_or(LegalizationError::custody())?;
     let source_placement = arrival_source(source, caller, native, source_shape)?;
-    let byte_field = crate::structural_inputs::structural_reference_input::bounded_byte_view(
-        source,
-        semantic,
-        destination.structural_type,
-        types,
-    );
+    let byte_field = bounded_byte_view(source, semantic, destination.structural_type, types);
     let byte_field_projection = byte_field.as_ref().map(|geometry| geometry.offset);
-    let byte_owner = crate::structural_inputs::structural_reference_input::bounded_byte_field_owner(
-        source,
-        semantic,
-        destination.structural_type,
-        types,
-    );
+    let byte_owner = bounded_byte_field_owner(source, semantic, destination.structural_type, types);
     // Static prefixes and runtime selectors share the joined-storage
     // geometry. Keep selectors tied to this call's dominating definitions;
     // the path still carries their independently accepted bound obligations.
-    let geometry = crate::structural_inputs::structural_reference_input::runtime_projection(
-        source.structural_type,
-        &semantic.path,
-        types,
-    );
+    let geometry = runtime_projection(source.structural_type, &semantic.path, types);
     let projection = geometry
         .as_ref()
         .map(|(selected, offset, _)| (*selected, *offset));
-    let byte_view = crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
-        source,
-        semantic,
-        destination.structural_type,
-        types,
-    );
+    let byte_view = fixed_byte_array_view(source, semantic, destination.structural_type, types);
     let element_view =
-        crate::structural_inputs::structural_reference_input::fixed_element_array_view(
-            source,
-            semantic,
-            destination.structural_type,
-            types,
-        );
+        fixed_element_array_view(source, semantic, destination.structural_type, types);
     // A bounded inline byte field has no projected carrier identity; its own
     // record walk supplies the field offset and the destination supplies the
     // borrowed-view type the descriptor presents. The same holds for a fixed
@@ -93,9 +71,7 @@ pub(super) fn argument(
         _ => return Err(LegalizationError::custody()),
     };
     let descriptor = byte_view.is_some() || byte_field.is_some() || element_view.is_some();
-    let shape =
-        crate::structural_inputs::structural_reference_input::parameter_shape(destination, types)
-            .ok_or(LegalizationError::custody())?;
+    let shape = parameter_shape(destination, types).ok_or(LegalizationError::custody())?;
     if semantic.place != source.place
         || destination.access != semantic.access
         || !matches!(
