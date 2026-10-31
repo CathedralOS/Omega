@@ -3,6 +3,7 @@ use super::super::{
     CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionNode, HashMap, HashSet, Identifier,
     IntegerLiteral, SyntaxTrees, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
 };
+use crate::tables::syntax_type_references;
 use syntax_trees::identifier::JoinedSyntaxPath;
 
 use crate::preparation::generic_data::ConstScalarSpelling;
@@ -98,10 +99,8 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
             .tables
             .items
             .type_parameters(definition.type_parameters);
-        let header_arguments = syntax
-            .tables
-            .type_references
-            .type_reference_handles(definition.index_arguments);
+        let header_arguments =
+            syntax_type_references(&syntax).type_reference_handles(definition.index_arguments);
 
         if parameters.is_empty() {
             if !header_arguments.is_empty() {
@@ -167,9 +166,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
                 ClosedDomainParameter::Type { name }
                 | ClosedDomainParameter::Const { name, .. } => name,
             };
-            let Some(argument_name) = syntax
-                .tables
-                .type_references
+            let Some(argument_name) = syntax_type_references(&syntax)
                 .type_reference(*argument)
                 .as_named()
             else {
@@ -305,9 +302,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
         let Some(family) = family else {
             continue;
         };
-        let arguments = syntax
-            .tables
-            .type_references
+        let arguments = syntax_type_references(&syntax)
             .type_reference_handles(argument_span)
             .to_vec();
         canonicalize_closed_domain_application(
@@ -350,9 +345,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
         else {
             continue;
         };
-        let node = syntax
-            .tables
-            .type_references
+        let node = syntax_type_references(&syntax)
             .type_reference(argument)
             .clone();
         match node {

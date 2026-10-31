@@ -13,6 +13,7 @@ use crate::preparation::generic_data::uses::{
     relabel_closed_data_uses_in_exact_calls_and_returns,
     relabel_closed_sum_memberships_from_local_types,
 };
+use crate::tables::syntax_type_references;
 
 use super::substitution::substitute_copied_type_names;
 use super::work_domain::{GenericDataWorkDomain, SynthesisWork, TypePositionPurpose};
@@ -494,9 +495,7 @@ pub(crate) fn desugar_generic_data_instances_in(
         for rewrite in rewrites {
             // Keep occurrence custody separately from the instance's shared
             // derivation. Public/private exposure belongs to this use site.
-            let original = syntax
-                .tables
-                .type_references
+            let original = syntax_type_references(&syntax)
                 .type_reference(rewrite.type_reference)
                 .clone();
             let TypeReferenceNode::Generic { base_name, .. } = &original else {
@@ -574,9 +573,7 @@ fn synthesize_instance(
         .filter_map(|(name, parameter_type)| {
             parameter_type.as_ref()?;
             let argument = substitution.get(name)?;
-            let value = syntax
-                .tables
-                .type_references
+            let value = syntax_type_references(&syntax)
                 .type_reference(*argument)
                 .as_named()?;
             Some((name.clone(), value.as_str(syntax).parse().ok()?))
@@ -588,9 +585,7 @@ fn synthesize_instance(
         .zip(&base_info.const_parameter_types)
         .filter_map(|(name, parameter_type)| {
             let parameter_type = parameter_type.as_ref()?;
-            let type_name = syntax
-                .tables
-                .type_references
+            let type_name = syntax_type_references(&syntax)
                 .type_reference(*parameter_type)
                 .as_named()?;
             Some((name.clone(), type_name.as_str(syntax).to_string()))
@@ -975,9 +970,7 @@ fn synthesize_instance(
             type_watermark,
             expression_watermark,
         );
-        let copied_types = syntax
-            .tables
-            .type_references
+        let copied_types = syntax_type_references(&syntax)
             .named_nodes_from(type_watermark, syntax)
             .into_iter()
             // Runtime subjects must reach ordinary admission, not acquire a
@@ -987,10 +980,8 @@ fn synthesize_instance(
                     || !runtime_captures.captures_type_reference(*handle)
             });
         substitute_copied_type_names(syntax, copied_types, &substitution);
-        for (handle, element_type, name) in syntax
-            .tables
-            .type_references
-            .const_parameter_array_nodes_from(type_watermark, syntax)
+        for (handle, element_type, name) in
+            syntax_type_references(&syntax).const_parameter_array_nodes_from(type_watermark, syntax)
         {
             let Some(length) = substitution.get(&name).and_then(|argument| {
                 match syntax.tables.type_references.type_reference(*argument) {

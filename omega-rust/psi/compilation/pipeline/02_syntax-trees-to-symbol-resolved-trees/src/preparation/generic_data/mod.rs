@@ -16,6 +16,7 @@
 
 use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::uses::concrete_machine_expression_handles;
+use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
@@ -609,14 +610,9 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
     if let TypeReferenceNode::Constrained {
         base_type,
         constraints,
-    } = syntax
-        .tables
-        .type_references
-        .type_reference(definition.type_reference)
+    } = syntax_type_references(&syntax).type_reference(definition.type_reference)
     {
-        let has_domain = syntax
-            .tables
-            .type_references
+        let has_domain = syntax_type_references(&syntax)
             .constraints(*constraints)
             .iter()
             .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)));

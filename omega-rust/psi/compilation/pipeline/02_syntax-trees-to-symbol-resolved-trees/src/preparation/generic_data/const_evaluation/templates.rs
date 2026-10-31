@@ -7,6 +7,7 @@ use crate::preparation::generic_data::uses::{
     ConstructorFrontier, collect_expression_handles, collect_statement_expression_handles,
     visit_expression_type_inputs, visit_static_argument_type_inputs,
 };
+use crate::tables::syntax_type_references;
 
 use crate::preparation::generic_data::EvaluatedConst;
 
@@ -428,9 +429,7 @@ pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
     symbolic_parameters: &HashSet<String>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<(), String> {
-    let node = syntax
-        .tables
-        .type_references
+    let node = syntax_type_references(&syntax)
         .type_reference(type_reference)
         .clone();
     match node {
@@ -461,16 +460,12 @@ pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
             arguments,
             ..
         } => {
-            let arguments = syntax
-                .tables
-                .type_references
+            let arguments = syntax_type_references(&syntax)
                 .type_reference_handles(arguments)
                 .to_vec();
             let integer_types = generic_const_integer_types(syntax, base_name.as_str(syntax));
             for (index, argument) in arguments.into_iter().enumerate() {
-                let node = syntax
-                    .tables
-                    .type_references
+                let node = syntax_type_references(&syntax)
                     .type_reference(argument)
                     .clone();
                 if let TypeReferenceNode::ConstExpression(expression) = node {
@@ -657,11 +652,7 @@ fn visit_type_positions(
             trait_arguments: arguments,
             ..
         } => {
-            for argument in syntax
-                .tables
-                .type_references
-                .type_reference_handles(*arguments)
-            {
+            for argument in syntax_type_references(&syntax).type_reference_handles(*arguments) {
                 visit_child!(*argument);
             }
         }

@@ -22,6 +22,7 @@ use super::super::{
     ExpressionNode, FixedArrayLength, HandleSpan, HashSet, Identifier, Item, SyntaxTrees,
     TypeReferenceHandle, TypeReferenceNode,
 };
+use crate::tables::syntax_type_references;
 use syntax_trees::identifier::JoinedSyntaxPath;
 
 use crate::preparation::declaration_selection::{
@@ -297,10 +298,8 @@ pub(in crate::preparation::generic_data) fn syntax_type_identity(
                 arguments,
                 ..
             } => {
-                let argument_handles = syntax
-                    .tables
-                    .type_references
-                    .type_reference_handles(*arguments);
+                let argument_handles =
+                    syntax_type_references(&syntax).type_reference_handles(*arguments);
                 if argument_handles.is_empty() {
                     // A synthesized instance's lookup spelling carries its full
                     // name in `base_name`.
@@ -1059,9 +1058,7 @@ fn validate_selected_const_type(
 ) -> Result<(), String> {
     // A carrier spelled as a bare parameter reselects the enclosing
     // application's already-closed argument handle.
-    if let Some(name) = syntax
-        .tables
-        .type_references
+    if let Some(name) = syntax_type_references(&syntax)
         .type_reference(type_reference)
         .as_named()
         && let Some(argument) = substitution.get(name.as_str(syntax))
@@ -1167,10 +1164,7 @@ fn validate_selected_const_type(
             // A closed application is eligible exactly when its selected
             // template is: parameters bind to the authored argument handles
             // and each member validates under those bindings.
-            let argument_handles = syntax
-                .tables
-                .type_references
-                .type_reference_handles(*arguments);
+            let argument_handles = syntax_type_references(&syntax).type_reference_handles(*arguments);
             if argument_handles.is_empty() {
                 // A synthesized instance's spelling selects the substituted
                 // declaration; its members are already closed.
@@ -1304,9 +1298,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression_with_a
 ) -> Result<CanonicalConstNode, String> {
     // A carrier spelled as a bare parameter reselects the enclosing
     // application's already-closed argument handle.
-    if let Some(name) = syntax
-        .tables
-        .type_references
+    if let Some(name) = syntax_type_references(&syntax)
         .type_reference(expected_type)
         .as_named()
         && let Some(argument) = substitution.get(name.as_str(syntax))
@@ -1462,9 +1454,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression_with_a
             lifetime_arguments,
             arguments,
         } => {
-            let argument_handles = syntax
-                .tables
-                .type_references
+            let argument_handles = syntax_type_references(&syntax)
                 .type_reference_handles(*arguments)
                 .to_vec();
             if argument_handles.is_empty() {

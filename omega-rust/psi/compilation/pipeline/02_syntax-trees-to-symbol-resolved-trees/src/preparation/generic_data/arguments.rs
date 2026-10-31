@@ -9,6 +9,7 @@ use crate::preparation::generic_data::ClosedConstraintIdentity;
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::selected_data_item;
 use crate::preparation::type_equations::{EquationTemplate, complete_equation_arguments};
+use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use std::collections::HashMap;
@@ -118,9 +119,7 @@ pub(crate) fn canonicalize_lifetime_bearing_type_argument(
     outer_lifetime_parameters: &[Identifier],
     outer_lifetime_arguments: &[Identifier],
 ) -> Option<TypeReferenceHandle> {
-    let node = syntax
-        .tables
-        .type_references
+    let node = syntax_type_references(&syntax)
         .type_reference(type_reference)
         .clone();
     match node {
@@ -155,9 +154,7 @@ pub(crate) fn canonicalize_lifetime_bearing_type_argument(
             lifetime_arguments,
             arguments,
         } if !lifetime_arguments.is_empty()
-            && syntax
-                .tables
-                .type_references
+            && syntax_type_references(&syntax)
                 .type_reference_handles(arguments)
                 .is_empty()
             && exact_synthesized_lifetime_instance(
@@ -270,9 +267,7 @@ pub(crate) fn type_reference_slug(
             base_name,
             lifetime_arguments,
             arguments,
-        } if syntax
-            .tables
-            .type_references
+        } if syntax_type_references(&syntax)
             .type_reference_handles(*arguments)
             .is_empty()
             && exact_synthesized_lifetime_instance(
@@ -308,9 +303,7 @@ pub(crate) fn type_reference_slug(
         } => {
             let base = type_reference_slug(syntax, *base_type, selection)?;
             let mut rendered = Vec::new();
-            for (ordinal, constraint) in syntax
-                .tables
-                .type_references
+            for (ordinal, constraint) in syntax_type_references(&syntax)
                 .constraints(*constraints)
                 .iter()
                 .enumerate()

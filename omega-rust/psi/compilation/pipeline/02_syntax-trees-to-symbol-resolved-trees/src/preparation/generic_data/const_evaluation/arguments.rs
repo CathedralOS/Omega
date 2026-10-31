@@ -5,6 +5,7 @@ use super::super::{
     TypeReferenceHandle, TypeReferenceNode,
 };
 use crate::preparation::generic_data::eligibility::base_is_fully_monomorphizable;
+use crate::tables::syntax_type_references;
 use syntax_trees::identifier::JoinedSyntaxPath;
 
 use crate::preparation::generic_data::ConstScalarSpelling;
@@ -52,9 +53,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
         return Ok(None); // non-generic base: plan-laid / existing error paths
     };
 
-    let mut argument_handles: Vec<TypeReferenceHandle> = syntax
-        .tables
-        .type_references
+    let mut argument_handles: Vec<TypeReferenceHandle> = syntax_type_references(&syntax)
         .type_reference_handles(arguments)
         .to_vec();
     // Omitted trailing binders are recoverable only through the template's
@@ -106,9 +105,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
             }
             continue;
         };
-        match syntax
-            .tables
-            .type_references
+        match syntax_type_references(&syntax)
             .type_reference(*argument)
             .clone()
         {
@@ -119,10 +116,7 @@ pub(in crate::preparation::generic_data) fn prepare_closed_application(
                     }
                     Some(ConstScalarSpelling::Boolean(value))
                         if matches!(
-                            syntax
-                                .tables
-                                .type_references
-                                .type_reference(syntax.type_references.type_reference(parameter_type).as_named()
+                            syntax_type_references(&syntax).type_reference(syntax.type_references.type_reference(parameter_type).as_named()
                                     .and_then(|name| application_scope.get(name.as_str(syntax)).copied())
                                     .unwrap_or(parameter_type)),
                             TypeReferenceNode::Named(type_name) if type_name.as_str(syntax) == "bool"
@@ -373,17 +367,13 @@ pub(in crate::preparation::generic_data) fn const_arguments_fit_declarations(
             let Some(parameter_type) = parameter_type else {
                 return true;
             };
-            let Some(value) = syntax
-                .tables
-                .type_references
+            let Some(value) = syntax_type_references(&syntax)
                 .type_reference(*argument)
                 .as_named()
             else {
                 return false;
             };
-            let Some(type_name) = syntax
-                .tables
-                .type_references
+            let Some(type_name) = syntax_type_references(&syntax)
                 .type_reference(*parameter_type)
                 .as_named()
             else {
@@ -554,9 +544,7 @@ pub(in crate::preparation::generic_data) fn const_integer_type(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<LandedIntegerType> {
-    let name = syntax
-        .tables
-        .type_references
+    let name = syntax_type_references(&syntax)
         .type_reference(type_reference)
         .as_named()?;
     LandedIntegerType::from_name(name.as_str(syntax))
