@@ -114,3 +114,35 @@ and native image/interpreter agreement. The new sources are pinned as
 `nested_machine_signed_rank_negated_requirement_<place>_{exit,rejected}`.
 Candidate execution and the intended strict-nondescent refusals remain to be
 measured. The wider parent outcome and other-host qualification remain open.
+
+A second production, `<place>/negated_requirement/guarded_divisor/`, keeps the
+same fact, inputs, ranks, updates and oracle. Its helper additionally requires
+`value >= 4 && value <= 7 && (value == 4 || 8 / (value - 4) <= 8)`.
+At value four the left alternative protects division by zero; at five through
+seven the right alternative must form independently. Every place has the same
+increment-zero twin and pinned corpus inputs. Producer `88684c4ca48c` admits the
+source but refuses Terminal production because the header's independently
+checked arithmetic formation was discarded before predicate lowering.
+
+Contract checking now publishes its existing arithmetic decisions, including
+exact occurrences under short-circuit paths, and predicate lowering consumes
+the existing `formation_decided` field. A failed formation supplies no decision;
+the proposed condition never licenses its own operands. This also covers the
+same retained decision on shifts, remainder and policy division. Generated terms
+without such a decision keep their explicit evidence obligations. Candidate
+execution for this production remains to be measured.
+
+The same guarded production also qualifies the division operands as Wrapping,
+then explicitly erases that policy from its result for comparison. Its nine
+places live under `guarded_divisor/wrapping/`, with unchanged increment-zero
+twins. Source checking must retain the live lower endpoint before excluding
+four; consulting only the declared `u64` range loses that endpoint and cannot
+prove the qualified divisor nonzero. Both refuted equality and positive
+disequality consume the same current integer interval. Interior exclusions
+cannot choose a side, and IEEE values do not admit integer adjacency.
+
+Focused controls under `parameter/negated_requirement/controls/` challenge
+nested/disjunctive requirements, short-circuit arithmetic, shifts, remainder,
+policy division, missing public premises, unsafe operands, excluded interior
+values and IEEE adjacency. These extend the same row rather than changing its
+rank, bounds, counter operation or standard transport places.
