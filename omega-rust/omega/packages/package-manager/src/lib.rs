@@ -24,7 +24,7 @@ pub(crate) use bounded_limits;
 pub(crate) use optimization_core::codec_bytes;
 mod build_session;
 mod hex;
-pub(crate) use hex::Hex;
+pub(crate) use hex::{Hex, hex_digest};
 pub mod declarations;
 pub(crate) use optimization_core::digest_encoder;
 pub mod lock;

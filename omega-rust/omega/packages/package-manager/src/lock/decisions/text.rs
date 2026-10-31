@@ -3,6 +3,7 @@ use super::{
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError as Error,
     HistoricalPackagePolicyLimits, HistoricalPackagePolicyRecoveryUsage,
 };
+use crate::hex_digest;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use crate::review::ReviewOnlyRootPolicyDisposition;
 use std::fmt::Write;
@@ -214,22 +215,7 @@ pub(super) fn parse_number(text: &str) -> Result<usize, Error> {
 }
 
 pub(super) fn parse_digest(text: &str) -> Result<[u8; 32], Error> {
-    if text.len() != 64 {
-        return Err(Error::InvalidFraming);
-    }
-    let mut digest = [0; 32];
-    for (index, pair) in text.as_bytes().as_chunks::<2>().0.iter().enumerate() {
-        digest[index] = nibble(pair[0])? * 16 + nibble(pair[1])?;
-    }
-    Ok(digest)
-}
-
-fn nibble(byte: u8) -> Result<u8, Error> {
-    match byte {
-        b'0'..=b'9' => Ok(byte - b'0'),
-        b'a'..=b'f' => Ok(byte - b'a' + 10),
-        _ => Err(Error::InvalidFraming),
-    }
+    hex_digest(text).ok_or(Error::InvalidFraming)
 }
 
 fn decimal_digits(mut number: usize) -> usize {

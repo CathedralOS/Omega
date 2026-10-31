@@ -5,6 +5,7 @@ use super::{
     budget::Budget,
     framing::{Reader, Writer},
 };
+use crate::hex_digest;
 use crate::lock::{AcceptedPackageCompilation, PackageCheckedContext, PackageLockError as Error};
 use effects::provider_plan::{ProviderPlanDigest, ServiceSchemaDigest};
 use effects::{
@@ -189,19 +190,7 @@ fn hexadecimal(digest: [u8; 32]) -> String {
 }
 
 fn digest(text: &str) -> Result<[u8; 32], Error> {
-    if text.len() != 64
-        || !text
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    {
-        return Err(Error::InvalidFraming);
-    }
-    let mut bytes = [0; 32];
-    for (index, byte) in bytes.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(&text[index * 2..index * 2 + 2], 16)
-            .map_err(|_| Error::InvalidFraming)?;
-    }
-    Ok(bytes)
+    hex_digest(text).ok_or(Error::InvalidFraming)
 }
 
 #[cfg(test)]
