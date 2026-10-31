@@ -7,6 +7,7 @@ use crate::proof::assumption_proof;
 use crate::{
     Budget, IntegerAffineWitness, ProofNode, ProofRule, value_context, verify_bounded_certificate,
 };
+use semantic_vocabulary::IntegerMathLiteral;
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
     ScalarTerm, ScalarType, ValueId,
@@ -573,9 +574,7 @@ fn direct_add_bound_out_of_numeral_range_keeps_instance_fallback() {
         Proposition::Equal(value(1), literal(i128::MIN + 1)),
         Proposition::LessOrEqual(minimum, value(2)),
     ]);
-    let bound = IntegerMathTerm::IntegerLiteral(
-        semantic_vocabulary::IntegerMathLiteral::new(true, u128::MAX).unwrap(),
-    );
+    let bound = IntegerMathTerm::IntegerLiteral(IntegerMathLiteral::new(true, u128::MAX).unwrap());
     let goal = Proposition::IntegerMathLessOrEqual(
         bound,
         IntegerMathTerm::Add(

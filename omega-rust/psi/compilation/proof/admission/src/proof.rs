@@ -29,11 +29,11 @@ use crate::{
     IntegerCastChainWitnessError, IntegerCorrelatedForbiddenRootConversionError,
     IntegerCorrelatedForbiddenRootWitnessError, KernelError,
 };
-use equality_rules::check_equality_transitivity;
+use equality_rules::{check_equality_symmetry, check_equality_transitivity};
 use integer_order_rules::{
     check_integer_add_order, check_integer_order_weakening, check_integer_subtract_order,
 };
-use propositional_rules::check_conjunction_introduction;
+use propositional_rules::{check_assumption, check_conjunction_introduction, check_semantic_axiom};
 
 /// Proof-rule families exercised by one accepted certificate. The set is a
 /// deterministic review projection, not a second proof checker.
@@ -397,12 +397,8 @@ fn check_node_locally(
     };
     match &proof.rule {
         ProofRule::Primitive(_) => propositional_rules::check_primitive(&scope, proof, acceptance),
-        ProofRule::SemanticAxiom { .. } => {
-            propositional_rules::check_semantic_axiom(&scope, proof, acceptance)
-        }
-        ProofRule::Assumption { .. } => {
-            propositional_rules::check_assumption(&scope, proof, acceptance)
-        }
+        ProofRule::SemanticAxiom { .. } => check_semantic_axiom(&scope, proof, acceptance),
+        ProofRule::Assumption { .. } => check_assumption(&scope, proof, acceptance),
         ProofRule::ConjunctionIntroduction(_) => check_conjunction_introduction(proof, acceptance),
         ProofRule::ConjunctionElimination { .. } => {
             propositional_rules::check_conjunction_elimination(proof, acceptance)
@@ -419,9 +415,7 @@ fn check_node_locally(
         ProofRule::ImplicationElimination { .. } => {
             propositional_rules::check_implication_elimination(proof, acceptance)
         }
-        ProofRule::EqualitySymmetry { .. } => {
-            equality_rules::check_equality_symmetry(proof, acceptance)
-        }
+        ProofRule::EqualitySymmetry { .. } => check_equality_symmetry(proof, acceptance),
         ProofRule::PredicateDenotation { .. } => {
             equality_rules::check_predicate_denotation(&scope, proof, acceptance)
         }

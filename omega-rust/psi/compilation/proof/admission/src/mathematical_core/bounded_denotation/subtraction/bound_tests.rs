@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use super::super::test_utilities::open_operation_preserves_skipped_numeric_resource_refusals;
 use super::super::test_utilities::{
     assert_refused, direct_affine_proof, direct_fixture, elaborate_checked, mathematical,
     verify_then_elaborate,
@@ -8,6 +9,7 @@ use crate::proof::assumption_proof;
 use crate::{
     Budget, IntegerAffineWitness, ProofNode, ProofRule, value_context, verify_bounded_certificate,
 };
+use semantic_vocabulary::IntegerMathLiteral;
 use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
     ScalarTerm, ScalarType, ValueId,
@@ -323,9 +325,7 @@ fn subtraction_identity_transport_accepts_existing_leaf_math_citations() {
 
 #[test]
 fn open_subtraction_preserves_previously_skipped_numeric_resource_refusals() {
-    super::super::test_utilities::open_operation_preserves_skipped_numeric_resource_refusals(
-        IntegerMathTerm::Subtract,
-    );
+    open_operation_preserves_skipped_numeric_resource_refusals(IntegerMathTerm::Subtract);
 }
 
 /// The `IntegerAffineBound` direct-subtract fixture: a `Conjunction` of
@@ -398,9 +398,7 @@ fn direct_subtract_bound_out_of_numeral_range_keeps_instance_fallback() {
         Proposition::LessOrEqual(value(2), literal(u128::MAX)),
     ]);
     let goal = Proposition::IntegerMathLessOrEqual(
-        IntegerMathTerm::IntegerLiteral(
-            semantic_vocabulary::IntegerMathLiteral::new(true, u128::MAX).unwrap(),
-        ),
+        IntegerMathTerm::IntegerLiteral(IntegerMathLiteral::new(true, u128::MAX).unwrap()),
         sub!(Box::new(mathematical(&value(1))) => Box::new(mathematical(&value(2)))),
     );
     let proof = direct_affine_proof(
