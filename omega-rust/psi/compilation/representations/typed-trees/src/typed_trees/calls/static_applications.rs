@@ -48,6 +48,11 @@ pub struct StaticMachineApplication {
     /// retargeting. Declaration names on the left belong to the callee;
     /// arguments on the right belong to `lexical_owner`.
     pub lifetime_bindings: HandleSpan<StaticMachineLifetimeBinding>,
+    /// Exact receiving declaration of the region mapping above. A public
+    /// requirement's regions remain public when executable specialization
+    /// independently binds Type/Const/evidence operands to a private realizer.
+    /// Nonempty mappings without this owner have no declaration custody.
+    pub lifetime_binding_declaration: SymbolHandle,
     /// The original declaration whose binders the derived rows substitute.
     /// A requirement call's authored operation may instead belong to a trait.
     pub binding_declaration: SymbolHandle,
@@ -108,4 +113,111 @@ pub fn project_type_operand(
         return *actual;
     }
     reference
+}
+
+impl crate::TypedTrees {
+    /// Borrow an occurrence's original region group, or project its own formal
+    /// coordinates through the exact requirement/owned-realizer association.
+    /// This is tuple correspondence, not conformance or invocation admission.
+    /// Captured outer regions remain in the original supplying lexical scope.
+    pub fn static_application_lifetimes_for_declaration(
+        &self,
+        application: StaticMachineApplicationHandle,
+        receiving: SymbolHandle,
+    ) -> Result<std::borrow::Cow<'_, [StaticMachineLifetimeBinding]>, &'static str> {
+        let source = self
+            .expression_table
+            .static_machine_application(application);
+        let bindings = self
+            .expression_table
+            .static_machine_application_lifetimes(application);
+        if bindings.is_empty() {
+            return Ok(std::borrow::Cow::Borrowed(bindings));
+        }
+        let original = self.lifetime_declaration_owner(source.lifetime_binding_declaration);
+        let receiving = self.lifetime_declaration_owner(receiving);
+        let registered = self.lifetime_declaration_owner(source.registration_operation);
+        let registered = if crate::type_identity::declaration_lifetime_parameters(self, registered)
+            .is_some()
+        {
+            registered
+        } else if let Some((_, signature)) =
+            self.machine_parameter_signature(source.registration_operation)
+        {
+            self.lifetime_declaration_owner(signature.symbol)
+        } else if let Some(machine) = self.machine_holding_state(source.registration_operation) {
+            self.lifetime_declaration_owner(machine.symbol)
+        } else {
+            return Err("static region group lost its original registered callable telescope");
+        };
+        if original != registered {
+            return Err(
+                "static region group does not belong to its exact registered callable telescope",
+            );
+        }
+        let original_parameters =
+            crate::type_identity::declaration_lifetime_parameters(self, original)
+                .ok_or("static region group lost its original receiving declaration")?;
+        let receiving_parameters =
+            crate::type_identity::declaration_lifetime_parameters(self, receiving)
+                .ok_or("static region group lost its requested receiving declaration")?;
+        let same_declaration = original == receiving;
+        if !same_declaration {
+            let corresponds = |implementation, requirement| {
+                self.trait_machine_signature(requirement)
+                    .is_some_and(|(owner, signature)| {
+                        self.owned_conformance_requirement_scope(
+                            implementation,
+                            owner.symbol,
+                            signature.symbol,
+                        )
+                        .is_some()
+                    })
+            };
+            if !corresponds(receiving, original) && !corresponds(original, receiving) {
+                return Err(
+                    "static region group has no exact requirement/owned-realizer correspondence",
+                );
+            }
+            if original_parameters.len() != receiving_parameters.len() {
+                return Err("requirement and owned realizer have different own region telescopes");
+            }
+        }
+        let mut projected = Vec::new();
+        for (ordinal, binding) in bindings.iter().enumerate() {
+            let parameter = crate::type_identity::lifetime_parameter_identity(
+                self,
+                original,
+                binding.parameter.as_str(),
+            )
+            .filter(|parameter| parameter.declaration == original)
+            .ok_or("static region binding does not name its original declaration's own formal")?;
+            if bindings[..ordinal]
+                .iter()
+                .any(|previous| previous.parameter == binding.parameter)
+            {
+                return Err("static region group repeats an original receiving formal");
+            }
+            crate::type_identity::lifetime_parameter_identity(
+                self,
+                source.lexical_owner,
+                binding.argument.as_str(),
+            )
+            .ok_or("static region argument has no identity in its original supplying scope")?;
+            if !same_declaration {
+                projected.push(StaticMachineLifetimeBinding {
+                    parameter: receiving_parameters
+                        .get(parameter.ordinal)
+                        .ok_or("static region formal ordinal exceeds its exact realizer telescope")?
+                        .clone(),
+                    argument: binding.argument.clone(),
+                });
+            }
+        }
+        if same_declaration {
+            Ok(std::borrow::Cow::Borrowed(bindings))
+        } else {
+            Ok(std::borrow::Cow::Owned(projected))
+        }
+    }
 }

@@ -32,6 +32,28 @@ class CompilerPilotTests(unittest.TestCase):
                 self.assertEqual(pilot.select_fixtures(f" {negative}, {positive} "),
                                  ((positive,), (negative,)))
 
+    def test_nested_fact_ids_keep_exact_selection_and_refusals(self):
+        positive = "pass/facts/invocation_lifetime/local"
+        negative = "fail/facts/invocation_lifetime/local"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, positive, negative)
+            with patch.object(pilot, "ROOT", root), \
+                    patch.object(pilot, "prepare_producer") as build:
+                self.assertEqual(pilot.select_fixtures(positive + "," + negative),
+                                 ((positive,), (negative,)))
+                for invalid in ("pass/facts/invocation_lifetime/../local",
+                                "pass/facts//invocation_lifetime/local",
+                                "pass/facts/invocation_lifetime/missing"):
+                    with self.subTest(request=invalid), self.assertRaises(ValueError):
+                        pilot.select_fixtures(invalid)
+                self.fixture_root(root, positive + "_extra")
+                with self.assertRaisesRegex(ValueError, "unrequested fixtures"):
+                    pilot.select_fixtures(positive)
+                self.assertEqual(pilot.select_fixtures(positive + "," + positive + "_extra"),
+                                 ((positive, positive + "_extra"), ()))
+                build.assert_not_called()
+
     def test_malformed_or_missing_exact_id_never_builds_or_runs_defaults(self):
         fixture = "pass/float/named_conversion"
         invalid = ("", " ", ",", fixture + ",", fixture + "," + fixture,

@@ -18,6 +18,7 @@ mod invocation_binding_views;
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct InvocationTuple {
     pub owner: SymbolHandle,
+    pub lifetime_declaration: SymbolHandle,
     pub arguments: Vec<StaticMachineArgument>,
     pub lifetimes: Vec<typed_trees::static_applications::StaticMachineLifetimeBinding>,
 }
@@ -46,6 +47,10 @@ fn occurrence(
             owner: expressions_of(program)
                 .static_machine_application(application)
                 .lexical_owner,
+            lifetime_declaration: program
+                .expression_table
+                .static_machine_application(application)
+                .lifetime_binding_declaration,
             arguments,
             lifetimes: expressions_of(program)
                 .static_machine_application_lifetimes(application)
@@ -54,6 +59,7 @@ fn occurrence(
     } else {
         InvocationTuple {
             owner,
+            lifetime_declaration: SymbolHandle::invalid(),
             arguments,
             lifetimes: Vec::new(),
         }
@@ -317,7 +323,12 @@ fn instance_in_scope(
                     || expressions_of(program)
                         .static_machine_application(application.application)
                         .lexical_owner
-                        == invocation.owner)
+                        == invocation.owner
+                        && program
+                            .expression_table
+                            .static_machine_application(application.application)
+                            .lifetime_binding_declaration
+                            == invocation.lifetime_declaration)
                 && parameters
                     .iter()
                     .zip(arguments)
@@ -784,7 +795,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             &mut arguments,
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
-        let bindings = super::invocation_bindings(program, &parameters, &arguments)?;
+        let bindings = super::invocation_bindings(program, lexical_owner, &parameters, &arguments)?;
         expressions_of_mut(program)
             .static_machine_application_mut(application)
             .binding_declaration = template;

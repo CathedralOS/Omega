@@ -110,8 +110,8 @@ uses the short `D:/ot` target directory. The artifact retains the actual produce
 profiles, source revision and corpus observations, not just workflow success.
 
 Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
-or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must be existing normalized
-`pass/group/name` or `fail/group/name` directories containing `main.omg`.
+or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must name existing normalized directories under `pass/` or `fail/`
+containing `main.omg`, including nested fact-place paths.
 Empty entries, duplicates, traversal, missing roots and substring-filter
 collisions refuse before building; malformed input never selects default smoke.
 An unset/empty environment variable leaves the default unchanged. Pass fixtures

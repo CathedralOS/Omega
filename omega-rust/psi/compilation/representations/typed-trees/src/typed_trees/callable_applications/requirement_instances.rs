@@ -169,10 +169,19 @@ impl TypedTrees {
             let binding_owner = self
                 .static_machine_application(receipt.binding_application)
                 .lexical_owner;
-            let lifetimes = self.static_machine_application_lifetimes(application.application);
-            let same_regions = lifetimes
-                == self.static_machine_application_lifetimes(receipt.binding_application)
-                && (lifetimes.is_empty() || source_owner == binding_owner);
+            let same_regions = self
+                .static_application_lifetimes_for_declaration(application.application, realization)
+                .ok()
+                .zip(
+                    self.static_application_lifetimes_for_declaration(
+                        receipt.binding_application,
+                        realization,
+                    )
+                    .ok(),
+                )
+                .is_some_and(|(source, selected)| {
+                    source == selected && (source.is_empty() || source_owner == binding_owner)
+                });
             same_regions
                 && parameters.len() == arguments.len()
                 && bindings.len() == parameters.len()
@@ -271,14 +280,24 @@ impl TypedTrees {
         let bindings = self
             .static_machine_application_bindings(application)
             .to_vec();
+        // Binding payloads can come from a transient public invocation view.
+        // Copy them in the source telescope before closing the receiving one;
+        // validation alone cannot supply missing operand custody.
         let local_arguments = bindings
             .iter()
             .map(|binding| match &binding.value {
                 static_applications::StaticMachineBindingValue::Type(actual)
-                | static_applications::StaticMachineBindingValue::Const(actual) => Ok(*actual),
+                | static_applications::StaticMachineBindingValue::Const(actual) => self
+                    .static_operand_type_reference_in_scope(
+                        &crate::expression::StaticMachineArgument {
+                            type_reference: *actual,
+                            ..Default::default()
+                        },
+                        lexical_owner,
+                    ),
                 static_applications::StaticMachineBindingValue::Machine(actual)
                 | static_applications::StaticMachineBindingValue::Conformance(actual) => {
-                    self.static_operand_type_reference(actual)
+                    self.static_operand_type_reference_in_scope(actual, lexical_owner)
                 }
                 static_applications::StaticMachineBindingValue::RuntimeValue { .. } => {
                     Err("runtime operand does not close a requirement instance")
@@ -323,6 +342,12 @@ impl TypedTrees {
                 && existing.portable_trait_application_identity
                     == portable_trait_application_identity
                 && existing.portable_local_arguments == portable_local_arguments
+                && self
+                    .static_machine_application(existing.application)
+                    .lifetime_binding_declaration
+                    == self
+                        .static_machine_application(application)
+                        .lifetime_binding_declaration
                 && self.static_machine_application_lifetimes(existing.application)
                     == self.static_machine_application_lifetimes(application)
                 && (self

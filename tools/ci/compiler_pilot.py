@@ -54,10 +54,10 @@ def select_fixtures(request):
     groups = set()
     for fixture in fixtures:
         path = PurePosixPath(fixture)
-        if (len(path.parts) != 3 or path.parts[0] not in ("pass", "fail")
+        if (len(path.parts) < 3 or path.parts[0] not in ("pass", "fail")
                 or any(part in (".", "..") for part in path.parts)
                 or "\\" in fixture or path.as_posix() != fixture):
-            raise ValueError(f"not a normalized pass/group/name or fail/group/name ID: {fixture!r}")
+            raise ValueError(f"not a normalized pass/... or fail/... fixture ID: {fixture!r}")
         directory = root.joinpath(*path.parts)
         if not directory.resolve().is_relative_to(root) or not (directory / "main.omg").is_file():
             raise ValueError(f"fixture has no existing main.omg inside tests/omega: {fixture}")
@@ -292,7 +292,7 @@ def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fi
 
 def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--fixtures", help="comma-separated exact pass/group/name or fail/group/name IDs")
+    parser.add_argument("--fixtures", help="comma-separated exact pass/... or fail/... fixture IDs")
     options = parser.parse_args(arguments)
     fixtures = options.fixtures
     if fixtures is None:
