@@ -29,6 +29,11 @@ constrains produced ranks independently of their storage type. See
 The [original frozen probe](parameter/probe/main.omg) retains the first failing
 program. Fixed base `0ff9f81b3933bb16aaa6eddd05fc7a40107252b0` refuses it and all
 nine positive places with ranking/source-complete-witness diagnostics.
+The completed producer runs all nine places, the frozen probe and four signed
+variations in Terminal Psi and native macOS ARM64; all agree at exit 0. The
+focused corpus independently records 14 such runnable positives, 13 intended
+refusals and five existing nonincrease controls still rejecting. Three existing
+neighboring programs also pass both engines.
 Every no-progress twin changes only the pending update from +1 to +0.
 Corpus pins are `nested_machine_signed_rank_<place>_{exit,rejected}` under
 `tests/omega/{pass,fail}/facts/`.
