@@ -338,6 +338,14 @@ retired-syntax deletions to completion.
     target-keyed Build rows. Carry `samples/cli/audio/audio_playback` and its
     sine, square, and melody consumers through unchanged playback oracles;
     shared binding-value producers and helpers remain ordinary machines.
+    Frontier: 410 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 17 facts spell it in all nine places
+    (`checked_asm_{arm_load,compare_preserves,fence_contracts,register_contract_bound}`,
+    `foreign_{indirect_float_record_result,nested_record_backing,retained_mutable_borrow,retained_shared_borrow,scalar_backing}`,
+    `generic_calling_policy`, `opaque_closed_carrier_exchange`,
+    `scalar_boundary_parameter`, `selected_provider_issuance`,
+    `target_family_contract_operand`, `target_layout_derived_constant`,
+    `target_recursive_bound`, `target_scoped_constant_realization`).
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
@@ -346,6 +354,11 @@ retired-syntax deletions to completion.
     supply, invalid unselected implementations, and retired-prefix rejection;
     applicability is checked on the selected closure, not by accepting untyped
     source or exposing a selected body's private guarantees to callers.
+  - Carry the requirement-guarantee dependency to generic evidence binders: a
+    binder `S satisfies R` instantiated at the implementation that defines its
+    caller still imports `R`'s guarantee, so a citation cycle through it is
+    accepted (reproduction in
+    `samples/cli/facts/independent_call_result_bound/README.md`).
   Acceptance: one portable call selects distinct ordinary implementations for
   two targets from the same Terminal artifact and Build companion, with authored
   results observed by `omega run --both` on matching hosts. Migrated target,
