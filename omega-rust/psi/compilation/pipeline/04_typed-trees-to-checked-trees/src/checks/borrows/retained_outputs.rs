@@ -9,20 +9,30 @@ use crate::borrow::owner_place_segments;
 use crate::flow::canonical_place_from_semantic_place;
 use crate::flow::place_case_has_value;
 use crate::places::place_at;
-use checked_trees::{CheckFacts, FlowStateFact};
+use checked_trees::{BorrowLoanFact, CheckFacts, FlowOperandFact, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
-use validation::CanonicalPlace;
+use typed_trees::machine::Machine;
+use typed_trees::statement::StatementNode;
+use validation::borrow_contracts::borrow_carrying_owner_paths;
+use validation::completed_storage::StoredObservation;
+use validation::completed_storage::at_snapshot;
+use validation::completed_storage::captured_retention_profiles_at_path;
+use validation::completed_storage::project_captured_view_place;
+use validation::{
+    CallFrameResolver, CanonicalPlace, CheckingInput, project_type_reference_from_segments,
+    reference_shell,
+};
 
 pub(crate) fn retained_outputs_are_attributed(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
+    machine: &Machine,
     state_flow: &FlowStateFact,
     statement_index: usize,
-    statement: &typed_trees::statement::StatementNode,
+    statement: &StatementNode,
     source: SymbolHandle,
-    frames: Option<&validation::CallFrameResolver<'_>>,
+    frames: Option<&CallFrameResolver<'_>>,
 ) -> bool {
     let Some(completed) = facts.flow.state_statement(state_flow, statement_index) else {
         return false;
@@ -30,18 +40,14 @@ pub(crate) fn retained_outputs_are_attributed(
     let control = &facts.flow.control;
     if matches!(
         statement,
-        typed_trees::statement::StatementNode::LocalData(_)
-            | typed_trees::statement::StatementNode::Assignment(_)
+        StatementNode::LocalData(_) | StatementNode::Assignment(_)
     ) && !control.operands.is_valid(completed.stored_value)
     {
         return false;
     }
     if control.operands.is_valid(completed.stored_value) {
         let value = control.operands.get(completed.stored_value);
-        let Some(paths) = validation::borrow_contracts::borrow_carrying_owner_paths(
-            program,
-            value.type_reference,
-        ) else {
+        let Some(paths) = borrow_carrying_owner_paths(program, value.type_reference) else {
             return false;
         };
         for path in paths {
@@ -49,9 +55,9 @@ pub(crate) fn retained_outputs_are_attributed(
             if inactive_path(program, facts, state_flow, value, &path) {
                 continue;
             }
-            let Some(profiles) = validation::completed_storage::captured_retention_profiles_at_path(
-                program, control, value, &path,
-            ) else {
+            let Some(profiles) =
+                captured_retention_profiles_at_path(program, control, value, &path)
+            else {
                 return false;
             };
             let Some(destination) = facts
@@ -65,9 +71,7 @@ pub(crate) fn retained_outputs_are_attributed(
             else {
                 return false;
             };
-            let Some(destination) =
-                validation::completed_storage::project_captured_view_place(destination, &path)
-            else {
+            let Some(destination) = project_captured_view_place(destination, &path) else {
                 return false;
             };
             for profile in profiles {
@@ -96,12 +100,12 @@ pub(crate) fn retained_outputs_are_attributed(
         // incoming alternatives and lifetime-only dependencies. Reinterpreting
         // the relation's source geometry here would duplicate loan formation
         // and could erase opaque lifetime debt or a no-write alternative.
-        let Some(captures) = validation::completed_storage::at_snapshot(
+        let Some(captures) = at_snapshot(
             program,
             control,
             completed.storage_snapshot,
             &destination,
-            validation::completed_storage::StoredObservation::Binding,
+            StoredObservation::Binding,
         )
         .and_then(|stored| stored.captures()) else {
             return false;
@@ -111,12 +115,9 @@ pub(crate) fn retained_outputs_are_attributed(
             if inactive_path(program, facts, state_flow, value, &capture.projection) {
                 continue;
             }
-            let Some(profiles) = validation::completed_storage::captured_retention_profiles_at_path(
-                program,
-                control,
-                value,
-                &capture.projection,
-            ) else {
+            let Some(profiles) =
+                captured_retention_profiles_at_path(program, control, value, &capture.projection)
+            else {
                 return false;
             };
             for profile in profiles {
@@ -155,11 +156,7 @@ fn attributed(
     })
 }
 
-fn owner_path_matches(
-    facts: &CheckFacts,
-    loan: &checked_trees::BorrowLoanFact,
-    path: &[PlaceSegment],
-) -> bool {
+fn owner_path_matches(facts: &CheckFacts, loan: &BorrowLoanFact, path: &[PlaceSegment]) -> bool {
     owner_place_segments(facts.borrow.loan_owner_path(loan)) == path
 }
 
@@ -168,10 +165,10 @@ fn owner_path_matches(
 /// inferring presence/absence from a reference-shaped type. A reference
 /// crossing ends this snapshot: the pointee's tag may have changed since then.
 fn inactive_path(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
-    operand: &checked_trees::FlowOperandFact,
+    operand: &FlowOperandFact,
     path: &[PlaceSegment],
 ) -> bool {
     let Some(mut subject) = place_at(
@@ -188,7 +185,7 @@ fn inactive_path(
         .collect::<Vec<_>>();
     let mut reference = operand.type_reference;
     for segment in path {
-        if validation::reference_shell(program, reference).is_some() {
+        if reference_shell(program, reference).is_some() {
             return false;
         }
         if let PlaceSegment::Case { variant } = segment
@@ -206,18 +203,14 @@ fn inactive_path(
         {
             return true;
         }
-        let Some(projected) = validation::project_type_reference_from_segments(
-            program,
-            reference,
-            std::slice::from_ref(segment),
-        ) else {
+        let Some(projected) =
+            project_type_reference_from_segments(program, reference, std::slice::from_ref(segment))
+        else {
             return false;
         };
         reference = projected;
-        let Some(projected) = validation::completed_storage::project_captured_view_place(
-            subject,
-            std::slice::from_ref(segment),
-        ) else {
+        let Some(projected) = project_captured_view_place(subject, std::slice::from_ref(segment))
+        else {
             return false;
         };
         subject = projected;

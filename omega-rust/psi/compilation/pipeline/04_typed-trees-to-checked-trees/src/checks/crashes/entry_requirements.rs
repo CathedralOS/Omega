@@ -6,6 +6,9 @@ use crate::facts::canonical_crash_contract_predicate;
 use crate::values::lower_machine_entry_crash_contract_expression;
 use checked_trees::{CheckedOperatorFacts, CrashPredicateIdentity};
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::machine::Machine;
+use typed_trees::signature::SignatureContractKind;
+use validation::ContentConservationSourcePlan;
 
 mod consequences;
 
@@ -17,10 +20,10 @@ pub(super) struct EntryRequirements {
 
 pub(super) fn collect(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
+    machine: &Machine,
     operators: &CheckedOperatorFacts,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[ContentConservationSourcePlan],
     integer_types: &super::IntegerTypeClassification,
 ) -> EntryRequirements {
     let mut result = EntryRequirements::default();
@@ -38,7 +41,7 @@ pub(super) fn collect(
         .machine_contracts(machine)
         .iter()
         .chain(program.state_contracts(entry))
-        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
+        .filter(|contract| contract.kind == SignatureContractKind::Requires)
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             let Some(expression) = fact.as_expression() else {
@@ -71,12 +74,7 @@ pub(super) fn collect(
         .machine_contracts(machine)
         .iter()
         .chain(program.state_contracts(entry))
-        .filter(|contract| {
-            matches!(
-                contract.kind,
-                typed_trees::signature::SignatureContractKind::Crashes { .. }
-            )
-        })
+        .filter(|contract| matches!(contract.kind, SignatureContractKind::Crashes { .. }))
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             let Some(expression) = fact.as_expression() else {
@@ -108,7 +106,7 @@ pub(super) fn collect(
 
 fn has_exact_entry_meaning(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
+    machine: &Machine,
     operators: &CheckedOperatorFacts,
     parameter_names: &[String],
     expression: ExpressionHandle,

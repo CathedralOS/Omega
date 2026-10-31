@@ -4,13 +4,19 @@ use crate::checks::multiplicity::linear_obligations::type_reference_is_reference
 use crate::checks::multiplicity::linear_obligations::{LinearClaimTemplate, LinearPlace};
 use crate::checks::multiplicity::linear_validation::permission_production::established_provenance;
 use crate::checks::multiplicity::type_multiplicity::{data_field_name, type_multiplicity};
+use facts::PlaceRoot;
+use facts::PlaceSegment;
 use language_semantics::{Multiplicity, PermissionEventSource};
 use symbols::SymbolHandle;
+use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use validation::owned_receiver_claims;
+use validation::peel_declared_constraints;
+use validation::reference_result_custody::binding_multiplicity;
 
 pub(crate) fn initial_linear_places(
     program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
+    state: &State,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> Vec<LinearPlace> {
@@ -24,7 +30,7 @@ pub(crate) fn initial_linear_places(
         let owned_receiver =
             false && !type_reference_is_reference(program, parameter.type_reference);
         let (claims, receiver_multiplicity) = if owned_receiver {
-            let (multiplicity, claims) = validation::owned_receiver_claims(program, machine_symbol);
+            let (multiplicity, claims) = owned_receiver_claims(program, machine_symbol);
             (
                 claims
                     .into_iter()
@@ -65,12 +71,12 @@ pub(crate) fn initial_linear_places(
             } else {
                 type_multiplicity(program, parameter.type_reference) == Multiplicity::Affine
                     && matches!(
-                        program.type_reference_table.type_reference(
-                            validation::peel_declared_constraints(
+                        program
+                            .type_reference_table
+                            .type_reference(peel_declared_constraints(
                                 program,
                                 parameter.type_reference,
-                            )
-                        ),
+                            )),
                         TypeReferenceNode::Named { .. }
                             | TypeReferenceNode::Generic { .. }
                             | TypeReferenceNode::FixedArray { .. }
@@ -78,7 +84,7 @@ pub(crate) fn initial_linear_places(
             }
         {
             places.push(LinearPlace {
-                root: facts::PlaceRoot::Symbol(place_symbol),
+                root: PlaceRoot::Symbol(place_symbol),
                 name: parameter.name.as_str().to_owned(),
                 path: Vec::new(),
                 multiplicity: Multiplicity::Affine,
@@ -99,7 +105,7 @@ pub(crate) fn initial_linear_places(
         }
         for claim in claims {
             places.push(LinearPlace {
-                root: facts::PlaceRoot::Symbol(place_symbol),
+                root: PlaceRoot::Symbol(place_symbol),
                 name: claim_place_name(program, parameter.name.as_str(), &claim.path),
                 path: claim.path,
                 multiplicity: claim.multiplicity,
@@ -124,7 +130,7 @@ pub(crate) fn initial_linear_places(
         let claims = linear_claim_frontier(program, local.type_reference);
         for claim in &claims {
             places.push(LinearPlace {
-                root: facts::PlaceRoot::Symbol(local.symbol),
+                root: PlaceRoot::Symbol(local.symbol),
                 name: claim_place_name(program, local.name.as_str(), &claim.path),
                 path: claim.path.clone(),
                 multiplicity: claim.multiplicity,
@@ -150,13 +156,9 @@ pub(crate) fn initial_linear_places(
         // owns storage. Reserve the same occurrence beneath constraints so
         // construction, selected moves and cleanup retain their normal
         // establishment/transfer events even with an empty linear frontier.
-        let type_node =
-            program
-                .type_reference_table
-                .type_reference(validation::peel_declared_constraints(
-                    program,
-                    local.type_reference,
-                ));
+        let type_node = program
+            .type_reference_table
+            .type_reference(peel_declared_constraints(program, local.type_reference));
         let declaration_established = local.initial_value.is_valid()
             || matches!(
                 type_node,
@@ -165,14 +167,11 @@ pub(crate) fn initial_linear_places(
                     | typed_trees::types::TypeReferenceNode::FixedArray { .. }
             );
         if claims.is_empty()
-            && validation::reference_result_custody::binding_multiplicity(
-                program,
-                local.type_reference,
-            ) == Multiplicity::Affine
+            && binding_multiplicity(program, local.type_reference) == Multiplicity::Affine
             && declaration_established
         {
             places.push(LinearPlace {
-                root: facts::PlaceRoot::Symbol(local.symbol),
+                root: PlaceRoot::Symbol(local.symbol),
                 name: local.name.as_str().to_owned(),
                 path: Vec::new(),
                 multiplicity: Multiplicity::Affine,
@@ -213,7 +212,7 @@ pub(crate) fn linear_claim_frontier(
 /// the genuinely new claims at that completion.
 pub(crate) fn reserve_owner_places(
     program: &dyn ::validation::CheckingInput,
-    root: facts::PlaceRoot,
+    root: PlaceRoot,
     type_reference: TypeReferenceHandle,
     places: &mut Vec<LinearPlace>,
 ) {
@@ -223,8 +222,7 @@ pub(crate) fn reserve_owner_places(
     let name = program.normalized_type_identity_text(type_reference);
     let claims = linear_claim_frontier(program, type_reference);
     if claims.is_empty()
-        && validation::reference_result_custody::binding_multiplicity(program, type_reference)
-            == language_semantics::Multiplicity::Affine
+        && binding_multiplicity(program, type_reference) == language_semantics::Multiplicity::Affine
     {
         places.push(LinearPlace {
             root,
@@ -261,37 +259,37 @@ pub(crate) fn reserve_owner_places(
 fn claim_place_name(
     program: &dyn ::validation::CheckingInput,
     root: &str,
-    path: &[facts::PlaceSegment],
+    path: &[PlaceSegment],
 ) -> String {
     let mut name = root.to_owned();
     for segment in path {
         match segment {
-            facts::PlaceSegment::Case { variant } => {
+            PlaceSegment::Case { variant } => {
                 let case = program
                     .variant_owner(*variant)
                     .map(|(_, candidate)| candidate.name.as_str());
                 name.push_str("::");
                 name.push_str(case.unwrap_or("<case>"));
             }
-            facts::PlaceSegment::Field { symbol } => {
+            PlaceSegment::Field { symbol } => {
                 let field = data_field_name(program, *symbol);
                 name.push('.');
                 name.push_str(field.unwrap_or("<field>"));
             }
-            facts::PlaceSegment::FixedIndex { index } => {
+            PlaceSegment::FixedIndex { index } => {
                 name.push('[');
                 name.push_str(&index.to_string());
                 name.push(']');
             }
-            facts::PlaceSegment::FixedRange { start, end } => {
+            PlaceSegment::FixedRange { start, end } => {
                 name.push('[');
                 name.push_str(&start.to_string());
                 name.push_str("..");
                 name.push_str(&end.to_string());
                 name.push(']');
             }
-            facts::PlaceSegment::Index { .. } => name.push_str("[<index>]"),
-            facts::PlaceSegment::OpaqueRange => name.push_str("[?..?]"),
+            PlaceSegment::Index { .. } => name.push_str("[<index>]"),
+            PlaceSegment::OpaqueRange => name.push_str("[?..?]"),
         }
     }
     name

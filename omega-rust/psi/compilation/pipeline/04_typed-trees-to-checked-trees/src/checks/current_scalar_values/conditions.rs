@@ -10,7 +10,7 @@ use super::{CurrentScalarValues, field_storage_path};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::PrimitiveType;
-use validation::ScopedArithmeticHypothesis;
+use validation::{ScopedArithmeticHypothesis, expression_result_type_reference};
 
 #[derive(Clone)]
 pub(super) struct ConditionBinding {
@@ -46,12 +46,8 @@ impl CurrentScalarValues<'_> {
         if depth >= 64 {
             return Vec::new();
         }
-        let reference = validation::expression_result_type_reference(
-            self.program,
-            self.machine,
-            self.state,
-            expression,
-        );
+        let reference =
+            expression_result_type_reference(self.program, self.machine, self.state, expression);
         if reference.and_then(|reference| self.program.primitive_type_reference(reference))
             == Some(PrimitiveType::Bool)
         {

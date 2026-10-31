@@ -2,14 +2,29 @@
 //! owns their lifetime; this consumer neither replays a body nor assumes zeros.
 
 use crate::flow::canonical_places_agree;
-use validation::CanonicalPlace;
+use language_semantics::SemanticDomainId;
+use numerics::bignum::BigInt;
+use typed_trees::byte_predicates::literal_bytes;
+use validation::field_domains::ByteSequencePredicate;
+use validation::field_domains::domain_byte_predicate;
+use validation::field_domains::domain_is_subslice_preserving;
+use validation::field_domains::domain_is_vacuous;
+use validation::field_domains::domain_membership_implies;
+use validation::field_domains::string_literal_expression_grants_domain;
+use validation::{
+    CanonicalPlace, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
+    closed_collection_length_at_place, integer_domain_membership,
+};
 
 use crate::flow::expressions;
 use crate::flow::{canonical_place_from_semantic_place, relative_place_segments_from_expression};
-use facts::{FactContextHandle, FactPayload, FactPlan, PlaceHandle};
+use facts::{
+    Fact, FactContextHandle, FactPayload, FactPlan, PlaceHandle, PlaceSegment, ProgramPoint,
+    call_point_triple_pattern,
+};
 use symbols::SymbolHandle;
-use typed_trees::domain::ProofFact;
-use typed_trees::expression::ExpressionHandle;
+use typed_trees::domain::{DomainDefinition, ProofFact};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 use super::scalars::{self, ScalarValue};
 use crate::values::literal_at_place;
@@ -44,16 +59,16 @@ fn prove_domain_by_extent_enumeration(
     domain: SymbolHandle,
 ) -> bool {
     let Some(position) = subject.segments.iter().position(|segment| {
-        matches!(segment, facts::PlaceSegment::FixedRange { .. })
-            || matches!(segment, facts::PlaceSegment::Index { expression }
+        matches!(segment, PlaceSegment::FixedRange { .. })
+            || matches!(segment, PlaceSegment::Index { expression }
                     if !matches!(program.expression_table.expression(*expression),
-                        typed_trees::expression::ExpressionNode::Range(_)))
+                        ExpressionNode::Range(_)))
     }) else {
         return false;
     };
     let (start, end) = match subject.segments[position] {
-        facts::PlaceSegment::FixedRange { start, end } => (start, end),
-        facts::PlaceSegment::Index { .. } => (0, usize::MAX),
+        PlaceSegment::FixedRange { start, end } => (start, end),
+        PlaceSegment::Index { .. } => (0, usize::MAX),
         _ => return false,
     };
     let end = if start == 0 && end == usize::MAX {
@@ -62,14 +77,14 @@ fn prove_domain_by_extent_enumeration(
         let Some(length) = contexts.iter().find_map(|context| {
             let point = semantic.contexts.get(*context).point;
             let state = match point {
-                facts::ProgramPoint::State { state_symbol, .. }
-                | facts::ProgramPoint::Statement { state_symbol, .. }
-                | facts::call_point_triple_pattern!(state_symbol, ..)
-                | facts::ProgramPoint::TransitionArm { state_symbol, .. }
-                | facts::ProgramPoint::Exit { state_symbol, .. } => state_symbol,
+                ProgramPoint::State { state_symbol, .. }
+                | ProgramPoint::Statement { state_symbol, .. }
+                | call_point_triple_pattern!(state_symbol, ..)
+                | ProgramPoint::TransitionArm { state_symbol, .. }
+                | ProgramPoint::Exit { state_symbol, .. } => state_symbol,
                 _ => return None,
             };
-            validation::closed_collection_length_at_place(program, state, &collection)
+            closed_collection_length_at_place(program, state, &collection)
                 .and_then(|length| usize::try_from(length).ok())
         }) else {
             return false;
@@ -81,7 +96,7 @@ fn prove_domain_by_extent_enumeration(
     start < end
         && (start..end).all(|index| {
             let mut element = subject.clone();
-            element.segments[position] = facts::PlaceSegment::FixedIndex { index };
+            element.segments[position] = PlaceSegment::FixedIndex { index };
             prove_domain_at_place(program, semantic, contexts, &element, domain)
         })
 }
@@ -93,7 +108,7 @@ fn prove_domain_by_extent_enumeration(
 pub(super) fn live_fact_at_place(
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
-    accepts: impl Fn(&facts::Fact) -> bool,
+    accepts: impl Fn(&Fact) -> bool,
     at_subject: impl Fn(PlaceHandle) -> bool,
 ) -> bool {
     contexts.iter().any(|context| {
@@ -112,7 +127,7 @@ pub(super) fn live_fact_at_place(
 pub(super) fn carried_membership_at(
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
-    satisfies: impl Fn(SymbolHandle, language_semantics::SemanticDomainId) -> bool,
+    satisfies: impl Fn(SymbolHandle, SemanticDomainId) -> bool,
     at_subject: impl Fn(PlaceHandle) -> bool,
 ) -> bool {
     live_fact_at_place(
@@ -162,9 +177,7 @@ fn carried_domain_membership_at_place(
     carried_membership_at(
         semantic,
         contexts,
-        |candidate, _| {
-            validation::field_domains::domain_membership_implies(program, candidate, domain)
-        },
+        |candidate, _| domain_membership_implies(program, candidate, domain),
         |candidate| covers_canonical_subject(program, semantic, candidate, subject),
     )
 }
@@ -184,12 +197,7 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
             semantic,
             contexts,
         }
-        .domain(
-            subject,
-            domain,
-            language_semantics::SemanticDomainId::NULL,
-            &mut Vec::new(),
-        )
+        .domain(subject, domain, SemanticDomainId::NULL, &mut Vec::new())
 }
 
 /// Membership of `subject` in one EXACT indexed (const-generic) instance.
@@ -198,7 +206,7 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
 /// symbol, which is the whole theory of an atomic domain but not of a family:
 /// `BelowIndex<4>` and `BelowIndex<9>` share a symbol and have no variance
 /// relationship, so a fact about one must not satisfy an obligation for the
-/// other. [`validation::field_domains::domain_membership_implies`] correctly
+/// other. [`domain_membership_implies`] correctly
 /// refuses that reduction, so an indexed requirement matches the carried fact's
 /// own interned instance identity instead of its family symbol.
 ///
@@ -212,7 +220,7 @@ pub(in crate::checks::contracts) fn prove_indexed_domain_at_place(
     contexts: &[FactContextHandle],
     subject: &CanonicalPlace,
     domain: SymbolHandle,
-    instance: language_semantics::SemanticDomainId,
+    instance: SemanticDomainId,
 ) -> bool {
     instance.is_valid()
         && carried_membership_at(
@@ -236,7 +244,7 @@ fn subslice_domain_at_place(
     subject: &CanonicalPlace,
     domain: SymbolHandle,
 ) -> bool {
-    if !validation::field_domains::domain_is_subslice_preserving(program, domain) {
+    if !domain_is_subslice_preserving(program, domain) {
         return false;
     }
     let Some((selection, segments)) = subject.segments.split_last() else {
@@ -246,10 +254,10 @@ fn subslice_domain_at_place(
         // A runtime-endpoint slice arrives as `OpaqueRange` once its
         // callee-local range expression is erased: still a window of the
         // carrier, so a subslice-preserving class survives it identically.
-        facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => true,
-        facts::PlaceSegment::Index { expression } => matches!(
+        PlaceSegment::FixedRange { .. } | PlaceSegment::OpaqueRange => true,
+        PlaceSegment::Index { expression } => matches!(
             program.expression_table.expression(*expression),
-            typed_trees::expression::ExpressionNode::Range(_)
+            ExpressionNode::Range(_)
         ),
         _ => false,
     };
@@ -296,7 +304,7 @@ pub(in crate::checks::contracts) fn byte_predicate_proven_at_place(
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
     subject: &CanonicalPlace,
-    required: validation::field_domains::ByteSequencePredicate,
+    required: ByteSequencePredicate,
 ) -> bool {
     // Exact literal contents and minted per-byte classes are two forms of
     // live place evidence. Both are retired by the ordinary write owner.
@@ -308,7 +316,7 @@ pub(in crate::checks::contracts) fn byte_predicate_proven_at_place(
             .map(|context| semantic.contexts.get(*context)),
         subject,
     )
-    .and_then(|literal| typed_trees::byte_predicates::literal_bytes(program, literal))
+    .and_then(|literal| literal_bytes(program, literal))
     .is_some_and(|bytes| required.holds_for(&bytes))
     {
         return true;
@@ -342,8 +350,7 @@ impl AssignedValues<'_> {
     /// across `buffer[i] = byte`. A domain that is not exactly one recognized
     /// byte predicate is never reached this way.
     fn byte_predicate(&self, subject: &CanonicalPlace, symbol: SymbolHandle) -> bool {
-        let Some(required) = validation::field_domains::domain_byte_predicate(self.program, symbol)
-        else {
+        let Some(required) = domain_byte_predicate(self.program, symbol) else {
             return false;
         };
         byte_predicate_proven_at_place(
@@ -359,7 +366,7 @@ impl AssignedValues<'_> {
         &self,
         subject: &CanonicalPlace,
         expression: ExpressionHandle,
-        domain: &typed_trees::domain::DomainDefinition,
+        domain: &DomainDefinition,
     ) -> Option<CanonicalPlace> {
         let segments = relative_place_segments_from_expression(self.program, expression, domain)?;
         let mut selected = subject.clone();
@@ -371,7 +378,7 @@ impl AssignedValues<'_> {
         &self,
         subject: &CanonicalPlace,
         symbol: SymbolHandle,
-        instance: language_semantics::SemanticDomainId,
+        instance: SemanticDomainId,
         active: &mut Vec<SymbolHandle>,
     ) -> bool {
         if !symbol.is_valid() || active.contains(&symbol) {
@@ -388,11 +395,7 @@ impl AssignedValues<'_> {
             return false;
         };
         if let Some(literal) = self.literal(subject)
-            && validation::field_domains::string_literal_expression_grants_domain(
-                self.program,
-                literal,
-                symbol,
-            )
+            && string_literal_expression_grants_domain(self.program, literal, symbol)
         {
             return true;
         }
@@ -420,18 +423,18 @@ impl AssignedValues<'_> {
                 subject,
             )
         {
-            match validation::integer_domain_membership(
+            match integer_domain_membership(
                 self.program,
                 symbol,
                 &[],
                 domain.semantic_id,
-                &validation::ScopedArithmeticValue::Integer(value),
+                &ScopedArithmeticValue::Integer(value),
             ) {
-                validation::StrictArithmeticImplicationJudgment::Proven => return true,
-                validation::StrictArithmeticImplicationJudgment::Refuted => return false,
+                StrictArithmeticImplicationJudgment::Proven => return true,
+                StrictArithmeticImplicationJudgment::Refuted => return false,
                 // Numerical evidence cannot supply a nested routed domain.
                 // The place evidence below may already carry that membership.
-                validation::StrictArithmeticImplicationJudgment::Unknown => {}
+                StrictArithmeticImplicationJudgment::Unknown => {}
             }
         }
         // A route is an authorized origin no proof can replace. A semantic
@@ -445,11 +448,7 @@ impl AssignedValues<'_> {
             // "A declaration with neither predicates nor routes adds no
             // membership obligation" (domains.md, declaration and membership):
             // every carrier value is a member, whatever is known about it.
-            return validation::field_domains::domain_is_vacuous(
-                self.program,
-                symbol,
-                &mut Vec::new(),
-            );
+            return domain_is_vacuous(self.program, symbol, &mut Vec::new());
         }
         active.push(symbol);
         let proved = facts.iter().all(|fact| match fact {
@@ -507,7 +506,7 @@ impl AssignedValues<'_> {
     fn boolean(
         &self,
         subject: &CanonicalPlace,
-        domain: &typed_trees::domain::DomainDefinition,
+        domain: &DomainDefinition,
         expression: ExpressionHandle,
     ) -> Option<bool> {
         // `self in T::C` (and the `self == T::C` equality it lowers to) names
@@ -529,7 +528,7 @@ impl AssignedValues<'_> {
                 // The shared evaluator itself never picks an arithmetic domain.
                 expressions(self.program)
                     .constant_integer_value(expression)
-                    .map(|value| ScalarValue::Integer(numerics::bignum::BigInt::from_i64(value)))
+                    .map(|value| ScalarValue::Integer(BigInt::from_i64(value)))
                     .or_else(|| {
                         let selected = self.relative_subject(subject, expression, domain)?;
                         scalar_value_at_place(

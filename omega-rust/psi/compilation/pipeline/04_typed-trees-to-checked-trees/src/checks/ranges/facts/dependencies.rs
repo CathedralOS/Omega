@@ -9,7 +9,14 @@ use super::super::types::expression_type_reference;
 use super::invalidation::write_covers_place;
 use crate::flow;
 use crate::places::place_at;
-use validation::CanonicalPlace;
+use facts::PlaceRoot;
+use facts::PlaceSegment;
+use typed_trees::types::TypeReferenceNode;
+use validation::expression_traversal::single_segment_name_symbol;
+use validation::{
+    CanonicalPlace, collection_length_receiver, has_builtin_bound_expression_meaning,
+    length_member, unwrapped_type_reference,
+};
 
 mod captures;
 mod place_aliases;
@@ -22,7 +29,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::RangeFacts;
 
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::{machine::Machine, state::State};
 
@@ -277,17 +284,17 @@ impl<'field> RangeFacts<'field> {
                     place.clone(),
                     self.checked_calls.and_then(|context| context.call_frames()),
                 )?;
-                ((place.root) == facts::PlaceRoot::Symbol(machine.symbol)
+                ((place.root) == PlaceRoot::Symbol(machine.symbol)
                     && !place.segments.is_empty()
                     && place
                         .segments
                         .iter()
-                        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. })))
+                        .all(|segment| matches!(segment, PlaceSegment::Field { .. })))
                 .then(|| ReceiverLength {
                     expression: row.expression,
                     label: row.label.clone(),
                     place: CanonicalPlace {
-                        root: facts::PlaceRoot::Symbol(machine.symbol),
+                        root: PlaceRoot::Symbol(machine.symbol),
                         segments: place.segments,
                     },
                     length,
@@ -369,7 +376,7 @@ impl<'field> RangeFacts<'field> {
                         row.label.clone(),
                         row.expression,
                         CanonicalPlace {
-                            root: facts::PlaceRoot::Symbol(*destination),
+                            root: PlaceRoot::Symbol(*destination),
                             segments: suffix.to_vec(),
                         },
                     ))
@@ -442,17 +449,14 @@ impl<'field> RangeFacts<'field> {
             }
             Some(StatementNode::Assignment(assignment))
                 if assignment.value == source
-                    && validation::expression_traversal::single_segment_name_symbol(
-                        program,
-                        assignment.target,
-                    ) == Some(symbol) =>
+                    && single_segment_name_symbol(program, assignment.target) == Some(symbol) =>
             {
                 expression_type_reference(program, machine, state, assignment.target)
             }
             _ => None,
         };
         if !symbol.is_valid()
-            || program.symbols.get(symbol).kind != symbols::SymbolKind::Local
+            || program.symbols.get(symbol).kind != SymbolKind::Local
             || program.symbols.get(symbol).parent != state.symbol
             || !reference
                 .and_then(|reference| program.primitive_type_reference(reference))
@@ -510,7 +514,7 @@ impl<'field> RangeFacts<'field> {
         program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<ExpressionHandle> {
-        if let Some(member) = validation::length_member(program, expression) {
+        if let Some(member) = length_member(program, expression) {
             return Some(member.receiver);
         }
         if let Some((_, length)) = self
@@ -531,10 +535,9 @@ impl<'field> RangeFacts<'field> {
         program: &dyn ::validation::CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<ExpressionHandle> {
-        let symbol =
-            validation::expression_traversal::single_segment_name_symbol(program, expression)?;
+        let symbol = single_segment_name_symbol(program, expression)?;
         self.scalar_binding_dependencies.iter().find_map(|row| {
-            (row.place.root == facts::PlaceRoot::Symbol(symbol))
+            (row.place.root == PlaceRoot::Symbol(symbol))
                 .then(|| row.length.as_ref().map(|length| length.collection))
                 .flatten()
         })
@@ -547,13 +550,11 @@ impl<'field> RangeFacts<'field> {
         state: &State,
         source: ExpressionHandle,
     ) -> Option<CapturedLength> {
-        if let Some(symbol) =
-            validation::expression_traversal::single_segment_name_symbol(program, source)
-        {
+        if let Some(symbol) = single_segment_name_symbol(program, source) {
             return self.scalar_binding_dependencies.iter().find_map(|row| {
                 (row.machine == machine.symbol
                     && row.state == state.symbol
-                    && row.place.root == facts::PlaceRoot::Symbol(symbol))
+                    && row.place.root == PlaceRoot::Symbol(symbol))
                 .then(|| row.length.clone())
                 .flatten()
             });
@@ -565,7 +566,7 @@ impl<'field> RangeFacts<'field> {
         {
             return Some(length.clone());
         }
-        let collection = validation::length_member(program, source)?.receiver;
+        let collection = length_member(program, source)?.receiver;
         self.capture_collection_length(program, machine, state, collection)
     }
 
@@ -577,13 +578,12 @@ impl<'field> RangeFacts<'field> {
         collection: ExpressionHandle,
     ) -> Option<CapturedLength> {
         let reference = expression_type_reference(program, machine, state, collection)?;
-        let reference = validation::unwrapped_type_reference(program, reference)?;
+        let reference = unwrapped_type_reference(program, reference)?;
         // A record field merely named `len` is an ordinary scalar. Only the
         // compiler-owned array/slice metadata operation establishes this edge.
         if !matches!(
             program.type_reference_table.type_reference(reference),
-            typed_trees::types::TypeReferenceNode::FixedArray { .. }
-                | typed_trees::types::TypeReferenceNode::Slice { .. }
+            TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. }
         ) {
             return None;
         }
@@ -761,7 +761,7 @@ impl<'field> RangeFacts<'field> {
             return;
         }
         let mut reads = Vec::new();
-        let mut complete = validation::has_builtin_bound_expression_meaning(
+        let mut complete = has_builtin_bound_expression_meaning(
             program,
             machine,
             Some(scope.evaluation),
@@ -774,25 +774,21 @@ impl<'field> RangeFacts<'field> {
             expression,
             &mut reads,
         );
-        let descriptor_read = validation::collection_length_receiver(
-            program,
-            machine,
-            Some(scope.evaluation),
-            expression,
-        )
-        .and_then(|receiver| {
-            place_at(
-                program,
-                scope.evaluation.symbol,
-                self.statement_index,
-                receiver,
-            )
-        })
-        .and_then(|descriptor| {
-            reads
-                .iter()
-                .position(|read| flow::canonical_places_agree(program, read, &descriptor))
-        });
+        let descriptor_read =
+            collection_length_receiver(program, machine, Some(scope.evaluation), expression)
+                .and_then(|receiver| {
+                    place_at(
+                        program,
+                        scope.evaluation.symbol,
+                        self.statement_index,
+                        receiver,
+                    )
+                })
+                .and_then(|descriptor| {
+                    reads
+                        .iter()
+                        .position(|read| flow::canonical_places_agree(program, read, &descriptor))
+                });
         if complete && scope.evaluation.symbol != state.symbol {
             complete = state_transport::transport_reads(
                 program,
@@ -931,7 +927,7 @@ impl<'field> RangeFacts<'field> {
             return Vec::new();
         }
         for write in writes {
-            if !matches!(write.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid() && program.symbols.get(symbol).kind != symbols::SymbolKind::Field)
+            if !matches!(write.root, PlaceRoot::Symbol(symbol) if symbol.is_valid() && program.symbols.get(symbol).kind != SymbolKind::Field)
             {
                 return Vec::new();
             }

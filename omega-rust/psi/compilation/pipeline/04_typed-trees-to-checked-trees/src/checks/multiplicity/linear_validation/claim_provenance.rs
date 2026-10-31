@@ -8,9 +8,20 @@ use crate::checks::multiplicity::type_multiplicity::{
     data_field_name, expression_establishes_obligation, literal_variant,
 };
 use crate::flow::expressions;
+use checked_trees::CheckFacts;
+use checked_trees::FlowPermissionEvaluation;
+use facts::PlaceRoot;
+use facts::PlaceSegment;
 use language_semantics::{Multiplicity, PermissionClaimIdentity, PermissionProvenance};
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use validation::CanonicalPlace;
+use validation::canonical_place_type_reference;
+use validation::ownership_place_from_expression_in_state;
+use validation::ownership_source_expression;
+use validation::type_requires_establishment;
 
 /// Value expressions complete an owner whether spelled as a statement result
 /// or a selected transition target. Keep the target's evaluation identity so
@@ -18,23 +29,19 @@ use typed_trees::statement::StatementNode;
 pub(crate) fn completed_statement_values(
     program: &dyn ::validation::CheckingInput,
     statement: &StatementNode,
-) -> Vec<(
-    typed_trees::expression::ExpressionHandle,
-    checked_trees::FlowPermissionEvaluation,
-)> {
+) -> Vec<(ExpressionHandle, FlowPermissionEvaluation)> {
     match statement {
-        StatementNode::Expression(expression) => vec![(
-            *expression,
-            checked_trees::FlowPermissionEvaluation::Statement,
-        )],
+        StatementNode::Expression(expression) => {
+            vec![(*expression, FlowPermissionEvaluation::Statement)]
+        }
         StatementNode::Transition(transition) => [transition.target, transition.continuation]
             .into_iter()
             .filter(|target| target.is_valid())
             .filter_map(
                 |target| match program.statement_table.transition_target(target) {
-                    typed_trees::statement::TransitionTargetNode::Value(expression) => Some((
+                    TransitionTargetNode::Value(expression) => Some((
                         *expression,
-                        checked_trees::FlowPermissionEvaluation::TransitionTarget(target),
+                        FlowPermissionEvaluation::TransitionTarget(target),
                     )),
                     _ => None,
                 },
@@ -49,15 +56,12 @@ pub(crate) fn completed_statement_values(
 /// without rediscovering an initializer or replaying its expression.
 pub(crate) fn completed_receiving_values(
     program: &dyn ::validation::CheckingInput,
-    facts: &checked_trees::CheckFacts,
+    facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
-) -> Vec<(
-    typed_trees::expression::ExpressionHandle,
-    checked_trees::FlowPermissionEvaluation,
-)> {
+) -> Vec<(ExpressionHandle, FlowPermissionEvaluation)> {
     let mut values = completed_statement_values(program, statement);
     if let Some(stored) = facts
         .flow
@@ -74,10 +78,7 @@ pub(crate) fn completed_receiving_values(
         })
         && stored.expression.is_valid()
     {
-        let completed = (
-            stored.expression,
-            checked_trees::FlowPermissionEvaluation::Statement,
-        );
+        let completed = (stored.expression, FlowPermissionEvaluation::Statement);
         crate::collections::push_unique(&mut values, completed);
     }
     values
@@ -88,7 +89,7 @@ pub(crate) fn written_linear_targets(
     state_symbol: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
-    evaluation: checked_trees::FlowPermissionEvaluation,
+    evaluation: FlowPermissionEvaluation,
     places: &[LinearPlace],
 ) -> Vec<WrittenLinearTarget> {
     let (target, value) = match statement {
@@ -97,7 +98,7 @@ pub(crate) fn written_linear_targets(
                 // Zero-filled storage establishes a value only if the type's
                 // validity admits zero. Gated storage keeps its construction
                 // frontier without a whole-value permission occurrence.
-                if validation::type_requires_establishment(program, local.type_reference) {
+                if type_requires_establishment(program, local.type_reference) {
                     return Vec::new();
                 }
                 // Zero selects the first case at every structural position.
@@ -108,7 +109,7 @@ pub(crate) fn written_linear_targets(
                     .iter()
                     .enumerate()
                     .filter(|(_, tracked)| {
-                        tracked.root == facts::PlaceRoot::Symbol(local.symbol)
+                        tracked.root == PlaceRoot::Symbol(local.symbol)
                             && tracked.multiplicity != Multiplicity::Unrestricted
                             && (tracked.path.is_empty()
                                 || zero_image_inactive_case(
@@ -119,8 +120,8 @@ pub(crate) fn written_linear_targets(
                                 .is_some())
                     })
                     .map(|(place_index, _)| WrittenLinearTarget {
-                        value: typed_trees::expression::ExpressionHandle::invalid(),
-                        root: facts::PlaceRoot::Symbol(local.symbol),
+                        value: ExpressionHandle::invalid(),
+                        root: PlaceRoot::Symbol(local.symbol),
                         destination_path: Vec::new(),
                         place_index,
                         obligation_live: false,
@@ -131,15 +132,15 @@ pub(crate) fn written_linear_targets(
                     .collect();
             }
             (
-                validation::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(local.symbol),
+                CanonicalPlace {
+                    root: PlaceRoot::Symbol(local.symbol),
                     segments: Vec::new(),
                 },
                 local.initial_value,
             )
         }
         StatementNode::Assignment(assignment) => {
-            let Some(place) = validation::ownership_place_from_expression_in_state(
+            let Some(place) = ownership_place_from_expression_in_state(
                 program,
                 state_symbol,
                 statement_index,
@@ -148,15 +149,13 @@ pub(crate) fn written_linear_targets(
                 return Vec::new();
             };
             // Repair installs no new descriptor or claim in the alias carrier.
-            if validation::canonical_place_type_reference(
-                program,
-                state_symbol,
-                statement_index,
-                &place,
-            )
-            .is_some_and(|declared| {
-                crate::flow::assignment_preserves_reference_binding(program, assignment, declared)
-            }) {
+            if canonical_place_type_reference(program, state_symbol, statement_index, &place)
+                .is_some_and(|declared| {
+                    crate::flow::assignment_preserves_reference_binding(
+                        program, assignment, declared,
+                    )
+                })
+            {
                 return Vec::new();
             }
             (place, assignment.value)
@@ -168,7 +167,7 @@ pub(crate) fn written_linear_targets(
             else {
                 return Vec::new();
             };
-            let Some(place) = validation::ownership_place_from_expression_in_state(
+            let Some(place) = ownership_place_from_expression_in_state(
                 program,
                 state_symbol,
                 statement_index,
@@ -176,7 +175,7 @@ pub(crate) fn written_linear_targets(
             ) else {
                 return Vec::new();
             };
-            if place.root != facts::PlaceRoot::Expression(expression) {
+            if place.root != PlaceRoot::Expression(expression) {
                 return Vec::new();
             }
             (place, expression)
@@ -199,8 +198,8 @@ pub(crate) fn written_owner_targets(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    target: &validation::CanonicalPlace,
-    value: typed_trees::expression::ExpressionHandle,
+    target: &CanonicalPlace,
+    value: ExpressionHandle,
     places: &[LinearPlace],
 ) -> Vec<WrittenLinearTarget> {
     places
@@ -212,16 +211,11 @@ pub(crate) fn written_owner_targets(
                 return None;
             }
             let relative_path = &tracked.path[target.segments.len()..];
-            let source_place = validation::ownership_place_from_expression_in_state(
+            let source_place = ownership_place_from_expression_in_state(
                 program,
                 state_symbol,
                 statement_index,
-                validation::ownership_source_expression(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    value,
-                ),
+                ownership_source_expression(program, state_symbol, statement_index, value),
             )
             .map(|mut source| {
                 source.segments.extend_from_slice(relative_path);
@@ -288,22 +282,21 @@ fn expression_permission_claim_scan<X>(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-    relative_path: &[facts::PlaceSegment],
+    expression: ExpressionHandle,
+    relative_path: &[PlaceSegment],
     places: &[LinearPlace],
     descend: &dyn Fn(
         &dyn ::validation::CheckingInput,
         SymbolHandle,
         usize,
-        typed_trees::expression::ExpressionHandle,
-        &[facts::PlaceSegment],
+        ExpressionHandle,
+        &[PlaceSegment],
         &[LinearPlace],
     ) -> Option<X>,
     claim: fn(&LinearPlace) -> Option<X>,
     common: &dyn Fn(Vec<X>) -> Option<X>,
 ) -> Option<X> {
-    let source =
-        validation::ownership_source_expression(program, state_symbol, statement_index, expression);
+    let source = ownership_source_expression(program, state_symbol, statement_index, expression);
     if source != expression {
         return descend(
             program,
@@ -314,9 +307,8 @@ fn expression_permission_claim_scan<X>(
             places,
         );
     }
-    if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
-        program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::Case { variant }) = relative_path.first()
+    if let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
+        && let Some(PlaceSegment::Case { variant }) = relative_path.first()
     {
         if literal_variant(program, literal).map(|candidate| candidate.symbol) != Some(*variant) {
             return None;
@@ -331,9 +323,8 @@ fn expression_permission_claim_scan<X>(
         );
     }
 
-    if let typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
-        program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::FixedIndex { index }) = relative_path.first()
+    if let ExpressionNode::ArrayLiteral(values) = program.expression_table.expression(expression)
+        && let Some(PlaceSegment::FixedIndex { index }) = relative_path.first()
     {
         let value = *expressions(program)
             .expression_handles(*values)
@@ -348,9 +339,8 @@ fn expression_permission_claim_scan<X>(
         );
     }
 
-    if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
-        program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::Field { symbol }) = relative_path.first()
+    if let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
+        && let Some(PlaceSegment::Field { symbol }) = relative_path.first()
     {
         let field_name = data_field_name(program, *symbol)?;
         let field = expressions(program)
@@ -370,7 +360,7 @@ fn expression_permission_claim_scan<X>(
     if !relative_path.is_empty()
         && matches!(
             program.expression_table.expression(expression),
-            typed_trees::expression::ExpressionNode::Call(_)
+            ExpressionNode::Call(_)
         )
     {
         // Multi-output call mappings need the explicit P1c outcome map. Do
@@ -378,7 +368,7 @@ fn expression_permission_claim_scan<X>(
         return None;
     }
 
-    let source = validation::ownership_place_from_expression_in_state(
+    let source = ownership_place_from_expression_in_state(
         program,
         state_symbol,
         statement_index,
@@ -400,14 +390,14 @@ fn expression_permission_claim_identity_for_claim(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-    relative_path: &[facts::PlaceSegment],
+    expression: ExpressionHandle,
+    relative_path: &[PlaceSegment],
     places: &[LinearPlace],
 ) -> Option<PermissionClaimIdentity> {
     if relative_path.is_empty()
         && matches!(
             program.expression_table.expression(expression),
-            typed_trees::expression::ExpressionNode::Call(_)
+            ExpressionNode::Call(_)
         )
     {
         // Every call result owns its occurrence until exact result
@@ -435,8 +425,8 @@ fn expression_permission_provenance_for_claim(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    expression: typed_trees::expression::ExpressionHandle,
-    relative_path: &[facts::PlaceSegment],
+    expression: ExpressionHandle,
+    relative_path: &[PlaceSegment],
     places: &[LinearPlace],
 ) -> Option<PermissionProvenance> {
     if program.expression_table.call_node(expression).is_some() {

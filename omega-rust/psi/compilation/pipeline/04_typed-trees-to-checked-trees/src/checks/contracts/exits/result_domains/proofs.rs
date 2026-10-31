@@ -10,8 +10,34 @@ use super::{domain_predicate_meaning, exact_integer_reference};
 use crate::flow::canonical_place_from_semantic_place;
 use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowExitFact};
-use facts::{FactContextHandle, FactOrigin, FactPayload};
-use typed_trees::types::TypeReferenceNode;
+use facts::{ContractFactKind, Fact, FactContextHandle, FactOrigin, FactPayload};
+use language_semantics::SemanticDomainId;
+use numerics::arithmetic::ArithmeticDomain;
+use numerics::bignum::BigInt;
+use symbols::SymbolHandle;
+use typed_trees::domain::DomainDefinition;
+use typed_trees::domain::domain_subject_reference;
+use typed_trees::domain::index_parameters;
+use typed_trees::domain::indexed_domain_instance_name;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use typed_trees::types::{DomainConstraint, TypeReferenceNode};
+use validation::ScopedArithmeticBinder;
+use validation::ScopedArithmeticBinding;
+use validation::ScopedArithmeticExpression;
+use validation::ScopedArithmeticHypothesis;
+use validation::ScopedArithmeticValue;
+use validation::StrictArithmeticImplicationJudgment;
+use validation::completed_value_proves_domain_predicate;
+use validation::declared_place_type_raw;
+use validation::expression_result_type_reference;
+use validation::find_state_for_exit;
+use validation::has_builtin_bound_expression_meaning;
+use validation::land_integer_value;
+use validation::reserved_result_owner;
+use validation::scoped_arithmetic_implication;
+use validation::validate_closed_const_argument;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum ScalarPredicateJudgment {
@@ -35,8 +61,8 @@ pub(super) fn establishes_scalar_predicates(
     facts: &CheckFacts,
     exit: &FlowExitFact,
     contexts: &[FactContextHandle],
-    domain: &typed_trees::domain::DomainDefinition,
-    constraint: &typed_trees::types::DomainConstraint,
+    domain: &DomainDefinition,
+    constraint: &DomainConstraint,
 ) -> ScalarPredicateJudgment {
     establishes_scalar_predicates_inner(
         program,
@@ -60,9 +86,9 @@ fn establishes_scalar_predicates_inner(
     facts: &CheckFacts,
     exit: &FlowExitFact,
     contexts: &[FactContextHandle],
-    domain: &typed_trees::domain::DomainDefinition,
-    constraint: &typed_trees::types::DomainConstraint,
-    visited: &mut Vec<(symbols::SymbolHandle, language_semantics::SemanticDomainId)>,
+    domain: &DomainDefinition,
+    constraint: &DomainConstraint,
+    visited: &mut Vec<(SymbolHandle, SemanticDomainId)>,
 ) -> ScalarPredicateJudgment {
     if domain.alias.is_some() || visited.contains(&(domain.symbol, domain.semantic_id)) {
         return ScalarPredicateJudgment::Unknown;
@@ -80,9 +106,9 @@ fn establishes_scalar_predicates_visited(
     facts: &CheckFacts,
     exit: &FlowExitFact,
     contexts: &[FactContextHandle],
-    domain: &typed_trees::domain::DomainDefinition,
-    constraint: &typed_trees::types::DomainConstraint,
-    visited: &mut Vec<(symbols::SymbolHandle, language_semantics::SemanticDomainId)>,
+    domain: &DomainDefinition,
+    constraint: &DomainConstraint,
+    visited: &mut Vec<(SymbolHandle, SemanticDomainId)>,
 ) -> ScalarPredicateJudgment {
     let Some(indices) = closed_domain_indices(program, domain, constraint) else {
         return ScalarPredicateJudgment::Unknown;
@@ -90,7 +116,7 @@ fn establishes_scalar_predicates_visited(
     let Some(machine) = program.machine(exit.machine_symbol) else {
         return ScalarPredicateJudgment::Unknown;
     };
-    let Some(state) = validation::find_state_for_exit(program, exit) else {
+    let Some(state) = find_state_for_exit(program, exit) else {
         return ScalarPredicateJudgment::Unknown;
     };
     let proof = ScalarReturnProof {
@@ -120,7 +146,7 @@ fn establishes_scalar_predicates_visited(
             }
             let (expression, holds) = match fact.payload {
                 FactPayload::ContractBooleanExpression {
-                    kind: facts::ContractFactKind::Requires,
+                    kind: ContractFactKind::Requires,
                     expression,
                     instantiated,
                     ..
@@ -129,7 +155,7 @@ fn establishes_scalar_predicates_visited(
                 FactPayload::BooleanValue { expression, value } => (expression, value),
                 _ => return None,
             };
-            Some(validation::ScopedArithmeticHypothesis {
+            Some(ScopedArithmeticHypothesis {
                 proposition: proof.current_expression(expression)?,
                 holds,
             })
@@ -159,7 +185,7 @@ fn establishes_scalar_predicates_visited(
             };
             if !semantic_domain.is_valid()
                 || semantic_domain != candidate.semantic_id
-                || !typed_trees::domain::index_parameters(program, candidate).is_empty()
+                || !index_parameters(program, candidate).is_empty()
             {
                 continue;
             }
@@ -189,15 +215,13 @@ fn establishes_scalar_predicates_visited(
                 {
                     continue;
                 }
-                hypotheses.push(validation::ScopedArithmeticHypothesis {
-                    proposition: validation::ScopedArithmeticExpression {
+                hypotheses.push(ScopedArithmeticHypothesis {
+                    proposition: ScopedArithmeticExpression {
                         owner: candidate.symbol,
                         expression: *expression,
-                        bindings: vec![validation::ScopedArithmeticBinding {
-                            binder: validation::ScopedArithmeticBinder::Symbol(
-                                candidate.subject_symbol,
-                            ),
-                            value: validation::ScopedArithmeticValue::Atom {
+                        bindings: vec![ScopedArithmeticBinding {
+                            binder: ScopedArithmeticBinder::Symbol(candidate.subject_symbol),
+                            value: ScopedArithmeticValue::Atom {
                                 identity: format!("return-place:{subject:?}"),
                                 unsigned: !primitive.is_signed_integer(),
                             },
@@ -215,13 +239,11 @@ fn establishes_scalar_predicates_visited(
                 membership.domain_symbol,
                 membership.semantic_domain,
             );
-            if parent.is_none()
-                || !typed_trees::domain::domain_subject_reference(program, domain, membership.value)
-            {
+            if parent.is_none() || !domain_subject_reference(program, domain, membership.value) {
                 ScalarPredicateJudgment::Unknown
             } else {
                 let parent = parent.expect("parent domain is present");
-                let constraint = typed_trees::types::DomainConstraint {
+                let constraint = DomainConstraint {
                     symbol: membership.domain_symbol,
                     semantic_id: membership.semantic_domain,
                     arguments: program
@@ -296,32 +318,26 @@ fn establishes_scalar_predicates_visited(
                                 indices_ok = false;
                                 break;
                             };
-                            bindings.push(validation::ScopedArithmeticBinding {
-                                binder: validation::ScopedArithmeticBinder::Symbol(index.symbol),
-                                value: validation::ScopedArithmeticValue::Integer(value.clone()),
+                            bindings.push(ScopedArithmeticBinding {
+                                binder: ScopedArithmeticBinder::Symbol(index.symbol),
+                                value: ScopedArithmeticValue::Integer(value.clone()),
                             });
                         }
                         if indices_ok {
-                            bindings.push(validation::ScopedArithmeticBinding {
-                                binder: validation::ScopedArithmeticBinder::Symbol(
-                                    domain.subject_symbol,
-                                ),
-                                value: validation::ScopedArithmeticValue::Term(returned_term),
+                            bindings.push(ScopedArithmeticBinding {
+                                binder: ScopedArithmeticBinder::Symbol(domain.subject_symbol),
+                                value: ScopedArithmeticValue::Term(returned_term),
                             });
-                            let goal = validation::ScopedArithmeticExpression {
+                            let goal = ScopedArithmeticExpression {
                                 owner: domain.symbol,
                                 expression: *expression,
                                 bindings,
                             };
-                            if validation::scoped_arithmetic_implication(
-                                program,
-                                machine,
-                                &hypotheses,
-                                &goal,
-                            ) == validation::StrictArithmeticImplicationJudgment::Proven
+                            if scoped_arithmetic_implication(program, machine, &hypotheses, &goal)
+                                == StrictArithmeticImplicationJudgment::Proven
                             {
                                 ScalarPredicateJudgment::Proven
-                            } else if validation::completed_value_proves_domain_predicate(
+                            } else if completed_value_proves_domain_predicate(
                                 program,
                                 machine,
                                 state,
@@ -338,7 +354,7 @@ fn establishes_scalar_predicates_visited(
                         } else {
                             ScalarPredicateJudgment::Unknown
                         }
-                    } else if validation::completed_value_proves_domain_predicate(
+                    } else if completed_value_proves_domain_predicate(
                         program,
                         machine,
                         state,
@@ -352,7 +368,7 @@ fn establishes_scalar_predicates_visited(
                     } else {
                         ScalarPredicateJudgment::Unknown
                     }
-                } else if validation::completed_value_proves_domain_predicate(
+                } else if completed_value_proves_domain_predicate(
                     program,
                     machine,
                     state,
@@ -381,7 +397,7 @@ fn establishes_scalar_predicates_visited(
 }
 
 pub(super) struct ScalarDomainIndex {
-    symbol: symbols::SymbolHandle,
+    symbol: SymbolHandle,
     value: super::super::super::prover::ScalarValue,
 }
 
@@ -392,28 +408,23 @@ pub(super) struct ScalarDomainIndex {
 /// exact semantic instance the result type promises.
 pub(super) fn closed_domain_indices(
     program: &dyn ::validation::CheckingInput,
-    domain: &typed_trees::domain::DomainDefinition,
-    constraint: &typed_trees::types::DomainConstraint,
+    domain: &DomainDefinition,
+    constraint: &DomainConstraint,
 ) -> Option<Vec<ScalarDomainIndex>> {
     use super::super::super::prover::ScalarValue;
     use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
-    let parameters = typed_trees::domain::index_parameters(program, domain);
+    let parameters = index_parameters(program, domain);
     if parameters.len() != constraint.arguments.len() || !constraint.semantic_id.is_valid() {
         return None;
     }
-    let identity = typed_trees::domain::indexed_domain_instance_name(
-        program,
-        domain,
-        parameters,
-        &constraint.arguments,
-    )
-    .ok()?;
+    let identity =
+        indexed_domain_instance_name(program, domain, parameters, &constraint.arguments).ok()?;
     if program.semantic_domains.lookup(&identity) != Some(constraint.semantic_id) {
         return None;
     }
     let mut indices = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(&constraint.arguments) {
-        validation::validate_closed_const_argument(
+        validate_closed_const_argument(
             program,
             domain.name.as_str(),
             parameter,
@@ -430,15 +441,13 @@ pub(super) fn closed_domain_indices(
         let value = if let Some(canonical) = CanonicalConstValue::from_atom(name.as_str()) {
             match canonical.decode_encoding()? {
                 DecodedCanonicalConstValue::Integer { value, .. } => {
-                    ScalarValue::Integer(numerics::bignum::BigInt::from_i128(value))
+                    ScalarValue::Integer(BigInt::from_i128(value))
                 }
                 DecodedCanonicalConstValue::Boolean(value) => ScalarValue::Boolean(value),
                 _ => return None,
             }
         } else {
-            ScalarValue::Integer(numerics::bignum::BigInt::from_i128(
-                name.as_str().parse::<i128>().ok()?,
-            ))
+            ScalarValue::Integer(BigInt::from_i128(name.as_str().parse::<i128>().ok()?))
         };
         indices.push(ScalarDomainIndex {
             symbol: parameter.symbol,
@@ -453,8 +462,8 @@ pub(super) struct ScalarReturnProof<'a> {
     facts: &'a CheckFacts,
     exit: &'a FlowExitFact,
     contexts: &'a [FactContextHandle],
-    machine: &'a typed_trees::machine::Machine,
-    state: &'a typed_trees::state::State,
+    machine: &'a Machine,
+    state: &'a State,
 }
 
 impl ScalarReturnProof<'_> {
@@ -464,18 +473,17 @@ impl ScalarReturnProof<'_> {
     /// integer literals additionally undergo the ordinary exact landing check.
     pub(super) fn value_preserving_source(
         &self,
-        mut expression: typed_trees::expression::ExpressionHandle,
-    ) -> Option<typed_trees::expression::ExpressionHandle> {
+        mut expression: ExpressionHandle,
+    ) -> Option<ExpressionHandle> {
         for _ in 0..128 {
             let Some(cast) = self.program.expression_table.cast_node(expression) else {
                 return Some(expression);
             };
-            if cast.form.is_recast() || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
-            {
+            if cast.form.is_recast() || cast.domain != ArithmeticDomain::Exact {
                 return None;
             }
             let target = self.program.primitive_type_reference(cast.target_type)?;
-            let source = validation::expression_result_type_reference(
+            let source = expression_result_type_reference(
                 self.program,
                 self.machine,
                 self.state,
@@ -485,7 +493,7 @@ impl ScalarReturnProof<'_> {
             if source != Some(target) {
                 let literal = self.program.expression_table.integer_node(cast.value)?;
                 if literal.landing().is_some()
-                    || validation::land_integer_value(&literal.value_bignum()?, target).is_none()
+                    || land_integer_value(&literal.value_bignum()?, target).is_none()
                 {
                     return None;
                 }
@@ -499,11 +507,7 @@ impl ScalarReturnProof<'_> {
     /// computations. Comparisons can still observe policy-bearing values;
     /// their operands are values, not permission to replace wrapping or
     /// saturating operations by unbounded arithmetic.
-    pub(super) fn exact_computations(
-        &self,
-        expression: typed_trees::expression::ExpressionHandle,
-        depth: usize,
-    ) -> bool {
+    pub(super) fn exact_computations(&self, expression: ExpressionHandle, depth: usize) -> bool {
         use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
         if self
             .program
@@ -514,17 +518,12 @@ impl ScalarReturnProof<'_> {
             return false;
         }
         let exact_operand = |operand| {
-            validation::expression_result_type_reference(
-                self.program,
-                self.machine,
-                self.state,
-                operand,
-            )
-            .map(|reference| exact_integer_reference(self.program, reference))
-            .unwrap_or_else(|| {
-                matches!(self.program.expression_table.expression(operand),
+            expression_result_type_reference(self.program, self.machine, self.state, operand)
+                .map(|reference| exact_integer_reference(self.program, reference))
+                .unwrap_or_else(|| {
+                    matches!(self.program.expression_table.expression(operand),
                     ExpressionNode::Integer(literal) if literal.landing().is_none())
-            })
+                })
         };
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Binary(binary) => {
@@ -556,11 +555,11 @@ impl ScalarReturnProof<'_> {
 
     pub(super) fn current_expression(
         &self,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> Option<validation::ScopedArithmeticExpression> {
+        expression: ExpressionHandle,
+    ) -> Option<ScopedArithmeticExpression> {
         let expression = self.value_preserving_source(expression)?;
         if !self.exact_computations(expression, 0)
-            || !validation::has_builtin_bound_expression_meaning(
+            || !has_builtin_bound_expression_meaning(
                 self.program,
                 self.machine,
                 Some(self.state),
@@ -571,7 +570,7 @@ impl ScalarReturnProof<'_> {
         }
         let mut bindings = Vec::new();
         self.current_bindings(expression, &mut bindings, 0)?;
-        Some(validation::ScopedArithmeticExpression {
+        Some(ScopedArithmeticExpression {
             owner: self.state.symbol,
             expression,
             bindings,
@@ -580,8 +579,8 @@ impl ScalarReturnProof<'_> {
 
     pub(super) fn current_bindings(
         &self,
-        expression: typed_trees::expression::ExpressionHandle,
-        bindings: &mut Vec<validation::ScopedArithmeticBinding>,
+        expression: ExpressionHandle,
+        bindings: &mut Vec<ScopedArithmeticBinding>,
         depth: usize,
     ) -> Option<()> {
         use typed_trees::expression::ExpressionNode;
@@ -598,7 +597,7 @@ impl ScalarReturnProof<'_> {
             ExpressionNode::Name(path)
                 if path.symbol.is_valid() && path.head_symbol == path.symbol =>
             {
-                let reference = validation::declared_place_type_raw(
+                let reference = declared_place_type_raw(
                     self.program,
                     self.machine,
                     Some(self.state),
@@ -623,20 +622,18 @@ impl ScalarReturnProof<'_> {
                     &subject,
                 )
                 .map(|literal| {
-                    validation::ScopedArithmeticValue::Term(
-                        validation::ScopedArithmeticExpression {
-                            owner: self.state.symbol,
-                            expression: literal,
-                            bindings: Vec::new(),
-                        },
-                    )
+                    ScopedArithmeticValue::Term(ScopedArithmeticExpression {
+                        owner: self.state.symbol,
+                        expression: literal,
+                        bindings: Vec::new(),
+                    })
                 })
-                .unwrap_or_else(|| validation::ScopedArithmeticValue::Atom {
+                .unwrap_or_else(|| ScopedArithmeticValue::Atom {
                     identity: format!("return-place:{subject:?}"),
                     unsigned: !primitive.is_signed_integer(),
                 });
-                bindings.push(validation::ScopedArithmeticBinding {
-                    binder: validation::ScopedArithmeticBinder::Symbol(path.symbol),
+                bindings.push(ScopedArithmeticBinding {
+                    binder: ScopedArithmeticBinder::Symbol(path.symbol),
                     value,
                 });
             }
@@ -654,11 +651,11 @@ impl ScalarReturnProof<'_> {
 
     pub(super) fn current_value(
         &self,
-        expression: typed_trees::expression::ExpressionHandle,
+        expression: ExpressionHandle,
     ) -> Option<super::super::super::prover::ScalarValue> {
         let expression = self.value_preserving_source(expression)?;
         if !self.exact_computations(expression, 0)
-            || !validation::has_builtin_bound_expression_meaning(
+            || !has_builtin_bound_expression_meaning(
                 self.program,
                 self.machine,
                 Some(self.state),
@@ -701,7 +698,7 @@ pub(in crate::checks::contracts::exits) fn proves_result_domain(
     facts: &CheckFacts,
     exit: &FlowExitFact,
     contexts: &[FactContextHandle],
-    requirement: &facts::Fact,
+    requirement: &Fact,
 ) -> bool {
     let Some((_, _, domain_symbol, semantic_domain)) = requirement.payload.domain_membership()
     else {
@@ -718,9 +715,7 @@ pub(in crate::checks::contracts::exits) fn proves_result_domain(
     // rebases onto the returned expression. Other expression roots keep their
     // identity (an authored `result` parameter or a foreign occurrence is not
     // the contract result).
-    if validation::reserved_result_owner(program, root)
-        .is_none_or(|(owner, _)| owner != exit.machine_symbol)
-    {
+    if reserved_result_owner(program, root).is_none_or(|(owner, _)| owner != exit.machine_symbol) {
         return false;
     }
     // An authored result membership consumes the same completed custody
@@ -760,7 +755,7 @@ pub(in crate::checks::contracts::exits) fn proves_result_domain(
     // the family. The family-only prover deliberately refuses that reduction.
     if program
         .domain_definition(domain_symbol)
-        .is_some_and(|domain| !typed_trees::domain::index_parameters(program, domain).is_empty())
+        .is_some_and(|domain| !index_parameters(program, domain).is_empty())
     {
         return prove_indexed_domain_at_place(
             program,

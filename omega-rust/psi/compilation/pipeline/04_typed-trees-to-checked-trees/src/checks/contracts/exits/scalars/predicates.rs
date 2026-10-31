@@ -8,6 +8,10 @@ use super::{
 };
 use crate::checks::contracts::{captured_predicates, prover, return_values};
 use crate::flow::captured_observation_places;
+use facts::ProgramPoint;
+use typed_trees::types::PrimitiveType;
+use validation::CanonicalPlace;
+use validation::expression_result_type_reference;
 
 impl ExitScalars<'_, '_> {
     pub(super) fn current_predicate(&self, expression: ExpressionHandle) -> Option<bool> {
@@ -21,20 +25,15 @@ impl ExitScalars<'_, '_> {
             && self
                 .state()
                 .and_then(|state| {
-                    validation::expression_result_type_reference(
-                        self.program,
-                        self.machine,
-                        state,
-                        expression,
-                    )
+                    expression_result_type_reference(self.program, self.machine, state, expression)
                 })
                 .and_then(|reference| self.program.primitive_type_reference(reference))
-                == Some(typed_trees::types::PrimitiveType::Bool)
+                == Some(PrimitiveType::Bool)
             && semantic_contexts_prove_boolean_expression(
                 self.program,
                 &self.facts.semantic,
                 self.contexts,
-                facts::ProgramPoint::Statement {
+                ProgramPoint::Statement {
                     machine_symbol: self.machine.symbol,
                     state_symbol: self.exit.state_symbol,
                     statement_index: self.exit.statement_index,
@@ -83,7 +82,7 @@ impl ExitScalars<'_, '_> {
                         position,
                         &path,
                     )?;
-                    let place = validation::CanonicalPlace {
+                    let place = CanonicalPlace {
                         root: PlaceRoot::Symbol(root),
                         segments,
                     };
@@ -113,7 +112,7 @@ impl ExitScalars<'_, '_> {
         let entry = self.program.machine_states(self.machine).first()?;
         let completed =
             return_values::completed_return_operand(self.program, self.facts, self.exit);
-        let result = completed.map(|operand| validation::CanonicalPlace {
+        let result = completed.map(|operand| CanonicalPlace {
             root: PlaceRoot::Expression(operand.expression),
             segments: Vec::new(),
         });
@@ -190,7 +189,7 @@ impl ExitScalars<'_, '_> {
             &self.facts.operators,
             &self.facts.semantic,
             self.contexts,
-            facts::ProgramPoint::Statement {
+            ProgramPoint::Statement {
                 machine_symbol: self.machine.symbol,
                 state_symbol: self.exit.state_symbol,
                 statement_index: self.exit.statement_index,
@@ -225,13 +224,13 @@ impl ExitScalars<'_, '_> {
             }
             predicates.extend(transported.predicates);
         }
-        let mut ordinary = |place: &validation::CanonicalPlace| {
+        let mut ordinary = |place: &CanonicalPlace| {
             prover::boolean_value_at_place(
                 self.program,
                 &self.facts.operators,
                 &self.facts.semantic,
                 self.contexts,
-                facts::ProgramPoint::Statement {
+                ProgramPoint::Statement {
                     machine_symbol: self.machine.symbol,
                     state_symbol: self.exit.state_symbol,
                     statement_index: self.exit.statement_index,

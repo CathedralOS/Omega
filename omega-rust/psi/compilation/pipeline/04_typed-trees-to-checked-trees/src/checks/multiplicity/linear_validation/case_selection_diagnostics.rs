@@ -8,15 +8,17 @@ use super::super::permission_events::exact_positive_case_test;
 use super::super::permission_events::visit_positive_case_tests;
 use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowClaimJoinExit, FlowClaimJoinExitKind};
+use facts::PlaceSegment;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
+use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
-use validation::CanonicalPlace;
+use validation::{CanonicalPlace, CheckingInput, has_exact_case_membership_meaning};
 
 pub(super) fn exit_detail(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
+    state: &State,
     coordinate: FlowClaimJoinExit,
     place: &LinearPlace,
 ) -> String {
@@ -65,8 +67,8 @@ pub(super) fn exit_detail(
 }
 
 fn unavailable_membership_detail(
-    program: &dyn validation::CheckingInput,
-    state: &typed_trees::state::State,
+    program: &dyn CheckingInput,
+    state: &State,
     expression: ExpressionHandle,
 ) -> String {
     let label = program.expression_table.display_name(expression);
@@ -82,13 +84,7 @@ fn unavailable_membership_detail(
     let authenticated = program
         .machine_holding_state(state.symbol)
         .is_some_and(|machine| {
-            validation::has_exact_case_membership_meaning(
-                program,
-                machine,
-                Some(state),
-                expression,
-                binary,
-            )
+            has_exact_case_membership_meaning(program, machine, Some(state), expression, binary)
         });
     if authenticated {
         format!("`{label}` authenticates membership but cannot resolve its applied case")
@@ -99,9 +95,9 @@ fn unavailable_membership_detail(
 
 #[allow(clippy::too_many_arguments)]
 fn selected_subject_detail(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
+    state: &State,
     statement: usize,
     expression: ExpressionHandle,
     subject: ExpressionHandle,
@@ -114,10 +110,10 @@ fn selected_subject_detail(
             "authenticated unequal canonical subject"
         } else {
             match place.path.get(subject.segments.len()) {
-                Some(facts::PlaceSegment::Case { variant: candidate }) if *candidate == variant => {
+                Some(PlaceSegment::Case { variant: candidate }) if *candidate == variant => {
                     "compatible selected case"
                 }
-                Some(facts::PlaceSegment::Case { .. }) => "other case under this subject",
+                Some(PlaceSegment::Case { .. }) => "other case under this subject",
                 _ => "subject does not guard this claim path",
             }
         };

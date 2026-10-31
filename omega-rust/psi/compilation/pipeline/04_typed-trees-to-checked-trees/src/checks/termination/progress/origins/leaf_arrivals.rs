@@ -1,5 +1,10 @@
 //! leaf arrivals slice of origins.
-use validation::CanonicalPlace;
+use language_semantics::ReferenceAccess;
+use symbols::SymbolHandle;
+use validation::{
+    CallFrameResolver, CanonicalPlace, declared_place_type_raw,
+    project_type_reference_from_segments,
+};
 
 use super::reference_bounds::*;
 
@@ -19,7 +24,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 pub(super) fn statements_local_type(
     program: &dyn ::validation::CheckingInput,
     state: &FlowStateFact,
-    root: symbols::SymbolHandle,
+    root: SymbolHandle,
     bound: usize,
 ) -> Option<TypeReferenceHandle> {
     let typed_state = program.state_by_symbol(state.state_symbol)?;
@@ -57,7 +62,7 @@ pub(super) enum LeafArrival {
 /// source slot holds at the call.
 pub(super) fn shared_reference_leaf_origin<Resolve>(
     program: &dyn ::validation::CheckingInput,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
     bound: usize,
@@ -119,12 +124,7 @@ where
                 )?;
                 let target_is_slot = target.root == slot.root;
                 let stored_type = || {
-                    validation::declared_place_type_raw(
-                        program,
-                        machine,
-                        Some(typed_state),
-                        assignment.target,
-                    )
+                    declared_place_type_raw(program, machine, Some(typed_state), assignment.target)
                 };
                 if target_is_slot && target.segments == slot.segments {
                     // A store into exactly this slot rebinds the leaf: the
@@ -233,11 +233,8 @@ pub(super) fn shared_reference_boundary(
     segments: &[PlaceSegment],
 ) -> Option<usize> {
     for boundary in 1..=segments.len() {
-        let reached = validation::project_type_reference_from_segments(
-            program,
-            root_type,
-            &segments[..boundary],
-        )?;
+        let reached =
+            project_type_reference_from_segments(program, root_type, &segments[..boundary])?;
         if let Some(access) = reference_type(program, reached) {
             return (!access.is_exclusive()).then_some(boundary);
         }
@@ -292,7 +289,7 @@ where
 /// relocates to it. Anything else is the referent itself.
 pub(super) fn leaf_candidate_arrival(
     program: &dyn ::validation::CheckingInput,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &CallFrameResolver<'_>,
     machine: &Machine,
     state: &FlowStateFact,
     index: usize,
@@ -316,13 +313,13 @@ pub(super) fn leaf_candidate_arrival(
             )?;
             continue;
         }
-        let reached = validation::project_type_reference_from_segments(
+        let reached = project_type_reference_from_segments(
             program,
             local.type_reference,
             &candidate.segments,
         )?;
         return Some(match reference_type(program, reached) {
-            Some(language_semantics::ReferenceAccess::Shared) => LeafArrival::Relocate(candidate),
+            Some(ReferenceAccess::Shared) => LeafArrival::Relocate(candidate),
             _ => LeafArrival::Resolved(candidate),
         });
     }
@@ -334,7 +331,7 @@ pub(super) fn leaf_candidate_arrival(
 pub(super) fn reference_type(
     program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
-) -> Option<language_semantics::ReferenceAccess> {
+) -> Option<ReferenceAccess> {
     loop {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
@@ -351,7 +348,7 @@ pub(super) fn statement_may_touch_slot(
     machine: &Machine,
     state: &FlowStateFact,
     index: usize,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &CallFrameResolver<'_>,
     statement: &StatementNode,
     slot: &CanonicalPlace,
 ) -> Option<bool> {

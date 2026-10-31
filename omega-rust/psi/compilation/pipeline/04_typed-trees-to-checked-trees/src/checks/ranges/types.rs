@@ -4,13 +4,32 @@
 //! both reject a valid index and borrow another record's range to admit an
 //! invalid one. Ordinary projections retain this checker's scoped root lookup.
 
+use facts::PlaceSegment;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
-use typed_trees::dependent_ranges::DependentBoundClass;
+use typed_trees::data::DataDefinition;
+use typed_trees::data::TypeParameter;
+use typed_trees::data::TypeParameterKind;
+use typed_trees::dependent_ranges::{
+    DependentBoundClass, SymbolicMaxBound, dependent_range_maximum,
+};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
+use typed_trees::name::Identifier;
 use typed_trees::state::State;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
+use typed_trees::unsigned_integer_primitive_pattern;
+use validation::closed_integer_range_bound;
+use validation::closed_integer_range_maximum;
+use validation::declared_constant_array_type;
+use validation::declared_domain_predicate_bounds;
+use validation::declared_place_type_raw;
+use validation::exact_attached_field;
+use validation::exact_self_field;
+use validation::expression_result_type_reference;
+use validation::project_type_reference_from_segments;
 
 /// Same-carrier integer casts preserve positions, not domain or loan authority.
 pub(super) fn same_carrier_integer_cast_source(
@@ -26,7 +45,7 @@ pub(super) fn same_carrier_integer_cast_source(
         return None;
     }
     let target = program.primitive_type_reference(cast.target_type)?;
-    let source = validation::expression_result_type_reference(program, machine, state, cast.value)
+    let source = expression_result_type_reference(program, machine, state, cast.value)
         .and_then(|reference| program.primitive_type_reference(reference))?;
     (target.is_fixed_integer() && target == source).then_some(cast.value)
 }
@@ -45,7 +64,7 @@ pub(super) fn expression_is_unsigned_integer(
     matches!(
         expression_type_reference(program, machine, state, expression)
             .and_then(|type_reference| primitive_of_type_reference(program, type_reference)),
-        Some(typed_trees::unsigned_integer_primitive_pattern!())
+        Some(unsigned_integer_primitive_pattern!())
     )
 }
 
@@ -59,8 +78,7 @@ pub(in crate::checks) fn expression_integer_carrier_maximum(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<u64> {
-    let reference =
-        validation::expression_result_type_reference(program, machine, state, expression)?;
+    let reference = expression_result_type_reference(program, machine, state, expression)?;
     match program.primitive_type_reference(reference)? {
         PrimitiveType::U8 => Some(u64::from(u8::MAX)),
         PrimitiveType::U16 => Some(u64::from(u16::MAX)),
@@ -88,10 +106,9 @@ pub(in crate::checks) fn expression_integer_carrier_minimum(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<BigInt> {
-    let reference =
-        validation::expression_result_type_reference(program, machine, state, expression)?;
+    let reference = expression_result_type_reference(program, machine, state, expression)?;
     match program.primitive_type_reference(reference)? {
-        typed_trees::unsigned_integer_primitive_pattern!() => Some(BigInt::from_u64(0)),
+        unsigned_integer_primitive_pattern!() => Some(BigInt::from_u64(0)),
         PrimitiveType::I8 => Some(BigInt::from_i64(i64::from(i8::MIN))),
         PrimitiveType::I16 => Some(BigInt::from_i64(i64::from(i16::MIN))),
         PrimitiveType::I32 => Some(BigInt::from_i64(i64::from(i32::MIN))),
@@ -158,7 +175,7 @@ pub(in crate::checks) fn expression_enforced_declared_range(
                 return None;
             }
             (
-                validation::declared_place_type_raw(program, machine, Some(state), expression)?,
+                declared_place_type_raw(program, machine, Some(state), expression)?,
                 true,
             )
         }
@@ -222,7 +239,7 @@ fn dependent_range_substituted(
     // The symbolic bound retains a field spelling, but its owner is the exact
     // attached declaration. Another module's same-named record cannot supply
     // the store-enforced bound used to justify this parameter's indexes.
-    let field_type = validation::exact_attached_field(
+    let field_type = exact_attached_field(
         program,
         machine,
         SymbolHandle::invalid(),
@@ -248,11 +265,11 @@ fn dependent_range_substituted(
 /// A shell's constraint set spells a non-Exact arithmetic domain — a
 /// deliberately permissive layer neither dependent-range nor exact-shell
 /// walks may read through.
-fn has_non_exact_domain(constraints: &[typed_trees::types::TypeConstraintNode]) -> bool {
+fn has_non_exact_domain(constraints: &[TypeConstraintNode]) -> bool {
     constraints.iter().any(|constraint| {
         matches!(
             constraint,
-            typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
+            TypeConstraintNode::ArithmeticDomain(domain)
                 if *domain != numerics::arithmetic::ArithmeticDomain::Exact
         )
     })
@@ -261,7 +278,7 @@ fn has_non_exact_domain(constraints: &[typed_trees::types::TypeConstraintNode]) 
 fn dependent_range_of_type_reference(
     program: &dyn ::validation::CheckingInput,
     handle: TypeReferenceHandle,
-) -> Option<(i64, typed_trees::dependent_ranges::SymbolicMaxBound)> {
+) -> Option<(i64, SymbolicMaxBound)> {
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Reference { referee, .. } => {
             dependent_range_of_type_reference(program, *referee)
@@ -277,19 +294,14 @@ fn dependent_range_of_type_reference(
             constraints
                 .iter()
                 .find_map(|constraint| match constraint {
-                    typed_trees::types::TypeConstraintNode::Range {
+                    TypeConstraintNode::Range {
                         minimum,
                         maximum,
                         end_inclusive,
                     } => {
-                        let minimum =
-                            validation::closed_integer_range_bound(program, *minimum)?.to_i64()?;
+                        let minimum = closed_integer_range_bound(program, *minimum)?.to_i64()?;
                         let DependentBoundClass::SelfField(symbolic) =
-                            typed_trees::dependent_ranges::dependent_range_maximum(
-                                program,
-                                *maximum,
-                                *end_inclusive,
-                            )?
+                            dependent_range_maximum(program, *maximum, *end_inclusive)?
                         else {
                             return None;
                         };
@@ -310,7 +322,7 @@ fn dependent_range_of_type_reference(
 pub(in crate::checks::ranges) fn exact_domain_shell_constraints(
     program: &dyn ::validation::CheckingInput,
     mut handle: TypeReferenceHandle,
-    mut visit: impl FnMut(&[typed_trees::types::TypeConstraintNode]) -> bool,
+    mut visit: impl FnMut(&[TypeConstraintNode]) -> bool,
 ) -> Option<()> {
     loop {
         handle = program
@@ -348,9 +360,8 @@ fn enforced_range_of_type_reference(
             // establishes D at every write. So each predicate the
             // reader recognizes as a closed integer bound is a true
             // bound of the place, exactly as a bracketed range is.
-            if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint
-                && let Some((minimum, maximum)) =
-                    validation::declared_domain_predicate_bounds(program, domain)
+            if let TypeConstraintNode::Domain(domain) = constraint
+                && let Some((minimum, maximum)) = declared_domain_predicate_bounds(program, domain)
             {
                 bounds = Some(match bounds.take() {
                     Some((prior_minimum, prior_maximum)) => {
@@ -360,7 +371,7 @@ fn enforced_range_of_type_reference(
                 });
                 continue;
             }
-            let typed_trees::types::TypeConstraintNode::Range {
+            let TypeConstraintNode::Range {
                 minimum,
                 maximum,
                 end_inclusive,
@@ -368,11 +379,9 @@ fn enforced_range_of_type_reference(
             else {
                 continue;
             };
-            let Some((minimum, maximum)) =
-                validation::closed_integer_range_bound(program, *minimum).zip(
-                    validation::closed_integer_range_maximum(program, *maximum, *end_inclusive),
-                )
-            else {
+            let Some((minimum, maximum)) = closed_integer_range_bound(program, *minimum).zip(
+                closed_integer_range_maximum(program, *maximum, *end_inclusive),
+            ) else {
                 // This reader contributes only closed facts. Dependent
                 // endpoint substitution retains its separate owner.
                 continue;
@@ -405,7 +414,7 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
     machine: &Machine,
     state: &State,
     collection: ExpressionHandle,
-    extent: &(SymbolHandle, typed_trees::name::Identifier),
+    extent: &(SymbolHandle, Identifier),
     facts: &super::facts::RangeFacts<'_>,
 ) -> Option<i64> {
     let actual = (|| {
@@ -453,10 +462,7 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
             .position(|parameter| {
                 parameter.symbol == extent.0
                     && extent.0.is_valid()
-                    && matches!(
-                        parameter.kind,
-                        typed_trees::data::TypeParameterKind::Const { .. }
-                    )
+                    && matches!(parameter.kind, TypeParameterKind::Const { .. })
             })?;
         program
             .type_reference_table
@@ -507,11 +513,7 @@ fn symbolic_extent_floor(
         .or_else(|| attached_data_const_parameter_reference(program, machine, extent_symbol))?;
     let declared = constrained_minimum_of_type_reference(program, reference).or_else(|| {
         primitive_of_type_reference(program, reference).and_then(|primitive| {
-            matches!(
-                primitive,
-                typed_trees::unsigned_integer_primitive_pattern!()
-            )
-            .then_some(0)
+            matches!(primitive, unsigned_integer_primitive_pattern!()).then_some(0)
         })
     });
     let required = facts.const_binder_floor(extent_symbol);
@@ -531,12 +533,8 @@ pub(in crate::checks::ranges) fn is_const_binder(
     if !symbol.is_valid() {
         return false;
     }
-    let matches = |parameter: &typed_trees::data::TypeParameter| {
-        parameter.symbol == symbol
-            && matches!(
-                parameter.kind,
-                typed_trees::data::TypeParameterKind::Const { .. }
-            )
+    let matches = |parameter: &TypeParameter| {
+        parameter.symbol == symbol && matches!(parameter.kind, TypeParameterKind::Const { .. })
     };
     program.machine_type_parameters(machine).iter().any(matches)
         || program
@@ -565,8 +563,8 @@ fn attached_data_const_parameter_reference(
         .data_type_parameters(data)
         .iter()
         .find_map(|parameter| match &parameter.kind {
-            typed_trees::data::TypeParameterKind::Const { type_reference }
-            | typed_trees::data::TypeParameterKind::Value { type_reference }
+            TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference }
                 if extent_symbol.is_valid() && parameter.symbol == extent_symbol =>
             {
                 Some(*type_reference)
@@ -586,16 +584,14 @@ fn constrained_minimum_of_type_reference(
     let mut minimum: Option<numerics::bignum::BigInt> = None;
     exact_domain_shell_constraints(program, handle, |constraints| {
         for constraint in constraints {
-            let typed_trees::types::TypeConstraintNode::Range {
+            let TypeConstraintNode::Range {
                 minimum: range_minimum,
                 ..
             } = constraint
             else {
                 continue;
             };
-            let Some(range_minimum) =
-                validation::closed_integer_range_bound(program, *range_minimum)
-            else {
+            let Some(range_minimum) = closed_integer_range_bound(program, *range_minimum) else {
                 continue;
             };
             minimum = Some(match minimum.take() {
@@ -627,7 +623,7 @@ pub(in crate::checks::ranges) fn declared_bound_names_symbolic_extent(
     let mut found = None;
     exact_domain_shell_constraints(program, handle, |constraints| {
         for constraint in constraints {
-            let typed_trees::types::TypeConstraintNode::Range {
+            let TypeConstraintNode::Range {
                 maximum,
                 end_inclusive,
                 ..
@@ -658,13 +654,11 @@ pub(in crate::checks::ranges) fn expression_type_reference(
 ) -> Option<TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Cast(_) => {
-            validation::expression_result_type_reference(program, machine, state, expression)
+            expression_result_type_reference(program, machine, state, expression)
         }
-        ExpressionNode::ArrayLiteral(_) => {
-            validation::declared_constant_array_type(program, expression)
-        }
+        ExpressionNode::ArrayLiteral(_) => declared_constant_array_type(program, expression),
         ExpressionNode::StructLiteral(_) => {
-            validation::expression_result_type_reference(program, machine, state, expression)
+            expression_result_type_reference(program, machine, state, expression)
         }
         ExpressionNode::Borrow(inner) => {
             expression_type_reference(program, machine, state, inner.target)
@@ -677,7 +671,7 @@ pub(in crate::checks::ranges) fn expression_type_reference(
             if call.static_requirement_dispatch.is_some() {
                 return None;
             }
-            validation::declared_place_type_raw(program, machine, Some(state), expression)
+            declared_place_type_raw(program, machine, Some(state), expression)
         }
         ExpressionNode::Indexed(indexed)
             if !matches!(
@@ -687,10 +681,10 @@ pub(in crate::checks::ranges) fn expression_type_reference(
         {
             let collection =
                 expression_type_reference(program, machine, state, indexed.collection)?;
-            validation::project_type_reference_from_segments(
+            project_type_reference_from_segments(
                 program,
                 collection,
-                &[facts::PlaceSegment::Index {
+                &[PlaceSegment::Index {
                     expression: indexed.index,
                 }],
             )
@@ -701,27 +695,25 @@ pub(in crate::checks::ranges) fn expression_type_reference(
         ExpressionNode::Name(path) => {
             type_reference_for_symbol(program, machine, state, path.symbol)
         }
-        ExpressionNode::Member(member) => {
-            validation::exact_self_field(program, machine, expression)
-                .map(|field| field.type_reference)
-                .or_else(|| {
-                    expression_type_reference(program, machine, state, member.receiver).and_then(
-                        |receiver_type| {
-                            data_field_type_reference(
-                                program,
-                                receiver_type,
-                                member.member_symbol,
-                                &member.member,
-                            )
-                        },
-                    )
-                })
-        }
+        ExpressionNode::Member(member) => exact_self_field(program, machine, expression)
+            .map(|field| field.type_reference)
+            .or_else(|| {
+                expression_type_reference(program, machine, state, member.receiver).and_then(
+                    |receiver_type| {
+                        data_field_type_reference(
+                            program,
+                            receiver_type,
+                            member.member_symbol,
+                            &member.member,
+                        )
+                    },
+                )
+            }),
         // The selected operation supplies the result carrier for both unary
         // and binary computations. For example, `~position` and `position - 1`
         // on u64 are nonnegative by their result type, not by operand bounds.
         ExpressionNode::Binary(_) | ExpressionNode::Unary(_) => {
-            validation::expression_result_type_reference(program, machine, state, expression)
+            expression_result_type_reference(program, machine, state, expression)
         }
         _ => None,
     }
@@ -759,8 +751,8 @@ fn type_reference_for_symbol(
                 .machine_type_parameters(machine)
                 .iter()
                 .find_map(|parameter| match &parameter.kind {
-                    typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | typed_trees::data::TypeParameterKind::Value { type_reference }
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference }
                         if parameter.symbol == symbol =>
                     {
                         Some(*type_reference)
@@ -805,7 +797,7 @@ fn data_field_type_reference(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     member_symbol: SymbolHandle,
-    member_name: &typed_trees::name::Identifier,
+    member_name: &Identifier,
 ) -> Option<TypeReferenceHandle> {
     ::validation::field_domains::data_field_type_reference_by_symbol_or_name(
         program,
@@ -819,8 +811,8 @@ fn data_field_type_reference(
 fn data_definition_by_symbol_or_name<'program>(
     program: &'program dyn ::validation::CheckingInput,
     symbol: SymbolHandle,
-    name: &typed_trees::name::Identifier,
-) -> Option<&'program typed_trees::data::DataDefinition> {
+    name: &Identifier,
+) -> Option<&'program DataDefinition> {
     program.data_definitions().iter().find(|data_definition| {
         if symbol.is_valid() {
             data_definition.symbol == symbol

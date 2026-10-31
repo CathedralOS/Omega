@@ -4,8 +4,10 @@ use crate::collections::push_unique;
 use crate::flow::expressions;
 use crate::places::place_at;
 use crate::proof::contract_target_from_state_symbol;
-use validation::CallSite;
+use facts::PlaceRoot;
+use typed_trees::expression::MatchPattern;
 use validation::CanonicalPlace;
+use validation::{CallSite, ImmutableBoundLookup, find_state_in_machine};
 
 use checked_trees::CheckedOperatorFacts;
 mod atomics;
@@ -31,7 +33,7 @@ pub(super) struct ReadWalk<'a, 'b, 'c> {
     calls: Option<&'c RangeCallContext<'c>>,
     operators: Option<&'c CheckedOperatorFacts>,
     reads: &'c mut Vec<CanonicalPlace>,
-    bound_lookup: &'b validation::ImmutableBoundLookup<'b>,
+    bound_lookup: &'b ImmutableBoundLookup<'b>,
 }
 
 impl<'a, 'b, 'c> ReadWalk<'a, 'b, 'c> {
@@ -43,7 +45,7 @@ impl<'a, 'b, 'c> ReadWalk<'a, 'b, 'c> {
         calls: Option<&'c RangeCallContext<'c>>,
         operators: Option<&'c CheckedOperatorFacts>,
         reads: &'c mut Vec<CanonicalPlace>,
-        bound_lookup: &'b validation::ImmutableBoundLookup<'b>,
+        bound_lookup: &'b ImmutableBoundLookup<'b>,
     ) -> Self {
         Self {
             program,
@@ -60,7 +62,7 @@ impl<'a, 'b, 'c> ReadWalk<'a, 'b, 'c> {
     /// Whether a read's root is current in the exact authored state prefix —
     /// the shared form of the prefix scan `capture_place_read` and the
     /// operand capture both consult.
-    pub(super) fn root_is_current(&self, root: facts::PlaceRoot) -> bool {
+    pub(super) fn root_is_current(&self, root: PlaceRoot) -> bool {
         root_currency::root_is_current(
             self.program,
             self.machine,
@@ -160,11 +162,9 @@ impl ReadWalk<'_, '_, '_> {
                 else {
                     return false;
                 };
-                let Some(_target_state) = validation::find_state_in_machine(
-                    program,
-                    target_machine_symbol,
-                    target_state_symbol,
-                ) else {
+                let Some(_target_state) =
+                    find_state_in_machine(program, target_machine_symbol, target_state_symbol)
+                else {
                     return false;
                 };
                 true
@@ -199,7 +199,7 @@ impl ReadWalk<'_, '_, '_> {
                     // receivers.
                     if let Some(place) =
                         place_at(program, state.symbol, statement_index, expression)
-                        && matches!(place.root, facts::PlaceRoot::Symbol(_))
+                        && matches!(place.root, PlaceRoot::Symbol(_))
                     {
                         self.descend_and_capture_symbol_place(expression, place, depth)
                     } else {
@@ -239,15 +239,13 @@ impl ReadWalk<'_, '_, '_> {
                         dispatch.arms,
                         |arm_pattern, arm_value| {
                             (match arm_pattern {
-                                typed_trees::expression::MatchPattern::Destructure(_) => {
-                                    expressions(program)
-                                        .match_pattern_operands(arm_pattern)
-                                        .all(|operand| self.collect_operand_reads(operand, depth))
-                                }
-                                typed_trees::expression::MatchPattern::Value(pattern) => {
+                                MatchPattern::Destructure(_) => expressions(program)
+                                    .match_pattern_operands(arm_pattern)
+                                    .all(|operand| self.collect_operand_reads(operand, depth)),
+                                MatchPattern::Value(pattern) => {
                                     self.collect_operand_reads(pattern, depth)
                                 }
-                                typed_trees::expression::MatchPattern::Wildcard => true,
+                                MatchPattern::Wildcard => true,
                             }) && self.collect_operand_reads(arm_value, depth)
                         },
                     )

@@ -1,13 +1,10 @@
 use super::RangeFacts;
+use symbols::SymbolHandle;
 
 mod aliases;
 
 impl RangeFacts<'_> {
-    pub(in super::super) fn prove_const_binder_floor(
-        &mut self,
-        symbol: symbols::SymbolHandle,
-        floor: i64,
-    ) {
+    pub(in super::super) fn prove_const_binder_floor(&mut self, symbol: SymbolHandle, floor: i64) {
         if let Some((_, known)) = self
             .const_binder_floors
             .iter_mut()
@@ -19,10 +16,7 @@ impl RangeFacts<'_> {
         }
     }
 
-    pub(in super::super) fn const_binder_floor(
-        &self,
-        symbol: symbols::SymbolHandle,
-    ) -> Option<i64> {
+    pub(in super::super) fn const_binder_floor(&self, symbol: SymbolHandle) -> Option<i64> {
         self.const_binder_floors
             .iter()
             .find_map(|(known, floor)| (*known == symbol).then_some(*floor))
@@ -33,7 +27,7 @@ impl RangeFacts<'_> {
     pub(in super::super) fn prove_below_const_binder(
         &mut self,
         index: String,
-        binder: symbols::SymbolHandle,
+        binder: SymbolHandle,
     ) {
         if !binder.is_valid()
             || self
@@ -46,11 +40,7 @@ impl RangeFacts<'_> {
         self.below_const_binders.push((index, binder));
     }
 
-    pub(in super::super) fn below_const_binder(
-        &self,
-        index: &str,
-        binder: symbols::SymbolHandle,
-    ) -> bool {
+    pub(in super::super) fn below_const_binder(&self, index: &str, binder: SymbolHandle) -> bool {
         binder.is_valid()
             && self
                 .below_const_binders
@@ -58,10 +48,7 @@ impl RangeFacts<'_> {
                 .any(|(known_index, known_binder)| known_index == index && *known_binder == binder)
     }
 
-    pub(in super::super) fn const_binders_strictly_above(
-        &self,
-        index: &str,
-    ) -> Vec<symbols::SymbolHandle> {
+    pub(in super::super) fn const_binders_strictly_above(&self, index: &str) -> Vec<SymbolHandle> {
         self.below_const_binders
             .iter()
             .filter(|(known_index, _)| known_index == index)
