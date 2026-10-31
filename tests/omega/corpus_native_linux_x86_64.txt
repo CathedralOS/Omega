@@ -3309,6 +3309,15 @@ pass/facts/indexed_storage_address_identity_through_other_machine_exit built 265
 pass/facts/indexed_storage_address_identity_through_other_state_exit built 3325ms exit:0 @a92f16431042
 pass/facts/indexed_storage_address_identity_through_parameter_exit built 2771ms exit:0 @a92f16431042
 pass/facts/indexed_storage_address_identity_through_target_body_exit built 2381ms exit:0 @a92f16431042
+pass/facts/induction_call_guarantee_through_call_result_exit built 3149ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_const_name_exit built 2724ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_field_exit built 2697ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_local_exit built 3125ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_match_join_exit built 2579ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_other_machine_exit built 2735ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_other_state_exit built 2736ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_parameter_exit built 2734ms exit:0 @961147032a93+wt
+pass/facts/induction_call_guarantee_through_target_body_exit built 1936ms exit:0 @961147032a93+wt
 pass/facts/inferred_array_equation_call_through_call_result_exit built 2636ms exit:0 @a92f16431042
 pass/facts/inferred_array_equation_call_through_const_name_exit built 3390ms exit:0 @a92f16431042
 pass/facts/inferred_array_equation_call_through_field_exit built 2953ms exit:0 @a92f16431042
