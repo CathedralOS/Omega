@@ -3,18 +3,18 @@ use omega::language::core::float_operations;
 machine scale(value: f32 in Trapping) -> f32 in Trapping
 requires F32::is_finite((value as f32) * 2.00f32)
 crashes Trap false {
-    value * 2.0f32
+    (value * 2.0f32) as f32 in Trapping
 }
 
 machine finite_narrow(value: f64 in Trapping) -> f32 in Trapping
 requires F32::is_finite(F32::from_f64(value as f64))
 crashes Trap false {
-    F32::from_f64(value)
+    F32::from_f64(value) as f32 in Trapping
 }
 
 machine closed_scale() -> f32 in Trapping
 crashes Trap false {
-    (1.5f32 as f32 in Trapping) * 2.0f32
+    ((1.5f32 as f32 in Trapping) * 2.0f32) as f32 in Trapping
 }
 
 // A Boolean wellness query does not adapt its qualified input value.

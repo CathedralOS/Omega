@@ -447,8 +447,9 @@ retired-syntax deletions to completion.
   with its interpreter and native consumers.
   - **IMPLICIT-STORE-CONVERSION:** migrate remaining cross-carrier/policy stores
     in samples (**SAMPLE-CORPUS**) and in maintained pass fixtures outside
-    `tests/omega/pass/arithmetic` and `tests/omega/pass/core` to explicit
-    conversions (`as` requires unchanged denotation and representability;
+    `tests/omega/pass/arithmetic`, `tests/omega/pass/core`, and
+    `tests/omega/pass/float` to explicit conversions (`as` requires
+    unchanged denotation and representability;
     wrapping/clamping use
     `core/numeric_conversion.omg`), producing one actionable diagnostic per
     authored conversion error.
