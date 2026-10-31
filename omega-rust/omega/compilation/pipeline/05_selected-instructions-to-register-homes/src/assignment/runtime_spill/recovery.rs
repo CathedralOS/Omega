@@ -160,9 +160,8 @@ impl SpillPressureProbe {
 // spill them like any other value; admission still rejects the ones defined
 // by address-producing instructions. A committed rewrite can mint registers
 // — a split's fresh register keeps any pinned use over its own span — so the
-// pool re-derives against each step's plan. Reloads from either recovery form
-// restate the victim's own origin, so `retire_minted` keeps them out. Only the
-// failed function's registers can relieve its pressure and every step rewrites
+// pool re-derives against each step's plan. Only the failed function's
+// registers can relieve its pressure and every step rewrites
 // only that function, so the roster reads that one function's registers rather
 // than every register of the program at each step.
 pub(super) fn candidates(
@@ -192,66 +191,6 @@ fn is_recovery_candidate(
             | VirtualRegisterOrigin::StructuralObservation { .. }
             | VirtualRegisterOrigin::AbiTransport { .. }
     ) || body.is_entry_register(register)
-}
-
-/// Retire every candidate a spill or rematerialization step minted. Their
-/// reloads and carriers restate the victim's origin — an instruction result
-/// or a structural observation — so `candidates` would readmit them, and
-/// each spill would mint the next victim: one pressured value then chains
-/// through a fresh reload per step, each step a whole-function analysis.
-/// A split's fresh register is the only minted register that joins the pool.
-/// The step rewrote `function` alone, so only its registers can be new.
-#[allow(dead_code)]
-pub(super) fn retire_minted(
-    retired: &mut std::collections::BTreeSet<(usize, VirtualRegisterId)>,
-    function: usize,
-    before: &SelectedInstructionPlan,
-    after: &SelectedInstructionPlan,
-) {
-    // These rewrites append fresh declarations. Verify that exact prefix and
-    // entry-role stability before reading only the new suffix. Unusual inputs
-    // retain the general set difference below; no ID-density assumption enters.
-    if let (Some(prior), Some(current)) = (
-        before.functions.get(function),
-        after.functions.get(function),
-    ) {
-        let result_place = |body: &selected_instructions::SelectedFunction| {
-            body.structural
-                .as_ref()
-                .and_then(|signature| signature.result.as_ref())
-                .map(|result| result.place)
-        };
-        let count = prior.virtual_registers.len();
-        if result_place(prior) == result_place(current)
-            && current.virtual_registers.get(..count) == Some(prior.virtual_registers.as_slice())
-        {
-            let maximum = prior
-                .virtual_registers
-                .iter()
-                .map(|register| register.id)
-                .max();
-            let appended = &current.virtual_registers[count..];
-            if appended
-                .iter()
-                .all(|register| maximum.is_none_or(|maximum| register.id > maximum))
-            {
-                retired.extend(
-                    appended
-                        .iter()
-                        .filter(|register| is_recovery_candidate(current, register))
-                        .map(|register| (function, register.id)),
-                );
-                return;
-            }
-        }
-    }
-    let existing: std::collections::BTreeSet<_> =
-        candidates(before, function).into_iter().collect();
-    retired.extend(
-        candidates(after, function)
-            .into_iter()
-            .filter(|entry| !existing.contains(entry)),
-    );
 }
 
 /// Every recorded transformation this recovery produced, appended after the
