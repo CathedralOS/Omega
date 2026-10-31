@@ -12204,6 +12204,7 @@ pass/recast/mutable_signed_bits_write_compile checked 2221ms @ccdb99ca2214
 pass/recast/mutable_u16_signed_write_compile checked 2833ms @ccdb99ca2214
 pass/recast/mutable_unsigned_signed_write_compile checked 2515ms @ccdb99ca2214
 pass/recast/narrow_signed_bits_view_compile checked 2356ms @ccdb99ca2214
+pass/recast/native_bounded_array_window_exit checked 1315ms check-target:macos_arm64 @bb8f3fedf0ae
 pass/recast/nested_operand_view_compile checked 2761ms @ccdb99ca2214
 pass/recast/non_owning_erasure_additional_record_predicate_exit checked 3181ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/non_owning_erasure_authored_reestablishment_exit checked 3470ms check-target:macos_arm64 @ccdb99ca2214
@@ -37559,6 +37560,8 @@ fail/recast/interior_slice_runtime_offset_non_tiling rejected 639ms expected @cc
 	machine `Main::main` state `main`: cannot prove exact tiling for interior slice `[u16]`: the runtime byte offset may leave a remainder for 2-byte elements; use a statically exact offset or validate the dynamic region before establishing the typed slice
 fail/recast/local_stored_byte_region_escape rejected 2671ms expected @ccdb99ca2214
 	machine `escape` returns a view borrowing the local `bytes`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/recast/native_bounded_array_window_short rejected 969ms expected @bb8f3fedf0ae
+	cannot prove requires contract for call fill from main: bytes[8..151].len >= 144 (needs fact `output.len >= 144` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/recast/non_owning_erasure_false_reestablishment rejected 2873ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from overwrite at statement 2: storage in Storage::Issued
 fail/recast/non_owning_erasure_joined_shared_store rejected 730ms expected @ccdb99ca2214
