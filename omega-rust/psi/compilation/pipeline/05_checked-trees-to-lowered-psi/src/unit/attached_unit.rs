@@ -676,6 +676,7 @@ pub(crate) fn lower_unit_closure(
         &machine_ids,
     )?;
     let lowered = LoweredPsi {
+        source_boundary_declarations: Vec::new(),
         build_provider_requirements: Vec::new(),
         semantic_module: TerminalModule {
             scalar_applications: scalar_applications.publish(

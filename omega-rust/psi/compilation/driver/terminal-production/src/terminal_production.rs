@@ -84,8 +84,13 @@ impl<'a> TerminalProductionRequest<'a> {
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
         if let Some(inventory) = self.provider_inventory {
-            crate::calling_signatures::capture(checked, inventory, &mut lowered.semantic_module)
-                .map_err(TerminalArtifactProductionError::BuildContext)?;
+            crate::calling_signatures::capture(
+                checked,
+                inventory,
+                &mut lowered.semantic_module,
+                &lowered.source_boundary_declarations,
+            )
+            .map_err(TerminalArtifactProductionError::BuildContext)?;
         }
         // Every consumer observes the same unoptimized composition. A target's
         // refusal cannot erase behavior or reject an independently admitted one.
