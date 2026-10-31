@@ -19,11 +19,8 @@ pub(super) fn lower(
 ) -> Result<AbstractOperation, LoweringError> {
     Ok(match operation.kind.clone() {
         OperationKind::EstablishNativeCodeLayout { machine } => {
-            let result = operation
-                .result
-                .structural()
-                .cloned()
-                .ok_or(LoweringError::UnsupportedScalarArray(operation.id))?;
+            let result =
+                super::structural_result(operation, LoweringError::UnsupportedScalarArray)?;
             AbstractOperation::EstablishNativeCodeLayout {
                 psi_operation: operation.id,
                 result,
@@ -35,8 +32,9 @@ pub(super) fn lower(
             right,
             capacity_obligation,
         } => {
-            let result = operation.result.structural().cloned().ok_or(
-                LoweringError::InvalidByteSequenceConcatenation(operation.id),
+            let result = super::structural_result(
+                operation,
+                LoweringError::InvalidByteSequenceConcatenation,
             )?;
             // Preserve the validated live extents and source projections. An
             // owned result is fresh storage, never a view into either operand.
@@ -49,11 +47,8 @@ pub(super) fn lower(
             }
         }
         OperationKind::EstablishStructuralArray { elements } => {
-            let result = operation
-                .result
-                .structural()
-                .cloned()
-                .ok_or(LoweringError::UnsupportedScalarArray(operation.id))?;
+            let result =
+                super::structural_result(operation, LoweringError::UnsupportedScalarArray)?;
             AbstractOperation::EstablishStructuralArray {
                 psi_operation: operation.id,
                 result,
@@ -61,9 +56,8 @@ pub(super) fn lower(
             }
         }
         OperationKind::EstablishScalarArray { elements } => {
-            let Some(result) = operation.result.structural().cloned() else {
-                return Err(LoweringError::UnsupportedScalarArray(operation.id));
-            };
+            let result =
+                super::structural_result(operation, LoweringError::UnsupportedScalarArray)?;
             // Canonical admission checked exact shape, leaf types and dominance.
             // Preserve those operands and their result identity for independent
             // current-IR validation; native layout is not decided by projection.
@@ -77,9 +71,8 @@ pub(super) fn lower(
             result_case,
             fields,
         } => {
-            let Some(result) = operation.result.structural().cloned() else {
-                return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));
-            };
+            let result =
+                super::structural_result(operation, LoweringError::UnsupportedPayloadlessCase)?;
             AbstractOperation::EstablishCase {
                 psi_operation: operation.id,
                 result,
@@ -100,9 +93,8 @@ pub(super) fn lower(
             result_case,
             fields,
         } => {
-            let Some(result) = operation.result.structural().cloned() else {
-                return Err(LoweringError::UnsupportedStructuralCase(operation.id));
-            };
+            let result =
+                super::structural_result(operation, LoweringError::UnsupportedStructuralCase)?;
             AbstractOperation::EstablishCase {
                 psi_operation: operation.id,
                 result,
