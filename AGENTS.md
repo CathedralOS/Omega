@@ -488,6 +488,10 @@ profiles bound to the actual binary digests. See
   `~/.cache/mbx` on Unix), hardlinking pre-compiled objects across worktrees.
   Update it via `cargo install mbx`. Running `mbx setup` configures plain Cargo
   commands to leverage mbx caching automatically.
+- Keep each worktree's Cargo target directory independent. Share mbx's cache,
+  not `CARGO_TARGET_DIR` between checkouts: Cargo can treat another checkout's
+  artifacts as fresh. In particular, baseline comparisons must not write into
+  the candidate's target directory.
 - Keep each worktree's Cargo target directory separate, including baseline
   comparisons. Share objects through `mbx`, never by pointing two worktrees at
   one `CARGO_TARGET_DIR`; a baseline can replace dependencies later reused as fresh.
