@@ -3,8 +3,9 @@
 //! Portable artifacts and invocation-only code share Terminal semantics, not
 //! publication rights. These producer results are not another Psi IR.
 
-use crate::{TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildRequests};
 use crate::TerminalBuildFilesystemCall;
+use crate::{TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildRequests};
+use compiler_storage::RecordWriter;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     NativeBindingFormation, ProductDeclarationRequest,
@@ -50,10 +51,7 @@ pub struct ProducedTerminalProgram {
 // cross this boundary. The enclosing source continuation still requires fresh
 // input and declaration-authority admission before any receipt can be reused.
 impl compiler_storage::Record for ProducedTerminalProgram {
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
+    fn write(&self, output: &mut RecordWriter) -> Result<(), compiler_storage::RecordError> {
         output.record(|output| {
             self.artifact()
                 .map_err(|error| output.error(error.to_string()))?
