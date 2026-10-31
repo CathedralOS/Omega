@@ -35,6 +35,7 @@ impl StateGraphEmission<'_, '_> {
         evaluation.entry = entry;
         evaluation.parameter_storage.clear();
         evaluation.previous_parameter_homes.clear();
+        evaluation.enclosing_structural_arrivals.clear();
         evaluation.erased_scalar_formals = self.invocation_erased.clone();
         let parameters = state
             .structural_parameters

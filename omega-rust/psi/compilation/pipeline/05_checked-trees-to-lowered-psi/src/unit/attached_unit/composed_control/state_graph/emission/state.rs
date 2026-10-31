@@ -231,6 +231,7 @@ impl StateGraphEmission<'_, '_> {
             structural_fields: Default::default(),
             structural_cases: Vec::new(),
             previous_parameter_homes: Vec::new(),
+            enclosing_structural_arrivals: Vec::new(),
             structural_parameters: state
                 .structural_parameters
                 .iter()
