@@ -778,6 +778,13 @@ impl StructuralJudge<'_> {
                         .normal_results
                         .iter()
                         .find(|(source, _)| *source == expression);
+                    if super::super::struct_trace() {
+                        eprintln!(
+                            "STRUCT captured-index owner={} source={} value={completed:?}",
+                            self.program.symbols.display_path(self.machine_symbol, "::"),
+                            self.program.expression_table.display_name(expression)
+                        );
+                    }
                     let (_, value) = completed?;
                     let value = self.completed_value_identity(value.clone());
                     value.observation_identity_key()?;
@@ -815,6 +822,13 @@ impl StructuralJudge<'_> {
         }
         let place = self.captured_storage_coordinate(scope, expression)?;
         let current = self.current_storage_value(&place);
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT current-store owner={} source={} current={current:?}",
+                self.program.symbols.display_path(self.machine_symbol, "::"),
+                self.program.expression_table.display_name(expression)
+            );
+        }
         // An owned descriptor cell identifies the pointer, not its scalar
         // contents. A separately authenticated live backing read may observe
         // those contents; otherwise retain the descriptor's existing fence.
@@ -1261,6 +1275,15 @@ impl StructuralJudge<'_> {
     ) -> Option<()> {
         self.observe_storage_effects(state, destination.frame.complete_paths())?;
         if let Some(coordinate) = destination.coordinate {
+            if super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT install-store owner={} type={:?} value={value:?}",
+                    self.program.symbols.display_path(self.machine_symbol, "::"),
+                    self.program
+                        .type_reference_table
+                        .type_reference(destination.stored_type)
+                );
+            }
             let value = if self
                 .frame_resolver()
                 .is_some_and(|frames| frames.value_is_reference_free(destination.stored_type))

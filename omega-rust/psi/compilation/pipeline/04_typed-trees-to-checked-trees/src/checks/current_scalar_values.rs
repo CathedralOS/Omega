@@ -885,7 +885,7 @@ impl<'program> CurrentScalarValues<'program> {
                         self.statement_index,
                         self.in_transition_target,
                         validation::NumericObservationDemand {
-                            scalar_values: true,
+                            scalar_values: validation::ScalarObservationDemand::StatePrefix,
                             integer_operations: false,
                             scalar_associations: false,
                         },

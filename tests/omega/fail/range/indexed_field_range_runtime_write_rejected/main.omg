@@ -1,18 +1,19 @@
-// A `where` invariant on a FIELD projected through a runtime-indexed record
+// A data `requires` predicate on a FIELD projected through a runtime-indexed record
 // element is still the destination's store-enforced invariant. The indexed
 // projection must not erase the field invariant and allow an out-of-range
 // write. (Was: `value: i32 [0..=7]` field suffix inside `Cell`; the bound now
-// lives on `Cell`'s where-facts.)
+// lives on `Cell`'s default-domain predicates.)
 use omega_language_std::console;
 
 data Cell
-where
-    0 <= value && value <= 7,
+requires self.value >= 0 && self.value <= 7
 {
     value: i32;
 }
 
-data Main {
+data Main
+requires self.i <= 3
+{
     cells: [Cell; 4];
     i: u64;
 }

@@ -159,6 +159,36 @@ pub(crate) fn value_shape(
     None
 }
 
+/// This interpreter binds only ordinary integer/Boolean carriers and readable
+/// integer collections. A declaration call has no checked caller admission:
+/// neither a legacy range nor a domain qualification may disappear when its
+/// formal is viewed through `value_shape`'s representation-only projection.
+fn has_only_carrier_parameters(program: &dyn crate::CheckingInput, entry: &State) -> bool {
+    program.state_parameters(entry).iter().all(|parameter| {
+        let mut reference = parameter.type_reference;
+        for _ in 0..8 {
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Reference {
+                    referee,
+                    access: language_core::ReferenceAccess::Shared,
+                    ..
+                } => reference = *referee,
+                TypeReferenceNode::FixedArray { element_type, .. }
+                | TypeReferenceNode::Slice { element_type } => {
+                    return super::bare_integer_parameter_type(program, *element_type).is_some();
+                }
+                TypeReferenceNode::Named { .. } => {
+                    return super::bare_integer_parameter_type(program, reference).is_some()
+                        || program.primitive_type_reference(reference)
+                            == Some(PrimitiveType::Bool);
+                }
+                _ => return false,
+            }
+        }
+        false
+    })
+}
+
 /// The index of a free predicate machine the explorer may enter, selected by
 /// its machine symbol or its entry state symbol. `entered_by_call` admits
 /// arrival requirements, which the caller's checked body already proved.
@@ -192,13 +222,21 @@ pub(crate) fn admitted_predicate_machine(
             .is_empty();
     let returns_boolean =
         program.primitive_type_reference(entry.return_type) == Some(PrimitiveType::Bool);
+    // Formal-domain obligations are synthesized on the entry state. They
+    // constrain admission just like authored machine requires; stripping a
+    // qualified formal to its carrier cannot discharge either roster.
     let unconditional = entered_by_call
-        || program.machine_contracts(machine).iter().all(|contract| {
-            !matches!(
-                contract.kind,
-                typed_trees::signature::SignatureContractKind::Requires
-            )
-        });
+        || (has_only_carrier_parameters(program, entry)
+            && program
+                .machine_contracts(machine)
+                .iter()
+                .chain(program.state_contracts(entry))
+                .all(|contract| {
+                    !matches!(
+                        contract.kind,
+                        typed_trees::signature::SignatureContractKind::Requires
+                    )
+                }));
     let parameters_readable = program.machine_states(machine).iter().all(|state| {
         program
             .state_parameters(state)
@@ -256,9 +294,87 @@ pub(crate) enum Value {
 
 /// One activation's scope: the state whose parameters `bindings` bind, in
 /// declaration order, plus the immutable locals declared so far on this path.
+#[derive(Clone, Copy)]
+pub(crate) enum Scope<'scope> {
+    State {
+        machine: &'scope Machine,
+        state: &'scope State,
+    },
+    Declaration {
+        owner: symbols::SymbolHandle,
+        parameters: &'scope [typed_trees::signature::StateParameter],
+    },
+}
+
+impl Scope<'_> {
+    fn owner(self) -> symbols::SymbolHandle {
+        match self {
+            Self::State { machine, .. } => machine.symbol,
+            Self::Declaration { owner, .. } => owner,
+        }
+    }
+
+    fn parameters<'a>(
+        &'a self,
+        program: &'a dyn crate::CheckingInput,
+    ) -> &'a [typed_trees::signature::StateParameter] {
+        match self {
+            Self::State { state, .. } => program.state_parameters(state),
+            Self::Declaration { parameters, .. } => parameters,
+        }
+    }
+
+    fn expression_type(
+        self,
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        match self {
+            Self::State { machine, state } => {
+                crate::expression_result_type_reference(program, machine, state, expression)
+            }
+            Self::Declaration { owner, parameters } => {
+                crate::parameter_expression_result_type_reference(
+                    program, owner, parameters, expression,
+                )
+            }
+        }
+    }
+
+    fn builtin_binary(
+        self,
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> bool {
+        match self {
+            Self::State { machine, state } => {
+                has_builtin_binary_expression_meaning(program, machine, Some(state), expression)
+            }
+            Self::Declaration { owner, .. } => {
+                let Some(binary) = program.expression_table.binary_node(expression) else {
+                    return false;
+                };
+                let Some(spelling) =
+                    typed_trees::operator::binary_operator_spelling(binary.operator)
+                else {
+                    return false;
+                };
+                let references = [binary.left, binary.right]
+                    .map(|operand| self.expression_type(program, operand));
+                typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    program,
+                    owner,
+                    expression,
+                    spelling,
+                    &references,
+                )
+            }
+        }
+    }
+}
+
 pub(crate) struct Frame<'scope> {
-    pub(crate) machine: &'scope Machine,
-    pub(crate) state: &'scope State,
+    pub(crate) scope: Scope<'scope>,
     pub(crate) bindings: &'scope [Binding],
     pub(crate) locals: &'scope [(symbols::SymbolHandle, Binding)],
     pub(crate) completed_calls: &'scope [(ExpressionHandle, bool)],
@@ -274,6 +390,106 @@ pub(crate) fn explore(
 ) -> Option<Outcomes> {
     let mut remaining = WORK_BUDGET;
     explore_at(program, machine, 0, bindings, atoms, &mut remaining, 0)
+}
+
+/// A declaration proposition is a Boolean expression over the supplied field
+/// telescope, not a fabricated machine. It shares the predicate interpreter,
+/// atom splitting, call admission and work budget with executable predicates.
+pub(crate) fn explore_expression(
+    program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    expression: ExpressionHandle,
+    bindings: Vec<Binding>,
+    atoms: Vec<IntegerSet>,
+) -> Option<Outcomes> {
+    let mut remaining = WORK_BUDGET;
+    let mut pending = vec![(atoms, Vec::new())];
+    let mut outcomes = Outcomes {
+        when_true: None,
+        when_false: None,
+    };
+    while let Some((atoms, completed_calls)) = pending.pop() {
+        remaining = remaining.checked_sub(1)?;
+        let frame = Frame {
+            scope: Scope::Declaration { owner, parameters },
+            bindings: &bindings,
+            locals: &[],
+            completed_calls: &completed_calls,
+        };
+        match evaluate_boolean(program, &frame, &atoms, expression) {
+            Ok(value) => {
+                let result = if value {
+                    &mut outcomes.when_true
+                } else {
+                    &mut outcomes.when_false
+                };
+                *result = Some(match result.take() {
+                    Some(previous) => join(&previous, &atoms)?,
+                    None => atoms,
+                });
+            }
+            Err(stop) => pending.extend(resume_after_stop(
+                program,
+                stop,
+                atoms,
+                &completed_calls,
+                &mut remaining,
+                0,
+            )?),
+        }
+    }
+    Some(outcomes)
+}
+
+type ResumedObservation = (Vec<IntegerSet>, Vec<(ExpressionHandle, bool)>);
+
+fn resume_after_stop(
+    program: &dyn crate::CheckingInput,
+    stop: Stop,
+    atoms: Vec<IntegerSet>,
+    completed_calls: &[(ExpressionHandle, bool)],
+    remaining: &mut usize,
+    nesting: usize,
+) -> Option<Vec<ResumedObservation>> {
+    match stop {
+        Stop::Split { atom, parts } => parts
+            .into_iter()
+            .map(|part| {
+                let mut refined = atoms.clone();
+                *refined.get_mut(atom)? = part;
+                Some((refined, completed_calls.to_vec()))
+            })
+            .collect(),
+        Stop::Call {
+            expression,
+            machine,
+            state,
+            bindings,
+        } => {
+            let called = explore_at(
+                program,
+                machine,
+                state,
+                bindings,
+                atoms,
+                remaining,
+                nesting + 1,
+            )?;
+            Some(
+                [(true, called.when_true), (false, called.when_false)]
+                    .into_iter()
+                    .filter_map(|(value, atoms)| {
+                        let atoms = atoms?;
+                        let mut completed = completed_calls.to_vec();
+                        completed.push((expression, value));
+                        Some((atoms, completed))
+                    })
+                    .collect(),
+            )
+        }
+        Stop::Unsupported => None,
+    }
 }
 
 /// Nested calls share the caller's work budget. The nesting fence protects the
@@ -375,8 +591,7 @@ fn visit(
     while let Some((index, atoms, locals, completed_calls)) = stack.pop() {
         *remaining = remaining.checked_sub(1)?;
         let frame = Frame {
-            machine,
-            state,
+            scope: Scope::State { machine, state },
             bindings: &key.bindings,
             locals: &locals,
             completed_calls: &completed_calls,
@@ -432,38 +647,13 @@ fn visit(
         };
         match step {
             Ok(exit) => exits.push(exit),
-            Err(Stop::Split { atom, parts }) => {
-                for part in parts {
-                    let mut refined = atoms.clone();
-                    refined[atom] = part;
-                    stack.push((index, refined, locals.clone(), completed_calls.clone()));
-                }
-            }
-            Err(Stop::Call {
-                expression,
-                machine,
-                state,
-                bindings,
-            }) => {
-                let called = explore_at(
-                    program,
-                    machine,
-                    state,
-                    bindings,
-                    atoms,
-                    remaining,
-                    nesting + 1,
-                )?;
-                for (value, result_atoms) in [(true, called.when_true), (false, called.when_false)]
+            Err(stop) => {
+                for (atoms, completed) in
+                    resume_after_stop(program, stop, atoms, &completed_calls, remaining, nesting)?
                 {
-                    if let Some(result_atoms) = result_atoms {
-                        let mut captured = completed_calls.clone();
-                        captured.push((expression, value));
-                        stack.push((index, result_atoms, locals.clone(), captured));
-                    }
+                    stack.push((index, atoms, locals.clone(), completed));
                 }
             }
-            Err(Stop::Unsupported) => return None,
         }
     }
     Some(exits)
@@ -498,7 +688,7 @@ fn target_exit(
                 return Err(Stop::Unsupported);
             }
             let (machine, state) =
-                named_target(program, frame, key.machine, path.symbol).ok_or(Stop::Unsupported)?;
+                named_target(program, key.machine, path.symbol).ok_or(Stop::Unsupported)?;
             let arguments = program.statement_table.expression_handles(*arguments);
             enter(program, frame, atoms, machine, state, arguments)
         }
@@ -517,8 +707,12 @@ fn tail_call_exit(
     if !call.is_ordinary_positional_call() {
         return Err(Stop::Unsupported);
     }
-    let machine =
-        admitted_predicate_machine(program, call.target_symbol, true).ok_or(Stop::Unsupported)?;
+    // A checked machine body has already discharged its invocation contracts.
+    // A declaration proposition has no such caller evidence: conditional
+    // callees must stand down here rather than certify their own admission.
+    let checked_caller = matches!(frame.scope, Scope::State { .. });
+    let machine = admitted_predicate_machine(program, call.target_symbol, checked_caller)
+        .ok_or(Stop::Unsupported)?;
     let arguments = program.expression_table.expression_handles(call.arguments);
     enter(program, frame, atoms, machine, 0, arguments)
 }
@@ -566,13 +760,14 @@ fn enter(
 /// predicate reached by a tail call.
 fn named_target(
     program: &dyn crate::CheckingInput,
-    frame: &Frame<'_>,
     current_machine: usize,
     symbol: symbols::SymbolHandle,
 ) -> Option<(usize, usize)> {
-    if let Some(state) =
-        typed_trees::state::state_position(program.machine_states(frame.machine), symbol)
-            .filter(|position| *position != 0)
+    if let Some(state) = typed_trees::state::state_position(
+        program.machine_states(program.machines().get(current_machine)?),
+        symbol,
+    )
+    .filter(|position| *position != 0)
     {
         return Some((current_machine, state));
     }
@@ -707,7 +902,7 @@ pub(crate) fn evaluate(
                 Some((_, binding)) => binding,
                 None => {
                     let position = typed_trees::signature::state_parameter_position(
-                        program.state_parameters(frame.state),
+                        frame.scope.parameters(program),
                         path.symbol,
                     )
                     .ok_or(Stop::Unsupported)?;
@@ -747,6 +942,16 @@ pub(crate) fn evaluate(
             }
         }
         ExpressionNode::Indexed(indexed) => {
+            let references = [indexed.collection, indexed.index]
+                .map(|operand| frame.scope.expression_type(program, operand));
+            if !typed_trees::operator::builtin_index_read_is_spelled(
+                program,
+                frame.scope.owner(),
+                expression,
+                &references,
+            ) {
+                return Err(Stop::Unsupported);
+            }
             let Value::Array {
                 first,
                 length,
@@ -811,12 +1016,7 @@ fn evaluate_binary(
                 || evaluate_boolean(program, frame, atoms, binary.right)?,
         )),
         _ => {
-            if !has_builtin_binary_expression_meaning(
-                program,
-                frame.machine,
-                Some(frame.state),
-                expression,
-            ) {
+            if !frame.scope.builtin_binary(program, expression) {
                 return Err(Stop::Unsupported);
             }
             let left = evaluate(program, frame, atoms, binary.left)?;

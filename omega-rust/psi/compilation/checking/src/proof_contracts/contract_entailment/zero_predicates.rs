@@ -65,8 +65,7 @@ pub fn data_predicates_admit_zero(
             let Some(expression) = fact.as_expression() else {
                 return false;
             };
-            matches!(
-                instantiated_selected_fact_judgment(
+            let judgment = instantiated_selected_fact_judgment(
                     program,
                     &judge,
                     definition.symbol,
@@ -76,9 +75,17 @@ pub fn data_predicates_admit_zero(
                     &[],
                     &[],
                     None,
-                ),
-                StructuralJudgment::Proven
-            ) || crate::proof_contracts::collection_predicates::data_fact_holds_at_zero(
+                );
+            if super::struct_trace() && !matches!(judgment, StructuralJudgment::Proven) {
+                let term = super::structural_terms::structural_term(
+                    program, None, Some((definition.symbol, &parameters)), *expression, None,
+                );
+                let instantiated = term.as_ref().map(|term| StructuralJudge::substitute_call_term(term, &bindings, &[]));
+                let resolved = instantiated.map(|term| judge.resolve(term));
+                eprintln!("STRUCT zero-predicate data={} expression={} judgment={judgment:?} term={term:?} resolved={resolved:?}", definition.name, program.expression_table.display_name(*expression));
+            }
+            matches!(judgment, StructuralJudgment::Proven)
+                || crate::proof_contracts::collection_predicates::data_fact_holds_at_zero(
                 program,
                 definition,
                 *expression,

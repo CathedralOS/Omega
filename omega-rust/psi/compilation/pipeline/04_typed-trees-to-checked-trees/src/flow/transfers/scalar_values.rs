@@ -136,6 +136,7 @@ pub(super) fn capture_statement(
         semantic,
         context,
         state,
+        statement_index,
         active,
     };
     if let Some(value) = ScalarValue::value_at_expression(program, &live, statement_index, source) {
@@ -293,6 +294,14 @@ pub(super) fn capture_bounds(
                 ),
                 symbols,
                 state,
+                contents: crate::values::CurrentIntegerBounds::at_statement(
+                    program,
+                    context.operators,
+                    semantic,
+                    &contexts,
+                    state,
+                    statement_index,
+                )?,
             },
         );
     }
@@ -331,6 +340,7 @@ fn selected_live_capture<Value: CapturedValue>(
         semantic,
         context,
         state,
+        statement_index,
         active,
     };
     Value::operand(program, &live, statement_index, operand.operand)

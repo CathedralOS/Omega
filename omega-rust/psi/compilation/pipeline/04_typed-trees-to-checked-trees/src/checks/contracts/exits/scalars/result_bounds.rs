@@ -3,7 +3,6 @@
 //! no initializer or stale mutable read is replayed to reconstruct a value.
 
 use super::{ExitScalars, exit_return_expression, has_builtin_operators, is_result_reference};
-use crate::places::place_at;
 use numerics::{arithmetic::ArithmeticDomain, bignum::BigInt};
 use typed_trees::{
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
@@ -97,6 +96,19 @@ impl ExitScalars<'_, '_> {
             parameters,
             symbols: &symbols,
             state: entry.symbol,
+            contents: crate::values::CurrentIntegerBounds::new(
+                self.program,
+                &self.facts.operators,
+                &self.facts.semantic,
+                self.contexts,
+                self.exit.state_symbol,
+                facts::ProgramPoint::Exit {
+                    machine_symbol: self.exit.machine_symbol,
+                    state_symbol: self.exit.state_symbol,
+                    statement_index: self.exit.statement_index,
+                    transition_target: self.exit.transition_target,
+                },
+            ),
         };
         let left = validation::selected_scalar_interval(&left, &mut values)?;
         let right = validation::selected_scalar_interval(&right, &mut values)?;
@@ -143,26 +155,37 @@ impl ExitScalars<'_, '_> {
         ) {
             return Some(true);
         }
-        if !self.return_expression_is_stable(returned) {
-            return None;
-        }
         // Completed values publish their checked bounds independently of the
         // source construct. Read that immutable result occurrence before the
         // older signed-enclosure adapters; u64's unstated upper bound remains
         // its actual carrier maximum, not an i64 ceiling.
-        if let Some(subject) = place_at(
+        let result_observation = if result_on_left {
+            binary.left
+        } else {
+            binary.right
+        };
+        let completed_subject = super::super::super::return_values::completed_return_operand(
             self.program,
-            state.symbol,
-            self.exit.statement_index,
-            result_expression,
-        ) && let Some(result_bounds) = crate::values::integer_bounds_at_place(
-            self.program,
-            &self.facts.semantic,
-            self.contexts
-                .iter()
-                .map(|context| self.facts.semantic.contexts.get(*context)),
-            &subject,
-        ) && let Some(value) = validation::closed_integer_range_bound(self.program, argument)
+            self.facts,
+            self.exit,
+        )
+        .and_then(|operand| {
+            let projection = validation::reserved_result_place(self.program, result_observation)?;
+            Some(validation::CanonicalPlace {
+                root: facts::PlaceRoot::Expression(operand.expression),
+                segments: projection.segments,
+            })
+        });
+        if let Some(subject) = completed_subject
+            && let Some(result_bounds) = crate::values::integer_bounds_at_place(
+                self.program,
+                &self.facts.semantic,
+                self.contexts
+                    .iter()
+                    .map(|context| self.facts.semantic.contexts.get(*context)),
+                &subject,
+            )
+            && let Some(value) = validation::closed_integer_range_bound(self.program, argument)
         {
             let argument_type = validation::expression_result_type_reference(
                 self.program,
@@ -202,6 +225,12 @@ impl ExitScalars<'_, '_> {
                     return Some(verdict);
                 }
             }
+        }
+        // Legacy enclosure queries below describe the authored source place.
+        // Only those need source stability; the completed operand above owns
+        // its original value even after the producing storage changes.
+        if !self.return_expression_is_stable(returned) {
+            return None;
         }
         // Standing bounds describe every legal observation, including copied
         // constructor children. The occurrence owner can additionally bound
