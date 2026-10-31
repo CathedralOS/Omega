@@ -42,7 +42,14 @@ pub(crate) fn lower_type_reference_handle(
     let mut lowered = result?;
     for alias in aliases {
         let application = lower_alias_application(lowerer, syntax_trees, alias.application)?;
-        let supplied_operand_owner = application.supplied_operand_owner();
+        // A substituted RHS operand keeps its more specific supplier; the
+        // original alias tuple separately owns its own lifetime arguments.
+        let expanded_owner = lowered.supplied_operand_owner();
+        let supplied_operand_owner = if expanded_owner.is_valid() {
+            expanded_owner
+        } else {
+            application.supplied_operand_owner()
+        };
         lowered = TypeReference::AliasUse {
             expansion: Box::new(lowered),
             application: Box::new(application),
