@@ -47,6 +47,7 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment, PrimitiveReadSource,
 };
+use crate::emission::primitive_store::lower_destination_path;
 pub(crate) use crate::expression_preparation::bindings::place_observations::LoanedSource;
 use crate::expression_preparation::bindings::place_observations::{
     ByteOverlayField, ByteOverlaySource, ObservationKind, PlaceObservation,
@@ -768,12 +769,7 @@ pub(crate) fn loaned_primitive_store(
     if loan.access != checked_trees::CheckedStructuralAccess::MutableBorrow {
         return unsupported("record store requires a mutable captured loan");
     }
-    let (_, scalar_type) = crate::emission::primitive_store::lower_destination_path(
-        identities,
-        loan.terminal,
-        path,
-        types,
-    )?;
+    let (_, scalar_type) = lower_destination_path(identities, loan.terminal, path, types)?;
     Ok(Some(LoanedStore {
         symbol: *symbol,
         source: loan.source,
