@@ -1,7 +1,7 @@
 use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::package(builder, "omega_language_std");
-    // Bind each generic string family once; Count is not a native argument.
+    // Bind the complete ObjectiveC family once. String extents stay static.
     Build::bind<macos_gui::ObjectiveC::get_class>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_getClass"
@@ -20,6 +20,46 @@ machine build(builder: &mut Build) {
     Build::bind<macos_gui::ObjectiveC::send_byte_string>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<macos_gui::ObjectiveC::send>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<macos_gui::ObjectiveC::send_scalar>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<macos_gui::ObjectiveC::send_delayed>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<macos_gui::ObjectiveC::send_rect>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<macos_gui::ObjectiveC::send_image_size>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<macos_gui::ObjectiveC::send_scalar4>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_msgSend"
+        }
+    });
+    Build::bind<macos_gui::ObjectiveC::pool_push>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_autoreleasePoolPush"
+        }
+    });
+    Build::bind<macos_gui::ObjectiveC::pool_pop>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libobjc.A.dylib", symbol: "_objc_autoreleasePoolPop"
         }
     });
 }
