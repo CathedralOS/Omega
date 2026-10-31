@@ -15,7 +15,7 @@ use symbols::RetainedDeclaration;
 
 impl PackageCompilationInputs {
     pub(crate) fn product_selection_source_seeds(&self) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-        let mut paths = Vec::new();
+        let mut paths = self.native_binding_source_seeds()?;
         for (scope, bundle) in self.dependency_build_handoff_instances() {
             if scope != DependencyPurpose::Product {
                 continue;
