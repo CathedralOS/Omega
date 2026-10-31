@@ -1,5 +1,7 @@
 //! Semantic cast custody is independent of the pure scalar payload grammar.
+use crate::facts::domain_is_vacuous;
 use crate::flow::expressions;
+use crate::flow::match_arm_satisfies;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::TypeReferenceHandle;
@@ -84,11 +86,7 @@ pub(crate) fn has_only_vacuous_tags(
                                 && domain.semantic_id.is_valid()
                                 && !domain.predicate_presence.is_present()
                                 && domain.establishment_routes.is_empty()
-                                && crate::facts::domain_is_vacuous(
-                                    program,
-                                    domain.symbol,
-                                    &mut Vec::new(),
-                                )
+                                && domain_is_vacuous(program, domain.symbol, &mut Vec::new())
                         }
                         TypeConstraintNode::Range { .. }
                         | TypeConstraintNode::ArithmeticDomain(_) => true,
@@ -115,8 +113,7 @@ pub(crate) fn requires_custody(
         ExpressionNode::Binary(binary) => child(binary.left) || child(binary.right),
         ExpressionNode::Unary(unary) => child(unary.operand),
         ExpressionNode::Match(dispatch) => {
-            child(dispatch.subject)
-                || crate::flow::match_arm_satisfies(program, dispatch.arms, child)
+            child(dispatch.subject) || match_arm_satisfies(program, dispatch.arms, child)
         }
         ExpressionNode::Call(call) => {
             child(call.receiver)

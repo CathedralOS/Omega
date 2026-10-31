@@ -8,6 +8,9 @@
 
 use crate::flow::canonical_place_from_symbol;
 use crate::values::exclusive_reference;
+use crate::values::literal_at_place;
+use crate::values::resolve_structural_parameter_path;
+use crate::values::snapshots::integer_bounds_at_place;
 use checked_trees::CheckedStructuralPredicatePathSegment;
 use facts::{FactContextHandle, FactPlan, IntegerRange};
 use numerics::bignum::BigInt;
@@ -32,7 +35,7 @@ pub(crate) struct LivePlaceIntervals<'a> {
 
 impl LivePlaceIntervals<'_> {
     fn snapshot(&self, place: &CanonicalPlace) -> Option<IntegerRange> {
-        crate::values::snapshots::integer_bounds_at_place(
+        integer_bounds_at_place(
             self.program,
             self.semantic,
             self.contexts
@@ -116,12 +119,7 @@ impl LivePlaceIntervals<'_> {
         path: &[CheckedStructuralPredicatePathSegment],
     ) -> Option<(CanonicalPlace, TypeReferenceHandle, bool)> {
         let (symbol, segments, reference, frozen) =
-            crate::values::resolve_structural_parameter_path(
-                self.program,
-                self.parameters,
-                position,
-                path,
-            )?;
+            resolve_structural_parameter_path(self.program, self.parameters, position, path)?;
         let mut place = canonical_place_from_symbol(symbol)?;
         place.segments = segments;
         Some((place, reference, frozen))
@@ -216,7 +214,7 @@ impl SelectedScalarIntervalSource for LivePlaceIntervals<'_> {
         path: &[CheckedStructuralPredicatePathSegment],
     ) -> Option<IntegerRange> {
         let length = self.field(position, path).and_then(|(place, _, _)| {
-            let literal = crate::values::literal_at_place(
+            let literal = literal_at_place(
                 self.program,
                 self.semantic,
                 self.contexts
@@ -332,7 +330,7 @@ impl LivePlaceIntervals<'_> {
                 _ => return None,
             }
         };
-        let literal_bounds = crate::values::literal_at_place(
+        let literal_bounds = literal_at_place(
             self.program,
             self.semantic,
             self.contexts

@@ -5,6 +5,7 @@
 //! Normal-return contracts additionally name their authenticated result place,
 //! never a synthetic parameter slot or a constructor-derived assumption.
 use crate::flow::expressions;
+use crate::values::scalar::structural_fields::structural_data;
 use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedStructuralParameterField;
 use typed_trees::expression::BinaryOperator;
@@ -146,10 +147,7 @@ fn case_identity(
                     .filter(|place| place.machine_symbol == machine.symbol)
                     .map(|place| place.type_reference)
             })?;
-            if crate::values::scalar::structural_fields::structural_data(program, subject_type)?
-                .symbol
-                != owner.symbol
-            {
+            if structural_data(program, subject_type)?.symbol != owner.symbol {
                 return None;
             }
             structural_case_name(program, case_symbol)

@@ -3,6 +3,8 @@
 //! Root custody distinguishes parameters, owned locals and view locals. Selection
 //! does not: length, content and element observations must retain the same field
 //! path and selected type rather than rediscovering a whole-local source shape.
+use crate::execution::terminal_unit::types::borrowed_slice_view_element;
+use crate::execution::terminal_unit::types::parameter_is_root;
 use crate::flow::expressions;
 use crate::places::place_at;
 use checked_trees::CheckedOperatorFacts;
@@ -93,11 +95,7 @@ pub(crate) fn structural_sequence_receiver_length(
     validation::field_domains::readable_type_reference(program, selected_type)?;
     let byte_carrier =
         crate::execution::terminal_unit::types::byte_sequence_carrier(program, selected_type, &[]);
-    let element_view = crate::execution::terminal_unit::types::borrowed_slice_view_element(
-        program,
-        selected_type,
-        &[],
-    );
+    let element_view = borrowed_slice_view_element(program, selected_type, &[]);
     if !matches!(
         byte_carrier,
         Some(
@@ -434,9 +432,9 @@ fn parameter_projection(
             // structural parameter. A domain subject also spells `self` but
             // resolves to a Parameter-kind symbol rostered in the telescope,
             // so roster membership — not the spelling — refuses receivers.
-            let position = parameters.iter().position(|parameter| {
-                crate::execution::terminal_unit::types::parameter_is_root(parameter, root)
-            })?;
+            let position = parameters
+                .iter()
+                .position(|parameter| parameter_is_root(parameter, root))?;
             Some((
                 u32::try_from(position).ok()?,
                 predicate_parameter_type(program, parameters[position].type_reference)?,

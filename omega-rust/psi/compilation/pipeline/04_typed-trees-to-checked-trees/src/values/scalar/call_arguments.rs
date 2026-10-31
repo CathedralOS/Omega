@@ -1,11 +1,16 @@
 //! Nested call operands retain captured coordinates and source scope independently
 //! of result shape. The consuming planner owns result eligibility and custody.
+use crate::execution::terminal_unit::control::checked_structural_result_type;
+use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::flow::expressions;
 use crate::flow::indexed_statements;
+use crate::values::scalar::array_constructions::call_array_constructions_in;
+use crate::values::scalar::array_constructions::unique_state_flow;
 use crate::values::scalar::call_lowering::lower_call_arguments;
 use crate::values::scalar::call_lowering::retain_call_arguments;
 use crate::values::scalar::expression_plans::ScalarLocal;
 use crate::values::scalar::scalar_lowering::lower_return_expression;
+use crate::values::scalar::scalar_parameter_roster;
 use checked_trees::CheckedLocatedScalarExpression;
 use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedScalarExpressionBindings;
@@ -48,21 +53,18 @@ pub(crate) fn retain_nested_call_arguments(
 ) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            let (parameters, parameter_types) = crate::values::scalar::scalar_parameter_roster(
-                program,
-                program.state_parameters(state),
-            )
-            .expect("filtered scalar parameters retain primitive carriers");
+            let (parameters, parameter_types) =
+                scalar_parameter_roster(program, program.state_parameters(state))
+                    .expect("filtered scalar parameters retain primitive carriers");
             let mut locals = Vec::new();
-            let captured =
-                crate::values::scalar::array_constructions::unique_state_flow(flow, machine, state);
+            let captured = unique_state_flow(flow, machine, state);
             for (statement_index, statement) in indexed_statements(program, state.statement_nodes) {
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;
                 };
                 for construction in captured
                     .map(|captured| {
-                        crate::values::scalar::array_constructions::call_array_constructions_in(
+                        call_array_constructions_in(
                             program,
                             flow,
                             captured,
@@ -333,11 +335,6 @@ pub(crate) fn nested_structural_call_return_type(
     // A completed operand uses the same carrier judgment as a named result.
     // Body ownership selects execution and admission later, not whether the
     // signature's descriptor can participate in an enclosing expression.
-    crate::execution::terminal_unit::control::checked_structural_result_type(
-        program,
-        &mut crate::execution::terminal_unit::types::ShapeCollector::new(program),
-        return_type,
-        &[],
-    )?;
+    checked_structural_result_type(program, &mut ShapeCollector::new(program), return_type, &[])?;
     Some(return_type)
 }

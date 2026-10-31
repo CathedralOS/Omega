@@ -3,6 +3,7 @@
 //! The resulting predicate contains landed bits, not a source expression that
 //! could read another value after a mutation or a state-parameter transfer.
 
+use crate::flow::place_segment_has_static_identity;
 use crate::places::place_at;
 use facts::FloatPredicate;
 use numerics::bignum::{BigRational, ExactFloat, IeeeRounding};
@@ -163,11 +164,7 @@ pub(crate) fn collect_true(
         // identity is represented, a source-free predicate cannot follow a
         // later spelling of that selector after it changes. Keep fields and
         // fixed selections under the same static-identity policy as transport.
-        if !place
-            .segments
-            .iter()
-            .all(crate::flow::place_segment_has_static_identity)
-        {
+        if !place.segments.iter().all(place_segment_has_static_identity) {
             continue;
         }
         let predicate = if operator == BinaryOperator::Equal
