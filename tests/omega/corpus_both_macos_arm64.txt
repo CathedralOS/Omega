@@ -582,6 +582,15 @@ pass/facts/negated_mathematical_order_through_other_machine_exit built 1874ms ex
 pass/facts/negated_mathematical_order_through_other_state_exit built 1727ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/negated_mathematical_order_through_parameter_exit built 2182ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/negated_mathematical_order_through_target_body_exit built 1748ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/facts/nested_machine_header_contracts_call_result_exit built 2191ms exit:0 interpreter-exit:0 interpreter:agrees @2fc408782574+wt
+pass/facts/nested_machine_header_contracts_const_name_exit built 2020ms exit:0 interpreter-exit:0 interpreter:agrees @2fc408782574+wt
+pass/facts/nested_machine_header_contracts_field_exit built 1546ms exit:0 interpreter-exit:0 interpreter:agrees @2fc408782574+wt
+pass/facts/nested_machine_header_contracts_local_exit built 1790ms exit:0 interpreter-exit:0 interpreter:agrees @2fc408782574+wt
+pass/facts/nested_machine_header_contracts_match_join_exit built 1509ms exit:0 interpreter-exit:0 interpreter:agrees @2fc408782574+wt
+pass/facts/nested_machine_header_contracts_other_machine_exit built 1532ms exit:0 interpreter-exit:0 interpreter:agrees @2fc408782574+wt
+pass/facts/nested_machine_header_contracts_other_state_exit built 1522ms exit:0 interpreter-exit:0 interpreter:agrees @2fc408782574+wt
+pass/facts/nested_machine_header_contracts_parameter_exit built 1519ms exit:0 interpreter-exit:0 interpreter:agrees @2fc408782574+wt
+pass/facts/nested_machine_header_contracts_target_body_exit built 1475ms exit:0 interpreter-exit:0 interpreter:agrees @2fc408782574+wt
 pass/facts/nested_machine_invocation/private_bounds/admitted_domain/call_result built 1122ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
 pass/facts/nested_machine_invocation/private_bounds/admitted_domain/const_name built 1031ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
 pass/facts/nested_machine_invocation/private_bounds/admitted_domain/controls/unrelated_write built 1050ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d

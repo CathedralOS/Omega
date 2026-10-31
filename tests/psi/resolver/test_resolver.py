@@ -1431,7 +1431,7 @@ def main() -> None:
         (builtin("u64"),),
         (parameter(0), NOT_A_NAME, NOT_A_NAME, parameter(0)),
     )
-    rejected(program, "terminates-unknown-subject", b'machine f(n: u64) terminates by m {}', UNKNOWN_NAME, b"m;", length=1)
+    rejected(program, "terminates-unknown-subject", b'machine f(n: u64) terminates by m {}', UNKNOWN_NAME, b"m", length=1)
     # A machine formal carries the entry subject its arrivals pass it, read
     # from the body bindings while resolution runs (clauses.omg).
     accepted(

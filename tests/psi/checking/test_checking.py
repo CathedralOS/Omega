@@ -1460,18 +1460,20 @@ def main() -> None:
         "RankUnproven",
         b"step(n)",
     )
+    promised = countdown.replace(b"terminates by n", b"terminates", 1).replace(
+        b"    terminates by n\n", b""
+    ).replace(b"STEP", b"step(n - 1)")
+    assert b"terminates by" not in promised and promised.count(b"terminates") == 1
     rejected(
         program,
         "promised-cycle-needs-a-witness",
-        countdown.replace(b"terminates by n;", b"terminates;", 1).replace(b"    terminates by n;\n", b"").replace(b"STEP", b"step(n - 1)"),
+        promised,
         "ProgressUnproven",
-        b"terminates;",
+        b"terminates",
     )
-    accepted(
-        program,
-        "productive-loop-owes-no-rank",
-        countdown.replace(b"terminates by n;\n", b"").replace(b"STEP", b"step(n)"),
-    )
+    productive = countdown.replace(b"terminates by n\n", b"").replace(b"STEP", b"step(n)")
+    assert b"terminates" not in productive
+    accepted(program, "productive-loop-owes-no-rank", productive)
     walk = (
         b'machine walk(items: &[u8], i: u64) -> u64\nterminates by (i, items.len) -> Nat::BoundedDistance\n{\n    transition i < items.len {\n        true -> NEXT\n        _ -> (i)\n    }\n}'
     )
@@ -1525,9 +1527,9 @@ def main() -> None:
     # whose endpoints must be the entry's.
     ranged = (
         b"machine count(n: u64, limit: u64) -> u64\nREQUIRES"
-        b"terminates by n in 0..=limit;\n{\n"
+        b"terminates by n in 0..=limit\n{\n"
         b"    transition n > 0 {\n        true -> step(n - 1, NEXT)\n        _ -> done()\n    }\n\n"
-        b"    machine step(n: u64, limit: u64) -> u64\n    requires n <= limit\n    terminates by n in 0..=limit;\n    {\n"
+        b"    machine step(n: u64, limit: u64) -> u64\n    requires n <= limit\n    terminates by n in 0..=limit\n    {\n"
         b"        transition n > 0 {\n            true -> step(n - 1, limit)\n            _ -> done()\n        }\n    }\n\n"
         b"    machine done() -> u64 { 0 }\n}"
     )
@@ -1910,21 +1912,21 @@ def main() -> None:
         "promise-over-a-productive-loop",
         b'machine spin(x: u64) -> u64 {\n    transition { _ -> again(x) }\n\n    machine again(x: u64) -> u64 {\n        transition { _ -> again(x) }\n    }\n}\nmachine run(x: u64) -> u64\nterminates\n{ spin(x) }',
         "ProgressUnproven",
-        b"terminates;",
+        b"terminates",
     )
     rejected(
         program,
         "promise-over-an-unpromised-leaf",
         b'machine leaf(x: u64) -> u64;\nmachine run(x: u64) -> u64\nterminates\n{ leaf(x) }',
         "ProgressUnproven",
-        b"terminates;",
+        b"terminates",
     )
     rejected(
         program,
         "promise-over-mutual-recursion",
         b'machine ping(x: u64) -> u64\nterminates\n{ pong(x) }\nmachine pong(x: u64) -> u64\nterminates\n{ ping(x) }',
         "ProgressUnproven",
-        b"terminates;",
+        b"terminates",
     )
     rejected(
         program,
