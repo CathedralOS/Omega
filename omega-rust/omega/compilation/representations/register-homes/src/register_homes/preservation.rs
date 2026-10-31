@@ -13,6 +13,7 @@ use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 
 use register_model::FrameAbiPreservationConvention;
+use register_model::Sha256RegisterDigest;
 
 crate::identity_newtype! { pub struct AllocatedCalleeSavedRequirementIdentity([u8; 32]); }
 
@@ -57,9 +58,7 @@ pub enum CalleeSavedModificationWitness {
 /// copy is how a producer and the downstream stage that must agree with it
 /// drift apart silently: both keep compiling, both keep hashing, and only a
 /// rejected identity ever reveals the divergence.
-pub fn encode_callee_saved_modification_witness_identity<
-    H: register_model::Sha256RegisterDigest + ?Sized,
->(
+pub fn encode_callee_saved_modification_witness_identity<H: Sha256RegisterDigest + ?Sized>(
     hasher: &mut H,
     witness: CalleeSavedModificationWitness,
 ) {
