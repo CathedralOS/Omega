@@ -2341,6 +2341,16 @@ pass/facts/case_tag_discriminant_layout_through_other_machine_exit built 3691ms 
 pass/facts/case_tag_discriminant_layout_through_other_state_exit built 3723ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/case_tag_discriminant_layout_through_parameter_exit built 3636ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/case_tag_discriminant_layout_through_target_body_exit built 3333ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/case_type_equation_recovery_through_call_result_exit built 11592ms exit:0 interpreter-exit:0 interpreter:agrees @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_const_name_exit built 6216ms exit:0 interpreter-exit:0 interpreter:agrees @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_field_exit built 9608ms exit:0 interpreter-exit:0 interpreter:agrees @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_local_exit built 8551ms exit:0 interpreter-exit:0 interpreter:agrees @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_match_join_exit built 8815ms exit:0 interpreter-exit:0 interpreter:agrees @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_other_machine_exit built 13641ms exit:0 interpreter-exit:0 interpreter:agrees @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_other_state_exit built 7434ms exit:0 interpreter-exit:0 interpreter:agrees @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_parameter_exit built 9636ms exit:0 interpreter-exit:0 interpreter:agrees @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_through_target_body_exit built 8725ms exit:0 interpreter-exit:0 interpreter:agrees @0402685c2f27+wt
+pass/facts/case_type_equation_recovery_transition_rows_exit built 7777ms exit:0 interpreter-exit:0 interpreter:agrees @0402685c2f27+wt
 pass/facts/case_value_binder_payload_compile checked 1834ms @5f668826adf3+wt
 pass/facts/case_where_equality_through_call_result_exit built 2519ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/case_where_equality_through_const_name_exit built 2989ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
