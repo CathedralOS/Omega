@@ -410,6 +410,11 @@ fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<Elisi
                             walk.visit(expression, &mut calls);
                         }
                     }
+                    statement @ StatementNode::Transition(_) => {
+                        for (_, expression) in program.tables.expression_roots(statement) {
+                            walk.visit(expression, &mut calls);
+                        }
+                    }
                     _ => {}
                 }
             }
