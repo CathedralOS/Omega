@@ -182,6 +182,16 @@ publication entrance. Terminal cohorts retain each admitted application beside
 its exact entry, callback roots and exclusion policy. Source-sharing comparisons
 use those requests directly; only caller order is restored after cohort work,
 without parallel entry tables or empty outcome slots.
+The [multi-target observation fixture](omega/compilation/driver/tests/README.md#shared-multi-target-pipeline-observations)
+records actual native coordinator invocations by exact target profile. Each
+application retains entry counts for Omega 00–09 and fragment/image emission
+attempts, including the entered prefix of a failed invocation. Independently
+admitted callable bodies remain separate observed units. Collection uses the
+existing optional phase profiler and supplies no semantic or admission input.
+The fixture also checks shared Terminal allocation, single-target byte equality,
+and native/reloaded-Terminal execution. Its source/Build/publication counters
+remain coarse observations; full numbered source/Psi invocation acceptance is
+still open.
 Composition admission runs once per application, before optimization. Psi lends
 an ordered, lazily projected stream of canonical entry, callback and physical
 adapter roots; Omega prepares the exclusion/provider context once and judges

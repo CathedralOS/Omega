@@ -8,6 +8,7 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 /// Stage 00 owns admission vocabulary and checks; this request supplies policy
 /// and retains the exact image custody if realization fails.
 pub(crate) struct NativeRealizationRequest<'request> {
+    pub observation: &'request crate::observations::NativePipelineObservation,
     pub proposal: &'request terminal_psi_to_abstract_operations::TerminalNativeRealizationProposal,
     pub execution: &'request terminal_psi_to_abstract_operations::PreparedNativeExecution,
     pub scalar_applications:

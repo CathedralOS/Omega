@@ -11,6 +11,9 @@
 //! `--expected-terminal-productions 1` measures a Check requiring shared scalar
 //! evaluation; ordinary debt-free Check defaults to zero productions.
 //! `--compare-single-targets` compares native bytes with independent requests.
+//! `--assert-native-stage-counts` observes each target's real Omega 00-09 calls
+//! and emission attempts; collection requires OMEGA_PHASE_PROFILE=1.
+//! This does not claim numbered source/Psi invocation coverage.
 
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
@@ -28,6 +31,7 @@ fn main() {
     let mut arguments = std::env::args().skip(1).peekable();
     let mut execute_host = false;
     let mut compare_single_targets = false;
+    let mut assert_native_stage_counts = false;
     let mut product = RequestedCompileProduct::NativeArtifact;
     let mut rejected_target = None;
     let mut expected_terminal_productions = None;
@@ -39,6 +43,7 @@ fn main() {
         match arguments.next().as_deref() {
             Some("--run") => execute_host = true,
             Some("--compare-single-targets") => compare_single_targets = true,
+            Some("--assert-native-stage-counts") => assert_native_stage_counts = true,
             Some("--check") => product = RequestedCompileProduct::Check,
             Some("--terminal") => product = RequestedCompileProduct::TerminalArtifact,
             Some("--expected-terminal-productions") => {
@@ -93,6 +98,20 @@ fn main() {
     if let Some(inputs) = &prepared.package_inputs {
         request = request.with_package_inputs(inputs.clone());
     }
+    if assert_native_stage_counts {
+        assert!(
+            phase_profile::enabled(),
+            "stage observations require OMEGA_PHASE_PROFILE=1"
+        );
+        assert_eq!(product, RequestedCompileProduct::NativeArtifact);
+    }
+    let evidence_directory = assert_native_stage_counts.then(|| {
+        fixture_package_inputs::repo_root().join(format!(
+            "build/terminal-sharing-observations-{}",
+            std::process::id()
+        ))
+    });
+    let native_invocations_before = native_production::native_pipeline_invocations().len();
     let sources_before = counters::product_source_completion_count();
     let builds_before = counters::build_execution_count();
     let checks_before = counters::settled_check_totals().0;
@@ -187,6 +206,86 @@ fn main() {
         "product={product:?} products={} rejected={rejections} source_completions={sources} builds={builds} checks={checks} terminal_productions={terminals}",
         reports.len()
     );
+    if assert_native_stage_counts {
+        let invocations: Vec<_> = native_production::native_pipeline_invocations()
+            .into_iter()
+            .skip(native_invocations_before)
+            .collect();
+        for invocation in &invocations {
+            println!("native_pipeline_invocation={invocation:?}");
+            assert!(
+                target_names
+                    .iter()
+                    .any(|name| name == invocation.profile.target_name())
+            );
+            assert_eq!(
+                invocation.unit,
+                native_production::NativePipelineUnit::Application,
+                "additional callable pipeline observed in once-per-target fixture"
+            );
+            assert!(invocation.stages.iter().all(|count| *count <= 1));
+        }
+        for name in &target_names {
+            let target_invocations: Vec<_> = invocations
+                .iter()
+                .filter(|invocation| invocation.profile.target_name() == name)
+                .collect();
+            if rejected_target.as_ref() == Some(name) {
+                assert!(target_invocations.len() <= 1);
+                assert!(
+                    target_invocations
+                        .iter()
+                        .all(|invocation| !invocation.completed)
+                );
+                println!(
+                    "target={name} rejected_native_invocations={}",
+                    target_invocations.len()
+                );
+            } else {
+                assert_eq!(
+                    target_invocations.len(),
+                    1,
+                    "one native invocation for {name}"
+                );
+                let invocation = target_invocations[0];
+                assert!(invocation.completed);
+                assert_eq!(invocation.stages, [1; 10], "Omega 00-09 for {name}");
+                assert_eq!(invocation.fragment_emission_attempts, 1);
+                assert_eq!(invocation.image_emission_attempts, 1);
+            }
+        }
+        let directory = evidence_directory.as_ref().expect("observation output");
+        std::fs::create_dir_all(directory).expect("retain observation directory");
+        std::fs::write(
+            directory.join("invocations.txt"),
+            invocations
+                .iter()
+                .map(|invocation| format!("{invocation:?}\n"))
+                .collect::<String>(),
+        )
+        .expect("retain actual invocation counts");
+        let admitted_targets = target_names
+            .iter()
+            .filter(|name| rejected_target.as_ref() != Some(*name));
+        for (name, report) in admitted_targets.zip(&reports) {
+            let retained = report.retained_native_artifact().expect("native product");
+            std::fs::write(
+                directory.join(format!("{name}-shared.image")),
+                &retained.image().output().bytes,
+            )
+            .expect("retain shared-target image");
+        }
+        std::fs::write(
+            directory.join("program.oterm"),
+            reports[0]
+                .retained_native_artifact()
+                .expect("shared native product")
+                .psi_artifact()
+                .to_bytes(),
+        )
+        .expect("retain shared canonical Terminal artifact");
+        println!("native_pipeline_evidence={}", directory.display());
+    }
     // Measure the shared invocation before these independent compilations.
     // Allocation identity proves sharing; byte equality separately checks that
     // sharing has not changed either target's realized program.
@@ -231,6 +330,10 @@ fn main() {
                 shared == single,
                 "{name}: shared and single-target bytes differ"
             );
+            if let Some(directory) = &evidence_directory {
+                std::fs::write(directory.join(format!("{name}-single.image")), single)
+                    .expect("retain independently compiled image");
+            }
             println!("target={name} single_target_bytes_agree={}", shared.len());
         }
     }

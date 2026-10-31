@@ -113,6 +113,9 @@ pub(crate) fn realize_native_artifact(
         .settle_elf_loader(&emitted.object, request.elf_interpreter)
         .map_err(|error| vec![error.diagnostic().clone()])?;
     let artifact = phase_profile::scope("06.1.e_emit_admitted_image", || {
+        request
+            .observation
+            .enter(crate::observations::NativePipelineStage::ImageEmission);
         RequestedNativeArtifact::emit_admitted(
             request.admission.providers.target(),
             artifact,
