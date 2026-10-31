@@ -585,8 +585,13 @@ pub(super) fn natural_component(
 ) -> Option<super::ValidatedRuntimeNaturalComponent> {
     let mut states = Vec::new();
     for ((machine_position, rank), mappings) in component.iter().zip(ranks).zip(mappings) {
-        let RankOrder::Natural(primitive_type) = rank.order else {
-            return None;
+        let (primitive_type, measure) = match rank.order {
+            RankOrder::Natural(primitive) => (primitive, SymbolHandle::invalid()),
+            RankOrder::DeclaredIdentity { primitive, measure }
+            | RankOrder::DeclaredComputation {
+                primitive, measure, ..
+            } => (primitive, measure),
+            _ => return None,
         };
         for (state, roles) in program
             .machine_states(&program.machines()[*machine_position])
@@ -617,6 +622,7 @@ pub(super) fn natural_component(
                 return None;
             }
             states.push(super::ValidatedRuntimeNaturalState {
+                measure,
                 state: state.symbol,
                 parameter: parameter.symbol,
                 coordinate,

@@ -151,6 +151,7 @@ pub fn retain_runtime_rank_component(
                     entry_indexes,
                 });
                 CheckedRuntimeNaturalState {
+                    measure: state.measure,
                     state: state.state,
                     coordinate,
                     parameter_position: state.parameter_position,
@@ -221,6 +222,7 @@ pub fn retained_runtime_natural_components(
                 .map(|state| {
                     let coordinate = admitted.coordinates.get(state.coordinate);
                     Some(super::ValidatedRuntimeNaturalState {
+                        measure: state.measure,
                         state: state.state,
                         parameter: coordinate.parameter,
                         coordinate: crate::RankSubjectCoordinate {

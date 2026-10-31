@@ -17,6 +17,8 @@
 //! adapter never equates value occurrences by their spelling or operands.
 
 pub(super) mod calls;
+mod formation;
+pub use formation::scoped_integer_expression_is_formed;
 
 use super::arithmetic_judgment::{Engine, Judgment, Polynomial};
 

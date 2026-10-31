@@ -30,6 +30,8 @@ use projection::RankProjection;
 /// transient query results, not another executable representation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedRuntimeNaturalState {
+    /// Exact declared application, or ZII for a normalized primitive view.
+    pub measure: SymbolHandle,
     pub state: SymbolHandle,
     pub parameter: SymbolHandle,
     pub coordinate: crate::RankSubjectCoordinate,

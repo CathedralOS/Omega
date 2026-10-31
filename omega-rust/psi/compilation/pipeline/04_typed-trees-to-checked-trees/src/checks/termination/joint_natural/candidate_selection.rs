@@ -125,12 +125,31 @@ pub(super) fn prepare(
         } else {
             None
         };
+        let entry_value = if let Some(application) = view.application {
+            if application.primitive != carrier {
+                return Some(Err(
+                    "a computed natural rank has incompatible input and result carriers",
+                ));
+            }
+            let expression = application.expression(selected.entry_value.clone());
+            if !values.forms_integer_expression(machine, &expression, application.primitive) {
+                return Some(Err(
+                    "a computed natural rank application has no independent entry formation",
+                ));
+            }
+            ScopedArithmeticValue::Term(expression)
+        } else {
+            selected.entry_value.clone()
+        };
         candidates.push(vec![Rank {
             coordinate: selected,
             bound,
+            application: view.application,
+            entry_value,
         }]);
     }
     let (order, primitive, _) = selected_order?;
+    let application = authored.iter().flatten().find_map(|view| view.application);
     let closed_bounds = candidates
         .iter()
         .flatten()
@@ -154,9 +173,24 @@ pub(super) fn prepare(
             .filter(|coordinate| coordinate.primitive == primitive)
         {
             if order == Order::Descending {
+                let entry_value = if let Some(application) = application {
+                    let expression = application.expression(coordinate.entry_value.clone());
+                    if !entry_values[position].forms_integer_expression(
+                        machine,
+                        &expression,
+                        application.primitive,
+                    ) {
+                        continue;
+                    }
+                    ScopedArithmeticValue::Term(expression)
+                } else {
+                    coordinate.entry_value.clone()
+                };
                 candidates.push(Rank {
                     coordinate: coordinate.clone(),
                     bound: None,
+                    application,
+                    entry_value,
                 });
                 continue;
             }
@@ -180,6 +214,8 @@ pub(super) fn prepare(
                 candidates.push(Rank {
                     coordinate: coordinate.clone(),
                     bound: Some(bound),
+                    application: None,
+                    entry_value: coordinate.entry_value.clone(),
                 });
             }
         }

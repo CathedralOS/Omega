@@ -21,7 +21,32 @@ impl Order {
 /// Source selection and produced numeric observation are separate. A declared
 /// identity or field projection may normalize to its exact value coordinate;
 /// selecting it still retains the declaration's identity through admission.
+#[derive(Clone, Copy)]
+pub(super) struct Application {
+    pub(super) measure: symbols::SymbolHandle,
+    pub(super) parameter: symbols::SymbolHandle,
+    pub(super) body: typed_trees::expression::ExpressionHandle,
+    pub(super) primitive: typed_trees::types::PrimitiveType,
+}
+
+impl Application {
+    pub(super) fn expression(
+        self,
+        input: validation::ScopedArithmeticValue,
+    ) -> validation::ScopedArithmeticExpression {
+        validation::ScopedArithmeticExpression {
+            owner: self.measure,
+            expression: self.body,
+            bindings: vec![validation::ScopedArithmeticBinding {
+                binder: validation::ScopedArithmeticBinder::Symbol(self.parameter),
+                value: input,
+            }],
+        }
+    }
+}
+
 pub(super) struct SelectedView {
+    pub(super) application: Option<Application>,
     pub(super) order: Order,
     pub(super) declaration: Option<symbols::SymbolHandle>,
     pub(super) observation: validation::RankPremiseObservation,
@@ -49,6 +74,7 @@ pub(super) fn select(
     let subject = *subjects.first()?;
     let mut place =
         validation::canonical_place_from_expression_in_state(program, entry.symbol, 0, subject)?;
+    let mut application = None;
     let (order, declaration, observation, upper, measure) = match selected {
         RankingOrder::NatDescending if subjects.len() == 1 => (
             Order::Descending,
@@ -84,6 +110,31 @@ pub(super) fn select(
                 limit: upper,
             },
         ),
+        RankingOrder::CustomScalarView {
+            measure,
+            parameter,
+            body,
+            carrier,
+        } if subjects.len() == 1 => {
+            application = Some(Application {
+                measure,
+                parameter,
+                body,
+                primitive: typed_trees::types::PrimitiveType::from_builtin_atom(carrier)?,
+            });
+            (
+                Order::Descending,
+                Some(measure),
+                RankPremiseObservation::Value,
+                None,
+                RankingRangeMeasure::Computed {
+                    subject,
+                    parameter,
+                    body,
+                    carrier,
+                },
+            )
+        }
         RankingOrder::CustomNatDescending { measure } if subjects.len() == 1 => (
             Order::Descending,
             Some(measure),
@@ -122,12 +173,12 @@ pub(super) fn select(
                 RankingRangeMeasure::Field { subject, measure },
             )
         }
-        // A computed view also owes its body's carrier and intermediate
-        // formation. Its input is not its produced value; it must keep the
-        // existing computation judgment until that observation is represented.
+        // Other view families retain their ordinary formation/comparison owner.
+        // A computation above keeps its application; its input is not the rank.
         _ => return None,
     };
     Some(SelectedView {
+        application,
         order,
         declaration,
         observation,

@@ -43,7 +43,8 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
         })
     };
     let subject = *subjects.first()?;
-    let mut entry = coordinate(subject)?;
+    let input = coordinate(subject)?;
+    let mut entry = input.clone();
     if let RankingOrder::CustomStructView {
         path, field_symbol, ..
     } = &order
@@ -98,8 +99,35 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                     .measures()
                     .iter()
                     .find(|definition| definition.symbol == *measure)?;
+                let formal = declaration.parameter.as_ref()?;
+                let inputs = selected.declaration_bindings(formal.symbol, &input);
+                if inputs.is_empty() {
+                    return None;
+                }
+                let bindings = inputs
+                    .into_iter()
+                    .map(|binding| {
+                        let mut retain = |coordinate: validation::RankSubjectCoordinate| {
+                            let path = admitted.path_segments.insert_many(coordinate.path);
+                            admitted
+                                .coordinates
+                                .insert(checked_trees::CheckedRankCoordinate {
+                                    parameter: coordinate.parameter,
+                                    path,
+                                    entry_indexes: Default::default(),
+                                })
+                        };
+                        checked_trees::CheckedRankCoordinateBinding {
+                            entry: retain(binding.entry),
+                            destination: retain(binding.destination),
+                            ..Default::default()
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let bindings = admitted.bindings.insert_many(bindings);
                 CheckedNaturalRankMeasure::DeclaredMeasure {
                     measure: *measure,
+                    bindings,
                     primitive_type: program.primitive_type_reference(declaration.return_type)?,
                 }
             }

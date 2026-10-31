@@ -9,7 +9,9 @@ mod candidate_selection;
 mod coordinate_assignment;
 mod coordinates;
 mod edge_observations;
+mod observations;
 mod ranges;
+pub(super) use observations::retain_observation;
 mod views;
 
 /// Infer missing private observations, then prove all actual edges and cycles.

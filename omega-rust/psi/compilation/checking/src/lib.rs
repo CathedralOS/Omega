@@ -506,7 +506,7 @@ pub use proof_contracts::contract_entailment::scoped_arithmetic::{
     ScopedCallCompletion, ScopedCallResultObservation, scoped_arithmetic_comparisons_unsatisfiable,
     scoped_arithmetic_implication, scoped_arithmetic_value_bounds,
     scoped_arithmetic_values_relation, scoped_call_result_observations,
-    scoped_completed_call_guarantees,
+    scoped_completed_call_guarantees, scoped_integer_expression_is_formed,
 };
 pub use proof_contracts::contract_entailment::specification_calls::call_contract_parameter_position;
 pub use proof_contracts::contract_entailment::statement_predicates::StatementPredicateObservations;

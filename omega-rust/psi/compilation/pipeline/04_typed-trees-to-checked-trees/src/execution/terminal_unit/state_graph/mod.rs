@@ -155,13 +155,43 @@ pub(super) fn natural_rank_plans_for_fused(
                     && match (state.observation, rank.measure) {
                         (
                             validation::RankPremiseObservation::Value,
+                            checked_trees::CheckedNaturalRankMeasure::DeclaredMeasure {
+                                measure,
+                                bindings,
+                                primitive_type,
+                            },
+                        ) => {
+                            let Some([binding]) = admitted.bindings.span(bindings) else {
+                                return false;
+                            };
+                            let input = admitted.coordinates.get(binding.destination);
+                            let formal = admitted.coordinates.get(binding.entry);
+                            measure == state.measure
+                                && measure.is_valid()
+                                && primitive_type == state.primitive_type
+                                && program
+                                    .measures()
+                                    .iter()
+                                    .find(|definition| definition.symbol == measure)
+                                    .and_then(|definition| definition.parameter.as_ref())
+                                    .is_some_and(|parameter| parameter.symbol == formal.parameter)
+                                && formal.path.is_empty()
+                                && input.parameter == state.coordinate.parameter
+                                && admitted.path_segments.span(input.path)
+                                    == Some(state.coordinate.path.as_slice())
+                                && admitted.entry_indexes.span(input.entry_indexes)
+                                    == Some(state.entry_indexes.as_slice())
+                        }
+                        (
+                            validation::RankPremiseObservation::Value,
                             checked_trees::CheckedNaturalRankMeasure::IntegerValue {
                                 coordinate,
                                 primitive_type,
                             },
                         ) => {
                             let coordinate = admitted.coordinates.get(coordinate);
-                            primitive_type == state.primitive_type
+                            !state.measure.is_valid()
+                                && primitive_type == state.primitive_type
                                 && coordinate.parameter == state.coordinate.parameter
                                 && admitted.path_segments.span(coordinate.path)
                                     == Some(state.coordinate.path.as_slice())
