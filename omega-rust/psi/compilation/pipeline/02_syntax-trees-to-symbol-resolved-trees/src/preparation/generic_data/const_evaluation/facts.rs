@@ -521,8 +521,7 @@ pub(super) fn prove_const_data_predicates(
         _ => return Err("data constant lost its completed structural value".to_owned()),
     };
     let variant = case_name.and_then(|case_name| {
-        syntax
-            .items
+        syntax_items(&syntax)
             .data_members(definition.members)
             .iter()
             .find_map(|member| match member {
@@ -947,8 +946,7 @@ fn evaluate_selected_domain_facts(
         TypeReferenceNode::Named(name) => Some(name.as_str(syntax)),
         _ => None,
     };
-    let carrier_parameter = syntax
-        .items
+    let carrier_parameter = syntax_items(&syntax)
         .type_parameters(domain.type_parameters)
         .first()
         .filter(|parameter| {

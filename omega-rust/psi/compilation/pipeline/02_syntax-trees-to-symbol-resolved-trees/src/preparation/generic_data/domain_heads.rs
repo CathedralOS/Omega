@@ -12,6 +12,7 @@
 //! binds names only; typed alias application still checks subject compatibility
 //! and the selected family's requirements before expanding its atoms.
 
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
@@ -85,8 +86,7 @@ pub(crate) fn normalize(
             match member {
                 DataMember::Field(field) => types.push(field.type_reference),
                 DataMember::Variant(variant) => types.extend(
-                    syntax
-                        .items
+                    syntax_items(&syntax)
                         .data_payload_fields(variant.payload)
                         .iter()
                         .map(|field| field.type_reference),
@@ -207,6 +207,7 @@ pub(crate) fn normalize(
         // Retaining it as one identifier also makes repeated preparation
         // idempotent when the declaring module has a binder's spelling.
         alias.constituents[ordinal] = syntax
+            .tables
             .items
             .insert_identifier_path_members([Identifier::new(address, reference)]);
         syntax.items.replace_item(declaration, Item::Domain(domain));

@@ -7,6 +7,7 @@
 //! and resolution share this owner; generic-data synthesis is one consumer.
 //! Transient symbols remain private and do not escape into normalized syntax.
 
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use std::sync::Arc;
 
@@ -788,8 +789,7 @@ impl<'base> ConstantSelection<'base> {
                 return Err(());
             }
             Ok(Some(
-                forest
-                    .items
+                syntax_items(&forest)
                     .type_parameters(parameters)
                     .iter()
                     .map(|parameter| match parameter.kind {
@@ -1200,8 +1200,7 @@ fn append_variants(
 ) {
     builder.insert_children(
         symbol,
-        syntax
-            .items
+        syntax_items(&syntax)
             .data_members(definition.members)
             .iter()
             .filter_map(|member| {

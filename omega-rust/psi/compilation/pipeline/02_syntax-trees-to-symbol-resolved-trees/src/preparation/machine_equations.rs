@@ -17,6 +17,7 @@ use super::{
     generic_data::module_constants,
     type_equations::{self, EquationTemplate},
 };
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use arena::Handle;
 use diagnostics::Diagnostic;
@@ -711,8 +712,7 @@ fn application_argument_reference(
             {
                 return Err(reject("requires lifetime-free constructor arguments"));
             }
-            let parameters = syntax
-                .items
+            let parameters = syntax_items(&syntax)
                 .type_parameters(definition.type_parameters)
                 .to_vec();
             if parameters.len() != application.arguments.len() {

@@ -21,6 +21,7 @@ use crate::preparation::generic_data::{
     closed_argument_identity, closed_name_identity, domain_application_head,
     domain_index_telescope, selected_domain_family,
 };
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
@@ -105,8 +106,7 @@ impl Solver<'_, '_> {
                             (
                                 base_name.clone(),
                                 declaration,
-                                self.syntax
-                                    .items
+                                syntax_items(&self.syntax)
                                     .type_parameters(definition.type_parameters)
                                     .to_vec(),
                                 None,

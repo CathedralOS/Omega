@@ -27,6 +27,7 @@
 //! declaring source at this boundary; unselected or nongeneric spellings
 //! reject here rather than drifting to a later stage's weaker error.
 
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
@@ -55,8 +56,7 @@ pub(crate) fn validate_with_const_resolution_mode(
             let Item::Module(module) = item else {
                 return None;
             };
-            syntax
-                .items
+            syntax_items(&syntax)
                 .identifier_path_members(module.path)
                 .first()
                 .map(|member| member.source_span().source_id)

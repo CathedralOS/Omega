@@ -12,6 +12,7 @@ use crate::preparation::{
     generic_data,
     type_equations::{self, EquationTemplate},
 };
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression, types};
@@ -98,8 +99,7 @@ pub(super) fn member_types<'trees>(
                         let (symbol, resolved) = origin.declaration(trees)?;
                         (symbol == field).then_some((authored, resolved))
                     })?;
-            let parameters = syntax
-                .items
+            let parameters = syntax_items(&syntax)
                 .type_parameters(declaration.type_parameters)
                 .to_vec();
             let names = parameters

@@ -334,8 +334,7 @@ fn copy_case_membership_fact(
         .insert_type_reference_handles(substituted);
     let value = syntax.copy_expression_from(snapshot, membership.value);
     let domain = syntax.items.insert_identifier_path_members(
-        snapshot
-            .items
+        syntax_items(&snapshot)
             .identifier_path_members(membership.domain)
             .to_vec(),
     );

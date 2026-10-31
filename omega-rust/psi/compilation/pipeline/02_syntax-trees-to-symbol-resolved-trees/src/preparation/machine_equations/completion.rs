@@ -1,6 +1,7 @@
 //! Complete the selected machine application without changing static binder kinds.
 
 use super::*;
+use crate::tables::syntax_items;
 
 pub(super) fn complete_arguments(
     syntax: &mut SyntaxTrees,
@@ -22,8 +23,7 @@ pub(super) fn complete_arguments(
         )
         .with_source_span(target.source_span()));
     };
-    let all_parameters = syntax
-        .items
+    let all_parameters = syntax_items(&syntax)
         .type_parameters(declaration.type_parameters)
         .to_vec();
     // Machines retain their explicit conformance suffix separately from the
@@ -64,15 +64,13 @@ pub(super) fn complete_arguments(
             .iter()
             .map(|bound| bound.binder.as_str(syntax).to_owned()),
     );
-    let signature_mentions = syntax
-        .items
+    let signature_mentions = syntax_items(&syntax)
         .state_handles(declaration.states)
         .first()
         .map(|entry| syntax.items.state(*entry))
         .into_iter()
         .flat_map(|entry| {
-            syntax
-                .items
+            syntax_items(&syntax)
                 .state_parameters(entry.parameters)
                 .iter()
                 .map(|parameter| syntax.items.state_parameter(*parameter).type_reference)

@@ -8,6 +8,7 @@ use super::{
     HashSet, Identifier, SyntaxTrees, TypeReferenceHandle, TypeReferenceNode,
     declaration_selection::ConstantSelection,
 };
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use syntax_trees::expression::{ExpressionNode, StaticMachineArgument};
 use syntax_trees::statement::StatementNode;
@@ -51,10 +52,7 @@ pub(super) fn collect(
         }
     }
     for state in super::uses::selected_machine_state_handles(syntax, syntax.root_item_handles()) {
-        for statement in syntax
-            .items
-            .statements(syntax.items.state(state).statements)
-        {
+        for statement in syntax_items(&syntax).statements(syntax.items.state(state).statements) {
             if let StatementNode::Call(call) = syntax.statements.statement(*statement) {
                 if !has_const_expression_argument(syntax, &call.machine_arguments) {
                     continue;

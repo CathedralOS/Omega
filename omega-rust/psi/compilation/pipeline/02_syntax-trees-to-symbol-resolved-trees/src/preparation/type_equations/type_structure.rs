@@ -21,6 +21,7 @@ use crate::preparation::generic_data::{
     canonicalize_selected_declared_const_definition, closed_argument_identity,
     closed_fixed_array_length,
 };
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
@@ -212,8 +213,7 @@ impl Solver<'_, '_> {
     }
 
     fn parameter_position(&self, name: &str) -> Option<(usize, bool)> {
-        self.syntax
-            .items
+        syntax_items(&self.syntax)
             .type_parameters(self.base_info.parameters)
             .iter()
             .enumerate()

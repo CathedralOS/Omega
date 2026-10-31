@@ -2,6 +2,7 @@
 
 use crate::constant::initializer_normalization;
 use crate::constant::substitution::semantic_const_name;
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use source::{SourceSpan, Span};
@@ -430,9 +431,7 @@ fn validate_literal_initializer(
                     return false;
                 };
                 data.name.as_str(syntax_trees) == type_name.as_str(syntax_trees)
-                    && syntax_trees
-                        .items
-                        .data_members(data.members)
+                    && syntax_items(&syntax_trees).data_members(data.members)
                         .iter()
                         .any(|member| {
                             matches!(

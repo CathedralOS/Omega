@@ -774,8 +774,7 @@ pub(in crate::preparation::generic_data) fn collect_machine_type_reference_posit
     for machine in
         super::super::uses::concrete_machine_declarations(syntax, syntax.root_item_handles())
     {
-        for (ordinal, state_handle) in syntax
-            .items
+        for (ordinal, state_handle) in syntax_items(&syntax)
             .state_handles(machine.states)
             .iter()
             .enumerate()

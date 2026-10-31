@@ -27,6 +27,7 @@
 //! inside the declaration's package instead of falling back to a same-leaf
 //! competitor.
 
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -127,14 +128,12 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
             let symbol = selection
                 .trait_lookup(syntax, &trait_definition.name)
                 .unique()?;
-            let parameter_names = syntax
-                .items
+            let parameter_names = syntax_items(&syntax)
                 .type_parameters(trait_definition.type_parameters)
                 .iter()
                 .map(|parameter| parameter.name.as_str(syntax).to_string())
                 .collect();
-            let signatures = syntax
-                .items
+            let signatures = syntax_items(&syntax)
                 .state_signatures(trait_definition.machines)
                 .iter()
                 .enumerate()
@@ -172,8 +171,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
                 }
             }
             requirements.extend(
-                syntax
-                    .items
+                syntax_items(&syntax)
                     .identifier_path_members(trait_definition.requires)
                     .iter()
                     .map(|name| TraitRequirementInput {
@@ -250,8 +248,7 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
             .zip(arguments.iter().copied())
             .collect::<HashMap<_, _>>();
 
-        let mut closed_members = syntax
-            .items
+        let mut closed_members = syntax_items(&syntax)
             .conformance_members(conformance.declaration.members)
             .to_vec();
         let mut requirements = Vec::new();
@@ -669,8 +666,7 @@ fn instantiate_default_signature(
     let substitution = substitution
         .iter()
         .filter(|(name, _)| {
-            !syntax
-                .items
+            !syntax_items(&syntax)
                 .type_parameters(signature.type_parameters)
                 .iter()
                 .any(|parameter| parameter.name.as_str(syntax) == name.as_str())

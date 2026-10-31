@@ -1,5 +1,6 @@
 //! Exact anonymous values, independent of their eventual const landing.
 
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigRational;
@@ -248,14 +249,12 @@ fn authored_spelling_parameters(
         // signatures author the spelling through shapes this pass does not
         // read into parameter carriers; they conservatively may bind.
         Item::Operator(operator) if operator.spelling == Some(spelling) => Some(vec![None, None]),
-        Item::Domain(domain) => syntax
-            .items
+        Item::Domain(domain) => syntax_items(&syntax)
             .operators(domain.operators)
             .iter()
             .any(|operator| operator.spelling == Some(spelling))
             .then(|| vec![None, None]),
-        Item::Trait(trait_definition) => syntax
-            .items
+        Item::Trait(trait_definition) => syntax_items(&syntax)
             .state_signatures(trait_definition.machines)
             .iter()
             .any(|handle| syntax.items.state_signature(*handle).spelling == Some(spelling))
@@ -271,8 +270,7 @@ fn machine_parameter_names(
     syntax: &SyntaxTrees,
     machine: &syntax_trees::item::Machine,
 ) -> Vec<Option<String>> {
-    let binder_names: Vec<&str> = syntax
-        .items
+    let binder_names: Vec<&str> = syntax_items(&syntax)
         .type_parameters(machine.type_parameters)
         .iter()
         .map(|parameter| parameter.name.as_str(syntax))
@@ -281,8 +279,7 @@ fn machine_parameter_names(
         return Vec::new();
     };
     let state = syntax.items.state(*entry);
-    syntax
-        .items
+    syntax_items(&syntax)
         .state_parameters(state.parameters)
         .iter()
         .map(|handle| {

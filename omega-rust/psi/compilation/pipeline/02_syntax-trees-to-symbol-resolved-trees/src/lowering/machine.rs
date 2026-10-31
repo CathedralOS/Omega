@@ -7,6 +7,7 @@
 //! operator-token bindings once every selection has settled.
 
 use crate::lowering::expression::expression_table;
+use crate::tables::syntax_items;
 use syntax_trees::identifier::JoinedSyntaxPath;
 mod token_bindings;
 mod type_equations;
@@ -136,8 +137,7 @@ fn lower_lexical_machine_parts(
     lowerer.current_machine_is_boundary = machine.boundary;
     lowerer.current_machine_root_index = Some(lowerer.symbol_resolved_trees.machines.len());
     lowerer.current_machine_name = Some(machine.name.as_str(syntax_trees).to_owned());
-    lowerer.current_evidence_term_names = syntax_trees
-        .items
+    lowerer.current_evidence_term_names = syntax_items(&syntax_trees)
         .capability_contracts(machine.contracts)
         .iter()
         .filter_map(|contract| contract.binding.as_ref())
@@ -159,8 +159,7 @@ fn lower_lexical_machine_parts(
                 .iter()
                 .copied()
                 .zip(
-                    syntax_trees
-                        .items
+                    syntax_items(&syntax_trees)
                         .state_handles(machine.states)
                         .iter()
                         .copied(),
@@ -254,14 +253,12 @@ fn lower_lexical_machine_parts(
     // an admission claim. Supply is decided before the
     // push so the interner borrow does not overlap the machines borrow.
     let supply_mode = {
-        let via_binding = syntax_trees
-            .items
+        let via_binding = syntax_items(&syntax_trees)
             .satisfies_clauses(machine.satisfies)
             .iter()
             .find_map(|clause| clause.via.as_ref())
             .map(|value| external_binding_identity(syntax_trees, value));
-        let has_via_expression = syntax_trees
-            .items
+        let has_via_expression = syntax_items(&syntax_trees)
             .satisfies_clauses(machine.satisfies)
             .iter()
             .any(|clause| clause.via_expression.is_valid());
@@ -288,8 +285,7 @@ fn lower_lexical_machine_parts(
             // actually authors a fact. Claim-free symbols such as the
             // axiomatic Real package's operations assert nothing and need no
             // grant; they remain ordinary boundary supply.
-            let authors_fact = syntax_trees
-                .items
+            let authors_fact = syntax_items(&syntax_trees)
                 .capability_contracts(machine.contracts)
                 .iter()
                 .any(|contract| {
@@ -500,8 +496,7 @@ fn with_pending_machine_scope<T>(
     let previous_name = lowerer
         .current_machine_name
         .replace(pending.source.name.as_str(syntax).to_owned());
-    let evidence_names = syntax
-        .items
+    let evidence_names = syntax_items(&syntax)
         .capability_contracts(pending.source.contracts)
         .iter()
         .filter_map(|contract| contract.binding.as_ref())
@@ -724,9 +719,7 @@ fn elaborate_ranking_view(
 ) -> (language_semantics::RankingViewId, String) {
     use language_semantics::RankingViewId;
 
-    let order = syntax_trees
-        .items
-        .identifier_path_members(machine.ranking_view);
+    let order = syntax_items(&syntax_trees).identifier_path_members(machine.ranking_view);
     if !order.is_empty() {
         let path = order.joined_path_in(syntax_trees);
         let id = RankingViewId::canonical(&path).unwrap_or(RankingViewId::NULL);

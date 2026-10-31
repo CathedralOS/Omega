@@ -16,6 +16,7 @@ use crate::lowering::proposition::lower_proposition_definition;
 use crate::lowering::trait_definition::lower_trait_definition;
 use crate::lowering::type_reference::lower_child_type_references;
 use crate::resolution::lowerer::Lowerer;
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use syntax_trees::identifier::JoinedSyntaxPath;
@@ -160,8 +161,7 @@ fn lower_item_with_exposure(
                         requirement,
                         target,
                     } => {
-                        let realization_name = syntax_trees
-                            .items
+                        let realization_name = syntax_items(&syntax_trees)
                             .identifier_path_members(*target)
                             .joined_path_in(syntax_trees);
                         let target_members = syntax_trees.items.identifier_path_members(*target);
@@ -528,8 +528,7 @@ fn candidate_satisfies_requirement(
     trait_arguments: arena::HandleSpan<syntax::types::TypeReferenceHandle>,
     requirement_name: &syntax::identifier::Identifier,
 ) -> bool {
-    syntax_trees
-        .items
+    syntax_items(&syntax_trees)
         .satisfies_clauses(candidate.satisfies)
         .iter()
         .any(|clause| {

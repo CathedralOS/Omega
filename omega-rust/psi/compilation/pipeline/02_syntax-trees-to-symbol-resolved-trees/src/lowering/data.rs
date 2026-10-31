@@ -8,6 +8,7 @@
 use crate::lowering::name::lower_names;
 use crate::lowering::type_reference::{lower_child_type_references, lower_type_reference_handle};
 use crate::resolution::lowerer::Lowerer;
+use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -123,10 +124,7 @@ fn lower_data_definition_with_argument_origins(
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
     let case_fact_gate = GenericCaseFactGate::new(syntax_trees, data_definition.type_parameters);
     let mut members = HandleSpan::empty();
-    for parameter in syntax_trees
-        .items
-        .type_parameters(data_definition.type_parameters)
-    {
+    for parameter in syntax_items(&syntax_trees).type_parameters(data_definition.type_parameters) {
         let syntax::item::TypeParameterKind::Value { type_reference } = &parameter.kind else {
             continue;
         };
@@ -168,8 +166,7 @@ fn lower_data_definition_with_argument_origins(
             ));
         }
     }
-    let retired_identities = syntax_trees
-        .items
+    let retired_identities = syntax_items(&syntax_trees)
         .data_members(data_definition.members)
         .iter()
         .filter_map(|member| match member {
@@ -185,9 +182,7 @@ fn lower_data_definition_with_argument_origins(
                 carrier: lower_type_reference_handle(lowerer, syntax_trees, quotient.carrier)?,
                 relation: lower_names(
                     syntax_trees,
-                    syntax_trees
-                        .items
-                        .identifier_path_members(quotient.relation),
+                    syntax_items(&syntax_trees).identifier_path_members(quotient.relation),
                 ),
                 relation_symbol: SymbolHandle::invalid(),
                 equivalence: quotient
@@ -196,8 +191,7 @@ fn lower_data_definition_with_argument_origins(
                     .map(|selection| {
                         Ok::<_, Diagnostic>(
                             symbol_resolved_trees::data::QuotientEquivalenceSelection {
-                                relation: syntax_trees
-                                    .items
+                                relation: syntax_items(&syntax_trees)
                                     .identifier_path_members(selection.relation)
                                     .iter()
                                     .map(|name| {
@@ -639,8 +633,7 @@ fn generic_case_facts_unsupported(
     if gate.unsubstituted.is_empty() && gate.consts.is_empty() && gate.values.is_empty() {
         return false;
     }
-    syntax_trees
-        .items
+    syntax_items(&syntax_trees)
         .proof_facts(facts)
         .iter()
         .any(|fact| match fact {
@@ -663,8 +656,7 @@ fn generic_case_facts_unsupported(
             // positions, so `type`/`const` binders admit there.
             syntax::item::ProofFact::Membership(membership) => {
                 case_fact_expression_mentions(syntax_trees, membership.value, gate, false)
-                    || syntax_trees
-                        .items
+                    || syntax_items(&syntax_trees)
                         .identifier_path_members(membership.domain)
                         .iter()
                         .any(|member| gate.mentions(member.as_str(syntax_trees)))
