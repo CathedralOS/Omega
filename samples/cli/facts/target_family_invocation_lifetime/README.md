@@ -92,15 +92,37 @@ The repair includes final-call transition expressions in ordinary lifetime
 inference. The invalid telescope program is unchanged; its expectation now
 names the exact requirement/owned-realizer own-region telescope mismatch.
 
-Full-row acceptance remains open. [Run 41233740591](https://github.com/CathedralOS/Omega/actions/runs/41233740591)
-at source `19ba4aa0df0ac916ee6b20fe8d56b4600dcc9c05` uses these same compiler
-bytes: call result remains incomplete in local-data statement 3 because its
-reference result has no complete input origins. That case has no native or
-Terminal acceptance. The historical [run 41227086012](https://github.com/CathedralOS/Omega/actions/runs/41227086012)
-recorded eleven signature/telescope refusals with wrong diagnostic fragments;
-the current scoped run closes only the two-lifetime pair. The nine ordinary
-signature-twin reason frontiers remain open. These results do not establish
-other native hosts or the complete family.
+The ordinary call-result forwarding case is established by
+[run 41238127524](https://github.com/CathedralOS/Omega/actions/runs/41238127524)
+at source `db6c80fc4d2345c0406dc66f10cba81537598ef6`. Call result, local and
+two-lifetime positives check and exit 0 through Linux x86-64 native execution
+and Terminal, with agreement; all five selected ownership/region rejection
+controls match. The canonical call-result sample also passes its ordinary
+review and native/Terminal gate. The optimized compiler SHA-256 is
+`23706c88bec26b5e60e55f6a30e65e69a67ca3ad4d776919724a83ef0c8f62dd`.
+The repair composes origins through every exactly associated closed provider
+body and retains each body's exact formal-to-actual correspondence.
+
+That run remains failed because the sample invalid twin expected an older
+input-source diagnostic. The byte-identical corpus twin in
+[run 41239954082](https://github.com/CathedralOS/Omega/actions/runs/41239954082)
+uses the same compiler and runner bytes and rejects during result validation:
+the nested fresh invocation output disagrees with the enclosing captured item
+region. Both expectation files now require that result-validation phase and
+its explicit fresh-versus-captured comparison. Matching is verified against
+the retained actual diagnostic; neither old wrong-fragment report is relabeled
+as a passing run, and no new compiler execution is claimed for the text change.
+The invalid program is unchanged.
+
+Full-row acceptance remains open. The historical
+[run 41233740591](https://github.com/CathedralOS/Omega/actions/runs/41233740591)
+at source `19ba4aa0df0ac916ee6b20fe8d56b4600dcc9c05` retains its original
+call-result incompleteness and no native/Terminal acceptance. The historical
+[run 41227086012](https://github.com/CathedralOS/Omega/actions/runs/41227086012)
+recorded eleven signature/telescope refusals with wrong diagnostic fragments.
+The two-lifetime pair and call-result twin are now attributed specifically;
+the other eight ordinary signature-twin reason frontiers remain open. These
+results do not establish other native hosts or the complete family.
 
 The parent task remains open for its remaining source migrations, native and
 callback consumers, distinct-target execution and complete legacy model,

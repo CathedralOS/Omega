@@ -17,7 +17,9 @@ use typed_trees::types::TypeReferenceHandle;
 use super::{CallSite, call_site_argument_expressions, requirement_contract_signature};
 
 mod carriers;
+mod requirement_realizations;
 use carriers::CarrierCorrespondence;
+pub(crate) use requirement_realizations::requirement_realization_arguments;
 
 pub struct SelectedCallArgument<'program> {
     pub executable_parameter: &'program StateParameter,

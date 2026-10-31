@@ -104,6 +104,22 @@ gh workflow run compiler-pilot.yml --ref work/NAME \
   -f fixtures=pass/float/named_integer_conversion_source_proofs_exit,fail/float/named_float_to_integer_no_context_unproven
 ```
 
+For a fact project, the optional `samples` input selects exact existing
+`samples/cli/facts/...` roots and their descendant projects. It runs the existing
+sample gate against the same retained compiler, including native/Terminal
+agreement for positives and authored refusal controls. For example:
+
+```sh
+gh workflow run compiler-pilot.yml --ref work/NAME \
+  -f native_host=linux_x86_64 \
+  -f samples=samples/cli/facts/fixed_layout_storage/compositions/reference_descriptor
+```
+
+Sample-only selection replaces the default smoke. Explicit `fixtures` and
+`samples` can share one producer when both are relevant. Selection validates
+before building; empty, unscored or check-only positives cannot pass. The
+artifact includes `samples.json` beside the corpus reports.
+
 Select `windows_x86_64` for a separate matching-host run. Host-specific caches,
 concurrency groups and artifact names keep their observations distinct; Windows
 uses the short `D:/ot` target directory. The artifact retains the actual producer
