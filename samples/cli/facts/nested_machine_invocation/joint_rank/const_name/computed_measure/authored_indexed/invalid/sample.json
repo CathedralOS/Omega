@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "cannot prove"
+    "a preserving cycle has no strict measure DECREASE"
   ]
 }

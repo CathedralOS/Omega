@@ -1,0 +1,61 @@
+// A private helper preserves the invocation rank on a tail edge, and every complete cycle strictly descends while advancing the explicit counter once.
+// Expected exit: 0
+data Remaining { canary: u64; values: [u64; 2]; }
+measure Remaining::Doubled(value: u64) -> u64 { value * 2 }
+machine count(counter: &mut u64, remaining: &mut Remaining, slot: u64) crashes Trap
+terminates;
+terminates by remaining.values[slot] -> Remaining::Doubled;
+requires slot < 2 && remaining.values[slot] <= 7;
+{
+    transition remaining.values[slot] > 0 {
+        true -> forward(remaining, slot, counter)
+        false -> finish(remaining.canary)
+    }
+    machine forward(pending: &mut Remaining, selected: u64, counter: &mut u64) crashes Trap
+    terminates;
+    terminates by pending.values[selected] -> Remaining::Doubled;
+    requires selected < 2 && pending.values[selected] > 0 && pending.values[selected] <= 7;
+    {
+        counter = ((counter as u64 in Wrapping) + 1) as u64;
+        pending.values[selected] = pending.values[selected] - 0;
+        transition { _ -> count(counter, pending, selected) }
+    }
+    machine finish(canary: u64) crashes Trap {
+        transition canary == 641 { true -> done() false -> bad() }
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine perform(counter: &mut u64, active: bool, second: bool) crashes Trap {
+    let amount: u64 = match active { true -> 7 false -> 0 };
+    let slot: u64 = match second { true -> 1 false -> 0 };
+    let mut remaining: Remaining = Remaining { canary: 641, values: [amount, amount] };
+    relay(counter, &mut remaining, slot);
+    let preserved: bool = match second {
+        true -> remaining.values[0] == amount && remaining.values[1] == 0
+        false -> remaining.values[0] == 0 && remaining.values[1] == amount
+    };
+    transition preserved && remaining.canary == 641 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+machine relay(counter: &mut u64, received: &mut Remaining, slot: u64) crashes Trap
+requires slot < 2 && received.values[slot] <= 7;
+{ transition { _ -> count(counter, received, slot) } }
+machine main() crashes Trap {
+    let mut first_count: u64 = 3;
+    perform(&mut first_count, true, false);
+    let first: bool = first_count == 10;
+    perform(&mut first_count, false, false);
+    let mut second_count: u64 = 3;
+    perform(&mut second_count, true, true);
+    let second: bool = second_count == 10;
+    perform(&mut second_count, false, true);
+    transition first && second && first_count == 10 && second_count == 10 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
