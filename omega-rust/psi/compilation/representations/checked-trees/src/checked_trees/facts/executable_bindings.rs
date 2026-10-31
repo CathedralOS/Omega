@@ -32,8 +32,9 @@ impl CheckedExpressionSource {
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedCaptureArgumentValue {
-    Type(String),
-    Const(Option<String>),
+    Type(typed_trees::type_identity::TypeIdentityId),
+    /// Invalid when this operand has no closed static const identity.
+    Const(typed_trees::type_identity::TypeIdentityId),
     Machine,
     RuntimeValue,
     Conformance,

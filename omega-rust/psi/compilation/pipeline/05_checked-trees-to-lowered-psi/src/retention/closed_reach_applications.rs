@@ -91,12 +91,14 @@ fn capture_view<'a>(
         };
         match &binding.value {
             CheckedCaptureArgumentValue::Type(identity) => {
-                types.push(identity.clone());
+                types.push(checked.type_identity_text(*identity).ok_or(
+                    LoweringError::Unsupported("closed capture type has no checked identity"),
+                )?);
             }
             CheckedCaptureArgumentValue::Const(identity) => {
-                constants.push(identity.clone().ok_or(LoweringError::Unsupported(
-                    "closed capture has an open const operand",
-                ))?);
+                constants.push(checked.type_identity_text(*identity).ok_or(
+                    LoweringError::Unsupported("closed capture has an open const operand"),
+                )?);
             }
             CheckedCaptureArgumentValue::Machine => {}
             CheckedCaptureArgumentValue::RuntimeValue => {

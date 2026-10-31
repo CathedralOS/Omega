@@ -51,12 +51,19 @@ pub(crate) fn record(program: &dyn validation::CheckingInput) -> CheckedExecutab
                 value: match &binding.value {
                     StaticMachineBindingValue::Type(reference) => {
                         CheckedCaptureArgumentValue::Type(
-                            program.normalized_type_identity_text(*reference),
+                            program.normalized_type_identity(*reference),
                         )
                     }
                     StaticMachineBindingValue::Const(reference) => {
                         CheckedCaptureArgumentValue::Const(
-                            program.static_const_type_reference_identity(*reference),
+                            program
+                                .static_const_type_reference_identity(*reference)
+                                .map(|identity| {
+                                    program
+                                        .type_identities
+                                        .with_mut(|table| table.intern(&identity))
+                                })
+                                .unwrap_or_default(),
                         )
                     }
                     StaticMachineBindingValue::Machine(_) => CheckedCaptureArgumentValue::Machine,
