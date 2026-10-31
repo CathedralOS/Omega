@@ -2850,6 +2850,15 @@ pass/facts/domain_pattern_match_bound_through_other_machine_exit built 3192ms ex
 pass/facts/domain_pattern_match_bound_through_other_state_exit built 3148ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @ee1410030dca
 pass/facts/domain_pattern_match_bound_through_parameter_exit built 3290ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @ee1410030dca
 pass/facts/domain_pattern_match_bound_through_target_body_exit built 3222ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @ee1410030dca
+pass/facts/domain_predicate_call_through_call_result_exit built 2698ms exit:0 interpreter-exit:0 interpreter:agrees @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_const_name_exit built 2702ms exit:0 interpreter-exit:0 interpreter:agrees @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_field_exit built 2464ms exit:0 interpreter-exit:0 interpreter:agrees @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_local_exit built 2988ms exit:0 interpreter-exit:0 interpreter:agrees @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_match_join_exit built 2992ms exit:0 interpreter-exit:0 interpreter:agrees @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_other_machine_exit built 2480ms exit:0 interpreter-exit:0 interpreter:agrees @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_other_state_exit built 2694ms exit:0 interpreter-exit:0 interpreter:agrees @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_parameter_exit built 2729ms exit:0 interpreter-exit:0 interpreter:agrees @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_target_body_exit built 2053ms exit:0 interpreter-exit:0 interpreter:agrees @8515a99cf21b+wt
 pass/facts/domain_selected_cleanup_erased_predicates_exit built 2415ms exit:0 interpreter-exit:0 interpreter:agrees @290b093a0ecc+wt
 pass/facts/domain_selected_cleanup_indexed_inherited_computed_exit built 2546ms exit:0 interpreter-exit:0 interpreter:agrees @290b093a0ecc+wt
 pass/facts/domain_selected_cleanup_indexed_inherited_exit built 3732ms exit:0 interpreter-exit:0 interpreter:agrees @290b093a0ecc+wt

@@ -83,6 +83,7 @@ pub fn scalar_domain_local_predicate(
         subject: &subject,
         primitive,
         indices: Vec::new(),
+        substituted_formal: symbols::SymbolHandle::invalid(),
     };
     let mut predicates = Vec::new();
     for fact in facts {
@@ -230,6 +231,7 @@ fn project(
         subject,
         primitive: application.primitive,
         indices: application.indices,
+        substituted_formal: symbols::SymbolHandle::invalid(),
     };
     let mut predicates = Vec::new();
     for fact in program.proof_facts.span(domain.facts)? {
@@ -270,6 +272,9 @@ struct Predicate<'program> {
     subject: &'program Scalar,
     primitive: PrimitiveType,
     indices: Vec<(symbols::SymbolHandle, numerics::bignum::BigInt)>,
+    /// Callee formal currently standing for the domain subject. Zero means the
+    /// expression is still in the domain's own predicate.
+    substituted_formal: symbols::SymbolHandle,
 }
 
 impl Predicate<'_> {
@@ -298,22 +303,18 @@ impl Predicate<'_> {
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(Boolean::Constant(*value)),
-            ExpressionNode::Name(_)
+            ExpressionNode::Name(path)
                 if self.primitive == PrimitiveType::Bool
-                    && crate::exact_domain_subject_type(self.program, self.domain, expression)
-                        .is_some() =>
+                    && (crate::exact_domain_subject_type(self.program, self.domain, expression)
+                        .is_some()
+                        || path.symbol == self.substituted_formal) =>
             {
-                match self.subject {
-                    Scalar::Boolean(value) => Some((**value).clone()),
-                    Scalar::Parameter { position, .. } => Some(Boolean::Parameter {
-                        position: *position,
-                    }),
-                    Scalar::ErasedParameter { position, .. } => Some(Boolean::ErasedParameter {
-                        position: *position,
-                    }),
-                    _ => None,
-                }
+                self.subject_boolean()
             }
+            // A predicate call is the selected declaration's boolean body under
+            // the exact subject. The declaration owns that body; a matching
+            // name or a later caller guard does not.
+            ExpressionNode::Call(call) => self.declaration_call(call, depth),
             ExpressionNode::Unary(unary)
                 if unary.operator == UnaryOperator::LogicalNot
                     && crate::has_builtin_domain_decomposed_guard_meaning(
@@ -389,6 +390,99 @@ impl Predicate<'_> {
                 })
             }
             _ => None,
+        }
+    }
+
+    fn subject_boolean(&self) -> Option<Boolean> {
+        match self.subject {
+            Scalar::Boolean(value) => Some((**value).clone()),
+            Scalar::Parameter { position, .. } => Some(Boolean::Parameter {
+                position: *position,
+            }),
+            Scalar::ErasedParameter { position, .. } => Some(Boolean::ErasedParameter {
+                position: *position,
+            }),
+            _ => None,
+        }
+    }
+
+    /// Project `callee(subject)` through the selected checked body. One formal
+    /// receives the subject; static, evidence, and receiver calls stay outside
+    /// this scalar predicate.
+    fn declaration_call(
+        &self,
+        call: &typed_trees::expression::TableCallExpression,
+        depth: usize,
+    ) -> Option<Boolean> {
+        if call.receiver.is_valid()
+            || !call.machine_arguments.is_empty()
+            || !call.evidence_arguments.is_empty()
+            || call.static_requirement_dispatch.is_some()
+            || !call.selects_only_nominal_route()
+        {
+            return None;
+        }
+        let (machine, state) =
+            crate::machine_calls::calls::machine_state_by_symbol(self.program, call.target_symbol)?;
+        if self.program.machine_states(machine).len() != 1 || !machine.body_is_present {
+            return None;
+        }
+        let parameters = self.program.state_parameters(state);
+        let arguments = self.program.expression_table.expression_handles(call.arguments);
+        let [parameter] = parameters else {
+            return None;
+        };
+        let [argument] = arguments else {
+            return None;
+        };
+        if parameter.is_mutable
+            || parameter.is_const
+            || self
+                .program
+                .primitive_type_reference(parameter.type_reference)
+                != Some(self.primitive)
+            || crate::exact_domain_subject_type(self.program, self.domain, *argument).is_none()
+        {
+            return None;
+        }
+        let statements = self.program.statement_table.statements(state.statement_nodes);
+        let [statement] = statements else {
+            return None;
+        };
+        let body = if let Some(expression) = statement.as_expression() {
+            *expression
+        } else if let Some(transition) = statement.as_transition() {
+            if transition.continuation.is_valid()
+                || !matches!(
+                    transition.guard,
+                    typed_trees::statement::TransitionGuardNode::Always
+                )
+            {
+                return None;
+            }
+            let typed_trees::statement::TransitionTargetNode::Value(value) = self
+                .program
+                .statement_table
+                .transition_target(transition.target)
+            else {
+                return None;
+            };
+            *value
+        } else {
+            return None;
+        };
+        let mut projected = self.clone_with_formal(parameter.symbol);
+        projected.boolean(body, depth + 1)
+    }
+
+    fn clone_with_formal(&self, formal: symbols::SymbolHandle) -> Self {
+        Self {
+            program: self.program,
+            domain: self.domain,
+            subject: self.subject,
+            primitive: self.primitive,
+            indices: self.indices.clone(),
+            substituted_formal: formal,
         }
     }
 

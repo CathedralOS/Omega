@@ -43,6 +43,28 @@ fail/facts/abstract_signature_call_generic_actual_through_target_body_rejected r
 	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
 	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_field_rejected rejected 1812ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_local_rejected rejected 1620ms expected @8515a99cf21b+wt
+	cannot prove initializer of `kept` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_match_join_rejected rejected 1651ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_other_machine_rejected rejected 1780ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_other_state_rejected rejected 1427ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in check is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_parameter_rejected rejected 1409ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_predicate_call_through_target_body_rejected rejected 1643ms expected @8515a99cf21b+wt
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/nested_machine_joint_rank_copied_payload_call_result_rejected rejected 850ms expected @e6f74b4c381f
 	cannot prove ensures contract for exit from input at statement 0: result == Payload::Empty || result == Payload::Pending && result.count <= 7
 fail/facts/nested_machine_joint_rank_copied_payload_const_name_rejected rejected 770ms expected @e6f74b4c381f
@@ -4166,6 +4188,15 @@ pass/facts/domain_pattern_match_bound_through_other_machine_exit checked 3846ms 
 pass/facts/domain_pattern_match_bound_through_other_state_exit checked 3496ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/domain_pattern_match_bound_through_parameter_exit checked 3480ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/domain_pattern_match_bound_through_target_body_exit checked 4091ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/facts/domain_predicate_call_through_call_result_exit checked 2777ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_const_name_exit checked 2778ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_field_exit checked 2782ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_local_exit checked 2776ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_match_join_exit checked 2476ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_other_machine_exit checked 2855ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_other_state_exit checked 2859ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_parameter_exit checked 2936ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_predicate_call_through_target_body_exit checked 3084ms check-target:macos_arm64 @8515a99cf21b+wt
 pass/facts/domain_selected_cleanup_erased_predicates_exit checked 4010ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/domain_selected_cleanup_indexed_inherited_computed_exit rejected 3346ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: keeper does not establish release_keeper$specialized$9346d865f1ff1699$0 clause `keeper.code == 7`
