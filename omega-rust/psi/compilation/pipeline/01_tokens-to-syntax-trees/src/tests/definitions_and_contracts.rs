@@ -45,13 +45,7 @@ fn parses_domain_definition_surface() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let domains = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Domain(domain) => Some(domain),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let domains = super::root_domains(&parsed);
 
     assert_eq!(domains.len(), 1);
     assert_eq!(domains[0].name.as_str(&parsed), "Player::Alive");
@@ -290,13 +284,7 @@ fn parses_domain_predicate_absence_distinct_from_true_predicate() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let domains = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Domain(domain) => Some(domain),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let domains = super::root_domains(&parsed);
 
     assert_eq!(domains.len(), 3);
     for domain in &domains[..2] {

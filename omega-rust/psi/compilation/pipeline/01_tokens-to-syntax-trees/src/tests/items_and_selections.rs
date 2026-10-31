@@ -858,13 +858,7 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
         proposition reflexive(value: i32) = related(value, value);
     "#;
     let parsed = super::parse_source(source, "all settled proposition forms should parse");
-    let propositions = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Proposition(proposition) => Some(proposition),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let propositions = super::root_propositions(&parsed);
 
     assert_eq!(propositions.len(), 3);
     assert!(propositions[0].is_public);
@@ -1021,13 +1015,7 @@ fn parses_trait_proposition_parameter_with_authored_signature() {
         }
     "#;
     let parsed = super::parse_source(source, "proposition parameter should parse");
-    let trait_definitions = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Trait(definition) => Some(definition),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let trait_definitions = super::root_traits(&parsed);
     let [trait_definition] = trait_definitions.as_slice() else {
         panic!("one trait expected");
     };

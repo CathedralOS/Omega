@@ -228,13 +228,7 @@ fn carry_property_parses_all_four_axes_on_data_and_bounds() {
         "tokenize",
         "four-axis carry properties should parse",
     );
-    let data = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Data(data) => Some(data),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let data = super::root_data_items(&parsed);
 
     assert_eq!(
         data[0].properties.carry,
@@ -690,13 +684,7 @@ fn parses_fixed_operator_tokens_in_declaration_heads() {
         operator named(left: i32, right: i32) -> i32;
     "#;
     let parsed = super::parse_source(source, "fixed-token heads should parse");
-    let operators = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Operator(operator) => Some(operator),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let operators = super::root_operators(&parsed);
 
     assert_eq!(operators.len(), 4);
     assert!(operators[0].is_public);

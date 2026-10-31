@@ -70,6 +70,18 @@ macro_rules! root_item {
                 .unwrap()
         }
     };
+    ($name:ident all -> $variant:ident ($binding:ident): $ty:ident ;) => {
+        /// Every root item of this kind, in source order.
+        fn $name(parsed: &syntax_trees::SyntaxTrees) -> Vec<&syntax_trees::item::$ty> {
+            parsed
+                .root_items()
+                .filter_map(|item| match item {
+                    syntax_trees::item::Item::$variant($binding) => Some($binding),
+                    _ => None,
+                })
+                .collect()
+        }
+    };
 }
 
 root_item!(root_machine -> Machine(machine): Machine;);
@@ -80,18 +92,12 @@ root_item!(root_domain -> Domain(definition): DomainDefinition;);
 root_item!(root_conformance -> Conformance(item): ConformanceItem;);
 root_item!(root_const -> Const(definition): ConstDefinition;);
 root_item!(root_operator -> Operator(definition): OperatorDefinition;);
-
-/// Every root `Machine` item, in source order — the plural counterpart of
-/// `root_machine` for tests that index the declaration list.
-fn root_machines(parsed: &syntax_trees::SyntaxTrees) -> Vec<&syntax_trees::item::Machine> {
-    parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .collect()
-}
+root_item!(root_machines all -> Machine(machine): Machine;);
+root_item!(root_domains all -> Domain(domain): DomainDefinition;);
+root_item!(root_propositions all -> Proposition(proposition): PropositionDefinition;);
+root_item!(root_traits all -> Trait(definition): TraitDefinition;);
+root_item!(root_data_items all -> Data(definition): DataDefinition;);
+root_item!(root_operators all -> Operator(operator): OperatorDefinition;);
 
 /// The handle of `machine`'s first state — the entry state of the
 /// single-state machines these tests parse.
