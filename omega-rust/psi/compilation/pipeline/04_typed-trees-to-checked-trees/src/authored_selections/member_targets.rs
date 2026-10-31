@@ -15,7 +15,9 @@ use validation::expression_owners::checked_member_target_from_exact_owner;
 use validation::expression_traversal::collect_statement_expression_trees;
 use validation::field_domains::data_definition_by_symbol_or_name;
 use validation::selection_resolution::declaration_target;
-use validation::selection_resolution::{AuthoredSelectionResolutionTarget, authored_data_member};
+use validation::selection_resolution::{
+    AuthoredSelectionResolutionTarget as ResolutionTarget, authored_data_member,
+};
 
 use crate::authored_selections::operator_targets::{
     authored_operand_descriptor, authored_operand_type,
@@ -36,7 +38,7 @@ pub(crate) fn checked_member_target(
     expression: ExpressionHandle,
     member: &TableMemberExpression,
     owner_index: Option<&OwnerEnvironmentIndex>,
-) -> Option<AuthoredSelectionResolutionTarget> {
+) -> Option<ResolutionTarget> {
     declaration_target(effective_member_symbol(program, member.receiver, member))
         .or_else(|| {
             checked_member_target_from_exact_owner(
@@ -47,11 +49,9 @@ pub(crate) fn checked_member_target(
                 owner_index,
             )
             .map(|target| match target {
-                OwnerMemberTarget::Declaration(symbol) => {
-                    AuthoredSelectionResolutionTarget::Declaration(symbol)
-                }
+                OwnerMemberTarget::Declaration(symbol) => ResolutionTarget::Declaration(symbol),
                 OwnerMemberTarget::CollectionMeasure(measure) => {
-                    AuthoredSelectionResolutionTarget::Intrinsic(measure.intrinsic())
+                    ResolutionTarget::Intrinsic(measure.intrinsic())
                 }
             })
         })
@@ -70,10 +70,8 @@ pub(crate) fn checked_member_target(
         .or_else(|| authored_member_target(program, member))
         .or_else(|| contextual_statement_member_target(program, expression, member))
         .map(|target| match target {
-            AuthoredSelectionResolutionTarget::Declaration(symbol) => {
-                AuthoredSelectionResolutionTarget::Declaration(authored_data_member(
-                    program, symbol,
-                ))
+            ResolutionTarget::Declaration(symbol) => {
+                ResolutionTarget::Declaration(authored_data_member(program, symbol))
             }
             target => target,
         })
@@ -83,7 +81,7 @@ fn checked_value_member_target(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     member: &TableMemberExpression,
-) -> Option<AuthoredSelectionResolutionTarget> {
+) -> Option<ResolutionTarget> {
     let mut resolved = None;
     for (_, value) in facts.values.expression_values(member.receiver) {
         if !value.type_reference.is_valid() {
@@ -110,7 +108,7 @@ fn checked_value_member_target(
 fn authored_member_target(
     program: &dyn ::validation::CheckingInput,
     member: &TableMemberExpression,
-) -> Option<AuthoredSelectionResolutionTarget> {
+) -> Option<ResolutionTarget> {
     let receiver_type = authored_operand_type(program, member.receiver)?;
     member_symbol_from_type_reference(program, receiver_type, member.member.as_str())
         .and_then(declaration_target)
@@ -143,7 +141,7 @@ fn contextual_statement_member_target(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
     member: &TableMemberExpression,
-) -> Option<AuthoredSelectionResolutionTarget> {
+) -> Option<ResolutionTarget> {
     let mut resolved = None;
     for_each_statement_containing(program, expression, |_, state, statement_index, _| {
         let receiver_type = expression_type_reference_in_state(
@@ -213,12 +211,10 @@ fn collection_measure_target(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
     member: &TableMemberExpression,
-) -> Option<AuthoredSelectionResolutionTarget> {
+) -> Option<ResolutionTarget> {
     let measure =
         collection_measure_member(program, member, MeasureReceiver::Declared(type_reference))?;
-    Some(AuthoredSelectionResolutionTarget::Intrinsic(
-        measure.intrinsic(),
-    ))
+    Some(ResolutionTarget::Intrinsic(measure.intrinsic()))
 }
 
 /// With a walk's `owners` index the statements containing the expression come

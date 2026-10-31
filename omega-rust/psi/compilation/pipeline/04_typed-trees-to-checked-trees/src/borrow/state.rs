@@ -3,8 +3,8 @@ use arena::Handle;
 use arena::HandleSpan;
 use checked_trees::{
     BorrowAccessKind, BorrowCallReferenceSlotEffect, BorrowLoanFact, BorrowLoanLineage,
-    BorrowLoanOwnerSegment, BorrowReturnedLoanFact, CapturedPlace, IncomingReferenceIdentity,
-    IncomingReferenceOrigin,
+    BorrowLoanOwnerSegment as OwnerSegment, BorrowReturnedLoanFact, CapturedPlace,
+    IncomingReferenceIdentity as ReferenceIdentity, IncomingReferenceOrigin as ReferenceOrigin,
 };
 use checked_trees::{
     BorrowArgumentAccessFact, BorrowCallFact, BorrowWritableRootFact, StateBorrowFact,
@@ -30,10 +30,10 @@ use super::roots::{append_state_writable_roots, mutable_parameter_count};
 use super::tracker::StateLoanTracker;
 
 pub(super) struct BorrowFactArenas<'arenas> {
-    pub(super) incoming_references: &'arenas mut Arena<IncomingReferenceIdentity>,
+    pub(super) incoming_references: &'arenas mut Arena<ReferenceIdentity>,
     pub(super) writable_roots: &'arenas mut Arena<BorrowWritableRootFact>,
     pub(super) access_segments: &'arenas mut Arena<PlaceSegment>,
-    pub(super) owner_segments: &'arenas mut Arena<BorrowLoanOwnerSegment>,
+    pub(super) owner_segments: &'arenas mut Arena<OwnerSegment>,
     pub(super) argument_accesses: &'arenas mut Arena<BorrowArgumentAccessFact>,
     pub(super) calls: &'arenas mut Arena<BorrowCallFact>,
     pub(super) reference_slot_effects: &'arenas mut Arena<BorrowCallReferenceSlotEffect>,
@@ -244,7 +244,7 @@ fn capture_incoming_origin(arenas: &mut BorrowFactArenas<'_>, loan: &mut Stateme
         let mut incoming = pending.identity;
         // The statement-completion roster and its performed-call transport
         // refer to the same supplied output, rather than two independent grants.
-        let existing = matches!(incoming.origin, IncomingReferenceOrigin::Output { .. })
+        let existing = matches!(incoming.origin, ReferenceOrigin::Output { .. })
             .then(|| {
                 arenas
                     .incoming_references
@@ -393,14 +393,14 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
             loan.owner_path
                 .iter()
                 .map(|segment| match segment {
-                    BorrowLoanOwnerSegment::Field(symbol) => {
+                    OwnerSegment::Field(symbol) => {
                         (0u8, symbol.arena_index() as u64, symbol.generation())
                     }
-                    BorrowLoanOwnerSegment::Case(symbol) => {
+                    OwnerSegment::Case(symbol) => {
                         (1u8, symbol.arena_index() as u64, symbol.generation())
                     }
-                    BorrowLoanOwnerSegment::FixedIndex(element) => (2u8, *element as u64, 0),
-                    BorrowLoanOwnerSegment::DynamicIndex => (3u8, 0, 0),
+                    OwnerSegment::FixedIndex(element) => (2u8, *element as u64, 0),
+                    OwnerSegment::DynamicIndex => (3u8, 0, 0),
                 })
                 .collect::<Vec<_>>(),
         )
@@ -421,9 +421,7 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
                     && previous.source_owner_symbol == loan.source_owner_symbol
                     && previous.supplying_loans.is_empty() == loan.supplying_loans.is_empty()
                     && (previous.supplying_loans == loan.supplying_loans
-                        || !loan
-                            .owner_path
-                            .contains(&BorrowLoanOwnerSegment::DynamicIndex))
+                        || !loan.owner_path.contains(&OwnerSegment::DynamicIndex))
                     && previous.place == loan.place
                     && previous.representation_address == loan.representation_address
                     && previous.retained_operand == loan.retained_operand
@@ -488,7 +486,7 @@ fn append_incoming_reference_trackers(
     state: &State,
     arenas: &mut BorrowFactArenas<'_>,
     trackers: &mut Vec<StateLoanTracker>,
-) -> HandleSpan<IncomingReferenceIdentity> {
+) -> HandleSpan<ReferenceIdentity> {
     let mut incoming = HandleSpan::empty();
     for parameter in program
         .state_parameters(state)
@@ -503,18 +501,15 @@ fn append_incoming_reference_trackers(
                 let path = arenas
                     .owner_segments
                     .insert_many(owner_path.iter().copied());
-                let incoming_reference =
-                    arenas
-                        .incoming_references
-                        .append(IncomingReferenceIdentity {
-                            machine_symbol: machine.symbol,
-                            state_symbol: state.symbol,
-                            origin: IncomingReferenceOrigin::Parameter {
-                                symbol: parameter.symbol,
-                            },
-                            carrier_type: parameter.type_reference,
-                            owner_path: path,
-                        });
+                let incoming_reference = arenas.incoming_references.append(ReferenceIdentity {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                    origin: ReferenceOrigin::Parameter {
+                        symbol: parameter.symbol,
+                    },
+                    carrier_type: parameter.type_reference,
+                    owner_path: path,
+                });
                 trackers.push(StateLoanTracker {
                     handle: Handle::invalid(),
                     owner_symbol: parameter.symbol,
@@ -543,10 +538,10 @@ fn append_incoming_reference_trackers(
         if reference_shell(program, parameter_type).is_some() {
             arenas.incoming_references.append_to_span(
                 &mut incoming,
-                IncomingReferenceIdentity {
+                ReferenceIdentity {
                     machine_symbol: machine.symbol,
                     state_symbol: state.symbol,
-                    origin: IncomingReferenceOrigin::ParameterReferent {
+                    origin: ReferenceOrigin::ParameterReferent {
                         symbol: parameter.symbol,
                     },
                     carrier_type: parameter_type,
@@ -576,10 +571,10 @@ fn append_incoming_reference_trackers(
                 .insert_many(owner_path.iter().copied());
             let incoming_reference = arenas.incoming_references.append_to_span(
                 &mut incoming,
-                IncomingReferenceIdentity {
+                ReferenceIdentity {
                     machine_symbol: machine.symbol,
                     state_symbol: state.symbol,
-                    origin: IncomingReferenceOrigin::Parameter {
+                    origin: ReferenceOrigin::Parameter {
                         symbol: parameter.symbol,
                     },
                     carrier_type: carrier,

@@ -10,9 +10,11 @@
 use super::super::{Builder, ExpressionHandle, ExpressionNode, TypeReferenceNode};
 use super::place_types::{projection_root_expression, readable_place};
 use checked_trees::{
-    CheckedScalarComputationHandle, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedStructuralValueKind, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+    CheckedScalarComputationHandle, CheckedScalarExpressionRole,
+    CheckedStructuralAccess as StructuralAccess, CheckedStructuralValueKind as ValueKind,
+    CheckedUnitStructuralArgumentPlan as ArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan as SourcePlan,
+    CheckedUnitStructuralPathSegment as PathSegment,
 };
 use facts::PlaceRoot;
 use language_semantics::Multiplicity;
@@ -43,7 +45,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
+    ) -> Option<ValueKind> {
         let borrow = self
             .program
             .expression_table
@@ -74,7 +76,7 @@ impl Builder<'_, '_> {
             return None;
         }
         let source = self.structural_value(target, actual)?;
-        Some(CheckedStructuralValueKind::Projection {
+        Some(ValueKind::Projection {
             source,
             logical_root_type_identity: Default::default(),
             path: Vec::new(),
@@ -95,7 +97,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
+    ) -> Option<ValueKind> {
         let operand = value_preserving_cast_operand(
             self.program,
             self.state,
@@ -110,7 +112,7 @@ impl Builder<'_, '_> {
             return None;
         }
         let source = self.structural_value(operand, actual)?;
-        Some(CheckedStructuralValueKind::Projection {
+        Some(ValueKind::Projection {
             source,
             logical_root_type_identity: Default::default(),
             path: Vec::new(),
@@ -127,7 +129,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
+    ) -> Option<ValueKind> {
         if let Some(kind) = self.copied_dispatch_place(expression, expected) {
             return Some(kind);
         }
@@ -144,7 +146,7 @@ impl Builder<'_, '_> {
                 value,
             )?;
         }
-        Some(CheckedStructuralValueKind::CopiedStructuralPlace { source, leaf })
+        Some(ValueKind::CopiedStructuralPlace { source, leaf })
     }
 
     /// The `SharedBorrow` argument plan a borrowed leaf read produces: the
@@ -155,7 +157,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<(
-        CheckedUnitStructuralArgumentPlan,
+        ArgumentPlan,
         TypeReferenceHandle,
         Vec<(ExpressionHandle, CheckedScalarComputationHandle)>,
     )> {
@@ -166,7 +168,7 @@ impl Builder<'_, '_> {
         // authored leaf must keep its symbol until binding resolves that roster.
         // StructuralLocal already represents both live locals and named formals;
         // independent source replay still checks the exact authored root.
-        let source = CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol };
+        let source = SourcePlan::StructuralLocal { symbol };
         // A copied value observes its selector at this evaluation point. Use
         // the computation's scalar namespace, including captured immutable
         // locals, rather than replaying the selector's original storage read.
@@ -191,7 +193,7 @@ impl Builder<'_, '_> {
                 if !stores_reference_shape(self.program, reference, &[]) {
                     break;
                 }
-                crossings.push(CheckedUnitStructuralPathSegment::Referent);
+                crossings.push(PathSegment::Referent);
                 reference = shell.referee;
             }
             crossings.append(&mut path);
@@ -208,16 +210,16 @@ impl Builder<'_, '_> {
         // remains on `projected` and in the comparison above, while descriptors
         // and bounded-byte shapes follow the same registry rule as owned values.
         for _ in 0..projected.referent_crossings {
-            path.push(CheckedUnitStructuralPathSegment::Referent);
+            path.push(PathSegment::Referent);
         }
         let type_identity =
             stored_structural_type_identity(self.program, projected.reference, &[], &[]);
-        let mut source = CheckedUnitStructuralArgumentPlan {
+        let mut source = ArgumentPlan {
             source,
             path,
             projection_evaluations: Default::default(),
             type_identity,
-            access: CheckedStructuralAccess::SharedBorrow,
+            access: StructuralAccess::SharedBorrow,
         };
         source.retain_projection_evaluations(
             self.projection_selector_span(expression, &selectors)?,
@@ -235,7 +237,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
+    ) -> Option<ValueKind> {
         if !matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
@@ -286,7 +288,7 @@ impl Builder<'_, '_> {
             while let Some(shell) = reference_shell(self.program, reference)
                 && stores_reference_shape(self.program, reference, &[])
             {
-                path.insert(0, CheckedUnitStructuralPathSegment::Referent);
+                path.insert(0, PathSegment::Referent);
                 reference = shell.referee;
             }
         }
@@ -303,14 +305,14 @@ impl Builder<'_, '_> {
         // checked disposition is independent: an anonymous owner's eventual
         // death cannot turn an observation into a partial ownership move.
         let projection_evaluations = self.projection_selector_span(expression, &selectors)?;
-        if !CheckedUnitStructuralArgumentPlan::projection_evaluations_match(
+        if !ArgumentPlan::projection_evaluations_match(
             &path,
             projection_evaluations,
             &self.plans.operands,
         ) {
             return None;
         }
-        Some(CheckedStructuralValueKind::Projection {
+        Some(ValueKind::Projection {
             source,
             // Symbol-rooted paths use the declared borrowed backing. An
             // expression-rooted path above already retains its physical hops.
@@ -332,7 +334,7 @@ impl Builder<'_, '_> {
         &self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedUnitStructuralArgumentPlan> {
+    ) -> Option<ArgumentPlan> {
         if let ExpressionNode::SavedSubject(saved) =
             self.program.expression_table.expression(expression)
         {
@@ -350,14 +352,12 @@ impl Builder<'_, '_> {
                 .expression_table
                 .value_capture(saved.capture)
                 .value_anchor;
-            return Some(CheckedUnitStructuralArgumentPlan {
-                source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                    expression: anchor,
-                },
+            return Some(ArgumentPlan {
+                source: SourcePlan::StructuralExpression { expression: anchor },
                 path: Vec::new(),
                 projection_evaluations: Default::default(),
                 type_identity: stored_structural_type_identity(self.program, expected, &[], &[]),
-                access: CheckedStructuralAccess::Owned,
+                access: StructuralAccess::Owned,
             });
         }
         let Some(name) = self.program.expression_table.name_path_node(expression) else {
@@ -386,10 +386,7 @@ impl Builder<'_, '_> {
             if reference_shell(self.program, type_reference).is_some() {
                 return None;
             }
-            (
-                CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
-                type_reference,
-            )
+            (SourcePlan::Parameter { parameter_index }, type_reference)
         } else {
             let (_, local) = self
                 .program
@@ -408,7 +405,7 @@ impl Builder<'_, '_> {
                                 && zeroed_structural_parts(self.program, local.type_reference)))
                 })?;
             (
-                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                SourcePlan::StructuralLocal {
                     symbol: local.symbol,
                 },
                 local.type_reference,
@@ -429,12 +426,12 @@ impl Builder<'_, '_> {
         // not as competing storage rows. Stored reference descriptors
         // and bounded byte owners keep the shells their representation needs.
         let type_identity = stored_structural_type_identity(self.program, reference, &[], &[]);
-        Some(CheckedUnitStructuralArgumentPlan {
+        Some(ArgumentPlan {
             projection_evaluations: Default::default(),
             source,
             path: Vec::new(),
             type_identity,
-            access: CheckedStructuralAccess::Owned,
+            access: StructuralAccess::Owned,
         })
     }
 }

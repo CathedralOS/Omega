@@ -34,9 +34,10 @@ pub(super) enum StoredReferenceContents {
 use super::Execution;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
-    FlowCallFact, FlowCapturedReferenceLeaf, FlowCaseAccessFact, FlowConstraintKind,
-    FlowConstraintRef, FlowOperandCompletion, FlowOperandFact, FlowOperandReferent,
-    FlowOperandRetainedSupplier, FlowReferentFormation, FlowReferentFormationEvidence,
+    FlowCallFact, FlowCapturedReferenceLeaf as ReferenceLeaf, FlowCaseAccessFact,
+    FlowConstraintKind, FlowConstraintRef, FlowOperandCompletion, FlowOperandFact,
+    FlowOperandReferent, FlowOperandRetainedSupplier, FlowReferentFormation,
+    FlowReferentFormationEvidence as FormationEvidence,
 };
 use facts::{
     PlaceRoot, PlaceSegment, ScalarValue, payload_variant_for_field, project_captured_view_segments,
@@ -57,7 +58,7 @@ impl Execution<'_, '_, '_> {
         &mut self,
         owner: Handle<FlowOperandFact>,
         places: &[CapturedReferencePlace],
-    ) -> HandleSpan<FlowCapturedReferenceLeaf> {
+    ) -> HandleSpan<ReferenceLeaf> {
         let capture = *self.context.control.operands.get(owner);
         let Some(paths) = borrow_carrying_owner_paths(self.program, capture.type_reference) else {
             return HandleSpan::empty();
@@ -181,9 +182,7 @@ impl Execution<'_, '_, '_> {
                             let formation = self.context.control.referent_formations.append(
                                 FlowReferentFormation {
                                     source,
-                                    evidence: FlowReferentFormationEvidence::Access(
-                                        capture.case_access,
-                                    ),
+                                    evidence: FormationEvidence::Access(capture.case_access),
                                     owner,
                                     path,
                                     root: place.place.root,
@@ -242,7 +241,7 @@ impl Execution<'_, '_, '_> {
                 profile.immutable_image = immutable_image;
             }
             let path = self.context.control.operand_child_paths.insert_many(path);
-            leaves.push(FlowCapturedReferenceLeaf {
+            leaves.push(ReferenceLeaf {
                 path,
                 type_reference: reference,
                 referents,
@@ -266,7 +265,7 @@ impl Execution<'_, '_, '_> {
         call: &TableCallExpression,
         inputs: &[(ExpressionHandle, FlowOperandFact)],
         constraints: HandleSpan<FlowConstraintRef>,
-    ) -> Option<HandleSpan<FlowCapturedReferenceLeaf>> {
+    ) -> Option<HandleSpan<ReferenceLeaf>> {
         let returned = self.constructed_value_type(expression, destination)?;
         if self.is_view_type(returned) {
             return None;
@@ -384,7 +383,7 @@ impl Execution<'_, '_, '_> {
                 HandleSpan::empty()
             };
             let path = self.context.control.operand_child_paths.insert_many(path);
-            leaves.push(FlowCapturedReferenceLeaf {
+            leaves.push(ReferenceLeaf {
                 path,
                 type_reference: reference,
                 referents,
@@ -405,8 +404,8 @@ impl Execution<'_, '_, '_> {
     pub(super) fn publish_returned_reference_leaves(
         &mut self,
         capture: &FlowOperandFact,
-        references: HandleSpan<FlowCapturedReferenceLeaf>,
-    ) -> HandleSpan<FlowCapturedReferenceLeaf> {
+        references: HandleSpan<ReferenceLeaf>,
+    ) -> HandleSpan<ReferenceLeaf> {
         let mut leaves = self
             .context
             .control
@@ -687,7 +686,7 @@ impl Execution<'_, '_, '_> {
         &mut self,
         call: Handle<FlowCallFact>,
         referents: &mut Option<HandleSpan<FlowOperandReferent>>,
-        leaves: &mut Option<HandleSpan<FlowCapturedReferenceLeaf>>,
+        leaves: &mut Option<HandleSpan<ReferenceLeaf>>,
     ) {
         if !self.context.control.calls.is_valid(call) {
             return;
@@ -750,7 +749,7 @@ impl Execution<'_, '_, '_> {
                     .referent_formations
                     .append(FlowReferentFormation {
                         source,
-                        evidence: FlowReferentFormationEvidence::Return(call),
+                        evidence: FormationEvidence::Return(call),
                         root: referent.root,
                         segments: referent.segments,
                         ..Default::default()
@@ -1181,7 +1180,7 @@ impl Execution<'_, '_, '_> {
                     .referent_formations
                     .append(FlowReferentFormation {
                         source,
-                        evidence: FlowReferentFormationEvidence::Access(access),
+                        evidence: FormationEvidence::Access(access),
                         owner: Handle::invalid(),
                         path: HandleSpan::empty(),
                         root: reference.place.root,

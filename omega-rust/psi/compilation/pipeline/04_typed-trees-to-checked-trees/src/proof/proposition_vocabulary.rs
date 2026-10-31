@@ -4,8 +4,8 @@ use crate::flow::expressions;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     CheckedEvidenceInterfaceIdentity, CheckedPropositionApplication, CheckedPropositionBinder,
-    CheckedPropositionBinderKind, CheckedPropositionDeclaration, CheckedPropositionEvidence,
-    CheckedPropositionVocabulary, ContractProofFactKind,
+    CheckedPropositionBinderKind as BinderKind, CheckedPropositionDeclaration,
+    CheckedPropositionEvidence, CheckedPropositionVocabulary, ContractProofFactKind,
 };
 use symbols::SymbolHandle;
 use typed_trees::proposition::{
@@ -103,13 +103,11 @@ pub(crate) fn build_checked_proposition_vocabulary(
                 .map(|binder| CheckedPropositionBinder {
                     name: binder.name.as_str().to_owned(),
                     kind: match binder.kind {
-                        PropositionBinderKind::Type => CheckedPropositionBinderKind::Type,
-                        PropositionBinderKind::Const { type_reference } => {
-                            CheckedPropositionBinderKind::Const {
-                                type_identity: program.normalized_type_identity(type_reference),
-                            }
-                        }
-                        PropositionBinderKind::Machine => CheckedPropositionBinderKind::Machine,
+                        PropositionBinderKind::Type => BinderKind::Type,
+                        PropositionBinderKind::Const { type_reference } => BinderKind::Const {
+                            type_identity: program.normalized_type_identity(type_reference),
+                        },
+                        PropositionBinderKind::Machine => BinderKind::Machine,
                     },
                 })
                 .collect();

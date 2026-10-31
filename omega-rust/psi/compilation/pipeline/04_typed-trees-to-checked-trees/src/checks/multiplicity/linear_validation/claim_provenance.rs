@@ -7,7 +7,8 @@ use crate::checks::multiplicity::linear_obligations::{LinearPlace, WrittenLinear
 use crate::checks::multiplicity::type_multiplicity::{
     data_field_name, expression_establishes_obligation, literal_variant,
 };
-use crate::flow::expressions;
+use crate::collections::push_unique;
+use crate::flow::{assignment_preserves_reference_binding, expressions};
 use checked_trees::CheckFacts;
 use checked_trees::FlowPermissionEvaluation;
 use facts::PlaceRoot;
@@ -79,7 +80,7 @@ pub(crate) fn completed_receiving_values(
         && stored.expression.is_valid()
     {
         let completed = (stored.expression, FlowPermissionEvaluation::Statement);
-        crate::collections::push_unique(&mut values, completed);
+        push_unique(&mut values, completed);
     }
     values
 }
@@ -151,9 +152,7 @@ pub(crate) fn written_linear_targets(
             // Repair installs no new descriptor or claim in the alias carrier.
             if canonical_place_type_reference(program, state_symbol, statement_index, &place)
                 .is_some_and(|declared| {
-                    crate::flow::assignment_preserves_reference_binding(
-                        program, assignment, declared,
-                    )
+                    assignment_preserves_reference_binding(program, assignment, declared)
                 })
             {
                 return Vec::new();
