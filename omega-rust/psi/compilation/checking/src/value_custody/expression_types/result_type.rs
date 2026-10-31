@@ -1034,6 +1034,11 @@ pub(crate) enum BuiltinBinaryResult {
         symbol: symbols::SymbolHandle,
         policy: ArithmeticDomain,
     },
+    /// Both operands are one rigid type parameter, or one of them is an
+    /// anonymous integer literal beside that parameter. The operation keeps
+    /// that parameter as its carrier until a concrete application supplies
+    /// a primitive. It is not a proof integer and not an overload.
+    Schematic(TypeReferenceHandle),
 }
 
 pub(crate) fn builtin_binary_result_type_reference(
@@ -1053,6 +1058,7 @@ pub(crate) fn builtin_binary_result_type_reference(
         BuiltinBinaryResult::Arithmetic { symbol, policy } => program
             .type_reference_table
             .find_arithmetic_result_type_reference(symbol, policy),
+        BuiltinBinaryResult::Schematic(reference) => Some(reference),
     }
 }
 
@@ -1121,6 +1127,9 @@ pub(crate) fn builtin_binary_result(
             })
             .then_some(BuiltinBinaryResult::Boolean),
         Equal | NotEqual | Less | LessOrEqual | Greater | GreaterOrEqual => {
+            if schematic_type_parameter_operand(program, binary, operands).is_some() {
+                return Some(BuiltinBinaryResult::Boolean);
+            }
             // A selected builtin equality returns Bool for structural values
             // as well as scalars. This supplies only the comparison's type;
             // IEEE leaves and value identity retain their separate proof laws.
@@ -1230,6 +1239,9 @@ pub(crate) fn builtin_binary_result(
                 .map(|(symbol, policy)| BuiltinBinaryResult::Arithmetic { symbol, policy })
         }
         Add | Subtract | Multiply | Divide => {
+            if let Some(carrier) = schematic_type_parameter_operand(program, binary, operands) {
+                return Some(BuiltinBinaryResult::Schematic(carrier));
+            }
             // Address arithmetic selects by operand roles, never by whichever
             // operand happens to be first. Keep the same signature as captured
             // arithmetic and executable construction; equal widths do not
@@ -1286,12 +1298,64 @@ pub(crate) fn builtin_binary_result(
                 .flatten()
         }
         Modulo | BitwiseAnd | BitwiseOr | BitwiseXor => {
+            if matches!(binary.operator, Modulo)
+                && let Some(carrier) = schematic_type_parameter_operand(program, binary, operands)
+            {
+                return Some(BuiltinBinaryResult::Schematic(carrier));
+            }
             let carrier = operands.into_iter().flatten().next()?;
             (integer(program, carrier) && compatible_operands(program, binary, operands, carrier))
                 .then(|| selected_arithmetic_result(program, operands, carrier))
                 .flatten()
         }
     }
+}
+
+/// One rigid type parameter shared by every typed operand. A missing operand
+/// is admitted only when it is an anonymous integer literal, so `0 <= left`
+/// and `left + right` in a generic requirement keep one carrier. Two different
+/// parameters, a primitive, or a data type stay on the ordinary overload path.
+fn schematic_type_parameter_operand(
+    program: &dyn crate::CheckingInput,
+    binary: &TableBinaryExpression,
+    operands: [Option<TypeReferenceHandle>; 2],
+) -> Option<TypeReferenceHandle> {
+    let mut carrier = None;
+    for (expression, reference) in [binary.left, binary.right].into_iter().zip(operands) {
+        let Some(reference) = reference else {
+            if crate::value_custody::literals::has_anonymous_numeric_results(program, expression) {
+                continue;
+            }
+            return None;
+        };
+        let bare = program
+            .type_reference_table
+            .unconstrained_type_reference(reference);
+        let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(bare)
+        else {
+            return None;
+        };
+        let parameter = program.first_data_type_parameter_by_symbol(*symbol)?;
+        if !matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type) {
+            return None;
+        }
+        if let Some(existing) = carrier {
+            let TypeReferenceNode::Named {
+                symbol: existing_symbol,
+                ..
+            } = program.type_reference_table.type_reference(existing)
+            else {
+                return None;
+            };
+            if *existing_symbol != *symbol {
+                return None;
+            }
+        } else {
+            carrier = Some(bare);
+        }
+    }
+    carrier
 }
 
 /// A `-> T` result instantiates through the same binding operand selection
