@@ -119,22 +119,12 @@ impl<'program> Evaluator<'program> {
         &self,
         value: &Value,
     ) -> EvalResult<usize> {
-        let Value::Struct {
-            type_name, fields, ..
-        } = value
-        else {
-            return Err(Halt::Trap(
-                "product-schema inspection is not a compiler-issued product schema description"
-                    .to_owned(),
-            ));
-        };
-        if **type_name != *PRODUCT_SCHEMA_DESCRIPTION_TYPE {
-            return Err(Halt::Trap(
-                "product-schema inspection is not a compiler-issued product schema description"
-                    .to_owned(),
-            ));
-        }
-        let index = super::required_index(fields, "description", "product schema description")?;
+        let index = super::described_product_index(
+            value,
+            PRODUCT_SCHEMA_DESCRIPTION_TYPE,
+            "product-schema inspection is not a compiler-issued product schema description",
+            "product schema description",
+        )?;
         if index >= self.product_schema_descriptions.len() {
             return Err(Halt::Trap(
                 "product schema description names an unknown description".to_owned(),
