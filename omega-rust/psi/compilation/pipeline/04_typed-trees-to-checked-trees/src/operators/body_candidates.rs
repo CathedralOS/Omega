@@ -4,7 +4,7 @@
 
 use arena::{Arena, HandleSpan};
 use checked_trees::{
-    CheckedBoundaryBodyCandidate, CheckedBoundaryOperatorApplicationDemand,
+    CheckedBoundaryBodyCandidate as BodyCandidate, CheckedBoundaryOperatorApplicationDemand,
     CheckedBoundaryOperatorDeclaration, CheckedTrees,
 };
 
@@ -14,8 +14,7 @@ pub(crate) fn retain_boundary_body_candidates(
     checked.facts.operators.boundary_declarations = declarations(checked)?;
     let demands = &checked.facts.operators.boundary_applications;
     let mut bodies = Arena::new();
-    let mut spans: Vec<HandleSpan<CheckedBoundaryBodyCandidate>> =
-        Vec::with_capacity(demands.len());
+    let mut spans: Vec<HandleSpan<BodyCandidate>> = Vec::with_capacity(demands.len());
     let mut distinct = Vec::<usize>::new();
     for (ordinal, demand) in demands.iter().enumerate() {
         // Occurrences are distinct, but identical applications share the same
@@ -127,7 +126,7 @@ fn declarations(
 fn candidates_for_application(
     checked: &CheckedTrees,
     demand: &CheckedBoundaryOperatorApplicationDemand,
-) -> Result<Vec<CheckedBoundaryBodyCandidate>, &'static str> {
+) -> Result<Vec<BodyCandidate>, &'static str> {
     let typed = &checked.typed;
     let mut candidates = Vec::new();
     for machine in typed.machines().iter().filter(|machine| {
@@ -197,7 +196,7 @@ fn candidates_for_application(
                 Ok::<_, &'static str>((row.template, identity.commitment.as_bytes()))
             })
             .transpose()?;
-        candidates.push(CheckedBoundaryBodyCandidate {
+        candidates.push(BodyCandidate {
             declaration,
             is_product: typed
                 .symbols
