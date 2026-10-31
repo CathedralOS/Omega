@@ -81,14 +81,26 @@ The [captured-body reject](../../../../tests/omega/fail/borrows/invocation_lifet
 keeps its item-result signature but returns captured storage; its authored
 body-origin diagnostic also matches.
 
-Full-row acceptance remains open. [Run 41227086012](https://github.com/CathedralOS/Omega/actions/runs/41227086012)
-uses the identical compiler bytes and source: call result remains incomplete in
-local-data statement lowering, while the two-lifetime positive refuses callable
-region identity. All eleven existing signature/telescope twins reject, but
-miss their authored diagnostic fragments, so they do not establish their
-intended invalid discriminator. These findings are retained without changing
-fixtures, expected fragments or golden observations. The eight-place execution
-result does not establish the remaining cases or other native hosts.
+The two-lifetime case is established separately by
+[run 41234754042](https://github.com/CathedralOS/Omega/actions/runs/41234754042)
+at source `312b9f34a983180519eea3e9441a9f574c944b81`. It checks and exits 0
+through Linux x86-64 native execution and Terminal, with agreement. Its return
+relation and telescope twins both match their specific refusal diagnostics.
+The optimized compiler SHA-256 is
+`013c9842dd3efbc9b79feefd755f818945fb84bb6b21f54491ab8e26ecad5418`.
+The repair includes final-call transition expressions in ordinary lifetime
+inference. The invalid telescope program is unchanged; its expectation now
+names the exact requirement/owned-realizer own-region telescope mismatch.
+
+Full-row acceptance remains open. [Run 41233740591](https://github.com/CathedralOS/Omega/actions/runs/41233740591)
+at source `19ba4aa0df0ac916ee6b20fe8d56b4600dcc9c05` uses these same compiler
+bytes: call result remains incomplete in local-data statement 3 because its
+reference result has no complete input origins. That case has no native or
+Terminal acceptance. The historical [run 41227086012](https://github.com/CathedralOS/Omega/actions/runs/41227086012)
+recorded eleven signature/telescope refusals with wrong diagnostic fragments;
+the current scoped run closes only the two-lifetime pair. The nine ordinary
+signature-twin reason frontiers remain open. These results do not establish
+other native hosts or the complete family.
 
 The parent task remains open for its remaining source migrations, native and
 callback consumers, distinct-target execution and complete legacy model,
