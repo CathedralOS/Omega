@@ -1,15 +1,12 @@
 use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
  Build::application(builder, "nominal_loan_alias");
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, linux_arm64);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, linux_x86_64);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, macos_arm64);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, macos_x86_64);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, windows_x86_64);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, uefi_x86_64);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, cross_platform_cli);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, local_unchecked);
- Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder, alpha_bootstrap);
+ Build::select_provider<Console, PosixConsoleWrite>(builder, linux_arm64);
+ Build::select_provider<Console, PosixConsoleWrite>(builder, linux_x86_64);
+ Build::select_provider<Console, PosixConsoleWrite>(builder, macos_arm64);
+
+ Build::select_provider<Console, WindowsConsoleWrite>(builder, windows_x86_64);
+
  Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
  Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
  Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

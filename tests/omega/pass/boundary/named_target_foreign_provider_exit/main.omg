@@ -1,27 +1,15 @@
-// Expected exit: 0. A named map selects the target member of a foreign family.
+// Expected exit: 0. Build binds portable requirements to exact target-native locators.
 use omega::language::core::external_binding;
 
 boundary trait ProcessProbe { machine identity() -> u32 reaches; }
-data NativeProcess {}
 
-
-ProcessProvider satisfies ProcessProbe {
-    ProcessProbe::identity = NativeProcess::identity;
-}
-
-// Table locators use the same exact member join even when not invoked here.
+// Typed table locators retain their exact field owners even when uninvoked.
 // This tests plan derivation, not permission to dereference arbitrary tables.
 data FunctionTable { direct: addr; virtual_call: addr; }
 data OtherTable { padding: u64; virtual_call: addr; }
 boundary trait TableProbe {
     machine direct(table: &FunctionTable) -> u64 reaches;
     machine virtual_call(table: &OtherTable) -> u64 reaches;
-}
-
-
-TableProvider satisfies TableProbe {
-    machine direct(table: &FunctionTable) -> u64 reaches { RawNativeTableProbe::direct(table) }
-    machine virtual_call(table: &OtherTable) -> u64 reaches { RawNativeTableProbe::virtual_call(table) }
 }
 
 machine main() reaches ProcessProbe crashes Trap {
@@ -32,9 +20,4 @@ machine main() reaches ProcessProbe crashes Trap {
     }
     machine accepted() {}
     machine rejected() { crash Trap; }
-}
-
-boundary trait RawNativeTableProbe {
-    machine direct(table: &FunctionTable) -> u64 reaches;
-    machine virtual_call(table: &OtherTable) -> u64 reaches;
 }

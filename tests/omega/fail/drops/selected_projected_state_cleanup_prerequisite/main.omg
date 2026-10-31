@@ -7,52 +7,19 @@ public boundary trait Console {
     reaches Console
     terminates;
 }
-public data ConsoleNativeProvider {}
+
 data PosixConsoleIo {}
 boundary requirement PosixConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
 terminates;
 reaches Console;
 data PosixConsoleImports {}
 
-
-macos_arm64 machine ConsoleNativeProvider::write_byte(byte: i32)
-    satisfies Console::write_byte
-reaches Console
-{
-    let mut cell: i32 = byte;
-    let written: i64 = PosixConsoleIo::write(1, &mut cell, 1);
-}
-
-linux_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
-    satisfies Console::write_byte
-reaches Console
-{
-    let mut cell: i32 = byte;
-    let written: i64 = PosixConsoleIo::write(1, &mut cell, 1);
-}
-
-linux_arm64 machine ConsoleNativeProvider::write_byte(byte: i32)
-    satisfies Console::write_byte
-reaches Console
-{
-    let mut cell: i32 = byte;
-    let written: i64 = PosixConsoleIo::write(1, &mut cell, 1);
-}
 // All bound targets are little-endian: the low byte is the first byte.
 data WindowsConsoleIo {}
 boundary requirement WindowsConsoleIo::write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
 terminates;
 reaches Console;
 data WindowsConsoleImports {}
-
-
-windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
-    satisfies Console::write_byte
-reaches Console
-{
-    let mut cell: i32 = byte;
-    let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
-}
 
 // An exclusive reference moves into another binding. Writing through the receiving
 // binding changes the original backing; the following read must see 41.
@@ -104,10 +71,24 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     exercise(true);
     exercise(false);
 }
-ConsoleNativeProviderConsoleImplementation satisfies Console {
-    machine write_byte(byte: i32) reaches Console terminates; {
-        ConsoleNativeProvider::write_byte(byte);
-    }
+PosixConsoleWrite satisfies Console {
+    machine write_byte(byte: i32)
+
+reaches Console
+{
+    let mut cell: i32 = byte;
+    let written: i64 = PosixConsoleIo::write(1, &mut cell, 1);
+}
+}
+
+WindowsConsoleWrite satisfies Console {
+    machine write_byte(byte: i32)
+
+reaches Console
+{
+    let mut cell: i32 = byte;
+    let written: i32 = WindowsConsoleIo::write(1, &mut cell, 1);
+}
 }
 
 // The entry owns ordinary local state; selection supplies no context.
