@@ -16,6 +16,7 @@ use crate::syntax_trees::inspection::snapshot::{
     CapabilityContractSnapshot, ExpressionSnapshot, IdentifierSnapshot, StaticArgumentSnapshot,
     TypeParameterSnapshot, TypeReferenceSnapshot,
 };
+use arena::HandleSpan;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -176,14 +177,7 @@ pub(crate) fn snapshot_state_node(
 ) -> StateSnapshot {
     StateSnapshot {
         name: snapshot_identifier(syntax_trees, &state.name),
-        parameters: syntax_trees
-            .items
-            .state_parameters(state.parameters)
-            .iter()
-            .map(|handle| {
-                snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle))
-            })
-            .collect(),
+        parameters: snapshot_state_parameters(syntax_trees, state.parameters),
         return_type: snapshot_type_reference_handle(syntax_trees, state.return_type),
         contracts: syntax_trees
             .items
@@ -191,14 +185,7 @@ pub(crate) fn snapshot_state_node(
             .iter()
             .map(|contract| snapshot_capability_contract(syntax_trees, contract))
             .collect(),
-        statements: syntax_trees
-            .items
-            .statements(state.statements)
-            .iter()
-            .map(|handle| {
-                snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle))
-            })
-            .collect(),
+        statements: snapshot_statements(syntax_trees, state.statements),
     }
 }
 
@@ -218,17 +205,7 @@ macro_rules! state_signature_snapshot {
                 .map(|parameter| snapshot_type_parameter($syntax_trees, parameter))
                 .collect(),
             is_default: $signature.is_default,
-            parameters: $syntax_trees
-                .items
-                .state_parameters($signature.parameters)
-                .iter()
-                .map(|handle| {
-                    snapshot_state_parameter(
-                        $syntax_trees,
-                        $syntax_trees.items.state_parameter(*handle),
-                    )
-                })
-                .collect(),
+            parameters: snapshot_state_parameters($syntax_trees, $signature.parameters),
             native_callback_parameters: $signature
                 .native_callback_parameters
                 .iter()
@@ -255,14 +232,7 @@ macro_rules! state_signature_snapshot {
             suspends: $signature.suspends,
             blocks: $signature.blocks,
             contracts: snapshot_capability_contracts($syntax_trees, $signature.contracts),
-            default_body: $syntax_trees
-                .items
-                .statements($signature.default_body)
-                .iter()
-                .map(|handle| {
-                    snapshot_statement($syntax_trees, $syntax_trees.statements.statement(*handle))
-                })
-                .collect(),
+            default_body: snapshot_statements($syntax_trees, $signature.default_body),
             terminates_guarantee: $signature.terminates_guarantee,
         }
     };
@@ -293,6 +263,20 @@ pub(crate) fn snapshot_state_parameter(
         is_mutable: parameter.is_mutable,
         relevance: super::item_snapshots::snapshot_binding_relevance(parameter.relevance),
     }
+}
+
+pub(crate) fn snapshot_state_parameters(
+    syntax_trees: &SyntaxTrees,
+    span: HandleSpan<crate::item::StateParameterHandle>,
+) -> Vec<StateParameterSnapshot> {
+    syntax_trees
+        .items
+        .state_parameters(span)
+        .iter()
+        .map(|handle| {
+            snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle))
+        })
+        .collect()
 }
 
 fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> StatementSnapshot {
@@ -473,6 +457,18 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
             },
         },
     }
+}
+
+pub(crate) fn snapshot_statements(
+    syntax_trees: &SyntaxTrees,
+    span: HandleSpan<crate::statement::StatementHandle>,
+) -> Vec<StatementSnapshot> {
+    syntax_trees
+        .items
+        .statements(span)
+        .iter()
+        .map(|handle| snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle)))
+        .collect()
 }
 
 fn snapshot_transition_target(

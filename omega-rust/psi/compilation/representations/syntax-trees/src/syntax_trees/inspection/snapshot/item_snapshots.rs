@@ -11,8 +11,8 @@ use crate::syntax_trees::inspection::snapshot::expression_and_type_snapshots::{
     snapshot_type_reference_handle, snapshot_type_references,
 };
 use crate::syntax_trees::inspection::snapshot::state_and_statement_snapshots::{
-    snapshot_state_node, snapshot_state_parameter, snapshot_state_signature,
-    snapshot_state_signature_node,
+    snapshot_state_node, snapshot_state_parameter, snapshot_state_parameters,
+    snapshot_state_signature, snapshot_state_signature_node,
 };
 use crate::syntax_trees::inspection::snapshot::{
     ExpressionSnapshot, IdentifierSnapshot, StateParameterSnapshot, StateSignatureSnapshot,
@@ -600,17 +600,7 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
             name: snapshot_identifier(syntax_trees, &value.name),
             is_public: value.is_public,
             type_parameters: snapshot_type_parameters(syntax_trees, value.type_parameters),
-            parameters: syntax_trees
-                .items
-                .state_parameters(value.parameters)
-                .iter()
-                .map(|parameter| {
-                    snapshot_state_parameter(
-                        syntax_trees,
-                        syntax_trees.items.state_parameter(*parameter),
-                    )
-                })
-                .collect(),
+            parameters: snapshot_state_parameters(syntax_trees, value.parameters),
             body: match value.body {
                 PropositionBody::Primitive => PropositionBodySnapshot::Primitive,
                 PropositionBody::Witness { evidence } => PropositionBodySnapshot::Witness {
@@ -772,14 +762,7 @@ fn snapshot_operator(
         ),
         lifetime_parameters: snapshot_identifier_slice(syntax_trees, &operator.lifetime_parameters),
         type_parameters: snapshot_type_parameters(syntax_trees, operator.type_parameters),
-        parameters: syntax_trees
-            .items
-            .state_parameters(operator.parameters)
-            .iter()
-            .map(|handle| {
-                snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle))
-            })
-            .collect(),
+        parameters: snapshot_state_parameters(syntax_trees, operator.parameters),
         return_type: snapshot_type_reference_handle(syntax_trees, operator.return_type),
         contracts: snapshot_capability_contracts(syntax_trees, operator.contracts),
         spelling: operator.spelling.map(|spelling| spelling.symbol()),
@@ -849,17 +832,7 @@ pub(crate) fn snapshot_type_parameter(
                     .as_ref()
                     .map(|contract| PropositionParameterSignatureSnapshot {
                         name: snapshot_identifier(syntax_trees, &contract.name),
-                        parameters: syntax_trees
-                            .items
-                            .state_parameters(contract.parameters)
-                            .iter()
-                            .map(|handle| {
-                                snapshot_state_parameter(
-                                    syntax_trees,
-                                    syntax_trees.items.state_parameter(*handle),
-                                )
-                            })
-                            .collect(),
+                        parameters: snapshot_state_parameters(syntax_trees, contract.parameters),
                     }),
             ),
         };
