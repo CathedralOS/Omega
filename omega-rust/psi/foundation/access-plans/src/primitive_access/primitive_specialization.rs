@@ -1,3 +1,4 @@
+use crate::access_plan::diagnostic::reject_when;
 use crate::plan_policy::authorization::validate_operation_ordering;
 use crate::{
     AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence,
@@ -188,15 +189,11 @@ specialization_boundary!(
 fn validate_stable_primitive_request(
     request: &PrimitiveAccessRequest<'_, '_>,
 ) -> Result<StablePrimitiveOperation, AccessPlanDiagnostic> {
-    if request.observation != ObservationModel::Stable {
-        return Err(AccessPlanDiagnostic(
-            "ordinary Stable lowering requires a Stable observation".into(),
-        ));
-    }
-    if request.effective_supply.kind() != EffectiveSupplyKind::Stable {
-        return Err(AccessPlanDiagnostic(
-            "ordinary Stable lowering requires admitted Stable supply".into(),
-        ));
+    reject_when! {
+        request.observation != ObservationModel::Stable
+            => "ordinary Stable lowering requires a Stable observation",
+        request.effective_supply.kind() != EffectiveSupplyKind::Stable
+            => "ordinary Stable lowering requires admitted Stable supply",
     }
     let operation = match request.operation {
         AccessOperation::Read => StablePrimitiveOperation::Read,
@@ -254,15 +251,11 @@ specialization_boundary!(
 fn validate_stable_compound_mutation_request(
     request: &PrimitiveAccessRequest<'_, '_>,
 ) -> Result<(), AccessPlanDiagnostic> {
-    if request.observation != ObservationModel::Stable {
-        return Err(AccessPlanDiagnostic(
-            "Stable compound mutation requires a Stable observation".into(),
-        ));
-    }
-    if request.effective_supply.kind() != EffectiveSupplyKind::Stable {
-        return Err(AccessPlanDiagnostic(
-            "Stable compound mutation requires admitted Stable supply".into(),
-        ));
+    reject_when! {
+        request.observation != ObservationModel::Stable
+            => "Stable compound mutation requires a Stable observation",
+        request.effective_supply.kind() != EffectiveSupplyKind::Stable
+            => "Stable compound mutation requires admitted Stable supply",
     }
     request.validate_effective_supply_binding()?;
     if request.current_borrow != BorrowPolarity::Exclusive
@@ -440,15 +433,11 @@ specialization_boundary!(
 fn validate_atomic_primitive_request(
     request: &PrimitiveAccessRequest<'_, '_>,
 ) -> Result<AtomicAccessOperation, AccessPlanDiagnostic> {
-    if request.observation != ObservationModel::Atomic {
-        return Err(AccessPlanDiagnostic(
-            "Atomic lowering requires an Atomic observation".into(),
-        ));
-    }
-    if request.effective_supply.kind() != EffectiveSupplyKind::Atomic {
-        return Err(AccessPlanDiagnostic(
-            "Atomic lowering requires explicitly admitted Atomic supply".into(),
-        ));
+    reject_when! {
+        request.observation != ObservationModel::Atomic
+            => "Atomic lowering requires an Atomic observation",
+        request.effective_supply.kind() != EffectiveSupplyKind::Atomic
+            => "Atomic lowering requires explicitly admitted Atomic supply",
     }
     request.validate_effective_supply_binding()?;
     let AccessOperation::Atomic(operation) = request.operation else {
