@@ -19,7 +19,9 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 data Desc { kind: u32; pages: u64; }
-data Main {
+data Main
+requires self.descriptor_size <= 16
+{
     buf: [u8; 48];
     descriptor_size: u32;
     total: u32 in Wrapping;

@@ -13,10 +13,6 @@ use terminal_runtime::{
     TerminalRuntimeRequest,
 };
 
-// This is an explicit sponsor budget, not a divergence verdict. Exhaustion
-// remains an unavailable comparison and may be raised for a measured workload.
-const REFERENCE_EXECUTION_FUEL_ALLOWANCE: u64 = 10_000_000;
-
 pub(super) struct ProbeCompilation {
     pub report: CompileReport,
     /// Target name selected for this compilation.
@@ -32,6 +28,7 @@ pub(super) fn compile(
     private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     options: CompileOptions,
     reference_inputs: Vec<std::fs::File>,
+    terminal_fuel_allowance: u64,
 ) -> Result<ProbeCompilation, Vec<Diagnostic>> {
     let targets = match options.target_name.as_deref() {
         Some(name) => BuildTargets::Single(
@@ -69,7 +66,7 @@ pub(super) fn compile(
         .report;
     let interpretations = reference_inputs
         .into_iter()
-        .map(|input| interpret_product(&report, Some(input), target_name))
+        .map(|input| interpret_product(&report, Some(input), target_name, terminal_fuel_allowance))
         .collect();
     Ok(ProbeCompilation {
         report,
@@ -82,6 +79,7 @@ pub(super) fn interpret_product(
     report: &CompileReport,
     input: Option<std::fs::File>,
     target: &str,
+    terminal_fuel_allowance: u64,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     let artifact = report
         .retained_native_program()
@@ -106,7 +104,7 @@ pub(super) fn interpret_product(
         artifact,
         target: Some(target),
         provisions: report.runtime_provisions(),
-        fuel_allowance: REFERENCE_EXECUTION_FUEL_ALLOWANCE,
+        fuel_allowance: terminal_fuel_allowance,
         // `run` sponsors one standalone private domain. Its death cannot end
         // this CLI or invalidate another instance's storage/capabilities.
         domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
