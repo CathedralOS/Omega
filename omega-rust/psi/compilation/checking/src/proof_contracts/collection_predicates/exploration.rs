@@ -192,13 +192,20 @@ pub(crate) fn admitted_predicate_machine(
             .is_empty();
     let returns_boolean =
         program.primitive_type_reference(entry.return_type) == Some(PrimitiveType::Bool);
+    // Formal-domain obligations are synthesized on the entry state. They
+    // constrain admission just like authored machine requires; stripping a
+    // qualified formal to its carrier cannot discharge either roster.
     let unconditional = entered_by_call
-        || program.machine_contracts(machine).iter().all(|contract| {
-            !matches!(
-                contract.kind,
-                typed_trees::signature::SignatureContractKind::Requires
-            )
-        });
+        || program
+            .machine_contracts(machine)
+            .iter()
+            .chain(program.state_contracts(entry))
+            .all(|contract| {
+                !matches!(
+                    contract.kind,
+                    typed_trees::signature::SignatureContractKind::Requires
+                )
+            });
     let parameters_readable = program.machine_states(machine).iter().all(|state| {
         program
             .state_parameters(state)
