@@ -14,6 +14,8 @@ use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
 use language_semantics::{CarryPolicy, DomainPredicatePresence};
 use package_compilation::build_execution::build_record_codec;
+use package_compilation::native_output_codec::encode;
+use package_compilation::provider_selection_codec::decode_package_provider_selections;
 use package_compilation::review_record_encoding::{
     authority_class_tag, declaration_kind_tag, encode_optional, purpose_tag,
     recover_authority_class, recover_declaration_kind, recover_optional, recover_purpose,
@@ -616,10 +618,7 @@ fn encode_build_handoff(bundle: &PackageBuildHandoff, out: &mut Vec<u8>) {
             bundle.selection_observation(),
         ),
     );
-    push_framed(
-        out,
-        &package_compilation::native_output_codec::encode(bundle),
-    );
+    push_framed(out, &encode(bundle));
 }
 
 fn recover_build_handoff(cursor: &mut ObservationCursor<'_>) -> Option<PackageBuildHandoff> {
@@ -644,10 +643,7 @@ fn recover_build_handoff(cursor: &mut ObservationCursor<'_>) -> Option<PackageBu
             bytes.into(),
         ))
     })?;
-    let (selections, observation) =
-        package_compilation::provider_selection_codec::decode_package_provider_selections(
-            cursor.framed()?,
-        )?;
+    let (selections, observation) = decode_package_provider_selections(cursor.framed()?)?;
     let handoff = PackageBuildHandoff::from_checked(
         package,
         purpose,
@@ -920,6 +916,7 @@ mod tests {
     //! recovered record is semantically equal and re-encodes byte-identical.
 
     use super::*;
+    use effects::provider_plan::ServiceSurface;
 
     #[test]
     fn review_record_roundtrip_refuses_retired_versions_and_corruption() {
@@ -999,47 +996,45 @@ mod tests {
         let alpha = identities.intern("omega.test.Trait.alpha");
         let beta = identities.intern("omega.test.Trait.beta");
         let u32_type_identity = identities.intern("omega.core.u32");
-        let schema = ServiceSchema::from_declaration(std::sync::Arc::new(
-            effects::provider_plan::ServiceSurface {
+        let schema = ServiceSchema::from_declaration(std::sync::Arc::new(ServiceSurface {
+            trait_name,
+            receiver_applications: vec![ServiceReceiverApplication {
+                application: Default::default(),
                 trait_name,
-                receiver_applications: vec![ServiceReceiverApplication {
-                    application: Default::default(),
-                    trait_name,
-                    trait_package_identity: None,
-                    argument_identities: vec![u32_type_identity],
-                    lifetime_argument_identities: Vec::new(),
-                    requirement_identities: vec![alpha, beta, requirement_identity],
-                }],
-                identities,
                 trait_package_identity: None,
-                methods: vec![ServiceMethod {
-                    name: "method".to_owned(),
-                    requirement_owner: "omega.test.Trait".to_owned(),
-                    requirement_identity,
-                    parameter_count: 1,
-                    parameter_type_identities: vec![u32_type_identity],
-                    has_result: true,
-                    result_type_identity: u32_type_identity,
-                    terminates_guarantee: true,
-                    termination_premises: vec![ServiceProgressPremise {
-                        profile: "terminates".to_owned(),
-                        subject: ServiceProgressSubject::Parameter(0),
-                        subject_projections: Vec::new(),
-                        establishment_routes: vec![
-                            ServiceProgressEstablishmentRoute {
-                                kind: ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-                                requirement_identity: alpha,
-                            },
-                            ServiceProgressEstablishmentRoute {
-                                kind: ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
-                                requirement_identity: beta,
-                            },
-                        ],
-                    }],
-                    ..Default::default()
+                argument_identities: vec![u32_type_identity],
+                lifetime_argument_identities: Vec::new(),
+                requirement_identities: vec![alpha, beta, requirement_identity],
+            }],
+            identities,
+            trait_package_identity: None,
+            methods: vec![ServiceMethod {
+                name: "method".to_owned(),
+                requirement_owner: "omega.test.Trait".to_owned(),
+                requirement_identity,
+                parameter_count: 1,
+                parameter_type_identities: vec![u32_type_identity],
+                has_result: true,
+                result_type_identity: u32_type_identity,
+                terminates_guarantee: true,
+                termination_premises: vec![ServiceProgressPremise {
+                    profile: "terminates".to_owned(),
+                    subject: ServiceProgressSubject::Parameter(0),
+                    subject_projections: Vec::new(),
+                    establishment_routes: vec![
+                        ServiceProgressEstablishmentRoute {
+                            kind: ServiceProgressEstablishmentRouteKind::CheckedRequirement,
+                            requirement_identity: alpha,
+                        },
+                        ServiceProgressEstablishmentRoute {
+                            kind: ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                            requirement_identity: beta,
+                        },
+                    ],
                 }],
-            },
-        ));
+                ..Default::default()
+            }],
+        }));
 
         let mut encoded = Vec::new();
         encode_service_schema(&schema, &mut encoded);
