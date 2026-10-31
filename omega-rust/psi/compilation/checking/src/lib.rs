@@ -128,7 +128,7 @@ pub use proof_contracts::contract_entailment::content_conservation::{
 pub(crate) use proof_contracts::contract_entailment::immutable_entry_boolean_projection;
 pub use proof_contracts::contract_entailment::numeric_observations::{
     CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarObservation,
-    NumericObservationDemand, captured_numeric_observations,
+    NumericObservationDemand, ScalarObservationDemand, captured_numeric_observations,
 };
 pub use proof_contracts::contract_entailment::ranking_range::{
     captured_collection_length, captured_integer_value, closed_collection_length,
@@ -560,17 +560,15 @@ pub use frozen_program::{
 };
 pub use machine_calls::effect_inference::PreparedEffectPlans;
 pub use machine_calls::reference_result_custody;
-pub(crate) use program_validation::{note_dependency_body_read, DependencyBodyRead};
 pub use program_validation::{
     DependencyBodyJudgment, ExactIntegerCastFact, ExpressionInterval, FrozenDependencyBody,
-    OpaquePropertyValidation,
-    ProgramValidation, ProgramValidationFacts, ProvenContractExpressions,
+    OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts, ProvenContractExpressions,
     admit_prepared_program_effects, checking_thread_pool, dependency_body_read_totals,
-    dependency_entailment_totals,
-    expression_interval, prepare_specialized_program,
+    dependency_entailment_totals, expression_interval, prepare_specialized_program,
     validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
     validate_program,
 };
+pub(crate) use program_validation::{DependencyBodyRead, note_dependency_body_read};
 
 pub use proof_contracts::scalar_boundary_guarantees::derive_scalar_boundary_guarantees;
 

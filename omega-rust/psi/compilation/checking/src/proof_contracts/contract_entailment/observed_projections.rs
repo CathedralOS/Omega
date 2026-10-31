@@ -399,18 +399,6 @@ pub(super) fn integer_storage_read(
     })
 }
 
-pub(super) fn declared_integer_field_read(
-    program: &dyn crate::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<ResolvedScalarStorageRead> {
-    declared_scalar_field_read(program, machine, state, expression).filter(|read| {
-        read.primitive.is_fixed_integer()
-            || read.primitive == typed_trees::types::PrimitiveType::Addr
-    })
-}
-
 fn inline_projection_source(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,

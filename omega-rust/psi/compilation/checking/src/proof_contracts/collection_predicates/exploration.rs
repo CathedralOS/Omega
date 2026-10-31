@@ -669,8 +669,12 @@ fn tail_call_exit(
     if !call.is_ordinary_positional_call() {
         return Err(Stop::Unsupported);
     }
-    let machine =
-        admitted_predicate_machine(program, call.target_symbol, true).ok_or(Stop::Unsupported)?;
+    // A checked machine body has already discharged its invocation contracts.
+    // A declaration proposition has no such caller evidence: conditional
+    // callees must stand down here rather than certify their own admission.
+    let checked_caller = matches!(frame.scope, Scope::State { .. });
+    let machine = admitted_predicate_machine(program, call.target_symbol, checked_caller)
+        .ok_or(Stop::Unsupported)?;
     let arguments = program.expression_table.expression_handles(call.arguments);
     enter(program, frame, atoms, machine, 0, arguments)
 }

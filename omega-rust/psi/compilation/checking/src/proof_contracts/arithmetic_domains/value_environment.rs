@@ -104,6 +104,7 @@ pub(super) struct StatementNumericObservations {
     /// The invalid state handle denotes absent observations.
     state: symbols::SymbolHandle,
     statement_index: usize,
+    scalar_values: Vec<crate::CapturedScalarObservation>,
     pub(super) integer_operations: Vec<crate::CapturedIntegerOperation>,
     pub(super) scalar_associations:
         Vec<crate::proof_contracts::contract_entailment::numeric_observations::CapturedScalarAssociation>,
@@ -300,7 +301,7 @@ impl ValueEnvironment {
                 statement_index,
                 false,
                 crate::NumericObservationDemand {
-                    scalar_values: false,
+                    scalar_values: crate::ScalarObservationDemand::Statement,
                     integer_operations: true,
                     scalar_associations: true,
                 },
@@ -308,10 +309,37 @@ impl ValueEnvironment {
             self.numeric_observations = StatementNumericObservations {
                 state: state.symbol,
                 statement_index,
+                scalar_values: observations.scalar_values,
                 integer_operations: observations.integer_operations,
                 scalar_associations: observations.scalar_associations,
             };
         }
+    }
+
+    /// Only completed reads from this statement may narrow its operand walk.
+    /// State edges discard this batch; expression handles name the exact reads,
+    /// so a later source write cannot retarget a saved scalar observation.
+    pub(super) fn captured_integer_interval(
+        &self,
+        state: symbols::SymbolHandle,
+        expression: ExpressionHandle,
+    ) -> Option<Interval> {
+        if !state.is_valid() || self.numeric_observations.state != state {
+            return None;
+        }
+        let observation = self
+            .numeric_observations
+            .scalar_values
+            .iter()
+            .find(|value| value.expression == expression)?;
+        let crate::ScopedArithmeticValue::Integer(value) = &observation.value else {
+            return None;
+        };
+        let value = value.to_i64()?;
+        Some(Interval {
+            low: Some(value),
+            high: Some(value),
+        })
     }
 
     pub(super) fn range_recipe(
