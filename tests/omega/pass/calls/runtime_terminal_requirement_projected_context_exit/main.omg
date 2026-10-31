@@ -1,12 +1,17 @@
+// ItemCount::get_count is a one-member boundary trait with an empty reach.
+// The caller projects a request field into that requirement. Expected exit: 0.
 public data Items { count: u64; }
 data Request { items: Items; }
-public boundary requirement Items::get_count(items: &Items) -> u64;
+public boundary trait ItemCount {
+    machine get_count(items: &Items) -> u64
+    reaches;
+}
 data ItemsProvider {}
-machine ItemsProvider::get_count(items: &Items) -> u64 satisfies Items::get_count { items.count }
+machine ItemsProvider::get_count(items: &Items) -> u64 satisfies ItemCount::get_count { items.count }
 machine count(request: &Request, selected: bool) -> u64 {
     transition selected {
-        true -> Items::get_count(&request.items)
-        _ -> Items::get_count(&request.items)
+        true -> ItemCount::get_count(&request.items)
+        _ -> ItemCount::get_count(&request.items)
     }
 }
 machine main() crashes Trap {
