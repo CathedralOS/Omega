@@ -1,6 +1,7 @@
 //! Fixtures shared by the mathematical core tests: sorts, lambdas,
 //! projections, eliminators, budgets and level offsets.
 
+mod assumption_closure;
 mod identity_and_w_types;
 mod levels_and_declarations;
 mod schemes_and_quotients;

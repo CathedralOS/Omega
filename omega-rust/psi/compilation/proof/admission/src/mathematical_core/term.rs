@@ -442,7 +442,7 @@ impl Subterms {
         self.count
     }
 
-    pub(super) fn iter(&self) -> impl Iterator<Item = (TermHandle, u32)> + '_ {
+    pub(super) fn iter(&self) -> impl DoubleEndedIterator<Item = (TermHandle, u32)> + '_ {
         self.slots[..self.count].iter().flatten().copied()
     }
 }
@@ -577,7 +577,12 @@ impl TermArena {
     }
 
     pub fn get(&self, handle: TermHandle) -> Term {
-        self.terms.get(handle).clone()
+        self.node(handle).clone()
+    }
+
+    /// Read-only handle walks borrow payloads instead of cloning level syntax.
+    pub(super) fn node(&self, handle: TermHandle) -> &Term {
+        self.terms.get(handle)
     }
 
     /// Rebuild `term` with `transform` applied to each immediate subterm.
