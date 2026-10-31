@@ -312,8 +312,10 @@ pub(crate) fn byte_atom(tag: &str, value: &[u8]) -> String {
     output.push('(');
     output.push_str(&value.len().to_string());
     output.push(':');
-    for byte in value {
-        output.push_str(&format!("{byte:02x}"));
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for &byte in value {
+        output.push(char::from(HEX[usize::from(byte >> 4)]));
+        output.push(char::from(HEX[usize::from(byte & 0x0f)]));
     }
     output.push(')');
     output
@@ -334,3 +336,6 @@ pub(crate) fn compound(tag: &str, parts: impl IntoIterator<Item = String>) -> St
     output.push(')');
     output
 }
+
+#[cfg(test)]
+mod byte_atom_tests;
