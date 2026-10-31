@@ -1,0 +1,12 @@
+// Expected exit: 0
+// Cooked UTF-8 octets plus one escaped byte infer the exact owned array extent.
+domain u8::Small requires self < 128;
+data Packet<const Count: u64> [copy] { bytes: [u8 in Small; Count]; }
+machine consume(value: Packet<3>) -> bool {
+    value.bytes[0] == 195u8 && value.bytes[1] == 169u8 && value.bytes[2] == 7u8
+}
+machine program() crashes Trap {
+    transition consume(Packet { bytes: "é\x07" }) { true -> done() false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}
