@@ -82,3 +82,35 @@ orders, the remaining invocation-contract obligations and product-source
 migration. Other-host execution and independent proof-kernel qualification
 remain outside this bounded repair. Exact producers, frozen baseline failures
 and raw execution observations are retained in `build/signed-rank/`.
+
+## Boolean helper requirements
+
+Every place also has `negated_requirement/main.omg` and its
+`negated_requirement/invalid/main.omg` twin. They copy this row's fact sentence,
+rank sequence, signed carrier, interval, updates and canaries. The ordinary
+`rank` helper requires `!(value > 7)` instead of `value <= 7`; the producing
+measure still calls that helper and consumes its public result guarantee.
+The twin changes only the selected increment from one to zero.
+
+The optimized producer built from fixed base
+`a91a8de86514f5b0ba71509b3af4d656916d6062` rejects all nine positives at rank-range
+formation and source-complete cycle admission. Its SHA-256 is
+`270923b0c4497ca7b098e55eaafe232601a8d1422258a44f3e256691206d4807`.
+The arithmetic-negation control already executes with native/Terminal agreement;
+negated and disjunctive helper requirements expose the narrower call-formation
+reader. Raw baseline sources, commands, streams and producer bytes are retained
+under `build/advance-negated/` in the owning worktree.
+
+The repair uses the same selected Boolean paths for requirements and declared
+matches. Each evaluated operand must form before its comparison contributes a
+path premise. Every feasible requirement result must be true before the call
+imports its result, and selected-path premises stay local. This establishes
+exact-actual formation and composition without changing captured storage
+identity, arithmetic safety, authority or termination obligations.
+
+The applicable downstream obligations remain this row's ordinary call and
+rank lowering, explicit-reference layout/ABI, counter and neighbor preservation,
+and native image/interpreter agreement. The new sources are pinned as
+`nested_machine_signed_rank_negated_requirement_<place>_{exit,rejected}`.
+Candidate execution and the intended strict-nondescent refusals remain to be
+measured. The wider parent outcome and other-host qualification remain open.
