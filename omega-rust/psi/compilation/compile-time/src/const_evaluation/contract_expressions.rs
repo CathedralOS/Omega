@@ -366,11 +366,15 @@ mod tests {
             })
             .copied()
             .collect::<Vec<_>>();
+        // `size_of<Cell>() + align_of<Cell>() == 24` mentions no binder of
+        // `require_geometry<T>`: a closed expression inside a generic owner
+        // still owes its own entry, beside the two concrete applications.
         assert!(
             contexts
                 .iter()
                 .filter(|context| context.owner == template)
-                .all(|context| !context.evaluation_entry.is_valid())
+                .all(|context| context.evaluation_entry.is_valid()),
+            "the closed template contract owns an entry of its own"
         );
         let entries = contexts
             .iter()
@@ -378,14 +382,15 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(
             entries.len(),
-            2,
-            "both concrete applications own complete entries"
+            3,
+            "the closed template and both concrete applications own complete entries"
         );
-        assert_ne!(entries[0].evaluation_entry, entries[1].evaluation_entry);
-        assert_ne!(
-            entries[0].evaluation_expression,
-            entries[1].evaluation_expression
-        );
+        for (position, left) in entries.iter().enumerate() {
+            for right in &entries[position + 1..] {
+                assert_ne!(left.evaluation_entry, right.evaluation_entry);
+                assert_ne!(left.evaluation_expression, right.evaluation_expression);
+            }
+        }
         let checked = typed_trees_to_checked_trees::lower_typed_trees(
             prepared,
             preparation,
