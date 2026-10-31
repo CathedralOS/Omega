@@ -157,8 +157,7 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    other declared body forms (including structured and cross-carrier
-    bodies), nonscalar orders,
+    other declared body forms and cross-carrier bodies, nonscalar orders,
     or dependent distances
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
