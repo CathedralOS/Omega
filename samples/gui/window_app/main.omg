@@ -36,7 +36,7 @@ public boundary trait Gui {
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics;
     machine get_dc(window_state: &Window, window: u64) -> u64 reaches;
-    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32 invokes MacosImageData invokes MacosImageObjects; 4096], info: [i32; 11]) -> u32
+    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32; 4096], info: [i32; 11]) -> u32
         reaches
             GlobalInputObservation + NativeCodeExecution + WindowManagement +
             SurfacePresentation + WindowEventObservation + WindowEventDispatch +
@@ -44,7 +44,7 @@ public boundary trait Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes ObjectiveC invokes CoreGraphics;
+        invokes ObjectiveC invokes CoreGraphics invokes MacosImageData invokes MacosImageObjects;
     machine msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32 reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -104,7 +104,7 @@ WindowGuiProvider satisfies Gui {
     {
         macos_window_get_dc(window_state, window)
     }
-    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32 invokes MacosImageData invokes MacosImageObjects; 4096], info: [i32; 11]) -> u32
+    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32; 4096], info: [i32; 11]) -> u32
         reaches
             GlobalInputObservation + NativeCodeExecution + WindowManagement +
             SurfacePresentation + WindowEventObservation + WindowEventDispatch +
@@ -112,7 +112,7 @@ WindowGuiProvider satisfies Gui {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-        invokes ObjectiveC invokes CoreGraphics
+        invokes ObjectiveC invokes CoreGraphics invokes MacosImageData invokes MacosImageObjects
     {
         macos_window_blit(window_state, device, dest_width, dest_height, source_width, source_height, pixels, info)
     }
