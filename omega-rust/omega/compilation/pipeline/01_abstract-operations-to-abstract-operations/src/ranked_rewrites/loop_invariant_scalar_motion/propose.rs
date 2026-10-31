@@ -628,9 +628,7 @@ fn roots_relocate(
     root: PlaceId,
     relocating: &std::collections::BTreeSet<ValueId>,
     relocating_roots: &std::collections::BTreeSet<PlaceId>,
-    observed_roots: impl Fn(
-        &abstract_operations::AbstractOperation,
-    ) -> std::collections::BTreeSet<PlaceId>,
+    observed_roots: impl Fn(&AbstractOperation) -> std::collections::BTreeSet<PlaceId>,
 ) -> bool {
     let mut extended = relocating_roots.clone();
     extended.insert(root);
