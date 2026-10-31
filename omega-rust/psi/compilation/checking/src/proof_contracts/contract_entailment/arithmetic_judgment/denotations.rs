@@ -22,8 +22,12 @@ impl IntegerDenotation {
 }
 
 impl OpaqueTerm {
-    fn visit_operands(&self, mut visit: impl FnMut(&Polynomial)) {
+    pub(super) fn visit_operands(&self, mut visit: impl FnMut(&Polynomial)) {
         match self {
+            Self::DeclarationApplication { input, .. } => visit(input),
+            Self::Conditional { arms } => {
+                arms.iter().for_each(|arm| arm.visit_operands(&mut visit))
+            }
             Self::Call { arguments, .. } => arguments.iter().for_each(visit),
             Self::IntegerPolicy { value, .. } => visit(value),
             Self::Remainder {
@@ -123,8 +127,16 @@ impl Engine<'_> {
         operation: &OpaqueTerm,
         substitutions: &BTreeMap<String, Polynomial>,
     ) -> Option<Polynomial> {
-        let mapped = |value| apply_argument_map(value, substitutions);
+        let mapped = |value: &Polynomial| apply_argument_map(value, substitutions);
         match operation {
+            OpaqueTerm::DeclarationApplication { measure, input } => {
+                self.declared_application_value(*measure, mapped(input)?)
+            }
+            OpaqueTerm::Conditional { arms } => self.conditional_value(
+                arms.iter()
+                    .map(|arm| arm.mapped(mapped))
+                    .collect::<Option<Vec<_>>>()?,
+            ),
             OpaqueTerm::Call {
                 owner,
                 expression,

@@ -71,6 +71,7 @@ pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             // the ordinary invocation owner rejoins it to the applied view.
             let bindings = super::invocation_bindings(
                 program,
+                invocation.owner,
                 &invocation.declaration_parameters,
                 &arguments,
             )?;

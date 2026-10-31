@@ -131,7 +131,9 @@ pub mod evidence;
 pub mod inspection;
 pub mod names;
 mod selection_exclusions;
+mod symbol_rebinding;
 pub use selection_exclusions::AuthoredSelectionExclusions;
+pub use symbol_rebinding::SymbolRebinding;
 mod table_reads;
 mod trait_and_machine_tables;
 mod type_reference_queries;
@@ -802,11 +804,12 @@ impl DerefMut for TypedTrees {
 
 /// Symbol-remap lookup shared by the typed-tree copy paths: symbols map
 /// through the pair table, unmapped symbols stay themselves.
-pub(crate) fn remapped(
+pub(crate) fn remapped<'scope>(
     symbol: SymbolHandle,
-    symbols: &[(SymbolHandle, SymbolHandle)],
+    symbols: impl Into<SymbolRebinding<'scope>>,
 ) -> SymbolHandle {
     symbols
+        .into()
         .iter()
         .find_map(|(source, target)| (*source == symbol).then_some(*target))
         .unwrap_or(symbol)

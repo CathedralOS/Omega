@@ -338,15 +338,15 @@ impl PredicateTerms for RuntimeRequirementTerms<'_> {
 /// Structural roots remain owned by the subsequent exact place substitution.
 pub(crate) fn substitute_runtime_requirement_scalar_values(
     proposition: &mut Proposition,
-    substitutions: &BTreeMap<ValueId, ValueDeclaration>,
+    substitutions: &BTreeMap<ValueId, ScalarTerm>,
 ) -> Result<(), LoweringError> {
     fn substitute_term(
         term: &ScalarTerm,
-        substitutions: &BTreeMap<ValueId, ValueDeclaration>,
+        substitutions: &BTreeMap<ValueId, ScalarTerm>,
     ) -> Result<ScalarTerm, LoweringError> {
         fn rebind(
             term: &mut ScalarTerm,
-            substitutions: &BTreeMap<ValueId, ValueDeclaration>,
+            substitutions: &BTreeMap<ValueId, ScalarTerm>,
         ) -> Result<(), LoweringError> {
             match term {
                 ScalarTerm::Application { .. } => Ok(()),
@@ -376,12 +376,12 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
                     let actual = substitutions.get(id).ok_or(LoweringError::Unsupported(
                         "runtime requirement scalar formal has no exact actual argument",
                     ))?;
-                    if actual.scalar_type != *scalar_type {
+                    if actual.scalar_type() != *scalar_type {
                         return unsupported(
                             "runtime requirement scalar argument changes its formal type",
                         );
                     }
-                    *id = actual.id;
+                    *term = actual.clone();
                     Ok(())
                 }
                 ScalarTerm::Boolean(_)

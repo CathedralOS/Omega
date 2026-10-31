@@ -54,6 +54,10 @@ pub(super) fn retain_provider(
     record.binding_declaration = provider.template.template_symbol;
     let bindings = super::super::applications::candidate_bindings(program, provider);
     expressions_of_mut(program).set_static_machine_application_bindings(retained, &bindings);
-    expressions_of_mut(program).set_static_machine_application_lifetimes(retained, lifetimes);
+    expressions_of_mut(program).set_static_machine_application_lifetimes(
+        retained,
+        provider.template.template_symbol,
+        lifetimes,
+    );
     retained
 }

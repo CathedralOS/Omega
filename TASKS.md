@@ -163,8 +163,7 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    other declared body forms (including structured and cross-carrier
-    bodies), nonscalar orders,
+    other declared body forms and cross-carrier bodies, nonscalar orders,
     or dependent distances
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
@@ -417,7 +416,6 @@ retired-syntax deletions to completion.
   [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply),
   [call preconditions](wiki/spec/language/machines.md#call-preconditions), and
   [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
-  - Admit complete machine-valued static callable tuples through generic dispatch.
   - Preserve exact cross-module const-alias selection in callable/evidence arguments.
   - Admit open-Const callable families through their declaration-owned scopes.
   - Extend `OpenIndexOperationSelection` in

@@ -184,6 +184,9 @@ impl<'engine, 'program> LowerBoundQueries<'engine, 'program> {
         polynomial: &Polynomial,
         bound: &BigInt,
     ) -> bool {
+        if let Some(proved) = self.engine.conditional_lower_bound(polynomial, bound) {
+            return proved;
+        }
         if self.prove_base_lower_bound(polynomial, bound) {
             return true;
         }

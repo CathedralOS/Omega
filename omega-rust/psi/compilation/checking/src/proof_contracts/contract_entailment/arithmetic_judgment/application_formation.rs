@@ -5,6 +5,7 @@
 use super::{Engine, Polynomial};
 
 mod calls;
+mod dispatch;
 
 #[derive(Default)]
 struct ApplicationDecisions {
@@ -211,6 +212,9 @@ fn formed_value(
                 }
             }
             Some(value)
+        }
+        ExpressionNode::Match(dispatch) => {
+            dispatch::form(engine, expression, dispatch, depth, decisions)
         }
         ExpressionNode::Call(_) => calls::form(engine, program, expression, depth, decisions),
         ExpressionNode::Binary(binary) => {

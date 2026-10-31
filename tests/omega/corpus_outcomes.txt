@@ -151,6 +151,28 @@ fail/facts/induction_call_guarantee_through_parameter_rejected rejected 634ms ex
 	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
 fail/facts/induction_call_guarantee_through_target_body_rejected rejected 633ms expected @961147032a93+wt
 	machine `gauss` cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 1` on the transition arm guarded by `__transition_subject#20 == false`
+fail/facts/machine_tuple_dispatch_through_call_result_rejected rejected 1956ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_const_name_rejected rejected 1807ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_field_rejected rejected 2187ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_local_rejected rejected 1662ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_match_join_rejected rejected 1499ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from main: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_other_machine_rejected rejected 1683ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from relay: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_other_state_rejected rejected 1699ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from check: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_parameter_rejected rejected 1880ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from relay: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/machine_tuple_dispatch_through_target_body_rejected rejected 1465ms expected @dacae466db1d+wt
+	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/nested_machine_header_contracts_call_result_rejected rejected 225ms expected @2fc408782574
 	tests/omega/fail/facts/nested_machine_header_contracts_call_result_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
 fail/facts/nested_machine_header_contracts_const_name_rejected rejected 269ms expected @2fc408782574
@@ -434,6 +456,37 @@ fail/facts/nested_machine_joint_rank_remainder_target_body_rejected rejected 120
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_remainder_zero_divisor rejected 1032ms expected @30a668a64c1c+wt
 	terminating machine count: cannot prove rank range `0..=3` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structured_branch_requires_rejected rejected 2811ms expected @d4217dd821a4+wt
+	terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structured_call_result_rejected rejected 3922ms expected @d4217dd821a4+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structured_const_name_rejected rejected 2816ms expected @d4217dd821a4+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structured_field_rejected rejected 2240ms expected @d4217dd821a4+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structured_local_rejected rejected 2676ms expected @d4217dd821a4+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structured_match_join_rejected rejected 3668ms expected @d4217dd821a4+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structured_nonmonotone_rejected rejected 3137ms expected @d4217dd821a4+wt
+	machine call cycle: `count`, `forward` -- captured ranks do not prove natural nonincrease; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structured_other_machine_rejected rejected 4376ms expected @d4217dd821a4+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structured_other_state_rejected rejected 2740ms expected @d4217dd821a4+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structured_owned_ingress_rejected rejected 2586ms expected @d4217dd821a4+wt
+	cannot prove requires contract for call count from perform: remaining.count <= 7 && 18 == 19 (needs fact `remaining.count <= 7 && tag == 19` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_joint_rank_structured_parameter_rejected rejected 3841ms expected @d4217dd821a4+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structured_partial_subject_rejected rejected 2343ms expected @d4217dd821a4+wt
+	terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structured_target_body_rejected rejected 2808ms expected @d4217dd821a4+wt
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_structured_wrong_guard_rejected rejected 1960ms expected @d4217dd821a4+wt
+	terminating machine count: cannot prove rank range `0..=18446744073709551615` for the rank produced by the selected view
 	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/projection_receiver_call_through_call_result_rejected rejected 1669ms expected @73c70115c79e+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
@@ -5954,6 +6007,15 @@ pass/facts/loop_branch_relaxation_ranking_through_parameter_exit rejected 2989ms
 	cannot prove ensures contract for exit from loop_calc at statement 1: result >= 100 && result <= 100
 pass/facts/loop_branch_relaxation_ranking_through_target_body_exit rejected 3358ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove ensures contract for exit from loop_calc at statement 1: result >= 100 && result <= 100
+pass/facts/machine_tuple_dispatch_through_call_result_exit checked 3415ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_const_name_exit checked 3643ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_field_exit checked 3419ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_local_exit checked 3638ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_match_join_exit checked 3129ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_other_machine_exit checked 2843ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_other_state_exit checked 2467ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_parameter_exit checked 2593ms check-target:macos_arm64 @dacae466db1d+wt
+pass/facts/machine_tuple_dispatch_through_target_body_exit checked 2670ms check-target:macos_arm64 @dacae466db1d+wt
 pass/facts/match_computed_root_through_call_result_exit rejected 2686ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call compute from select: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/facts/match_computed_root_through_const_name_exit checked 4081ms check-target:macos_arm64 @ccdb99ca2214
@@ -6979,6 +7041,19 @@ pass/facts/nested_machine_joint_rank_structural_view_other_machine_exit checked 
 pass/facts/nested_machine_joint_rank_structural_view_other_state_exit checked 3538ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_structural_view_parameter_exit checked 976ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/nested_machine_joint_rank_structural_view_target_body_exit checked 3258ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_joint_rank_structured_call_result_exit checked 5474ms check-target:macos_arm64 @d4217dd821a4+wt
+pass/facts/nested_machine_joint_rank_structured_connectives_exit checked 5557ms check-target:macos_arm64 @d4217dd821a4+wt
+pass/facts/nested_machine_joint_rank_structured_const_name_exit checked 4110ms check-target:macos_arm64 @d4217dd821a4+wt
+pass/facts/nested_machine_joint_rank_structured_field_exit checked 3207ms check-target:macos_arm64 @d4217dd821a4+wt
+pass/facts/nested_machine_joint_rank_structured_guarded_division_exit checked 6573ms check-target:macos_arm64 @d4217dd821a4+wt
+pass/facts/nested_machine_joint_rank_structured_local_exit checked 4299ms check-target:macos_arm64 @d4217dd821a4+wt
+pass/facts/nested_machine_joint_rank_structured_match_join_exit checked 4802ms check-target:macos_arm64 @d4217dd821a4+wt
+pass/facts/nested_machine_joint_rank_structured_other_machine_exit checked 4236ms check-target:macos_arm64 @d4217dd821a4+wt
+pass/facts/nested_machine_joint_rank_structured_other_state_exit checked 3247ms check-target:macos_arm64 @d4217dd821a4+wt
+pass/facts/nested_machine_joint_rank_structured_owned_ingress_exit checked 3745ms check-target:macos_arm64 @d4217dd821a4+wt
+pass/facts/nested_machine_joint_rank_structured_parameter_exit checked 4973ms check-target:macos_arm64 @d4217dd821a4+wt
+pass/facts/nested_machine_joint_rank_structured_probe_exit checked 3306ms check-target:macos_arm64 @d4217dd821a4+wt
+pass/facts/nested_machine_joint_rank_structured_target_body_exit checked 4432ms check-target:macos_arm64 @d4217dd821a4+wt
 pass/facts/nested_machine_joint_rank_target_body_exit checked 4124ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_top_level_exit checked 3323ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_lexical_entry_call_result_exit checked 3423ms check-target:macos_arm64 @ccdb99ca2214
