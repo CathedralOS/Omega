@@ -66,14 +66,6 @@ fn append_state_parameter_predicates(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for row in validation::state_declaration_predicates(program, operators, state) {
-                if std::env::var("OMEGA_TRACE_READ_BOUNDS")
-                    .is_ok_and(|name| name == machine.name.as_str())
-                {
-                    eprintln!(
-                        "READ-BOUNDS declaration {} {:?}",
-                        machine.name, row.predicate
-                    );
-                }
                 let Some(predicate) = crate::facts::boolean_predicates::bind_parameters(
                     program,
                     machine.symbol,

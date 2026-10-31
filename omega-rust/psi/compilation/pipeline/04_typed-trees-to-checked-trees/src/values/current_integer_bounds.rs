@@ -234,18 +234,6 @@ impl<'a> CurrentIntegerBounds<'a> {
     }
 
     fn exact(&self, place: &CanonicalPlace, primitive: PrimitiveType) -> Option<IntegerRange> {
-        let trace = std::env::var("OMEGA_TRACE_READ_BOUNDS")
-            .ok()
-            .is_some_and(|name| {
-                validation::find_state(self.program, self.state)
-                    .is_some_and(|(machine, _)| machine.name.as_str() == name)
-            });
-        if trace {
-            eprintln!(
-                "READ-BOUNDS exact {:?} {:?} predicates {:?}",
-                place, primitive, self.predicates
-            );
-        }
         let contexts = || {
             self.contexts
                 .iter()
@@ -264,9 +252,6 @@ impl<'a> CurrentIntegerBounds<'a> {
                     super::scalar_value_at_place(self.program, self.semantic, contexts(), place)
                 })
             {
-                if trace {
-                    eprintln!("READ-BOUNDS consequence {:?}", consequence);
-                }
                 bounds.minimum = bounds.minimum.max(consequence.minimum);
                 bounds.maximum = bounds.maximum.min(consequence.maximum);
             }
