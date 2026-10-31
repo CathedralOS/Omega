@@ -2,6 +2,7 @@
 //! `ByteSequenceOperand` names either a whole view or one structural field's
 //! view, and every consumer reads the same live extent bound.
 
+use super::storage::ByteSequenceStorage;
 use crate::byte_sequences::ByteSequenceView;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -32,11 +33,8 @@ impl TerminalExecution<'_> {
         let snapshot = self.scalar_array_snapshot(source, selected.id)?;
         let observed = snapshot.elements();
         let values = observed.iter().map(scalar_byte);
-        let bytes = super::storage::ByteSequenceStorage::from_values(
-            snapshot.len(),
-            values,
-            self.account.as_ref(),
-        )?;
+        let bytes =
+            ByteSequenceStorage::from_values(snapshot.len(), values, self.account.as_ref())?;
         Ok(Some(ByteSequenceView::new(bytes)))
     }
 

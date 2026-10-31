@@ -18,6 +18,7 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralTypeShape, reading_borrow_pair_pattern,
 };
 
+use super::original_storage::TerminalOriginalStorageLoan;
 use crate::effects::TerminalEffectRejection;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -33,7 +34,7 @@ use crate::values::{
 /// never a grant of access to the runtime or its qualifications.
 #[derive(Debug)]
 pub struct TerminalBoundaryScalarBuffer {
-    pub(super) original_storage: Option<super::original_storage::TerminalOriginalStorageLoan>,
+    pub(super) original_storage: Option<TerminalOriginalStorageLoan>,
     identity: Arc<()>,
     argument_index: usize,
     field_path: Vec<CanonicalStructuralPathSegment>,
@@ -51,9 +52,7 @@ impl TerminalBoundaryScalarBuffer {
         Arc::clone(&self.identity)
     }
 
-    pub fn original_storage(
-        &self,
-    ) -> Option<&super::original_storage::TerminalOriginalStorageLoan> {
+    pub fn original_storage(&self) -> Option<&TerminalOriginalStorageLoan> {
         self.original_storage.as_ref()
     }
     /// Index in the structural argument lane, not the scalar argument lane.
