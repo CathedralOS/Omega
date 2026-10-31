@@ -8,6 +8,7 @@ use language_semantics::declaration_selection::{
 };
 use language_semantics::declaration_selection::{ExecutedRootBinding, RootBindingSelection};
 use typed_trees::expression::TableCallExpression;
+use typed_trees::product_operand::capture_static_environment;
 
 impl<'program> Evaluator<'program> {
     pub(in crate::interpreter::evaluator) fn source_selection_protocol(
@@ -236,11 +237,8 @@ impl<'program> Evaluator<'program> {
                         .iter()
                         .any(|operand| operand.application.is_some())
                     {
-                        typed_trees::product_operand::capture_static_environment(
-                            self.program,
-                            frame.machine_symbol,
-                        )
-                        .map_err(Halt::Trap)?
+                        capture_static_environment(self.program, frame.machine_symbol)
+                            .map_err(Halt::Trap)?
                     } else {
                         None
                     },
