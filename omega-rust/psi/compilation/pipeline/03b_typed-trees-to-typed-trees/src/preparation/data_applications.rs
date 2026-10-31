@@ -270,15 +270,21 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
     };
     if let Some(storage) = program.layout_storage_arguments(reference) {
         elaborate_value_fields(program, storage.semantic_type, &mut Vec::new());
-        if let Some(mut semantic) = program
-            .closed_data_field_definition(storage.semantic_type)
+        let closed = program.closed_data_field_definition(storage.semantic_type);
+        let is_closed = closed.is_some();
+        let semantic_type = program
+            .type_reference_table
+            .unconstrained_type_reference(storage.semantic_type);
+        if let Some(mut semantic) = closed
+            .or_else(|| program.data_application_definition(semantic_type))
             .cloned()
         {
             // This is a field view of the original semantic application, not a
             // declaration or an owned wrapper. Every member keeps T's symbols,
             // regions, predicates, relevance and cleanup disposition.
             semantic.generic_instance = Some(reference);
-            program.retain_data_application_definition(reference, semantic, true);
+            // Symbolic fields do not establish closed storage or geometry.
+            program.retain_data_application_definition(reference, semantic, is_closed);
         }
         return;
     }

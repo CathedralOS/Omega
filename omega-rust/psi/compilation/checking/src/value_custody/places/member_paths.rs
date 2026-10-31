@@ -216,7 +216,10 @@ pub(crate) fn data_definition_for_type(
     type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let unwrapped = unwrapped_type_reference(program, type_reference)?;
-    if let Some(instance) = program.closed_data_definition(unwrapped) {
+    if let Some(instance) = program
+        .closed_data_definition(unwrapped)
+        .or_else(|| program.data_application_definition(unwrapped))
+    {
         return Some(instance);
     }
     let symbol = match program.type_reference_table.type_reference(unwrapped) {
@@ -224,8 +227,8 @@ pub(crate) fn data_definition_for_type(
         TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
         _ => return None,
     };
-    // An application without a uniquely retained closed instance still names
-    // its exact template. Its fields stay open: this query neither invents a
+    // Without an exact prepared field view, the application still names its
+    // template. Fields stay open: this query neither invents a
     // specialization nor supplies a concrete extent from incomplete evidence.
     super::unique_data_definition_by_symbol(program, symbol)
 }
