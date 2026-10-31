@@ -1,0 +1,3 @@
+data Pair<const Count: u64> { first: [u8; Count]; second: [u8; Count]; }
+machine consume<const N: u64>(value: Pair<N>) -> u64 { 0 }
+public machine probe() -> u64 { consume(Pair { first: "ab", second: "xyz" }) }
