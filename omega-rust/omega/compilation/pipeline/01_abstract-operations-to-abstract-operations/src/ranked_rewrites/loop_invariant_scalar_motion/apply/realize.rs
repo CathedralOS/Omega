@@ -5,8 +5,11 @@ use super::super::{
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity,
 };
-use abstract_operations::AbstractOperation as O;
-use abstract_operations::AbstractStructuralCallResult;
+use crate::validation::relocation_rewrites as relocations;
+use abstract_operations::{
+    AbstractCallTarget, AbstractOperation as O, AbstractStructuralCallResult,
+};
+use optimization_unit::{OptimizationFact, OptimizerCycleComponent};
 use semantic_vocabulary::PlaceId;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -16,7 +19,7 @@ use std::collections::{BTreeMap, BTreeSet};
 /// already-relocated countdown-certificate constants.
 pub(crate) fn realize(
     unit: &PsiOptimizationUnit,
-    component: &optimization_unit::OptimizerCycleComponent,
+    component: &OptimizerCycleComponent,
     nodes: &[LoopInvariantScalarNode],
     certificate_tail: usize,
 ) -> Result<PsiOptimizationUnit, LoopInvariantScalarMotionError> {
@@ -79,10 +82,7 @@ pub(crate) fn realize(
                 .iter()
                 .copied()
                 .collect::<BTreeMap<_, _>>();
-            crate::validation::relocation_rewrites::substitute_invariant_scalar_operands(
-                &mut node.operation,
-                &substitution,
-            );
+            relocations::substitute_invariant_scalar_operands(&mut node.operation, &substitution);
             for value_use in &mut node.uses {
                 if let Some(representative) = substitution.get(&value_use.value) {
                     value_use.value = *representative;
@@ -109,7 +109,7 @@ pub(crate) fn realize(
                     ..
                 }
                 | O::CallStructural {
-                    callee: abstract_operations::AbstractCallTarget::Machine(callee),
+                    callee: AbstractCallTarget::Machine(callee),
                     crash_continuations,
                     ..
                 } if !crash_continuations.is_empty() => Some(*callee),
@@ -128,20 +128,14 @@ pub(crate) fn realize(
                     _ => return Err(LoopInvariantScalarMotionError::CandidateMismatch),
                 };
                 *crash_continuations = if structural_call {
-                    crate::validation::relocation_rewrites::structural_call_crash_continuations(
-                        callee_function,
-                        arguments,
-                    )
+                    relocations::structural_call_crash_continuations(callee_function, arguments)
                 } else {
-                    crate::validation::relocation_rewrites::call_crash_continuations(
-                        callee_function,
-                        arguments,
-                    )
+                    relocations::call_crash_continuations(callee_function, arguments)
                 }
                 .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
             }
             if let Some((parameter, representative)) = planned.root_rewrite()
-                && !crate::validation::relocation_rewrites::substitute_invariant_place_root(
+                && !relocations::substitute_invariant_place_root(
                     &mut node.operation,
                     parameter,
                     representative,
@@ -155,10 +149,7 @@ pub(crate) fn realize(
                     .iter()
                     .copied()
                     .collect::<BTreeMap<_, _>>();
-                if !crate::validation::relocation_rewrites::substitute_invariant_call_roots(
-                    &mut node.operation,
-                    &rewrites,
-                ) {
+                if !relocations::substitute_invariant_call_roots(&mut node.operation, &rewrites) {
                     return Err(LoopInvariantScalarMotionError::CandidateMismatch);
                 }
             }
@@ -216,11 +207,7 @@ pub(crate) fn realize(
             .iter()
             .copied()
             .filter(|place| {
-                crate::validation::relocation_rewrites::scalar_case_result_consumed(
-                    seed_function,
-                    component,
-                    *place,
-                )
+                relocations::scalar_case_result_consumed(seed_function, component, *place)
             })
             .collect()
     };
@@ -246,7 +233,7 @@ pub(crate) fn realize(
                         node: 0,
                     })?;
             for node in &mut block.nodes {
-                crate::validation::relocation_rewrites::rewrite_scalar_case_custody(
+                relocations::rewrite_scalar_case_custody(
                     &structural_places,
                     &members,
                     &case_results,
@@ -334,11 +321,9 @@ fn refresh_coordinates_effects_and_facts(
         .collect::<BTreeMap<_, _>>();
     function.facts.sort_by_key(|fact| {
         let support = match fact {
-            optimization_unit::OptimizationFact::OperationObligationReference {
-                support, ..
-            }
-            | optimization_unit::OptimizationFact::BooleanConstant { support, .. }
-            | optimization_unit::OptimizationFact::IntegerConstant { support, .. } => support,
+            OptimizationFact::OperationObligationReference { support, .. }
+            | OptimizationFact::BooleanConstant { support, .. }
+            | OptimizationFact::IntegerConstant { support, .. } => support,
         };
         operation_order.get(support).copied()
     });
