@@ -13,6 +13,9 @@ use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, Structura
 use terminal_psi::TerminalModule;
 use terminal_psi::{BoundaryMachineDeclaration, ProviderCandidateConformance, TerminalMachine};
 
+mod calling_signatures;
+pub(super) use calling_signatures::validate as validate_calling_signatures;
+
 /// Every structural domain names a known carrier type.
 pub(super) fn validate_domains(module: &TerminalModule) -> Result<(), CodecError> {
     for domain in &module.structural_domains {

@@ -340,19 +340,27 @@ fn select_checked_providers(
         .x86_deployment_claim
         .admit_for(selected_target_profile)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let services = one_refusal(source.provider_inventory.services_for(&source.program))?;
+    // Entry source issuance is independent of policy execution. Defer its
+    // refusal until after provider selection to preserve diagnostic precedence.
+    let entry = provider_planning::program_entry::prepare_compiler_program_entry(
+        services,
+        &build_config.root_bindings,
+        selected_target_profile,
+    );
     let provider_planning::CheckedProviderSelection {
         settlement: providers,
         selected_provider_plan_facts,
         selected_provider_provenance,
     } = prepare_target_provider_selection(source, selected_target_profile, package_inputs)?;
-    let mut selected_program_entry =
-        provider_planning::program_entry::select_compiler_program_entry(
-            one_refusal(source.provider_inventory.services_for(&source.program))?,
-            &build_config.root_bindings,
-            selected_target_profile,
-            &providers.boundary_calling_plan_realizations,
-            package_inputs,
-        )?;
+    let mut selected_program_entry = entry?
+        .map(|entry| {
+            entry.settle_calling_plans(
+                &providers.boundary_calling_plan_realizations,
+                package_inputs,
+            )
+        })
+        .transpose()?;
     if let Some(entry) = &mut selected_program_entry {
         entry.bind_physical_adapter(typed, &selected_provider_provenance)?;
     }

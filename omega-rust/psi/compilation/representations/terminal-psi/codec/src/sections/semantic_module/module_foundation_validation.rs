@@ -257,6 +257,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             }
         }
     }
+    declaration_foundations::validate_calling_signatures(module)?;
     for boundary in &module.boundary_machines {
         declaration_foundations::validate_boundary_machine(module, boundary)?;
     }
