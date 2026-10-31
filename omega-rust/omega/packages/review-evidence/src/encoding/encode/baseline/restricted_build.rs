@@ -40,12 +40,8 @@ pub(in crate::encoding::encode) fn request(
         encoder.tag(name, tag);
         Ok(())
     })?;
-    encoder.field("read_grants", |encoder| {
-        encoder.sequence(&request.read_grants, grant)
-    })?;
-    encoder.field("write_grants", |encoder| {
-        encoder.sequence(&request.write_grants, grant)
-    })?;
+    encoder.sequence_field("read_grants", &request.read_grants, grant)?;
+    encoder.sequence_field("write_grants", &request.write_grants, grant)?;
     encoder.field("bounds", |encoder| bounds(encoder, &request.bounds))?;
     encoder.field_by(
         "build_execution_profile",

@@ -61,9 +61,7 @@ pub(in crate::encoding) fn policy(
         &value.representation,
         representation::policy,
     )?;
-    encoder.field("native_bindings", |encoder| {
-        encoder.sequence(&value.native_bindings, native_binding)
-    })?;
+    encoder.sequence_field("native_bindings", &value.native_bindings, native_binding)?;
     encoder.field("external_supplies", |encoder| {
         encoder.sequence(&value.external_supplies, values::external_policy::policy)
     })?;

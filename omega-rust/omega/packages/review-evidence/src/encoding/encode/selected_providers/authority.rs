@@ -7,9 +7,7 @@ pub(super) fn authority(
     encoder: &mut Encoder,
     authority: &PackagePolicyServiceAuthority,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("service_reach", |encoder| {
-        encoder.sequence(&authority.service_reach, encode_nominal)
-    })?;
+    encoder.sequence_field("service_reach", &authority.service_reach, encode_nominal)?;
     encoder.field("synchronous_invocations", |encoder| {
         encoder.sequence(
             &authority.synchronous_invocations,

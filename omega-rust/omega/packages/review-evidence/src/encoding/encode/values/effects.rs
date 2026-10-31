@@ -25,7 +25,5 @@ pub(crate) fn encode_installation_reach(
     reach: &PackageReviewInstallationReach,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("requirement", &reach.requirement, encode_nominal)?;
-    encoder.field("upper_bound", |encoder| {
-        encoder.sequence(&reach.upper_bound, encode_nominal)
-    })
+    encoder.sequence_field("upper_bound", &reach.upper_bound, encode_nominal)
 }

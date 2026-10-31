@@ -149,9 +149,7 @@ pub(in crate::encoding) fn machine_contract(
             encoder.tag("nominal", 1);
             encoder.field_by("trait_identity", trait_identity, encode_nominal)?;
             encoder.field_by("requirement_identity", requirement_identity, encode_nominal)?;
-            encoder.field("trait_arguments", |encoder| {
-                encoder.sequence(trait_arguments, encode_type_identity)
-            })
+            encoder.sequence_field("trait_arguments", trait_arguments, encode_type_identity)
         }
         PackagePolicyMachineParameterContract::RequirementIdentity => {
             encoder.tag("requirement_identity", 2);
