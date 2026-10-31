@@ -273,13 +273,7 @@ impl RootRecordRead<'_> {
     }
 
     pub fn verify_current(&mut self, limits: RecordFileLimits) -> Result<(), RecordFileError> {
-        io_at(self.file.seek(SeekFrom::Start(0)), &self.display_path)?;
-        let current = read_bytes_bounded(&mut self.file, &self.display_path, limits)?;
-        if current != self.bytes {
-            return Err(RecordFileError::ContentsChanged {
-                path: self.display_path.clone(),
-            });
-        }
+        replay_exact(&mut self.file, &self.display_path, &self.bytes, limits)?;
         self.root.verify_regular(&self.file_name, &self.file)
     }
 }
@@ -406,6 +400,21 @@ fn unconfirmed_at(path: &Path) -> impl FnOnce(RecordFileError) -> RecordFileErro
         path: path.to_path_buf(),
         message: record_error_message(error),
     }
+}
+
+fn replay_exact(
+    file: &mut CapabilityFile,
+    path: &Path,
+    expected: &[u8],
+    limits: RecordFileLimits,
+) -> Result<(), RecordFileError> {
+    io_at(file.seek(SeekFrom::Start(0)), path)?;
+    if read_bytes_bounded(&mut *file, path, limits)? != expected {
+        return Err(RecordFileError::ContentsChanged {
+            path: path.to_path_buf(),
+        });
+    }
+    Ok(())
 }
 
 fn io_at<T>(result: std::io::Result<T>, path: &Path) -> Result<T, RecordFileError> {

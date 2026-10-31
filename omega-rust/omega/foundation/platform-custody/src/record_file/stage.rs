@@ -1,14 +1,13 @@
 //! Shared synchronized stages and atomic replacement publication.
 use super::{
     CapabilityDirectory, CapabilityFile, CapabilityOpenOptions, FollowSymlinks, OsStr, OsString,
-    Path, PathBuf, RecordFileError, RecordFileLimits, RecordFileRoot, SeekFrom, enforce_byte_limit,
-    io_at, io_error, read_bytes_bounded, synchronize_directory, unconfirmed_at,
+    Path, PathBuf, RecordFileError, RecordFileLimits, RecordFileRoot, enforce_byte_limit, io_at,
+    io_error, replay_exact, synchronize_directory, unconfirmed_at,
 };
 use cap_fs_ext::OpenOptionsFollowExt;
 #[cfg(unix)]
 use cap_std::fs::OpenOptionsExt;
 use cap_std::fs::Permissions;
-use std::io::Seek;
 use std::io::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -55,13 +54,7 @@ pub(super) fn prepare(
         io_at(stage.file.set_permissions(permissions), &stage.display_path)?;
     }
     io_at(stage.file.sync_all(), &stage.display_path)?;
-    io_at(stage.file.seek(SeekFrom::Start(0)), &stage.display_path)?;
-    let staged = read_bytes_bounded(&mut stage.file, &stage.display_path, limits)?;
-    if staged != bytes {
-        return Err(RecordFileError::ContentsChanged {
-            path: stage.display_path.clone(),
-        });
-    }
+    replay_exact(&mut stage.file, &stage.display_path, bytes, limits)?;
     root.verify_regular(&stage.file_name, &stage.file)?;
     Ok(stage)
 }
@@ -90,13 +83,7 @@ pub(super) fn replace(
                 .parent()
                 .expect("stage has a parent directory"),
         )?;
-        io_at(stage.file.seek(SeekFrom::Start(0)), display_path)?;
-        let published = read_bytes_bounded(&mut stage.file, display_path, limits)?;
-        if published != bytes {
-            return Err(RecordFileError::ContentsChanged {
-                path: display_path.to_path_buf(),
-            });
-        }
+        replay_exact(&mut stage.file, display_path, bytes, limits)?;
         root.verify_regular(file_name, &stage.file)
     })();
 
