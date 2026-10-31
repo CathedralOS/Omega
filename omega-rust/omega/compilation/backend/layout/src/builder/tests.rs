@@ -104,6 +104,16 @@ fn data_layout<'a>(plan: &'a LayoutPlan, name: &str) -> &'a DataLayout {
         .unwrap_or_else(|| panic!("{name} should be laid out"))
 }
 
+/// A placement that runs past the addressable size, pinned to the step that
+/// overflowed so a rejection cannot pass on an unrelated message.
+fn assert_overflow(error: &diagnostics::Diagnostic, step: &str) {
+    assert!(
+        error.message.contains("overflows the addressable size") && error.message.contains(step),
+        "{}",
+        error.message
+    );
+}
+
 fn close_private_callback_demands(
     plan: &typed_trees::typed_trees::PlanLaidLayout,
     fields: &[FieldLayout],
@@ -328,12 +338,7 @@ fn full_width_generic_capacity_rejects_placement_instead_of_panicking() {
 
     let error = build_layout_plan(&typed, NativeTarget::host(), &[])
         .expect_err("a full-width capacity cannot place the trailing length field");
-    assert!(
-        error.message.contains("overflows the addressable size")
-            && error.message.contains("aligning field `length`"),
-        "{}",
-        error.message
-    );
+    assert_overflow(&error, "aligning field `length`");
 }
 
 #[test]
@@ -354,12 +359,7 @@ fn full_width_case_payload_rejects_placement_instead_of_panicking() {
 
     let error = build_layout_plan(&typed, NativeTarget::host(), &[])
         .expect_err("a full-width payload cannot end within the addressable size");
-    assert!(
-        error.message.contains("overflows the addressable size")
-            && error.message.contains("field `storage`"),
-        "{}",
-        error.message
-    );
+    assert_overflow(&error, "field `storage`");
 }
 
 #[test]
@@ -378,12 +378,7 @@ fn literal_array_extent_that_wraps_the_record_end_is_rejected() {
 
     let error = build_layout_plan(&typed, NativeTarget::host(), &[])
         .expect_err("a record extent past usize::MAX must be rejected");
-    assert!(
-        error.message.contains("overflows the addressable size")
-            && error.message.contains("record extent"),
-        "{}",
-        error.message
-    );
+    assert_overflow(&error, "record extent");
 }
 
 #[test]
