@@ -624,8 +624,63 @@ impl TypedTrees {
     /// these same frames; equal names or carriers do not establish identity.
     pub fn realization_entry_lineage(
         &self,
-        mut entry: symbols::SymbolHandle,
+        entry: symbols::SymbolHandle,
         application: &super::ClosedConformanceApplication,
+    ) -> Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>> {
+        self.entry_lineage_with(entry, None, |capture| {
+            self.closed_conformance_applications_match(
+                &capture.conformance_application,
+                application,
+            ) && self
+                .conformance_by_symbol(application.declaration)
+                .is_some_and(|selecting| {
+                    selecting.rows.iter().any(|row| {
+                        row.source.owns_realization() && row.realization_machine == capture.template
+                    })
+                })
+        })
+    }
+
+    /// Entry frames of one exact requirement realization. This is derivation
+    /// correspondence, not provider admission. The caller still authenticates
+    /// the selecting map's complete regional application and checks the body.
+    pub fn requirement_realization_entry_lineage(
+        &self,
+        entry: symbols::SymbolHandle,
+        requirement: symbols::SymbolHandle,
+        selecting: symbols::SymbolHandle,
+        realization: symbols::SymbolHandle,
+    ) -> Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>> {
+        let provider = self.machine_holding_state(entry)?;
+        if !self.requirement_realization_matches(requirement, realization, provider.symbol) {
+            return None;
+        }
+        let lineage = self.entry_lineage_with(entry, Some(realization), |capture| {
+            capture.conformance_application.declaration == selecting
+                && self
+                    .conformance_by_symbol(selecting)
+                    .is_some_and(|declaration| {
+                        declaration.rows.iter().any(|row| {
+                            row.source.owns_realization()
+                                && row.realization_machine == capture.template
+                        })
+                    })
+                && capture
+                    .conformance_application
+                    .trait_scope
+                    .scope(self)
+                    .is_some_and(|scope| {
+                        self.requirement_application_matches_scope(requirement, &scope)
+                    })
+        })?;
+        (lineage.last()?.0 == realization).then_some(lineage)
+    }
+
+    fn entry_lineage_with(
+        &self,
+        mut entry: symbols::SymbolHandle,
+        stop: Option<symbols::SymbolHandle>,
+        capture_matches: impl Fn(&super::CapturedMachineApplication) -> bool,
     ) -> Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>> {
         let mut visited = Vec::new();
         loop {
@@ -638,6 +693,9 @@ impl TypedTrees {
                 return None;
             }
             visited.push((machine.symbol, entry));
+            if stop == Some(machine.symbol) {
+                return Some(visited);
+            }
             let invocations = self
                 .machine_specializations
                 .iter()
@@ -662,16 +720,7 @@ impl TypedTrees {
                 continue;
             }
             if let [capture] = captures.as_slice() {
-                if !self.closed_conformance_applications_match(
-                    &capture.conformance_application,
-                    application,
-                ) {
-                    return None;
-                }
-                let selecting = self.conformance_by_symbol(application.declaration)?;
-                if !selecting.rows.iter().any(|row| {
-                    row.source.owns_realization() && row.realization_machine == capture.template
-                }) {
+                if !capture_matches(capture) {
                     return None;
                 }
                 let states = self.captured_machine_states.span_or_empty(capture.states);
