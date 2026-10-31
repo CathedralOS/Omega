@@ -49,6 +49,7 @@ pub use normalized_identities::{
 pub use static_operand_identity::StaticOperandIdentityRequest;
 
 use crate::TypedTrees;
+use crate::data;
 use crate::trait_definition::TraitDefinition;
 
 /// Mint or rejoin the canonical handle for one rendered structural key. All
@@ -538,7 +539,7 @@ impl TypedTrees {
     pub fn closed_data_field_definition(
         &self,
         reference: TypeReferenceHandle,
-    ) -> Option<&crate::data::DataDefinition> {
+    ) -> Option<&data::DataDefinition> {
         self.closed_data_definition(
             self.type_reference_table
                 .unconstrained_type_reference(reference),
@@ -558,7 +559,7 @@ impl TypedTrees {
     pub fn closed_data_definition(
         &self,
         reference: TypeReferenceHandle,
-    ) -> Option<&crate::data::DataDefinition> {
+    ) -> Option<&data::DataDefinition> {
         use crate::types::TypeReferenceNode;
 
         if !self.type_reference_table.contains_type_reference(reference) {
@@ -625,7 +626,7 @@ impl TypedTrees {
         &self,
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
-    ) -> Option<&crate::data::DataDefinition> {
+    ) -> Option<&data::DataDefinition> {
         self.closed_data_definition(reference)?;
         self.data_constructor_definition(reference, authored)
     }
@@ -635,7 +636,7 @@ impl TypedTrees {
         &self,
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
-    ) -> Option<&crate::data::DataDefinition> {
+    ) -> Option<&data::DataDefinition> {
         if !self.type_reference_table.contains_type_reference(reference) {
             return None;
         }
@@ -692,8 +693,8 @@ impl TypedTrees {
         &self,
         reference: TypeReferenceHandle,
         retained: SymbolHandle,
-    ) -> Option<&crate::data::DataVariant> {
-        use crate::data::DataMember;
+    ) -> Option<&data::DataVariant> {
+        use data::DataMember;
         if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Variant {
             return None;
         }
@@ -724,7 +725,7 @@ impl TypedTrees {
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
         retained: SymbolHandle,
-    ) -> Option<&crate::data::DataField> {
+    ) -> Option<&data::DataField> {
         self.closed_data_definition(reference)?;
         self.data_constructor_field(reference, authored, retained)
     }
@@ -736,8 +737,8 @@ impl TypedTrees {
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
         retained: SymbolHandle,
-    ) -> Option<&crate::data::DataVariant> {
-        use crate::data::DataMember;
+    ) -> Option<&data::DataVariant> {
+        use data::DataMember;
         let instance = self.data_constructor_definition(reference, authored)?;
         if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Variant {
             return None;
@@ -766,8 +767,8 @@ impl TypedTrees {
         reference: TypeReferenceHandle,
         authored: SymbolHandle,
         retained: SymbolHandle,
-    ) -> Option<&crate::data::DataField> {
-        use crate::data::DataMember;
+    ) -> Option<&data::DataField> {
+        use data::DataMember;
         let instance = self.data_constructor_definition(reference, authored)?;
         if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Field {
             return None;
@@ -780,14 +781,13 @@ impl TypedTrees {
         };
         self.data_constructor_definition(reference, source_owner)?;
         let source = self.unique_data_definition_by_symbol(source_owner)?;
-        let corresponding_field =
-            |original: &crate::data::DataField, selected: &crate::data::DataField| {
-                original.name == selected.name
-                    && original.identity == selected.identity
-                    && original.relevance == selected.relevance
-                    && selected.symbol.is_valid()
-                    && self.contains_type_reference(selected.type_reference)
-            };
+        let corresponding_field = |original: &data::DataField, selected: &data::DataField| {
+            original.name == selected.name
+                && original.identity == selected.identity
+                && original.relevance == selected.relevance
+                && selected.symbol.is_valid()
+                && self.contains_type_reference(selected.type_reference)
+        };
         for (ordinal, member) in self.data_members(source).iter().enumerate() {
             match member {
                 DataMember::Field(original) if original.symbol == retained => {
@@ -835,14 +835,14 @@ impl TypedTrees {
         reference: TypeReferenceHandle,
         retained: SymbolHandle,
         member_name: &str,
-    ) -> Option<&crate::data::DataField> {
+    ) -> Option<&data::DataField> {
         let instance = self.closed_data_definition(reference)?;
         let mut fields =
             self.data_members(instance)
                 .iter()
                 .enumerate()
                 .filter_map(|(ordinal, member)| {
-                    let crate::data::DataMember::Field(field) = member else {
+                    let data::DataMember::Field(field) = member else {
                         return None;
                     };
                     (field.name.as_str() == member_name).then_some((ordinal, field))
@@ -877,8 +877,7 @@ impl TypedTrees {
             return None;
         }
         let template = self.unique_data_definition_by_symbol(*base_symbol)?;
-        let crate::data::DataMember::Field(original) = self.data_members(template).get(ordinal)?
-        else {
+        let data::DataMember::Field(original) = self.data_members(template).get(ordinal)? else {
             return None;
         };
         (field.name == original.name
@@ -1509,7 +1508,7 @@ impl TypedTrees {
         &self,
         path: &str,
         owner_symbol: SymbolHandle,
-        type_parameters: &[crate::data::TypeParameter],
+        type_parameters: &[data::TypeParameter],
         parameters: &[crate::signature::StateParameter],
         return_type: TypeReferenceHandle,
     ) -> callable_identity::CallableIdentityParts {
@@ -1550,7 +1549,7 @@ impl TypedTrees {
 
 fn callable_type_binders(
     owner: SymbolHandle,
-    parameters: &[crate::data::TypeParameter],
+    parameters: &[data::TypeParameter],
 ) -> Vec<(SymbolHandle, String)> {
     let mut binders = Vec::with_capacity(parameters.len() + 1);
     if owner.is_valid() {

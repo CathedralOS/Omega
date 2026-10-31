@@ -11,10 +11,11 @@
 
 use super::{AppliedTraitScope, TraitApplicationArguments, enclosing, project_type_reference};
 use crate::TypedTrees;
-use crate::data::DataMember;
+use crate::data;
 use crate::references::TypedReferences;
 use crate::references::visit_type_reference;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
+use data::DataMember;
 use std::collections::BTreeSet;
 use symbols::SymbolHandle;
 
@@ -186,10 +187,7 @@ impl SourceFields<'_> {
         self.active.pop();
     }
 
-    fn field_inventory(
-        &mut self,
-        declaration: &crate::data::DataDefinition,
-    ) -> std::ops::Range<usize> {
+    fn field_inventory(&mut self, declaration: &data::DataDefinition) -> std::ops::Range<usize> {
         let slot = declaration.symbol.arena_index() as usize;
         if self.field_inventories.len() <= slot {
             self.field_inventories

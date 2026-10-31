@@ -16,6 +16,7 @@ use crate::expression::ExpressionNode::Binary;
 use crate::expression::ExpressionNode::Name;
 use crate::signature::StateSignature;
 use crate::typed_trees::escape;
+use crate::types;
 
 /// One canonical value in a finite-family tuple. `identity` is the string a
 /// `MachineSpecialization` retains in `const_argument_identities` for the
@@ -316,11 +317,7 @@ impl TypedTrees {
     /// Carrier legality for one roster literal: integer literals need an
     /// integer carrier whose range contains them; Boolean literals need
     /// `bool`.
-    fn value_fits_carrier(
-        &self,
-        carrier: crate::types::TypeReferenceHandle,
-        identity: &str,
-    ) -> bool {
+    fn value_fits_carrier(&self, carrier: types::TypeReferenceHandle, identity: &str) -> bool {
         let Some(primitive) = self.primitive_type_reference(carrier) else {
             return false;
         };
@@ -332,7 +329,7 @@ impl TypedTrees {
             return primitive_integer_range(primitive)
                 .is_some_and(|(low, high)| low <= value && value <= high);
         }
-        primitive == crate::types::PrimitiveType::Bool
+        primitive == types::PrimitiveType::Bool
     }
 }
 
@@ -353,8 +350,8 @@ pub fn canonical_const_identity(type_name: &str, encoding: &str) -> String {
     )
 }
 
-fn primitive_integer_range(primitive: crate::types::PrimitiveType) -> Option<(i128, i128)> {
-    use crate::types::PrimitiveType::*;
+fn primitive_integer_range(primitive: types::PrimitiveType) -> Option<(i128, i128)> {
+    use types::PrimitiveType::*;
     match primitive {
         Bool | F32 | F64 | Selector => None,
         I8 => Some((i128::from(i8::MIN), i128::from(i8::MAX))),
