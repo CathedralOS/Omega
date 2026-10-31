@@ -103,7 +103,7 @@ WindowGuiProvider satisfies Gui {
     {
         macos_window_get_dc(window_state, window)
     }
-    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
+    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, mut pixels: [i32; 4096], info: [i32; 11]) -> u32
         reaches
             GlobalInputObservation + NativeCodeExecution + WindowManagement +
             SurfacePresentation + WindowEventObservation + WindowEventDispatch +
