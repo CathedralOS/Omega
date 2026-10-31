@@ -22,6 +22,7 @@
 //! Source selection declarations are owned by Psi compile-time admission; the
 //! re-exported selection records below are inputs, not a second source decoder.
 
+mod boundary_value_recipes;
 pub mod calling_policy_plans;
 pub mod data_layout_queries;
 pub mod native_bindings;

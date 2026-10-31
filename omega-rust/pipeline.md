@@ -317,6 +317,17 @@ none is a separate implementation handoff. Native receiving admission remains
 source-free. Check and declaration review must still work without executable
 publication, and reviewed candidates never replace original compiler custody.
 
+Boundary-value layout now takes a source-free storage recipe graph. Psi's
+`typed-trees::boundary_values` closes applications, reference descriptors,
+runtime members, invariant authored storage and opaque carrier correspondence;
+Omega's `layout::BoundaryValueLayout` packs and classifies that graph for the
+target without reading typed source. Ordinary calling signatures, entry storage
+and table dispatch all use this one route. The graph carries storage meaning,
+not type/contract authority or a representation grant. It currently remains an
+invocation-owned projection: canonical Terminal signature publication, exact
+callback/policy capture, and Terminal-first target orchestration are still open.
+In particular, this split does not establish source-discard/reload acceptance.
+
 The owner approved this implementation plan on 2026-10-24. It is the acceptance
 for **PIPELINE-ARCHITECTURE-ENFORCEMENT**, not a claim that the current Rust
 implementation already has these boundaries. Build suspension and helper
