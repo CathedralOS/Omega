@@ -48,6 +48,35 @@ fn shared_compiler_rechecks_changed_dependency_contract_and_recovers_after_refus
 }
 
 #[test]
+fn matching_body_hash_with_different_dependency_context_is_refused() {
+    let workspace = TemporaryDirectory::create("dependency-context-refusal", false).unwrap();
+    let root = workspace.path();
+    let wrapper = "public machine seven() -> u64 ensures result == 7 { supplied() }\n";
+    let good = root.join("good.omg");
+    let bad = root.join("bad.omg");
+    std::fs::write(
+        &good,
+        format!("public machine supplied() -> u64 {{ 7 }}\n{wrapper}machine main() -> u64 {{ seven() }}\n"),
+    )
+    .unwrap();
+    std::fs::write(
+        &bad,
+        format!("public machine supplied() -> u64 {{ 8 }}\n{wrapper}machine main() -> u64 {{ seven() }}\n"),
+    )
+    .unwrap();
+    let mut compiler = compiler::CompilationSession::default();
+    check(&mut compiler, &good).unwrap();
+    let error = check(&mut compiler, &bad)
+        .expect_err("a matching body hash from another dependency must not admit seven");
+    assert!(
+        error.contains("result == 7")
+            || error.contains("cannot prove")
+            || error.contains("ensures"),
+        "{error}"
+    );
+}
+
+#[test]
 fn second_consumer_reuses_the_dependency_judgment_and_declaration_pages() {
     let workspace = TemporaryDirectory::create("shared-dependency-judgment", false).unwrap();
     let root = workspace.path();

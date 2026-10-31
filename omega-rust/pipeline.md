@@ -255,11 +255,14 @@ Build admission are reacquired. Invalid, truncated or obsolete records are
 optional misses. Terminal values inside the graph use the canonical Terminal
 codec and rejoin companion receipts through their original producers.
 
-This implements cross-invocation exact-program reuse. It does not admit checked
-dependency judgments into a different consumer from body hashes: cross-consumer
-reuse still needs complete producer-dependency context admission. In-memory
-shared declaration pages, local flow facts and conservative unknown-input
-fallback retain their existing ownership.
+This implements cross-invocation exact-program reuse. A dependency judgment
+enters another consumer only when the producer dependency context matches:
+package identity, dependency scope, and callee body hashes. A body hash alone
+does not admit it. Persisted source/check graphs and native Terminal products
+still require fresh source, dependency, compiler, and invocation admission
+before a recorded judgment is used. In-memory shared declaration pages, local
+flow facts and conservative unknown-input fallback retain their existing
+ownership.
 
 | Input → output | Owner |
 | --- | --- |
