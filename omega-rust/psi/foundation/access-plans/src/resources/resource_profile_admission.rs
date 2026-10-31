@@ -3,7 +3,7 @@ use extents::{
     ExtentRootOrigin, MappingEraId,
 };
 
-use crate::access_plan::diagnostic::reject_when;
+use crate::access_fields::diagnostic::reject_when;
 use crate::normalized_identity;
 use crate::{
     AccessPlanDiagnostic, BoundaryReach, ResourceProfile, ValidatedResourceProfile,

@@ -1,4 +1,4 @@
-use crate::access_plan::diagnostic::reject_when;
+use crate::access_fields::diagnostic::reject_when;
 use crate::plan_policy::authorization::validate_operation_ordering;
 use crate::{
     AccessOperation, AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence,
