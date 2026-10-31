@@ -1,1 +1,1 @@
-retained_plan runtime portable calling-policy LocalEntry
+retained_plan runtime portable calling-policy macos_arm64 LocalEntry NoResult

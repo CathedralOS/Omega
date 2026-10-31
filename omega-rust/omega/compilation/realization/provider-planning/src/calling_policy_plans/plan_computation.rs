@@ -302,15 +302,7 @@ fn evaluate_selected_materialized_calling_policy_plan(
     signature: &MaterializedBoundarySignature,
     custody: Option<build_time_evaluation::BuildTimeInvocationCustody>,
 ) -> Result<ValidatedBoundaryEntryPlan, CallingPolicyRejection> {
-    if signature.parameters.len() > PARAMETER_CAPACITY {
-        return Err(format!(
-            "boundary signature has {} parameters; calling policies currently support at most {PARAMETER_CAPACITY}",
-            signature.parameters.len()
-        )
-        .into());
-    }
-
-    let arguments = vec![build_boundary_signature(signature)];
+    let arguments = vec![build_boundary_signature(signature)?];
     let value = admission
         .evaluate_machine_symbol_for_invocation_measured(
             program,
@@ -332,7 +324,36 @@ fn evaluate_selected_materialized_calling_policy_plan(
 
 pub(crate) fn build_boundary_signature(
     signature: &MaterializedBoundarySignature,
-) -> BuildTimeValue {
+) -> Result<BuildTimeValue, String> {
+    // The fixed arrays and their explicit counts are one vocabulary contract.
+    // Refuse excess input before padding; truncating the arrays while retaining
+    // a larger count would violate the policy entry's checked invariants.
+    for (label, count, capacity) in [
+        ("parameters", signature.parameters.len(), PARAMETER_CAPACITY),
+        ("shapes", signature.shapes.len(), VALUE_SHAPE_CAPACITY),
+        ("fields", signature.fields.len(), VALUE_FIELD_CAPACITY),
+        (
+            "native parameters",
+            signature.native_parameters.len(),
+            PARAMETER_CAPACITY,
+        ),
+        (
+            "callback binders",
+            signature.callback_binders.len(),
+            CALLBACK_MATERIALIZATION_CAPACITY,
+        ),
+        (
+            "callback demands",
+            signature.callback_demands.len(),
+            CALLBACK_MATERIALIZATION_CAPACITY,
+        ),
+    ] {
+        if count > capacity {
+            return Err(format!(
+                "boundary signature has {count} {label}; calling policies currently support at most {capacity}"
+            ));
+        }
+    }
     let mut shapes = Vec::with_capacity(VALUE_SHAPE_CAPACITY);
     for index in 0..VALUE_SHAPE_CAPACITY {
         shapes.push(build_boundary_value_shape(
@@ -498,7 +519,7 @@ pub(crate) fn build_boundary_signature(
             ],
         });
     }
-    BuildTimeValue::Struct {
+    Ok(BuildTimeValue::Struct {
         type_name: "BoundarySignature".to_owned(),
         fields: vec![
             ("shapes".to_owned(), BuildTimeValue::Array(shapes)),
@@ -531,7 +552,7 @@ pub(crate) fn build_boundary_signature(
                 BuildTimeValue::Int(i64::from(signature.result.unwrap_or(0))),
             ),
         ],
-    }
+    })
 }
 
 fn build_native_place(place: &NativePlace) -> BuildTimeValue {

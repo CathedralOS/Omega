@@ -36,7 +36,9 @@ pub(super) fn observe_portable(
     words: &[&str],
 ) -> Result<(), String> {
     match words {
-        ["calling-policy", requirement] => calling_policy::observe(artifact, requirement),
+        ["calling-policy", target, accepted, rejected] => {
+            calling_policy::observe(artifact, target, accepted, rejected)
+        }
         ["input-storage", expected, contents @ ..] => {
             input_contents::observe(artifact, expected, contents)
         }

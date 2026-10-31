@@ -1,10 +1,10 @@
 //! Checked calling declarations, independently of native policy evaluation.
 //!
 //! Storage and contracts belong to the referenced boundary declaration. These
-//! rows retain only the source-issued telescope and policy association that
+//! rows retain only the source-issued telescope that
 //! cannot be recovered from an erased runtime signature.
 
-use crate::{NominalDeclarationIdentity, TargetMachineCallable, TerminalIdentityIndex};
+use crate::TerminalIdentityIndex;
 use semantic_vocabulary::{
     BoundaryMachineId, CallbackRequirementId, NativeParameterId, StaticMachineBinderId,
 };
@@ -37,16 +37,4 @@ pub struct CallingDirectCallback {
     pub identity: NativeParameterId,
     pub native_ordinal: u32,
     pub binder: StaticMachineBinderId,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CallingPolicyApplication {
-    /// Receiving boundary application, distinct from inherited declaring owners.
-    pub boundary: NominalDeclarationIdentity,
-    pub application: TerminalIdentityIndex,
-    /// Exact supplying scope for lifetime-bearing arguments and named captures.
-    pub argument_owner: NominalDeclarationIdentity,
-    pub policy: TargetMachineCallable,
-    /// Parent-before-child signatures, each retaining its own checked contract.
-    pub signatures: Vec<BoundaryMachineId>,
 }

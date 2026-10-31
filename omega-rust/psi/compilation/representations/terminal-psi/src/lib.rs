@@ -29,8 +29,7 @@ mod callback_application;
 mod calling_policies;
 pub use callback_application::TerminalCallbackApplication;
 pub use calling_policies::{
-    CallingCallbackBinder, CallingDirectCallback, CallingPolicyApplication, CallingRuntimeFormal,
-    CallingSignatureDeclaration,
+    CallingCallbackBinder, CallingDirectCallback, CallingRuntimeFormal, CallingSignatureDeclaration,
 };
 mod callback_declarations;
 pub use callback_declarations::{
