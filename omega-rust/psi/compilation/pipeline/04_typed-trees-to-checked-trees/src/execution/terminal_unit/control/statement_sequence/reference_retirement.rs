@@ -8,9 +8,36 @@ use super::{
     CheckFacts, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResultBindingPlan, SymbolHandle,
 };
-use checked_trees::{BorrowLoanFact, CheckedUnitStructuralPathSegment};
+use arena::Handle;
+use arena::HandleSpan;
+use checked_trees::{
+    BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment, CheckedCleanupCaseCondition,
+    CheckedStructuralReturnCompletion, CheckedUnitCleanupBoundary, CheckedUnitLocalBindingPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralReturnPlan, FlowBorrowWeakeningReason, FlowInvalidationSource,
+    FlowPermissionEvaluation, StateBorrowFact,
+};
+use facts::FactContextHandle;
+use facts::PlaceRoot;
+use facts::PlaceSegment;
+use language_semantics::PermissionEventSource;
+use typed_trees::state::State;
+use typed_trees::statement::StatementExecutionOrder;
+use validation::CanonicalPlace;
+use validation::ContentsRequirement;
+use validation::canonical_place_type_reference;
+use validation::has_contents;
+use validation::reference_result_custody::StoredCarrierSource;
+use validation::reference_result_custody::loan_place_segments;
+use validation::reference_result_custody::loan_weakening;
+use validation::reference_result_custody::release_boundary;
+use validation::reference_result_custody::storage_owner_type_reference;
+use validation::reference_result_custody::storage_place_loans;
+use validation::reference_result_custody::stored_carrier_sources;
+use validation::reference_shell;
+use validation::transition_call_target;
 
-type Results = [(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)];
+type Results = [(CheckedUnitStructuralResultBindingPlan, PlaceRoot)];
 
 /// Death timing comes from the loan schedule; payload availability comes from
 /// facts at that exact boundary. Do not reread a selected, partially consumed
@@ -21,7 +48,7 @@ pub(super) fn prepare_case_conditions(
     shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
-    parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    parameters: &[CheckedUnitStructuralParameterPlan],
     results: &Results,
     operations: &mut [CheckedUnitEffectOperationPlan],
 ) -> Option<()> {
@@ -58,14 +85,14 @@ pub(super) fn prepare_case_conditions(
                     .1
             }
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                facts::PlaceRoot::Symbol(*symbol)
+                PlaceRoot::Symbol(*symbol)
             }
             CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
-                facts::PlaceRoot::Expression(*expression)
+                PlaceRoot::Expression(*expression)
             }
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
                 let parameter = parameters.get(*parameter_index as usize)?;
-                facts::PlaceRoot::Symbol(
+                PlaceRoot::Symbol(
                     program
                         .state_parameters(authored)
                         .get(parameter.position as usize)?
@@ -75,17 +102,17 @@ pub(super) fn prepare_case_conditions(
             _ => return None,
         };
         let boundary = *statement_index as usize;
-        let reference = validation::canonical_place_type_reference(
+        let reference = canonical_place_type_reference(
             program,
             state,
             boundary,
-            &validation::CanonicalPlace {
+            &CanonicalPlace {
                 root,
                 segments: Vec::new(),
             },
         )?;
         let flow = facts.flow.control.state(machine, state)?;
-        let points: Vec<(usize, Vec<facts::FactContextHandle>)> = if *defer_to_exit {
+        let points: Vec<(usize, Vec<FactContextHandle>)> = if *defer_to_exit {
             facts
                 .flow
                 .control
@@ -124,7 +151,7 @@ pub(super) fn prepare_case_conditions(
             };
             let segments =
                 checked_path_segments(program, state, boundary, reference, &path[..=position])?;
-            let subject = validation::CanonicalPlace { root, segments };
+            let subject = CanonicalPlace { root, segments };
             if !points.is_empty()
                 && points.iter().all(|(statement, contexts)| {
                     crate::flow::place_cases_are_selected(
@@ -143,9 +170,9 @@ pub(super) fn prepare_case_conditions(
             let mut carrier = subject;
             carrier.segments.pop();
             let carrier_reference =
-                validation::canonical_place_type_reference(program, state, boundary, &carrier)?;
+                canonical_place_type_reference(program, state, boundary, &carrier)?;
             let type_identity = shapes.add_type(carrier_reference, &binders, &[])?;
-            conditions.push(checked_trees::CheckedCleanupCaseCondition {
+            conditions.push(CheckedCleanupCaseCondition {
                 path: shapes
                     .cleanup_control
                     .paths
@@ -167,7 +194,7 @@ pub(super) fn unique_borrow_state(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-) -> Option<Option<&checked_trees::StateBorrowFact>> {
+) -> Option<Option<&StateBorrowFact>> {
     facts
         .borrow
         .with_state_borrows(machine, state, |rows| match rows {
@@ -181,8 +208,8 @@ pub(super) fn unique_borrow_state(
 /// Its captured origin roster is produced by checking; this join schedules
 /// local disposition without inferring a return from a type or source root.
 pub(super) fn returned_reference_binding(
-    order: &typed_trees::statement::StatementExecutionOrder,
-    returned: &checked_trees::CheckedUnitStructuralReturnPlan,
+    order: &StatementExecutionOrder,
+    returned: &CheckedUnitStructuralReturnPlan,
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> bool {
     !returned.reference_sources.is_empty()
@@ -193,10 +220,10 @@ pub(super) fn returned_reference_binding(
         && returned.type_identity == result.type_identity
         && returned.multiplicity == result.multiplicity
         && match returned.completion {
-            checked_trees::CheckedStructuralReturnCompletion::Value {
+            CheckedStructuralReturnCompletion::Value {
                 statement_index, ..
             } => order.at_or_before(result.statement_index as usize, statement_index as usize),
-            checked_trees::CheckedStructuralReturnCompletion::Call { coordinate } => {
+            CheckedStructuralReturnCompletion::Call { coordinate } => {
                 result.statement_index == coordinate.statement_index
             }
         }
@@ -246,8 +273,8 @@ pub(super) struct Retirement<'a> {
     pub(super) prepared_calls:
         &'a crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     pub(super) machine: SymbolHandle,
-    pub(super) state: &'a typed_trees::state::State,
-    pub(super) order: &'a typed_trees::statement::StatementExecutionOrder,
+    pub(super) state: &'a State,
+    pub(super) order: &'a StatementExecutionOrder,
     pub(super) statement_index: u32,
     pub(super) results: &'a Results,
     pub(super) operations: &'a [CheckedUnitEffectOperationPlan],
@@ -260,10 +287,10 @@ pub(super) struct Retirement<'a> {
     pub(super) at_exit: bool,
     /// A pending owner disposition cannot prove its own holders have ended.
     /// The zero symbol leaves ordinary source-disposition reasoning unchanged.
-    pub(super) uncommitted_owner: facts::PlaceRoot,
+    pub(super) uncommitted_owner: PlaceRoot,
     /// The selected completion transfers this exact holder before its deferred
     /// ancestor dispositions. It never settles a loan at statement entry.
-    pub(super) returned: Option<&'a checked_trees::CheckedUnitStructuralReturnPlan>,
+    pub(super) returned: Option<&'a CheckedUnitStructuralReturnPlan>,
     pub(super) transported_loans: &'a transport::TransportedLoans,
 }
 
@@ -271,7 +298,7 @@ pub(super) struct Retirement<'a> {
 /// result carriers. Neither graph can erase the other's active recursion.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum RetirementNode {
-    Loan(arena::Handle<BorrowLoanFact>),
+    Loan(Handle<BorrowLoanFact>),
     Carrier(u32),
 }
 
@@ -280,7 +307,7 @@ impl Retirement<'_> {
     /// associations authenticate transport and remain in the supplier graph.
     fn resource_loans(
         &self,
-    ) -> Option<impl Iterator<Item = (arena::Handle<BorrowLoanFact>, &BorrowLoanFact)>> {
+    ) -> Option<impl Iterator<Item = (Handle<BorrowLoanFact>, &BorrowLoanFact)>> {
         let state = unique_borrow_state(self.facts, self.machine, self.state.symbol)??;
         self.facts.borrow.statement_resource_loans(state)
     }
@@ -303,7 +330,7 @@ impl Retirement<'_> {
         }
         let mut owners = Vec::new();
         for (_, loan) in self.facts.borrow.statement_resource_loans(state)? {
-            if matches!(loan.storage_owner, facts::PlaceRoot::Expression(_))
+            if matches!(loan.storage_owner, PlaceRoot::Expression(_))
                 && self
                     .order
                     .precedes(loan.statement_index, self.statement_index as usize)
@@ -328,11 +355,11 @@ impl Retirement<'_> {
             {
                 continue;
             }
-            let reference = validation::canonical_place_type_reference(
+            let reference = canonical_place_type_reference(
                 self.program,
                 self.state.symbol,
                 formation,
-                &validation::CanonicalPlace {
+                &CanonicalPlace {
                     root: owner,
                     segments: Vec::new(),
                 },
@@ -340,15 +367,15 @@ impl Retirement<'_> {
             // A computed owner may contain references without being a
             // descriptor. Its nominal/linear disposal remains authoritative;
             // lexical leaf expiry cannot retire a hook's receiver contents.
-            if !validation::has_contents(
+            if !has_contents(
                 self.program,
                 reference,
                 &[],
-                validation::ContentsRequirement::DescriptorCleanup,
+                ContentsRequirement::DescriptorCleanup,
             ) {
                 continue;
             }
-            for (source, loans) in validation::reference_result_custody::storage_place_loans(
+            for (source, loans) in storage_place_loans(
                 self.program,
                 self.facts,
                 self.machine,
@@ -381,7 +408,7 @@ impl Retirement<'_> {
                 for (handle, _) in self.facts.borrow.loan_group(loans)? {
                     if self.disposed(handle)
                         || !self.children_retired(handle)
-                        || !validation::reference_result_custody::release_boundary(
+                        || !release_boundary(
                             self.program,
                             self.facts,
                             self.machine,
@@ -409,7 +436,7 @@ impl Retirement<'_> {
                         defer_to_exit: self.at_exit,
                         loans,
                         selection_complements: Vec::new(),
-                        owner_cleanups: arena::HandleSpan::empty(),
+                        owner_cleanups: HandleSpan::empty(),
                         case_conditions: Default::default(),
                     });
                 }
@@ -421,7 +448,7 @@ impl Retirement<'_> {
     /// An immediate child must have ended its actual carrier, not merely
     /// reached its parent's lexical last use. Each child's own schedule obeys
     /// this same rule, so reverse production closes a chain deepest first.
-    pub(super) fn children_retired(&self, parent: arena::Handle<BorrowLoanFact>) -> bool {
+    pub(super) fn children_retired(&self, parent: Handle<BorrowLoanFact>) -> bool {
         let Some(Some(state)) = unique_borrow_state(self.facts, self.machine, self.state.symbol)
         else {
             return false;
@@ -468,16 +495,16 @@ impl Retirement<'_> {
 
     fn retains_parent(
         &self,
-        child: arena::Handle<BorrowLoanFact>,
-        parent: arena::Handle<BorrowLoanFact>,
-        active: &mut Vec<arena::Handle<BorrowLoanFact>>,
+        child: Handle<BorrowLoanFact>,
+        parent: Handle<BorrowLoanFact>,
+        active: &mut Vec<Handle<BorrowLoanFact>>,
     ) -> bool {
         if child == parent || active.contains(&child) {
             return false;
         }
         let loan = self.facts.borrow.loans.get(child);
         if loan.lineage
-            == (checked_trees::BorrowLoanLineage::Reborrow {
+            == (BorrowLoanLineage::Reborrow {
                 parent_loan: parent,
             })
             || self.captures_holder(child, parent)
@@ -498,8 +525,8 @@ impl Retirement<'_> {
     /// not a new reborrow permission or an initializer reconstruction.
     fn captures_holder(
         &self,
-        child: arena::Handle<BorrowLoanFact>,
-        parent: arena::Handle<BorrowLoanFact>,
+        child: Handle<BorrowLoanFact>,
+        parent: Handle<BorrowLoanFact>,
     ) -> bool {
         let parent = self.facts.borrow.loans.get(parent);
         let mut operations = self
@@ -531,7 +558,7 @@ impl Retirement<'_> {
                 });
             }
             let construction = if let CheckedUnitEffectOperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, .. },
+                CheckedUnitLocalBindingPlan::StructuralValue { result, .. },
             ) = operation
             {
                 if !carrier_loans(
@@ -546,14 +573,12 @@ impl Retirement<'_> {
                     return false;
                 }
                 let loan = self.facts.borrow.loans.get(child);
-                let Some(reference) =
-                    validation::reference_result_custody::storage_owner_type_reference(
-                        self.program,
-                        self.state,
-                        loan.owner_symbol,
-                        result.statement_index,
-                    )
-                else {
+                let Some(reference) = storage_owner_type_reference(
+                    self.program,
+                    self.state,
+                    loan.owner_symbol,
+                    result.statement_index,
+                ) else {
                     return false;
                 };
                 let Some(path) = transport::named_carrier_path(
@@ -579,21 +604,13 @@ impl Retirement<'_> {
                         });
                 }
                 let CheckedUnitEffectOperationPlan::EstablishLocal(
-                    checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
-                        value,
-                        calls,
-                        ..
-                    },
+                    CheckedUnitLocalBindingPlan::StructuralValue { value, calls, .. },
                 ) = producer
                 else {
                     return false;
                 };
-                let Some(sources) = validation::reference_result_custody::stored_carrier_sources(
-                    self.program,
-                    self.facts,
-                    *value,
-                    &path,
-                ) else {
+                let Some(sources) = stored_carrier_sources(self.program, self.facts, *value, &path)
+                else {
                     return false;
                 };
                 // A retained inner call forms a descriptor in the enclosing
@@ -601,11 +618,7 @@ impl Retirement<'_> {
                 // another local holder. Keep operand parents until this
                 // receiving occurrence has actually retired.
                 return sources.into_iter().any(|source| {
-                    if let validation::reference_result_custody::StoredCarrierSource::Borrow {
-                        value,
-                        source,
-                    } = &source
-                    {
+                    if let StoredCarrierSource::Borrow { value, source } = &source {
                         return loan.formation_expression
                             == self
                                 .facts
@@ -617,11 +630,7 @@ impl Retirement<'_> {
                             && source.access.borrow_access_kind().is_some()
                             && self.source_captures_holder(source, parent);
                     }
-                    let validation::reference_result_custody::StoredCarrierSource::Call {
-                        value,
-                        ..
-                    } = source
-                    else {
+                    let StoredCarrierSource::Call { value, .. } = source else {
                         return false;
                     };
                     if loan.formation_expression
@@ -679,14 +688,14 @@ impl Retirement<'_> {
                 self.results.iter().find(|(result, root)| {
                     result.binding_ordinal == binding_ordinal
                         && result.statement_index as usize == parent.statement_index
-                        && *root == facts::PlaceRoot::Symbol(parent.owner_symbol)
+                        && *root == PlaceRoot::Symbol(parent.owner_symbol)
                 })
             }
             _ => source.structural_storage_root().and_then(|source_root| {
                 self.results.iter().find(|(result, root)| {
                     *root == source_root
                         && result.statement_index as usize == parent.statement_index
-                        && *root == facts::PlaceRoot::Symbol(parent.owner_symbol)
+                        && *root == PlaceRoot::Symbol(parent.owner_symbol)
                 })
             }),
         };
@@ -720,7 +729,7 @@ impl Retirement<'_> {
             .position(|segment| *segment == CheckedUnitStructuralPathSegment::Referent)
             .unwrap_or(source.path.len());
         let compared = owner_path.len().min(prefix);
-        let Some(reference) = validation::reference_result_custody::storage_owner_type_reference(
+        let Some(reference) = storage_owner_type_reference(
             self.program,
             self.state,
             parent.owner_symbol,
@@ -728,35 +737,29 @@ impl Retirement<'_> {
         ) else {
             return true; // A registered holder with unresolved geometry stays live.
         };
-        let Some(segments) = validation::reference_result_custody::loan_place_segments(
-            self.program,
-            reference,
-            &source.path[..compared],
-        ) else {
+        let Some(segments) = loan_place_segments(self.program, reference, &source.path[..compared])
+        else {
             return true;
         };
         owner_path
             .iter()
             .zip(segments)
             .all(|(owner, selected)| match (owner, selected) {
-                (
-                    checked_trees::BorrowLoanOwnerSegment::Field(owner),
-                    facts::PlaceSegment::Field { symbol },
-                ) => *owner == symbol,
-                (
-                    checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner),
-                    facts::PlaceSegment::FixedIndex { index },
-                ) => *owner == index,
-                (
-                    checked_trees::BorrowLoanOwnerSegment::Case(owner),
-                    facts::PlaceSegment::Case { variant },
-                ) => *owner == variant,
-                (checked_trees::BorrowLoanOwnerSegment::DynamicIndex, _) => true,
+                (BorrowLoanOwnerSegment::Field(owner), PlaceSegment::Field { symbol }) => {
+                    *owner == symbol
+                }
+                (BorrowLoanOwnerSegment::FixedIndex(owner), PlaceSegment::FixedIndex { index }) => {
+                    *owner == index
+                }
+                (BorrowLoanOwnerSegment::Case(owner), PlaceSegment::Case { variant }) => {
+                    *owner == variant
+                }
+                (BorrowLoanOwnerSegment::DynamicIndex, _) => true,
                 _ => false,
             })
     }
 
-    pub(super) fn holder_retired(&self, handle: arena::Handle<BorrowLoanFact>) -> bool {
+    pub(super) fn holder_retired(&self, handle: Handle<BorrowLoanFact>) -> bool {
         self.holder_retired_following(handle, &mut Vec::new())
     }
 
@@ -765,7 +768,7 @@ impl Retirement<'_> {
     /// identifies which receivers must finish before its backing may retire.
     fn call_receivers_retired(
         &self,
-        supplier: arena::Handle<BorrowLoanFact>,
+        supplier: Handle<BorrowLoanFact>,
         statement_index: u32,
         requires_receiver: bool,
         active: &mut Vec<RetirementNode>,
@@ -794,7 +797,7 @@ impl Retirement<'_> {
 
     fn holder_retired_following(
         &self,
-        handle: arena::Handle<BorrowLoanFact>,
+        handle: Handle<BorrowLoanFact>,
         active: &mut Vec<RetirementNode>,
     ) -> bool {
         // Only this state's published receiving resource owes holder death.
@@ -821,7 +824,7 @@ impl Retirement<'_> {
 
     fn holder_retired_inner(
         &self,
-        handle: arena::Handle<BorrowLoanFact>,
+        handle: Handle<BorrowLoanFact>,
         active: &mut Vec<RetirementNode>,
     ) -> bool {
         let loan = self.facts.borrow.loans.get(handle);
@@ -837,21 +840,16 @@ impl Retirement<'_> {
         if self.at_exit && self.return_transfers_holder(loan) {
             // Transfer discharges a descriptor locally, but keeps its backing
             // alive when selecting that backing's pending owner disposition.
-            return self.uncommitted_owner == facts::PlaceRoot::Symbol(Default::default());
+            return self.uncommitted_owner == PlaceRoot::Symbol(Default::default());
         }
         // A completed call can version a stored occurrence without moving an
         // owned argument or returning a value. Its preserved alternatives name
         // the old descriptor as their supplier. The old occurrence settles
         // only when every such receiving occurrence has settled too; a lexical
         // weakening or a coincident storage path alone cannot establish this.
-        if let Some(weakening) = validation::reference_result_custody::loan_weakening(
-            self.facts,
-            self.machine,
-            self.state.symbol,
-            handle,
-        ) && weakening.reason == checked_trees::FlowBorrowWeakeningReason::LocalReassigned
-            && let checked_trees::FlowInvalidationSource::Statement { statement_index } =
-                weakening.source
+        if let Some(weakening) = loan_weakening(self.facts, self.machine, self.state.symbol, handle)
+            && weakening.reason == FlowBorrowWeakeningReason::LocalReassigned
+            && let FlowInvalidationSource::Statement { statement_index } = weakening.source
             && let Ok(statement_index) = u32::try_from(statement_index)
             && self
                 .operations
@@ -864,7 +862,7 @@ impl Retirement<'_> {
             return true;
         }
         let mut holders = self.results.iter().filter(|(holder, root)| {
-            *root == facts::PlaceRoot::Symbol(loan.owner_symbol)
+            *root == PlaceRoot::Symbol(loan.owner_symbol)
                 && holder.statement_index as usize == loan.statement_index
         });
         let holder = holders.next();
@@ -896,11 +894,11 @@ impl Retirement<'_> {
             };
             let unmaterialized_alias = ordinal == loan.statement_index
                 && self.facts.borrow.loan_owner_path(loan).is_empty()
-                && validation::reference_shell(self.program, alias.type_reference).is_some()
+                && reference_shell(self.program, alias.type_reference).is_some()
                 && !self
                     .results
                     .iter()
-                    .any(|(_, root)| *root == facts::PlaceRoot::Symbol(loan.owner_symbol))
+                    .any(|(_, root)| *root == PlaceRoot::Symbol(loan.owner_symbol))
                 && u32::try_from(ordinal).ok().is_some_and(|ordinal| {
                     self.facts
                         .values
@@ -909,7 +907,7 @@ impl Retirement<'_> {
                         .is_none()
                 });
             return unmaterialized_alias
-                && validation::reference_result_custody::release_boundary(
+                && release_boundary(
                     self.program,
                     self.facts,
                     self.machine,
@@ -935,12 +933,9 @@ impl Retirement<'_> {
         let Ok(formation) = u32::try_from(loan.statement_index) else {
             return false;
         };
-        let Some(reference) = validation::reference_result_custody::storage_owner_type_reference(
-            self.program,
-            self.state,
-            loan.owner_symbol,
-            formation,
-        ) else {
+        let Some(reference) =
+            storage_owner_type_reference(self.program, self.state, loan.owner_symbol, formation)
+        else {
             return false;
         };
         let Some(selection) = transport::carrier_path(
@@ -964,21 +959,20 @@ impl Retirement<'_> {
         };
         let owner_path = self.facts.borrow.loan_owner_path(loan);
         let selected_path = |path: &[CheckedUnitStructuralPathSegment]| {
-            validation::reference_result_custody::loan_place_segments(self.program, reference, path)
-                .and_then(|segments| {
-                    segments
-                        .into_iter()
-                        .map(|segment| match segment {
-                            facts::PlaceSegment::Field { symbol } => {
-                                Some(checked_trees::BorrowLoanOwnerSegment::Field(symbol))
-                            }
-                            facts::PlaceSegment::FixedIndex { index } => {
-                                Some(checked_trees::BorrowLoanOwnerSegment::FixedIndex(index))
-                            }
-                            _ => None,
-                        })
-                        .collect::<Option<Vec<_>>>()
-                })
+            loan_place_segments(self.program, reference, path).and_then(|segments| {
+                segments
+                    .into_iter()
+                    .map(|segment| match segment {
+                        PlaceSegment::Field { symbol } => {
+                            Some(BorrowLoanOwnerSegment::Field(symbol))
+                        }
+                        PlaceSegment::FixedIndex { index } => {
+                            Some(BorrowLoanOwnerSegment::FixedIndex(index))
+                        }
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()
+            })
         };
         if !transfers
             .definite
@@ -1046,14 +1040,12 @@ impl Retirement<'_> {
                     ) else {
                         return false;
                     };
-                    let Some(reference) =
-                        validation::reference_result_custody::storage_owner_type_reference(
-                            self.program,
-                            self.state,
-                            symbol,
-                            statement_index,
-                        )
-                    else {
+                    let Some(reference) = storage_owner_type_reference(
+                        self.program,
+                        self.state,
+                        symbol,
+                        statement_index,
+                    ) else {
                         return false;
                     };
                     let Some(mut receiving_path) =
@@ -1097,7 +1089,7 @@ impl Retirement<'_> {
             }
             path.extend_from_slice(&owner_path[selected.len()..]);
             if self.return_receives_carrier(&destination, &path, loan) {
-                if self.uncommitted_owner != facts::PlaceRoot::Symbol(Default::default()) {
+                if self.uncommitted_owner != PlaceRoot::Symbol(Default::default()) {
                     return false;
                 }
                 continue;
@@ -1112,7 +1104,7 @@ impl Retirement<'_> {
                 .results
                 .iter()
                 .filter(|(binding, _)| binding == &destination);
-            let Some((_, facts::PlaceRoot::Symbol(owner))) = bindings.next() else {
+            let Some((_, PlaceRoot::Symbol(owner))) = bindings.next() else {
                 return false;
             };
             if bindings.next().is_some() {
@@ -1142,7 +1134,7 @@ impl Retirement<'_> {
         let path = self.facts.borrow.loan_owner_path(loan);
         self.results.iter().any(|(holder, root)| {
             *root == loan.storage_owner
-                && *root == facts::PlaceRoot::Symbol(loan.owner_symbol)
+                && *root == PlaceRoot::Symbol(loan.owner_symbol)
                 && holder.statement_index as usize == loan.statement_index
                 && self.return_receives_carrier(holder, path, loan)
         })
@@ -1154,7 +1146,7 @@ impl Retirement<'_> {
     fn return_receives_carrier(
         &self,
         receiver: &CheckedUnitStructuralResultBindingPlan,
-        path: &[checked_trees::BorrowLoanOwnerSegment],
+        path: &[BorrowLoanOwnerSegment],
         loan: &BorrowLoanFact,
     ) -> bool {
         let Some(returned) = self.returned.filter(|_| self.at_exit) else {
@@ -1167,23 +1159,23 @@ impl Retirement<'_> {
             return false;
         };
         let (statement_index, expression, transition_target) = match returned.completion {
-            checked_trees::CheckedStructuralReturnCompletion::Value {
+            CheckedStructuralReturnCompletion::Value {
                 statement_index,
                 expression,
                 evaluation,
             } => {
                 let target = match evaluation {
-                    checked_trees::FlowPermissionEvaluation::Statement => Default::default(),
-                    checked_trees::FlowPermissionEvaluation::TransitionTarget(target) => target,
+                    FlowPermissionEvaluation::Statement => Default::default(),
+                    FlowPermissionEvaluation::TransitionTarget(target) => target,
                     _ => return false,
                 };
                 (statement_index as usize, Some(expression), target)
             }
-            checked_trees::CheckedStructuralReturnCompletion::Call { coordinate } => {
+            CheckedStructuralReturnCompletion::Call { coordinate } => {
                 let Some(machine) = self.program.machine_by_symbol(self.machine) else {
                     return false;
                 };
-                let target = validation::transition_call_target(
+                let target = transition_call_target(
                     self.program,
                     machine,
                     self.state,
@@ -1305,7 +1297,7 @@ impl Retirement<'_> {
     /// before exit, that call's continuation cleanup has been planned. A
     /// future hook or a dependency edge cannot settle it. Both the retained
     /// loan owner and an anonymous backing owner ask this same question.
-    fn call_cleanup_settles_owner(&self, owner: &facts::PlaceRoot, statement_index: usize) -> bool {
+    fn call_cleanup_settles_owner(&self, owner: &PlaceRoot, statement_index: usize) -> bool {
         if *owner == self.uncommitted_owner {
             return false;
         }
@@ -1316,11 +1308,11 @@ impl Retirement<'_> {
                     && disposition.path.is_empty()
                     && disposition.exclusions.is_empty()
                     && matches!(disposition.source,
-                    language_semantics::PermissionEventSource::Call { statement_index: call_statement, call_ordinal, .. }
+                    PermissionEventSource::Call { statement_index: call_statement, call_ordinal, .. }
                         if call_statement == statement_index
                             && (self.at_exit || self.operations[..self.completed_operations].iter().any(|operation| {
                                 matches!(operation, CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                                    boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate), ..
+                                    boundary: CheckedUnitCleanupBoundary::Call(coordinate), ..
                                 } if coordinate.statement_index as usize == call_statement
                                     && coordinate.call_ordinal as usize == call_ordinal)
                             })))
@@ -1330,7 +1322,7 @@ impl Retirement<'_> {
     /// Disposal ends an occurrence, not all future values in the same local.
     /// Replacement's checked boundary captures the old destination after RHS
     /// evaluation. A release instead names the exact retained loan group.
-    pub(super) fn disposed(&self, handle: arena::Handle<BorrowLoanFact>) -> bool {
+    pub(super) fn disposed(&self, handle: Handle<BorrowLoanFact>) -> bool {
         let loan = self.facts.borrow.loans.get(handle);
         // Ownership already selected each temporary owner's normal call
         // death. Statement and scalar emission consume those same contextual
@@ -1377,13 +1369,12 @@ impl Retirement<'_> {
                     ..
                 } => {
                     let statement = match boundary {
-                        checked_trees::CheckedUnitCleanupBoundary::Replacement {
-                            statement_index,
-                            ..
+                        CheckedUnitCleanupBoundary::Replacement {
+                            statement_index, ..
                         }
-                        | checked_trees::CheckedUnitCleanupBoundary::StatementEntry {
-                            statement_index,
-                        } => *statement_index,
+                        | CheckedUnitCleanupBoundary::StatementEntry { statement_index } => {
+                            *statement_index
+                        }
                         _ => return false,
                     };
                     if self
@@ -1395,14 +1386,12 @@ impl Retirement<'_> {
                     {
                         return false;
                     }
-                    let Some(reference) =
-                        validation::reference_result_custody::storage_owner_type_reference(
-                            self.program,
-                            self.state,
-                            loan.owner_symbol,
-                            statement,
-                        )
-                    else {
+                    let Some(reference) = storage_owner_type_reference(
+                        self.program,
+                        self.state,
+                        loan.owner_symbol,
+                        statement,
+                    ) else {
                         return false;
                     };
                     if self.operations.iter().any(|operation| {
@@ -1483,7 +1472,7 @@ pub(super) fn local_reference_loans(
     state: SymbolHandle,
     result: &CheckedUnitStructuralResultBindingPlan,
     results: &Results,
-) -> Option<arena::HandleSpan<BorrowLoanFact>> {
+) -> Option<HandleSpan<BorrowLoanFact>> {
     let loans = carrier_loans(facts, machine, state, result, results)?;
     // A proven empty holder roster still owns an affine descriptor. Its
     // formation/result identity schedules release; absence of authored loan
@@ -1505,13 +1494,10 @@ pub(super) fn carrier_loans(
     state: SymbolHandle,
     result: &CheckedUnitStructuralResultBindingPlan,
     results: &Results,
-) -> Option<arena::HandleSpan<BorrowLoanFact>> {
+) -> Option<HandleSpan<BorrowLoanFact>> {
     let mut roots = results.iter().filter(|(binding, _)| binding == result);
     let (_, owner) = roots.next()?;
-    if !matches!(
-        owner,
-        facts::PlaceRoot::Symbol(_) | facts::PlaceRoot::Expression(_)
-    ) {
+    if !matches!(owner, PlaceRoot::Symbol(_) | PlaceRoot::Expression(_)) {
         return None;
     }
     if roots.next().is_some() {

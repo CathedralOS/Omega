@@ -20,25 +20,52 @@ use crate::values::scalar::occupies_scalar_position;
 use crate::values::scalar::semantic_casts;
 use crate::values::scalar::subslice_endpoints::sites;
 use crate::values::scalar::subslice_endpoints::subslice_endpoints;
-use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedScalarExpression;
 use checked_trees::CheckedScalarExpressionPlans;
 use checked_trees::CheckedScalarExpressionRole;
 use checked_trees::{
+    BorrowFacts, CheckFacts, CheckedArrayConstructionSource, CheckedBooleanExpression,
+    CheckedStructuralValue, CheckedStructuralValueKind, CheckedStructuralValuePlans,
+};
+use checked_trees::{
     CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarComputationPlans,
     FlowFacts, ProofFacts,
 };
+use facts::FactPlan;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::expression::UnaryOperator;
-use typed_trees::statement::StatementNode;
 use typed_trees::statement::TransitionTargetNode;
+use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceNode;
+use validation::CallSite;
+use validation::ExactIntegerCastFact;
+use validation::ScalarArrayElement;
+use validation::activation_target_state_index;
+use validation::assignment_stored_value_type;
+use validation::assignment_target_selectors;
+use validation::atomic_assignment_carrier;
+use validation::atomic_once_carrier;
+use validation::call_target_symbol;
+use validation::completing_transition_transfer;
+use validation::declared_place_type_raw;
+use validation::expression_result_type_reference;
+use validation::find_call_site;
+use validation::find_machine_head;
+use validation::is_scalar_case_value;
+use validation::nested_boundary_applications_compose;
+use validation::reference_shell;
+use validation::result_initializer_call_is_admitted;
+use validation::scalar_array_elements;
+use validation::terminal_callable_target;
+use validation::unit_statement_call_is_admitted;
+use validation::zeroed_byte_projected_qualifications;
+use validation::zeroed_structural_parts;
 
 mod atomic_loads;
 mod boundary_calls;
@@ -66,19 +93,16 @@ mod builder;
 pub(crate) fn build_checked_value_computation_plans(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
-    semantic: &facts::FactPlan,
+    semantic: &FactPlan,
     flow: &FlowFacts,
-    borrow: &checked_trees::BorrowFacts,
+    borrow: &BorrowFacts,
     proof: &ProofFacts,
     pure: &mut CheckedScalarExpressionPlans,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> (
-    CheckedScalarComputationPlans,
-    checked_trees::CheckedStructuralValuePlans,
-) {
+    exact_integer_casts: &[ExactIntegerCastFact],
+) -> (CheckedScalarComputationPlans, CheckedStructuralValuePlans) {
     dispatch_copies::withdraw_captured_pure_roots(program, flow, pure);
     let mut plans = CheckedScalarComputationPlans::default();
-    let mut structural_values = checked_trees::CheckedStructuralValuePlans::default();
+    let mut structural_values = CheckedStructuralValuePlans::default();
     for machine in program.machines() {
         let states = program.machine_states(machine);
         for state in states {
@@ -147,12 +171,10 @@ pub(crate) fn build_checked_value_computation_plans(
                             statement_ordinal,
                             role,
                             endpoint,
-                            validation::expression_result_type_reference(
-                                program, machine, state, endpoint,
-                            )
-                            .and_then(|reference| program.primitive_type_reference(reference))
-                            .filter(|primitive| primitive.integer_sign_bits().is_some())
-                            .unwrap_or(PrimitiveType::U64),
+                            expression_result_type_reference(program, machine, state, endpoint)
+                                .and_then(|reference| program.primitive_type_reference(reference))
+                                .filter(|primitive| primitive.integer_sign_bits().is_some())
+                                .unwrap_or(PrimitiveType::U64),
                         );
                     }
                 }
@@ -161,10 +183,8 @@ pub(crate) fn build_checked_value_computation_plans(
                         Some((local.initial_value, local.type_reference))
                     }
                     StatementNode::Assignment(assignment) => {
-                        validation::assignment_stored_value_type(
-                            program, machine, state, assignment,
-                        )
-                        .map(|expected| (assignment.value, expected))
+                        assignment_stored_value_type(program, machine, state, assignment)
+                            .map(|expected| (assignment.value, expected))
                     }
                     StatementNode::Expression(expression) => {
                         let expected = if expressions(program)
@@ -193,12 +213,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         )
                     })
                     .and_then(|(expression, expected)| {
-                        validation::scalar_array_elements(
-                            program,
-                            machine.symbol,
-                            expression,
-                            expected,
-                        )
+                        scalar_array_elements(program, machine.symbol, expression, expected)
                     });
                 // Destination type selects the value owner, not the authored
                 // source shape. The structural builder owns construction,
@@ -209,7 +224,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 // scalar element roots cannot also be structural operands.
                 if let Some((expression, expected)) = construction_destination
                     && scalar_elements.is_none()
-                    && (validation::is_scalar_case_value(program, expression, expected)
+                    && (is_scalar_case_value(program, expression, expected)
                         || program.primitive_type_reference(expected).is_none())
                     && let Some(root) = builder.structural_value(expression, expected)
                 {
@@ -226,15 +241,14 @@ pub(crate) fn build_checked_value_computation_plans(
                         .primitive_type_reference(local.type_reference)
                         .is_none()
                     && !expressions(program).expression_is_valid(local.initial_value)
-                    && validation::zeroed_structural_parts(program, local.type_reference)
+                    && zeroed_structural_parts(program, local.type_reference)
                     && let Ok(projected_qualifications) =
-                        validation::zeroed_byte_projected_qualifications(
-                            program,
-                            local.type_reference,
-                        )
+                        zeroed_byte_projected_qualifications(program, local.type_reference)
                 {
-                    let root = builder.structural_values.nodes.append(
-                        checked_trees::CheckedStructuralValue {
+                    let root = builder
+                        .structural_values
+                        .nodes
+                        .append(CheckedStructuralValue {
                             machine: machine.symbol,
                             state: state.symbol,
                             statement_index: statement_ordinal,
@@ -246,11 +260,10 @@ pub(crate) fn build_checked_value_computation_plans(
                             qualification_decisions: Default::default(),
                             content_transformation: Default::default(),
                             content_inputs: Default::default(),
-                            kind: checked_trees::CheckedStructuralValueKind::ZeroedStructural {
+                            kind: CheckedStructuralValueKind::ZeroedStructural {
                                 projected_qualifications,
                             },
-                        },
-                    );
+                        });
                     builder.retain_structural_root(
                         statement_ordinal,
                         local.initial_value,
@@ -264,11 +277,11 @@ pub(crate) fn build_checked_value_computation_plans(
                             break;
                         };
                         let role = CheckedScalarExpressionRole::ArrayElement {
-                            source: checked_trees::CheckedArrayConstructionSource::Statement,
+                            source: CheckedArrayConstructionSource::Statement,
                             element_ordinal,
                         };
                         match element {
-                            validation::ScalarArrayElement::Authored {
+                            ScalarArrayElement::Authored {
                                 expression,
                                 primitive_type,
                             } => {
@@ -280,7 +293,7 @@ pub(crate) fn build_checked_value_computation_plans(
                                     primitive_type,
                                 );
                             }
-                            validation::ScalarArrayElement::Projected {
+                            ScalarArrayElement::Projected {
                                 row,
                                 indices,
                                 leaf_type,
@@ -322,7 +335,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     })
                     .unwrap_or_default()
                 {
-                    let validation::CallSite::Expression { call, .. } = site else {
+                    let CallSite::Expression { call, .. } = site else {
                         continue;
                     };
                     let Ok(call_ordinal) = u32::try_from(call_ordinal) else {
@@ -331,22 +344,17 @@ pub(crate) fn build_checked_value_computation_plans(
                     builder.record_call_arguments(
                         statement_ordinal,
                         call_ordinal,
-                        validation::call_target_symbol(program, call),
+                        call_target_symbol(program, call),
                         program.expression_table.expression_handles(call.arguments),
                     );
                 }
                 if let Some(local) = statement.as_local_data() {
                     // The structural outcome local owns its authored scalar
                     // operands, including nested calls, at the cell's carrier.
-                    if let Some(carrier) =
-                        validation::atomic_once_carrier(program, local.initial_value)
-                        && let Some(primitive_type) = validation::declared_place_type_raw(
-                            program,
-                            machine,
-                            Some(state),
-                            carrier.place,
-                        )
-                        .and_then(|cell| program.primitive_type_reference(cell))
+                    if let Some(carrier) = atomic_once_carrier(program, local.initial_value)
+                        && let Some(primitive_type) =
+                            declared_place_type_raw(program, machine, Some(state), carrier.place)
+                                .and_then(|cell| program.primitive_type_reference(cell))
                     {
                         for (ordinal, operand) in carrier.operands.into_iter().enumerate() {
                             let Ok(operand_ordinal) = u32::try_from(ordinal) else {
@@ -368,11 +376,11 @@ pub(crate) fn build_checked_value_computation_plans(
                     // float operator) is also a result operation
                     // whose nested applications are computed operands.
                     let argument_roots = (!local.is_mutable || structural_destination)
-                        && (validation::result_initializer_call_is_admitted(
+                        && (result_initializer_call_is_admitted(
                             program,
                             machine,
                             local.initial_value,
-                        ) || validation::nested_boundary_applications_compose(
+                        ) || nested_boundary_applications_compose(
                             program,
                             local.initial_value,
                         ));
@@ -384,7 +392,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         builder.record_call_arguments(
                             statement_ordinal,
                             0,
-                            validation::call_target_symbol(program, call),
+                            call_target_symbol(program, call),
                             program.expression_table.expression_handles(call.arguments),
                         );
                     }
@@ -442,15 +450,10 @@ pub(crate) fn build_checked_value_computation_plans(
                     builder.record_call_arguments(
                         statement_ordinal,
                         0,
-                        validation::call_target_symbol(program, call),
+                        call_target_symbol(program, call),
                         program.expression_table.expression_handles(call.arguments),
                     );
-                    if validation::unit_statement_call_is_admitted(
-                        program,
-                        machine,
-                        state,
-                        *expression,
-                    ) {
+                    if unit_statement_call_is_admitted(program, machine, state, *expression) {
                         continue;
                     }
                 }
@@ -460,10 +463,9 @@ pub(crate) fn build_checked_value_computation_plans(
                     // the same `AssignmentIndex { depth }`/`AssignmentValue`
                     // coordinates for the operands it can carry; a range
                     // index is a subslice endpoint pair, not a selector.
-                    for (depth, index) in
-                        validation::assignment_target_selectors(program, assignment.target)
-                            .into_iter()
-                            .enumerate()
+                    for (depth, index) in assignment_target_selectors(program, assignment.target)
+                        .into_iter()
+                        .enumerate()
                     {
                         let Ok(depth) = u32::try_from(depth) else {
                             break;
@@ -479,19 +481,18 @@ pub(crate) fn build_checked_value_computation_plans(
                     // The installed value is the reference descriptor for a rebind
                     // and the referent for a write through it. A descriptor
                     // replacement is not a scalar store of the peeled referee.
-                    if let Some(primitive_type) = validation::assignment_stored_value_type(
-                        program, machine, state, assignment,
-                    )
-                    .filter(|installed| validation::reference_shell(program, *installed).is_none())
-                    .and_then(|installed| assignment_target_primitive_type(program, installed))
+                    if let Some(primitive_type) =
+                        assignment_stored_value_type(program, machine, state, assignment)
+                            .filter(|installed| reference_shell(program, *installed).is_none())
+                            .and_then(|installed| {
+                                assignment_target_primitive_type(program, installed)
+                            })
                     {
                         // An atomic assignment's model is not evaluated. Its
                         // authored inputs own ordinary computation roots, so
                         // calls, selections and pure values share one event
                         // operand schedule instead of a pure-only path.
-                        if let Some(carrier) =
-                            validation::atomic_assignment_carrier(program, assignment)
-                        {
+                        if let Some(carrier) = atomic_assignment_carrier(program, assignment) {
                             for (ordinal, operand) in carrier.operands.into_iter().enumerate() {
                                 let Ok(operand_ordinal) = u32::try_from(ordinal) else {
                                     break;
@@ -532,7 +533,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         builder.record_call_arguments(
                             statement_ordinal,
                             0,
-                            validation::call_target_symbol(program, call),
+                            call_target_symbol(program, call),
                             program.expression_table.expression_handles(call.arguments),
                         );
                     }
@@ -562,26 +563,19 @@ pub(crate) fn build_checked_value_computation_plans(
                         .iter()
                         .filter(|call| call.statement_index == statement_index)
                     {
-                        let Some(validation::CallSite::TransitionNamed { arguments, .. }) =
-                            validation::find_call_site(
-                                program,
-                                machine.symbol,
-                                state.symbol,
-                                statement_index,
-                                call.call_ordinal,
-                            )
-                        else {
+                        let Some(CallSite::TransitionNamed { arguments, .. }) = find_call_site(
+                            program,
+                            machine.symbol,
+                            state.symbol,
+                            statement_index,
+                            call.call_ordinal,
+                        ) else {
                             continue;
                         };
                         // The exact callable contract owns argument roles for
                         // bodies and requirements alike. Current-activation
                         // state edges keep the transition roles below.
-                        if validation::terminal_callable_target(
-                            program,
-                            machine,
-                            call.target_symbol,
-                        )
-                        .is_none()
+                        if terminal_callable_target(program, machine, call.target_symbol).is_none()
                         {
                             continue;
                         }
@@ -596,9 +590,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         );
                     }
                 }
-                if let typed_trees::statement::TransitionGuardNode::When(expression) =
-                    transition.guard
-                {
+                if let TransitionGuardNode::When(expression) = transition.guard {
                     builder.record_root(
                         pure,
                         statement_ordinal,
@@ -613,7 +605,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     if !target.is_valid() {
                         continue;
                     }
-                    if transition.exit == typed_trees::statement::TransitionExit::Ordinary
+                    if transition.exit == TransitionExit::Ordinary
                         && let TransitionTargetNode::Value(expression) =
                             program.statement_table.transition_target(target)
                         && program
@@ -628,7 +620,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             root,
                         );
                     }
-                    if transition.exit == typed_trees::statement::TransitionExit::Ordinary
+                    if transition.exit == TransitionExit::Ordinary
                         && let TransitionTargetNode::Value(expression) =
                             program.statement_table.transition_target(target)
                         && let Some(result_type) =
@@ -647,21 +639,16 @@ pub(crate) fn build_checked_value_computation_plans(
                             result_type,
                         );
                     }
-                    let Some(transfer) =
-                        validation::completing_transition_transfer(program, target)
-                    else {
+                    let Some(transfer) = completing_transition_transfer(program, target) else {
                         continue;
                     };
-                    let Some(target_state) = validation::activation_target_state_index(
-                        program,
-                        machine,
-                        transfer.target,
-                    )
-                    .and_then(|target_index| states.get(target_index))
-                    .or_else(|| {
-                        validation::find_machine_head(program, transfer.target)
-                            .map(|(_, entry)| entry)
-                    }) else {
+                    let Some(target_state) =
+                        activation_target_state_index(program, machine, transfer.target)
+                            .and_then(|target_index| states.get(target_index))
+                            .or_else(|| {
+                                find_machine_head(program, transfer.target).map(|(_, entry)| entry)
+                            })
+                    else {
                         continue;
                     };
                     // Tail-normalized calls deliver into entry storage just
@@ -698,8 +685,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             // authored argument spells a constructor or a borrow
                             // around one; target custody remains an edge obligation.
                             if !continuation
-                                && transition.exit
-                                    == typed_trees::statement::TransitionExit::Ordinary
+                                && transition.exit == TransitionExit::Ordinary
                                 && !parameter.is_const
                                 && !parameter.relevance.is_erased()
                             {
@@ -737,7 +723,7 @@ pub(crate) fn build_checked_value_computation_plans(
 /// production window; pruning and execution see this completed rank roster.
 pub(crate) fn record_rank_observations(
     program: &dyn validation::CheckingInput,
-    facts: &mut checked_trees::CheckFacts,
+    facts: &mut CheckFacts,
 ) {
     rank_observations::record(
         program,

@@ -10,12 +10,15 @@ use checked_trees::{
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralResultBindingPlan,
 };
+use facts::PlaceRoot;
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
+use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::TypeReferenceHandle;
-use validation::reference_result_custody;
+use validation::{CanonicalPlace, reference_result_custody, stored_structural_type_identity};
 
 /// Slice views have their own descriptor argument route.
 pub(crate) fn is_carrier(
@@ -30,18 +33,14 @@ pub(crate) fn argument(
     machine: SymbolHandle,
     state: &State,
     statement_index: usize,
-    place: &validation::CanonicalPlace,
-    owner: facts::PlaceRoot,
+    place: &CanonicalPlace,
+    owner: PlaceRoot,
     reference: TypeReferenceHandle,
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
-    target_identity: typed_trees::type_identity::TypeIdentityId,
+    target_identity: TypeIdentityId,
     trace: &LocalConstructionTrace,
-    selectors: Option<
-        &dyn Fn(
-            typed_trees::expression::ExpressionHandle,
-        ) -> Option<CheckedUnitStructuralPathSegment>,
-    >,
+    selectors: Option<&dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>>,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let phase = |description| {
         trace.phase(description);
@@ -93,7 +92,7 @@ pub(crate) fn argument(
     let (selected, path) =
         borrowed_argument_endpoint(program, selected, path, parameter.type_reference)?;
     phase("stored reference argument: receiving identity");
-    if validation::stored_structural_type_identity(program, selected, &[], &[]) != target_identity {
+    if stored_structural_type_identity(program, selected, &[], &[]) != target_identity {
         return None;
     }
     Some(CheckedUnitStructuralArgumentPlan {

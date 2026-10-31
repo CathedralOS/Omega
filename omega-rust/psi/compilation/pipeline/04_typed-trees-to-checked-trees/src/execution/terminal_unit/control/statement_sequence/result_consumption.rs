@@ -34,15 +34,35 @@ use super::reference_retirement::unique_borrow_state;
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::ShapeCollector;
-use checked_trees::CheckedUnitStructuralReturnPlan;
+use arena::Handle;
+use arena::HandleSpan;
+use checked_trees::{
+    BorrowLoanFact, CheckedNormalCleanupAction, CheckedStructuralRecordFieldValue,
+    CheckedStructuralValueCall, CheckedStructuralValueHandle, CheckedStructuralValueKind,
+    CheckedUnitCallPlan, CheckedUnitCleanupBoundary, CheckedUnitLocalBindingPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralReturnPlan, CheckedValueCompletion,
+    FlowBorrowWeakeningReason, FlowInvalidationSource, NominalMachineUseSite,
+};
+use facts::PlaceRoot;
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use typed_trees::statement::StatementExecutionOrder;
+use validation::ContentsRequirement;
+use validation::call_target_return_type;
+use validation::has_contents;
+use validation::reference_result_custody::loan_weakening;
+use validation::reference_result_custody::local_record_loans;
+use validation::reference_result_custody::local_storage_loans;
+use validation::reference_result_custody::stored_loan_parts;
+use validation::reference_result_custody::whole_local_release_boundary;
 
 /// The latest release boundary any loan in the group reaches: a descriptor
 /// retires after every alternative source and every descendant can end.
 fn latest_loan_release_boundary(
-    order: &typed_trees::statement::StatementExecutionOrder,
+    order: &StatementExecutionOrder,
     facts: &CheckFacts,
-    loans: arena::HandleSpan<checked_trees::BorrowLoanFact>,
-    release: impl Fn(arena::Handle<checked_trees::BorrowLoanFact>) -> Option<u32>,
+    loans: HandleSpan<BorrowLoanFact>,
+    release: impl Fn(Handle<BorrowLoanFact>) -> Option<u32>,
 ) -> Option<u32> {
     facts
         .borrow
@@ -61,27 +81,24 @@ fn latest_loan_release_boundary(
 /// A descendant can keep the backing loan live beyond this carrier's death;
 /// its lexical last use does not move the recorded replacement boundary.
 fn replacement_owns_release(
-    order: &typed_trees::statement::StatementExecutionOrder,
+    order: &StatementExecutionOrder,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    loans: arena::HandleSpan<checked_trees::BorrowLoanFact>,
+    loans: HandleSpan<BorrowLoanFact>,
 ) -> bool {
     let Some(group) = facts.borrow.loan_group(loans) else {
         return false;
     };
     let mut replacement = None;
     for (handle, loan) in group {
-        let Some(weakening) =
-            validation::reference_result_custody::loan_weakening(facts, machine, state, handle)
-        else {
+        let Some(weakening) = loan_weakening(facts, machine, state, handle) else {
             return false;
         };
-        let checked_trees::FlowInvalidationSource::Statement { statement_index } = weakening.source
-        else {
+        let FlowInvalidationSource::Statement { statement_index } = weakening.source else {
             return false;
         };
-        if weakening.reason != checked_trees::FlowBorrowWeakeningReason::LocalReassigned
+        if weakening.reason != FlowBorrowWeakeningReason::LocalReassigned
             || !order.precedes(loan.statement_index, statement_index)
             || replacement.is_some_and(|previous| previous != statement_index)
         {
@@ -98,12 +115,12 @@ fn replacement_owns_release(
 fn normal_call_disposes_backing(
     facts: &CheckFacts,
     state: SymbolHandle,
-    results: &[(BindingPlan, facts::PlaceRoot)],
+    results: &[(BindingPlan, PlaceRoot)],
     operations: &[OperationPlan],
     binding: u32,
 ) -> bool {
     let values = &facts.values.structural_values;
-    let Some((holder, facts::PlaceRoot::Expression(expression))) = results
+    let Some((holder, PlaceRoot::Expression(expression))) = results
         .iter()
         .find(|(result, _)| result.binding_ordinal == binding)
     else {
@@ -122,14 +139,14 @@ fn normal_call_disposes_backing(
             matches!(
                 operation,
                 OperationPlan::ContinuationCleanup {
-                    boundary: checked_trees::CheckedUnitCleanupBoundary::Call(_),
+                    boundary: CheckedUnitCleanupBoundary::Call(_),
                     ..
                 }
             )
         })
         .any(|operation| {
             let OperationPlan::ContinuationCleanup {
-                boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
+                boundary: CheckedUnitCleanupBoundary::Call(coordinate),
                 cleanup_actions,
                 ..
             } = operation
@@ -164,7 +181,7 @@ fn normal_call_disposes_backing(
                         root.machine,
                         state,
                         |_, disposition| {
-                            disposition.root == facts::PlaceRoot::Expression(expression)
+                            disposition.root == PlaceRoot::Expression(expression)
                                 && matches!(
                                     disposition.source,
                                     PermissionEventSource::Call {
@@ -185,7 +202,7 @@ fn normal_call_disposes_backing(
 pub(in crate::execution::terminal_unit) fn release_matches(
     operation: &OperationPlan,
     result: &BindingPlan,
-    loans: arena::HandleSpan<checked_trees::BorrowLoanFact>,
+    loans: HandleSpan<BorrowLoanFact>,
 ) -> bool {
     operation.with_value_calls().any(|operation| {
         let OperationPlan::ReleaseReference {
@@ -220,7 +237,7 @@ pub(in crate::execution::terminal_unit) fn release_matches(
 /// their transfer and replacement judgments remain separate below.
 fn whole_result_discarded(operation: &OperationPlan, result: &BindingPlan) -> bool {
     let OperationPlan::ContinuationCleanup {
-        boundary: checked_trees::CheckedUnitCleanupBoundary::StatementEntry { .. },
+        boundary: CheckedUnitCleanupBoundary::StatementEntry { .. },
         cleanup_actions,
         ..
     } = operation
@@ -228,7 +245,7 @@ fn whole_result_discarded(operation: &OperationPlan, result: &BindingPlan) -> bo
         return false;
     };
     cleanup_actions.iter().any(|action| {
-        matches!(action, checked_trees::CheckedNormalCleanupAction::Discard(discard)
+        matches!(action, CheckedNormalCleanupAction::Discard(discard)
             if discard.source == SourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
             }
@@ -244,7 +261,7 @@ fn custody_transferred(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     prepared_calls: &crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
-    results: &[(BindingPlan, facts::PlaceRoot)],
+    results: &[(BindingPlan, PlaceRoot)],
     binding_ordinal: u32,
     operations: &[OperationPlan],
 ) -> Option<bool> {
@@ -267,11 +284,11 @@ fn custody_transferred(
 /// that exact holder rather than select retirement by producer family.
 pub(in crate::execution::terminal_unit) struct CapturedReferenceResult<'operation> {
     pub result: &'operation BindingPlan,
-    pub loans: arena::HandleSpan<checked_trees::BorrowLoanFact>,
+    pub loans: HandleSpan<BorrowLoanFact>,
     /// Scalar siblings and borrows of the carrier home can outlive its last
     /// descriptor observation. Whole disposal must retain both inventories.
     whole_storage_boundary: u32,
-    storage_loans: Vec<arena::Handle<checked_trees::BorrowLoanFact>>,
+    storage_loans: Vec<Handle<BorrowLoanFact>>,
 }
 
 /// Every named carrier retains its own lexical uses and borrowers, regardless
@@ -283,15 +300,15 @@ fn captured_storage_lifetime(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    results: &[(BindingPlan, facts::PlaceRoot)],
+    results: &[(BindingPlan, PlaceRoot)],
     result: &BindingPlan,
-) -> Option<(u32, Vec<arena::Handle<checked_trees::BorrowLoanFact>>)> {
+) -> Option<(u32, Vec<Handle<BorrowLoanFact>>)> {
     let mut owners = results.iter().filter(|(binding, _)| binding == result);
     let (_, owner) = owners.next()?;
     if owners.next().is_some() {
         return None;
     }
-    let facts::PlaceRoot::Symbol(owner) = owner else {
+    let PlaceRoot::Symbol(owner) = owner else {
         return Some((0, Vec::new()));
     };
     let authored = program.state_by_symbol(state)?;
@@ -300,14 +317,8 @@ fn captured_storage_lifetime(
         return None;
     }
     Some((
-        validation::reference_result_custody::whole_local_release_boundary(
-            program,
-            facts,
-            machine,
-            authored,
-            result.statement_index,
-        )?,
-        validation::reference_result_custody::local_storage_loans(facts, machine, state, *owner)?,
+        whole_local_release_boundary(program, facts, machine, authored, result.statement_index)?,
+        local_storage_loans(facts, machine, state, *owner)?,
     ))
 }
 
@@ -316,7 +327,7 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    results: &[(BindingPlan, facts::PlaceRoot)],
+    results: &[(BindingPlan, PlaceRoot)],
     operation: &'operation OperationPlan,
     operations: &[OperationPlan],
 ) -> Option<CapturedReferenceResult<'operation>> {
@@ -325,10 +336,12 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
             local_reference_loans(facts, machine, state, result, results)
                 .map(|loans| (result, loans))
         }
-        OperationPlan::EstablishLocal(
-            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { result, value, .. },
-        ) if facts.values.structural_values.nodes.is_valid(*value)
-            && validation::reference_result_custody::stored_loan_parts(
+        OperationPlan::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue {
+            result,
+            value,
+            ..
+        }) if facts.values.structural_values.nodes.is_valid(*value)
+            && stored_loan_parts(
                 program,
                 facts
                     .values
@@ -353,18 +366,15 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
             // physical shape grants its release: retain both the actual
             // captured custody and the recursive no-hook/no-linear judgment.
             // Nominal owners keep their ordinary selected disposition.
-            validation::call_target_return_type(program, call.target.state)
+            call_target_return_type(program, call.target.state)
                 .is_some_and(|returned| {
-                    validation::has_contents(
+                    has_contents(
                         program,
                         returned,
                         &[],
-                        validation::ContentsRequirement::DescriptorCleanup,
+                        ContentsRequirement::DescriptorCleanup,
                     ) && (!custody.reference_loans.is_empty()
-                        || validation::reference_result_custody::stored_loan_parts(
-                            program, returned,
-                        )
-                        .is_some())
+                        || stored_loan_parts(program, returned).is_some())
                 })
                 .then_some((result, custody.reference_loans))
         }),
@@ -386,7 +396,7 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
     }
     let authored_state = program.state_by_symbol(state)?;
     let mut owners = results.iter().filter(|(binding, _)| binding == result);
-    let (_, facts::PlaceRoot::Symbol(owner)) = owners.next()? else {
+    let (_, PlaceRoot::Symbol(owner)) = owners.next()? else {
         return None;
     };
     if owners.next().is_some() {
@@ -394,11 +404,11 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
     }
     let (formation, local) = program.state_local_declaration(authored_state, *owner)?;
     if formation != result.statement_index as usize
-        || !validation::has_contents(
+        || !has_contents(
             program,
             local.type_reference,
             &[],
-            validation::ContentsRequirement::DescriptorCleanup,
+            ContentsRequirement::DescriptorCleanup,
         )
         || !super::reference_retirement::transferred_paths(
             program,
@@ -415,7 +425,7 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
                 .loan_group(borrowing.loans)
                 .is_some_and(|mut loans| {
                     loans.any(|(_, loan)| {
-                        loan.storage_owner == facts::PlaceRoot::Symbol(*owner)
+                        loan.storage_owner == PlaceRoot::Symbol(*owner)
                             && loan.statement_index != formation
                     })
                 })
@@ -460,7 +470,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: u32,
-    results: &[(BindingPlan, facts::PlaceRoot)],
+    results: &[(BindingPlan, PlaceRoot)],
     operations: &mut Vec<OperationPlan>,
     trace: &super::super::super::LocalConstructionTrace,
 ) -> Option<()> {
@@ -515,7 +525,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         completed_operations: operations.len(),
         pending: &[],
         at_exit: false,
-        uncommitted_owner: facts::PlaceRoot::Symbol(Default::default()),
+        uncommitted_owner: PlaceRoot::Symbol(Default::default()),
         returned: None,
         transported_loans: &transported_loans,
     };
@@ -635,7 +645,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                     defer_to_exit: false,
                     loans,
                     selection_complements: Vec::new(),
-                    owner_cleanups: arena::HandleSpan::empty(),
+                    owner_cleanups: HandleSpan::empty(),
                     case_conditions: Default::default(),
                 });
                 // Explicit retirement consumes the descriptor now. Its
@@ -673,9 +683,10 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         };
         // Anonymous operands can share their enclosing local's statement and
         // type. Only the binding registered to that local owns its loan roster.
-        if !results.iter().any(|(binding, root)| {
-            binding == result && *root == facts::PlaceRoot::Symbol(local.symbol)
-        }) {
+        if !results
+            .iter()
+            .any(|(binding, root)| binding == result && *root == PlaceRoot::Symbol(local.symbol))
+        {
             continue;
         }
         // This inventory describes a production, not every later value stored
@@ -707,7 +718,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             .and_then(|borrowing| {
                 facts.borrow.storage_loans(
                     borrowing,
-                    facts::PlaceRoot::Symbol(local.symbol),
+                    PlaceRoot::Symbol(local.symbol),
                     result.statement_index as usize,
                 )
             })
@@ -718,11 +729,11 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         // Early descriptor expiry may retire only cleanup-free contents.
         // A nominal owner or descendant keeps its references for the checked
         // normal-disposal transaction, including the hook's receiver borrow.
-        if !validation::has_contents(
+        if !has_contents(
             program,
             local.type_reference,
             &[],
-            validation::ContentsRequirement::DescriptorCleanup,
+            ContentsRequirement::DescriptorCleanup,
         ) {
             continue;
         }
@@ -741,7 +752,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         if transferred_paths.iter().any(|path| path.is_empty()) {
             continue;
         }
-        let Some(boundary) = validation::reference_result_custody::whole_local_release_boundary(
+        let Some(boundary) = whole_local_release_boundary(
             program,
             facts,
             machine,
@@ -757,7 +768,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             ..statement_retirement
         };
         trace.phase("reference retirement: local loan leaves");
-        let local_loans = validation::reference_result_custody::local_record_loans(
+        let local_loans = local_record_loans(
             program,
             facts,
             machine,
@@ -820,12 +831,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         // owners here, so the same join also orders transitive dependencies.
         // A deferred owner is retried after its earliest permitted boundary.
         trace.phase("reference retirement: local storage loans");
-        let storage_loans = validation::reference_result_custody::local_storage_loans(
-            facts,
-            machine,
-            state,
-            local.symbol,
-        )?;
+        let storage_loans = local_storage_loans(facts, machine, state, local.symbol)?;
         if storage_loans
             .into_iter()
             .any(|handle| !retirement.holder_retired(handle))
@@ -847,7 +853,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
                     defer_to_exit: false,
                     loans: group,
                     selection_complements: Vec::new(),
-                    owner_cleanups: arena::HandleSpan::empty(),
+                    owner_cleanups: HandleSpan::empty(),
                     case_conditions: Default::default(),
                 });
             }
@@ -856,9 +862,9 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         retired.push(result.binding_ordinal);
         pending.push(OperationPlan::ContinuationCleanup {
             selected_regions: Vec::new(),
-            boundary: checked_trees::CheckedUnitCleanupBoundary::StatementEntry { statement_index },
-            cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(
-                checked_trees::CheckedUnitPartialAffineDiscardPlan {
+            boundary: CheckedUnitCleanupBoundary::StatementEntry { statement_index },
+            cleanup_actions: vec![CheckedNormalCleanupAction::Discard(
+                CheckedUnitPartialAffineDiscardPlan {
                     source:
                         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                             binding_ordinal: result.binding_ordinal,
@@ -930,7 +936,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         .rposition(|operation| {
             !matches!(operation,
         OperationPlan::ContinuationCleanup {
-            boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate), ..
+            boundary: CheckedUnitCleanupBoundary::Call(coordinate), ..
         } if order.precedes(coordinate.statement_index as usize, statement_index as usize))
         })
         .map_or(0, |position| position + 1);
@@ -952,7 +958,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     machine: SymbolHandle,
     state: SymbolHandle,
     returned: Option<&CheckedUnitStructuralReturnPlan>,
-    results: &[(BindingPlan, facts::PlaceRoot)],
+    results: &[(BindingPlan, PlaceRoot)],
     operations: &mut Vec<OperationPlan>,
     trace: &super::super::LocalConstructionTrace,
 ) -> Option<()> {
@@ -1072,7 +1078,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                         defer_to_exit: true,
                         loans,
                         selection_complements: Vec::new(),
-                        owner_cleanups: arena::HandleSpan::empty(),
+                        owner_cleanups: HandleSpan::empty(),
                         case_conditions: Default::default(),
                     },
                     captured.storage_loans,
@@ -1106,7 +1112,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         completed_operations: operations.len(),
         pending: &[],
         at_exit: false,
-        uncommitted_owner: facts::PlaceRoot::Symbol(Default::default()),
+        uncommitted_owner: PlaceRoot::Symbol(Default::default()),
         returned: None,
         transported_loans: &transported_loans,
     };
@@ -1196,7 +1202,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             !matches!(
                 operation,
                 OperationPlan::ContinuationCleanup {
-                    boundary: checked_trees::CheckedUnitCleanupBoundary::Call(_),
+                    boundary: CheckedUnitCleanupBoundary::Call(_),
                     ..
                 }
             )
@@ -1297,7 +1303,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
 pub(in crate::execution::terminal_unit) fn retain_selected_sources(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    state: &typed_trees::state::State,
+    state: &State,
     statement: u32,
     operations: &mut [OperationPlan],
 ) -> Option<()> {
@@ -1412,9 +1418,9 @@ pub(in crate::execution::terminal_unit) fn consume_retained_results(
 
 pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
     facts: &CheckFacts,
-    results: &mut Vec<(BindingPlan, facts::PlaceRoot)>,
+    results: &mut Vec<(BindingPlan, PlaceRoot)>,
     operations: &mut [OperationPlan],
-    calls: &[checked_trees::CheckedStructuralValueCall],
+    calls: &[CheckedStructuralValueCall],
 ) -> Option<()> {
     for call in calls {
         // Every retained producer has an exact source occurrence, including
@@ -1431,8 +1437,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
                 continue;
             };
             let expression = if let Some(producer) = operand.call() {
-                let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
-                    producer.source_site()
+                let Some(NominalMachineUseSite::Expression(expression)) = producer.source_site()
                 else {
                     return None;
                 };
@@ -1440,9 +1445,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
             } else {
                 match operand {
                     OperationPlan::EstablishLocal(
-                        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
-                            value, ..
-                        },
+                        CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
                     ) => facts.values.structural_values.nodes.get(*value).expression,
                     OperationPlan::EstablishReference {
                         formation_expression,
@@ -1455,7 +1458,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
                     _ => return None,
                 }
             };
-            let root = facts::PlaceRoot::Expression(expression);
+            let root = PlaceRoot::Expression(expression);
             if let Some((existing, existing_root)) = results
                 .iter()
                 .find(|(existing, _)| existing.binding_ordinal == result.binding_ordinal)
@@ -1473,9 +1476,10 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
             .chain(call.operation())
             .flat_map(OperationPlan::with_value_calls)
         {
-            if let OperationPlan::EstablishLocal(
-                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
-            ) = operation
+            if let OperationPlan::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue {
+                value,
+                ..
+            }) = operation
             {
                 consume_value_places(facts, *value, results, operations)?;
             }
@@ -1553,7 +1557,7 @@ pub(in crate::execution::terminal_unit) fn consume_result(
     let reference_carrier = matches!(producer, OperationPlan::EstablishReference { .. })
         || producer
             .call()
-            .and_then(checked_trees::CheckedUnitCallPlan::structural_custody)
+            .and_then(CheckedUnitCallPlan::structural_custody)
             .is_some_and(|custody| !custody.reference_loans.is_empty());
     if reference_carrier {
         // Formation and call results own the same permission carrier. Lending
@@ -1630,22 +1634,19 @@ pub(in crate::execution::terminal_unit) fn prepare_value_operands(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleeClosure,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &Machine,
+    state: &State,
     structural_parameters: &[ParameterPlan],
     trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     entry_claims: &[CheckedUnitEntryClaimPlan],
     statement_ordinal: u32,
-    results: &mut Vec<(BindingPlan, facts::PlaceRoot)>,
+    results: &mut Vec<(BindingPlan, PlaceRoot)>,
     operations: &mut Vec<OperationPlan>,
     structural_count: &mut usize,
-    root: checked_trees::CheckedStructuralValueHandle,
+    root: CheckedStructuralValueHandle,
     trace: &LocalConstructionTrace,
     windows: &mut OpenWindows,
-) -> Option<(
-    Vec<checked_trees::CheckedStructuralValueCall>,
-    checked_trees::CheckedValueCompletion,
-)> {
+) -> Option<(Vec<CheckedStructuralValueCall>, CheckedValueCompletion)> {
     let (calls, completion) = value_calls(
         program,
         facts,
@@ -1663,7 +1664,7 @@ pub(in crate::execution::terminal_unit) fn prepare_value_operands(
         trace,
         windows,
     )?;
-    if completion == checked_trees::CheckedValueCompletion::NoNormal {
+    if completion == CheckedValueCompletion::NoNormal {
         // Only invocations actually reached consume their arguments. The
         // enclosing construction never completes and transfers no whole root.
         consume_value_call_sources(facts, results, operations, &calls)?;
@@ -1685,8 +1686,8 @@ pub(in crate::execution::terminal_unit) fn prepare_value_operands(
 
 pub(in crate::execution::terminal_unit) fn consume_value_places(
     facts: &CheckFacts,
-    root: checked_trees::CheckedStructuralValueHandle,
-    results: &[(BindingPlan, facts::PlaceRoot)],
+    root: CheckedStructuralValueHandle,
+    results: &[(BindingPlan, PlaceRoot)],
     operations: &mut [OperationPlan],
 ) -> Option<()> {
     let plans = &facts.values.structural_values;
@@ -1698,18 +1699,18 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
         }
         visited.push(value);
         match &plans.nodes.get(value).kind {
-            checked_trees::CheckedStructuralValueKind::NativeCodeLayout { .. } => {}
-            checked_trees::CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
+            CheckedStructuralValueKind::NativeCodeLayout { .. } => {}
+            CheckedStructuralValueKind::QuotientCall { arguments, .. } => {
                 pending.extend(arguments.iter().rev().map(|value| (*value, false)));
             }
-            checked_trees::CheckedStructuralValueKind::Place(argument) => {
+            CheckedStructuralValueKind::Place(argument) => {
                 if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol,
                 } = argument.source
                 {
                     let mut matching = results
                         .iter()
-                        .filter(|(_, source)| *source == facts::PlaceRoot::Symbol(symbol));
+                        .filter(|(_, source)| *source == PlaceRoot::Symbol(symbol));
                     let (result, _) = matching.next()?;
                     if matching.next().is_some() || result.type_identity != argument.type_identity {
                         return None;
@@ -1722,17 +1723,15 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
                     )?;
                 }
             }
-            checked_trees::CheckedStructuralValueKind::Record { fields, .. }
-            | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
+            CheckedStructuralValueKind::Record { fields, .. }
+            | CheckedStructuralValueKind::StructuralCase { fields, .. } => {
                 for field in plans.record_fields.span(*fields)? {
-                    if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) =
-                        field.value
-                    {
+                    if let CheckedStructuralRecordFieldValue::Structural(value) = field.value {
                         pending.push((value, false));
                     }
                 }
             }
-            checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
+            CheckedStructuralValueKind::Dispatch { arms, .. } => {
                 pending.extend(
                     plans
                         .dispatch_arms
@@ -1741,7 +1740,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
                         .map(|arm| (arm.value, projected)),
                 );
             }
-            checked_trees::CheckedStructuralValueKind::Projection {
+            CheckedStructuralValueKind::Projection {
                 source,
                 path,
                 copies_selected_value,
@@ -1756,30 +1755,30 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
                     projected || !path.is_empty() || *copies_selected_value,
                 ));
             }
-            checked_trees::CheckedStructuralValueKind::ViewSubslice { source, .. } => {
+            CheckedStructuralValueKind::ViewSubslice { source, .. } => {
                 pending.push((*source, true));
             }
-            checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
+            CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
                 pending.push((*source, projected));
             }
-            checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
+            CheckedStructuralValueKind::FixedArray { elements } => {
                 pending.extend(elements.iter().map(|value| (*value, false)));
             }
-            checked_trees::CheckedStructuralValueKind::Reference { source_value, .. } => {
+            CheckedStructuralValueKind::Reference { source_value, .. } => {
                 if source_value.is_valid() {
                     pending.push((*source_value, false));
                 }
             }
-            checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
-            | checked_trees::CheckedStructuralValueKind::MutableSliceView { .. }
-            | checked_trees::CheckedStructuralValueKind::Call { .. }
-            | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
-            | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
-            | checked_trees::CheckedStructuralValueKind::ScalarArray { .. }
-            | checked_trees::CheckedStructuralValueKind::Scalar { .. }
-            | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
-            | checked_trees::CheckedStructuralValueKind::ByteLiteralView { .. }
-            | checked_trees::CheckedStructuralValueKind::Case(_) => {}
+            CheckedStructuralValueKind::BorrowedSliceView { .. }
+            | CheckedStructuralValueKind::MutableSliceView { .. }
+            | CheckedStructuralValueKind::Call { .. }
+            | CheckedStructuralValueKind::CopiedStructuralPlace { .. }
+            | CheckedStructuralValueKind::ZeroedScalarArray { .. }
+            | CheckedStructuralValueKind::ScalarArray { .. }
+            | CheckedStructuralValueKind::Scalar { .. }
+            | CheckedStructuralValueKind::ZeroedStructural { .. }
+            | CheckedStructuralValueKind::ByteLiteralView { .. }
+            | CheckedStructuralValueKind::Case(_) => {}
         }
     }
     Some(())

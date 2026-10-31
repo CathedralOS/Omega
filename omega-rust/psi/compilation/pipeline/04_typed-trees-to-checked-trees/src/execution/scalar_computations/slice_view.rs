@@ -20,8 +20,25 @@ use crate::execution::terminal_unit::calls::projected_argument_path;
 use crate::execution::terminal_unit::calls::projected_observed_path;
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::types::element_view_shell;
-use checked_trees::{CheckedStructuralAccess, CheckedStructuralValueKind};
-use typed_trees::types::TypeReferenceHandle;
+use checked_trees::{
+    CheckedByteSequenceCarrier, CheckedElementViewRegion, CheckedReferenceStorage,
+    CheckedScalarExpressionRole, CheckedStructuralAccess, CheckedStructuralValueHandle,
+    CheckedStructuralValueKind, CheckedSubsliceSite, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan,
+};
+use facts::PlaceSegment;
+use typed_trees::signature::state_parameter_position;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use validation::call_target_symbol;
+use validation::canonical_place_from_expression;
+use validation::canonical_place_type_reference;
+use validation::expression_result_type_reference;
+use validation::indexed_operation_has_builtin_meaning;
+use validation::slice_recast_byte_region;
+use validation::slice_recast_source;
+use validation::slice_view_shell;
+use validation::stored_structural_type_identity;
+use validation::subslice_expression;
 
 mod formation;
 
@@ -42,7 +59,7 @@ impl Builder<'_, '_> {
     ) -> Option<CheckedStructuralValueKind> {
         // Range formation has one owner, including literal endpoints. Do not
         // reinterpret a declined range as a whole-collection loan here.
-        if validation::subslice_expression(self.program, expression).is_some() {
+        if subslice_expression(self.program, expression).is_some() {
             return None;
         }
         // Loan provenance describes the result's backing, not how the value
@@ -52,10 +69,7 @@ impl Builder<'_, '_> {
         // have no runtime occurrence to preserve here.
         if let Some(call) = self.program.expression_table.call_node(expression)
             && self
-                .call_ordinal(
-                    expression,
-                    validation::call_target_symbol(self.program, call),
-                )
+                .call_ordinal(expression, call_target_symbol(self.program, call))
                 .is_some()
         {
             return None;
@@ -63,17 +77,17 @@ impl Builder<'_, '_> {
         let view = element_view_shell(self.program, expected, &[]).or_else(|| {
             matches!(
                 byte_sequence_carrier(self.program, expected, &[],),
-                Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+                Some(CheckedByteSequenceCarrier::BorrowedView { .. })
             )
-            .then(|| validation::slice_view_shell(self.program, expected, &[]))
+            .then(|| slice_view_shell(self.program, expected, &[]))
             .flatten()
         })?;
         let state = self.program.state_by_symbol(self.state)?;
         let (mut place, access) = self.view_formation(expression, expected, view.access)?;
 
         let machine = self.program.machine_by_symbol(self.machine)?;
-        let authored_recast = validation::slice_recast_source(self.program, expression);
-        let recast = validation::slice_recast_byte_region(self.program, machine, state, expression);
+        let authored_recast = slice_recast_source(self.program, expression);
+        let recast = slice_recast_byte_region(self.program, machine, state, expression);
         if let Some(authored) = authored_recast {
             if authored.access != view.access
                 || self.program.normalized_type_identity(authored.element)
@@ -82,8 +96,7 @@ impl Builder<'_, '_> {
                 return None;
             }
             if recast.is_none() {
-                let collection =
-                    validation::canonical_place_from_expression(self.program, authored.source)?;
+                let collection = canonical_place_from_expression(self.program, authored.source)?;
 
                 if collection != place {
                     return None;
@@ -97,20 +110,17 @@ impl Builder<'_, '_> {
             {
                 return None;
             }
-            let collection =
-                validation::canonical_place_from_expression(self.program, region.collection)?;
+            let collection = canonical_place_from_expression(self.program, region.collection)?;
 
             // Literal suffixes have an exact range loan. A runtime suffix
             // borrows the whole byte backing conservatively; its captured
             // endpoints, rather than an element-sized loan, narrow the view.
             let mut authored_loan = collection.clone();
             if let Some(offset) = self.program.expression_table.integer_node(region.start) {
-                authored_loan
-                    .segments
-                    .push(facts::PlaceSegment::FixedRange {
-                        start: usize::try_from(offset.value_i64()?).ok()?,
-                        end: usize::try_from(region.extent).ok()?,
-                    });
+                authored_loan.segments.push(PlaceSegment::FixedRange {
+                    start: usize::try_from(offset.value_i64()?).ok()?,
+                    end: usize::try_from(region.extent).ok()?,
+                });
             }
             if authored_loan != place {
                 return None;
@@ -122,13 +132,9 @@ impl Builder<'_, '_> {
         // its backing before asking whether storage already holds a view.
         // Otherwise a literal suffix declines while an equivalent runtime
         // suffix, whose conservative loan names the whole backing, succeeds.
-        let declared = validation::canonical_place_type_reference(
-            self.program,
-            self.state,
-            self.statement_index,
-            &place,
-        )?;
-        if validation::slice_view_shell(self.program, declared, &[]).is_some() {
+        let declared =
+            canonical_place_type_reference(self.program, self.state, self.statement_index, &place)?;
+        if slice_view_shell(self.program, declared, &[]).is_some() {
             // Transport the current descriptor through the ordinary reference
             // join. Collection establishment would replace its captured extent
             // with backing geometry. Stored-leaf selection also retains every
@@ -139,9 +145,9 @@ impl Builder<'_, '_> {
             return Some(CheckedStructuralValueKind::Reference {
                 source,
                 selectors,
-                storage: checked_trees::CheckedReferenceStorage::Declared,
+                storage: CheckedReferenceStorage::Declared,
                 backing_type: declared,
-                source_value: checked_trees::CheckedStructuralValueHandle::invalid(),
+                source_value: CheckedStructuralValueHandle::invalid(),
             });
         }
         if !canonical_place_is_borrowable(&place) {
@@ -156,20 +162,13 @@ impl Builder<'_, '_> {
         // this emission cannot see — so `dense_structural_parameter_index` may
         // decline and the root then keys itself by symbol, which every roster
         // family matches directly.
-        let parameter_index =
-            typed_trees::signature::state_parameter_position(self.authored_parameters, symbol)
-                .and_then(|authored_position| {
-                    self.dense_structural_parameter_index(authored_position)
-                });
+        let parameter_index = state_parameter_position(self.authored_parameters, symbol)
+            .and_then(|authored_position| self.dense_structural_parameter_index(authored_position));
         let source = match parameter_index {
             Some(parameter_index) => {
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index,
-                }
+                CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }
             }
-            None => {
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
-            }
+            None => CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
         };
         let (projected, path) = projected_argument_path(
             self.program,
@@ -183,23 +182,21 @@ impl Builder<'_, '_> {
         // instead lends its referee's storage, including a borrowed array
         // parameter or an array behind a stored reference. Reuse the common
         // storage projection so only stored shells gain explicit crossings.
-        let (projected, path) =
-            if validation::slice_view_shell(self.program, projected, &[]).is_some() {
-                (projected, path)
-            } else {
-                projected_observed_path(
-                    self.program,
-                    self.machine,
-                    self.state,
-                    self.statement_index,
-                    &place,
-                    &|_| None,
-                )?
-            };
+        let (projected, path) = if slice_view_shell(self.program, projected, &[]).is_some() {
+            (projected, path)
+        } else {
+            projected_observed_path(
+                self.program,
+                self.machine,
+                self.state,
+                self.statement_index,
+                &place,
+                &|_| None,
+            )?
+        };
         // A view borrows the registered storage carrier. Predicate-only
         // qualifications remain in the loan evidence, not a second array type.
-        let type_identity =
-            validation::stored_structural_type_identity(self.program, projected, &[], &[]);
+        let type_identity = stored_structural_type_identity(self.program, projected, &[], &[]);
         let lent = lent_collection_element(self.program, projected)?;
         // Ordinary collection openers retain their exact element identity.
         // An authored recast retains both declared identities: source
@@ -221,22 +218,22 @@ impl Builder<'_, '_> {
                             self.program.expression_table.expression(region.start),
                             ExpressionNode::Integer(_)
                         )
-                        .then_some(typed_trees::types::PrimitiveType::U64)
+                        .then_some(PrimitiveType::U64)
                     })?;
             let start = self.expression(region.start, primitive)?;
             self.plans.nodes.get_mut(start).authored_root = region.start;
             self.push_scalar_root(
-                checked_trees::CheckedScalarExpressionRole::RepresentationViewOffset { expression },
+                CheckedScalarExpressionRole::RepresentationViewOffset { expression },
                 start,
             )?;
-            checked_trees::CheckedElementViewRegion::RepresentationBytes {
+            CheckedElementViewRegion::RepresentationBytes {
                 start,
                 end: region.extent,
             }
         } else {
-            checked_trees::CheckedElementViewRegion::WholeCollection
+            CheckedElementViewRegion::WholeCollection
         };
-        let source = checked_trees::CheckedUnitStructuralArgumentPlan {
+        let source = CheckedUnitStructuralArgumentPlan {
             projection_evaluations: Default::default(),
             source,
             path,
@@ -273,17 +270,13 @@ impl Builder<'_, '_> {
         {
             return self.subslice_view_place(expression, expected);
         }
-        let target = validation::slice_view_shell(self.program, expected, &[])?;
+        let target = slice_view_shell(self.program, expected, &[])?;
         // Anonymous constructors receive their contextual carrier; their own
         // value producer still proves formation and qualifications independently.
-        let source_type = validation::expression_result_type_reference(
-            self.program,
-            machine,
-            state,
-            indexed.collection,
-        )
-        .unwrap_or(expected);
-        if !validation::indexed_operation_has_builtin_meaning(
+        let source_type =
+            expression_result_type_reference(self.program, machine, state, indexed.collection)
+                .unwrap_or(expected);
+        if !indexed_operation_has_builtin_meaning(
             self.program,
             machine,
             Some(state),
@@ -292,7 +285,7 @@ impl Builder<'_, '_> {
         ) {
             return None;
         }
-        let source_view = validation::slice_view_shell(self.program, source_type, &[])?;
+        let source_view = slice_view_shell(self.program, source_type, &[])?;
         if source_view.access == language_core::ReferenceAccess::WriteOnly
             || target.access == language_core::ReferenceAccess::WriteOnly
             || (target.access == language_core::ReferenceAccess::Mutable
@@ -308,9 +301,9 @@ impl Builder<'_, '_> {
             .statement_at(state, self.statement_index)
         {
             Some(StatementNode::LocalData(local)) if local.initial_value == expression => {
-                checked_trees::CheckedSubsliceSite::LocalBinding
+                CheckedSubsliceSite::LocalBinding
             }
-            _ => checked_trees::CheckedSubsliceSite::Expression { expression },
+            _ => CheckedSubsliceSite::Expression { expression },
         };
         let (start, end, end_inclusive) = view_subslice::retained_endpoints(
             self.program,
@@ -344,7 +337,7 @@ impl Builder<'_, '_> {
         // Only a range operand lends a subslice, and `admit_resolved` repeats
         // this test. Testing it first keeps every other structural operand from
         // rebuilding the state's whole structural signature only to be declined.
-        validation::subslice_expression(self.program, expression)?;
+        subslice_expression(self.program, expression)?;
         let machine = self.program.machine_by_symbol(self.machine)?;
         let state = self.program.state_by_symbol(self.state)?;
         let parameters = if machine.attached_data.is_some() {
@@ -364,9 +357,9 @@ impl Builder<'_, '_> {
             .statement_at(state, self.statement_index)
         {
             Some(StatementNode::LocalData(local)) if local.initial_value == expression => {
-                checked_trees::CheckedSubsliceSite::LocalBinding
+                CheckedSubsliceSite::LocalBinding
             }
-            _ => checked_trees::CheckedSubsliceSite::Expression { expression },
+            _ => CheckedSubsliceSite::Expression { expression },
         };
         let source = calls::view_subslice::admit_resolved(
             self.program,
@@ -387,13 +380,13 @@ impl Builder<'_, '_> {
             CheckedStructuralAccess::SharedBorrow => {
                 CheckedStructuralValueKind::BorrowedSliceView {
                     source,
-                    region: checked_trees::CheckedElementViewRegion::WholeCollection,
+                    region: CheckedElementViewRegion::WholeCollection,
                 }
             }
             CheckedStructuralAccess::MutableBorrow => {
                 CheckedStructuralValueKind::MutableSliceView {
                     source,
-                    region: checked_trees::CheckedElementViewRegion::WholeCollection,
+                    region: CheckedElementViewRegion::WholeCollection,
                 }
             }
             _ => return None,

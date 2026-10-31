@@ -21,6 +21,12 @@ use crate::execution::terminal_unit::{
     MachineSupplyMode, Multiplicity, StateParameter, SymbolHandle, TypeReferenceHandle,
 };
 use CheckedStructuralAccess::{MutableBorrow, Owned, SharedBorrow, WriteOnlyBorrow};
+use checked_trees::CheckedByteSequenceCarrier;
+use facts::PlaceSegment;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::signature::state_parameter_position;
+use typed_trees::type_identity::TypeIdentityId;
+use validation::CanonicalPlace;
 
 type ArgumentPath = Vec<CheckedUnitStructuralPathSegment>;
 
@@ -42,8 +48,7 @@ impl<'parameters> SourceParameter<'parameters> {
         let declaration = declarations
             .iter()
             .find(|parameter| parameter_is_root(parameter, root))?;
-        let position =
-            typed_trees::signature::state_parameter_position(declarations, declaration.symbol)?;
+        let position = state_parameter_position(declarations, declaration.symbol)?;
         let position = u32::try_from(position).unwrap_or(u32::MAX);
         let (index, plan) = plans
             .iter()
@@ -117,7 +122,7 @@ enum ArgumentPathShape {
 }
 
 impl ArgumentPathShape {
-    fn of(segments: &[facts::PlaceSegment]) -> Self {
+    fn of(segments: &[PlaceSegment]) -> Self {
         use facts::PlaceSegment::{Case, Field, FixedIndex, FixedRange, Index, OpaqueRange};
         match segments.last() {
             None => return Self::Whole,
@@ -159,14 +164,11 @@ pub(crate) struct ParameterArgument<'argument> {
     pub(crate) machine: SymbolHandle,
     pub(crate) state: SymbolHandle,
     pub(crate) statement_index: usize,
-    pub(crate) place: &'argument validation::CanonicalPlace,
+    pub(crate) place: &'argument CanonicalPlace,
     pub(crate) target: TypeReferenceHandle,
-    pub(crate) target_identity: typed_trees::type_identity::TypeIdentityId,
-    pub(crate) selectors: Option<
-        &'argument dyn Fn(
-            typed_trees::expression::ExpressionHandle,
-        ) -> Option<CheckedUnitStructuralPathSegment>,
-    >,
+    pub(crate) target_identity: TypeIdentityId,
+    pub(crate) selectors:
+        Option<&'argument dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>>,
 }
 
 /// The path an ordinary call lends from a caller parameter.
@@ -332,10 +334,7 @@ impl ParameterArgument<'_> {
     fn target_is_byte_view(self) -> bool {
         byte_sequence_carrier(self.program, self.target, &[]).is_some_and(|carrier| {
             carrier.is_borrowed()
-                || matches!(
-                    carrier,
-                    checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-                )
+                || matches!(carrier, CheckedByteSequenceCarrier::BoundedOwned { .. })
         })
     }
 

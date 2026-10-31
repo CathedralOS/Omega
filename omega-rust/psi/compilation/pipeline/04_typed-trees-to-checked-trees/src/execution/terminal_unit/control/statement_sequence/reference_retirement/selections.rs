@@ -9,6 +9,9 @@ use super::{BorrowLoanFact, CheckedUnitEffectOperationPlan as OperationPlan, Ret
 use crate::borrow::owner_place_segments;
 use arena::{Handle, HandleSpan};
 use checked_trees::CheckedUnitSelectedReferenceRetirementPlan;
+use validation::reference_result_custody::local_record_loans;
+use validation::reference_result_custody::path_has_nominal_receiver;
+use validation::reference_result_custody::storage_owner_type_reference;
 
 /// Transport records include copies, so ancestry alone cannot dispose a
 /// supplier. Only the exact current candidate occurrence owned by this join
@@ -39,7 +42,7 @@ pub(super) fn disposes_candidate(
     {
         return false;
     }
-    let Some(reference) = validation::reference_result_custody::storage_owner_type_reference(
+    let Some(reference) = storage_owner_type_reference(
         retirement.program,
         retirement.state,
         loan.owner_symbol,
@@ -129,7 +132,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_c
         // A source moved whole on every terminal edge has no skipped carrier
         // cohort. Its selected destination retires normally; asking lowering
         // to release a nonexistent complement would invent another owner.
-        let Some(groups) = validation::reference_result_custody::local_record_loans(
+        let Some(groups) = local_record_loans(
             retirement.program,
             retirement.facts,
             retirement.machine,
@@ -152,18 +155,14 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_c
                     .span_or_empty(receipt.sources)
                     .iter()
                     .any(|supplier| {
-                        validation::reference_result_custody::storage_owner_type_reference(
+                        storage_owner_type_reference(
                             retirement.program,
                             retirement.state,
                             supplier.symbol,
                             receipt.statement_ordinal,
                         )
                         .is_none_or(|reference| {
-                            validation::reference_result_custody::path_has_nominal_receiver(
-                                retirement.program,
-                                reference,
-                                &path,
-                            )
+                            path_has_nominal_receiver(retirement.program, reference, &path)
                         })
                     })
             });

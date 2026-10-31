@@ -24,6 +24,29 @@ use crate::flow::expressions;
 use crate::flow::state_statements;
 use crate::places::place_at;
 use crate::semantic::calls::shared_argument_referent;
+use checked_trees::CheckedUnitEffectOperationPlan;
+use checked_trees::CheckedUnitStructuralPathSegment;
+use checked_trees::FlowCallFact;
+use checked_trees::checked_borrowed_access_pair_pattern;
+use facts::PlaceRoot;
+use facts::PlaceSegment;
+use language_semantics::ReferenceAccess;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::state::State;
+use typed_trees::type_identity::TypeIdentityId;
+use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::TypeReferenceNode;
+use validation::CanonicalPlace;
+use validation::assignment_value_type;
+use validation::canonical_place_type_reference;
+use validation::declared_place_type_raw;
+use validation::find_state;
+use validation::has_builtin_subslice_meaning;
+use validation::reference_result_custody::result_multiplicity;
+use validation::stored_structural_type_identity;
+use validation::structural_result_contract;
+use validation::structural_result_qualifications;
+use validation::structural_type_identity;
 
 use crate::execution::terminal_unit::StateParameter;
 use crate::execution::terminal_unit::StatementNode;
@@ -49,19 +72,15 @@ pub(super) fn argument(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    call: &checked_trees::FlowCallFact,
-    expression: typed_trees::expression::ExpressionHandle,
-    place: &validation::CanonicalPlace,
+    call: &FlowCallFact,
+    expression: ExpressionHandle,
+    place: &CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
-    target_identity: typed_trees::type_identity::TypeIdentityId,
-    operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+    target_identity: TypeIdentityId,
+    operations: &[CheckedUnitEffectOperationPlan],
     trace: &LocalConstructionTrace,
-    selectors: Option<
-        &dyn Fn(
-            typed_trees::expression::ExpressionHandle,
-        ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
-    >,
+    selectors: Option<&dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>>,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let mut argument = argument_contract(
         program,
@@ -104,26 +123,22 @@ fn argument_contract(
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
-    call: &checked_trees::FlowCallFact,
-    expression: typed_trees::expression::ExpressionHandle,
-    place: &validation::CanonicalPlace,
+    call: &FlowCallFact,
+    expression: ExpressionHandle,
+    place: &CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
     parameter: &StateParameter,
-    target_identity: typed_trees::type_identity::TypeIdentityId,
-    operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+    target_identity: TypeIdentityId,
+    operations: &[CheckedUnitEffectOperationPlan],
     trace: &LocalConstructionTrace,
-    selectors: Option<
-        &dyn Fn(
-            typed_trees::expression::ExpressionHandle,
-        ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
-    >,
+    selectors: Option<&dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>>,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let phase = |name| {
         trace.phase(name);
         trace.statement(u32::try_from(call.statement_index).ok());
     };
     phase("call result argument: producer contract");
-    let (source_machine, source_state) = validation::find_state(program, state)?;
+    let (source_machine, source_state) = find_state(program, state)?;
     // Contextual roots retain constructor formation types, but a call's root
     // may describe its receiving annotation instead of its declared result.
     // Select the completed producer by the emitted identity and multiplicity;
@@ -134,12 +149,7 @@ fn argument_contract(
             .structural_values
             .root_for_expression(state, result.statement_index, source)
             .map(|root| root.type_reference);
-        let declared = validation::declared_place_type_raw(
-            program,
-            source_machine,
-            Some(source_state),
-            source,
-        );
+        let declared = declared_place_type_raw(program, source_machine, Some(source_state), source);
         [contextual, declared]
             .into_iter()
             .flatten()
@@ -147,22 +157,12 @@ fn argument_contract(
             // are distinct. Match the actual producer before retaining the
             // receiving contract; extraction publishes the referent while a
             // descriptor-producing operation keeps the reference shell.
-            .flat_map(|source_type| {
-                [
-                    source_type,
-                    validation::assignment_value_type(program, source_type),
-                ]
-            })
+            .flat_map(|source_type| [source_type, assignment_value_type(program, source_type)])
             .find(|source_type| {
-                validation::reference_result_custody::result_multiplicity(program, *source_type)
-                    == result.multiplicity
-                    && (validation::stored_structural_type_identity(
-                        program,
-                        *source_type,
-                        &[],
-                        &[],
-                    ) == result.type_identity
-                        || validation::structural_type_identity(program, *source_type, &[], &[])
+                result_multiplicity(program, *source_type) == result.multiplicity
+                    && (stored_structural_type_identity(program, *source_type, &[], &[])
+                        == result.type_identity
+                        || structural_type_identity(program, *source_type, &[], &[])
                             == result.type_identity)
             })
     });
@@ -185,7 +185,7 @@ fn argument_contract(
         // which may be a `&mut` local binding that does not own this operand
         // place. Only an operand rooted at that local belongs to this lane;
         // other roots continue to the general argument checks below.
-        && place.root == facts::PlaceRoot::Symbol(local.symbol)
+        && place.root == PlaceRoot::Symbol(local.symbol)
     {
         phase("result argument: named stored descriptor");
         return reference::argument(
@@ -194,7 +194,7 @@ fn argument_contract(
             source_state,
             call.statement_index,
             place,
-            facts::PlaceRoot::Symbol(local.symbol),
+            PlaceRoot::Symbol(local.symbol),
             local.type_reference,
             result,
             parameter,
@@ -219,12 +219,7 @@ fn argument_contract(
             .root_for_expression(state, result.statement_index, owner)
             .map(|root| root.type_reference)
             .or_else(|| {
-                validation::declared_place_type_raw(
-                    program,
-                    source_machine,
-                    Some(source_state),
-                    owner,
-                )
+                declared_place_type_raw(program, source_machine, Some(source_state), owner)
             })?;
         if reference::is_carrier(program, reference)
             && result.type_identity == program.normalized_type_identity(reference)
@@ -249,7 +244,7 @@ fn argument_contract(
                 source_state,
                 call.statement_index,
                 place,
-                facts::PlaceRoot::Expression(owner),
+                PlaceRoot::Expression(owner),
                 reference,
                 result,
                 parameter,
@@ -293,50 +288,51 @@ fn argument_contract(
     // An authored `&x[a..b]` names the builtin range on the borrow target;
     // a window lent implicitly to a view formal names it on the argument
     // itself, whose fixed projection the caller already admitted.
-    let byte_window = projected_borrow
-        .then(|| {
-            match program.expression_table.borrow_expression(expression) {
-                Some(borrow) => {
-                    if !validation::has_builtin_subslice_meaning(
-                        program,
-                        source_machine,
-                        Some(source_state),
-                        borrow.target,
-                    ) {
-                        return None;
+    let byte_window =
+        projected_borrow
+            .then(|| {
+                match program.expression_table.borrow_expression(expression) {
+                    Some(borrow) => {
+                        if !has_builtin_subslice_meaning(
+                            program,
+                            source_machine,
+                            Some(source_state),
+                            borrow.target,
+                        ) {
+                            return None;
+                        }
+                    }
+                    None => {
+                        if !place.segments.last().is_some_and(|segment| {
+                            matches!(segment, PlaceSegment::FixedRange { .. })
+                        }) || !has_builtin_subslice_meaning(
+                            program,
+                            source_machine,
+                            Some(source_state),
+                            expression,
+                        ) {
+                            return None;
+                        }
                     }
                 }
-                None => {
-                    if !place.segments.last().is_some_and(|segment| {
-                        matches!(segment, facts::PlaceSegment::FixedRange { .. })
-                    }) || !validation::has_builtin_subslice_meaning(
-                        program,
-                        source_machine,
-                        Some(source_state),
-                        expression,
-                    ) {
-                        return None;
-                    }
-                }
-            }
-            super::argument_paths::fixed_byte_array_range_path(
-                program,
-                state,
-                call.statement_index,
-                place,
-                parameter.type_reference,
-            )
-            .or_else(|| {
-                super::argument_paths::open_byte_range_path(
+                super::argument_paths::fixed_byte_array_range_path(
                     program,
                     state,
                     call.statement_index,
                     place,
                     parameter.type_reference,
                 )
+                .or_else(|| {
+                    super::argument_paths::open_byte_range_path(
+                        program,
+                        state,
+                        call.statement_index,
+                        place,
+                        parameter.type_reference,
+                    )
+                })
             })
-        })
-        .flatten();
+            .flatten();
     // Root custody and selected storage are different coordinates. A result
     // owns the declared local even when an argument lends an array field or
     // one of its windows; presentation checks the selected storage instead.
@@ -405,48 +401,49 @@ fn argument_contract(
     // into the call; the same resolved path both proves that custody and
     // names the argument's projected edge below. A projected borrow resolves
     // the same path to name the loaned subtree.
-    let projected_path =
-        if projected {
-            if projected_borrow {
-                // An element or field borrow resolves runtime selectors the way
-                // the parameter lanes do: the segment carries the checked
-                // `RuntimeIndex` coordinate Terminal re-proves against the
-                // container's extent.
-                let (_, path) = borrowed_storage?;
-                let presentation = presentation?;
-                // Raw array views retain initialized field-only backing. Indexing
-                // a collection of arrays does not acquire this presentation.
-                if presentation == ArgumentPresentation::FixedArraySlice
+    let projected_path = if projected {
+        if projected_borrow {
+            // An element or field borrow resolves runtime selectors the way
+            // the parameter lanes do: the segment carries the checked
+            // `RuntimeIndex` coordinate Terminal re-proves against the
+            // container's extent.
+            let (_, path) = borrowed_storage?;
+            let presentation = presentation?;
+            // Raw array views retain initialized field-only backing. Indexing
+            // a collection of arrays does not acquire this presentation.
+            if presentation == ArgumentPresentation::FixedArraySlice
                 && !path.iter().all(|segment| {
-                    matches!(segment,
-                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
-                        | checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { .. })
+                    matches!(
+                        segment,
+                        CheckedUnitStructuralPathSegment::Field(_)
+                            | CheckedUnitStructuralPathSegment::FixedByteRange { .. }
+                    )
                 })
             {
                 return None;
             }
-                Some(path)
-            } else {
-                phase("call result argument: owned projected storage");
-                // Owned projection keeps its checked selector evaluation just
-                // like a loan. Custody is joined independently below; a
-                // static-only path reader cannot present a completed index.
-                projected_evaluated_path(
-                    program,
-                    machine,
-                    state,
-                    call.statement_index,
-                    place,
-                    selectors,
-                )
-                .and_then(|(selected, path)| {
-                    (base_type_identity(program, selected, &[], &[])? == target_identity)
-                        .then_some(path)
-                })
-            }
+            Some(path)
         } else {
-            None
-        };
+            phase("call result argument: owned projected storage");
+            // Owned projection keeps its checked selector evaluation just
+            // like a loan. Custody is joined independently below; a
+            // static-only path reader cannot present a completed index.
+            projected_evaluated_path(
+                program,
+                machine,
+                state,
+                call.statement_index,
+                place,
+                selectors,
+            )
+            .and_then(|(selected, path)| {
+                (base_type_identity(program, selected, &[], &[])? == target_identity)
+                    .then_some(path)
+            })
+        }
+    } else {
+        None
+    };
     // A whole view argument reads its established carrier. Check the current
     // call's exact access, not the presence of a loan owned by this local:
     // image-backed results have no caller-owned backing to loan. The producer
@@ -457,10 +454,8 @@ fn argument_contract(
     // A mutable slice view forwards its descriptor the same way: the exact
     // access replay below requires the call to hold that exclusive loan.
     if !projected
-        && ((matches!(
-            access,
-            checked_trees::checked_borrowed_access_pair_pattern!()
-        ) && slice_view_carrier(program, parameter.type_reference)
+        && ((matches!(access, checked_borrowed_access_pair_pattern!())
+            && slice_view_carrier(program, parameter.type_reference)
             && result_presents_formal)
             || (access == CheckedStructuralAccess::SharedBorrow
                 && borrowed_named_view(program, parameter.type_reference)
@@ -528,10 +523,8 @@ fn argument_contract(
     // exclusive range operand. It does not borrow the anonymous descriptor's
     // home or recover authority from the consumer's requested referent type.
     if !projected
-        && ((matches!(
-            access,
-            checked_trees::checked_borrowed_access_pair_pattern!()
-        ) && slice_view_carrier(program, parameter.type_reference))
+        && ((matches!(access, checked_borrowed_access_pair_pattern!())
+            && slice_view_carrier(program, parameter.type_reference))
             || (access == CheckedStructuralAccess::SharedBorrow
                 && borrowed_named_view(program, parameter.type_reference)))
         && result_presents_formal
@@ -571,7 +564,7 @@ fn argument_contract(
                 shared_argument_referent(program, expression, parameter.type_reference)?;
             let referee = if array_view { storage_type? } else { referee };
             match place.root {
-                facts::PlaceRoot::Symbol(_) => {
+                PlaceRoot::Symbol(_) => {
                     trace.phase("call operation: result argument: retained local loan");
                     if exact_structural_argument_access(
                         program, facts, machine, state, call, place, access,
@@ -580,7 +573,7 @@ fn argument_contract(
                         return None;
                     }
                 }
-                facts::PlaceRoot::Expression(source) => {
+                PlaceRoot::Expression(source) => {
                     // A loan selects a place within the complete producer.
                     // Rejoin that root/path, not expression equality: the
                     // selected field is not a separate temporary owner.
@@ -602,12 +595,12 @@ fn argument_contract(
                         // the custody coordinate the roster authenticates.
                         (
                             producer,
-                            validation::canonical_place_type_reference(
+                            canonical_place_type_reference(
                                 program,
                                 state,
                                 call.statement_index,
-                                &validation::CanonicalPlace {
-                                    root: facts::PlaceRoot::Expression(producer),
+                                &CanonicalPlace {
+                                    root: PlaceRoot::Expression(producer),
                                     segments: Vec::new(),
                                 },
                             )?,
@@ -636,7 +629,7 @@ fn argument_contract(
             // the loan is not a local initialized by this call.
             if projected
                 && expressions(program).borrow_expression(expression).is_none()
-                && matches!(place.root, facts::PlaceRoot::Expression(_))
+                && matches!(place.root, PlaceRoot::Expression(_))
             {
                 return Some(CheckedUnitStructuralArgumentPlan {
                     projection_evaluations: Default::default(),
@@ -651,15 +644,11 @@ fn argument_contract(
             // Whole locals and projected subtrees retain their owner. Both
             // must rejoin the authored borrow and its captured access.
             let expected_access = match access {
-                CheckedStructuralAccess::MutableBorrow => {
-                    language_semantics::ReferenceAccess::Mutable
-                }
-                CheckedStructuralAccess::WriteOnlyBorrow => {
-                    language_semantics::ReferenceAccess::WriteOnly
-                }
+                CheckedStructuralAccess::MutableBorrow => ReferenceAccess::Mutable,
+                CheckedStructuralAccess::WriteOnlyBorrow => ReferenceAccess::WriteOnly,
                 _ => return None,
             };
-            let typed_trees::types::TypeReferenceNode::Reference {
+            let TypeReferenceNode::Reference {
                 access: reference_access,
                 referee,
                 ..
@@ -700,12 +689,7 @@ fn argument_contract(
         || if access == CheckedStructuralAccess::Owned {
             result.type_identity == target_identity
         } else {
-            result_presents(validation::stored_structural_type_identity(
-                program,
-                referent,
-                &[],
-                &[],
-            ))
+            result_presents(stored_structural_type_identity(program, referent, &[], &[]))
         };
     // Only owned transfer carries the selected storage's disposal obligation.
     // A loan retains its owner's custody; its source/formal presentation and
@@ -714,14 +698,9 @@ fn argument_contract(
     // Comparing those cleanup profiles would make borrowing depend on whether
     // an unrelated sibling makes the containing record affine.
     let transferred_multiplicity = if projected && access == CheckedStructuralAccess::Owned {
-        validation::reference_result_custody::result_multiplicity(
+        result_multiplicity(
             program,
-            validation::canonical_place_type_reference(
-                program,
-                state,
-                call.statement_index,
-                place,
-            )?,
+            canonical_place_type_reference(program, state, call.statement_index, place)?,
         )
     } else {
         result.multiplicity
@@ -743,14 +722,13 @@ fn argument_contract(
     }
     if !storage_identity_matches
         || (access == CheckedStructuralAccess::Owned
-            && validation::reference_result_custody::result_multiplicity(program, referent)
-                != transferred_multiplicity)
+            && result_multiplicity(program, referent) != transferred_multiplicity)
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;
     }
     match place.root {
-        facts::PlaceRoot::Symbol(symbol) => {
+        PlaceRoot::Symbol(symbol) => {
             trace.phase("call operation: result argument: earlier whole local correspondence");
             if usize::try_from(result.statement_index).ok()? == call.statement_index
                 || !symbol.is_valid()
@@ -774,18 +752,15 @@ fn argument_contract(
                     program
                         .type_reference_table
                         .type_reference(local.type_reference),
-                    typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+                    TypeReferenceNode::Reference { referee, .. }
                         if matches!(
                             program.type_reference_table.type_reference(*referee),
-                            typed_trees::types::TypeReferenceNode::Slice { .. }
+                            TypeReferenceNode::Slice { .. }
                         )
                 );
             if !view_binding
                 && (local.symbol != symbol
-                    || validation::reference_result_custody::result_multiplicity(
-                        program,
-                        local.type_reference,
-                    ) != result.multiplicity
+                    || result_multiplicity(program, local.type_reference) != result.multiplicity
                     || base_type_identity(program, local.type_reference, &[], &[])?
                         != result.type_identity)
             {
@@ -793,9 +768,8 @@ fn argument_contract(
             }
             if access == CheckedStructuralAccess::Owned
                 && (linear || unrestricted)
-                && validation::structural_result_qualifications(program, local.type_reference)
-                    .ok()?
-                    != validation::structural_result_qualifications(program, referent).ok()?
+                && structural_result_qualifications(program, local.type_reference).ok()?
+                    != structural_result_qualifications(program, referent).ok()?
             {
                 return None;
             }
@@ -804,7 +778,7 @@ fn argument_contract(
         // not by whether their source spells a constructor, copy or call.
         // Extraction keeps the authored storage coordinate for the transfer
         // evidence below while the call reads its newly owned result slot.
-        facts::PlaceRoot::Expression(source) if source == value_expression || projected => {
+        PlaceRoot::Expression(source) if source == value_expression || projected => {
             phase("call result argument: anonymous producer correspondence");
             if usize::try_from(result.statement_index).ok()? != call.statement_index
                 || operations
@@ -822,7 +796,7 @@ fn argument_contract(
             phase("call result argument: anonymous produced value type");
             let source_type = produced_type?;
             let source_type = if access == CheckedStructuralAccess::Owned {
-                validation::assignment_value_type(program, source_type)
+                assignment_value_type(program, source_type)
             } else {
                 source_type
             };
@@ -832,21 +806,19 @@ fn argument_contract(
             // qualifications, so a borrow must not demand a contract-bearing
             // carrier the referent does not need.
             let contract = (access == CheckedStructuralAccess::Owned)
-                .then(|| validation::structural_result_contract(program, source_type).ok())
+                .then(|| structural_result_contract(program, source_type).ok())
                 .flatten();
             // Source checking already proved this value's application at the
             // consuming edge, including captured runtime-index equalities.
             // Lowering compares physical storage and transferred qualifications;
             // repeating syntactic index identity would discard that proof.
             phase("call result argument: anonymous receiving contract");
-            if validation::reference_result_custody::result_multiplicity(program, source_type)
-                != result.multiplicity
-                || validation::structural_type_identity(program, source_type, &[], &[])
-                    != result.type_identity
+            if result_multiplicity(program, source_type) != result.multiplicity
+                || structural_type_identity(program, source_type, &[], &[]) != result.type_identity
                 || (!projected
                     && access == CheckedStructuralAccess::Owned
                     && contract?.qualifications
-                        != validation::structural_result_contract(program, referent)
+                        != structural_result_contract(program, referent)
                             .ok()?
                             .qualifications)
             {
@@ -876,8 +848,8 @@ fn argument_contract(
 /// fact names by symbol because no argument expression exists for it.
 fn names_whole_local(
     program: &dyn ::validation::CheckingInput,
-    call: &checked_trees::FlowCallFact,
-    value_expression: typed_trees::expression::ExpressionHandle,
+    call: &FlowCallFact,
+    value_expression: ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
     if !value_expression.is_valid() {
@@ -893,10 +865,10 @@ fn names_whole_local(
 /// place is exactly that whole local.
 fn whole_local_storage_type(
     program: &dyn ::validation::CheckingInput,
-    source_state: &typed_trees::state::State,
-    place: &validation::CanonicalPlace,
+    source_state: &State,
+    place: &CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
+) -> Option<TypeReferenceHandle> {
     let symbol = place.root.as_symbol()?;
     let local = state_statements(program, source_state.statement_nodes)
         .get(usize::try_from(result.statement_index).ok()?)?
