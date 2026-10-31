@@ -51,7 +51,7 @@ pub(crate) fn derive_machine_summary(
     let mut premises = Vec::new();
     for state_flow in flow.control.machine_states(machine.symbol) {
         for call in flow.control.calls.span_or_empty(state_flow.calls) {
-            if is_local_state_transition(program, machine, state_flow, call) {
+            if local_state_transition_target(program, machine, state_flow, call).is_some() {
                 // Named transitions are edges within this activation, not
                 // nested calls. Their argument correspondence is reconstructed
                 // only when an invoked operation demands a progress premise.
@@ -459,15 +459,6 @@ pub(super) fn resolve_call_place_premises(
         }
     }
     Some(premises)
-}
-
-fn is_local_state_transition(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &FlowStateFact,
-    call: &FlowCallFact,
-) -> bool {
-    local_state_transition_target(program, machine, state, call).is_some()
 }
 
 pub(crate) fn local_state_transition_target<'program>(
