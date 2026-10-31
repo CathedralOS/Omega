@@ -54,32 +54,7 @@ impl<'program> Engine<'program> {
         }
         let operand_interval = self.polynomial_interval(&self.substituted(operand));
         let divisor_interval = self.polynomial_interval(&modulus);
-        // Truncation keeps the dividend's sign and never increases its
-        // magnitude. A bounded runtime divisor additionally gives |r| < |d|.
-        // Nonzero and machine-width formation remain separate obligations.
-        let magnitude = divisor_interval
-            .low
-            .zip(divisor_interval.high)
-            .map(|(low, high)| {
-                low.abs()
-                    .max(high.abs())
-                    .sub(&BigInt::from_i64(1))
-                    .max(BigInt::zero())
-            });
-        let low = operand_interval.low.map(|value| value.min(BigInt::zero()));
-        let high = operand_interval.high.map(|value| value.max(BigInt::zero()));
-        Interval {
-            low: match (&magnitude, low) {
-                (Some(magnitude), Some(low)) => Some(low.max(magnitude.negate())),
-                (Some(magnitude), None) => Some(magnitude.negate()),
-                (None, low) => low,
-            },
-            high: match (magnitude, high) {
-                (Some(magnitude), Some(high)) => Some(high.min(magnitude)),
-                (Some(magnitude), None) => Some(magnitude),
-                (None, high) => high,
-            },
-        }
+        operand_interval.remainder(&divisor_interval)
     }
 
     pub(super) fn constant_remainder_interval(
@@ -88,31 +63,8 @@ impl<'program> Engine<'program> {
         modulus: &BigInt,
         tight_interval: bool,
     ) -> Interval {
-        let magnitude = modulus.abs().sub(&BigInt::from_i64(1));
-        let operand_interval = self.polynomial_interval(&self.substituted(operand));
-        if tight_interval
-            && let (Some(low), Some(high)) = (&operand_interval.low, &operand_interval.high)
-            && let (Some((low_quotient, low_remainder)), Some((high_quotient, high_remainder))) =
-                (low.div_rem(modulus), high.div_rem(modulus))
-            && low_quotient == high_quotient
-        {
-            // A constant quotient makes remainder increase with the
-            // dividend, including when the divisor is negative.
-            return Interval {
-                low: Some(low_remainder),
-                high: Some(high_remainder),
-            };
-        }
-        Interval {
-            low: Some(operand_interval.low.map_or_else(
-                || magnitude.negate(),
-                |minimum| minimum.min(BigInt::zero()).max(magnitude.negate()),
-            )),
-            high: Some(operand_interval.high.map_or_else(
-                || magnitude.clone(),
-                |maximum| maximum.max(BigInt::zero()).min(magnitude.clone()),
-            )),
-        }
+        self.polynomial_interval(&self.substituted(operand))
+            .constant_remainder(modulus, tight_interval)
     }
 
     /// The interval a truncating quotient atom takes from its dividend's.
@@ -131,59 +83,11 @@ impl<'program> Engine<'program> {
     }
 
     pub(super) fn constant_quotient_interval(dividend: Interval, divisor: &BigInt) -> Interval {
-        let quotient_bound = |bound: Option<BigInt>| {
-            bound.and_then(|value| value.div_rem(divisor).map(|(quotient, _)| quotient))
-        };
-        if divisor.is_negative() {
-            Interval {
-                low: quotient_bound(dividend.high),
-                high: quotient_bound(dividend.low),
-            }
-        } else {
-            Interval {
-                low: quotient_bound(dividend.low),
-                high: quotient_bound(dividend.high),
-            }
-        }
+        dividend.divide(&Interval::constant(divisor.clone()))
     }
 
     pub(super) fn bounded_quotient_interval(dividend: &Interval, divisor: &Interval) -> Interval {
-        // Negating both operands preserves the quotient and makes a strictly
-        // negative denominator positive. A zero-inclusive divisor establishes
-        // no bound and never obtains definedness from the desired result.
-        let (dividend, divisor) = if divisor.high.as_ref().is_some_and(BigInt::is_negative) {
-            let negative_one = BigInt::from_i64(-1);
-            (dividend.scale(&negative_one), divisor.scale(&negative_one))
-        } else {
-            (dividend.clone(), divisor.clone())
-        };
-        if !divisor
-            .low
-            .as_ref()
-            .is_some_and(|low| low > &BigInt::zero())
-        {
-            return Interval::unbounded();
-        }
-        // For a positive denominator, each numerator endpoint independently
-        // bounds the quotient. Choose its extremal denominator by sign; an
-        // infinite denominator contributes the limit zero. An absent numerator
-        // endpoint stays unbounded without erasing the other endpoint.
-        let quotient_bound = |numerator: &Option<BigInt>, lower: bool| {
-            let numerator = numerator.as_ref()?;
-            let denominator = if lower == numerator.is_negative() {
-                &divisor.low
-            } else {
-                &divisor.high
-            };
-            match denominator {
-                Some(denominator) => numerator.div_rem(denominator).map(|(quotient, _)| quotient),
-                None => Some(BigInt::zero()),
-            }
-        };
-        Interval {
-            low: quotient_bound(&dividend.low, true),
-            high: quotient_bound(&dividend.high, false),
-        }
+        dividend.divide(divisor)
     }
 
     /// The interval an exact left-shift atom takes from its operands':
@@ -260,20 +164,7 @@ impl<'program> Engine<'program> {
         else {
             return Interval::unbounded();
         };
-        // An unbounded value end keeps its side unbounded: for any fixed
-        // count the result still extends to that infinity. A corner that
-        // cannot be evaluated fails closed the same way.
-        let low = value_interval.low.as_ref().and_then(|bound| {
-            floor_shift_right(bound, low_bits)
-                .zip(floor_shift_right(bound, high_bits))
-                .map(|(low_count, high_count)| low_count.min(high_count))
-        });
-        let high = value_interval.high.as_ref().and_then(|bound| {
-            floor_shift_right(bound, low_bits)
-                .zip(floor_shift_right(bound, high_bits))
-                .map(|(low_count, high_count)| low_count.max(high_count))
-        });
-        Interval { low, high }
+        value_interval.shift_right(low_bits, high_bits)
     }
 
     pub(super) fn integer_remainder(
@@ -617,65 +508,11 @@ impl<'program> Engine<'program> {
         bits: u32,
         signed: bool,
     ) -> Interval {
-        let (minimum, maximum) = bitwise_carrier_bounds(bits, signed);
-        let left_interval = self.polynomial_interval(&self.substituted(left));
-        let right_interval = self.polynomial_interval(&self.substituted(right));
-        // An operand can be nonnegative unless its whole interval sits
-        // below zero, and negative unless it never leaves zero.
-        let nonnegative =
-            |interval: &Interval| !interval.high.as_ref().is_some_and(BigInt::is_negative);
-        let negative =
-            |interval: &Interval| !interval.low.as_ref().is_some_and(|low| !low.is_negative());
-        let min_bound = |left: &Option<BigInt>, right: &Option<BigInt>| match (left, right) {
-            (Some(left), Some(right)) => Some(left.clone().min(right.clone())),
-            (Some(bound), None) | (None, Some(bound)) => Some(bound.clone()),
-            (None, None) => None,
-        };
-        // The union of the live quadrants: lows min, highs max, and one
-        // quadrant without a ceiling lifts the whole result's. `fired`
-        // keeps the first bounded quadrant's `Some` from reading as
-        // "unbounded so far" -- the union of bounds is empty only before
-        // the first live quadrant contributes one.
-        let mut low: Option<BigInt> = None;
-        let mut high: Option<BigInt> = None;
-        let mut fired = false;
-        let mut extend = |quadrant_low: BigInt, quadrant_high: Option<BigInt>| {
-            low = Some(match &low {
-                Some(current) => current.clone().min(quadrant_low.clone()),
-                None => quadrant_low,
-            });
-            high = match quadrant_high {
-                Some(bound) if !fired => Some(bound),
-                Some(bound) => high.clone().map(|current| current.max(bound)),
-                None => None,
-            };
-            fired = true;
-        };
-        let (left_nonnegative, left_negative) =
-            (nonnegative(&left_interval), negative(&left_interval));
-        let (right_nonnegative, right_negative) =
-            (nonnegative(&right_interval), negative(&right_interval));
-        if left_nonnegative && right_nonnegative {
-            extend(
-                BigInt::zero(),
-                min_bound(&left_interval.high, &right_interval.high),
-            );
-        }
-        if left_nonnegative && right_negative {
-            extend(BigInt::zero(), left_interval.high.clone());
-        }
-        if left_negative && right_nonnegative {
-            extend(BigInt::zero(), right_interval.high.clone());
-        }
-        if left_negative && right_negative {
-            extend(
-                minimum.clone(),
-                min_bound(&left_interval.high, &right_interval.high),
-            );
-        }
-        Interval {
-            low: low.map(|low| low.max(minimum.clone())).or(Some(minimum)),
-            high: high.map(|high| high.min(maximum.clone())).or(Some(maximum)),
-        }
+        self.polynomial_interval(&self.substituted(left))
+            .bitwise_and(
+                &self.polynomial_interval(&self.substituted(right)),
+                bits,
+                signed,
+            )
     }
 }

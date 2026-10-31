@@ -29,8 +29,7 @@ pub(crate) use calls::validate_integer_embedding_calls;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct IntegerEmbedding {
     pub(crate) primitive: PrimitiveType,
-    pub(crate) minimum: BigInt,
-    pub(crate) maximum: Option<BigInt>,
+    pub(crate) interval: super::arithmetic_domains::BigIntInterval,
 }
 
 pub(crate) fn validate_proof_embeddings(
@@ -261,8 +260,10 @@ pub(crate) fn integer_embedding(
     };
     Some(IntegerEmbedding {
         primitive,
-        minimum,
-        maximum,
+        interval: super::arithmetic_domains::BigIntInterval {
+            low: Some(minimum),
+            high: maximum,
+        },
     })
 }
 

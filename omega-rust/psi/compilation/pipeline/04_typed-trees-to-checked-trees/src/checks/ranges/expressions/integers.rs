@@ -1,8 +1,6 @@
 use crate::flow::expressions;
 use symbols::SymbolHandle;
-use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableRangeExpression,
-};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
 
 use super::super::facts::RangeFacts;
 
@@ -129,30 +127,4 @@ pub(in crate::checks::ranges) fn expression_name(
     ))
 }
 
-pub(in crate::checks) fn folded_integer_binary(
-    left: i64,
-    operator: BinaryOperator,
-    right: i64,
-) -> Option<i64> {
-    match operator {
-        BinaryOperator::Add => left.checked_add(right),
-        BinaryOperator::Divide => (right != 0).then(|| left.checked_div(right)).flatten(),
-        BinaryOperator::Modulo => (right != 0).then(|| left.checked_rem(right)).flatten(),
-        BinaryOperator::Multiply => left.checked_mul(right),
-        BinaryOperator::Subtract => left.checked_sub(right),
-        BinaryOperator::And
-        | BinaryOperator::BitwiseAnd
-        | BinaryOperator::BitwiseOr
-        | BinaryOperator::BitwiseXor
-        | BinaryOperator::Equal
-        | BinaryOperator::Greater
-        | BinaryOperator::GreaterOrEqual
-        | BinaryOperator::Less
-        | BinaryOperator::LessOrEqual
-        | BinaryOperator::NotEqual
-        | BinaryOperator::Or
-        | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight
-        | BinaryOperator::CaseMembership => None,
-    }
-}
+pub(in crate::checks) use validation::folded_integer_binary;

@@ -222,7 +222,7 @@ pub fn integer_embedding_meaning(
     let embedding = crate::proof_contracts::proof_embeddings::integer_embedding(program, argument)?;
     Some(PreparedConstantMeaning::IntegerEmbedding {
         primitive: embedding.primitive,
-        minimum: embedding.minimum,
-        maximum: embedding.maximum,
+        minimum: embedding.interval.low?,
+        maximum: embedding.interval.high,
     })
 }

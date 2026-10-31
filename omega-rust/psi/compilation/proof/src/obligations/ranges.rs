@@ -1,5 +1,7 @@
 //! Reading ranges back out of constraints: exactness, wrapping, finiteness
-//! and the integer and float ranges a binary operation admits.
+//! and the integer and float ranges a binary operation admits. Integer
+//! operation bounds come from validation's shared arithmetic domain; this
+//! client only translates the obligation's established constraint records.
 
 use crate::obligations::plan::{ConstraintBuffer, FloatRange};
 use crate::obligations::{IntegerRange, ProofConstraint};
@@ -130,123 +132,7 @@ pub(crate) fn float_range_from_constraints<'a>(
     range
 }
 
-pub(crate) fn integer_binary_range(
-    operator: BinaryOperator,
-    left: IntegerRange,
-    right: IntegerRange,
-) -> Option<IntegerRange> {
-    let one = BigInt::from_i64(1);
-    match operator {
-        BinaryOperator::Add => Some(IntegerRange {
-            minimum: left.minimum.add(&right.minimum),
-            maximum: left.maximum.add(&right.maximum),
-        }),
-        BinaryOperator::Subtract => Some(IntegerRange {
-            minimum: left.minimum.sub(&right.maximum),
-            maximum: left.maximum.sub(&right.minimum),
-        }),
-        BinaryOperator::Multiply => {
-            let products = [
-                left.minimum.mul(&right.minimum),
-                left.minimum.mul(&right.maximum),
-                left.maximum.mul(&right.minimum),
-                left.maximum.mul(&right.maximum),
-            ];
-            Some(IntegerRange {
-                minimum: products.iter().min()?.clone(),
-                maximum: products.iter().max()?.clone(),
-            })
-        }
-        BinaryOperator::Modulo => {
-            if right.minimum <= BigInt::zero() && right.maximum >= BigInt::zero() {
-                return None;
-            }
-            let magnitude = right.minimum.abs().max(right.maximum.abs()).sub(&one);
-            // Truncating remainder follows the dividend's sign, independently
-            // of the divisor's sign. Its magnitude cannot exceed the dividend.
-            Some(IntegerRange {
-                minimum: left.minimum.min(BigInt::zero()).max(magnitude.negate()),
-                maximum: left.maximum.max(BigInt::zero()).min(magnitude),
-            })
-        }
-        BinaryOperator::ShiftRight => {
-            if right.minimum.is_negative() {
-                return None;
-            }
-
-            Some(IntegerRange {
-                minimum: BigInt::zero().max(left.minimum.clone()),
-                maximum: left.maximum.clone().max(BigInt::zero()),
-            })
-        }
-        BinaryOperator::Divide => {
-            // The divisor must provably exclude 0: entirely positive or
-            // entirely negative. On a single-signed divisor interval the four
-            // corner quotients are extremal for truncating division (x/k is
-            // monotone in x for fixed k, and piecewise monotone in k on one
-            // sign side), so min/max over the corners is exact --
-            // `[0..=259] / 26` folds to `[0..=9]`, which used to return None
-            // and reject a provably-in-range store. (Exact bignum: the old
-            // `i64::MIN / -1` overflow bail is gone.)
-            if !(right.minimum >= one || right.maximum <= one.negate()) {
-                return None;
-            }
-            let corners = [
-                left.minimum.div_rem(&right.minimum)?.0,
-                left.minimum.div_rem(&right.maximum)?.0,
-                left.maximum.div_rem(&right.minimum)?.0,
-                left.maximum.div_rem(&right.maximum)?.0,
-            ];
-            Some(IntegerRange {
-                minimum: corners.iter().min()?.clone(),
-                maximum: corners.iter().max()?.clone(),
-            })
-        }
-        BinaryOperator::BitwiseAnd => {
-            // `x & mask` with BOTH operands provably non-negative: an AND
-            // never sets a bit absent from either operand, so the result is
-            // in [0, min(left.max, right.max)]. A possibly-negative operand
-            // (sign bits) stays unfolded.
-            if left.minimum.is_negative() || right.minimum.is_negative() {
-                return None;
-            }
-            Some(IntegerRange {
-                minimum: BigInt::zero(),
-                maximum: left.maximum.min(right.maximum),
-            })
-        }
-        BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor => {
-            // `x | y` and `x ^ y` set no bit above either operand's widest
-            // set bit: with BOTH operands provably non-negative the result
-            // stays under the all-ones mask at the wider bound's bit width
-            // -- `[0,1] | [0,1]` folds to `[0,1]`, where endpoint addition
-            // would falsely claim `[0,2]`. A possibly-negative operand
-            // (sign bits) stays unfolded.
-            if left.minimum.is_negative() || right.minimum.is_negative() {
-                return None;
-            }
-            let bits = left.maximum.clone().max(right.maximum).bit_length();
-            Some(IntegerRange {
-                minimum: if matches!(operator, BinaryOperator::BitwiseOr) {
-                    left.minimum.max(right.minimum)
-                } else {
-                    BigInt::zero()
-                },
-                maximum: BigInt::from_i64(1).shl_bits(bits).sub(&one),
-            })
-        }
-        BinaryOperator::And
-        | BinaryOperator::Equal
-        | BinaryOperator::Greater
-        | BinaryOperator::GreaterOrEqual
-        | BinaryOperator::Less
-        | BinaryOperator::LessOrEqual
-        | BinaryOperator::NotEqual
-        | BinaryOperator::Or
-        | BinaryOperator::ShiftLeft
-        | BinaryOperator::CaseMembership => None,
-    }
-}
+pub(crate) use validation::integer_binary_range;
 
 pub(crate) fn float_binary_range(
     operator: BinaryOperator,

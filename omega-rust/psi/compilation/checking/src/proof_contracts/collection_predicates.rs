@@ -35,10 +35,9 @@
 
 mod exploration;
 mod implication;
-pub(crate) mod integer_sets;
 
+pub(crate) use super::arithmetic_domains::IntegerSet;
 use exploration::{Binding, ValueShape, integer_carrier, value_shape};
-pub(crate) use integer_sets::IntegerSet;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -372,16 +371,7 @@ pub fn predicate_ordering_consequences(
     consequences
 }
 
-/// One interval observation of an exact actual argument. Consumers separately
-/// establish whether it is a consequence or a complete public envelope.
-/// Descriptor extents describe metadata only, never collection contents.
-#[derive(Debug, Clone)]
-pub struct PredicateInterval {
-    pub argument: ExpressionHandle,
-    pub extent: bool,
-    pub low: i128,
-    pub high: i128,
-}
+pub use super::arithmetic_domains::PredicateInterval;
 
 /// Describe an admitted application using the existing explorer, in both
 /// directions. True outcomes imply these hulls; re-exploration of their full

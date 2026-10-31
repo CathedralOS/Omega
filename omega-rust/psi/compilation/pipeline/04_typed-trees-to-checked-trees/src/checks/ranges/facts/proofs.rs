@@ -225,42 +225,11 @@ impl RangeFacts<'_> {
     /// ordering. Every minted fact is a true consequence of its premises,
     /// so eager closure cannot make an unsound read provable.
     fn close_ordering_bounds(&mut self) {
-        loop {
-            let mut grown = false;
-            let orderings = self.proven_orderings.clone();
-            for (lower, upper, strict) in orderings {
-                for (collection, _) in self
-                    .proven_indexes
-                    .clone()
-                    .into_iter()
-                    .filter(|(_, known_index)| known_index == &upper)
-                {
-                    if !self.index_is_proven(&collection, &lower) {
-                        self.proven_indexes.push((collection, lower.clone()));
-                        grown = true;
-                    }
-                }
-                for (collection, _) in self
-                    .proven_range_bounds
-                    .clone()
-                    .into_iter()
-                    .filter(|(_, known_bound)| known_bound == &upper)
-                {
-                    if strict {
-                        if !self.index_is_proven(&collection, &lower) {
-                            self.proven_indexes.push((collection, lower.clone()));
-                            grown = true;
-                        }
-                    } else if !self.range_bound_is_proven(&collection, &lower) {
-                        self.proven_range_bounds.push((collection, lower.clone()));
-                        grown = true;
-                    }
-                }
-            }
-            if !grown {
-                break;
-            }
-        }
+        validation::propagate_integer_upper_bounds(
+            &self.proven_orderings,
+            &mut self.proven_indexes,
+            &mut self.proven_range_bounds,
+        );
     }
 
     pub(in crate::checks::ranges) fn prove_at_most(&mut self, lower: String, upper: String) {

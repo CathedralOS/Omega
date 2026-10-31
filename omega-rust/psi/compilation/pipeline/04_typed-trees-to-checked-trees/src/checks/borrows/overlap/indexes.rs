@@ -1,10 +1,10 @@
 use crate::flow::expressions;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
-use symbols::SymbolHandle;
-
-use super::premises::{
-    BorrowCompatibilityPremiseRelation, StatedOrderingPremise, premise_chain_proves, premise_proves,
+use validation::{
+    integer_bound_offset as bound_offset, integer_bound_terms_equal as bound_terms_equal,
 };
+
+use super::premises::{BorrowCompatibilityPremiseRelation, StatedOrderingPremise};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum BorrowCompatibilityPlaceSide {
@@ -19,130 +19,7 @@ pub(super) enum BorrowCompatibilitySelectorPosition {
     RangeExclusiveEnd,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum NormalizedBound {
-    Integer(i64),
-    /// Typed builtin runtime element value under one immutable formal frame.
-    /// This is neither a structural place key nor evidence of an index bound.
-    EntryRead(validation::ImmutableEntryReadIdentity),
-    Symbol {
-        symbol: SymbolHandle,
-        offset: i64,
-    },
-    /// The value currently stored under one mutable storage symbol. The
-    /// storage name is a query coordinate, never positive evidence: storage
-    /// bounds never order structurally (the storage may hold a different
-    /// occurrence at each statement), so stated evidence can only claim them
-    /// in a scope where the establishment binding is version-pinned.
-    Storage {
-        symbol: SymbolHandle,
-    },
-    /// The value at one projected place under an immutable storage symbol
-    /// (`pair.first`, `pair.items[2]`): a frozen identity of the bound
-    /// value's place, equal only to the same projection path of the same
-    /// symbol. Projections whose path carries unresolved segments stay
-    /// outside the vocabulary.
-    Projected {
-        symbol: SymbolHandle,
-        segments: Vec<facts::PlaceSegment>,
-    },
-    /// The value currently stored under one projected place of mutable
-    /// storage (`mut_pair.first`, `self.pivot[2]`). Like `Storage` it is a
-    /// query coordinate, never positive evidence, and needs the same
-    /// version-pin evidence before stated premises can claim it.
-    StorageProjected {
-        symbol: SymbolHandle,
-        segments: Vec<facts::PlaceSegment>,
-    },
-    /// `first + second + offset` over two distinct immutable symbols in
-    /// canonical arena order; `offset` may be zero because a two-symbol sum
-    /// has no simpler spelling.
-    SymbolSum {
-        first: SymbolHandle,
-        second: SymbolHandle,
-        offset: i64,
-    },
-    /// The value produced by one exact call occurrence, named by its
-    /// expression handle plus the resolved segment path projected through
-    /// it (`choose(seed).first` carries `[Field{first}]`; a bare result
-    /// carries the empty path). A call result carries no place identity,
-    /// so a nested call's `ensures` binds the occurrence itself — the
-    /// intra-statement fact context for guarantees produced and consumed
-    /// within one statement. Equal only to the same occurrence at the same
-    /// projected path; a call result never shifts or carries a storage
-    /// coordinate.
-    CallResult {
-        expression: ExpressionHandle,
-        segments: Vec<facts::PlaceSegment>,
-    },
-}
-
-/// The term identity two bounds must share before their constant offsets can
-/// order them: the integer line, one symbol's offset line, or one canonical
-/// two-symbol sum. Distinct term sets stay unrelated, never negative
-/// evidence.
-fn bound_terms_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
-    match (left, right) {
-        (NormalizedBound::EntryRead(left), NormalizedBound::EntryRead(right)) => left == right,
-        (NormalizedBound::Integer(_), NormalizedBound::Integer(_)) => true,
-        (
-            NormalizedBound::Symbol {
-                symbol: left_symbol,
-                ..
-            },
-            NormalizedBound::Symbol {
-                symbol: right_symbol,
-                ..
-            },
-        ) => left_symbol == right_symbol,
-        (
-            NormalizedBound::SymbolSum {
-                first: left_first,
-                second: left_second,
-                ..
-            },
-            NormalizedBound::SymbolSum {
-                first: right_first,
-                second: right_second,
-                ..
-            },
-        ) => left_first == right_first && left_second == right_second,
-        (
-            NormalizedBound::Projected {
-                symbol: left_symbol,
-                segments: left_segments,
-            },
-            NormalizedBound::Projected {
-                symbol: right_symbol,
-                segments: right_segments,
-            },
-        ) => left_symbol == right_symbol && left_segments == right_segments,
-        (
-            NormalizedBound::CallResult {
-                expression: left_expression,
-                segments: left_segments,
-            },
-            NormalizedBound::CallResult {
-                expression: right_expression,
-                segments: right_segments,
-            },
-        ) => left_expression == right_expression && left_segments == right_segments,
-        _ => false,
-    }
-}
-
-/// A bound's constant coordinate on its term line, when it has one.
-fn bound_offset(bound: NormalizedBound) -> Option<i64> {
-    match bound {
-        NormalizedBound::Integer(value) => Some(value),
-        NormalizedBound::EntryRead(_) => Some(0),
-        NormalizedBound::Symbol { offset, .. } => Some(offset),
-        NormalizedBound::Storage { .. } => Some(0),
-        NormalizedBound::Projected { .. } | NormalizedBound::StorageProjected { .. } => Some(0),
-        NormalizedBound::CallResult { .. } => Some(0),
-        NormalizedBound::SymbolSum { offset, .. } => Some(offset),
-    }
-}
+pub(super) use validation::IntegerBound as NormalizedBound;
 
 /// The normalized extent of one `Index` segment expression as evaluated inside
 /// a selector session. A non-range expression is a single point bound; a range
@@ -192,110 +69,7 @@ impl<'a> SelectorEvaluation<'a> {
         relation: BorrowCompatibilityPremiseRelation,
         right: NormalizedBound,
     ) -> bool {
-        // Reserve the whole former single/two-premise search unchanged, then
-        // bound only the additional equality exploration. Exhaustion proves
-        // nothing; it cannot turn a failed compatibility query into authority.
-        const EQUALITY_CONSULTATIONS: usize = 4096;
-        let mut remaining = self
-            .premises
-            .len()
-            .saturating_mul(self.premises.len())
-            .saturating_add(EQUALITY_CONSULTATIONS);
-        if self.prove_from_premises(left.clone(), relation, right.clone(), &mut remaining) {
-            return true;
-        }
-        let mut candidates = Vec::new();
-        for candidate in self
-            .premises
-            .iter()
-            .filter_map(StatedOrderingPremise::equality_candidates)
-            .flatten()
-        {
-            crate::collections::push_unique(&mut candidates, candidate);
-        }
-        let mut pending = vec![(left, right)];
-        let mut visited = Vec::new();
-        while let Some((left, right)) = pending.pop() {
-            if visited.contains(&(left.clone(), right.clone())) {
-                continue;
-            }
-            visited.push((left.clone(), right.clone()));
-            for candidate in &candidates {
-                for (subject, next) in [
-                    (&left, (candidate.clone(), right.clone())),
-                    (&right, (left.clone(), candidate.clone())),
-                ] {
-                    if subject == candidate || visited.contains(&next) || pending.contains(&next) {
-                        continue;
-                    }
-                    if !self.prove_from_premises(
-                        subject.clone(),
-                        BorrowCompatibilityPremiseRelation::Equal,
-                        candidate.clone(),
-                        &mut remaining,
-                    ) {
-                        if remaining == 0 {
-                            return false;
-                        }
-                        continue;
-                    }
-                    if self.prove_from_premises(
-                        next.0.clone(),
-                        relation,
-                        next.1.clone(),
-                        &mut remaining,
-                    ) {
-                        return true;
-                    }
-                    if remaining == 0 {
-                        return false;
-                    }
-                    pending.push(next);
-                }
-            }
-        }
-        false
-    }
-
-    fn prove_from_premises(
-        &self,
-        left: NormalizedBound,
-        relation: BorrowCompatibilityPremiseRelation,
-        right: NormalizedBound,
-        remaining: &mut usize,
-    ) -> bool {
-        for premise in self.premises {
-            if *remaining == 0 {
-                return false;
-            }
-            *remaining -= 1;
-            if premise_proves(premise, left.clone(), relation, right.clone()) {
-                return true;
-            }
-        }
-        // No single premise names both bounds; a two-premise chain through
-        // one shared middle bound may still derive the relation.
-        for first_index in 0..self.premises.len() {
-            for second_index in 0..self.premises.len() {
-                if first_index == second_index {
-                    continue;
-                }
-                if *remaining == 0 {
-                    return false;
-                }
-                *remaining -= 1;
-                if premise_chain_proves(
-                    &self.premises[first_index],
-                    &self.premises[second_index],
-                    left.clone(),
-                    relation,
-                    right.clone(),
-                ) {
-                    return true;
-                }
-            }
-        }
-        false
+        validation::prove_integer_ordering(self.premises, left, relation, right)
     }
 
     fn bound(

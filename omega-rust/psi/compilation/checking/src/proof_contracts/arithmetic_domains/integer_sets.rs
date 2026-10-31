@@ -138,3 +138,33 @@ impl IntegerSet {
         Self { ranges: merged }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn integer_interval_unions_preserve_holes_and_carrier_edges() {
+        let separated = IntegerSet::singleton(0).union(&IntegerSet::singleton(2));
+        assert_eq!(separated.bounds(), Some((0, 2)));
+        assert!(separated.is_subset_of(&IntegerSet::range(0, 2)));
+        // A hull is a consequence, not an equivalent predicate: it adds 1.
+        assert!(!IntegerSet::range(0, 2).is_subset_of(&separated));
+        assert!(separated.intersect(&IntegerSet::singleton(1)).is_empty());
+        assert_eq!(
+            IntegerSet::range(-1, 1).difference(&IntegerSet::singleton(0)),
+            IntegerSet::singleton(-1).union(&IntegerSet::singleton(1))
+        );
+        let universe = IntegerSet::range(i128::MIN, i128::MAX);
+        let without_minimum = IntegerSet::satisfying(BinaryOperator::NotEqual, i128::MIN).unwrap();
+        assert!(
+            without_minimum
+                .intersect(&IntegerSet::singleton(i128::MIN))
+                .is_empty()
+        );
+        assert_eq!(
+            universe.difference(&without_minimum),
+            IntegerSet::singleton(i128::MIN)
+        );
+    }
+}
