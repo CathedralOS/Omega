@@ -6,7 +6,9 @@ data Receipt [linear] {
     code: i32;
 }
 
-boundary requirement Receipt::ack(receipt: Receipt);
+boundary trait ReceiptAck {
+    machine ack(receipt: Receipt) reaches;
+}
 
 data Pair {
     left: Receipt;
@@ -20,6 +22,6 @@ machine Main::main() -> i32 {
     let right: Receipt = Receipt { code: 2 };
     let pair: Pair = Pair { left: left, right: right };
     let extracted_left: Receipt = pair.left;
-    Receipt::ack(extracted_left);
+    ReceiptAck::ack(extracted_left);
     0
 }

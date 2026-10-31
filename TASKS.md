@@ -397,9 +397,9 @@ retired-syntax deletions to completion.
   `source/{psi,omega}/` under the
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
-  - Migrate the remaining 65 std raw platform rows and 70 test files to boundary
-    traits with explicit reach clauses, and preserve source-selected trait
-    tokens (`samples/cli/probes/operator_requires_effects`).
+  - Migrate the remaining 65 std raw platform rows, 61 test files and 1 sample
+    probe to boundary traits with explicit reach clauses, and preserve
+    source-selected trait tokens (`samples/cli/probes/operator_requires_effects`).
   - Delete the standalone declaration kind from parsing, AST/IR representations,
     checking, Terminal codec, provider planning, and both compilers, keeping one
     parser fail fixture for the retired spelling.
