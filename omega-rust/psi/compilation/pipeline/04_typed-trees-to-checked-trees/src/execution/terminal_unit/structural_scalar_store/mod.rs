@@ -49,15 +49,13 @@ use crate::values::occupies_scalar_position;
 use crate::values::resolve_structural_parameter_path;
 use destination::{Destination, Root, StoreRoots, plain_record};
 use symbols::SymbolHandle;
-pub(in crate::execution::terminal_unit) use value::AssignmentSource;
+pub(super) use value::AssignmentSource;
 
-pub(in crate::execution::terminal_unit) use primitive::{
-    primitive_local_before, scalar_custody_is_exact,
-};
-pub(in crate::execution::terminal_unit) use selectors::TargetSelectors;
+pub(super) use primitive::{primitive_local_before, scalar_custody_is_exact};
+pub(super) use selectors::TargetSelectors;
 
 mod byte_stores;
-pub(in crate::execution::terminal_unit) use byte_stores::byte_value_plan;
+pub(super) use byte_stores::byte_value_plan;
 mod descriptor_store;
 mod destination;
 mod element_stores;
@@ -94,7 +92,7 @@ struct Site<'a, 'program, 'destination> {
 /// store. A recast's physical carrier and the authored value's view carrier
 /// are distinct: only the latter belongs to the subsequent conversion.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::execution::terminal_unit) fn scalar_capture_destination(
+pub(super) fn scalar_capture_destination(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     shapes: &mut super::types::ShapeCollector<'_>,
@@ -957,7 +955,7 @@ fn closed_sum(
 
 /// Whether a declared slot type is a shared `&[u8]` view, through any domain
 /// constraint shells: the slot stores a relocatable descriptor.
-pub(in crate::execution::terminal_unit) fn is_shared_view_field(
+pub(super) fn is_shared_view_field(
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {

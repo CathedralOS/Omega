@@ -37,12 +37,11 @@ struct TypeShapeRequest {
 }
 
 pub(crate) struct ShapeCollector<'program> {
-    pub(in crate::execution::terminal_unit) program: &'program dyn ::validation::CheckingInput,
-    pub(in crate::execution::terminal_unit) types:
+    pub(in super::super) program: &'program dyn ::validation::CheckingInput,
+    pub(in super::super) types:
         BTreeMap<typed_trees::type_identity::TypeIdentityId, CheckedUnitStructuralTypePlan>,
-    pub(in crate::execution::terminal_unit) domains: Vec<CheckedUnitStructuralDomainPlan>,
-    pub(in crate::execution::terminal_unit) cleanup_control:
-        checked_trees::CheckedCleanupControlPlans,
+    pub(in super::super) domains: Vec<CheckedUnitStructuralDomainPlan>,
+    pub(in super::super) cleanup_control: checked_trees::CheckedCleanupControlPlans,
     // Compiler-owned handles select arena slots; the small bucket retains
     // exact generation/telescope/substitution contexts for that source row.
     // This is a collector-local query memo, never a semantic type identity.
@@ -77,9 +76,7 @@ impl<'program> ShapeCollector<'program> {
 
     /// The unselected opaque behind the collector's last shape failure, if
     /// any, cleared for the next builder.
-    pub(in crate::execution::terminal_unit) fn take_unselected_opaque(
-        &mut self,
-    ) -> Option<SymbolHandle> {
+    pub(in super::super) fn take_unselected_opaque(&mut self) -> Option<SymbolHandle> {
         self.unselected_opaque.take()
     }
 
@@ -98,7 +95,7 @@ impl<'program> ShapeCollector<'program> {
         Some(())
     }
 
-    pub(in crate::execution::terminal_unit) fn add_domain(
+    pub(in super::super) fn add_domain(
         &mut self,
         domain: SemanticDomainId,
         carrier: TypeReferenceHandle,
@@ -132,7 +129,7 @@ impl<'program> ShapeCollector<'program> {
     /// identity is not the uninstantiated declaration's identity, and its
     /// scalar theory uses the same projection as receiving-field replay.
     /// Registration records that theory; it establishes no membership.
-    pub(in crate::execution::terminal_unit) fn add_domain_application(
+    pub(in super::super) fn add_domain_application(
         &mut self,
         application: &typed_trees::types::DomainConstraint,
         carrier: TypeReferenceHandle,
@@ -193,7 +190,7 @@ impl<'program> ShapeCollector<'program> {
     /// identity. They are different coordinates for indexed families: the
     /// declaration owns the routes, while the application owns membership.
     /// Requiring the family's semantic ID here would erase every closed index.
-    pub(in crate::execution::terminal_unit) fn add_selected_domain(
+    pub(in super::super) fn add_selected_domain(
         &mut self,
         domain: SemanticDomainId,
         selected_symbol: SymbolHandle,
@@ -321,7 +318,7 @@ impl<'program> ShapeCollector<'program> {
         collected.then_some(carrier_type_identity)
     }
 
-    pub(in crate::execution::terminal_unit) fn add_attached_data(
+    pub(in super::super) fn add_attached_data(
         &mut self,
         data: &typed_trees::data::DataDefinition,
         binders: &[(SymbolHandle, String)],
@@ -422,7 +419,7 @@ impl<'program> ShapeCollector<'program> {
 
     /// Register an admitted reference carrier with its declared access.
     /// Access selects the loan contract, not whether its descriptor exists.
-    pub(in crate::execution::terminal_unit) fn add_reference_type(
+    pub(in super::super) fn add_reference_type(
         &mut self,
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
@@ -438,7 +435,7 @@ impl<'program> ShapeCollector<'program> {
     /// reference edge retains its own access; shape collection grants neither
     /// a pointee read nor its ownership. Stored slice descriptors register
     /// through `add_stored_type`.
-    pub(in crate::execution::terminal_unit) fn add_view_type(
+    pub(in super::super) fn add_view_type(
         &mut self,
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
@@ -542,7 +539,7 @@ impl<'program> ShapeCollector<'program> {
     /// Otherwise peel only the newly formed loan: an inner reference remains a
     /// stored descriptor. This is an operation dependency, not permission to
     /// expand the pointees of every reference field in the type catalog.
-    pub(in crate::execution::terminal_unit) fn add_reference_backing(
+    pub(in super::super) fn add_reference_backing(
         &mut self,
         reference: TypeReferenceHandle,
         source_identity: typed_trees::type_identity::TypeIdentityId,
@@ -561,7 +558,7 @@ impl<'program> ShapeCollector<'program> {
     /// The primitive a registered identity names when its catalog row is a
     /// primitive scalar. A borrowed formal registers its peeled referent, so
     /// this is the primitive a `&u8` or `&mut i64` formal lends.
-    pub(in crate::execution::terminal_unit) fn primitive_scalar(
+    pub(in super::super) fn primitive_scalar(
         &self,
         identity: typed_trees::type_identity::TypeIdentityId,
     ) -> Option<PrimitiveType> {
@@ -576,7 +573,7 @@ impl<'program> ShapeCollector<'program> {
     /// every other stored loan must retain a Reference shape. Keeping this
     /// distinction here prevents an aggregate boundary from inlining a referent
     /// or making an unsupported loan look like owned storage.
-    pub(in crate::execution::terminal_unit) fn add_stored_type(
+    pub(in super::super) fn add_stored_type(
         &mut self,
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
@@ -629,7 +626,7 @@ impl<'program> ShapeCollector<'program> {
     /// descriptor as by-value unsized backing. Stored pointers contribute
     /// physical crossings; a view already presents its elements implicitly.
     /// The finite type graph bounds this geometry walk and grants no access.
-    pub(in crate::execution::terminal_unit) fn add_logical_type(
+    pub(in super::super) fn add_logical_type(
         &mut self,
         mut reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
@@ -651,7 +648,7 @@ impl<'program> ShapeCollector<'program> {
         None
     }
 
-    pub(in crate::execution::terminal_unit) fn add_type(
+    pub(in super::super) fn add_type(
         &mut self,
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
@@ -1019,7 +1016,7 @@ impl<'program> ShapeCollector<'program> {
         self.add_data_shape(identity, data, binders, local_substitutions)
     }
 
-    pub(in crate::execution::terminal_unit) fn add_partial_affine_type(
+    pub(in super::super) fn add_partial_affine_type(
         &mut self,
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
@@ -1034,7 +1031,7 @@ impl<'program> ShapeCollector<'program> {
         Some(identity)
     }
 
-    pub(in crate::execution::terminal_unit) fn add_affine_array_construction_type(
+    pub(in super::super) fn add_affine_array_construction_type(
         &mut self,
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
@@ -1043,7 +1040,7 @@ impl<'program> ShapeCollector<'program> {
         self.add_type(type_reference, binders, &[])
     }
 
-    pub(in crate::execution::terminal_unit) fn add_data_shape(
+    pub(in super::super) fn add_data_shape(
         &mut self,
         identity: typed_trees::type_identity::TypeIdentityId,
         data: typed_trees::data::DataDefinition,
@@ -1565,7 +1562,7 @@ impl<'program> ShapeCollector<'program> {
 
     /// Retain the exact source parameter, including any borrow shell, beside
     /// its logical semantic carrier. The receipt grants no new binding.
-    pub(in crate::execution::terminal_unit) fn add_binding_parameter_type(
+    pub(in super::super) fn add_binding_parameter_type(
         &mut self,
         type_reference: TypeReferenceHandle,
         source_parameter: SymbolHandle,
@@ -1604,7 +1601,7 @@ impl<'program> ShapeCollector<'program> {
         ))
     }
 
-    pub(in crate::execution::terminal_unit) fn retain_transitive(
+    pub(in super::super) fn retain_transitive(
         &mut self,
         roots: &BTreeSet<typed_trees::type_identity::TypeIdentityId>,
     ) {

@@ -1629,7 +1629,7 @@ fn construction_local_uses<'operation>(
 /// payloads, `ConditionalReturn`'s value arm) consumes its producers through
 /// owned whole arguments the same way an in-sequence call does: the argument
 /// names the exact result binding it moves into the call's custody.
-pub(in crate::execution::terminal_unit) fn terminator_call_consumes_result(
+pub(in super::super) fn terminator_call_consumes_result(
     operation: &CheckedUnitEffectOperationPlan,
     binding_ordinal: u32,
 ) -> bool {
@@ -1645,9 +1645,7 @@ pub(in crate::execution::terminal_unit) fn terminator_call_consumes_result(
 /// establishment and call-transfer receipts instead of state-exit cleanup.
 /// An inline argument construction also belongs to its consuming call when
 /// copyable; other unrestricted locals retain their reusable statement owner.
-pub(in crate::execution::terminal_unit) fn call_owns_result(
-    producer: &CheckedUnitEffectOperationPlan,
-) -> bool {
+pub(in super::super) fn call_owns_result(producer: &CheckedUnitEffectOperationPlan) -> bool {
     // Custody belongs to the produced value, not its source idiom. An
     // extracted old referent owns the same affine obligation as a call or
     // constructor result. Unrestricted inline operands alone retain their
@@ -1670,7 +1668,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_result(
 
 /// An available structural binding, independently of whether its producer
 /// carries disposal debt. An actual automatic return discard retires it.
-pub(in crate::execution::terminal_unit) fn retained_structural_result(
+pub(in super::super) fn retained_structural_result(
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<&checked_trees::CheckedUnitStructuralResultBindingPlan> {
     if operation
@@ -1687,7 +1685,7 @@ pub(in crate::execution::terminal_unit) fn retained_structural_result(
 /// position, so its statement is the call's — any local declared on that
 /// statement is a sibling, never this construction's binding. Such rows must
 /// not stand in for a local's unique producer.
-pub(in crate::execution::terminal_unit) fn operand_owned_construction(
+pub(in super::super) fn operand_owned_construction(
     operation: &CheckedUnitEffectOperationPlan,
 ) -> bool {
     matches!(
