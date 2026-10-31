@@ -10,7 +10,7 @@ use validation::{
 };
 
 use checked_trees::{
-    CheckFacts, CheckedSemanticDependencies, CheckedSemanticDependency,
+    CheckFacts, CheckedSemanticDependencies, CheckedSemanticDependency as SemanticDependency,
     CheckedSemanticDependencyExposure as Exposure, CheckedSemanticDependencyKind as Kind,
 };
 use language_semantics::{PermissionEventKind, PermissionEventSource};
@@ -21,7 +21,7 @@ use typed_trees::types::TypeReferenceHandle;
 /// and dependency kind own membership; the Vec retains first-publication order.
 #[derive(Default)]
 struct DependencyRows {
-    rows: Vec<CheckedSemanticDependency>,
+    rows: Vec<SemanticDependency>,
     positions: BTreeMap<(u32, u32, u32, u32, Kind), usize>,
 }
 
@@ -181,7 +181,7 @@ fn append_type_dependencies(
         for kind in [Kind::NominalIdentity, Kind::Layout, Kind::OwnershipBehavior] {
             push_promoting(
                 rows,
-                CheckedSemanticDependency {
+                SemanticDependency {
                     consumer_machine,
                     dependency,
                     exposure,
@@ -194,7 +194,7 @@ fn append_type_dependencies(
         }
         push_promoting(
             rows,
-            CheckedSemanticDependency {
+            SemanticDependency {
                 consumer_machine,
                 dependency,
                 exposure,
@@ -400,7 +400,7 @@ fn push_cleanup_machine(
 ) {
     push_promoting(
         rows,
-        CheckedSemanticDependency {
+        SemanticDependency {
             consumer_machine,
             dependency: cleanup_machine,
             exposure,
@@ -409,7 +409,7 @@ fn push_cleanup_machine(
     );
 }
 
-fn push_promoting(rows: &mut DependencyRows, candidate: CheckedSemanticDependency) {
+fn push_promoting(rows: &mut DependencyRows, candidate: SemanticDependency) {
     let key = (
         candidate.consumer_machine.arena_index(),
         candidate.consumer_machine.generation(),
@@ -432,18 +432,16 @@ fn push_promoting(rows: &mut DependencyRows, candidate: CheckedSemanticDependenc
 
 #[cfg(test)]
 mod dependency_row_tests {
-    use super::{CheckedSemanticDependency, DependencyRows, Exposure, Kind, push_promoting};
+    use super::{DependencyRows, Exposure, Kind, SemanticDependency, push_promoting};
     use symbols::SymbolHandle;
 
     #[test]
     fn indexed_promotion_matches_ordered_linear_accumulation() {
-        let row = |consumer_generation, dependency_generation, kind, exposure| {
-            CheckedSemanticDependency {
-                consumer_machine: SymbolHandle::from_parts(3, consumer_generation),
-                dependency: SymbolHandle::from_parts(7, dependency_generation),
-                kind,
-                exposure,
-            }
+        let row = |consumer_generation, dependency_generation, kind, exposure| SemanticDependency {
+            consumer_machine: SymbolHandle::from_parts(3, consumer_generation),
+            dependency: SymbolHandle::from_parts(7, dependency_generation),
+            kind,
+            exposure,
         };
         let candidates = [
             row(1, 1, Kind::NominalIdentity, Exposure::PrivateImplementation),
@@ -462,7 +460,7 @@ mod dependency_row_tests {
             for sequence in 0..candidates.len().pow(length) {
                 let mut digits = sequence;
                 let mut indexed = DependencyRows::default();
-                let mut expected: Vec<CheckedSemanticDependency> = Vec::new();
+                let mut expected: Vec<SemanticDependency> = Vec::new();
                 for _ in 0..length {
                     let candidate = candidates[digits % candidates.len()];
                     digits /= candidates.len();
@@ -482,7 +480,7 @@ mod dependency_row_tests {
                 }
                 // The original stable sort deliberately omits generations.
                 // Its equal-key order still comes from the publication Vec.
-                let key = |row: &CheckedSemanticDependency| {
+                let key = |row: &SemanticDependency| {
                     (
                         row.consumer_machine.arena_index(),
                         row.dependency.arena_index(),

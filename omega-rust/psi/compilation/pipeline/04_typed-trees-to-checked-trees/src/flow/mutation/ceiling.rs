@@ -16,7 +16,7 @@ use crate::places::place_at;
 use validation::CanonicalPlace;
 
 use super::StorageRegion;
-use checked_trees::{BorrowCallFact, BorrowFacts, BorrowLoanOwnerSegment};
+use checked_trees::{BorrowCallFact, BorrowFacts, BorrowLoanOwnerSegment as OwnerSegment};
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceNode;
 
@@ -446,16 +446,16 @@ fn carried_exclusive_referents(
                     .loan_owner_path(loan)
                     .iter()
                     .map(|segment| match segment {
-                        BorrowLoanOwnerSegment::Field(symbol) => {
+                        OwnerSegment::Field(symbol) => {
                             facts::PlaceSegment::Field { symbol: *symbol }
                         }
-                        BorrowLoanOwnerSegment::Case(variant) => {
+                        OwnerSegment::Case(variant) => {
                             facts::PlaceSegment::Case { variant: *variant }
                         }
-                        BorrowLoanOwnerSegment::FixedIndex(index) => {
+                        OwnerSegment::FixedIndex(index) => {
                             facts::PlaceSegment::FixedIndex { index: *index }
                         }
-                        BorrowLoanOwnerSegment::DynamicIndex => facts::PlaceSegment::Index {
+                        OwnerSegment::DynamicIndex => facts::PlaceSegment::Index {
                             expression: Default::default(),
                         },
                     })
@@ -558,7 +558,7 @@ fn loan_write_region(place: CanonicalPlace) -> StorageRegion {
 /// or dynamic selector conservatively overlaps its counterpart.
 fn owner_path_overlaps(
     program: &dyn ::validation::CheckingInput,
-    owner_path: &[BorrowLoanOwnerSegment],
+    owner_path: &[OwnerSegment],
     place_segments: &[facts::PlaceSegment],
 ) -> bool {
     owner_path
@@ -566,30 +566,29 @@ fn owner_path_overlaps(
         .zip(place_segments)
         .all(|(owner, place)| match (owner, place) {
             (
-                BorrowLoanOwnerSegment::Field(owner_symbol),
+                OwnerSegment::Field(owner_symbol),
                 facts::PlaceSegment::Field {
                     symbol: place_symbol,
                 },
             ) => !place_symbol.is_valid() || owner_symbol == place_symbol,
             (
-                BorrowLoanOwnerSegment::Case(owner_variant),
+                OwnerSegment::Case(owner_variant),
                 facts::PlaceSegment::Case {
                     variant: place_variant,
                 },
             ) => owner_variant == place_variant,
             (
-                BorrowLoanOwnerSegment::FixedIndex(owner_index),
+                OwnerSegment::FixedIndex(owner_index),
                 facts::PlaceSegment::FixedIndex { index: place_index },
             ) => owner_index == place_index,
+            (OwnerSegment::FixedIndex(owner_index), facts::PlaceSegment::Index { expression }) => {
+                expressions(program)
+                    .constant_integer_value(*expression)
+                    .and_then(|value| usize::try_from(value).ok())
+                    .is_none_or(|place_index| *owner_index == place_index)
+            }
             (
-                BorrowLoanOwnerSegment::FixedIndex(owner_index),
-                facts::PlaceSegment::Index { expression },
-            ) => expressions(program)
-                .constant_integer_value(*expression)
-                .and_then(|value| usize::try_from(value).ok())
-                .is_none_or(|place_index| *owner_index == place_index),
-            (
-                BorrowLoanOwnerSegment::DynamicIndex,
+                OwnerSegment::DynamicIndex,
                 facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. },
             ) => true,
             _ => false,

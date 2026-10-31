@@ -7,7 +7,9 @@
 //! A cycle requiring induction or a missing selected operation withholds the
 //! whole capture, rather than trusting a partially inspected path.
 
-use super::{CallValues, CapturedValue, CheckedScalarExpressionRole, FlowBuildContext};
+use super::{
+    CallValues, CapturedValue, CheckedScalarExpressionRole as ExpressionRole, FlowBuildContext,
+};
 use crate::flow::state_statements;
 use checked_trees::{BorrowFacts, CheckedScalarExpression};
 use symbols::SymbolHandle;
@@ -113,7 +115,7 @@ impl NormalReturnCapture<'_, '_> {
                             self.context,
                             state.symbol,
                             ordinal,
-                            CheckedScalarExpressionRole::Guard,
+                            ExpressionRole::Guard,
                             source,
                             SymbolHandle::invalid(),
                             symbols,
@@ -167,9 +169,9 @@ impl NormalReturnCapture<'_, '_> {
                         local.initial_value,
                         local.symbol,
                         if local.is_mutable {
-                            CheckedScalarExpressionRole::StorageInitializer
+                            ExpressionRole::StorageInitializer
                         } else {
-                            CheckedScalarExpressionRole::LocalInitializer {
+                            ExpressionRole::LocalInitializer {
                                 binding_ordinal: immutable_local_count,
                             }
                         },
@@ -190,17 +192,13 @@ impl NormalReturnCapture<'_, '_> {
                     (
                         assignment.value,
                         path.symbol,
-                        CheckedScalarExpressionRole::AssignmentValue,
+                        ExpressionRole::AssignmentValue,
                     )
                 }
                 StatementNode::Expression(expression)
                     if statement_index + 1 == statements.len() =>
                 {
-                    (
-                        *expression,
-                        SymbolHandle::invalid(),
-                        CheckedScalarExpressionRole::Return,
-                    )
+                    (*expression, SymbolHandle::invalid(), ExpressionRole::Return)
                 }
                 _ => return None,
             };
@@ -215,18 +213,16 @@ impl NormalReturnCapture<'_, '_> {
             )?;
             let value = Value::evaluate_local(expression, values);
             match role {
-                CheckedScalarExpressionRole::Return => {
+                ExpressionRole::Return => {
                     return returned.join(CapturedReturns::Value(value?));
                 }
-                CheckedScalarExpressionRole::LocalInitializer { .. } => {
+                ExpressionRole::LocalInitializer { .. } => {
                     symbols.push(destination);
                     values.bindings.push(value);
                     immutable_local_count = immutable_local_count.checked_add(1)?;
                 }
-                CheckedScalarExpressionRole::StorageInitializer => {
-                    values.storage.push((destination, value?))
-                }
-                CheckedScalarExpressionRole::AssignmentValue => {
+                ExpressionRole::StorageInitializer => values.storage.push((destination, value?)),
+                ExpressionRole::AssignmentValue => {
                     let (_, current) = values
                         .storage
                         .iter_mut()
@@ -257,9 +253,9 @@ impl NormalReturnCapture<'_, '_> {
         match self.program.statement_table.transition_target(target) {
             TransitionTargetNode::Value(source) => {
                 let role = if continuation {
-                    CheckedScalarExpressionRole::ContinuationReturn
+                    ExpressionRole::ContinuationReturn
                 } else {
-                    CheckedScalarExpressionRole::Return
+                    ExpressionRole::Return
                 };
                 let expression = selected(
                     self.context,
@@ -321,11 +317,9 @@ impl NormalReturnCapture<'_, '_> {
                     }
                     let argument_ordinal = u32::try_from(position).ok()?;
                     let role = if continuation {
-                        CheckedScalarExpressionRole::TransitionContinuationArgument {
-                            argument_ordinal,
-                        }
+                        ExpressionRole::TransitionContinuationArgument { argument_ordinal }
                     } else {
-                        CheckedScalarExpressionRole::TransitionArgument { argument_ordinal }
+                        ExpressionRole::TransitionArgument { argument_ordinal }
                     };
                     let expression = selected(
                         self.context,
@@ -356,7 +350,7 @@ fn selected<'plans>(
     context: &FlowBuildContext<'plans>,
     state: SymbolHandle,
     ordinal: u32,
-    role: CheckedScalarExpressionRole,
+    role: ExpressionRole,
     source: ExpressionHandle,
     destination: SymbolHandle,
     symbols: &[SymbolHandle],

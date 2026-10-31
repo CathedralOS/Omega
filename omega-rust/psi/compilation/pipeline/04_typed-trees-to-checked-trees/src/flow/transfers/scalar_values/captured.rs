@@ -11,7 +11,9 @@ use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::expression::ExpressionNode;
-use checked_trees::{CheckedScalarExpression, CheckedStructuralPredicatePathSegment};
+use checked_trees::{
+    CheckedScalarExpression as ScalarExpression, CheckedStructuralPredicatePathSegment,
+};
 use facts::FactPlan;
 use facts::IntegerRange;
 use symbols::SymbolHandle;
@@ -38,16 +40,13 @@ pub(super) trait CapturedValue: Sized {
     fn literal(expression: &ExpressionNode) -> Option<Self>;
     fn at_place(place: &CanonicalPlace, live: &LiveValues<'_, '_>) -> Option<Self>;
     fn evaluate_live(
-        expression: &CheckedScalarExpression,
+        expression: &ScalarExpression,
         symbols: &[SymbolHandle],
         live: &LiveValues<'_, '_>,
     ) -> Option<Self>;
-    fn evaluate_local(
-        expression: &CheckedScalarExpression,
-        values: &mut CallValues<Self>,
-    ) -> Option<Self>;
-    fn boolean(expression: &CheckedScalarExpression, values: &mut CallValues<Self>)
-    -> Option<bool>;
+    fn evaluate_local(expression: &ScalarExpression, values: &mut CallValues<Self>)
+    -> Option<Self>;
+    fn boolean(expression: &ScalarExpression, values: &mut CallValues<Self>) -> Option<bool>;
     fn join(self, other: Self) -> Option<Self>;
     /// Fallback for an argument with no live snapshot: its runtime value must
     /// still satisfy the formal's declared scalar type, so that declaration —
@@ -105,7 +104,7 @@ impl CapturedValue for ScalarValue {
     }
 
     fn evaluate_live(
-        expression: &CheckedScalarExpression,
+        expression: &ScalarExpression,
         symbols: &[SymbolHandle],
         live: &LiveValues<'_, '_>,
     ) -> Option<Self> {
@@ -123,16 +122,13 @@ impl CapturedValue for ScalarValue {
     }
 
     fn evaluate_local(
-        expression: &CheckedScalarExpression,
+        expression: &ScalarExpression,
         values: &mut CallValues<Self>,
     ) -> Option<Self> {
         crate::values::evaluate_checked_scalar(expression, values)
     }
 
-    fn boolean(
-        expression: &CheckedScalarExpression,
-        values: &mut CallValues<Self>,
-    ) -> Option<bool> {
+    fn boolean(expression: &ScalarExpression, values: &mut CallValues<Self>) -> Option<bool> {
         match Self::evaluate_local(expression, values)? {
             Self::Boolean(value) => Some(value),
             _ => None,
@@ -207,7 +203,7 @@ impl CapturedValue for IntegerRange {
     }
 
     fn evaluate_live(
-        expression: &CheckedScalarExpression,
+        expression: &ScalarExpression,
         symbols: &[SymbolHandle],
         live: &LiveValues<'_, '_>,
     ) -> Option<Self> {
@@ -236,17 +232,14 @@ impl CapturedValue for IntegerRange {
     }
 
     fn evaluate_local(
-        expression: &CheckedScalarExpression,
+        expression: &ScalarExpression,
         values: &mut CallValues<Self>,
     ) -> Option<Self> {
         validation::selected_scalar_interval(expression, values)
     }
 
-    fn boolean(
-        expression: &CheckedScalarExpression,
-        values: &mut CallValues<Self>,
-    ) -> Option<bool> {
-        let CheckedScalarExpression::Boolean(expression) = expression else {
+    fn boolean(expression: &ScalarExpression, values: &mut CallValues<Self>) -> Option<bool> {
+        let ScalarExpression::Boolean(expression) = expression else {
             return None;
         };
         validation::selected_boolean_decision(expression, values)
