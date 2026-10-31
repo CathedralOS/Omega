@@ -7,11 +7,11 @@
 //! Only completed declaration values return from the private evaluation forest.
 
 use super::invocations::CheckedInitializers;
-use crate::build_time_evaluation::EvaluationDomain;
-use crate::build_time_evaluation::expression_table;
+use crate::build_time_evaluation::{EvaluationDomain, expression_table};
 use crate::const_evaluation::const_generic_expressions::{scalar_probe_destination, value};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
+use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use typed_trees::TypedTrees;
 
 #[cfg(test)]
@@ -30,9 +30,7 @@ mod tests {
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
         )
         .expect("resolve");
-        let mut typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-                .expect("type");
+        let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let machine = typed
             .realized_machine_named("bytes")
             .expect("query source")
