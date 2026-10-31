@@ -5,7 +5,7 @@
 //! but never reconstructs the one settlement already produced. These are source
 //! declarations, not selected supplies or portable declaration-owner evidence.
 
-use crate::{DerivedProviderPlan, ProviderPlanningContext, ProviderSelection};
+use crate::{DerivedProviderPlan, ProviderSelection};
 use diagnostics::Diagnostic;
 use language_semantics::direct_calls::DirectCallDeclarations;
 use std::sync::Arc;
@@ -24,7 +24,7 @@ impl AuthoredTargetProviders {
     }
 
     pub(crate) fn derive(
-        context: ProviderPlanningContext<'_>,
+        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
         body_declarations: &DirectCallDeclarations<SymbolHandle>,
         calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
         bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
@@ -32,7 +32,7 @@ impl AuthoredTargetProviders {
         declarations: crate::SettledTargetMachineDeclarations,
     ) -> Result<Self, Vec<Diagnostic>> {
         let candidates = crate::derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
-            context,
+            services,
             body_declarations,
             calling_plans,
             target.map(target::TargetProfile::target_name),
@@ -60,7 +60,7 @@ impl AuthoredTargetProviders {
 pub struct TargetProviderInventoryRequest<'program> {
     pub body_declarations: &'program DirectCallDeclarations<SymbolHandle>,
     pub origins: &'program [crate::SelectedTargetMachineOrigin],
-    pub context: ProviderPlanningContext<'program>,
+    pub services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'program>,
     pub defaults: &'program [crate::TargetProviderDefaults],
     pub settlement: &'program crate::ProviderSettlement,
 }
@@ -83,7 +83,7 @@ impl TargetProviderInventoryRequest<'_> {
         }
         let declarations = super::settle_provider_defaults(self.origins, self.defaults, profile);
         AuthoredTargetProviders::derive(
-            self.context,
+            self.services,
             self.body_declarations,
             &self.settlement.boundary_calling_plan_realizations,
             &self.settlement.evaluated_via_bindings,

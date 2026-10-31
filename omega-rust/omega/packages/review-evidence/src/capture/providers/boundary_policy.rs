@@ -27,7 +27,8 @@ pub(crate) fn project_checked_boundary_application_policy<'a>(
     let services = input
         .service_declarations
         .is_none()
-        .then(|| input.project_service_declarations());
+        .then(|| input.project_service_declarations())
+        .transpose()?;
     let compilation = &PackageReviewInput {
         service_declarations: input.service_declarations.or(services.as_ref()),
         external_providers: input.external_providers.or(projected.as_ref()),

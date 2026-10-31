@@ -61,14 +61,26 @@ impl<'a> PackageReviewInput<'a> {
     /// in custody; source handles never cross between these namespaces.
     pub(super) fn project_service_declarations(
         &self,
-    ) -> provider_planning::service_declarations::ServiceDeclarations {
-        provider_planning::service_declarations::ServiceDeclarations::prepare(
-            provider_planning::ProviderPlanningContext::new(
-                self.checking_input,
-                source::DependencyScope::Product,
+    ) -> Result<
+        provider_planning::service_declarations::ServiceDeclarations,
+        Vec<diagnostics::Diagnostic>,
+    > {
+        let context = provider_planning::ProviderPlanningContext::new(
+            self.checking_input,
+            source::DependencyScope::Product,
+        );
+        // The supplied candidate is independent source, never the custody's
+        // source-coordinate catalog. Keep the borrowed owner unchanged here.
+        let catalog =
+            checked_trees::typed_trees::service_declarations::PreparedServiceCatalog::prepare(
+                context,
+            );
+        Ok(
+            provider_planning::service_declarations::ServiceDeclarations::prepare(
+                catalog.bind(context).map_err(|error| vec![error])?,
+                &self.custody.providers().boundary_calling_plan_realizations,
+                self.custody.sources().exact_toolchain_sources(),
             ),
-            &self.custody.providers().boundary_calling_plan_realizations,
-            self.custody.sources().exact_toolchain_sources(),
         )
     }
 

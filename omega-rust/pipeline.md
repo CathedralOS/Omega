@@ -204,10 +204,20 @@ original simultaneous type/region scopes and retains exact ordered requirement
 correspondence and supplying ownership. Omega's
 `ServiceSchema` shares that declaration and attaches paired calling-report and
 commitment evidence by requirement coordinate; inherited receiver comparison
-still includes the complete target calling contract. Catalog custody keeps its
-separate, lazy trait-requirement-closure checks in Psi. The service/application
-census is not yet frozen before target selection, and selected-calling replay,
-default ABI signature materialization and review still have source dependencies.
+still includes the complete target calling contract. The final immutable Product
+owner prepares the complete source census once, before target planning; early
+Build prepares a separate census for its unchanged provisional projection.
+Abstract generic declarations, live applied roots, retained named applications,
+operators, top-level requirements and sealed accessor declarations remain distinct
+origins. Unsupported surfaces and exact trait-requirement-closure refusals stay
+deferred data, not preparation failures. Target provider derivation and declaration
+custody query those records without projecting source schemas again. Candidate
+eligibility and capture coalescing remain separate operations; catalog presence
+grants neither selection nor execution. Independent package-review candidates
+prepare their own source census rather than borrowing custody coordinates.
+Other source-schema consumers, selected-calling replay, default ABI signature
+materialization and canonical Terminal publication of the full catalog remain
+unfinished source dependencies.
 Compiler-private native component retention stores the canonical description
 and complete source-free derivation inputs together. Package admission supplies
 an exact compiler/library, source/dependency, purpose/target and snapshot key;

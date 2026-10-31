@@ -20,7 +20,6 @@ pub use adapter_conformance::{exact_checked_adapter, selected_requirement_checke
 pub use requirement_identities::{same_semantic_name, satisfies_plan_name};
 
 use super::ProviderPlan;
-use crate::ProviderPlanningContext;
 use crate::provider_planning::provenance_replay::plan_derivation::derive_provider_plans;
 use language_semantics::direct_calls::DirectCallDeclarations;
 use symbols::SymbolHandle;
@@ -81,7 +80,7 @@ pub struct DerivedProviderPlan {
 /// evaluated for the same typed program and target.
 #[derive(Clone, Copy)]
 pub struct ProviderPlanDerivation<'a> {
-    context: ProviderPlanningContext<'a>,
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'a>,
     body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
     calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
     selected_target: Option<&'a str>,
@@ -93,13 +92,13 @@ impl<'a> ProviderPlanDerivation<'a> {
     /// Derive from retained conformance alone, before `via` bindings are
     /// evaluated.
     pub const fn unevaluated(
-        context: ProviderPlanningContext<'a>,
+        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'a>,
         body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
         calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
         selected_target: Option<&'a str>,
     ) -> Self {
         Self {
-            context,
+            services,
             body_declarations,
             calling_plans,
             selected_target,
@@ -112,7 +111,7 @@ impl<'a> ProviderPlanDerivation<'a> {
     /// the same typed program and target. The table is not replayed against
     /// the program it was just evaluated from.
     pub fn evaluated(
-        context: ProviderPlanningContext<'a>,
+        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'a>,
         body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
         calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
         selected_target: Option<&'a str>,
@@ -120,7 +119,7 @@ impl<'a> ProviderPlanDerivation<'a> {
         target_machine_origins: &'a [SelectedTargetMachineOrigin],
     ) -> Self {
         Self {
-            context,
+            services,
             body_declarations,
             calling_plans,
             selected_target,
@@ -136,7 +135,7 @@ pub fn derive_satisfies_plans(
     derivation: ProviderPlanDerivation<'_>,
 ) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
     derive_provider_plans(
-        derivation.context,
+        derivation.services,
         derivation.body_declarations,
         derivation.calling_plans,
         derivation.selected_target,

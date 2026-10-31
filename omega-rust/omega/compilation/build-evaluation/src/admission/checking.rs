@@ -80,9 +80,14 @@ pub(crate) fn prepare_checked_build(
         packages,
     )?;
     let body_declarations = typed_trees::direct_calls::collect(context.typed, context.scope);
+    // This provisional Build owner stays immutable through provider planning
+    // and pending evaluation. A later re-projection creates its own census.
+    let service_catalog =
+        typed_trees::service_declarations::PreparedServiceCatalog::prepare(context);
+    let services = service_catalog.bind(context).map_err(|error| vec![error])?;
     let candidates = provider_planning::derive_satisfies_plans(
         provider_planning::ProviderPlanDerivation::evaluated(
-            context,
+            services,
             &body_declarations,
             &[],
             execution_profile.map(target::TargetProfile::target_name),
