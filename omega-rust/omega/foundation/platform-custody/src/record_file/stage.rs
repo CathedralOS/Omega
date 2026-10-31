@@ -1,8 +1,8 @@
 //! Shared synchronized stages and atomic replacement publication.
 use super::{
     CapabilityDirectory, CapabilityFile, CapabilityOpenOptions, FollowSymlinks, OsStr, OsString,
-    Path, PathBuf, RecordFileError, RecordFileLimits, RecordFileRoot, SeekFrom, io_at, io_error,
-    read_bytes_bounded, record_error_message, synchronize_directory,
+    Path, PathBuf, RecordFileError, RecordFileLimits, RecordFileRoot, SeekFrom, enforce_byte_limit,
+    io_at, io_error, read_bytes_bounded, record_error_message, synchronize_directory,
     verify_capability_regular_identity,
 };
 use cap_fs_ext::OpenOptionsFollowExt;
@@ -48,12 +48,7 @@ pub(super) fn prepare(
     limits: RecordFileLimits,
     permissions: Option<Permissions>,
 ) -> Result<PendingCapabilityRecord, RecordFileError> {
-    if bytes.len() > limits.maximum_bytes {
-        return Err(RecordFileError::ByteLimitExceeded {
-            actual: u64::try_from(bytes.len()).unwrap_or(u64::MAX),
-            maximum: limits.maximum_bytes,
-        });
-    }
+    enforce_byte_limit(bytes.len(), limits)?;
     let mut stage = create_exclusive_capability_stage(&root.directory, &root.display_path)?;
     io_at(stage.file.write_all(bytes), &stage.display_path)?;
     // Apply captured permissions after writing, since a write can clear mode bits.
