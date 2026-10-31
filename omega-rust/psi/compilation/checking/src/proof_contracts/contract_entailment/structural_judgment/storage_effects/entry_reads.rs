@@ -28,34 +28,51 @@ impl StructuralJudge<'_> {
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
-    ) -> Option<StructuralTerm> {
-        if self.declaration_state != state.symbol
-            || self.storage_write_sequence != 0
-            || !self.ordinary_storage_path(Some((machine, state)), expression)
-        {
-            return None;
+    ) -> Result<StructuralTerm, &'static str> {
+        if self.declaration_state != state.symbol || self.storage_write_sequence != 0 {
+            return Err("the rank entry observation is outside its declaration entry epoch");
+        }
+        if !self.ordinary_storage_path(Some((machine, state)), expression) {
+            return Err("the rank entry input is not a selected builtin storage path");
         }
         super::super::super::observed_projections::scalar_storage_read(
             self.program,
             machine,
             state,
             expression,
-        )?;
-        let canonical = crate::canonical_place_from_expression(self.program, expression)?;
-        let root = canonical.root.as_symbol()?;
-        self.program.state_parameter_by_symbol(state, root)?;
+        )
+        .ok_or("the rank entry input has no declared primitive storage-read geometry")?;
+        let canonical = crate::canonical_place_from_expression(self.program, expression)
+            .ok_or("the rank entry input has no canonical storage coordinate")?;
+        let root = canonical
+            .root
+            .as_symbol()
+            .ok_or("the rank entry input has no declared storage root")?;
+        self.program
+            .state_parameter_by_symbol(state, root)
+            .ok_or("the rank entry input is not rooted in its state formals")?;
         let backing = self
-            .frame_resolver()?
-            .storage_read_backing_before_statement(machine, state, 0, root, &canonical.segments)?;
-        let coordinate = self.capture_entry_storage_place(canonical)?;
-        let value = self.declaration_term(expression)?;
+            .frame_resolver()
+            .ok_or("the rank entry input has no call-frame resolver")?
+            .storage_read_backing_before_statement(machine, state, 0, root, &canonical.segments)
+            .ok_or("the rank entry input has no authenticated before-statement backing")?;
+        let coordinate = self
+            .capture_entry_storage_place(canonical)
+            .ok_or("the rank entry input has no exact formal selector snapshot")?;
+        let value = self
+            .declaration_term(expression)
+            .ok_or("the rank entry input has no admitted entry value description")?;
         let backing = self.freeze_entry_scalar_read_backing(state, backing);
         self.retain_storage_value(coordinate.clone(), value, true);
         let stored = std::sync::Arc::make_mut(&mut self.stored_values)
             .iter_mut()
-            .find(|stored| stored.coordinate == coordinate)?;
+            .find(|stored| stored.coordinate == coordinate)
+            .ok_or("the rank entry input lost its retained storage observation")?;
         stored.backing = Some(backing);
         stored.completed_read = None;
-        stored.entry.clone()
+        stored
+            .entry
+            .clone()
+            .ok_or("the rank entry input lost its entry scalar snapshot")
     }
 }

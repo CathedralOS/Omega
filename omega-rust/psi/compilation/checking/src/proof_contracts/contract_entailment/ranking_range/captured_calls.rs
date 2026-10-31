@@ -68,9 +68,7 @@ pub(crate) fn prove_captured_scalar_rank_call(
         ),
     );
     let mut judge = StructuralJudge::from_runtime_state_requires(program, caller, state, &requires);
-    let input = judge
-        .admitted_entry_scalar_value(caller, state, source.subject)
-        .ok_or("the source rank input has no authenticated entry read")?;
+    let input = judge.admitted_entry_scalar_value(caller, state, source.subject)?;
     let formed = judge.form_captured_integer_rank(&CapturedIntegerRank {
         input,
         primitive: source.primitive,

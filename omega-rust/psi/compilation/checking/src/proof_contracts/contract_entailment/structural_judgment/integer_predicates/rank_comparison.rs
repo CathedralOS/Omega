@@ -63,6 +63,9 @@ impl StructuralJudge<'_> {
             (input, rank.primitive)
         };
         let value = engine.substituted(&value);
+        if !engine.integer_value_lands(primitive, &value) {
+            return Err("the entry rank has no independently proved result carrier bound");
+        }
         if !engine.prove_at_least(&value, &BigInt::zero()) {
             return Err("the entry rank is not independently nonnegative");
         }
