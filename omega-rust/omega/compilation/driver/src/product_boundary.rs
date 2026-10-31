@@ -870,7 +870,8 @@ fn provider_publication_consumes_prepared_declarations_without_source() {
         ],
     );
     assert!(publication.contains("candidate.explicitly_selected"));
-    assert!(publication.contains("module.boundary_machines"));
+    let compact_publication = publication.split_whitespace().collect::<String>();
+    assert!(compact_publication.contains("module.boundary_machines"));
     assert!(publication.contains("crate::choose("));
     assert!(publication.contains("crate::admit("));
     assert!(publication.contains("TerminalTargetProviderSelection::from_plans"));
