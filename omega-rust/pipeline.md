@@ -339,6 +339,16 @@ recipes still materialize one parameter at a time. These telescopes and their
 separate source correspondence are invocation-owned; publishing the complete
 signature/contract set canonically in Terminal is still required.
 
+Psi's same immutable catalog also retains the complete explicit calling-policy
+application census: the owning vocabulary, concrete boundary arguments, exact
+named-map capture, inherited signature order and simultaneous type bindings.
+Requests and their refusal results remain in source order. Omega follows these
+arena-backed associations rather than traversing trait requirements or rebuilding
+application scopes for every target. It still selects each deployment's policy
+body and evaluates the policy. Publishing these applications and their closed
+storage/contract inputs in Terminal, rather than retaining source coordinates,
+remains the next connected migration.
+
 The owner approved this implementation plan on 2026-10-24. It is the acceptance
 for **PIPELINE-ARCHITECTURE-ENFORCEMENT**, not a claim that the current Rust
 implementation already has these boundaries. Build suspension and helper
