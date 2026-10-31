@@ -5,8 +5,7 @@
 //! literal extent may copy it into an ordinary array value, and that copy is
 //! exact-width: neither truncation nor zero padding is language semantics.
 
-use crate::tables::expression_table;
-use crate::tables::expression_table_mut;
+use crate::tables::{expression_table, expression_table_mut};
 use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKeyMap};
 use typed_trees::TypedTrees;

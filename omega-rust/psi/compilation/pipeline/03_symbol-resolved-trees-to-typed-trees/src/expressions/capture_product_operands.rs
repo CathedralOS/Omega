@@ -1,6 +1,5 @@
 //! Capture only the selected static operand's reachable source graph.
-use crate::tables::resolved_expressions;
-use crate::tables::type_constraints;
+use crate::tables::{resolved_expressions, type_constraints};
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;

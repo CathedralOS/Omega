@@ -5,15 +5,13 @@ use super::{
     lower_evidence_forwarding, lower_symbol_resolved_trees, type_resolved_cohort,
 };
 use diagnostics::Diagnostic;
-use language_semantics::SemanticDomainId;
-use language_semantics::SemanticDomainTable;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+use language_semantics::{SemanticDomainId, SemanticDomainTable};
 use source::SourceMap;
 use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::machine::MachineBodyStatus;
-use symbols::SourceScopedTopLevelBinding;
-use symbols::SymbolHandle;
+use symbols::{SourceScopedTopLevelBinding, SymbolHandle};
 use syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier;
 use typed_trees::TypedTrees;
 

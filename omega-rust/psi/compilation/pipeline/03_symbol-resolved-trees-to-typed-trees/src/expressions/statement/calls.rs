@@ -1,7 +1,6 @@
 use crate::expressions::proposition::is_proposition_call_target;
 use crate::lowerer::Lowerer;
-use crate::tables::expression_table_mut;
-use crate::tables::resolved_statements;
+use crate::tables::{expression_table_mut, resolved_statements};
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed::statement::StatementNode;

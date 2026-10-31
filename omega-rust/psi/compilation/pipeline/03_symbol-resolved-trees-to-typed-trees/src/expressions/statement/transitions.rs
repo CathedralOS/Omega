@@ -1,7 +1,6 @@
 use crate::expressions::exhaustiveness::closed_boolean_guard;
 use crate::lowerer::Lowerer;
-use crate::tables::resolved_statements;
-use crate::tables::statement_table_mut;
+use crate::tables::{resolved_statements, statement_table_mut};
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;

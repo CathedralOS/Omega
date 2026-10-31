@@ -1,8 +1,7 @@
 use crate::expressions::expression::lower_expression_handle_from_table_in_fact_position;
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::lower_name;
-use crate::tables::expression_table_mut;
-use crate::tables::resolved_expressions;
+use crate::tables::{expression_table_mut, resolved_expressions};
 use diagnostics::Diagnostic;
 use resolved::types::TypeReference;
 use symbol_resolved_trees as resolved;

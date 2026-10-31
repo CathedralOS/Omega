@@ -1,8 +1,6 @@
 use crate::expressions::statement::lower_statement;
 use crate::lowerer::Lowerer;
-use crate::tables::expression_table;
-use crate::tables::resolved_statements;
-use crate::tables::statement_table_mut;
+use crate::tables::{expression_table, resolved_statements, statement_table_mut};
 use diagnostics::Diagnostic;
 use language_semantics::CallOperationalAcknowledgementOrigin;
 use symbol_resolved_trees as resolved;

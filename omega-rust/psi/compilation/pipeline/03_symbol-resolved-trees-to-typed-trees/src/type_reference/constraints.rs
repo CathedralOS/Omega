@@ -1,6 +1,5 @@
 use crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution;
-use crate::tables::type_constraints;
-use crate::tables::type_references;
+use crate::tables::{type_constraints, type_references};
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;

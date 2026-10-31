@@ -1,8 +1,7 @@
 use super::lower_expression_handle_from_table_with_symbol_substitution;
 use crate::expressions::exhaustiveness::data_definition_index;
 use crate::lowerer::name::lower_name;
-use crate::tables::expression_table;
-use crate::tables::expression_table_mut;
+use crate::tables::{expression_table, expression_table_mut};
 use crate::type_reference::domain_aliases::expand_domain_reference;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;

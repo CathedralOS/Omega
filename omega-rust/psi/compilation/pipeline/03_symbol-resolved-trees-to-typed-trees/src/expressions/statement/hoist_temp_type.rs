@@ -29,8 +29,7 @@
 
 use crate::expressions::call_results::declared_call_return;
 use crate::lowerer::Lowerer;
-use crate::tables::resolved_expressions;
-use crate::tables::type_constraints;
+use crate::tables::{resolved_expressions, type_constraints};
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
 use resolved::types::ConstrainedTypeReference;
