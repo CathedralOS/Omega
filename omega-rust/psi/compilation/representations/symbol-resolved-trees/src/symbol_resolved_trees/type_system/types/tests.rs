@@ -7,6 +7,7 @@ use super::{
 use crate::expression::ExpressionTable;
 use crate::name::DiagnosticName;
 use arena::Arena;
+use source::{SourceId, SourceSpan, Span};
 use symbols::SymbolHandle;
 
 #[test]
@@ -150,10 +151,7 @@ fn normalization_with_owned_expressions_matches_snapshot_copies() {
     let maximum = source.insert(ExpressionNode::Integer(
         numerics::literals::IntegerLiteral::from_value(42),
     ));
-    source.set_source_span(
-        maximum,
-        source::SourceSpan::new(source::SourceId(3), source::Span::new(7, 9)),
-    );
+    source.set_source_span(maximum, SourceSpan::new(SourceId(3), Span::new(7, 9)));
     let mut children = Arena::new();
     let base_type = children.insert(TypeReference::Unit);
     let mut constraints = Arena::new();

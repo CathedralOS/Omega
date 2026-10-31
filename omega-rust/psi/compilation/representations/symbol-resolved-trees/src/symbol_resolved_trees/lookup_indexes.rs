@@ -14,7 +14,7 @@ use std::sync::Mutex;
 
 use crate::{signature, statement};
 use arena::{Handle, OwnedIndex};
-use compiler_storage::{RecordError, RecordWriter};
+use compiler_storage::{RecordError, RecordReader, RecordWriter};
 use symbols::{SymbolHandle, SymbolKeyMap};
 
 /// Handle-keyed maps take the integer hasher; none is iterated for output
@@ -257,9 +257,7 @@ impl compiler_storage::Record for ResolvedIndexes {
     fn write(&self, _: &mut RecordWriter) -> Result<(), RecordError> {
         Ok(())
     }
-    fn read<Context>(
-        _: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
+    fn read<Context>(_: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
         Ok(Self::default())
     }
 }
