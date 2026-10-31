@@ -18,6 +18,7 @@ use super::structural_signature_wire::{
 };
 use super::wire::{Reader, Writer};
 use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
+use semantic_vocabulary::PackageKeyIdentity;
 use terminal_psi::TerminalIdentityIndex;
 
 pub(crate) fn encode_provider_candidate(
@@ -97,11 +98,9 @@ pub(crate) fn decode_provider_candidate(
     let candidate_identity = TerminalIdentityIndex(reader.u32()?);
     let source_candidate_identity = TerminalIdentityIndex(reader.u32()?);
     let source_candidate_package_identity = if reader.boolean()? {
-        Some(
-            semantic_vocabulary::PackageKeyIdentity::from_digest(reader.array()?).ok_or(
-                CodecError::MalformedStructuralFoundation("empty provider source package identity"),
-            )?,
-        )
+        Some(PackageKeyIdentity::from_digest(reader.array()?).ok_or(
+            CodecError::MalformedStructuralFoundation("empty provider source package identity"),
+        )?)
     } else {
         None
     };
