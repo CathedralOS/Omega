@@ -256,7 +256,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let selected = crate::custody::resolve_single_structural_argument(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &self.structural_values,
             source,
         )?;
@@ -422,7 +422,7 @@ impl TerminalExecution<'_> {
             _ => return Err(malformed()),
         };
         let selected = crate::custody::resolve_single_structural_argument(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &self.structural_values,
             source,
         )?;
@@ -507,12 +507,12 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let lower_selected = crate::custody::resolve_single_structural_argument(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &self.structural_values,
             lower,
         )?;
         let upper_selected = crate::custody::resolve_single_structural_argument(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &self.structural_values,
             upper,
         )?;

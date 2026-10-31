@@ -141,13 +141,13 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             let array_type = array_path_type(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 root.structural_type,
                 &argument.path,
             )
             .ok_or_else(malformed)?;
-            let length = byte_array_length(&self.program.structural_types(), array_type)
-                .ok_or_else(malformed)?;
+            let length =
+                byte_array_length(&self.structural_types(), array_type).ok_or_else(malformed)?;
             if argument.bytes.len() as u128 != u128::from(length) {
                 return Err(malformed());
             }
@@ -162,8 +162,7 @@ impl TerminalExecution<'_> {
             // collection operations see the same custody at either entry.
             if argument.path.is_empty()
                 && matches!(
-                    self.program
-                        .structural_types()
+                    self.structural_types()
                         .get(&array_type)
                         .map(|row| &row.shape),
                     Some(StructuralTypeShape::ByteSequence(
@@ -286,11 +285,7 @@ impl TerminalExecution<'_> {
                     local_array_roots,
                 )?;
                 let values = RuntimeRows::from_rows(self.account.as_ref(), [(source.place, root)])?;
-                resolve_single_structural_argument(
-                    &self.program.structural_types(),
-                    &values,
-                    source,
-                )?
+                resolve_single_structural_argument(&self.structural_types(), &values, source)?
             }
         };
         let mut storage_referent = StructuralRuntimePlace::from(&referent);
@@ -322,12 +317,12 @@ impl TerminalExecution<'_> {
     ) -> Option<ArrayStorageHome> {
         let loan = self.element_view_values.get(&place)?;
         let (depth, frame_place, structural_type) =
-            loan.complete_scalar_array_frame(&self.program.structural_types())?;
+            loan.complete_scalar_array_frame(&self.structural_types())?;
         let array = self.frame_array(depth, frame_place)?;
         if array.structural_type != structural_type
             || !loan.matches_descriptor_home(self.structural_values.get(&place)?)
             || terminal_semantics::scalar_array_leaf_shape(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 structural_type,
             )?
             .1 != u64::try_from(array.len()).ok()?
@@ -427,8 +422,8 @@ impl TerminalExecution<'_> {
             &mut RuntimeRows::new(self.account.as_ref()),
         )?;
         let array_type = referent.structural_type;
-        let length = byte_array_length(&self.program.structural_types(), array_type)
-            .ok_or_else(malformed)?;
+        let length =
+            byte_array_length(&self.structural_types(), array_type).ok_or_else(malformed)?;
         if (source.access == StructuralAccess::MutableBorrow && !referent.qualifications.is_empty())
             || collection.extent != terminal_semantics::CollectionExtent::Fixed(length)
             || self.stored_byte_array_length(&array)? as u128 != u128::from(length)
@@ -473,7 +468,6 @@ impl TerminalExecution<'_> {
             parameter.access,
             terminal_psi::reading_borrow_pair_pattern!()
         ) || !self
-            .program
             .structural_types()
             .get(&parameter.structural_type)
             .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
@@ -485,7 +479,7 @@ impl TerminalExecution<'_> {
         // descriptor lifetime as ownership of the referent.
         if !terminal_semantics::view_descriptor_parameter(
             parameter,
-            self.program.structural_types().values(),
+            self.structural_types().values(),
         ) || argument.access != parameter.access
             || crate::custody::place_is_claimed(&self.live_claims, argument.place)
         {
@@ -513,7 +507,7 @@ impl TerminalExecution<'_> {
                     .chain(machine.block_structural_parameters())
                     .find(|source| source.place == argument.place)
                     .ok_or_else(malformed)?;
-                let types = self.program.structural_types();
+                let types = self.structural_types();
                 if source.structural_type != value.structural_type
                     || source.access != StructuralAccess::SharedBorrow
                     || !matches!(
@@ -574,7 +568,7 @@ impl TerminalExecution<'_> {
                     .chain(machine.block_structural_parameters())
                     .find(|source| source.place == argument.place)
                     .ok_or_else(malformed)?;
-                let types = self.program.structural_types();
+                let types = self.structural_types();
                 if source.structural_type != value.structural_type
                     || source.access != StructuralAccess::MutableBorrow
                     || parameter.access != StructuralAccess::SharedBorrow
@@ -651,12 +645,11 @@ impl TerminalExecution<'_> {
             Some((StructuralPathSegment::FixedByteRange { .. }, backing)) => backing,
             _ => &argument.path,
         };
-        let Some(array_type) =
-            array_path_type(&self.program.structural_types(), root_type, backing_path)
+        let Some(array_type) = array_path_type(&self.structural_types(), root_type, backing_path)
         else {
             return Ok(None);
         };
-        let Some(length) = byte_array_length(&self.program.structural_types(), array_type) else {
+        let Some(length) = byte_array_length(&self.structural_types(), array_type) else {
             return Ok(None);
         };
         let machine = self.program.machine(self.current_machine)?;
@@ -703,7 +696,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let window = terminal_semantics::fixed_byte_array_loan(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             self.program.catalogs.structural_domains.iter(),
             &source,
             argument,

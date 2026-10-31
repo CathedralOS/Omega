@@ -96,7 +96,7 @@ impl TerminalExecution<'_> {
             if let Some(crate::reference::AggregateViewTip::Aggregate { view, backing }) = view
                 && (view.byte_offset != 0
                     || terminal_semantics::reference_storage_size(
-                        self.program.structural_types().values(),
+                        self.structural_types().values(),
                         backing,
                     ) != Some(view.byte_length))
             {
@@ -261,7 +261,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let scalar_type = terminal_semantics::primitive_read_projection_type(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             self.live_structural_type(source.place)?,
             &source.path,
         );

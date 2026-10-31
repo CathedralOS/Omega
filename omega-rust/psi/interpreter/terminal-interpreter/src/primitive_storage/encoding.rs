@@ -135,7 +135,7 @@ impl TerminalExecution<'_> {
                 continue;
             };
             if crate::custody::resolve_structural_path_type(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 anchor.structural_type,
                 path,
             )
@@ -148,7 +148,7 @@ impl TerminalExecution<'_> {
                 .strip_prefix(anchor.path.as_slice())
                 .ok_or_else(malformed)?;
             let geometry = terminal_semantics::reference_storage_region(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 anchor.structural_type,
                 path,
             )

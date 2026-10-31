@@ -356,7 +356,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let array = self.frame_array(depth, place).ok_or_else(malformed)?;
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let (scalar, count) =
             terminal_semantics::scalar_array_leaf_shape(types.values(), structural_type)
                 .ok_or_else(malformed)?;
@@ -534,7 +534,7 @@ impl TerminalExecution<'_> {
         home: &StructuralRuntimePlace,
     ) -> Result<bool, TerminalInterpretError> {
         self.empty_array_storage.initialized_byte_array(
-            &self.program.structural_types(),
+            &self.structural_types(),
             &self.structural_byte_storage,
             home,
         )

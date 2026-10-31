@@ -86,9 +86,8 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         aggregate.validate_against(
-            self.program
-                .structural_declaration(result.structural_type)?,
-            |identity| self.program.structural_types().get(&identity),
+            self.structural_declaration(result.structural_type)?,
+            |identity| self.structural_types().get(&identity),
         )?;
         let value = TerminalStructuralValue::minted(
             self.local_structural_identities.allocate()?,
@@ -285,7 +284,7 @@ impl TerminalExecution<'_> {
     ) -> Result<crate::scalar_array::empty_storage::EmptyArrayRetirement, TerminalInterpretError>
     {
         self.empty_array_storage.prepare_retirement(
-            &self.program.structural_types(),
+            &self.structural_types(),
             self.account.as_ref(),
             from,
         )
@@ -388,7 +387,7 @@ impl TerminalExecution<'_> {
             result.multiplicity,
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
         ) || !terminal_semantics::zeroed_projected_byte_qualifications_hold(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             self.program.catalogs.structural_domains.iter(),
             result.structural_type,
             &result.projected_qualifications,
@@ -428,7 +427,7 @@ impl TerminalExecution<'_> {
         established_fields: &[terminal_semantics::EstablishedErasedStructuralField],
     ) -> Result<(), TerminalInterpretError> {
         let leaves = terminal_semantics::zeroed_structural_leaves_with_established_erased_fields(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             value.structural_type,
             established_fields,
         )
@@ -538,7 +537,7 @@ impl TerminalExecution<'_> {
                             home,
                             crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(
                                 crate::structural_inputs::byte_arrays::array_path_type(
-                                    &self.program.structural_types(), value.structural_type, leaf.path(),
+                                    &self.structural_types(), value.structural_type, leaf.path(),
                                 ).ok_or_else(malformed)?,
                                 ByteSequenceView::new(ByteSequenceStorage::zeroed(length, self.account.as_ref())?),
                                 self.account.as_ref(),
@@ -590,7 +589,7 @@ impl TerminalExecution<'_> {
         let result = operation.result.structural().ok_or_else(malformed)?;
         // A descriptor home may declare byte qualifications its stores prove.
         let descriptor_home = matches!(
-            self.program.structural_types().get(&result.structural_type),
+            self.structural_types().get(&result.structural_type),
             Some(declaration) if declaration.shape.is_borrowed_byte_view()
         );
         if !matches!(
@@ -668,7 +667,7 @@ impl TerminalExecution<'_> {
         let module = &self.program.catalogs;
         let preserves = |root, whole: &[_], projected: &[_]| {
             terminal_semantics::scalar_field_store_preserves_domain_content(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 module.structural_domains.iter(),
                 &module.identities,
                 root,
@@ -677,7 +676,7 @@ impl TerminalExecution<'_> {
                 path,
                 field,
             ) && terminal_semantics::scalar_field_store_preserves_content(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 module.structural_domains.iter(),
                 &module.identities,
                 root,
@@ -768,7 +767,7 @@ impl TerminalExecution<'_> {
             }
             Some(_) => return Err(malformed()),
         };
-        let types = self.program.structural_types();
+        let types = self.structural_types();
         let member = terminal_semantics::observed_field_declaration(
             types.values(),
             declared_parent,
@@ -958,14 +957,14 @@ impl TerminalExecution<'_> {
         // comparing membership, just as reference formation and calls do.
         let required_projected =
             crate::structural_inputs::case_membership::active_projected_qualifications(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 &selected,
                 self.structural_cases.as_map(),
                 &result.projected_qualifications,
             )?;
         let available_projected =
             crate::structural_inputs::case_membership::active_projected_qualifications(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 &selected,
                 self.structural_cases.as_map(),
                 &selected.projected_qualifications,
@@ -1018,7 +1017,7 @@ impl TerminalExecution<'_> {
         let machine = self.program.machine(self.current_machine)?;
         if !terminal_semantics::structural_store_value_admitted(
             machine,
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             disposition,
             value.place,
         ) {
@@ -1273,7 +1272,7 @@ impl TerminalExecution<'_> {
                 )
             };
         let mut projection = terminal_semantics::structural_window_projection(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             root_type,
             declared_path,
             field,
@@ -1334,7 +1333,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let projection = terminal_semantics::structural_window_projection(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             self.live_structural_type(root)?,
             declared_path,
             field,
@@ -1422,7 +1421,7 @@ impl TerminalExecution<'_> {
             // Static window geometry cannot interpret that suffix as inline
             // collection storage, even after the outer index is concrete.
             let (collection, selected) =
-                view.structural_projection(&self.program.structural_types(), path, true)?;
+                view.structural_projection(&self.structural_types(), path, true)?;
             self.resolve_reference_storage_projection(&collection, &selected, required_access)?
                 .ok_or_else(malformed)?
                 .value
@@ -1517,7 +1516,7 @@ impl TerminalExecution<'_> {
                         capacity,
                     }),
                 ..
-            }) = self.program.structural_types().get(&result.structural_type)
+            }) = self.structural_types().get(&result.structural_type)
         {
             let source_value = self.structural_value(*source)?;
             let bytes = self.byte_sequence_values.require(source)?.immutable()?;
@@ -1562,7 +1561,7 @@ impl TerminalExecution<'_> {
         // copying its permission is admitted. Its cells retain the captured
         // backing below; no referent snapshot or parent reborrow is created.
         let shared_descriptor = terminal_semantics::is_copyable_carrier(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             result.structural_type,
         );
         // Other affine payloads still need their owned frontier publication.
@@ -1582,12 +1581,11 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let scalar_array_result = terminal_semantics::scalar_array_leaf_shape(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             result.structural_type,
         )
         .is_some();
         let primitive_result = self
-            .program
             .structural_types()
             .get(&result.structural_type)
             .is_some_and(|declaration| {
@@ -1708,7 +1706,7 @@ impl TerminalExecution<'_> {
         if leaf.structural_type != result.structural_type
             && !quotient_adaptation
             && !terminal_semantics::shared_descriptor_copy_matches(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 leaf.structural_type,
                 occurrence_access,
                 result.structural_type,
@@ -1731,7 +1729,7 @@ impl TerminalExecution<'_> {
         // the detached primitive payload representation carries no domains.
         if result.is_unrestricted_plain()
             && terminal_semantics::scalar_array_leaf_shape(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 result.structural_type,
             )
             .is_some()
@@ -1747,7 +1745,6 @@ impl TerminalExecution<'_> {
         }
         let source_place = StructuralRuntimePlace::from(&leaf);
         if self
-            .program
             .structural_types()
             .get(&result.structural_type)
             .is_some_and(|declaration| {
@@ -1768,7 +1765,6 @@ impl TerminalExecution<'_> {
         }) {
             let reference_type = self.actual_storage_type(&leaf, carrier)?;
             if !self
-                .program
                 .structural_types()
                 .get(&reference_type)
                 .is_some_and(|declaration| {
@@ -1792,7 +1788,6 @@ impl TerminalExecution<'_> {
             path: Vec::new(),
         };
         if self
-            .program
             .structural_types()
             .get(&result.structural_type)
             .is_some_and(|declaration| {
@@ -1827,7 +1822,6 @@ impl TerminalExecution<'_> {
             )?;
         }
         if self
-            .program
             .structural_types()
             .get(&result.structural_type)
             .is_some_and(|declaration| {
@@ -1912,7 +1906,7 @@ impl TerminalExecution<'_> {
         };
         let bytes = self.structural_byte_storage.require(&array)?;
         let layout = terminal_semantics::byte_carrier_scalar_layout(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             result.structural_type,
         )
         .ok_or_else(malformed)?;
@@ -2017,7 +2011,7 @@ impl TerminalExecution<'_> {
             {
                 let (backing_path, backing_field) =
                     crate::reference::translate_aggregate_view_field(
-                        &self.program.structural_types(),
+                        &self.structural_types(),
                         view,
                         backing,
                         path,
@@ -2031,7 +2025,7 @@ impl TerminalExecution<'_> {
         };
         let mut parent = StructuralRuntimePlace::from(structural_value);
         if let Some(carrier) = terminal_semantics::case_payload_carrier(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             structural_value.structural_type,
             path,
         ) {
@@ -2043,7 +2037,7 @@ impl TerminalExecution<'_> {
             return Ok(StructuralScalarRuntimeField::case_payload(parent, field));
         }
         let carrier = terminal_semantics::record_field_carrier(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             structural_value.structural_type,
             path,
         )
@@ -2094,7 +2088,7 @@ impl TerminalExecution<'_> {
             None => structural_value.structural_type,
         };
         let declaration = terminal_semantics::observed_field_declaration(
-            self.program.structural_types().values(),
+            self.structural_types().values(),
             declared_root,
             path,
             field,
@@ -2109,7 +2103,7 @@ impl TerminalExecution<'_> {
                 field,
             ));
             let physical = terminal_semantics::canonical_structural_storage_path(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 declared_root,
                 &selected,
             )
@@ -2119,7 +2113,7 @@ impl TerminalExecution<'_> {
         }
         if let Some(view) = view {
             let carrier = terminal_semantics::record_field_carrier(
-                self.program.structural_types().values(),
+                self.structural_types().values(),
                 declared_root,
                 path,
             )

@@ -89,11 +89,11 @@ impl TerminalExecution<'_> {
         for depth in (0..selected_path.len()).rev() {
             let parent_path = &selected_path[..depth];
             let parent_type = crate::custody::resolve_structural_path_type(
-                &self.program.structural_types(),
+                &self.structural_types(),
                 root.structural_type,
                 parent_path,
             )?;
-            let declaration = self.program.structural_declaration(parent_type)?;
+            let declaration = self.structural_declaration(parent_type)?;
             let children = match &declaration.shape {
                 StructuralTypeShape::Record { fields, .. } => fields
                     .iter()
