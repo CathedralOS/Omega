@@ -9,15 +9,16 @@ mod provenance_effects;
 mod register_calls;
 mod return_effects;
 
+use isa_aarch64::Aarch64MachineEffectCatalogValidationError as Aarch64EffectError;
 use isa_aarch64::{
-    AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL, Aarch64MachineEffectCatalogValidationError,
-    aarch64_machine_effect_catalog, aarch64_preservation_convention_for_target,
-    validate_aarch64_machine_effect_catalog,
+    AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL, aarch64_machine_effect_catalog,
+    aarch64_preservation_convention_for_target, validate_aarch64_machine_effect_catalog,
 };
+use isa_x86_64::X86_64MachineEffectCatalogValidationError as X86_64EffectError;
 use isa_x86_64::{
     X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_CALL_UNIT, X86_64_SYSTEM_V_CALL,
-    X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
-    x86_64_machine_effect_catalog, x86_64_preservation_convention_for_target,
+    validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog,
+    x86_64_preservation_convention_for_target,
 };
 use register_model::{
     PhysicalRegisterModel, PreservationConvention, RegisterConstraintKey,
@@ -382,42 +383,32 @@ fn validate_effects(
     catalog: MachineEffectCatalog,
 ) -> Result<ValidatedMachineEffectCatalog, EffectRejection> {
     match case.target.architecture {
-        Architecture::X86_64 => {
-            validate_x86_64_machine_effect_catalog(case.target, constraints, catalog).map_err(
-                |error| match error {
-                    X86_64MachineEffectCatalogValidationError::Structural(inner) => {
-                        EffectRejection::Structural(inner)
-                    }
-                    X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch => {
-                        EffectRejection::SemanticMismatch
-                    }
-                    X86_64MachineEffectCatalogValidationError::TargetArchitectureMismatch => {
-                        EffectRejection::TargetArchitectureMismatch
-                    }
-                    X86_64MachineEffectCatalogValidationError::UnsupportedTargetAbi => {
-                        EffectRejection::UnsupportedTargetAbi
-                    }
-                },
-            )
-        }
-        Architecture::Aarch64 => {
-            validate_aarch64_machine_effect_catalog(case.target, constraints, catalog).map_err(
-                |error| match error {
-                    Aarch64MachineEffectCatalogValidationError::Structural(inner) => {
-                        EffectRejection::Structural(inner)
-                    }
-                    Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch => {
-                        EffectRejection::SemanticMismatch
-                    }
-                    Aarch64MachineEffectCatalogValidationError::TargetArchitectureMismatch => {
-                        EffectRejection::TargetArchitectureMismatch
-                    }
-                    Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi => {
-                        EffectRejection::UnsupportedTargetAbi
-                    }
-                },
-            )
-        }
+        Architecture::X86_64 => validate_x86_64_machine_effect_catalog(
+            case.target,
+            constraints,
+            catalog,
+        )
+        .map_err(|error| match error {
+            X86_64EffectError::Structural(inner) => EffectRejection::Structural(inner),
+            X86_64EffectError::TargetSemanticMismatch => EffectRejection::SemanticMismatch,
+            X86_64EffectError::TargetArchitectureMismatch => {
+                EffectRejection::TargetArchitectureMismatch
+            }
+            X86_64EffectError::UnsupportedTargetAbi => EffectRejection::UnsupportedTargetAbi,
+        }),
+        Architecture::Aarch64 => validate_aarch64_machine_effect_catalog(
+            case.target,
+            constraints,
+            catalog,
+        )
+        .map_err(|error| match error {
+            Aarch64EffectError::Structural(inner) => EffectRejection::Structural(inner),
+            Aarch64EffectError::TargetSemanticMismatch => EffectRejection::SemanticMismatch,
+            Aarch64EffectError::TargetArchitectureMismatch => {
+                EffectRejection::TargetArchitectureMismatch
+            }
+            Aarch64EffectError::UnsupportedTargetAbi => EffectRejection::UnsupportedTargetAbi,
+        }),
     }
 }
 
