@@ -1,7 +1,7 @@
 # Selected-implementation invocation lifetimes
 
 Owning task: **BUILD-OWNED-TARGET-SELECTION** in [TASKS.md](../../../../TASKS.md).
-This row establishes exact requirement/implementation lifetime identity and
+This row tracks exact requirement/implementation lifetime identity and
 captured-operand transport under ordinary target-keyed Build selections.
 
 **Every selected implementation retains a fresh invocation lifetime and the
@@ -70,6 +70,25 @@ records. Historical Linux/Windows observations of the former target-prefixed
 sources keep their original producer identities and provide no execution
 credit for this migration. Current native/Terminal acceptance is recorded
 separately with its actual source, producer and host.
+
+Current progress is established by [focused run 41228657620](https://github.com/CathedralOS/Omega/actions/runs/41228657620)
+at source `e7ab78cfde9789da0edb6d141e09af553d0ca9e9`: local, field,
+parameter, match join, const name, nested machine, another machine and selected
+implementation all check and exit 0 through both Linux x86-64 native execution
+and Terminal, with agreement. The retained optimized compiler SHA-256 is
+`bdf58ae1044cc32f3a1d6ffb0a6bae992cf5796f57fb6716ebfa7236c27c6d58`.
+The [captured-body reject](../../../../tests/omega/fail/borrows/invocation_lifetime_captured_body_return/main.omg)
+keeps its item-result signature but returns captured storage; its authored
+body-origin diagnostic also matches.
+
+Full-row acceptance remains open. [Run 41227086012](https://github.com/CathedralOS/Omega/actions/runs/41227086012)
+uses the identical compiler bytes and source: call result remains incomplete in
+local-data statement lowering, while the two-lifetime positive refuses callable
+region identity. All eleven existing signature/telescope twins reject, but
+miss their authored diagnostic fragments, so they do not establish their
+intended invalid discriminator. These findings are retained without changing
+fixtures, expected fragments or golden observations. The eight-place execution
+result does not establish the remaining cases or other native hosts.
 
 The parent task remains open for its remaining source migrations, native and
 callback consumers, distinct-target execution and complete legacy model,
