@@ -21,6 +21,11 @@ use crate::{
 };
 use symbols::SymbolHandle;
 
+/// The call schedule reader a transfer query needs: each structural value
+/// handle's checked structural calls, borrowed for `'calls`.
+type CallSchedules<'calls> =
+    dyn Fn(CheckedStructuralValueHandle) -> Option<&'calls [CheckedStructuralValueCall]>;
+
 impl CheckedUnitStructuralArgumentSourcePlan {
     /// The producer associated with current storage, for result metadata only.
     /// Named custody stays on the local; this does not retarget captured uses
@@ -88,9 +93,7 @@ impl CheckedUnitEffectOperationPlan {
     pub fn definite_call_transfers<'calls>(
         &self,
         values: &CheckedValueFacts,
-        call_schedules: &dyn Fn(
-            CheckedStructuralValueHandle,
-        ) -> Option<&'calls [CheckedStructuralValueCall]>,
+        call_schedules: &CallSchedules<'calls>,
         producer: &CheckedUnitEffectOperationPlan,
         local: SymbolHandle,
     ) -> usize {
@@ -106,9 +109,7 @@ impl CheckedCallScalarArgument {
     pub fn definite_call_transfers<'calls>(
         &self,
         values: &CheckedValueFacts,
-        call_schedules: &dyn Fn(
-            CheckedStructuralValueHandle,
-        ) -> Option<&'calls [CheckedStructuralValueCall]>,
+        call_schedules: &CallSchedules<'calls>,
         producer: &CheckedUnitEffectOperationPlan,
         local: SymbolHandle,
     ) -> usize {
@@ -120,9 +121,7 @@ impl CheckedCallScalarArgument {
 #[derive(Clone)]
 struct CallTransfers<'facts, 'calls> {
     values: &'facts CheckedValueFacts,
-    call_schedules: &'facts dyn Fn(
-        CheckedStructuralValueHandle,
-    ) -> Option<&'calls [CheckedStructuralValueCall]>,
+    call_schedules: &'facts CallSchedules<'calls>,
     result: &'facts CheckedUnitStructuralResultBindingPlan,
     local: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
@@ -137,9 +136,7 @@ impl CheckedScalarReturnPlan {
     pub fn selected_exit_call_transfers<'calls>(
         &self,
         values: &CheckedValueFacts,
-        call_schedules: &dyn Fn(
-            CheckedStructuralValueHandle,
-        ) -> Option<&'calls [CheckedStructuralValueCall]>,
+        call_schedules: &CallSchedules<'calls>,
         exits: &CheckedGuardedExitPlans,
         state: SymbolHandle,
         producer: &CheckedUnitEffectOperationPlan,
@@ -162,9 +159,7 @@ impl CheckedScalarReturnPlan {
     pub fn definite_call_transfers<'calls>(
         &self,
         values: &CheckedValueFacts,
-        call_schedules: &dyn Fn(
-            CheckedStructuralValueHandle,
-        ) -> Option<&'calls [CheckedStructuralValueCall]>,
+        call_schedules: &CallSchedules<'calls>,
         exits: &CheckedGuardedExitPlans,
         state: SymbolHandle,
         producer: &CheckedUnitEffectOperationPlan,
@@ -188,9 +183,7 @@ impl CheckedConditionalReturnArm {
     pub fn definite_call_transfers<'calls>(
         &self,
         values: &CheckedValueFacts,
-        call_schedules: &dyn Fn(
-            CheckedStructuralValueHandle,
-        ) -> Option<&'calls [CheckedStructuralValueCall]>,
+        call_schedules: &CallSchedules<'calls>,
         state: SymbolHandle,
         producer: &CheckedUnitEffectOperationPlan,
         local: SymbolHandle,
@@ -340,9 +333,7 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
 
     fn for_producer(
         values: &'facts CheckedValueFacts,
-        call_schedules: &'facts dyn Fn(
-            CheckedStructuralValueHandle,
-        ) -> Option<&'calls [CheckedStructuralValueCall]>,
+        call_schedules: &'facts CallSchedules<'calls>,
         producer: &'facts CheckedUnitEffectOperationPlan,
         local: SymbolHandle,
     ) -> Option<Self> {
