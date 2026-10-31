@@ -3,6 +3,7 @@ use crate::expressions::parse_expression::{
     parse_expression_handle_without_struct_literals_or_membership,
 };
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::tables::exprs;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -674,7 +675,7 @@ fn parse_ranked_subjects<'tokens, 'source>(
             parse_expression_handle_without_struct_literals_or_membership(syntax_trees, input)?;
         (vec![expression], rest)
     };
-    let ranking_subjects = syntax_trees.expressions.insert_expression_handles(subjects);
+    let ranking_subjects = exprs(syntax_trees).insert_expression_handles(subjects);
     let mut ranking_view = HandleSpan::empty();
     let mut ranking_view_arguments = HandleSpan::empty();
 
@@ -737,15 +738,13 @@ fn parse_ranked_subjects<'tokens, 'source>(
             after_separator,
         )?;
         ranking_range =
-            syntax_trees
-                .expressions
-                .insert(syntax_trees::expression::ExpressionNode::Range(
-                    syntax_trees::expression::TableRangeExpression {
-                        start,
-                        end,
-                        end_inclusive,
-                    },
-                ));
+            exprs(syntax_trees).insert(syntax_trees::expression::ExpressionNode::Range(
+                syntax_trees::expression::TableRangeExpression {
+                    start,
+                    end,
+                    end_inclusive,
+                },
+            ));
         rest = next;
     }
 

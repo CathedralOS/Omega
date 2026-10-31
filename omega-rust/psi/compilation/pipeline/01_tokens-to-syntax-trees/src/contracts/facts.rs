@@ -2,6 +2,7 @@ use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle_without_struct_literals_or_membership;
 use crate::expressions::parse_expression::parse_proof_fact_expression_handle;
 use crate::input::token_cursor::{Input, parse_path_handle_span};
+use crate::tables::exprs;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -189,7 +190,7 @@ fn parse_fact_list<'tokens, 'source>(
 
                 let first_expression_domain =
                     copy_item_path_to_expression_path(syntax_trees, first_domain);
-                let first_membership = syntax_trees.expressions.insert(ExpressionNode::Membership(
+                let first_membership = exprs(syntax_trees).insert(ExpressionNode::Membership(
                     TableMembershipExpression {
                         value,
                         domain: first_expression_domain,
@@ -227,19 +228,18 @@ fn parse_fact_list<'tokens, 'source>(
                     input = rest;
                     membership_domains.push((domain, domain_arguments));
                     let expression_domain = copy_item_path_to_expression_path(syntax_trees, domain);
-                    let membership = syntax_trees.expressions.insert(ExpressionNode::Membership(
+                    let membership = exprs(syntax_trees).insert(ExpressionNode::Membership(
                         TableMembershipExpression {
                             value,
                             domain: expression_domain,
                         },
                     ));
-                    chain_expression = syntax_trees.expressions.insert(ExpressionNode::Binary(
-                        TableBinaryExpression {
+                    chain_expression =
+                        exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
                             left: chain_expression,
                             operator,
                             right: membership,
-                        },
-                    ));
+                        }));
                 }
 
                 if saw_pipe {
@@ -312,17 +312,15 @@ fn parse_fact_list<'tokens, 'source>(
             {
                 let (predicate, rest) = input.take_identifier()?;
                 input = rest;
-                syntax_trees
-                    .expressions
-                    .insert(ExpressionNode::Call(TableCallExpression {
-                        target_is_static: false,
-                        receiver: value,
-                        target: predicate,
-                        machine_arguments: Box::default(),
-                        arguments: HandleSpan::empty(),
-                        evidence_arguments: Box::default(),
-                        operational_acknowledgement: Default::default(),
-                    }))
+                exprs(syntax_trees).insert(ExpressionNode::Call(TableCallExpression {
+                    target_is_static: false,
+                    receiver: value,
+                    target: predicate,
+                    machine_arguments: Box::default(),
+                    arguments: HandleSpan::empty(),
+                    evidence_arguments: Box::default(),
+                    operational_acknowledgement: Default::default(),
+                }))
             } else {
                 value
             };
@@ -397,13 +395,11 @@ fn range_membership_expression(
             },
             right: end,
         }));
-    syntax_trees
-        .expressions
-        .insert(ExpressionNode::Binary(TableBinaryExpression {
-            left: lower,
-            operator: BinaryOperator::And,
-            right: upper,
-        }))
+    exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+        left: lower,
+        operator: BinaryOperator::And,
+        right: upper,
+    }))
 }
 
 /// An indexed domain application after a proof-fact membership path

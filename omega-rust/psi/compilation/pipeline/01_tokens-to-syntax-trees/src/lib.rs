@@ -49,6 +49,7 @@ mod type_syntax;
 mod diagnostics;
 mod handle_spans;
 mod input;
+mod tables;
 
 // The entrance, and the two forms that create the arena for the caller.
 pub use parser::{

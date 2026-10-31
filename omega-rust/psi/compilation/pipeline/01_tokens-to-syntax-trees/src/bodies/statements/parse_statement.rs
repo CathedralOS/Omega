@@ -25,6 +25,7 @@ use crate::bodies::statements::statement_tables::{
 use crate::bodies::transitions::parse_transition::parse_transition_block_handles;
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::tables::{exprs, exprs_of};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
@@ -217,14 +218,11 @@ fn parse_statement_handle<'tokens, 'source>(
             .ok_or_else(|| input.error_here("compound assignment target must be a place"))?;
         let input = input.take_punctuation(punctuation, label)?;
         let (right, input) = parse_expression_handle(syntax_trees, input)?;
-        let value =
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left: read_target,
-                    operator,
-                    right,
-                }));
+        let value = exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: read_target,
+            operator,
+            right,
+        }));
         return finish_semicolon_statement(
             syntax_trees,
             StatementNode::Assignment(TableAssignment {
@@ -244,7 +242,7 @@ fn parse_statement_handle<'tokens, 'source>(
         let target = syntax_trees
             .statements
             .insert_transition_target(TransitionTargetNode::Value(expression));
-        let source_span = syntax_trees.expressions.source_span(expression);
+        let source_span = exprs_of(syntax_trees).source_span(expression);
         return Ok((
             syntax_trees
                 .statements

@@ -3,6 +3,7 @@
 use crate::bodies::statements::statement_tables::expression_handle_to_statement_call;
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::tables::{exprs, exprs_of};
 use crate::type_syntax::parse_type::parse_type_reference_handle_allowing_borrow;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -54,7 +55,7 @@ pub(crate) fn copy_compound_assignment_target(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let copy = match syntax_trees.expressions.expression(expression).clone() {
+    let copy = match exprs_of(syntax_trees).expression(expression).clone() {
         node @ (ExpressionNode::Name(_) | ExpressionNode::Member(_)) => {
             copied_name_or_member(syntax_trees, node)?
         }
@@ -66,7 +67,7 @@ pub(crate) fn copy_compound_assignment_target(
         _ => return None,
     };
 
-    Some(syntax_trees.expressions.insert(copy))
+    Some(exprs(syntax_trees).insert(copy))
 }
 
 /// The name/member arms every compound-assignment copy accepts: paths deep
@@ -76,11 +77,9 @@ fn copied_name_or_member(
     node: ExpressionNode,
 ) -> Option<ExpressionNode> {
     Some(match node {
-        ExpressionNode::Name(path) => ExpressionNode::Name(
-            syntax_trees
-                .expressions
-                .copy_identifier_path_prefix(path, path.len()),
-        ),
+        ExpressionNode::Name(path) => {
+            ExpressionNode::Name(exprs(syntax_trees).copy_identifier_path_prefix(path, path.len()))
+        }
         ExpressionNode::Member(member) => ExpressionNode::Member(TableMemberExpression {
             receiver: copy_compound_assignment_target(syntax_trees, member.receiver)?,
             access_source_span: member.access_source_span,
@@ -95,7 +94,7 @@ fn copy_stable_compound_assignment_index(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let copy = match syntax_trees.expressions.expression(expression).clone() {
+    let copy = match exprs_of(syntax_trees).expression(expression).clone() {
         ExpressionNode::Boolean(value) => ExpressionNode::Boolean(value),
         ExpressionNode::Integer(value) => ExpressionNode::Integer(value),
         node @ (ExpressionNode::Name(_) | ExpressionNode::Member(_)) => {
@@ -104,7 +103,7 @@ fn copy_stable_compound_assignment_index(
         _ => return None,
     };
 
-    Some(syntax_trees.expressions.insert(copy))
+    Some(exprs(syntax_trees).insert(copy))
 }
 
 pub(crate) fn parse_local_data<'tokens, 'source>(

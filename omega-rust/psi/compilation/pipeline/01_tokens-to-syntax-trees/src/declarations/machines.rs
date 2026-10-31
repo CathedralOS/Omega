@@ -14,6 +14,7 @@ use tokens::PunctuationKind;
 use crate::contracts::conformance::parse_conformance::parse_satisfies_traits;
 use crate::contracts::parse_contract_clauses::parse_machine_clauses;
 use crate::parameters::contracts::parse_machine_parameter_contracts;
+use crate::tables::{exprs, exprs_of};
 
 pub(crate) fn parse_machine<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -37,9 +38,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         (None, input)
     };
     let (path, input) = parse_path_handle_span(input, |member| {
-        syntax_trees
-            .expressions
-            .append_identifier_path_member(member)
+        exprs(syntax_trees).append_identifier_path_member(member)
     })?;
     let (generic_parameters, input) = parse_generic_parameters(
         syntax_trees,
@@ -176,7 +175,7 @@ struct MachinePath {
 }
 
 fn split_machine_path(syntax_trees: &SyntaxTrees, path: HandleSpan<Identifier>) -> MachinePath {
-    let members = syntax_trees.expressions.identifier_path_members(path);
+    let members = exprs_of(syntax_trees).identifier_path_members(path);
 
     if members.len() <= 1 {
         return MachinePath {

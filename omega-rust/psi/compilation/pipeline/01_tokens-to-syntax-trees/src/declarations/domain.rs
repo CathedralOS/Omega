@@ -1,6 +1,7 @@
 use crate::contracts::facts::parse_logical_proof_facts_until;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
+use crate::tables::exprs;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
@@ -87,9 +88,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     let refinement_parent = if name_segments.len() > 1 {
         let parent_span = name_segments[name_segments.len() - 2].0.source_span();
         let subject_path = HandleSpan::from_parts(
-            syntax_trees
-                .expressions
-                .append_identifier_path_member(Identifier::generated("self")),
+            exprs(syntax_trees).append_identifier_path_member(Identifier::generated("self")),
             1,
         );
         let parent_path = syntax_trees.items.insert_identifier_path_members(
