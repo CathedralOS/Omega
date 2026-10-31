@@ -302,10 +302,8 @@ retired-syntax deletions to completion.
       requirement's public contract independently of stronger implementation
       guarantees (preserving `samples/cli/facts/dynamic_float_refinement` across
       all nine places).
-    - Complete suspending requirements with borrowed values and remaining
-      operational envelope refinement, retaining the scalar/Unit-call,
-      live-value, and exact selector-envelope witnesses in
-      `samples/cli/facts/dynamic_suspension`.
+    - Complete remaining operational envelope refinement for suspending
+      dynamic requirements beyond suspension and blocking.
     - Extend public slot metadata with returned-borrow origins and parameter
       qualification preconditions, consume the new records in package review,
       and implement `source/psi/` and `source/omega/` producer/consumer parity.
