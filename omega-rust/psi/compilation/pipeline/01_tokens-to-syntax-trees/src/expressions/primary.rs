@@ -206,14 +206,10 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
                     parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
                 values.push(value);
                 input = rest;
-
                 let Some(next) = input.take_comma()? else {
                     break;
                 };
-
                 input = next;
-
-                continue;
             }
         }
 
