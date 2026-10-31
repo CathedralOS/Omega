@@ -6,13 +6,14 @@
 use omega_language_std::console;
 
 data Cell
-where
-    0 <= value && value <= 7,
+requires self.value >= 0 && self.value <= 7
 {
     value: i32;
 }
 
-data Main {
+data Main
+requires self.i <= 3
+{
     cells: [Cell; 4];
     i: u64;
 }
