@@ -15,6 +15,9 @@ mod result_contract;
 pub use result_contract::{
     AccessResultContract, access_result_contract, access_view_reference_slot,
 };
+use terminal_psi::StructuralFieldType;
+use terminal_psi::StructuralMultiplicity;
+use terminal_psi::find_structural_type;
 
 pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'static str> {
     // Check the mandatory direction too: omitting a row never demotes a
@@ -48,7 +51,7 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
         if boundary.role != BoundaryDeclarationRole::Callable {
             return Err("access lifecycle names non-callable contract evidence");
         }
-        let schema = terminal_psi::find_structural_type(&module.structural_types, plan.schema)
+        let schema = find_structural_type(&module.structural_types, plan.schema)
             .ok_or("access lifecycle schema is absent")?;
         if !matches!(schema.shape, StructuralTypeShape::Record { .. }) {
             return Err("access lifecycle schema is not a record");
@@ -123,13 +126,11 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
                                 "profile supply differs from its exact core declaration or extent/result contract",
                             );
                         }
-                        if terminal_psi::find_structural_type(
-                            &module.structural_types,
-                            *profile_type,
-                        )
-                        .is_none_or(|declaration| {
-                            !matches!(declaration.shape, StructuralTypeShape::Record { .. })
-                        }) {
+                        if find_structural_type(&module.structural_types, *profile_type).is_none_or(
+                            |declaration| {
+                                !matches!(declaration.shape, StructuralTypeShape::Record { .. })
+                            },
+                        ) {
                             return Err(
                                 "placement primitive profile is not a retained record type",
                             );
@@ -289,11 +290,9 @@ pub fn validate_access_view_content(
             StructuralTypeShape::Record { fields, .. } => {
                 for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
                     match field.field_type {
-                        terminal_psi::StructuralFieldType::Scalar(value) => scalar(value)?,
-                        terminal_psi::StructuralFieldType::IeeeFloat(_) => {}
-                        terminal_psi::StructuralFieldType::Structural(child) => {
-                            visit(module, child, active)?
-                        }
+                        StructuralFieldType::Scalar(value) => scalar(value)?,
+                        StructuralFieldType::IeeeFloat(_) => {}
+                        StructuralFieldType::Structural(child) => visit(module, child, active)?,
                         _ => {
                             return Err(
                                 "nonresident access View requires total field decoding evidence",
@@ -406,11 +405,9 @@ fn validate_storage(
         .first()
         .ok_or("placement extent input is absent")?;
     let input_multiplicity = match plan.operation {
-        TerminalAccessLifecycleOperation::View => {
-            terminal_psi::StructuralMultiplicity::Unrestricted
-        }
+        TerminalAccessLifecycleOperation::View => StructuralMultiplicity::Unrestricted,
         TerminalAccessLifecycleOperation::Initialize
-        | TerminalAccessLifecycleOperation::MoveOut => terminal_psi::StructuralMultiplicity::Linear,
+        | TerminalAccessLifecycleOperation::MoveOut => StructuralMultiplicity::Linear,
     };
     if parameter.structural_type != storage.carrier
         || parameter.multiplicity != input_multiplicity

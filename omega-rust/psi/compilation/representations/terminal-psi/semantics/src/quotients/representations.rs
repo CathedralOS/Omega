@@ -1,5 +1,9 @@
 //! Nominal formation and custody-free carrier storage at representation boundaries.
 use super::*;
+use terminal_psi::ByteSequenceCarrier;
+use terminal_psi::StructuralCaseDeclaration;
+use terminal_psi::StructuralFieldDeclaration;
+use terminal_psi::StructuralTypeShape;
 /// Validate declaration geometry and the exact nominal formation roster at an
 /// independent representation boundary. Theorem truth is not decided here.
 pub fn validate_quotient_representations(
@@ -125,16 +129,13 @@ fn validate_carrier(
     active.push(id);
     let mut children = Vec::new();
     let mut custody_field = false;
-    let mut field = |field: &terminal_psi::StructuralFieldDeclaration| {
+    let mut field = |field: &StructuralFieldDeclaration| {
         custody_field |= matches!(field.field_type, F::Atomic(_))
             || field
                 .field_type
                 .byte_sequence_carrier()
                 .is_some_and(|carrier| {
-                    !matches!(
-                        carrier,
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
+                    !matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
                 });
         if let F::Structural(child) = field.field_type {
             children.push(child);
@@ -145,8 +146,7 @@ fn validate_carrier(
         | S::Reference { .. }
         | S::ElementView { .. }
         | S::ByteSequence(
-            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-            | terminal_psi::ByteSequenceCarrier::BoundedView { .. },
+            ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. },
         ) => {
             return Err("quotient carrier contains reference or routed storage");
         }
@@ -177,15 +177,9 @@ fn validate_carrier(
 
 /// Field/case IDs are declaration-local. Geometry keeps the same authored
 /// identities, storage, relevance and child types without merging those IDs.
-fn same_carrier_shape(
-    left: &terminal_psi::StructuralTypeShape,
-    right: &terminal_psi::StructuralTypeShape,
-) -> bool {
+fn same_carrier_shape(left: &StructuralTypeShape, right: &StructuralTypeShape) -> bool {
     use terminal_psi::StructuralTypeShape as S;
-    fn fields(
-        left: &[terminal_psi::StructuralFieldDeclaration],
-        right: &[terminal_psi::StructuralFieldDeclaration],
-    ) -> bool {
+    fn fields(left: &[StructuralFieldDeclaration], right: &[StructuralFieldDeclaration]) -> bool {
         left.len() == right.len()
             && left.iter().zip(right).all(|(a, b)| {
                 a.identity == b.identity
@@ -194,10 +188,7 @@ fn same_carrier_shape(
                     && a.field_type == b.field_type
             })
     }
-    fn cases(
-        left: &[terminal_psi::StructuralCaseDeclaration],
-        right: &[terminal_psi::StructuralCaseDeclaration],
-    ) -> bool {
+    fn cases(left: &[StructuralCaseDeclaration], right: &[StructuralCaseDeclaration]) -> bool {
         left.len() == right.len()
             && left
                 .iter()
