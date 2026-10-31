@@ -1136,7 +1136,10 @@ impl<'a, 's> Solver<'a, 's> {
                     self.binder_name(owner)
                 )));
             }
-            if self.has_range_shell_equation(index) {
+            if self
+                .equations_defining(index)
+                .any(|structure| matches!(structure, Structure::RangeShell { .. }))
+            {
                 return Err(self.reject(format!(
                     "cannot construct type binder `{binder}` from its range-shell equation; supply the argument explicitly"
                 )));
@@ -1213,11 +1216,6 @@ impl<'a, 's> Solver<'a, 's> {
                 }),
                 _ => None,
             })
-    }
-
-    fn has_range_shell_equation(&self, binder: usize) -> bool {
-        self.equations_defining(binder)
-            .any(|structure| matches!(structure, Structure::RangeShell { .. }))
     }
 
     /// Whether following `binder == structure` edges from `start` returns to
