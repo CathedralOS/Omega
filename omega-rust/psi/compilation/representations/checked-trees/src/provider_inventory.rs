@@ -7,14 +7,18 @@
 use crate::CheckedTrees;
 use diagnostics::Diagnostic;
 use language_semantics::direct_calls::DirectCallDeclarations;
+use language_semantics::provider_declarations::SelectedTargetMachineOrigin;
+use source::DependencyScope::Product;
 use std::collections::HashSet;
 use std::sync::{Arc, OnceLock};
 use symbols::SymbolHandle;
+use typed_trees::provider_declarations::provider_target_declarations;
+use typed_trees::service_declarations::ServiceCatalog;
 
 pub struct PreparedProviderInventory {
     checked: Arc<CheckedTrees>,
     uses: OnceLock<HashSet<SymbolHandle>>,
-    origins: OnceLock<Vec<language_semantics::provider_declarations::SelectedTargetMachineOrigin>>,
+    origins: OnceLock<Vec<SelectedTargetMachineOrigin>>,
     direct_calls: OnceLock<DirectCallDeclarations<SymbolHandle>>,
     services: typed_trees::service_declarations::PreparedServiceCatalog,
 }
@@ -26,7 +30,7 @@ impl PreparedProviderInventory {
         let services = typed_trees::service_declarations::PreparedServiceCatalog::prepare(
             typed_trees::provider_declarations::ProviderPlanningContext::new(
                 &checked.typed,
-                source::DependencyScope::Product,
+                Product,
             ),
         );
         Self {
@@ -42,15 +46,12 @@ impl PreparedProviderInventory {
         &self.checked
     }
 
-    pub fn services_for(
-        &self,
-        checked: &CheckedTrees,
-    ) -> Result<typed_trees::service_declarations::ServiceCatalog<'_>, Diagnostic> {
+    pub fn services_for(&self, checked: &CheckedTrees) -> Result<ServiceCatalog<'_>, Diagnostic> {
         self.require_owner(checked)?;
         self.services.bind(
             typed_trees::provider_declarations::ProviderPlanningContext::new(
                 &self.checked.typed,
-                source::DependencyScope::Product,
+                Product,
             ),
         )
     }
@@ -64,32 +65,21 @@ impl PreparedProviderInventory {
     }
 
     pub fn direct_calls(&self) -> &DirectCallDeclarations<SymbolHandle> {
-        self.direct_calls.get_or_init(|| {
-            typed_trees::direct_calls::collect(
-                &self.checked.typed,
-                source::DependencyScope::Product,
-            )
-        })
+        self.direct_calls
+            .get_or_init(|| typed_trees::direct_calls::collect(&self.checked.typed, Product))
     }
 
     pub fn origins_for(
         &self,
         checked: &CheckedTrees,
-    ) -> Result<&[language_semantics::provider_declarations::SelectedTargetMachineOrigin], Diagnostic>
-    {
+    ) -> Result<&[SelectedTargetMachineOrigin], Diagnostic> {
         self.require_owner(checked)?;
         Ok(self.origins())
     }
 
-    pub fn origins(
-        &self,
-    ) -> &[language_semantics::provider_declarations::SelectedTargetMachineOrigin] {
-        self.origins.get_or_init(|| {
-            typed_trees::provider_declarations::provider_target_declarations(
-                &self.checked.typed,
-                source::DependencyScope::Product,
-            )
-        })
+    pub fn origins(&self) -> &[SelectedTargetMachineOrigin] {
+        self.origins
+            .get_or_init(|| provider_target_declarations(&self.checked.typed, Product))
     }
 
     fn require_owner(&self, checked: &CheckedTrees) -> Result<(), Diagnostic> {

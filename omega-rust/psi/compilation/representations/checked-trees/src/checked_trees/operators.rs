@@ -6,6 +6,8 @@
 //! the saved subject again or to publish builtin equality facts.
 
 use crate::{CheckedValueOrigin, CrashCause};
+use typed_trees::operator::declaration_by_symbol;
+use typed_trees::typed_trees::ClosedConformanceApplicationCommitment;
 mod application_operands;
 mod comparisons;
 mod selected_float_comparison_execution;
@@ -376,8 +378,7 @@ pub struct CheckedOperatorCandidateFact {
     pub realization_state_symbol: SymbolHandle,
     /// Compact report coordinate; authority uses the adjacent commitment.
     pub conformance_application_report_fingerprint: u64,
-    pub conformance_application_commitment:
-        typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
+    pub conformance_application_commitment: ClosedConformanceApplicationCommitment,
     pub receiver_type: TypeReferenceHandle,
     pub return_type: TypeReferenceHandle,
     pub contracts: HandleSpan<SignatureContract>,
@@ -428,8 +429,7 @@ impl CheckedOperatorCandidateFact {
         realization_machine_symbol: SymbolHandle,
         realization_state_symbol: SymbolHandle,
         conformance_application_report_fingerprint: u64,
-        conformance_application_commitment:
-            typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
+        conformance_application_commitment: ClosedConformanceApplicationCommitment,
     ) -> Self {
         Self {
             operator_symbol: requirement_symbol,
@@ -847,12 +847,9 @@ impl CheckedOperatorFacts {
                 self.named_uses
                     .iter()
                     .filter_map(move |(handle, named_use)| {
-                        typed_trees::operator::declaration_by_symbol(
-                            program,
-                            named_use.selected_operator_symbol,
-                        )
-                        .is_some_and(|operator| publishes_crash(operator.contracts))
-                        .then_some(CheckedCrashQualifiedUse::Named(handle))
+                        declaration_by_symbol(program, named_use.selected_operator_symbol)
+                            .is_some_and(|operator| publishes_crash(operator.contracts))
+                            .then_some(CheckedCrashQualifiedUse::Named(handle))
                     }),
             )
     }
