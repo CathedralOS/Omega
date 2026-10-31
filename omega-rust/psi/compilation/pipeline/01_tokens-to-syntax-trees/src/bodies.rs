@@ -10,6 +10,7 @@ pub(crate) mod statements;
 pub(crate) mod trait_default;
 pub(crate) mod transitions;
 
+use crate::tables::stmts;
 /// Copy an expression-table identifier path into the statement arena —
 /// the rebuild the statement-table and transition-target callers share.
 pub(crate) fn copy_identifier_path_to_statement_table(
@@ -22,11 +23,7 @@ pub(crate) fn copy_identifier_path_to_statement_table(
 
     for index in 0..member_count {
         let member = syntax_trees.expressions.identifier_path_members(path)[index].clone();
-        copy.push(
-            syntax_trees
-                .statements
-                .append_identifier_path_member(member),
-        );
+        copy.push(stmts(syntax_trees).append_identifier_path_member(member));
     }
 
     copy.finish()

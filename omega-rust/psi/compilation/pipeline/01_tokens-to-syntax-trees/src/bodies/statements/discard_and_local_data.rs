@@ -3,7 +3,7 @@
 use crate::bodies::statements::statement_tables::expression_handle_to_statement_call;
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
-use crate::tables::{exprs, exprs_of};
+use crate::tables::{exprs, exprs_of, stmts};
 use crate::type_syntax::parse_type::parse_type_reference_handle_allowing_borrow;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -29,10 +29,7 @@ pub(crate) fn parse_discard_statement_handle<'tokens, 'source>(
     };
     call.discards_result = true;
 
-    Ok((
-        syntax_trees.statements.insert(StatementNode::Call(call)),
-        rest,
-    ))
+    Ok((stmts(syntax_trees).insert(StatementNode::Call(call)), rest))
 }
 
 /// RETIRED (settled 2026-07-02: "if isn't a thing"). The `if` STATEMENT had

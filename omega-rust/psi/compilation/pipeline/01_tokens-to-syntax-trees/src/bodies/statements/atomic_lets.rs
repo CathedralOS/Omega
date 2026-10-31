@@ -2,7 +2,7 @@
 
 use crate::bodies::statements::statement_tables::copy_expression_as_place;
 use crate::expressions::parse_postfix::memory_ordering_from_expression;
-use crate::tables::{exprs, exprs_of};
+use crate::tables::{exprs, exprs_of, items};
 use arena::HandleSpan;
 use language_core::atomic::AtomicOrderingPlan;
 use numerics::literals::IntegerLiteral;
@@ -80,7 +80,7 @@ pub(crate) fn try_desugar_atomic_let(
         let statement = syntax_trees
             .statements
             .insert(StatementNode::LocalData(local));
-        let first = syntax_trees.items.append_statement_handle(statement);
+        let first = items(syntax_trees).append_statement_handle(statement);
         return Some(HandleSpan::from_parts(first, 1));
     }
     let (update, ordering) = match (call.target.as_str(syntax_trees), arguments) {
@@ -190,11 +190,11 @@ pub(crate) fn try_desugar_atomic_let(
     let local = syntax_trees
         .statements
         .insert(StatementNode::LocalData(result_binding));
-    let first = syntax_trees.items.append_statement_handle(local);
+    let first = items(syntax_trees).append_statement_handle(local);
     let assignment = syntax_trees
         .statements
         .insert(StatementNode::Assignment(TableAssignment { target, value }));
-    syntax_trees.items.append_statement_handle(assignment);
+    items(syntax_trees).append_statement_handle(assignment);
     Some(HandleSpan::from_parts(first, 2))
 }
 

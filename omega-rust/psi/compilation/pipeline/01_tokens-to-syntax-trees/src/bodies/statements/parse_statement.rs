@@ -13,6 +13,7 @@ use super::destructure_and_proof_output::{
     reject_retired_proof_output_binding, try_parse_destructure_let, try_parse_proof_output_binding,
 };
 use super::inline_assembly::parse_asm_block_statement_handles;
+use crate::tables::{exprs, exprs_of, items, stmts};
 
 use crate::bodies::statements::atomic_lets::try_desugar_atomic_store;
 use crate::bodies::statements::discard_and_local_data::{
@@ -25,7 +26,6 @@ use crate::bodies::statements::statement_tables::{
 use crate::bodies::transitions::parse_transition::parse_transition_block_handles;
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
-use crate::tables::{exprs, exprs_of};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
@@ -58,13 +58,13 @@ pub(crate) fn parse_statement_handles<'tokens, 'source>(
             let statement = syntax_trees
                 .statements
                 .insert(StatementNode::LocalData(binding));
-            let handle = syntax_trees.items.append_statement_handle(statement);
+            let handle = items(syntax_trees).append_statement_handle(statement);
             HandleSpan::from_parts(handle, 1)
         };
         Ok((statements, rest))
     } else {
         let (statement, rest) = parse_statement_handle(syntax_trees, input)?;
-        let handle = syntax_trees.items.append_statement_handle(statement);
+        let handle = items(syntax_trees).append_statement_handle(statement);
         Ok((HandleSpan::from_parts(handle, 1), rest))
     }
 }
@@ -77,7 +77,7 @@ fn finish_semicolon_statement<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, StatementHandle> {
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    Ok((syntax_trees.statements.insert(node), input))
+    Ok((stmts(syntax_trees).insert(node), input))
 }
 
 fn parse_statement_handle<'tokens, 'source>(
@@ -149,17 +149,15 @@ fn parse_statement_handle<'tokens, 'source>(
             .statements
             .insert_transition_target(TransitionTargetNode::Terminal);
         return Ok((
-            syntax_trees
-                .statements
-                .insert(StatementNode::Transition(TableTransition {
-                    target,
-                    continuation: TransitionTargetHandle::invalid(),
-                    guard: TransitionGuardNode::Always,
-                    proof_selectors: HandleSpan::empty(),
-                    exit: TransitionExit::Crash(cause),
-                    ends_dispatch: true,
-                    source_span,
-                })),
+            stmts(syntax_trees).insert(StatementNode::Transition(TableTransition {
+                target,
+                continuation: TransitionTargetHandle::invalid(),
+                guard: TransitionGuardNode::Always,
+                proof_selectors: HandleSpan::empty(),
+                exit: TransitionExit::Crash(cause),
+                ends_dispatch: true,
+                source_span,
+            })),
             input,
         ));
     }
@@ -244,32 +242,25 @@ fn parse_statement_handle<'tokens, 'source>(
             .insert_transition_target(TransitionTargetNode::Value(expression));
         let source_span = exprs_of(syntax_trees).source_span(expression);
         return Ok((
-            syntax_trees
-                .statements
-                .insert(StatementNode::Transition(TableTransition {
-                    target,
-                    continuation: TransitionTargetHandle::invalid(),
-                    guard: TransitionGuardNode::Always,
-                    proof_selectors: HandleSpan::empty(),
-                    exit: TransitionExit::Ordinary,
-                    ends_dispatch: true,
-                    source_span,
-                })),
+            stmts(syntax_trees).insert(StatementNode::Transition(TableTransition {
+                target,
+                continuation: TransitionTargetHandle::invalid(),
+                guard: TransitionGuardNode::Always,
+                proof_selectors: HandleSpan::empty(),
+                exit: TransitionExit::Ordinary,
+                ends_dispatch: true,
+                source_span,
+            })),
             input,
         ));
     }
 
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     if let Some(call) = expression_handle_to_statement_call(syntax_trees, expression) {
-        Ok((
-            syntax_trees.statements.insert(StatementNode::Call(call)),
-            input,
-        ))
+        Ok((stmts(syntax_trees).insert(StatementNode::Call(call)), input))
     } else {
         Ok((
-            syntax_trees
-                .statements
-                .insert(StatementNode::Expression(expression)),
+            stmts(syntax_trees).insert(StatementNode::Expression(expression)),
             input,
         ))
     }

@@ -2,7 +2,7 @@
 //! Names are substituted only in their arm scope. The receiver may be a saved
 //! subject read; it is never a newly inferred owner or reference grant.
 
-use crate::tables::{exprs, exprs_of};
+use crate::tables::{exprs, exprs_of, stmts_of};
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -72,7 +72,7 @@ fn rewrite_expression(
                             .to_vec();
                         let visible = fields.iter().filter(|outer| {
                             !pattern_fields.iter().any(|inner| matches!(&inner.action, MatchFieldAction::Bind(binding) if binding.as_str(syntax_trees) == outer.binding.as_str(syntax_trees)))
-                                && !syntax_trees.statements.outcome_proof_selectors(pattern.proof_selectors).iter().any(|selector| selector.binding.as_str(syntax_trees) == outer.binding.as_str(syntax_trees))
+                                && !stmts_of(syntax_trees).outcome_proof_selectors(pattern.proof_selectors).iter().any(|selector| selector.binding.as_str(syntax_trees) == outer.binding.as_str(syntax_trees))
                         }).cloned().collect::<Vec<_>>();
                         for field in &mut pattern_fields {
                             if let MatchFieldAction::Equal(value) = &mut field.action {

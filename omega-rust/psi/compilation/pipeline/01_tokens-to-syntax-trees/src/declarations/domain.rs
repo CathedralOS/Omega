@@ -1,7 +1,7 @@
 use crate::contracts::facts::parse_logical_proof_facts_until;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
-use crate::tables::exprs;
+use crate::tables::{exprs, items, type_refs_of};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
@@ -91,7 +91,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
             exprs(syntax_trees).append_identifier_path_member(Identifier::generated("self")),
             1,
         );
-        let parent_path = syntax_trees.items.insert_identifier_path_members(
+        let parent_path = items(syntax_trees).insert_identifier_path_members(
             target_identifier.iter().cloned().chain(
                 name_segments[..name_segments.len() - 1]
                     .iter()
@@ -167,9 +167,7 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
             let handle = syntax_trees
                 .items
                 .append_proof_fact(ProofFact::Membership(membership));
-            syntax_trees
-                .items
-                .set_proof_fact_source_span(handle, parent_span);
+            items(syntax_trees).set_proof_fact_source_span(handle, parent_span);
             handle
         });
         let ((predicate_presence, authored_facts, requires_token_count), input) =
@@ -315,7 +313,7 @@ fn parse_domain_alias<'tokens, 'source>(
 
     loop {
         let (domain, rest) = parse_path_handle_span(input, |member| {
-            syntax_trees.items.append_identifier_path_member(member)
+            items(syntax_trees).append_identifier_path_member(member)
         })?;
         constituents.push(domain);
         if !rest.at_punctuation(PunctuationKind::Ampersand) {
@@ -336,7 +334,7 @@ fn type_reference_target_label(
     syntax_trees: &SyntaxTrees,
     handle: syntax_trees::types::TypeReferenceHandle,
 ) -> String {
-    match syntax_trees.type_references.type_reference(handle) {
+    match type_refs_of(syntax_trees).type_reference(handle) {
         TypeReferenceNode::Slice { element_type } => {
             format!(
                 "[{}]",

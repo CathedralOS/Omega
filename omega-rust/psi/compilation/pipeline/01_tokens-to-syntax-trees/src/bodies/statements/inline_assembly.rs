@@ -6,7 +6,7 @@ use crate::bodies::transitions::targets::parse_target::parse_transition_block_ta
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
-use crate::tables::exprs_of;
+use crate::tables::{exprs_of, items, stmts, stmts_of};
 use arena::HandleSpan;
 use language_core::inline_assembly::{
     AsmCatalogEntry, AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionShape,
@@ -174,7 +174,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             AsmInstructionShape::FlagsSnapshot | AsmInstructionShape::FlagsRestore
         );
         if let StatementNode::Assignment(assignment) =
-            syntax_trees.statements.statement(instruction.statement)
+            stmts_of(syntax_trees).statement(instruction.statement)
             && let ExpressionNode::Name(path) = exprs_of(syntax_trees).expression(assignment.target)
             && let [name] = exprs_of(syntax_trees).identifier_path_members(*path)
             && let Some((_, _, clobber)) =
@@ -194,7 +194,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             AsmInstructionShape::Halt | AsmInstructionShape::DerivedExit
         );
         if matches!(
-            syntax_trees.statements.statement(instruction.statement),
+            stmts_of(syntax_trees).statement(instruction.statement),
             StatementNode::Transition(_)
         ) {
             block.exit = syntax_trees::statement::AssemblyExit::EnclosingTransition;
@@ -212,7 +212,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         if let Some(arithmetic) = instruction.arithmetic {
             primitives.push(arithmetic.primitive);
             let flag = scratch::zero_flag(syntax_trees, arithmetic.result);
-            let StatementNode::Assignment(flag_write) = syntax_trees.statements.statement(flag)
+            let StatementNode::Assignment(flag_write) = stmts_of(syntax_trees).statement(flag)
             else {
                 unreachable!()
             };
@@ -357,7 +357,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         );
         for snapshot in flag_snapshots {
             let StatementNode::Assignment(mut assignment) =
-                syntax_trees.statements.statement(snapshot).clone()
+                stmts_of(syntax_trees).statement(snapshot).clone()
             else {
                 unreachable!()
             };
@@ -366,9 +366,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             let mut observation = vec![raw];
             observation.extend(scratch::snapshot(syntax_trees));
             assignment.value = scratch::name(syntax_trees, "asm#flags_snapshot");
-            syntax_trees
-                .statements
-                .replace_statement(snapshot, StatementNode::Assignment(assignment));
+            stmts(syntax_trees).replace_statement(snapshot, StatementNode::Assignment(assignment));
             let flag = scratch::observed_zero_flag(syntax_trees);
             collect_generated_primitives(syntax_trees, generated_start, &mut primitives);
             for block in &mut blocks {
@@ -402,25 +400,22 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             exit: block.exit,
         })
         .collect();
-    let blocks = syntax_trees.statements.insert_assembly_blocks(blocks);
+    let blocks = stmts(syntax_trees).insert_assembly_blocks(blocks);
     let primitives = syntax_trees
         .statements
         .insert_assembly_expressions(primitives);
-    let graph =
-        syntax_trees
-            .statements
-            .insert_assembly(syntax_trees::statement::AssemblyControlFlow {
-                target_requirement,
-                blocks,
-                scratch,
-                primitives,
-            });
+    let graph = stmts(syntax_trees).insert_assembly(syntax_trees::statement::AssemblyControlFlow {
+        target_requirement,
+        blocks,
+        scratch,
+        primitives,
+    });
     let statement = syntax_trees
         .statements
         .insert(StatementNode::Assembly(graph));
     let mut statements = crate::handle_spans::HandleSpanBuilder::new();
     for statement in bindings.into_iter().chain(std::iter::once(statement)) {
-        statements.push(syntax_trees.items.append_statement_handle(statement));
+        statements.push(items(syntax_trees).append_statement_handle(statement));
     }
     Ok((statements.finish(), input))
 }
@@ -657,18 +652,16 @@ fn asm_intrinsic_call(
     intrinsic_name: &'static str,
     arguments: HandleSpan<ExpressionHandle>,
 ) -> StatementHandle {
-    syntax_trees
-        .statements
-        .insert(StatementNode::Call(TableCall {
-            target_is_static: false,
-            receiver: HandleSpan::empty(),
-            target: Identifier::new(intrinsic_name, mnemonic.source_span()),
-            machine_arguments: Box::default(),
-            arguments,
-            evidence_arguments: Box::default(),
-            operational_acknowledgement: Default::default(),
-            discards_result: false,
-        }))
+    stmts(syntax_trees).insert(StatementNode::Call(TableCall {
+        target_is_static: false,
+        receiver: HandleSpan::empty(),
+        target: Identifier::new(intrinsic_name, mnemonic.source_span()),
+        machine_arguments: Box::default(),
+        arguments,
+        evidence_arguments: Box::default(),
+        operational_acknowledgement: Default::default(),
+        discards_result: false,
+    }))
 }
 
 fn asm_intrinsic_result_assignment(
@@ -689,12 +682,10 @@ fn asm_intrinsic_result_assignment(
             evidence_arguments: Box::default(),
             operational_acknowledgement: Default::default(),
         }));
-    syntax_trees
-        .statements
-        .insert(StatementNode::Assignment(TableAssignment {
-            target: destination,
-            value,
-        }))
+    stmts(syntax_trees).insert(StatementNode::Assignment(TableAssignment {
+        target: destination,
+        value,
+    }))
 }
 
 /// Dotted AArch64 branch mnemonics are one catalog identity, not an Omega
@@ -900,12 +891,10 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 destination
             };
             let statement =
-                syntax_trees
-                    .statements
-                    .insert(StatementNode::Assignment(TableAssignment {
-                        target: result,
-                        value,
-                    }));
+                stmts(syntax_trees).insert(StatementNode::Assignment(TableAssignment {
+                    target: result,
+                    value,
+                }));
             let arithmetic = producer.map(|producer| {
                 // All modeled arithmetic constructs this same explicit policy
                 // erasure; retaining its primitive also pins builtin meaning.
@@ -954,8 +943,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 AsmMemoryTransferKind::Store => (second, first),
             };
             ParsedAsmInstruction::ok(
-                syntax_trees
-                    .statements
+                stmts(syntax_trees)
                     .insert(StatementNode::Assignment(TableAssignment { target, value })),
                 contract,
                 input,
@@ -964,17 +952,15 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         AsmInstructionShape::JumpState => {
             let (target, input) = parse_transition_block_target_handle(syntax_trees, input)?;
             ParsedAsmInstruction::ok(
-                syntax_trees
-                    .statements
-                    .insert(StatementNode::Transition(TableTransition {
-                        target,
-                        continuation: TransitionTargetHandle::invalid(),
-                        guard: TransitionGuardNode::Always,
-                        proof_selectors: HandleSpan::empty(),
-                        exit: TransitionExit::Ordinary,
-                        ends_dispatch: true,
-                        source_span: Default::default(),
-                    })),
+                stmts(syntax_trees).insert(StatementNode::Transition(TableTransition {
+                    target,
+                    continuation: TransitionTargetHandle::invalid(),
+                    guard: TransitionGuardNode::Always,
+                    proof_selectors: HandleSpan::empty(),
+                    exit: TransitionExit::Ordinary,
+                    ends_dispatch: true,
+                    source_span: Default::default(),
+                })),
                 contract,
                 input,
             )

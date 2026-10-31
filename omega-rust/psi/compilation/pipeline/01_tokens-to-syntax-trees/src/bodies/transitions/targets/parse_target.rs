@@ -10,7 +10,7 @@ use crate::expressions::context::ExpressionContext;
 use crate::expressions::parse_expression::{has_unary_expression_prefix, parse_expression_handle};
 use crate::expressions::parse_postfix::parse_postfix_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
-use crate::tables::{exprs, exprs_of};
+use crate::tables::{exprs, exprs_of, stmts};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -98,7 +98,7 @@ fn classify_transition_target_handle(
         _ => TransitionTargetNode::Value(expression),
     };
 
-    Ok(syntax_trees.statements.insert_transition_target(target))
+    Ok(stmts(syntax_trees).insert_transition_target(target))
 }
 
 fn classify_call_target_handle(

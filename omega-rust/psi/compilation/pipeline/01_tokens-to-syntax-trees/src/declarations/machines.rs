@@ -5,6 +5,7 @@ use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optional_return_type};
+use crate::tables::{exprs, exprs_of};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -14,7 +15,6 @@ use tokens::PunctuationKind;
 use crate::contracts::conformance::parse_conformance::parse_satisfies_traits;
 use crate::contracts::parse_contract_clauses::parse_machine_clauses;
 use crate::parameters::contracts::parse_machine_parameter_contracts;
-use crate::tables::{exprs, exprs_of};
 
 pub(crate) fn parse_machine<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

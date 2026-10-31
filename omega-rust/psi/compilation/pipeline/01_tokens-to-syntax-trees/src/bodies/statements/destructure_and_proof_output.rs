@@ -3,7 +3,7 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle;
 use crate::input::token_cursor::Input;
-use crate::tables::{exprs, exprs_of};
+use crate::tables::{exprs, exprs_of, items, stmts};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -127,7 +127,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
             is_mutable: false,
             relevance: language_core::BindingRelevance::Relevant,
         }));
-    let marker = syntax_trees.items.append_statement_handle(marker);
+    let marker = items(syntax_trees).append_statement_handle(marker);
     let mut statements = crate::handle_spans::HandleSpanBuilder::new();
     statements.push(marker);
 
@@ -151,7 +151,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
                 is_mutable: false,
                 relevance: language_core::BindingRelevance::Relevant,
             }));
-        statements.push(syntax_trees.items.append_statement_handle(statement));
+        statements.push(items(syntax_trees).append_statement_handle(statement));
     }
 
     Some((statements.finish(), rest))
@@ -226,7 +226,7 @@ pub(crate) fn try_parse_proof_output_binding<'tokens, 'source>(
     rest = next
         .take_punctuation(PunctuationKind::Semicolon, ";")
         .ok()?;
-    let statement = syntax_trees.statements.insert(
+    let statement = stmts(syntax_trees).insert(
         syntax_trees::statement::StatementNode::ProofOutputBindingStatement(
             TableProofOutputBindingStatement {
                 bindings: bindings.into_boxed_slice(),
@@ -234,7 +234,7 @@ pub(crate) fn try_parse_proof_output_binding<'tokens, 'source>(
             },
         ),
     );
-    let statement = syntax_trees.items.append_statement_handle(statement);
+    let statement = items(syntax_trees).append_statement_handle(statement);
     Some((HandleSpan::from_parts(statement, 1), rest))
 }
 
