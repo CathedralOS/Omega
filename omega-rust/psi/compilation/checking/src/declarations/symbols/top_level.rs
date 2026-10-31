@@ -313,18 +313,11 @@ impl<'program> TopLevelSymbols<'program> {
     }
 
     fn type_symbol(&self, name: &str) -> SymbolHandle {
-        self.types
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.symbol)
-            .unwrap_or_else(SymbolHandle::invalid)
+        super::named_symbol(&self.types, name, |e| e.name, |e| e.symbol)
     }
 
     pub fn machine(&self, name: &str) -> Option<&'program Machine> {
-        self.machines
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.machine)
+        super::named_value(&self.machines, name, |e| e.name, |e| e.machine)
     }
 
     pub fn attached_machine_state(
@@ -350,26 +343,15 @@ impl<'program> TopLevelSymbols<'program> {
     }
 
     fn machine_symbol(&self, name: &str) -> SymbolHandle {
-        self.machines
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.symbol)
-            .unwrap_or_else(SymbolHandle::invalid)
+        super::named_symbol(&self.machines, name, |e| e.name, |e| e.symbol)
     }
 
     pub fn trait_definition(&self, name: &str) -> Option<&'program TraitDefinition> {
-        self.traits
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.trait_definition)
+        super::named_value(&self.traits, name, |e| e.name, |e| e.trait_definition)
     }
 
     fn trait_symbol(&self, name: &str) -> SymbolHandle {
-        self.traits
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.symbol)
-            .unwrap_or_else(SymbolHandle::invalid)
+        super::named_symbol(&self.traits, name, |e| e.name, |e| e.symbol)
     }
 }
 
