@@ -3,6 +3,7 @@
 //! The resulting predicate contains landed bits, not a source expression that
 //! could read another value after a mutation or a state-parameter transfer.
 
+use crate::places::place_at;
 use facts::FloatPredicate;
 use numerics::bignum::{BigRational, ExactFloat, IeeeRounding};
 use numerics::literals::FloatFormat;
@@ -155,12 +156,7 @@ pub(crate) fn collect_true(
         ) {
             continue;
         }
-        let Some(place) = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement_index,
-            subject,
-        ) else {
+        let Some(place) = place_at(program, state.symbol, statement_index, subject) else {
             continue;
         };
         // A live selector is a separate read dependency. Until its captured
@@ -175,13 +171,8 @@ pub(crate) fn collect_true(
             continue;
         }
         let predicate = if operator == BinaryOperator::Equal
-            && validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                bound,
-            )
-            .is_some_and(|other| other == place)
+            && place_at(program, state.symbol, statement_index, bound)
+                .is_some_and(|other| other == place)
         {
             Some(FloatPredicate::non_nan(format))
         } else {

@@ -10,6 +10,7 @@
 //! exclusive child suspends the branch it captured for any other access until
 //! its last use, and a shared child freezes that branch's mutation.
 
+use crate::flow::expressions;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowAccessKind, BorrowFacts, BorrowLoanFact, CapturedPlace, CheckFacts, FlowConstraintRef,
@@ -275,9 +276,8 @@ pub(super) fn storage_address_observation<'facts>(
     {
         return None;
     }
-    let typed_trees::expression::ExpressionNode::Call(operation) = program
-        .expression_table
-        .expression(call.authored_expression)
+    let typed_trees::expression::ExpressionNode::Call(operation) =
+        expressions(program).expression(call.authored_expression)
     else {
         return None;
     };

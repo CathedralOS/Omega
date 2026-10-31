@@ -18,6 +18,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
 use crate::borrow::accesses::is_image_storage_root;
+use crate::places::place_at;
 
 fn selected_call(
     program: &dyn validation::CheckingInput,
@@ -791,7 +792,7 @@ fn unchanged_ingress_capture(
     path: &[facts::PlaceSegment],
     ingress: &[(PlaceRoot, &[checked_trees::BorrowLoanOwnerSegment])],
 ) -> bool {
-    let Some(mut source) = validation::canonical_place_from_expression_in_state(
+    let Some(mut source) = place_at(
         program,
         capture.state_symbol,
         capture.statement_index,

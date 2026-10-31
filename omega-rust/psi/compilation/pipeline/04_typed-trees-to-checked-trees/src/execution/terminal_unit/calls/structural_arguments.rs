@@ -25,6 +25,7 @@ use crate::execution::terminal_unit::{
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, SymbolHandle,
     strips_erased_parameter,
 };
+use crate::places::place_at;
 
 pub(crate) fn structural_call_arguments(
     program: &dyn ::validation::CheckingInput,
@@ -183,12 +184,7 @@ pub(crate) fn structural_call_arguments(
                 {
                     return None;
                 }
-                validation::canonical_place_from_expression_in_state(
-                    program,
-                    caller_state.symbol,
-                    statement_index,
-                    expression,
-                )?
+                place_at(program, caller_state.symbol, statement_index, expression)?
             }
         };
         arm("call operation: structural arguments: alias and identity");
@@ -314,7 +310,7 @@ pub(crate) fn structural_call_arguments(
             let owner_type = if owner == retained.root {
                 referent
             } else {
-                let owner_place = validation::canonical_place_from_expression_in_state(
+                let owner_place = place_at(
                     program,
                     caller_state.symbol,
                     statement_index,
@@ -782,7 +778,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
     let argument_roots = arguments
         .iter()
         .map(|expression| {
-            let place = validation::canonical_place_from_expression_in_state(
+            let place = place_at(
                 program,
                 caller_state.symbol,
                 call.statement_index,
@@ -1240,12 +1236,7 @@ fn owner_claim_crossings(
     };
     // Resolve only the source place at this occurrence. Initializers and
     // return/lifetime origins do not establish an operand's current custody.
-    let Some(owner) = validation::canonical_place_from_expression_in_state(
-        program,
-        state,
-        call.statement_index,
-        expression,
-    ) else {
+    let Some(owner) = place_at(program, state, call.statement_index, expression) else {
         return Some(completed_claims);
     };
     if owner == evaluated {
@@ -1380,12 +1371,7 @@ fn claim_operand_path_matches(
     expression: typed_trees::expression::ExpressionHandle,
     selected_path: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> bool {
-    let Some(actual) = validation::canonical_place_from_expression_in_state(
-        program,
-        state,
-        call.statement_index,
-        expression,
-    ) else {
+    let Some(actual) = place_at(program, state, call.statement_index, expression) else {
         return false;
     };
     if actual.root != owner {
@@ -1450,15 +1436,7 @@ pub(crate) fn computed_call_claim_transfers(
             CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
                 facts::PlaceRoot::Expression(expression)
             }
-            _ => {
-                validation::canonical_place_from_expression_in_state(
-                    program,
-                    state,
-                    call.statement_index,
-                    *expression,
-                )?
-                .root
-            }
+            _ => place_at(program, state, call.statement_index, *expression)?.root,
         };
         for (claim_identity, path) in owner_claim_crossings(
             program,

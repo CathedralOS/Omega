@@ -35,6 +35,8 @@ use super::{
 };
 use crate::execution::terminal_unit::structural_scalar_store::TargetSelectors;
 use crate::execution::terminal_unit::types::ShapeCollector;
+use crate::flow::expressions;
+use crate::places::place_at;
 
 use checked_trees::CheckFacts;
 use facts::{PlaceRoot, PlaceSegment};
@@ -138,14 +140,7 @@ pub(super) fn captured_assignment_path(
     // The capture belongs to this exact authored address operation. Requiring
     // the captured constant to be rediscovered from a symbolic call path would
     // discard the value identity the operation already retained.
-    if validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index as usize,
-        target,
-    )
-    .as_ref()
-        != Some(owner)
+    if place_at(program, state.symbol, statement_index as usize, target).as_ref() != Some(owner)
         || !validation::CallFrameResolver::new(program)?
             .captured_assignment_destination_remains_current(machine, authored, &captured)
     {
@@ -292,18 +287,12 @@ pub(super) fn capture_assignment_destination(
     let ordinal = usize::try_from(statement_index).ok()?;
     // A region captures its collection prefix. Selected element coordinates
     // are descendants of that one capture, not independently evaluated targets.
-    let collection = program
-        .expression_table
+    let collection = expressions(program)
         .indexed_node(assignment.target)
         .filter(|indexed| program.expression_table.range_node(indexed.index).is_some())
         .map(|indexed| indexed.collection);
     let target = collection.unwrap_or(assignment.target);
-    let access = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        ordinal,
-        target,
-    )?;
+    let access = place_at(program, state.symbol, ordinal, target)?;
     let owned_source = owned_assignment_source(
         program,
         state,
@@ -666,12 +655,7 @@ pub(in crate::execution::terminal_unit) fn move_out_candidate(
     {
         return None;
     }
-    validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        local.initial_value,
-    )
+    place_at(program, state.symbol, statement_index, local.initial_value)
 }
 
 impl OpenWindows {
@@ -754,12 +738,7 @@ impl OpenWindows {
         CheckedUnitStructuralResultBindingPlan,
     )> {
         let ordinal = usize::try_from(statement_index).ok()?;
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            ordinal,
-            expression,
-        )?;
+        let place = place_at(program, state.symbol, ordinal, expression)?;
         let place = window_place(
             program,
             state,
@@ -863,8 +842,7 @@ impl OpenWindows {
     ) -> Option<ValueReplacement> {
         let ordinal = usize::try_from(statement_index).ok()?;
         let mut parts = Vec::new();
-        let range = program
-            .expression_table
+        let range = expressions(program)
             .indexed_node(assignment.target)
             .filter(|indexed| program.expression_table.range_node(indexed.index).is_some());
         if let Some(indexed) = range {
@@ -906,12 +884,7 @@ impl OpenWindows {
             {
                 return None;
             }
-            let collection = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                ordinal,
-                indexed.collection,
-            )?;
+            let collection = place_at(program, state.symbol, ordinal, indexed.collection)?;
             let mut next_displacement = displaced_ordinal;
             for element_ordinal in 0..length {
                 let mut destination = collection.clone();
@@ -952,12 +925,7 @@ impl OpenWindows {
                 parts.push(replacement);
             }
         } else {
-            let destination = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                ordinal,
-                assignment.target,
-            )?;
+            let destination = place_at(program, state.symbol, ordinal, assignment.target)?;
             parts.push(self.replace_place(
                 program,
                 facts,

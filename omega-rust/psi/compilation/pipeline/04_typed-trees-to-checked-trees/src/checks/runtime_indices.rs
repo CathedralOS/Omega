@@ -7,6 +7,7 @@
 //! object. These are erased checking obligations, not runtime proof storage.
 
 use super::current_scalar_values::CurrentScalarValues;
+use crate::flow::state_statements;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
@@ -232,10 +233,7 @@ impl Scope<'_> {
                     .machine_by_own_or_state_symbol(call.target_symbol)
                 && let Some(entry) = self.program.machine_states(callee).first()
             {
-                let statements = self
-                    .program
-                    .statement_table
-                    .statements(entry.statement_nodes);
+                let statements = state_statements(self.program, entry.statement_nodes);
                 let return_expr = statements.last().and_then(|s| match s {
                     StatementNode::Expression(e) => Some(*e),
                     _ => None,

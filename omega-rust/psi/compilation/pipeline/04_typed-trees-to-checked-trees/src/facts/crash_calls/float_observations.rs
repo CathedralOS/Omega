@@ -4,6 +4,8 @@
 //! a newer value. Source expressions classify literals and representation
 //! views only; they never supply missing storage provenance.
 
+use crate::flow::state_statements;
+use crate::places::place_at;
 use arena::HandleSpan;
 use checked_trees::{FlowCallFact, FlowConstraintRef, FlowFacts, FlowOperandFact, FlowStateFact};
 use facts::{FactContextHandle, FactPlan};
@@ -237,9 +239,7 @@ impl<'a> FloatObservations<'a> {
                 }
                 let returned = typed_trees::statement::direct_state_return_values(
                     &self.program.statement_table,
-                    self.program
-                        .statement_table
-                        .statements(entry.statement_nodes),
+                    state_statements(self.program, entry.statement_nodes),
                 )?;
                 let mut formal = None;
                 for returned in returned {
@@ -386,7 +386,7 @@ impl<'a> FloatObservations<'a> {
         {
             return None;
         }
-        let place = validation::canonical_place_from_expression_in_state(
+        let place = place_at(
             self.program,
             operand.state_symbol,
             operand.statement_index,

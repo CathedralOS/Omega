@@ -1,6 +1,7 @@
 //! recast reads slice of scalar_lowering.
 
 use super::entry_lowering::*;
+use crate::flow::expressions;
 use crate::values::scalar::expression_plans::ScalarLocal;
 use checked_trees::{
     CheckedBooleanExpression, CheckedOperatorFacts, CheckedScalarExpression,
@@ -23,9 +24,7 @@ pub(crate) fn recast_view_operand(
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
     let mut expression = expression;
-    expression = program
-        .expression_table
-        .peeled_expression_handle(expression);
+    expression = expressions(program).peeled_expression_handle(expression);
     let cast = program.expression_table.cast_node(expression)?;
     if !cast.form.is_recast() {
         return None;

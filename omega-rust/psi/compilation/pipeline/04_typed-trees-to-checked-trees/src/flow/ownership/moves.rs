@@ -1,5 +1,6 @@
 use super::type_references::{OperatorResultOwnership, classify_operator_result_ownership};
 use crate::flow::FlowOwnershipEventSource;
+use crate::flow::expressions;
 use validation::ownership_place_from_expression_in_state;
 use validation::symbol_type_symbol;
 
@@ -214,8 +215,7 @@ pub(super) fn append_move_events_for_expression(
             if !tag_observed {
                 append_child!(dispatch.subject, Default::default());
             }
-            for (ordinal, arm) in program
-                .expression_table
+            for (ordinal, arm) in expressions(program)
                 .match_arms(dispatch.arms)
                 .iter()
                 .enumerate()
@@ -255,10 +255,7 @@ pub(super) fn append_move_events_for_expression(
         ExpressionNode::Cast(cast) => append_child!(cast.value, cast.target_type),
         ExpressionNode::Unary(unary) => append_child!(unary.operand, Default::default()),
         ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program
-                .expression_table
-                .struct_fields(struct_literal.fields)
-            {
+            for field in expressions(program).struct_fields(struct_literal.fields) {
                 append_child!(
                     field.value,
                     validation::selected_construction_field_type(
@@ -319,8 +316,7 @@ fn selected_meaning_borrows_operands(
     ) {
         return false;
     }
-    let mut targets = program
-        .expression_table
+    let mut targets = expressions(program)
         .authored_selection_occurrences(expression)
         .filter_map(|occurrence| program.authored_declaration_selections().get(occurrence))
         .map(|selection| match selection.target() {
@@ -660,8 +656,7 @@ fn receiver_expression_static_path_segments(
                 return None;
             }
             Some(
-                program
-                    .expression_table
+                expressions(program)
                     .name_path_members(path.members)
                     .iter()
                     .map(|identifier| identifier.as_str())

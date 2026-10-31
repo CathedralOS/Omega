@@ -11,6 +11,8 @@
 //! declared-storage replacement. Exact loan origins remain necessary to
 //! restore a caller's replaced ownership homes at normal completion.
 
+use crate::flow::expressions;
+use crate::places::place_at;
 use validation::CanonicalPlace;
 
 use super::StorageRegion;
@@ -161,12 +163,7 @@ pub(crate) fn signature_ceiling_regions(
             resolver,
         );
         let storage = captured.or_else(|| {
-            let actual = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                borrow_call.statement_index,
-                actual,
-            )?;
+            let actual = place_at(program, state.symbol, borrow_call.statement_index, actual)?;
             super::local_origins::rebase_local_write_regions(
                 program,
                 state.symbol,
@@ -214,16 +211,11 @@ fn resident_parameter_regions(
     let inventory = resident_owners_in_type(program, reference)?;
     for path in inventory.unresolved {
         let actual = *validation::call_site_argument_expressions(program, site).get(position)?;
-        let mut carrier = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            call.statement_index,
-            actual,
-        )
-        .unwrap_or_else(|| CanonicalPlace {
-            root: facts::PlaceRoot::Expression(actual),
-            segments: Vec::new(),
-        });
+        let mut carrier = place_at(program, state.symbol, call.statement_index, actual)
+            .unwrap_or_else(|| CanonicalPlace {
+                root: facts::PlaceRoot::Expression(actual),
+                segments: Vec::new(),
+            });
         carrier.segments.extend(path);
         regions.push(StorageRegion::UnresolvedContent { carrier });
     }
@@ -244,12 +236,7 @@ fn resident_parameter_regions(
         .or_else(|| {
             let actual =
                 *validation::call_site_argument_expressions(program, site).get(position)?;
-            let mut place = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                call.statement_index,
-                actual,
-            )?;
+            let mut place = place_at(program, state.symbol, call.statement_index, actual)?;
             place.segments.extend_from_slice(&path);
             super::local_origins::rebase_local_write_regions(
                 program,
@@ -435,7 +422,7 @@ fn carried_exclusive_referents(
         if resolver.value_is_reference_free(projected) {
             continue;
         }
-        let mut actual = validation::canonical_place_from_expression_in_state(
+        let mut actual = place_at(
             program,
             state.symbol,
             statement_index,
@@ -597,8 +584,7 @@ fn owner_path_overlaps(
             (
                 BorrowLoanOwnerSegment::FixedIndex(owner_index),
                 facts::PlaceSegment::Index { expression },
-            ) => program
-                .expression_table
+            ) => expressions(program)
                 .constant_integer_value(*expression)
                 .and_then(|value| usize::try_from(value).ok())
                 .is_none_or(|place_index| *owner_index == place_index),

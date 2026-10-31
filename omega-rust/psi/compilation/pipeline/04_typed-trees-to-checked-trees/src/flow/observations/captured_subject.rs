@@ -4,6 +4,8 @@
 //! capture supplies the address's real evaluated graph; this query supplies
 //! source correspondence, not referent contents or loan authority.
 
+use crate::flow::expressions;
+use crate::places::place_at;
 use arena::Handle;
 use checked_trees::{
     BorrowFacts, CheckFacts, FlowFacts, FlowOperandFact, FlowPermissionEvaluation,
@@ -171,8 +173,7 @@ fn captured_case_subject_in_state_result(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Result<CapturedCaseSubject, CapturedCaseSubjectFailure> {
-    let binary = program
-        .expression_table
+    let binary = expressions(program)
         .binary_node(expression)
         .ok_or(CapturedCaseSubjectFailure::MissingOperation)?;
     validation::applied_case_membership_variant(program, machine, Some(state), expression, binary)
@@ -243,13 +244,8 @@ fn completed_case_subject(
     }
     let observed = referent_place(program, semantic, control, contexts, receiver)
         .ok_or("receiver_referent_not_unique")?;
-    let descriptor = validation::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        receiver.expression,
-    )
-    .ok_or("receiver_descriptor_has_no_coordinate")?;
+    let descriptor = place_at(program, state.symbol, statement_index, receiver.expression)
+        .ok_or("receiver_descriptor_has_no_coordinate")?;
     let super::super::stored_values::StoredOperand::Value {
         capture,
         reference,
@@ -405,7 +401,7 @@ fn completed_case_subject(
     {
         return Err("observed_and_completed_backing_types_disagree");
     }
-    let coordinate = validation::canonical_place_from_expression_in_state(
+    let coordinate = place_at(
         program,
         state.symbol,
         source.statement_index,
@@ -427,13 +423,8 @@ fn completed_case_subject(
     }
     for segment in &coordinate.segments {
         if let facts::PlaceSegment::Index { expression } = segment {
-            let selector = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                source.statement_index,
-                *expression,
-            )
-            .ok_or("source_selector_has_no_coordinate")?;
+            let selector = place_at(program, state.symbol, source.statement_index, *expression)
+                .ok_or("source_selector_has_no_coordinate")?;
             if !super::super::operand_contexts::operand_bindings_agree_in_state(
                 program, control, statements, source, receiver, &selector,
             ) {
@@ -533,12 +524,9 @@ fn trace_captured_subject_refusal(
                     }
                 }
             }
-            if let Some(descriptor) = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                receiver.expression,
-            ) {
+            if let Some(descriptor) =
+                place_at(program, state.symbol, statement_index, receiver.expression)
+            {
                 if let Some(super::super::stored_values::StoredOperand::Value {
                     capture,
                     reference,

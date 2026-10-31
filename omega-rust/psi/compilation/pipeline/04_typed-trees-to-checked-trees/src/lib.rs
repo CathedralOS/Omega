@@ -23,6 +23,7 @@ mod flow;
 #[cfg(test)]
 mod immutable_checking_input;
 mod operators;
+mod places;
 mod proof;
 mod quotient_eligibility;
 mod semantic;

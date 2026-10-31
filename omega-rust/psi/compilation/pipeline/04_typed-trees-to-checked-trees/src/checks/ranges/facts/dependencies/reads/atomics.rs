@@ -1,6 +1,7 @@
 //! Atomic read/write operand reads: carrier targets, local names, and the
 //! fetch/compare-exchange operand spellings an atomic call contributes.
 
+use crate::flow::expressions;
 use validation::CanonicalPlace;
 
 use super::super::ExpressionHandle;
@@ -169,8 +170,7 @@ impl ReadWalk<'_, '_, '_> {
         }
         let symbol = validation::first_valid_name_path_symbol(path, &program.expression_table)
             .or_else(|| {
-                let name = program
-                    .expression_table
+                let name = expressions(program)
                     .name_path_members(path.members)
                     .first()?;
                 crate::flow::state_statements(program, state.statement_nodes)

@@ -4,7 +4,9 @@ use validation::CanonicalPlace;
 use super::{callee_values::*, reference_bounds::*};
 
 use super::{FlowCallFact, FlowStateFact, ProgressSubject};
+use crate::flow::state_statements;
 use crate::flow::{self};
+use crate::places::place_at;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -215,9 +217,7 @@ pub(super) fn call_result_place(
     {
         return None;
     }
-    let statements = program
-        .statement_table
-        .statements(callee_state.statement_nodes);
+    let statements = state_statements(program, callee_state.statement_nodes);
     // Every route the body can take, and the linear prefix they share. A body
     // that ends in one expression or one unconditional value transition has a
     // single route. A guarded body -- `transition flag { true -> a false -> b }`
@@ -410,12 +410,7 @@ pub(super) fn caller_argument_place(
         if depth == 0 {
             return None;
         }
-        let place = validation::canonical_place_from_expression_in_state(
-            program,
-            state.state_symbol,
-            statement_index,
-            expression,
-        )?;
+        let place = place_at(program, state.state_symbol, statement_index, expression)?;
         match place.root {
             PlaceRoot::Symbol(_) => {
                 let mut source = place;

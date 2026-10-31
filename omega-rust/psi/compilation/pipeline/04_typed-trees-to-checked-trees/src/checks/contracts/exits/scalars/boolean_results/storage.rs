@@ -8,6 +8,7 @@
 use super::{
     CheckedBooleanExpression, CheckedScalarExpressionRole, ExitScalars, PrimitiveType, SymbolHandle,
 };
+use crate::flow::state_statements;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
@@ -26,10 +27,7 @@ impl ExitScalars<'_, '_> {
         *remaining -= 1;
         let state =
             validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
-        let statements = self
-            .program
-            .statement_table
-            .statements(state.statement_nodes);
+        let statements = state_statements(self.program, state.statement_nodes);
         let before = usize::try_from(before_statement).ok()?;
         *remaining = remaining.checked_sub(statements.len())?;
         let (_, local) = self
@@ -176,10 +174,7 @@ impl ExitScalars<'_, '_> {
     ) -> Option<()> {
         let state =
             validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
-        let statements = self
-            .program
-            .statement_table
-            .statements(state.statement_nodes);
+        let statements = state_statements(self.program, state.statement_nodes);
         *remaining = remaining.checked_sub(statements.len())?;
         let definition = usize::try_from(definition).ok()?;
         let before = usize::try_from(before_statement).ok()?;

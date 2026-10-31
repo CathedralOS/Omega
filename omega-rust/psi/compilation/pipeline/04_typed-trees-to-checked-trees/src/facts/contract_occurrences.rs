@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 /// Return each structural value occurrence referenced by one contract fact.
@@ -30,10 +31,7 @@ pub(crate) fn fact_referenced_occurrences_in_state(
             append_occurrences(program, membership.value, state, &mut occurrences);
         }
         typed_trees::domain::ProofFact::Proposition(application) => {
-            for argument in program
-                .expression_table
-                .expression_handles(application.arguments)
-            {
+            for argument in expressions(program).expression_handles(application.arguments) {
                 append_occurrences(program, *argument, state, &mut occurrences);
             }
         }

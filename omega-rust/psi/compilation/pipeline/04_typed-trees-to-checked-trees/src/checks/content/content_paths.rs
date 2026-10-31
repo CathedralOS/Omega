@@ -1,5 +1,6 @@
 //! Content segments, contract places and projection plans as fact paths.
 
+use crate::flow::expressions;
 use checked_trees::CheckFacts;
 use checked_trees::facts::ContentBodyClaimBinding;
 use language_semantics::content::{
@@ -365,9 +366,7 @@ fn contract_structural_place(
         ExpressionNode::Name(path) => {
             let names = program.expression_table.name_path_members(path.members);
             let root = names.first()?.as_str().to_owned();
-            let symbols = program
-                .expression_table
-                .name_path_member_symbols(path.member_symbols);
+            let symbols = expressions(program).name_path_member_symbols(path.member_symbols);
             let root_symbol = symbols.first().copied().unwrap_or(path.head_symbol);
             let segments =
                 names

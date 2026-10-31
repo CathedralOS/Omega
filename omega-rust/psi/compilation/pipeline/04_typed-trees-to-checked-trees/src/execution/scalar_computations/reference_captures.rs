@@ -3,6 +3,7 @@
 //! historical suppliers provided it. Those suppliers and their lineage remain
 //! independent BorrowFacts; geometry never invents a new resource or owning move.
 use super::{Builder, ExpressionHandle};
+use crate::flow::state_statements;
 use checked_trees::{BorrowAccessKind, CheckedStructuralAccess};
 use typed_trees::types::TypeReferenceHandle;
 
@@ -20,10 +21,7 @@ impl Builder<'_, '_> {
             .program
             .state_by_symbol(self.state)
             .and_then(|state| {
-                self.program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .get(self.statement_index)
+                state_statements(self.program, state.statement_nodes).get(self.statement_index)
             })
             .and_then(|statement| statement.as_local_data())
             .filter(|local| local.initial_value == expression);

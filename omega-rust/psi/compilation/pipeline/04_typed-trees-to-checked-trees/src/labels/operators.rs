@@ -1,3 +1,4 @@
+use crate::flow::expressions;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::signature::StateParameter;
@@ -30,8 +31,7 @@ pub(crate) fn instantiate_operator_contract_expression_label(
             saved.capture.generation()
         ),
         ExpressionNode::Match(dispatch) => {
-            let arms = program
-                .expression_table
+            let arms = expressions(program)
                 .match_arms(dispatch.arms)
                 .iter()
                 .map(|arm| {
@@ -60,8 +60,7 @@ pub(crate) fn instantiate_operator_contract_expression_label(
             instantiate(atomic.value)
         ),
         ExpressionNode::ArrayLiteral(values) => {
-            let values = program
-                .expression_table
+            let values = expressions(program)
                 .expression_handles(*values)
                 .iter()
                 .map(|value| instantiate(*value))
@@ -80,9 +79,7 @@ pub(crate) fn instantiate_operator_contract_expression_label(
             "{} as {}",
             instantiate(cast.value),
             typed_trees::expression::display_name_path(
-                program
-                    .expression_table
-                    .name_path_members(cast.target_label),
+                expressions(program).name_path_members(cast.target_label),
                 "::",
             )
         ),

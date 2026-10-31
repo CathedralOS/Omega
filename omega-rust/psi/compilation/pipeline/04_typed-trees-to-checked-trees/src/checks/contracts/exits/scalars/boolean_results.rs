@@ -13,6 +13,8 @@
 //! equations. Reading candidate clauses and expanding their substitutions share
 //! one budget; neither callee bodies nor current mutable storage supply values.
 
+use crate::flow::expressions;
+use crate::flow::indexed_statements;
 use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole,
 };
@@ -170,10 +172,7 @@ impl ExitScalars<'_, '_> {
                 let state = self.state()?;
                 let parameters = super::primitive_parameters(self.program, state).count();
                 let binding_ordinal = u32::try_from(position.checked_sub(parameters)?).ok()?;
-                let (statement, local) = self
-                    .program
-                    .statement_table
-                    .indexed_statements(state.statement_nodes)
+                let (statement, local) = indexed_statements(self.program, state.statement_nodes)
                     .filter_map(|(statement, node)| {
                         let local = node.as_local_data()?;
                         super::is_scalar_roster_local(self.program, local)
@@ -219,9 +218,7 @@ impl ExitScalars<'_, '_> {
                     );
                 }
                 if matches!(
-                    self.program
-                        .expression_table
-                        .expression(local.initial_value),
+                    expressions(self.program).expression(local.initial_value),
                     typed_trees::expression::ExpressionNode::Call(_)
                 ) {
                     // Pure direct-call arguments already have occurrence-owned

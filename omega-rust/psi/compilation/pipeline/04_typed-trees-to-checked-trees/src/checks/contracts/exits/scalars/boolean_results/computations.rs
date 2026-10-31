@@ -14,6 +14,7 @@ use super::{
     bind_boolean,
 };
 use crate::checks::contracts::prover::has_builtin_operators;
+use crate::flow::state_statements;
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind as Computation};
 use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
 
@@ -78,9 +79,7 @@ impl ExitScalars<'_, '_> {
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>();
         symbols.extend(
-            self.program
-                .statement_table
-                .statements(state.statement_nodes)
+            state_statements(self.program, state.statement_nodes)
                 .get(..statement as usize)?
                 .iter()
                 .filter_map(|statement| {

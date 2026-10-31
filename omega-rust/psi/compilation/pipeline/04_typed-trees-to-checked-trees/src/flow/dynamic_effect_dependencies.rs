@@ -1,6 +1,7 @@
 //! Narrow operational envelopes through completed selector values, never current storage.
 //! Unknown predecessors retain the public envelope; every known alternative contributes.
 
+use crate::places::place_at;
 use arena::Handle;
 use checked_trees::{CheckFacts, FlowOperandFact};
 use facts::PlaceSegment;
@@ -93,7 +94,7 @@ fn selected_implementations(
                 program.expression_table.expression(capture.expression)
             {
                 let state = program.state_by_symbol(capture.state_symbol)?;
-                let source = validation::canonical_place_from_expression_in_state(
+                let source = place_at(
                     program,
                     capture.state_symbol,
                     capture.statement_index,

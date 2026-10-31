@@ -9,6 +9,7 @@ use super::{
 use crate::checks::contracts::call_bounds::context::comparison_is_admitted;
 use crate::checks::contracts::call_bounds::context::direct_parameter;
 use crate::checks::contracts::call_bounds::context::fixed_parameter_type;
+use crate::flow::expressions;
 use numerics::arithmetic::ArithmeticDomain;
 
 pub(super) fn primitive_type(
@@ -102,8 +103,7 @@ fn operand_effects_are_known(
         ExpressionNode::Call(call) => {
             (!call.receiver.is_valid()
                 || operand_effects_are_known(program, facts, owner, parameters, call.receiver))
-                && program
-                    .expression_table
+                && expressions(program)
                     .expression_handles(call.arguments)
                     .iter()
                     .all(|argument| {

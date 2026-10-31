@@ -4,6 +4,7 @@
 //! The caller supplies current contexts and owns operand freshness; this query
 //! neither recovers an old initializer nor grants immutable entry identity.
 
+use crate::places::place_at;
 use validation::CanonicalPlace;
 
 use facts::{FactOrigin, FactPayload, FactPlan, ProgramPoint, ScalarValue};
@@ -212,12 +213,7 @@ fn postcondition_place(
         expression,
     )?;
     super::field_actuals::checked_place(program, value)?;
-    let mut actual = validation::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        value,
-    )?;
+    let mut actual = place_at(program, state_symbol, statement_index, value)?;
     actual.segments.extend(remaining);
     Some(actual)
 }

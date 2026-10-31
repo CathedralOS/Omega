@@ -1,5 +1,6 @@
 //! The checked proposition vocabulary and lowered proposition applications.
 
+use crate::flow::expressions;
 use arena::{Handle, HandleSpan};
 use checked_trees::ContractProofFactKind;
 use symbols::SymbolHandle;
@@ -51,8 +52,7 @@ pub(crate) fn proposition_label_parts(
                 .unwrap_or_else(|| argument.display_name())
         })
         .collect::<Vec<_>>();
-    let argument_labels = program
-        .expression_table
+    let argument_labels = expressions(program)
         .expression_handles(application.arguments)
         .iter()
         .map(|argument| {
