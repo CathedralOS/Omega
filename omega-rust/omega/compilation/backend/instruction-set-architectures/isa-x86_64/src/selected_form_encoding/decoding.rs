@@ -12,8 +12,8 @@ use selected_instructions::{
     AtomicOperation, AtomicWidth, MachineAlternativeKey, MachineEncodedControlEffect,
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
     MachineEncodedTrapBehavior, MachineSemanticKind, SaturatingCarrier, SaturatingOperation,
-    SelectedInstructionKind, TrappingForm, dedicated_selected_forms, exact_add_or_sub_pair_pattern,
-    exact_shift_i64_pair_pattern, exact_wrapping_divrem_set_pattern,
+    SelectedInstructionKind as Kind, TrappingForm, dedicated_selected_forms,
+    exact_add_or_sub_pair_pattern, exact_shift_i64_pair_pattern, exact_wrapping_divrem_set_pattern,
     layout_dependent_selected_transfers, saturating_add_or_subtract_pattern,
 };
 
@@ -914,19 +914,19 @@ fn divide_register_layout(registers: &[u8]) -> bool {
 }
 
 pub(crate) fn validate_decoded(
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     registers: &[u8],
     decoded: &[DecodedInstruction],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
     let valid = match kind {
-        SelectedInstructionKind::RegisterAccess { .. } => {
+        Kind::RegisterAccess { .. } => {
             return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
         }
-        SelectedInstructionKind::PortWrite { .. } => {
+        Kind::PortWrite { .. } => {
             unreachable!("port envelopes use the dedicated exact decoder")
         }
-        SelectedInstructionKind::AccessorScalarAccess {
+        Kind::AccessorScalarAccess {
             form, byte_offset, ..
         } => {
             let ordinary = form
@@ -952,7 +952,7 @@ pub(crate) fn validate_decoded(
                 decoded,
             );
         }
-        SelectedInstructionKind::AtomicAccess { form } => {
+        Kind::AtomicAccess { form } => {
             let base = registers[0];
             let bits = match form.width {
                 AtomicWidth::Bits8 => 8,
@@ -1103,15 +1103,10 @@ pub(crate) fn validate_decoded(
                 }
             }
         }
-        SelectedInstructionKind::NearestIeeeFloatArithmetic { .. }
-        | SelectedInstructionKind::FloatResultPolicy { .. } => false,
-        SelectedInstructionKind::AtomicFence => {
-            registers.is_empty() && decoded == [DecodedInstruction::MemoryFence]
-        }
-        SelectedInstructionKind::Crash => {
-            registers.is_empty() && decoded == [DecodedInstruction::Crash]
-        }
-        SelectedInstructionKind::MaterializeI64 { value } if alternative.variant == 1 => {
+        Kind::NearestIeeeFloatArithmetic { .. } | Kind::FloatResultPolicy { .. } => false,
+        Kind::AtomicFence => registers.is_empty() && decoded == [DecodedInstruction::MemoryFence],
+        Kind::Crash => registers.is_empty() && decoded == [DecodedInstruction::Crash],
+        Kind::MaterializeI64 { value } if alternative.variant == 1 => {
             integer_bits(value)? == 0
                 && decoded
                     == [DecodedInstruction::Xor {
@@ -1119,30 +1114,30 @@ pub(crate) fn validate_decoded(
                         destination: registers[0],
                     }]
         }
-        SelectedInstructionKind::MaterializeI64 { value } => {
+        Kind::MaterializeI64 { value } => {
             decoded
                 == [DecodedInstruction::Materialize {
                     destination: registers[0],
                     value: integer_bits(value)?,
                 }]
         }
-        SelectedInstructionKind::ImageAddress { .. } => {
+        Kind::ImageAddress { .. } => {
             decoded
                 == [DecodedInstruction::UnresolvedRipRelativeAddress {
                     destination: registers[0],
                 }]
         }
-        SelectedInstructionKind::MaterializeBooleanEqual
-        | SelectedInstructionKind::MaterializeBooleanU64LessThan
-        | SelectedInstructionKind::MaterializeBooleanI64LessThan
-        | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
-        | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
+        Kind::MaterializeBooleanEqual
+        | Kind::MaterializeBooleanU64LessThan
+        | Kind::MaterializeBooleanI64LessThan
+        | Kind::MaterializeBooleanU64LessOrEqual
+        | Kind::MaterializeBooleanI64LessOrEqual => {
             let condition = match kind {
-                SelectedInstructionKind::MaterializeBooleanEqual => 4,
-                SelectedInstructionKind::MaterializeBooleanU64LessThan => 2,
-                SelectedInstructionKind::MaterializeBooleanI64LessThan => 12,
-                SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => 6,
-                SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => 14,
+                Kind::MaterializeBooleanEqual => 4,
+                Kind::MaterializeBooleanU64LessThan => 2,
+                Kind::MaterializeBooleanI64LessThan => 12,
+                Kind::MaterializeBooleanU64LessOrEqual => 6,
+                Kind::MaterializeBooleanI64LessOrEqual => 14,
                 _ => unreachable!("Boolean condition arm"),
             };
             decoded
@@ -1157,85 +1152,83 @@ pub(crate) fn validate_decoded(
                     },
                 ]
         }
-        SelectedInstructionKind::ZeroExtendU8 => {
+        Kind::ZeroExtendU8 => {
             decoded
                 == [DecodedInstruction::ZeroExtendU8 {
                     source: registers[0],
                     destination: registers[1],
                 }]
         }
-        SelectedInstructionKind::ZeroExtendU16 => {
+        Kind::ZeroExtendU16 => {
             decoded
                 == [DecodedInstruction::ZeroExtendU16 {
                     source: registers[0],
                     destination: registers[1],
                 }]
         }
-        SelectedInstructionKind::SignExtendI8 => {
+        Kind::SignExtendI8 => {
             decoded
                 == [DecodedInstruction::SignExtendI8 {
                     source: registers[0],
                     destination: registers[1],
                 }]
         }
-        SelectedInstructionKind::SignExtendI16 => {
+        Kind::SignExtendI16 => {
             decoded
                 == [DecodedInstruction::SignExtendI16 {
                     source: registers[0],
                     destination: registers[1],
                 }]
         }
-        SelectedInstructionKind::SignExtendI32 => {
+        Kind::SignExtendI32 => {
             decoded
                 == [DecodedInstruction::SignExtendI32 {
                     source: registers[0],
                     destination: registers[1],
                 }]
         }
-        SelectedInstructionKind::ZeroExtendU32 => {
+        Kind::ZeroExtendU32 => {
             decoded
                 == [DecodedInstruction::ZeroExtendU32 {
                     source: registers[0],
                     destination: registers[1],
                 }]
         }
-        SelectedInstructionKind::CopyI64 => decoded == [mov(registers[0], registers[1])],
-        SelectedInstructionKind::CompareI64Zero => {
+        Kind::CopyI64 => decoded == [mov(registers[0], registers[1])],
+        Kind::CompareI64Zero => {
             decoded
                 == [DecodedInstruction::Test {
                     register: registers[0],
                 }]
         }
-        SelectedInstructionKind::CompareI64 => {
+        Kind::CompareI64 => {
             decoded
                 == [DecodedInstruction::Compare {
                     left: registers[0],
                     right: registers[1],
                 }]
         }
-        SelectedInstructionKind::CompareI64Immediate { immediate } => {
+        Kind::CompareI64Immediate { immediate } => {
             decoded
                 == [DecodedInstruction::CompareImmediate {
                     register: registers[0],
                     immediate: u12(immediate)?,
                 }]
         }
-        SelectedInstructionKind::ByteViewAddress
-        | SelectedInstructionKind::WrappingAddI64
-        | SelectedInstructionKind::ExactAddI64 { .. } => {
+        Kind::ByteViewAddress | Kind::WrappingAddI64 | Kind::ExactAddI64 { .. } => {
             matches!(decoded, [DecodedInstruction::Lea { destination, base, index: Some(index), displacement: 0 }]
                 if *destination == registers[2]
                     && ((*base == registers[0] && *index == registers[1])
                         || (*base == registers[1] && *index == registers[0])))
         }
-        SelectedInstructionKind::ExactDivideU64 { .. } => {
+        Kind::ExactDivideU64 { .. } => {
             divide_register_layout(registers)
                 && decoded
                     == [DecodedInstruction::UnsignedDivide {
                         divisor: registers[1],
                     }]
         }
-        SelectedInstructionKind::ExactRemainderU64 { .. } => {
+        Kind::ExactRemainderU64 { .. } => {
             divide_register_layout(registers)
                 && decoded
                     == [
@@ -1249,7 +1242,7 @@ pub(crate) fn validate_decoded(
                         mov(2, 0),
                     ]
         }
-        SelectedInstructionKind::WrappingDivideI64 { .. } => {
+        Kind::WrappingDivideI64 { .. } => {
             divide_register_layout(registers)
                 && decoded
                     == [
@@ -1266,7 +1259,7 @@ pub(crate) fn validate_decoded(
                         },
                     ]
         }
-        SelectedInstructionKind::ExactDivideI64 { .. } => {
+        Kind::ExactDivideI64 { .. } => {
             divide_register_layout(registers)
                 && decoded
                     == [
@@ -1276,7 +1269,7 @@ pub(crate) fn validate_decoded(
                         },
                     ]
         }
-        SelectedInstructionKind::ExactRemainderI64 { .. } => {
+        Kind::ExactRemainderI64 { .. } => {
             divide_register_layout(registers)
                 && decoded
                     == [
@@ -1287,7 +1280,7 @@ pub(crate) fn validate_decoded(
                         mov(2, 0),
                     ]
         }
-        SelectedInstructionKind::WrappingRemainderI64 { .. } => {
+        Kind::WrappingRemainderI64 { .. } => {
             divide_register_layout(registers)
                 && decoded
                     == [
@@ -1307,34 +1300,32 @@ pub(crate) fn validate_decoded(
                         mov(2, 0),
                     ]
         }
-        SelectedInstructionKind::SaturatingAdd { carrier } => {
+        Kind::SaturatingAdd { carrier } => {
             saturating_matches(SaturatingOperation::Add, carrier, registers, decoded)
         }
-        SelectedInstructionKind::SaturatingSubtract { carrier } => {
+        Kind::SaturatingSubtract { carrier } => {
             saturating_matches(SaturatingOperation::Subtract, carrier, registers, decoded)
         }
-        SelectedInstructionKind::SaturatingDivide { carrier, .. } => {
+        Kind::SaturatingDivide { carrier, .. } => {
             saturating_matches(SaturatingOperation::Divide, carrier, registers, decoded)
         }
-        SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
+        Kind::SaturatingRemainder { carrier, .. } => {
             saturating_matches(SaturatingOperation::Remainder, carrier, registers, decoded)
         }
-        SelectedInstructionKind::SaturatingMultiply { carrier } => {
+        Kind::SaturatingMultiply { carrier } => {
             saturating_matches(SaturatingOperation::Multiply, carrier, registers, decoded)
         }
-        SelectedInstructionKind::TrappingInteger { form } => {
+        Kind::TrappingInteger { form } => {
             TrappingShape::of(form).accepts_registers(registers)
                 && decoded == expected_trapping(form, registers)
         }
-        SelectedInstructionKind::BitwiseAndI64
-        | SelectedInstructionKind::BitwiseOrI64
-        | SelectedInstructionKind::BitwiseXorI64 => {
+        Kind::BitwiseAndI64 | Kind::BitwiseOrI64 | Kind::BitwiseXorI64 => {
             let operation = |source, destination| match kind {
-                SelectedInstructionKind::BitwiseXorI64 => DecodedInstruction::Xor {
+                Kind::BitwiseXorI64 => DecodedInstruction::Xor {
                     source,
                     destination,
                 },
-                SelectedInstructionKind::BitwiseOrI64 => DecodedInstruction::Or {
+                Kind::BitwiseOrI64 => DecodedInstruction::Or {
                     source,
                     destination,
                 },
@@ -1355,7 +1346,7 @@ pub(crate) fn validate_decoded(
                     ]
             }
         }
-        SelectedInstructionKind::ExactAddI64Immediate { immediate, .. } => {
+        Kind::ExactAddI64Immediate { immediate, .. } => {
             decoded
                 == [DecodedInstruction::Lea {
                     destination: registers[1],
@@ -1364,7 +1355,7 @@ pub(crate) fn validate_decoded(
                     displacement: i32::try_from(u12(immediate)?).expect("u12 fits i32"),
                 }]
         }
-        SelectedInstructionKind::ExactSubtractI64Immediate { immediate, .. } => {
+        Kind::ExactSubtractI64Immediate { immediate, .. } => {
             decoded
                 == [DecodedInstruction::Lea {
                     destination: registers[1],
@@ -1373,7 +1364,7 @@ pub(crate) fn validate_decoded(
                     displacement: -i32::try_from(u12(immediate)?).expect("u12 fits i32"),
                 }]
         }
-        SelectedInstructionKind::BitwiseNotI64 => {
+        Kind::BitwiseNotI64 => {
             if registers[1] == registers[0] {
                 decoded
                     == [DecodedInstruction::Complement {
@@ -1389,8 +1380,7 @@ pub(crate) fn validate_decoded(
                     ]
             }
         }
-        SelectedInstructionKind::ExactSubtractI64 { .. }
-        | SelectedInstructionKind::WrappingSubtractI64 => match alternative.variant {
+        Kind::ExactSubtractI64 { .. } | Kind::WrappingSubtractI64 => match alternative.variant {
             0 => {
                 decoded
                     == [DecodedInstruction::Xor {
@@ -1429,8 +1419,7 @@ pub(crate) fn validate_decoded(
             }
             _ => false,
         },
-        SelectedInstructionKind::ExactMultiplyI64 { .. }
-        | SelectedInstructionKind::WrappingMultiplyI64 => match alternative.variant {
+        Kind::ExactMultiplyI64 { .. } | Kind::WrappingMultiplyI64 => match alternative.variant {
             0 => {
                 decoded
                     == [DecodedInstruction::Multiply {
@@ -1464,23 +1453,21 @@ pub(crate) fn validate_decoded(
             }
             _ => false,
         },
-        SelectedInstructionKind::WrappingShiftLeftI64
-        | SelectedInstructionKind::WrappingShiftRightI64
-        | SelectedInstructionKind::WrappingShiftRightU64
+        Kind::WrappingShiftLeftI64
+        | Kind::WrappingShiftRightI64
+        | Kind::WrappingShiftRightU64
         | exact_shift_i64_pair_pattern!()
-        | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
+        | Kind::ExactShiftRightU64 { .. } => {
             // The count source must resolve to the pinned RCX view; the
             // realization is the unconditional value copy into the result
             // followed by the in-place variable-count shift.
             let shift = match kind {
-                SelectedInstructionKind::WrappingShiftLeftI64
-                | SelectedInstructionKind::ExactShiftLeftI64 { .. } => {
+                Kind::WrappingShiftLeftI64 | Kind::ExactShiftLeftI64 { .. } => {
                     DecodedInstruction::ShiftLeftByCl {
                         destination: registers[2],
                     }
                 }
-                SelectedInstructionKind::WrappingShiftRightU64
-                | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
+                Kind::WrappingShiftRightU64 | Kind::ExactShiftRightU64 { .. } => {
                     DecodedInstruction::ShiftRightLogicalByCl {
                         destination: registers[2],
                     }
@@ -1491,9 +1478,9 @@ pub(crate) fn validate_decoded(
             };
             registers[1] == 1 && decoded == [mov(registers[0], registers[2]), shift]
         }
-        SelectedInstructionKind::ReturnScalar
-        | SelectedInstructionKind::ReturnAggregate { .. }
-        | SelectedInstructionKind::ReturnUnit => decoded == [DecodedInstruction::Return],
+        Kind::ReturnScalar | Kind::ReturnAggregate { .. } | Kind::ReturnUnit => {
+            decoded == [DecodedInstruction::Return]
+        }
         layout_dependent_selected_transfers!() | dedicated_selected_forms!() => false,
     };
     if valid {
@@ -2029,7 +2016,7 @@ fn saturating_footprint(
 }
 
 pub(crate) fn footprint(
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> X86_64SelectedFormFootprint {
@@ -2039,101 +2026,91 @@ pub(crate) fn footprint(
     if let Some(form) = trapping_form(kind) {
         return trapping_footprint(form, operands);
     }
-    if let SelectedInstructionKind::NearestIeeeFloatArithmetic { form } = kind {
+    if let Kind::NearestIeeeFloatArithmetic { form } = kind {
         return super::ieee_float_arithmetic::footprint(form, operands);
     }
-    if let SelectedInstructionKind::AtomicAccess { form } = kind {
+    if let Kind::AtomicAccess { form } = kind {
         return super::atomic::footprint(form, operands);
     }
     // The fallthrough kinds' operand surface, as positions into the
     // alternative's operand roster. The footprint's register views and the
     // encoded effects both derive from this one list.
     let (reads, writes, writes_rflags): (Vec<u16>, Vec<u16>, bool) = match kind {
-        SelectedInstructionKind::RegisterAccess { operation } => {
+        Kind::RegisterAccess { operation } => {
             return super::register_access::footprint(operation, operands);
         }
-        SelectedInstructionKind::AccessorScalarAccess { form, .. } => {
+        Kind::AccessorScalarAccess { form, .. } => {
             if form.write {
                 (vec![0, 1], vec![], false)
             } else {
                 (vec![0], vec![1], false)
             }
         }
-        SelectedInstructionKind::FloatResultPolicy { form } => {
+        Kind::FloatResultPolicy { form } => {
             return super::float_result_policy::footprint(form, operands);
         }
-        SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => {
+        Kind::NearestIeeeFloatArithmetic { .. } => {
             unreachable!("float arithmetic footprint returned above")
         }
-        SelectedInstructionKind::AtomicAccess { .. } => {
+        Kind::AtomicAccess { .. } => {
             unreachable!("atomic footprint returned above")
         }
-        SelectedInstructionKind::PortWrite { .. }
-        | SelectedInstructionKind::AtomicFence
-        | SelectedInstructionKind::Crash => (Vec::new(), Vec::new(), false),
-        SelectedInstructionKind::MaterializeBooleanEqual
-        | SelectedInstructionKind::MaterializeBooleanU64LessThan
-        | SelectedInstructionKind::MaterializeBooleanI64LessThan
-        | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
-        | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => (vec![], vec![0], false),
+        Kind::PortWrite { .. } | Kind::AtomicFence | Kind::Crash => (Vec::new(), Vec::new(), false),
+        Kind::MaterializeBooleanEqual
+        | Kind::MaterializeBooleanU64LessThan
+        | Kind::MaterializeBooleanI64LessThan
+        | Kind::MaterializeBooleanU64LessOrEqual
+        | Kind::MaterializeBooleanI64LessOrEqual => (vec![], vec![0], false),
         // The optimizer-selected `xor r64, r64` zero idiom writes RFLAGS.
-        SelectedInstructionKind::MaterializeI64 { .. } => {
-            (vec![], vec![0], alternative.variant == 1)
-        }
-        SelectedInstructionKind::ImageAddress { .. } => (vec![], vec![0], false),
-        SelectedInstructionKind::CopyI64
-        | SelectedInstructionKind::ZeroExtendU8
-        | SelectedInstructionKind::ZeroExtendU16
-        | SelectedInstructionKind::SignExtendI8
-        | SelectedInstructionKind::SignExtendI16
-        | SelectedInstructionKind::SignExtendI32
-        | SelectedInstructionKind::ZeroExtendU32 => (vec![0], vec![1], false),
-        SelectedInstructionKind::CompareI64Zero
-        | SelectedInstructionKind::CompareI64Immediate { .. } => (vec![0], vec![], true),
-        SelectedInstructionKind::ExactDivideU64 { .. } => (vec![0, 1, 3], vec![2], true),
+        Kind::MaterializeI64 { .. } => (vec![], vec![0], alternative.variant == 1),
+        Kind::ImageAddress { .. } => (vec![], vec![0], false),
+        Kind::CopyI64
+        | Kind::ZeroExtendU8
+        | Kind::ZeroExtendU16
+        | Kind::SignExtendI8
+        | Kind::SignExtendI16
+        | Kind::SignExtendI32
+        | Kind::ZeroExtendU32 => (vec![0], vec![1], false),
+        Kind::CompareI64Zero | Kind::CompareI64Immediate { .. } => (vec![0], vec![], true),
+        Kind::ExactDivideU64 { .. } => (vec![0, 1, 3], vec![2], true),
         exact_wrapping_divrem_set_pattern!(..) => (vec![0, 1], vec![2, 3], true),
-        SelectedInstructionKind::CompareI64 => (vec![0, 1], vec![], true),
-        SelectedInstructionKind::ByteViewAddress
-        | SelectedInstructionKind::WrappingAddI64
-        | SelectedInstructionKind::ExactAddI64 { .. } => (vec![0, 1], vec![2], false),
+        Kind::CompareI64 => (vec![0, 1], vec![], true),
+        Kind::ByteViewAddress | Kind::WrappingAddI64 | Kind::ExactAddI64 { .. } => {
+            (vec![0, 1], vec![2], false)
+        }
         // `not` never defines flags; only the guarding copy may precede it.
-        SelectedInstructionKind::BitwiseNotI64 => (vec![0], vec![1], false),
+        Kind::BitwiseNotI64 => (vec![0], vec![1], false),
         exact_add_or_sub_pair_pattern!(..) => (vec![0], vec![1], false),
-        SelectedInstructionKind::ExactSubtractI64 { .. }
-        | SelectedInstructionKind::WrappingSubtractI64
-            if alternative.variant == 0 =>
-        {
+        Kind::ExactSubtractI64 { .. } | Kind::WrappingSubtractI64 if alternative.variant == 0 => {
             (vec![], vec![2], true)
         }
-        SelectedInstructionKind::ExactSubtractI64 { .. }
-        | SelectedInstructionKind::WrappingSubtractI64 => (vec![0, 1], vec![2], true),
+        Kind::ExactSubtractI64 { .. } | Kind::WrappingSubtractI64 => (vec![0, 1], vec![2], true),
         // `imul` reads its destination operand even when every operand shares
         // one view, so no variant collapses the reads the way `xor` does.
-        SelectedInstructionKind::ExactMultiplyI64 { .. }
-        | SelectedInstructionKind::WrappingMultiplyI64 => (vec![0, 1], vec![2], true),
+        Kind::ExactMultiplyI64 { .. } | Kind::WrappingMultiplyI64 => (vec![0, 1], vec![2], true),
         // The single shift form reads the value and the pinned RCX count and
         // writes the early-clobber result; SHx by CL writes RFLAGS.
-        SelectedInstructionKind::WrappingShiftLeftI64
-        | SelectedInstructionKind::WrappingShiftRightI64
-        | SelectedInstructionKind::WrappingShiftRightU64
+        Kind::WrappingShiftLeftI64
+        | Kind::WrappingShiftRightI64
+        | Kind::WrappingShiftRightU64
         | exact_shift_i64_pair_pattern!()
-        | SelectedInstructionKind::ExactShiftRightU64 { .. } => (vec![0, 1], vec![2], true),
-        SelectedInstructionKind::BitwiseAndI64
-        | SelectedInstructionKind::BitwiseOrI64
-        | SelectedInstructionKind::BitwiseXorI64 => (vec![0, 1], vec![2], true),
-        SelectedInstructionKind::ReturnScalar
-        | SelectedInstructionKind::ReturnAggregate { .. }
-        | SelectedInstructionKind::ReturnUnit => (vec![], vec![], false),
+        | Kind::ExactShiftRightU64 { .. } => (vec![0, 1], vec![2], true),
+        Kind::BitwiseAndI64 | Kind::BitwiseOrI64 | Kind::BitwiseXorI64 => {
+            (vec![0, 1], vec![2], true)
+        }
+        Kind::ReturnScalar | Kind::ReturnAggregate { .. } | Kind::ReturnUnit => {
+            (vec![], vec![], false)
+        }
         layout_dependent_selected_transfers!() | dedicated_selected_forms!() => {
             (vec![], vec![], false)
         }
         saturating_add_or_subtract_pattern!()
-        | SelectedInstructionKind::SaturatingDivide { .. }
-        | SelectedInstructionKind::SaturatingRemainder { .. }
-        | SelectedInstructionKind::SaturatingMultiply { .. } => {
+        | Kind::SaturatingDivide { .. }
+        | Kind::SaturatingRemainder { .. }
+        | Kind::SaturatingMultiply { .. } => {
             unreachable!("saturating forms handled above")
         }
-        SelectedInstructionKind::TrappingInteger { .. } => {
+        Kind::TrappingInteger { .. } => {
             unreachable!("trapping forms handled above")
         }
     };
@@ -2141,19 +2118,17 @@ pub(crate) fn footprint(
     let register_writes = operand_views(&writes, operands);
     let physical = crate::x86_64_physical_register_model_ref();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
-    let encoded = if matches!(kind, SelectedInstructionKind::PortWrite { .. }) {
+    let encoded = if matches!(kind, Kind::PortWrite { .. }) {
         super::port_write::effects()
-    } else if kind == SelectedInstructionKind::AtomicFence {
+    } else if kind == Kind::AtomicFence {
         MachineEncodedEffects::atomic_fence_v1()
-    } else if kind == SelectedInstructionKind::Crash {
+    } else if kind == Kind::Crash {
         selected_instructions::MachineEncodedEffects::crash_v1(&units("rip"))
-    } else if let SelectedInstructionKind::AtomicAccess { .. } = kind {
+    } else if let Kind::AtomicAccess { .. } = kind {
         unreachable!("atomic footprint returned above");
     } else if matches!(
         kind,
-        SelectedInstructionKind::ReturnScalar
-            | SelectedInstructionKind::ReturnAggregate { .. }
-            | SelectedInstructionKind::ReturnUnit
+        Kind::ReturnScalar | Kind::ReturnAggregate { .. } | Kind::ReturnUnit
     ) {
         let stack_pointer = physical.view_named("rsp").unwrap().id;
         let defs = units_of(&["rsp", "rip"]);
@@ -2176,9 +2151,9 @@ pub(crate) fn footprint(
         }
     } else if matches!(
         kind,
-        SelectedInstructionKind::ConditionalBranchNonZero
-            | SelectedInstructionKind::ConditionalBranchU64LessThan
-            | SelectedInstructionKind::ConditionalBranchI64LessThan
+        Kind::ConditionalBranchNonZero
+            | Kind::ConditionalBranchU64LessThan
+            | Kind::ConditionalBranchI64LessThan
     ) {
         let uses = units_of(&["rflags", "rip"]);
         MachineEncodedEffects {
@@ -2196,40 +2171,38 @@ pub(crate) fn footprint(
         let mut effects = MachineEncodedEffects::fallthrough_v1(reads, writes);
         if matches!(
             kind,
-            SelectedInstructionKind::CompareI64Zero
-                | SelectedInstructionKind::CompareI64
-                | SelectedInstructionKind::CompareI64Immediate { .. }
+            Kind::CompareI64Zero | Kind::CompareI64 | Kind::CompareI64Immediate { .. }
         ) {
             effects.implicit_unit_defs = units("rflags");
         }
         if matches!(
             kind,
-            SelectedInstructionKind::ExactSubtractI64 { .. }
-                | SelectedInstructionKind::WrappingSubtractI64
-                | SelectedInstructionKind::ExactMultiplyI64 { .. }
-                | SelectedInstructionKind::WrappingMultiplyI64
-                | SelectedInstructionKind::WrappingShiftLeftI64
-                | SelectedInstructionKind::WrappingShiftRightI64
-                | SelectedInstructionKind::WrappingShiftRightU64
+            Kind::ExactSubtractI64 { .. }
+                | Kind::WrappingSubtractI64
+                | Kind::ExactMultiplyI64 { .. }
+                | Kind::WrappingMultiplyI64
+                | Kind::WrappingShiftLeftI64
+                | Kind::WrappingShiftRightI64
+                | Kind::WrappingShiftRightU64
                 | exact_shift_i64_pair_pattern!()
-                | SelectedInstructionKind::ExactShiftRightU64 { .. }
-                | SelectedInstructionKind::BitwiseAndI64
-                | SelectedInstructionKind::BitwiseOrI64
-                | SelectedInstructionKind::BitwiseXorI64
+                | Kind::ExactShiftRightU64 { .. }
+                | Kind::BitwiseAndI64
+                | Kind::BitwiseOrI64
+                | Kind::BitwiseXorI64
         ) {
             effects.implicit_unit_clobbers = units("rflags");
         }
         if matches!(
             kind,
-            SelectedInstructionKind::MaterializeBooleanEqual
-                | SelectedInstructionKind::MaterializeBooleanU64LessThan
-                | SelectedInstructionKind::MaterializeBooleanI64LessThan
-                | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
-                | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
+            Kind::MaterializeBooleanEqual
+                | Kind::MaterializeBooleanU64LessThan
+                | Kind::MaterializeBooleanI64LessThan
+                | Kind::MaterializeBooleanU64LessOrEqual
+                | Kind::MaterializeBooleanI64LessOrEqual
         ) {
             effects.implicit_unit_uses = units("rflags");
         }
-        if matches!(kind, SelectedInstructionKind::ExactDivideU64 { .. }) {
+        if matches!(kind, Kind::ExactDivideU64 { .. }) {
             effects.implicit_unit_clobbers = units("rdx");
             effects.implicit_unit_clobbers.extend(units("rflags"));
             effects.implicit_unit_clobbers.sort_unstable();
@@ -2240,7 +2213,7 @@ pub(crate) fn footprint(
             effects.implicit_unit_clobbers = units("rflags");
             effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
         }
-        if writes_rflags && matches!(kind, SelectedInstructionKind::MaterializeI64 { .. }) {
+        if writes_rflags && matches!(kind, Kind::MaterializeI64 { .. }) {
             effects.implicit_unit_clobbers = units("rflags");
         }
         effects
