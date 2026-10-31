@@ -1,6 +1,7 @@
 use super::super::semantics::declarations::{
     nominal_identity, nominal_owner, trait_requirement_identity,
 };
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::record::{PackageReviewInstallationReach, PackageReviewNominalIdentity};
 use diagnostics::Diagnostic;
@@ -59,11 +60,9 @@ fn installation_requirement_identity(
         {
             let path = compilation
                 .machine_callable_identity_text(machine)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "package review installation reach has no normalized machine overload identity",
-                    )]
-                })?;
+                .or_evidence(
+                    "package review installation reach has no normalized machine overload identity",
+                )?;
             Ok(PackageReviewNominalIdentity {
                 owner: nominal_owner(compilation, machine.symbol)?,
                 path,
@@ -95,11 +94,7 @@ pub(crate) fn project_service_row(
                 .service_reaches
                 .services
                 .definition(*service)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "package review encountered an unknown boundary-service identity",
-                    )]
-                })?;
+                .or_evidence("package review encountered an unknown boundary-service identity")?;
             nominal_identity(compilation, definition.symbol)
         })
         .collect::<Result<Vec<_>, _>>()?;

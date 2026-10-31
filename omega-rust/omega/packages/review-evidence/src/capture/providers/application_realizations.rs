@@ -10,6 +10,7 @@ mod compiler_intrinsics;
 use super::super::semantics::declarations::nominal_identity;
 use super::super::semantics::types::review_type_identity_with_binders;
 use super::super::source::locations::canonical_source_span_location;
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::record::{
     CheckedPackageBoundaryApplicationRealizationReview, PackageReviewBoundaryApplication,
@@ -379,22 +380,18 @@ fn expression_is_owned_by_package(
         .typed
         .symbols
         .source_file(ownership_span)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "boundary application expression {expression:?} has no retained source file",
-            ))]
-        })?;
+        .or_evidence(format!(
+            "boundary application expression {expression:?} has no retained source file",
+        ))?;
     match source.origin {
         source::SourceOrigin::Toolchain => Ok(false),
         source::SourceOrigin::User => source
             .package_identity
             .map(|owner| owner == package)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "boundary application source `{}` has no reconciled package identity",
-                    source.path.display(),
-                ))]
-            }),
+            .or_evidence(format!(
+                "boundary application source `{}` has no reconciled package identity",
+                source.path.display(),
+            )),
     }
 }
 

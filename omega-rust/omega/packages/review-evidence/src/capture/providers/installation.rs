@@ -1,3 +1,4 @@
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::behavior::{project_installation_reaches, project_service_row};
 use crate::capture::semantics::declarations::{nominal_identity, provider_requirement_schema};
@@ -198,11 +199,7 @@ fn project_service_names(
             let definition = services
                 .id_for_name(name)
                 .and_then(|identity| services.definition(identity))
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "selected installation reach names an unknown exact service",
-                    )]
-                })?;
+                .or_evidence("selected installation reach names an unknown exact service")?;
             nominal_identity(compilation, definition.symbol)
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -230,11 +227,9 @@ fn exact_service_names(
                 .services
                 .definition(*service)
                 .map(|definition| definition.name.clone())
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "selected provider installation reach contains an unknown exact service",
-                    )]
-                })
+                .or_evidence(
+                    "selected provider installation reach contains an unknown exact service",
+                )
         })
         .collect::<Result<Vec<_>, _>>()?;
     names.sort();

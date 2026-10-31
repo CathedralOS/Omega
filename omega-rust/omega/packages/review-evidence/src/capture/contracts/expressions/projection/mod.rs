@@ -17,6 +17,7 @@ use super::operators::{
     exact_checked_contract_operator_meaning, project_contract_binary_operator,
     project_contract_unary_operator,
 };
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders_and_substitutions_and_lifetimes;
@@ -217,11 +218,7 @@ pub(crate) fn project_contract_expression_with_substitutions(
                     case,
                 });
             }
-            let operator = project_contract_binary_operator(binary.operator).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "contract operator has no ordinary binary representation",
-                )]
-            })?;
+            let operator = project_contract_binary_operator(binary.operator).or_evidence("contract operator has no ordinary binary representation",)?;
             Ok(PackageReviewContractExpression::Binary {
                 meaning: exact_checked_contract_operator_meaning(compilation, context, expression)?,
                 operator,

@@ -1,4 +1,5 @@
 use super::facts::ContractProjectionContext;
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::names::portable_ordinal;
 use crate::capture::semantics::declarations::{nominal_identity, trait_requirement_identity};
@@ -162,18 +163,10 @@ pub(crate) fn validate_checked_contract_evidence_components(
         .map(|requirement| {
             let owner = compilation
                 .trait_definition_by_symbol(requirement.declaring_trait)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "checked witness requirement has no exact declaring trait",
-                    )]
-                })?;
+                .or_evidence("checked witness requirement has no exact declaring trait")?;
             let signature = compilation
                 .trait_machine_signature_by_symbol(owner, requirement.requirement)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "checked witness requirement has no exact overload declaration",
-                    )]
-                })?;
+                .or_evidence("checked witness requirement has no exact overload declaration")?;
             Ok((
                 nominal_identity(compilation, requirement.declaring_trait)?,
                 trait_requirement_identity(compilation, owner, signature)?,

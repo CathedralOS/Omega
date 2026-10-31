@@ -1,3 +1,4 @@
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::api::operators::project_operator_coordinate;
 use crate::capture::contracts::facts::ContractProjectionContext;
@@ -96,11 +97,7 @@ pub(in crate::capture) fn exact_checked_expression_selection(
         let selection = program
             .authored_declaration_selections()
             .get(occurrence)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "package review expression has a dangling selection occurrence",
-                )]
-            })?;
+            .or_evidence("package review expression has a dangling selection occurrence")?;
         if selection.kind() == kind {
             selections.push(selection);
         }

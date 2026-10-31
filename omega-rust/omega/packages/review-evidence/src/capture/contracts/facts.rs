@@ -2,6 +2,7 @@ use super::evidence::{
     checked_contract_fact, checked_outcome_specific_guarantee, validate_checked_contract_evidence,
     validate_checked_contract_evidence_components,
 };
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::propositions::application::project_contract_proposition;
@@ -127,11 +128,9 @@ pub(crate) fn reviewed_package(
         .custody
         .sources()
         .package_identity()
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "{subject} review requires package-aware checked compilation"
-            ))]
-        })
+        .or_evidence(format!(
+            "{subject} review requires package-aware checked compilation"
+        ))
 }
 
 pub(crate) fn project_contracts(

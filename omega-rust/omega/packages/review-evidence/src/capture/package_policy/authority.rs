@@ -1,5 +1,6 @@
 //! Compiler-classified danger and ceiling slack over normalized callable facts.
 
+use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::capture::authority::dangerous_authority_class;
 use crate::capture::semantics::declarations::{is_checked_source_instance, nominal_identity};
@@ -29,12 +30,10 @@ pub(super) fn registrations(
                 break;
             }
         }
-        let definition = selected.ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "audited service `{}` has no checked boundary identity",
-                registration.name
-            ))]
-        })?;
+        let definition = selected.or_evidence(format!(
+            "audited service `{}` has no checked boundary identity",
+            registration.name
+        ))?;
         services.push(nominal_identity(compilation, definition.symbol)?);
     }
     services.sort();
