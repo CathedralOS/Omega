@@ -5,9 +5,11 @@ use super::{
 use crate::frozen_program::expression_table;
 use crate::proof_integer_expression;
 mod application_formation;
+mod denotations;
 #[cfg(test)]
 mod difference_constraint_tests;
 mod difference_matrix;
+pub(super) use denotations::IntegerDenotation;
 mod integer_operations;
 mod integer_policy;
 mod intervals;
@@ -610,139 +612,6 @@ impl<'program> Engine<'program> {
                 } => self.bitwise_interval(operator, &left, &right, bits, signed),
             };
             self.arithmetic_intervals.insert(atom, interval);
-        }
-    }
-
-    /// Both operands mapped through the argument map together — `None` when
-    /// either substitution declines.
-    fn mapped_polynomials(
-        a: &Polynomial,
-        b: &Polynomial,
-        argument_map: &mut BTreeMap<String, Polynomial>,
-    ) -> Option<(Polynomial, Polynomial)> {
-        Some((
-            super::inductive_judgment::apply_argument_map(a, argument_map)?,
-            super::inductive_judgment::apply_argument_map(b, argument_map)?,
-        ))
-    }
-
-    /// Extend a simultaneous argument map across this engine's opaque atoms:
-    /// a remainder, quotient, or shift atom whose operands substitute
-    /// completely is re-minted under the transported inputs and mapped to
-    /// that fresh atom,
-    /// its interval registered like any minted term. An operand whose leaf
-    /// the map does not cover keeps its atom unmapped, so the consuming
-    /// substitution still fails closed on it. Mint order transports an inner
-    /// atom before every outer term that embeds it.
-    pub(super) fn extend_argument_map_over_opaque_terms(
-        &mut self,
-        argument_map: &mut BTreeMap<String, Polynomial>,
-    ) {
-        for index in 0..self.opaque_terms.len() {
-            let (atom, term) = self.opaque_terms[index].clone();
-            let (next_atom, interval) = match term {
-                OpaqueTerm::IntegerPolicy {
-                    primitive,
-                    domain,
-                    value,
-                } => {
-                    let Some(value) =
-                        super::inductive_judgment::apply_argument_map(&value, argument_map)
-                    else {
-                        continue;
-                    };
-                    let Some(value) = self.integer_policy_value(primitive, domain, value) else {
-                        continue;
-                    };
-                    argument_map.insert(atom, value);
-                    continue;
-                }
-                OpaqueTerm::Remainder {
-                    operand,
-                    modulus,
-                    tight_interval,
-                } => {
-                    let Some((operand, modulus)) =
-                        Self::mapped_polynomials(&operand, &modulus, argument_map)
-                    else {
-                        continue;
-                    };
-                    let next = format!("\0integer-remainder:{operand:?}%{modulus:?}");
-                    (
-                        next,
-                        self.remainder_interval(&operand, &modulus, tight_interval),
-                    )
-                }
-                OpaqueTerm::Quotient { dividend, divisor } => {
-                    let Some((dividend, divisor)) =
-                        Self::mapped_polynomials(&dividend, &divisor, argument_map)
-                    else {
-                        continue;
-                    };
-                    (
-                        format!("\0integer-quotient:{dividend:?}/{divisor:?}"),
-                        self.quotient_interval(&dividend, &divisor),
-                    )
-                }
-                OpaqueTerm::ShiftLeft {
-                    value,
-                    count,
-                    count_bits,
-                } => {
-                    let Some((value, count)) =
-                        Self::mapped_polynomials(&value, &count, argument_map)
-                    else {
-                        continue;
-                    };
-                    (
-                        format!("\0integer-shift-left:{value:?}<<{count:?}"),
-                        self.shift_left_interval(&value, &count, count_bits),
-                    )
-                }
-                OpaqueTerm::ShiftRight {
-                    value,
-                    count,
-                    count_bits,
-                } => {
-                    let Some((value, count)) =
-                        Self::mapped_polynomials(&value, &count, argument_map)
-                    else {
-                        continue;
-                    };
-                    (
-                        format!("\0integer-shift-right:{value:?}>>{count:?}"),
-                        self.shift_right_interval(&value, &count, count_bits),
-                    )
-                }
-                OpaqueTerm::Bitwise {
-                    operator,
-                    left,
-                    right,
-                    bits,
-                    signed,
-                } => {
-                    let Some(left) =
-                        super::inductive_judgment::apply_argument_map(&left, argument_map)
-                    else {
-                        continue;
-                    };
-                    let Some(right) =
-                        super::inductive_judgment::apply_argument_map(&right, argument_map)
-                    else {
-                        continue;
-                    };
-                    if let Some(value) = self.integer_bitwise(operator, left, right, bits, signed) {
-                        argument_map.insert(atom, value);
-                    }
-                    continue;
-                }
-            };
-            // An unchanged operand re-mints the same atom and keeps its
-            // already-registered interval.
-            self.arithmetic_intervals
-                .entry(next_atom.clone())
-                .or_insert(interval);
-            argument_map.insert(atom, Polynomial::atom(next_atom));
         }
     }
 

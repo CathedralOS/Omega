@@ -109,7 +109,7 @@ fn prove(
             parameter,
             body,
             ..
-        } => RankValue::computed(program, machine, &mut engine, subject, parameter, body)?,
+        } => RankValue::computed(program, &mut engine, subject, parameter, body)?,
         RankingRangeMeasure::Single(_) => RankValue::scalar(input),
         RankingRangeMeasure::Distance { .. } | RankingRangeMeasure::IncreasingTo { .. } => {
             let paired = paired.as_ref()?;

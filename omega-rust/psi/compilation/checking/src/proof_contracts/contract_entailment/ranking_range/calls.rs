@@ -351,7 +351,7 @@ pub(crate) fn prove_ranking_range_call(
         RankingRangeMeasure::Field { .. } => {
             super::RankValue::scalar(field_ranks.as_ref()?.value()?)
         }
-        _ => rank_coordinate(program, caller.machine, &mut engine, source_measure)?,
+        _ => rank_coordinate(program, &mut engine, source_measure)?,
     };
     let rank = rank_value.value.clone();
     let view_bound = match source_measure {
@@ -596,7 +596,7 @@ pub(crate) fn prove_ranking_range_call(
     }
     let next_rank_value = match captured_destination_rank {
         Some(rank) => super::RankValue::scalar(rank),
-        None => rank_coordinate(program, callee.machine, &mut engine, destination_measure)?,
+        None => rank_coordinate(program, &mut engine, destination_measure)?,
     };
     let next_rank = next_rank_value.value.clone();
     let pinned_view_bound = match (view_bound, destination_measure) {
@@ -1002,7 +1002,6 @@ fn forms_in_carrier(engine: &Engine<'_>, measure: RankingRangeMeasure, rank: &Po
 
 pub(super) fn rank_coordinate(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     engine: &mut Engine<'_>,
     measure: RankingRangeMeasure,
 ) -> Option<super::RankValue> {
@@ -1015,7 +1014,7 @@ pub(super) fn rank_coordinate(
             parameter,
             body,
             ..
-        } => super::RankValue::computed(program, machine, engine, subject, parameter, body),
+        } => super::RankValue::computed(program, engine, subject, parameter, body),
         // Keep the raw coordinate polynomial; the call-owned membership and
         // comparison predicates interpret its max(0,d) normalization.
         RankingRangeMeasure::IncreasingTo { subject, limit } => Some(super::RankValue::scalar(

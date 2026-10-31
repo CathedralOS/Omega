@@ -411,6 +411,9 @@ impl Engine<'_> {
         // Shift consequences refer to the reduced count, not a discarded
         // positive multiple of width whose actual shift is zero.
         admitted.install_integer_operation_bounds(operator, left, &effective_right, &value);
+        if operator == BinaryOperator::Modulo {
+            admitted.install_fixed_quotient_remainder(left, &effective_right, &value);
+        }
         if let Some(binding) = binding
             && !admitted.install_hypotheses(vec![(
                 BinaryOperator::Equal,
@@ -422,6 +425,40 @@ impl Engine<'_> {
         }
         *self = admitted;
         Some(value)
+    }
+
+    /// Once the selected remainder and all children independently form,
+    /// operand bounds may establish one truncating quotient. The remainder
+    /// then retains its exact relation to those operands, not only [0,d-1].
+    /// This is mathematical truncation for both signs, including the finite
+    /// policy MIN % -1 result; no executable quotient is introduced.
+    fn install_fixed_quotient_remainder(
+        &mut self,
+        dividend: &Polynomial,
+        divisor: &Polynomial,
+        remainder: &Polynomial,
+    ) -> bool {
+        let interval = self.quotient_interval(dividend, divisor);
+        let (Some(minimum), Some(maximum)) = (interval.low, interval.high) else {
+            return false;
+        };
+        if minimum != maximum {
+            return false;
+        }
+        let Some(product) = self
+            .substituted(divisor)
+            .checked_mul(&Polynomial::constant(minimum))
+        else {
+            return false;
+        };
+        let value = self.substituted(dividend).sub(&product);
+        let difference = self.substituted(remainder).sub(&value);
+        if self.prove_at_least(&difference, &BigInt::zero())
+            && self.prove_at_least(&difference.neg(), &BigInt::zero())
+        {
+            return false;
+        }
+        self.install_hypotheses(vec![(BinaryOperator::Equal, remainder.clone(), value)])
     }
 
     /// Correlated consequences of an independently admitted integer operation.

@@ -1301,7 +1301,7 @@ fn prove_edge(
             parameter,
             body,
             ..
-        } => RankValue::computed(program, machine, &mut engine, subject, parameter, body)?,
+        } => RankValue::computed(program, &mut engine, subject, parameter, body)?,
         RankingRangeMeasure::Field { .. } => RankValue::scalar(field_rank.as_ref()?.value()?),
         RankingRangeMeasure::SliceLength(subject) => RankValue::scalar(match &slice_rank {
             // A slice reached through a member chain reads its projected
