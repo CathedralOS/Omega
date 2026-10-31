@@ -2,6 +2,7 @@
 //! proof facts, propositions, measures and operators.
 
 use super::ClosedConformanceApplicationSite::Occurrence;
+use super::{ClosedConformanceApplication, ClosedConformanceApplicationSite};
 use crate::machine::Machine;
 use crate::mathematical::MathematicalDefinition;
 use crate::name::Identifier;
@@ -12,6 +13,14 @@ use crate::types::TypeReferenceHandle;
 use crate::{data, domain, measure, proposition, signature};
 use arena::{Handle, HandleSpan};
 use symbols::JoinedPath;
+
+/// One live conformance application site, its supplying owner and its receipt.
+pub type ConformanceSite<'a> = (
+    ClosedConformanceApplicationSite,
+    symbols::SymbolHandle,
+    StaticMachineApplicationHandle,
+    &'a ClosedConformanceApplication,
+);
 
 impl TypedTrees {
     /// Semantic containment is not necessarily symbol allocation containment.
@@ -139,14 +148,7 @@ impl TypedTrees {
     }
 
     /// Census of occurrence/evidence selections, preserving each source anchor.
-    pub fn closed_conformance_application_sites(
-        &self,
-    ) -> Vec<(
-        super::ClosedConformanceApplicationSite,
-        symbols::SymbolHandle,
-        StaticMachineApplicationHandle,
-        &super::ClosedConformanceApplication,
-    )> {
+    pub fn closed_conformance_application_sites(&self) -> Vec<ConformanceSite<'_>> {
         self.closed_conformance_application_sites_matching(|_| true, None)
     }
 
@@ -156,12 +158,7 @@ impl TypedTrees {
     pub fn closed_conformance_application_sites_for_owners(
         &self,
         owners: &[symbols::SymbolHandle],
-    ) -> Vec<(
-        super::ClosedConformanceApplicationSite,
-        symbols::SymbolHandle,
-        StaticMachineApplicationHandle,
-        &super::ClosedConformanceApplication,
-    )> {
+    ) -> Vec<ConformanceSite<'_>> {
         self.closed_conformance_application_sites_matching(|owner| owners.contains(&owner), None)
     }
 
@@ -170,12 +167,7 @@ impl TypedTrees {
     pub(crate) fn closed_conformance_application_sites_from_occurrences(
         &self,
         occurrences: &[StaticMachineApplicationHandle],
-    ) -> Vec<(
-        super::ClosedConformanceApplicationSite,
-        symbols::SymbolHandle,
-        StaticMachineApplicationHandle,
-        &super::ClosedConformanceApplication,
-    )> {
+    ) -> Vec<ConformanceSite<'_>> {
         self.closed_conformance_application_sites_matching(|_| true, Some(occurrences))
     }
 
@@ -183,12 +175,7 @@ impl TypedTrees {
         &self,
         includes_owner: impl Fn(symbols::SymbolHandle) -> bool,
         known_live: Option<&[StaticMachineApplicationHandle]>,
-    ) -> Vec<(
-        super::ClosedConformanceApplicationSite,
-        symbols::SymbolHandle,
-        StaticMachineApplicationHandle,
-        &super::ClosedConformanceApplication,
-    )> {
+    ) -> Vec<ConformanceSite<'_>> {
         let mut sites = Vec::new();
         for (s, receipt) in self.machine_specializations.iter().enumerate() {
             if !includes_owner(receipt.instance) {
