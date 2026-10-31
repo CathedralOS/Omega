@@ -80,7 +80,7 @@ fn post_allocation_codec_pins_current_schema_at_empty_boundaries() {
 fn post_allocation_identity_stream_scratch_does_not_grow_with_instruction_count() {
     let mut source = plan();
     let single_size = source.encode().len();
-    let instruction = source.functions[0].blocks[0].instructions[0].clone();
+    let instruction = first_instruction(&mut source).clone();
     source.functions[0].blocks[0].instructions = (0..1000)
         .map(|ordinal| {
             let mut instruction = instruction.clone();
@@ -103,7 +103,7 @@ fn post_allocation_identity_stream_scratch_does_not_grow_with_instruction_count(
 #[test]
 fn physical_copy_bytes_codec_binds_dynamic_operand_roles_without_an_address_operation() {
     let mut source = plan();
-    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    let instruction = first_instruction(&mut source);
     instruction.alternative.key.family = MachineAlternativeFamily::CopyBytes;
     instruction.address = None;
     instruction.alternative.encoded.memory = MachineEncodedMemoryEffect::CopyBytesV1 {
@@ -119,10 +119,7 @@ fn physical_copy_bytes_codec_binds_dynamic_operand_roles_without_an_address_oper
             source_pointer_operand,
             destination_pointer_operand,
             count_operand,
-        } = &mut changed.functions[0].blocks[0].instructions[0]
-            .alternative
-            .encoded
-            .memory
+        } = &mut first_instruction(&mut changed).alternative.encoded.memory
         else {
             panic!("copy effect");
         };
@@ -139,7 +136,7 @@ fn physical_copy_bytes_codec_binds_dynamic_operand_roles_without_an_address_oper
 #[test]
 fn physical_zero_bytes_codec_binds_dynamic_operand_roles_without_an_address_operation() {
     let mut source = plan();
-    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    let instruction = first_instruction(&mut source);
     instruction.alternative.key.family = MachineAlternativeFamily::ZeroBytes;
     instruction.address = None;
     instruction.alternative.encoded.memory = MachineEncodedMemoryEffect::ZeroBytesV1 {
@@ -153,10 +150,7 @@ fn physical_zero_bytes_codec_binds_dynamic_operand_roles_without_an_address_oper
         let MachineEncodedMemoryEffect::ZeroBytesV1 {
             destination_pointer_operand,
             count_operand,
-        } = &mut changed.functions[0].blocks[0].instructions[0]
-            .alternative
-            .encoded
-            .memory
+        } = &mut first_instruction(&mut changed).alternative.encoded.memory
         else {
             panic!("zero fill effect");
         };
@@ -171,6 +165,13 @@ fn physical_zero_bytes_codec_binds_dynamic_operand_roles_without_an_address_oper
 
 fn identity(byte: u8) -> [u8; 32] {
     [byte; 32]
+}
+
+/// The one instruction these fixtures author in the first block.
+fn first_instruction(
+    plan: &mut PostAllocationMachinePlan,
+) -> &mut PostAllocationMachineInstruction {
+    &mut plan.functions[0].blocks[0].instructions[0]
 }
 
 /// The codec contract every field probe re-states: one plan round trips
@@ -310,17 +311,12 @@ fn post_allocation_codec_is_deterministic_and_round_trips_every_field() {
 #[test]
 fn physical_codec_retains_byte_view_address_family_not_exact_add() {
     let mut source = plan();
-    source.functions[0].blocks[0].instructions[0]
-        .alternative
-        .key
-        .family = MachineAlternativeFamily::ByteViewAddress;
+    first_instruction(&mut source).alternative.key.family =
+        MachineAlternativeFamily::ByteViewAddress;
     source.identity = post_allocation_machine_identity(&source);
     assert_round_trip(&source);
     assert_content_rejected(&source, |changed| {
-        changed.functions[0].blocks[0].instructions[0]
-            .alternative
-            .key
-            .family = MachineAlternativeFamily::ExactAddI64;
+        first_instruction(changed).alternative.key.family = MachineAlternativeFamily::ExactAddI64;
     });
 }
 
@@ -371,7 +367,7 @@ fn outgoing_copy_and_pointer_slots_round_trip_with_independent_role_identity() {
                 byte_offset: 0,
             },
         ] {
-            source.functions[0].blocks[0].instructions[0].address = Some(address);
+            first_instruction(&mut source).address = Some(address);
             source.identity = post_allocation_machine_identity(&source);
             let encoded = source.encode();
             assert_round_trip(&source);
@@ -390,22 +386,21 @@ fn outgoing_copy_and_pointer_slots_round_trip_with_independent_role_identity() {
                     }
                     2 => {
                         let replacement = if slot == argument { copy } else { argument };
-                        changed.functions[0].blocks[0].instructions[0].address =
-                            Some(match address {
-                                PhysicalAddressOperation::FrameAddress { byte_offset, .. } => {
-                                    PhysicalAddressOperation::FrameAddress {
-                                        slot: FrameStorageSlotId::Outgoing(replacement),
-                                        byte_offset,
-                                    }
+                        first_instruction(&mut changed).address = Some(match address {
+                            PhysicalAddressOperation::FrameAddress { byte_offset, .. } => {
+                                PhysicalAddressOperation::FrameAddress {
+                                    slot: FrameStorageSlotId::Outgoing(replacement),
+                                    byte_offset,
                                 }
-                                PhysicalAddressOperation::Store64 { byte_offset, .. } => {
-                                    PhysicalAddressOperation::Store64 {
-                                        slot: FrameStorageSlotId::Outgoing(replacement),
-                                        byte_offset,
-                                    }
+                            }
+                            PhysicalAddressOperation::Store64 { byte_offset, .. } => {
+                                PhysicalAddressOperation::Store64 {
+                                    slot: FrameStorageSlotId::Outgoing(replacement),
+                                    byte_offset,
                                 }
-                                _ => unreachable!(),
-                            });
+                            }
+                            _ => unreachable!(),
+                        });
                     }
                     _ => unreachable!(),
                 }
@@ -452,7 +447,7 @@ fn physical_codec_retains_owned_entry_homes_and_rejects_stale_or_absent_identity
             byte_offset: 8,
         },
     ] {
-        source.functions[0].blocks[0].instructions[0].address = Some(address);
+        first_instruction(&mut source).address = Some(address);
         source.identity = post_allocation_machine_identity(&source);
         let encoded = source.encode();
         assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 22);
@@ -636,11 +631,11 @@ fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
             byte_offset: 0,
         },
     ] {
-        source.functions[0].blocks[0].instructions[0].address = Some(address);
+        first_instruction(&mut source).address = Some(address);
         source.identity = post_allocation_machine_identity(&source);
         assert_round_trip(&source);
         assert_content_rejected(&source, |changed| {
-            changed.functions[0].blocks[0].instructions[0].address = None;
+            first_instruction(changed).address = None;
         });
         assert_content_rejected(&source, |changed| {
             changed.functions[0].outgoing_arguments[0].abi_stack_byte_offset += 8;
@@ -665,7 +660,7 @@ fn floating_control_codec_binds_direction_and_private_frame_slot() {
                 alignment: 8,
             },
         );
-        let row = &mut source.functions[0].blocks[0].instructions[0];
+        let row = first_instruction(&mut source);
         row.address = Some(if restore {
             PhysicalAddressOperation::RestoreFloatingControl { slot }
         } else {
@@ -690,7 +685,7 @@ fn floating_control_codec_binds_direction_and_private_frame_slot() {
         source.identity = post_allocation_machine_identity(&source);
         assert_round_trip(&source);
         assert_content_rejected(&source, |changed| {
-            changed.functions[0].blocks[0].instructions[0].address = Some(if restore {
+            first_instruction(changed).address = Some(if restore {
                 PhysicalAddressOperation::SaveFloatingControl { slot }
             } else {
                 PhysicalAddressOperation::RestoreFloatingControl { slot }
@@ -715,7 +710,7 @@ fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
             byte_size: 1,
             alignment: 1,
         });
-    source.functions[0].blocks[0].instructions[0].address =
+    first_instruction(&mut source).address =
         Some(PhysicalAddressOperation::HostedWriteByteI32 { slot });
     source.identity = post_allocation_machine_identity(&source);
     assert_round_trip(&source);
@@ -732,7 +727,7 @@ fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
             1 => changed.functions[0].local_storage_slots[0].byte_size = 2,
             2 => changed.functions[0].local_storage_slots[0].alignment = 2,
             _ => {
-                changed.functions[0].blocks[0].instructions[0].address =
+                first_instruction(&mut changed).address =
                     Some(PhysicalAddressOperation::HostedWriteByteI32 {
                         slot: selected_instructions::LocalStorageSlotId::Boundary {
                             operation: OperationId::new(149).unwrap(),
@@ -758,7 +753,7 @@ fn read_byte_codec_binds_structural_home_operation_geometry_and_address() {
             byte_size: 8,
             alignment: 4,
         });
-    source.functions[0].blocks[0].instructions[0].address =
+    first_instruction(&mut source).address =
         Some(PhysicalAddressOperation::HostedReadByte { slot });
     source.identity = post_allocation_machine_identity(&source);
     assert_round_trip(&source);
@@ -774,7 +769,7 @@ fn read_byte_codec_binds_structural_home_operation_geometry_and_address() {
             1 => changed.functions[0].local_storage_slots[0].byte_size = 2,
             2 => changed.functions[0].local_storage_slots[0].alignment = 2,
             _ => {
-                changed.functions[0].blocks[0].instructions[0].address =
+                first_instruction(&mut changed).address =
                     Some(PhysicalAddressOperation::HostedReadByte {
                         slot: selected_instructions::LocalStorageSlotId::Boundary {
                             operation: OperationId::new(149).unwrap(),
@@ -790,12 +785,11 @@ fn read_byte_codec_binds_structural_home_operation_geometry_and_address() {
 fn pointer_store_codec_binds_exact_width_and_rejects_unsupported_widths() {
     for byte_size in [1, 2, 4, 8] {
         let mut source = plan();
-        source.functions[0].blocks[0].instructions[0].address =
-            Some(PhysicalAddressOperation::Store {
-                base_operand: 0,
-                byte_offset: 16,
-                byte_size,
-            });
+        first_instruction(&mut source).address = Some(PhysicalAddressOperation::Store {
+            base_operand: 0,
+            byte_offset: 16,
+            byte_size,
+        });
         source.identity = post_allocation_machine_identity(&source);
         assert_round_trip(&source);
         for changed_address in [
@@ -816,18 +810,17 @@ fn pointer_store_codec_binds_exact_width_and_rejects_unsupported_widths() {
             },
         ] {
             assert_content_rejected(&source, |changed| {
-                changed.functions[0].blocks[0].instructions[0].address = Some(changed_address);
+                first_instruction(changed).address = Some(changed_address);
             });
         }
     }
     for byte_size in [0, 3, 5, 16, 255] {
         let mut invalid = plan();
-        invalid.functions[0].blocks[0].instructions[0].address =
-            Some(PhysicalAddressOperation::Store {
-                base_operand: 0,
-                byte_offset: 0,
-                byte_size,
-            });
+        first_instruction(&mut invalid).address = Some(PhysicalAddressOperation::Store {
+            base_operand: 0,
+            byte_offset: 0,
+            byte_size,
+        });
         invalid.identity = post_allocation_machine_identity(&invalid);
         assert_eq!(
             PostAllocationMachinePlan::decode(&invalid.encode()),
@@ -867,7 +860,7 @@ fn physical_codec_binds_activation_local_geometry_and_source_identity() {
             byte_offset: 0,
         },
     ] {
-        source.functions[0].blocks[0].instructions[0].address = Some(address);
+        first_instruction(&mut source).address = Some(address);
         source.identity = post_allocation_machine_identity(&source);
         assert_round_trip(&source);
         for field in 0..4 {
@@ -908,10 +901,7 @@ fn every_truncated_physical_frame_rejects() {
 #[test]
 fn reauthenticated_physical_data_is_still_only_a_proposal() {
     let mut substituted = plan();
-    substituted.functions[0].blocks[0].instructions[0]
-        .alternative
-        .key
-        .variant = u32::MAX;
+    first_instruction(&mut substituted).alternative.key.variant = u32::MAX;
     substituted.identity = post_allocation_machine_identity(&substituted);
     // Decoding is deliberately independent of a selected program and target
     // catalog. The consuming validator must reconstruct the chosen alternative.
@@ -924,17 +914,11 @@ fn reauthenticated_physical_data_is_still_only_a_proposal() {
 #[test]
 fn physical_u32_normalization_round_trips_and_binds_its_family() {
     let mut source = plan();
-    source.functions[0].blocks[0].instructions[0]
-        .alternative
-        .key
-        .family = MachineAlternativeFamily::ZeroExtendU32;
+    first_instruction(&mut source).alternative.key.family = MachineAlternativeFamily::ZeroExtendU32;
     source.identity = post_allocation_machine_identity(&source);
     assert_round_trip(&source);
     assert_content_rejected(&source, |changed| {
-        changed.functions[0].blocks[0].instructions[0]
-            .alternative
-            .key
-            .family = MachineAlternativeFamily::CopyI64;
+        first_instruction(changed).alternative.key.family = MachineAlternativeFamily::CopyI64;
     });
 }
 
@@ -961,7 +945,7 @@ fn compiler_spill_slot_codec_retains_function_local_identity() {
             byte_offset: 0,
         },
     ] {
-        source.functions[0].blocks[0].instructions[0].address = Some(address);
+        first_instruction(&mut source).address = Some(address);
         source.identity = post_allocation_machine_identity(&source);
         assert_round_trip(&source);
         let mut changed = source.clone();
@@ -995,7 +979,7 @@ fn physical_codec_retains_narrow_load_families_and_exact_addresses() {
         ),
     ] {
         let mut source = plan();
-        let instruction = &mut source.functions[0].blocks[0].instructions[0];
+        let instruction = first_instruction(&mut source);
         instruction.alternative.key.family = family;
         instruction.address = Some(address);
         instruction.alternative.encoded.memory = MachineEncodedMemoryEffect::ReadPointerV1 {
@@ -1006,7 +990,7 @@ fn physical_codec_retains_narrow_load_families_and_exact_addresses() {
         assert_round_trip(&source);
         for mutation in 0..3 {
             let mut changed = source.clone();
-            let instruction = &mut changed.functions[0].blocks[0].instructions[0];
+            let instruction = first_instruction(&mut changed);
             match mutation {
                 0 => instruction.alternative.key.family = MachineAlternativeFamily::Load64,
                 1 => {
